@@ -1,0 +1,110 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: forge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: forge_db
+      POSTGRES_USER: forge
+      POSTGRES_PASSWORD: forge_local_password
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U forge -d forge_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: forge-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: forge-api
+    restart: unless-stopped
+    env_file:
+      - apps/api/.env
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://forge:forge_local_password@postgres:5432/forge_db
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.worker
+    container_name: forge-worker
+    restart: unless-stopped
+    env_file:
+      - apps/api/.env
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://forge:forge_local_password@postgres:5432/forge_db
+      REDIS_URL: redis://redis:6379
+      WORKER_ONLY: 'true'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: forge-web
+    restart: unless-stopped
+    env_file:
+      - apps/web/.env.local
+    environment:
+      # Browser runs on the host — use localhost. SSR inside the container uses the Docker service name.
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+      API_INTERNAL_URL: http://api:3001/api/v1
+    ports:
+      - '3000:3000'
+    depends_on:
+      - api
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    container_name: forge-admin
+    restart: unless-stopped
+    env_file:
+      - apps/admin/.env.local
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+    ports:
+      - '3002:3002'
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:

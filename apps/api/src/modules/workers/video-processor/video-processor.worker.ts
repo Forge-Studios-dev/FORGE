@@ -1,0 +1,252 @@
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import { Job } from 'bullmq';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import ffmpeg from 'fluent-ffmpeg';
+import {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
+import { Video, VideoStatus } from '../../content/entities/video.entity';
+import { VIDEO_PROCESSING_QUEUE } from '../../content/videos.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+
+interface VideoProcessingJob {
+  videoId: string;
+  s3Key: string;
+  userId: string;
+}
+
+interface HlsRendition {
+  resolution: string;
+  bitrate: string;
+  height: number;
+}
+
+const HLS_RENDITIONS: HlsRendition[] = [
+  { resolution: '426x240', bitrate: '400k', height: 240 },
+  { resolution: '854x480', bitrate: '1000k', height: 480 },
+  { resolution: '1280x720', bitrate: '2500k', height: 720 },
+  { resolution: '1920x1080', bitrate: '5000k', height: 1080 },
+];
+
+@Processor(VIDEO_PROCESSING_QUEUE)
+export class VideoProcessorWorker extends WorkerHost {
+  private readonly logger = new Logger(VideoProcessorWorker.name);
+  private readonly s3: S3Client;
+  private readonly bucket: string;
+  private readonly cdnDomain: string;
+
+  constructor(
+    @InjectRepository(Video)
+    private readonly videoRepository: Repository<Video>,
+    private readonly configService: ConfigService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {
+    super();
+    this.s3 = new S3Client({
+      region: configService.get<string>('aws.region'),
+      credentials: {
+        accessKeyId: configService.get<string>('aws.accessKeyId') || '',
+        secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
+      },
+    });
+    this.bucket = configService.get<string>('aws.s3BucketName') || '';
+    this.cdnDomain = configService.get<string>('aws.cloudfrontDomain') || '';
+  }
+
+  async process(job: Job<VideoProcessingJob>): Promise<void> {
+    const { videoId, s3Key } = job.data;
+    const tmpDir = path.join(os.tmpdir(), `forge-${videoId}`);
+
+    this.logger.log(`Processing video ${videoId}`);
+
+    await this.videoRepository.update(videoId, { status: VideoStatus.PROCESSING });
+
+    try {
+      fs.mkdirSync(tmpDir, { recursive: true });
+
+      const rawFilePath = path.join(tmpDir, 'input.mp4');
+      await this.downloadFromS3(s3Key, rawFilePath);
+
+      await job.updateProgress(20);
+
+      const thumbnailPath = path.join(tmpDir, 'thumbnail.jpg');
+      await this.generateThumbnail(rawFilePath, thumbnailPath);
+
+      await job.updateProgress(35);
+
+      const hlsOutputDir = path.join(tmpDir, 'hls');
+      fs.mkdirSync(hlsOutputDir, { recursive: true });
+
+      const duration = await this.getVideoDuration(rawFilePath);
+      await this.transcodeToHls(rawFilePath, hlsOutputDir, duration, job);
+
+      await job.updateProgress(80);
+
+      const hlsBaseKey = `videos/${videoId}/hls`;
+      await this.uploadHlsToS3(hlsOutputDir, hlsBaseKey);
+
+      const thumbnailKey = `videos/${videoId}/thumbnail.jpg`;
+      await this.uploadFileToS3(thumbnailPath, thumbnailKey, 'image/jpeg');
+
+      await job.updateProgress(95);
+
+      const hlsUrl = this.cdnDomain
+        ? `${this.cdnDomain}/${hlsBaseKey}/master.m3u8`
+        : `https://${this.bucket}.s3.amazonaws.com/${hlsBaseKey}/master.m3u8`;
+
+      const thumbnailUrl = this.cdnDomain
+        ? `${this.cdnDomain}/${thumbnailKey}`
+        : `https://${this.bucket}.s3.amazonaws.com/${thumbnailKey}`;
+
+      await this.videoRepository.update(videoId, {
+        status: VideoStatus.READY,
+        hlsUrl,
+        thumbnailUrl,
+        durationSeconds: duration,
+      });
+
+      this.eventEmitter.emit('video.ready', { videoId, userId: job.data.userId });
+
+      await job.updateProgress(100);
+      this.logger.log(`Video ${videoId} processed successfully`);
+    } catch (err) {
+      this.logger.error(`Failed to process video ${videoId}`, err);
+      await this.videoRepository.update(videoId, { status: VideoStatus.FAILED });
+      throw err;
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  private async downloadFromS3(key: string, destPath: string): Promise<void> {
+    const response = await this.s3.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    const stream = response.Body as NodeJS.ReadableStream;
+    await new Promise<void>((resolve, reject) => {
+      const writer = fs.createWriteStream(destPath);
+      stream.pipe(writer);
+      writer.on('finish', resolve);
+      writer.on('error', reject);
+    });
+  }
+
+  private generateThumbnail(inputPath: string, outputPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .screenshots({
+          timestamps: ['5%'],
+          filename: path.basename(outputPath),
+          folder: path.dirname(outputPath),
+          size: '1280x720',
+        })
+        .on('end', () => resolve())
+        .on('error', (err: Error) => reject(err));
+    });
+  }
+
+  private getVideoDuration(inputPath: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(inputPath, (err, metadata) => {
+        if (err) return reject(err);
+        resolve(metadata.format.duration || 0);
+      });
+    });
+  }
+
+  private transcodeToHls(
+    inputPath: string,
+    outputDir: string,
+    _duration: number,
+    job: Job,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const masterPlaylist: string[] = ['#EXTM3U', '#EXT-X-VERSION:3'];
+      let completedRenditions = 0;
+
+      const processNextRendition = (index: number) => {
+        if (index >= HLS_RENDITIONS.length) {
+          const masterContent = masterPlaylist.join('\n');
+          fs.writeFileSync(path.join(outputDir, 'master.m3u8'), masterContent);
+          return resolve();
+        }
+
+        const rendition = HLS_RENDITIONS[index];
+        const renditionDir = path.join(outputDir, `${rendition.height}p`);
+        fs.mkdirSync(renditionDir, { recursive: true });
+
+        ffmpeg(inputPath)
+          .outputOptions([
+            `-vf scale=${rendition.resolution}`,
+            `-c:v libx264`,
+            `-b:v ${rendition.bitrate}`,
+            `-c:a aac`,
+            `-b:a 128k`,
+            `-hls_time 6`,
+            `-hls_playlist_type vod`,
+            `-hls_segment_filename ${renditionDir}/segment%03d.ts`,
+          ])
+          .output(path.join(renditionDir, 'index.m3u8'))
+          .on('end', () => {
+            masterPlaylist.push(
+              `#EXT-X-STREAM-INF:BANDWIDTH=${parseInt(rendition.bitrate) * 1000},RESOLUTION=${rendition.resolution}`,
+              `${rendition.height}p/index.m3u8`,
+            );
+            completedRenditions++;
+            job.updateProgress(35 + Math.floor((completedRenditions / HLS_RENDITIONS.length) * 45));
+            processNextRendition(index + 1);
+          })
+          .on('error', reject)
+          .run();
+      };
+
+      processNextRendition(0);
+    });
+  }
+
+  private async uploadHlsToS3(hlsDir: string, s3BaseKey: string): Promise<void> {
+    const uploadFile = async (filePath: string, key: string, contentType: string) => {
+      const body = fs.readFileSync(filePath);
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: body,
+          ContentType: contentType,
+          CacheControl: contentType === 'application/x-mpegURL' ? 'no-cache' : 'max-age=31536000',
+        }),
+      );
+    };
+
+    const walkDir = async (dir: string, prefix: string) => {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        const s3Key = `${prefix}/${entry.name}`;
+        if (entry.isDirectory()) {
+          await walkDir(fullPath, s3Key);
+        } else {
+          const contentType = entry.name.endsWith('.m3u8') ? 'application/x-mpegURL' : 'video/MP2T';
+          await uploadFile(fullPath, s3Key, contentType);
+        }
+      }
+    };
+
+    await walkDir(hlsDir, s3BaseKey);
+  }
+
+  private async uploadFileToS3(filePath: string, key: string, contentType: string): Promise<void> {
+    const body = fs.readFileSync(filePath);
+    await this.s3.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }),
+    );
+  }
+}
