@@ -100,6 +100,7 @@ services:
       - apps/admin/.env.local
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+      PORT: 3002
     ports:
       - '3002:3002'
     depends_on:

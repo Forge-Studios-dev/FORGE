@@ -5,12 +5,12 @@ import { Type } from 'class-transformer';
 export class PresignedUrlDto {
   @ApiProperty({ example: 'video/mp4' })
   @IsString()
-  @IsIn(['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'])
+  @IsIn(['video/mp4', 'video/quicktime'])
   contentType: string;
 
   @ApiProperty({ description: 'File size in bytes', example: 104857600 })
   @Type(() => Number)
   @IsNumber()
-  @Max(5 * 1024 * 1024 * 1024) // 5 GB max
+  @Max(500 * 1024 * 1024) // 500 MB max (MVP)
   fileSizeBytes: number;
 }

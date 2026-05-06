@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
@@ -17,9 +18,10 @@ export class Subcategory {
   id: string;
 
   @ManyToOne(() => Category, (cat) => cat.subcategories, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'category_id' })
   category: Category;
 
-  @Column({ name: 'category_id' })
+  @Column({ name: 'category_id', type: 'uuid' })
   categoryId: string;
 
   @Column({ length: 100 })

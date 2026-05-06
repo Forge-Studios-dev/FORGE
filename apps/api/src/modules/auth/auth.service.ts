@@ -14,6 +14,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
+import { permissionsForUser } from '../../common/auth/permissions';
 
 @Injectable()
 export class AuthService {
@@ -110,6 +111,10 @@ export class AuthService {
         displayName: user.displayName,
         avatarUrl: user.avatarUrl,
         role: user.role,
+        isVerified: user.isVerified,
+        creatorStatus: user.creatorStatus,
+        creatorReviewNote: user.creatorReviewNote,
+        permissions: permissionsForUser(user),
       },
     };
   }

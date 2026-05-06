@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Video, Tag, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Video, Tag, Settings, LogOut, UserCheck } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/users', label: 'Users', icon: Users },
+  { href: '/creator-approvals', label: 'Creator Approvals', icon: UserCheck },
   { href: '/content', label: 'Content', icon: Video },
   { href: '/categories', label: 'Categories', icon: Tag },
   { href: '/settings', label: 'Settings', icon: Settings },

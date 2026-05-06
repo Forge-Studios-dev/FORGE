@@ -51,9 +51,20 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     return { event: 'joined-stream', data: { streamId: data.streamId } };
   }
 
+  @SubscribeMessage('join-video')
+  handleJoinVideo(@MessageBody() data: { videoId: string }, @ConnectedSocket() client: Socket) {
+    client.join(`video:${data.videoId}`);
+    return { event: 'joined-video', data: { videoId: data.videoId } };
+  }
+
   @SubscribeMessage('leave-stream')
   handleLeaveStream(@MessageBody() data: { streamId: string }, @ConnectedSocket() client: Socket) {
     client.leave(`stream:${data.streamId}`);
+  }
+
+  @SubscribeMessage('leave-video')
+  handleLeaveVideo(@MessageBody() data: { videoId: string }, @ConnectedSocket() client: Socket) {
+    client.leave(`video:${data.videoId}`);
   }
 
   @OnEvent('video.ready')
@@ -67,6 +78,11 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   @OnEvent('stream.started')
   handleStreamStarted(payload: { streamId: string; userId: string; title: string }) {
     this.server.emit('stream:started', payload);
+  }
+
+  @OnEvent('stream.ended')
+  handleStreamEnded(payload: { streamId: string; userId: string; title: string }) {
+    this.server.emit('stream:ended', payload);
   }
 
   @OnEvent('comment.created')

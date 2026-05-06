@@ -8,6 +8,9 @@ export interface User {
   bannerUrl?: string;
   role: 'user' | 'creator' | 'admin';
   isVerified: boolean;
+  creatorStatus?: 'pending' | 'approved' | 'rejected' | null;
+  creatorReviewNote?: string | null;
+  permissions?: string[];
   followerCount: number;
   followingCount: number;
   videoCount: number;
@@ -80,6 +83,32 @@ export interface Comment {
   createdAt: string;
 }
 
+export interface Notification {
+  id: string;
+  userId: string;
+  type: 'creator_approved' | 'creator_rejected' | 'video_ready' | 'stream_started';
+  title: string;
+  body?: string | null;
+  readAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface Playlist {
+  id: string;
+  userId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  items?: Array<{
+    id: string;
+    playlistId: string;
+    videoId: string;
+    createdAt: string;
+    video: Video;
+  }>;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   meta: {
@@ -92,5 +121,17 @@ export interface PaginatedResponse<T> {
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
-  user: Pick<User, 'id' | 'email' | 'username' | 'displayName' | 'avatarUrl' | 'role'>;
+  user: Pick<
+    User,
+    | 'id'
+    | 'email'
+    | 'username'
+    | 'displayName'
+    | 'avatarUrl'
+    | 'role'
+    | 'isVerified'
+    | 'creatorStatus'
+    | 'creatorReviewNote'
+    | 'permissions'
+  >;
 }

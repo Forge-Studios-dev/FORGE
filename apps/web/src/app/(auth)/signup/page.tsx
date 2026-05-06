@@ -21,7 +21,13 @@ export default function SignupPage() {
       localStorage.setItem('forge_access_token', data.data.accessToken);
       localStorage.setItem('forge_refresh_token', data.data.refreshToken);
       localStorage.setItem('forge_user', JSON.stringify(data.data.user));
-      router.push('/');
+      if (data.data.user.role === 'creator' && data.data.user.creatorStatus && data.data.user.creatorStatus !== 'approved') {
+        router.push(
+          data.data.user.creatorStatus === 'rejected' ? '/approval-rejected' : '/waiting-approval',
+        );
+      } else {
+        router.push('/');
+      }
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(message || 'Sign up failed. Please try again.');

@@ -3,8 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Mux from '@mux/mux-node';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Stream, StreamStatus } from './entities/stream.entity';
 import { CreateStreamDto } from './dto/create-stream.dto';
+import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.entity';
 
 @Injectable()
 export class StreamingService {
@@ -14,7 +16,10 @@ export class StreamingService {
   constructor(
     @InjectRepository(Stream)
     private readonly streamRepository: Repository<Stream>,
+    @InjectRepository(Video)
+    private readonly videoRepository: Repository<Video>,
     private readonly configService: ConfigService,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     this.mux = new Mux({
       tokenId: configService.get<string>('mux.tokenId') || 'placeholder',
@@ -104,10 +109,61 @@ export class StreamingService {
         { muxLiveStreamId: data.id as string },
         { status: StreamStatus.LIVE, startedAt: new Date() },
       );
+
+      const stream = await this.streamRepository.findOne({ where: { muxLiveStreamId: data.id as string } });
+      if (stream) {
+        this.eventEmitter.emit('stream.started', {
+          streamId: stream.id,
+          userId: stream.userId,
+          title: stream.title,
+        });
+      }
+    } else if (eventType === 'video.live_stream.recording') {
+      // Recording started; active_asset_id can be used to map live -> VOD asset later.
+      const muxLiveStreamId = data.id as string;
+      const activeAssetId = data.active_asset_id as string | undefined;
+      if (activeAssetId) {
+        await this.streamRepository.update(
+          { muxLiveStreamId },
+          { muxAssetId: activeAssetId },
+        );
+      }
     } else if (eventType === 'video.live_stream.idle') {
       await this.streamRepository.update(
         { muxLiveStreamId: data.id as string },
         { status: StreamStatus.IDLE },
+      );
+
+      const stream = await this.streamRepository.findOne({ where: { muxLiveStreamId: data.id as string } });
+      if (stream) {
+        this.eventEmitter.emit('stream.ended', { streamId: stream.id, userId: stream.userId, title: stream.title });
+      }
+    } else if (eventType === 'video.asset.ready') {
+      // Optional MVP+: convert saved live recording asset into VOD video.
+      const assetId = data.id as string;
+      const playbackIds = (data.playback_ids as Array<{ id: string; policy: string }> | undefined) || [];
+      const playbackId = playbackIds[0]?.id;
+      if (!assetId || !playbackId) return;
+
+      const stream = await this.streamRepository.findOne({ where: { muxAssetId: assetId } });
+      if (!stream) return;
+
+      const hlsUrl = `https://stream.mux.com/${playbackId}.m3u8`;
+      await this.videoRepository.save(
+        this.videoRepository.create({
+          userId: stream.userId,
+          title: stream.title || 'Live session',
+          description: stream.description || null,
+          status: VideoStatus.READY,
+          visibility: VideoVisibility.PUBLIC,
+          hlsUrl,
+          thumbnailUrl: null,
+          s3Key: null,
+          uploadContentType: null,
+          uploadFileSizeBytes: null,
+          uploadCompletedAt: null,
+          failureReason: null,
+        }),
       );
     }
   }

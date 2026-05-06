@@ -5,15 +5,37 @@ import { User } from '@/types';
 import { formatCount } from '@/lib/utils';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 
 interface Props {
   user: User;
 }
 
 export function ProfileHeader({ user }: Props) {
+  const router = useRouter();
   const followMutation = useMutation({
     mutationFn: () => api.post(`/follow/${user.id}`),
   });
+
+  const requestCreatorMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post('/users/me/request-creator');
+      return data.data as User;
+    },
+    onSuccess: (updatedUser) => {
+      localStorage.setItem('forge_user', JSON.stringify(updatedUser));
+      router.push('/waiting-approval');
+    },
+  });
+
+  const isOwnProfile = (() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('forge_user') || 'null') as { id?: string } | null;
+      return stored?.id && stored.id === user.id;
+    } catch {
+      return false;
+    }
+  })();
 
   return (
     <div className="relative">
@@ -62,6 +84,18 @@ export function ProfileHeader({ user }: Props) {
             Follow
           </button>
         </div>
+
+        {isOwnProfile && user.role === 'user' && (
+          <div className="mt-4">
+            <button
+              onClick={() => requestCreatorMutation.mutate()}
+              disabled={requestCreatorMutation.isPending}
+              className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold px-4 py-2 rounded-xl transition disabled:opacity-60"
+            >
+              {requestCreatorMutation.isPending ? 'Submitting…' : 'Become a creator'}
+            </button>
+          </div>
+        )}
 
         <div className="flex gap-8 py-5 text-sm">
           <div className="text-center">

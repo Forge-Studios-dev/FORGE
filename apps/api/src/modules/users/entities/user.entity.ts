@@ -21,6 +21,12 @@ export enum UserRole {
   ADMIN = 'admin',
 }
 
+export enum CreatorStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
+
 @Entity('users')
 @Index(['email'], { unique: true })
 @Index(['username'], { unique: true })
@@ -56,6 +62,23 @@ export class User {
     default: UserRole.USER,
   })
   role: UserRole;
+
+  @Column({
+    name: 'creator_status',
+    type: 'enum',
+    enum: CreatorStatus,
+    nullable: true,
+  })
+  creatorStatus: CreatorStatus | null;
+
+  @Column({ name: 'creator_requested_at', type: 'timestamptz', nullable: true })
+  creatorRequestedAt: Date | null;
+
+  @Column({ name: 'creator_reviewed_at', type: 'timestamptz', nullable: true })
+  creatorReviewedAt: Date | null;
+
+  @Column({ name: 'creator_review_note', type: 'varchar', length: 500, nullable: true })
+  creatorReviewNote: string | null;
 
   @Column({ name: 'is_verified', default: false })
   isVerified: boolean;

@@ -16,11 +16,14 @@ import { FeedModule } from './modules/feed/feed.module';
 import { StreamingModule } from './modules/streaming/streaming.module';
 import { WorkersModule } from './modules/workers/workers.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { PlaylistsModule } from './modules/playlists/playlists.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { PermissionsGuard } from './common/guards/permissions.guard';
 import { HealthController } from './health.controller';
 import { bullMqConnectionFromConfig } from './config/bull-redis.util';
 
@@ -76,6 +79,8 @@ import { bullMqConnectionFromConfig } from './config/bull-redis.util';
     StreamingModule,
     WorkersModule,
     AdminModule,
+    PlaylistsModule,
+    NotificationsModule,
     GatewayModule,
   ],
 
@@ -85,6 +90,7 @@ import { bullMqConnectionFromConfig } from './config/bull-redis.util';
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })

@@ -4,6 +4,7 @@ import { serverApi } from '@/lib/api';
 import { Video } from '@/types';
 import { VideoPlayer } from '@/components/VideoPlayer/VideoPlayer';
 import { VideoInfo } from '@/components/VideoPlayer/VideoInfo';
+import { CommentsPanel } from '@/components/Comments/CommentsPanel';
 
 interface Props {
   params: { id: string };
@@ -51,6 +52,7 @@ export default async function WatchPage({ params }: Props) {
           <div className="lg:col-span-2 space-y-6">
             <VideoPlayer hlsUrl={video.hlsUrl} thumbnailUrl={video.thumbnailUrl} title={video.title} />
             <VideoInfo video={video} />
+            <CommentsPanel videoId={video.id} />
           </div>
 
           <div className="space-y-4">

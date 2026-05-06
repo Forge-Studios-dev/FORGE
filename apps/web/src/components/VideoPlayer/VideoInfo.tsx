@@ -3,10 +3,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Heart, MessageCircle, Eye } from 'lucide-react';
+import { Heart, MessageCircle, Eye, BookmarkPlus } from 'lucide-react';
 import { Video } from '@/types';
 import { api } from '@/lib/api';
 import { formatCount, timeAgo } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 interface Props {
   video: Video;
@@ -14,10 +15,19 @@ interface Props {
 
 export function VideoInfo({ video }: Props) {
   const qc = useQueryClient();
+  const router = useRouter();
 
   const likeMutation = useMutation({
     mutationFn: () => api.post(`/videos/${video.id}/like`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['video', video.id] }),
+  });
+
+  const saveToPlaylist = useMutation({
+    mutationFn: async () => {
+      const stored = typeof window !== 'undefined' ? localStorage.getItem('forge_user') : null;
+      if (!stored) throw new Error('Please sign in to use playlists');
+      router.push(`/playlists/new?videoId=${video.id}`);
+    },
   });
 
   return (
@@ -50,6 +60,13 @@ export function VideoInfo({ video }: Props) {
           >
             <Heart size={16} />
             {formatCount(video.likeCount)}
+          </button>
+          <button
+            onClick={() => saveToPlaylist.mutate()}
+            className="flex items-center gap-1.5 hover:text-forge-400 transition"
+          >
+            <BookmarkPlus size={16} />
+            Save
           </button>
           <span className="flex items-center gap-1.5">
             <MessageCircle size={16} />

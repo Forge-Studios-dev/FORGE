@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
   Unique,
@@ -18,15 +19,17 @@ export class Follow {
   id: string;
 
   @ManyToOne(() => User, (user) => user.following, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'follower_id' })
   follower: User;
 
-  @Column({ name: 'follower_id' })
+  @Column({ name: 'follower_id', type: 'uuid' })
   followerId: string;
 
   @ManyToOne(() => User, (user) => user.followers, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'following_id' })
   following: User;
 
-  @Column({ name: 'following_id' })
+  @Column({ name: 'following_id', type: 'uuid' })
   followingId: string;
 
   @CreateDateColumn({ name: 'created_at' })

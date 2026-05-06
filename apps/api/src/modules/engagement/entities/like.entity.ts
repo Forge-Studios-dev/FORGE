@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
   Unique,
@@ -19,15 +20,17 @@ export class Like {
   id: string;
 
   @ManyToOne(() => User, (user) => user.likes, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ name: 'user_id' })
+  @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
   @ManyToOne(() => Video, (video) => video.likes, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'video_id' })
   video: Video;
 
-  @Column({ name: 'video_id' })
+  @Column({ name: 'video_id', type: 'uuid' })
   videoId: string;
 
   @CreateDateColumn({ name: 'created_at' })

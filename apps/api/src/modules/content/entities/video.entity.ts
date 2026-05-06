@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
   JoinTable,
   ManyToMany,
   ManyToOne,
@@ -16,6 +17,7 @@ import { Like } from '../../engagement/entities/like.entity';
 import { Comment } from '../../engagement/entities/comment.entity';
 
 export enum VideoStatus {
+  UPLOADING = 'uploading',
   PENDING = 'pending',
   PROCESSING = 'processing',
   READY = 'ready',
@@ -37,16 +39,17 @@ export class Video {
   id: string;
 
   @ManyToOne(() => User, (user) => user.videos, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ name: 'user_id' })
+  @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
   @Column({ length: 200 })
   title: string;
 
-  @Column({ nullable: true, length: 2000 })
-  description: string;
+  @Column({ type: 'varchar', nullable: true, length: 2000 })
+  description: string | null;
 
   @Column({
     type: 'enum',
@@ -55,6 +58,18 @@ export class Video {
   })
   status: VideoStatus;
 
+  @Column({ name: 'upload_content_type', type: 'varchar', nullable: true, length: 100 })
+  uploadContentType: string | null;
+
+  @Column({ name: 'upload_file_size_bytes', type: 'bigint', nullable: true })
+  uploadFileSizeBytes: number | null;
+
+  @Column({ name: 'upload_completed_at', type: 'timestamptz', nullable: true })
+  uploadCompletedAt: Date | null;
+
+  @Column({ name: 'failure_reason', type: 'varchar', nullable: true, length: 500 })
+  failureReason: string | null;
+
   @Column({
     type: 'enum',
     enum: VideoVisibility,
@@ -62,20 +77,20 @@ export class Video {
   })
   visibility: VideoVisibility;
 
-  @Column({ name: 's3_key', nullable: true })
-  s3Key: string;
+  @Column({ name: 's3_key', type: 'varchar', nullable: true })
+  s3Key: string | null;
 
-  @Column({ name: 'hls_url', nullable: true })
-  hlsUrl: string;
+  @Column({ name: 'hls_url', type: 'varchar', nullable: true })
+  hlsUrl: string | null;
 
-  @Column({ name: 'thumbnail_url', nullable: true })
-  thumbnailUrl: string;
+  @Column({ name: 'thumbnail_url', type: 'varchar', nullable: true })
+  thumbnailUrl: string | null;
 
   @Column({ name: 'duration_seconds', nullable: true, type: 'float' })
-  durationSeconds: number;
+  durationSeconds: number | null;
 
   @Column({ name: 'file_size_bytes', nullable: true, type: 'bigint' })
-  fileSizeBytes: number;
+  fileSizeBytes: number | null;
 
   @Column({ name: 'view_count', default: 0 })
   viewCount: number;

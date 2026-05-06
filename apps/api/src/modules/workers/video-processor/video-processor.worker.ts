@@ -65,7 +65,9 @@ export class VideoProcessorWorker extends WorkerHost {
     const { videoId, s3Key } = job.data;
     const tmpDir = path.join(os.tmpdir(), `forge-${videoId}`);
 
-    this.logger.log(`Processing video ${videoId}`);
+    this.logger.log(
+      JSON.stringify({ msg: 'video_processing_started', videoId, userId: job.data.userId }),
+    );
 
     await this.videoRepository.update(videoId, { status: VideoStatus.PROCESSING });
 

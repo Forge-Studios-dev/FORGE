@@ -10,7 +10,7 @@ import { Repository } from 'typeorm';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
-import { User } from './entities/user.entity';
+import { CreatorStatus, User, UserRole } from './entities/user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Video } from '../content/entities/video.entity';
 
@@ -99,5 +99,23 @@ export class UsersService {
       hasMore ? Buffer.from(data[data.length - 1].createdAt.toISOString()).toString('base64') : null;
 
     return { data, meta: { cursor: nextCursor, hasMore } };
+  }
+
+  async requestCreator(userId: string): Promise<User> {
+    const user = await this.findById(userId);
+
+    if (user.role === UserRole.ADMIN) return user;
+
+    if (user.role === UserRole.CREATOR && user.creatorStatus === CreatorStatus.APPROVED) {
+      return user;
+    }
+
+    user.role = UserRole.CREATOR;
+    user.creatorStatus = CreatorStatus.PENDING;
+    user.creatorRequestedAt = user.creatorRequestedAt ?? new Date();
+    user.creatorReviewedAt = null;
+    user.creatorReviewNote = null;
+
+    return this.userRepository.save(user);
   }
 }

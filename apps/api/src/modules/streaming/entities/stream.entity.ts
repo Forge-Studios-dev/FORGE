@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -23,9 +24,10 @@ export class Stream {
   id: string;
 
   @ManyToOne(() => User, (user) => user.streams, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ name: 'user_id' })
+  @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
   @Column({ length: 200 })
@@ -39,6 +41,9 @@ export class Stream {
 
   @Column({ name: 'mux_live_stream_id', nullable: true })
   muxLiveStreamId: string;
+
+  @Column({ name: 'mux_asset_id', nullable: true })
+  muxAssetId: string;
 
   @Column({ name: 'stream_key', nullable: true })
   streamKey: string;

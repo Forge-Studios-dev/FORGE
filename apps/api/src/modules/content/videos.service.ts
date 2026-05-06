@@ -2,11 +2,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -15,6 +16,7 @@ import { Video, VideoStatus } from './entities/video.entity';
 import { SkillTag } from '../categories/entities/skill-tag.entity';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { PresignedUrlDto } from './dto/presigned-url.dto';
+import { CompleteUploadDto } from './dto/complete-upload.dto';
 
 export const VIDEO_PROCESSING_QUEUE = 'video-processing';
 
@@ -45,8 +47,16 @@ export class VideosService {
   }
 
   async getPresignedUploadUrl(userId: string, dto: PresignedUrlDto) {
-    const ext = dto.contentType.split('/')[1] === 'quicktime' ? 'mov' : dto.contentType.split('/')[1];
-    const key = `raw-uploads/${userId}/${uuidv4()}.${ext}`;
+    const uploadingCount = await this.videoRepository.count({
+      where: { userId, status: VideoStatus.UPLOADING },
+    });
+    if (uploadingCount >= 1) {
+      throw new BadRequestException('Another upload is already in progress');
+    }
+
+    const videoId = uuidv4();
+    const ext = dto.contentType === 'video/quicktime' ? 'mov' : 'mp4';
+    const key = `videos/${userId}/${videoId}/original.${ext}`;
 
     const command = new PutObjectCommand({
       Bucket: this.bucket,
@@ -56,9 +66,31 @@ export class VideosService {
     });
 
     const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 3600 });
-    return { uploadUrl, key, expiresIn: 3600 };
+
+    const video = this.videoRepository.create({
+      id: videoId,
+      userId,
+      title: 'Untitled upload',
+      description: null,
+      status: VideoStatus.UPLOADING,
+      visibility: undefined,
+      s3Key: key,
+      uploadContentType: dto.contentType,
+      uploadFileSizeBytes: dto.fileSizeBytes,
+      uploadCompletedAt: null,
+      failureReason: null,
+    });
+    await this.videoRepository.save(video);
+
+    return { videoId, uploadUrl, key, expiresIn: 3600 };
   }
 
+  /**
+   * Legacy endpoint behavior (kept for compatibility):
+   * register + enqueue processing immediately.
+   *
+   * New flow should use: presigned-url -> S3 PUT -> /videos/:id/complete.
+   */
   async create(userId: string, dto: CreateVideoDto): Promise<Video> {
     const skillTags = dto.skillTagIds?.length
       ? await this.skillTagRepository.find({ where: { id: In(dto.skillTagIds) } })
@@ -78,7 +110,51 @@ export class VideosService {
     await this.videoQueue.add(
       'process-video',
       { videoId: saved.id, s3Key: dto.s3Key, userId },
-      { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+      { attempts: 5, backoff: { type: 'exponential', delay: 5000 } },
+    );
+
+    return saved;
+  }
+
+  async completeUpload(userId: string, videoId: string, dto: CompleteUploadDto) {
+    const video = await this.videoRepository.findOne({
+      where: { id: videoId },
+      relations: ['skillTags'],
+    });
+    if (!video) throw new NotFoundException('Video not found');
+    if (video.userId !== userId) throw new ForbiddenException();
+
+    if (video.status !== VideoStatus.UPLOADING) {
+      throw new BadRequestException('Video is not in uploading state');
+    }
+
+    if (!video.s3Key) throw new BadRequestException('Missing upload key');
+
+    try {
+      await this.s3.send(new HeadObjectCommand({ Bucket: this.bucket, Key: video.s3Key }));
+    } catch {
+      throw new BadRequestException('Upload not found in storage');
+    }
+
+    const skillTags = dto.skillTagIds?.length
+      ? await this.skillTagRepository.find({ where: { id: In(dto.skillTagIds) } })
+      : [];
+
+    video.title = dto.title ?? video.title ?? 'Untitled upload';
+    video.description = dto.description ?? video.description ?? null;
+    if (dto.visibility) video.visibility = dto.visibility;
+    if (dto.skillTagIds) video.skillTags = skillTags;
+
+    video.status = VideoStatus.PROCESSING;
+    video.uploadCompletedAt = new Date();
+    video.failureReason = null;
+
+    const saved = await this.videoRepository.save(video);
+
+    await this.videoQueue.add(
+      'process-video',
+      { videoId: saved.id, s3Key: saved.s3Key, userId },
+      { attempts: 5, backoff: { type: 'exponential', delay: 5000 } },
     );
 
     return saved;

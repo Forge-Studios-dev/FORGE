@@ -12,6 +12,7 @@ import { Follow } from './entities/follow.entity';
 import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class EngagementService {
@@ -26,6 +27,7 @@ export class EngagementService {
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async likeVideo(userId: string, videoId: string) {
@@ -75,10 +77,16 @@ export class EngagementService {
     const saved = await this.commentRepository.save(comment);
     await this.videoRepository.increment({ id: videoId }, 'commentCount', 1);
 
-    return this.commentRepository.findOne({
+    const full = await this.commentRepository.findOne({
       where: { id: saved.id },
       relations: ['user'],
     });
+
+    if (full) {
+      this.eventEmitter.emit('comment.created', { videoId, comment: full });
+    }
+
+    return full;
   }
 
   async getComments(videoId: string, limit = 20, cursor?: string) {

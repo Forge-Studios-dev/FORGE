@@ -6,6 +6,7 @@ import { Redis } from 'ioredis';
 import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.entity';
 
 const FEED_CACHE_TTL = 300; // 5 minutes
+type FeedSort = 'latest' | 'popular';
 
 @Injectable()
 export class FeedService {
@@ -22,10 +23,12 @@ export class FeedService {
     categoryId?: string;
     cursor?: string;
     limit?: number;
+    sort?: FeedSort;
     userId?: string;
   }) {
     const limit = Math.min(options.limit || 20, 50);
-    const cacheKey = `feed:${options.categoryId || 'all'}:${options.cursor || 'start'}:${limit}`;
+    const sort: FeedSort = options.sort || 'latest';
+    const cacheKey = `feed:${sort}:${options.categoryId || 'all'}:${options.cursor || 'start'}:${limit}`;
 
     const cached = await this.redis.get(cacheKey);
     if (cached && !options.userId) {
@@ -40,8 +43,19 @@ export class FeedService {
       .leftJoinAndSelect('subcategory.category', 'category')
       .where('v.status = :status', { status: VideoStatus.READY })
       .andWhere('v.visibility = :visibility', { visibility: VideoVisibility.PUBLIC })
-      .orderBy('v.createdAt', 'DESC')
       .take(limit + 1);
+
+    if (sort === 'popular') {
+      // MVP ranking: combine views + likes + recency into a lightweight score.
+      // Note: cursor still uses createdAt (good enough for MVP; stable pagination can be improved later).
+      query.addSelect(
+        `(v.viewCount * 0.6 + v.likeCount * 0.3 + (EXTRACT(EPOCH FROM v.createdAt) / 86400) * 0.1)`,
+        'score',
+      );
+      query.orderBy('score', 'DESC').addOrderBy('v.createdAt', 'DESC');
+    } else {
+      query.orderBy('v.createdAt', 'DESC');
+    }
 
     if (options.categoryId) {
       query.andWhere('category.id = :categoryId', { categoryId: options.categoryId });
@@ -69,7 +83,7 @@ export class FeedService {
   }
 
   async invalidateFeedCache(categoryId?: string) {
-    const pattern = categoryId ? `feed:${categoryId}:*` : 'feed:*';
+    const pattern = categoryId ? `feed:*:${categoryId}:*` : 'feed:*';
     const keys = await this.redis.keys(pattern);
     if (keys.length > 0) {
       await this.redis.del(...keys);

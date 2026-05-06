@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
@@ -19,15 +20,17 @@ export class Comment {
   id: string;
 
   @ManyToOne(() => User, (user) => user.comments, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ name: 'user_id' })
+  @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
   @ManyToOne(() => Video, (video) => video.comments, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'video_id' })
   video: Video;
 
-  @Column({ name: 'video_id' })
+  @Column({ name: 'video_id', type: 'uuid' })
   videoId: string;
 
   @Column({ type: 'text' })
@@ -37,9 +40,10 @@ export class Comment {
     nullable: true,
     onDelete: 'SET NULL',
   })
+  @JoinColumn({ name: 'parent_id' })
   parent: Comment;
 
-  @Column({ name: 'parent_id', nullable: true })
+  @Column({ name: 'parent_id', type: 'uuid', nullable: true })
   parentId: string;
 
   @OneToMany(() => Comment, (comment) => comment.parent)
