@@ -1,0 +1,51 @@
+{
+  "name": "Forge Narrative",
+  "colors": {
+    "background": "#15121b",
+    "onBackground": "#e7e0ed",
+    "surface": "#15121b",
+    "surfaceDim": "#15121b",
+    "surfaceContainerLowest": "#0f0d15",
+    "surfaceContainerLow": "#1d1a23",
+    "surfaceContainer": "#211e27",
+    "surfaceContainerHigh": "#2c2832",
+    "surfaceContainerHighest": "#37333d",
+    "onSurface": "#e7e0ed",
+    "onSurfaceVariant": "#cbc3d7",
+    "outline": "#958ea0",
+    "outlineVariant": "#494454",
+    "primary": "#d0bcff",
+    "onPrimary": "#3c0091",
+    "primaryContainer": "#a078ff",
+    "onPrimaryContainer": "#340080",
+    "secondary": "#4cd7f6",
+    "onSecondary": "#003640",
+    "secondaryContainer": "#03b5d3",
+    "tertiary": "#ffb869",
+    "error": "#ffb4ab",
+    "errorContainer": "#93000a",
+    "live": "#ff453a"
+  },
+  "typography": {
+    "displayForge": { "fontFamily": "Space Grotesk", "fontSize": "48px", "fontWeight": "700" },
+    "headlineLg": { "fontFamily": "Space Grotesk", "fontSize": "32px", "fontWeight": "600" },
+    "headlineLgMobile": { "fontFamily": "Space Grotesk", "fontSize": "24px", "fontWeight": "600" },
+    "bodyMd": { "fontFamily": "Inter", "fontSize": "16px", "fontWeight": "400" },
+    "labelCaps": { "fontFamily": "Geist", "fontSize": "12px", "fontWeight": "600", "letterSpacing": "0.08em", "textTransform": "uppercase" }
+  },
+  "spacing": {
+    "unit": 4,
+    "containerMax": 1440,
+    "gutter": 24,
+    "marginDesktop": 48,
+    "marginMobile": 20
+  },
+  "radius": {
+    "sm": "0.25rem",
+    "default": "0.5rem",
+    "md": "0.75rem",
+    "lg": "1rem",
+    "xl": "1.5rem",
+    "full": "9999px"
+  }
+}

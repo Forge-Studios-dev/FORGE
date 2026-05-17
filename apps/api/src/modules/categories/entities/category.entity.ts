@@ -19,11 +19,11 @@ export class Category {
   @Column({ unique: true, length: 120 })
   slug: string;
 
-  @Column({ name: 'icon_url', nullable: true })
-  iconUrl: string;
+  @Column({ name: 'icon_url', type: 'varchar', nullable: true })
+  iconUrl: string | null;
 
-  @Column({ nullable: true, length: 500 })
-  description: string;
+  @Column({ type: 'varchar', nullable: true, length: 500 })
+  description: string | null;
 
   @Column({ name: 'sort_order', default: 0 })
   sortOrder: number;

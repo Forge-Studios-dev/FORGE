@@ -1,30 +1,31 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { api, serverApi } from '@/lib/api';
+import Image from 'next/image';
+import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { getAccessToken } from '@/lib/auth-storage';
 import { Comment } from '@/types';
 import { getSocket, joinRoom, leaveRoom } from '@/lib/socket';
+import { formatCount, timeAgo } from '@/lib/utils';
 
-function getStoredUserId(): string | null {
-  try {
-    const raw = localStorage.getItem('forge_user');
-    if (!raw) return null;
-    const user = JSON.parse(raw) as { id?: string };
-    return user.id || null;
-  } catch {
-    return null;
-  }
-}
-
-export function CommentsPanel({ videoId }: { videoId: string }) {
+export function CommentsPanel({
+  videoId,
+  commentCount = 0,
+  onGuestInteract,
+}: {
+  videoId: string;
+  commentCount?: number;
+  onGuestInteract?: () => void;
+}) {
   const [content, setContent] = useState('');
-  const userId = useMemo(() => (typeof window === 'undefined' ? null : getStoredUserId()), []);
+  const { user } = useAuth();
 
-  const { data, refetch } = useQuery({
+  const { data, refetch, isLoading } = useQuery({
     queryKey: ['comments', videoId],
     queryFn: async () => {
-      const { data } = await serverApi.get(`/videos/${videoId}/comments?limit=20`);
+      const { data } = await api.get(`/videos/${videoId}/comments?limit=20`);
       return data.data as { data: Comment[] };
     },
   });
@@ -42,24 +43,20 @@ export function CommentsPanel({ videoId }: { videoId: string }) {
   });
 
   useEffect(() => {
-    if (!userId) return;
-    const socket = getSocket(userId);
+    const token = getAccessToken();
+    if (!user?.id || !token) return;
+    const socket = getSocket(token);
     if (!socket) return;
 
     joinRoom('join-video', { videoId });
 
-    const onNewComment = () => {
-      refetch();
-    };
-
+    const onNewComment = () => refetch();
     socket.on('comment:new', onNewComment);
 
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     const startPolling = () => {
       if (pollTimer) return;
-      pollTimer = setInterval(() => {
-        refetch();
-      }, 10000);
+      pollTimer = setInterval(() => refetch(), 10000);
     };
     const stopPolling = () => {
       if (pollTimer) {
@@ -72,9 +69,7 @@ export function CommentsPanel({ videoId }: { videoId: string }) {
       stopPolling();
       joinRoom('join-video', { videoId });
     };
-    const onDisconnect = () => {
-      startPolling();
-    };
+    const onDisconnect = () => startPolling();
 
     if (!socket.connected) startPolling();
     socket.on('connect', onConnect);
@@ -87,42 +82,91 @@ export function CommentsPanel({ videoId }: { videoId: string }) {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
     };
-  }, [userId, videoId, refetch]);
+  }, [user?.id, videoId, refetch]);
+
+  const count = data?.data?.length ?? commentCount;
 
   return (
-    <section className="glass rounded-xl p-5 border border-white/10">
-      <h3 className="text-lg font-semibold">Comments</h3>
+    <section className="mt-8 space-y-6">
+      <h3 className="font-display-forge text-xl font-semibold md:text-2xl">
+        Discussion{' '}
+        <span className="text-lg font-normal text-on-surface-variant">{formatCount(count)}</span>
+      </h3>
 
-      <div className="mt-4 flex gap-2">
-        <input
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder={userId ? 'Add a comment…' : 'Sign in to comment'}
-          disabled={!userId || post.isPending}
-          className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-forge-500 transition disabled:opacity-60"
-        />
-        <button
-          onClick={() => post.mutate()}
-          disabled={!userId || post.isPending || !content.trim()}
-          className="bg-forge-600 hover:bg-forge-500 disabled:opacity-60 text-white font-semibold px-4 py-2.5 rounded-lg transition"
-        >
-          Post
-        </button>
+      <div className="flex gap-4">
+        {user?.avatarUrl ? (
+          <Image src={user.avatarUrl} alt="" width={40} height={40} className="rounded-full border border-outline-variant/30 object-cover" />
+        ) : (
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-outline-variant/30 bg-surface-container-high text-sm font-bold text-primary">
+            {user?.displayName?.[0] ?? '?'}
+          </div>
+        )}
+        <div className="flex-1 space-y-2">
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onFocus={() => {
+              if (!user && onGuestInteract) onGuestInteract();
+            }}
+            placeholder={user ? 'Add to the discussion…' : 'Sign in to comment'}
+            rows={2}
+            disabled={!user || post.isPending}
+            className="w-full resize-none border-0 border-b border-outline-variant bg-transparent px-0 py-2 text-sm text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-0 disabled:opacity-60"
+          />
+          <div className="flex justify-end gap-2">
+            {content && (
+              <button
+                type="button"
+                onClick={() => setContent('')}
+                className="font-label-caps rounded-full px-4 py-2 text-on-surface-variant transition hover:bg-surface-container-high"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (!user && onGuestInteract) {
+                  onGuestInteract();
+                  return;
+                }
+                post.mutate();
+              }}
+              disabled={!user || post.isPending || !content.trim()}
+              className="primary-button rounded-full px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
+            >
+              Post
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="mt-5 space-y-3">
-        {data?.data?.length ? (
+      <div className="space-y-6">
+        {isLoading ? (
+          <p className="text-sm text-on-surface-variant">Loading discussion…</p>
+        ) : data?.data?.length ? (
           data.data.map((c) => (
-            <div key={c.id} className="bg-white/5 border border-white/10 rounded-xl p-4">
-              <p className="text-sm font-semibold">{c.user.displayName}</p>
-              <p className="text-sm text-gray-300 mt-1 whitespace-pre-line">{c.content}</p>
-            </div>
+            <article key={c.id} className="flex gap-4">
+              {c.user?.avatarUrl ? (
+                <Image src={c.user.avatarUrl} alt="" width={40} height={40} className="rounded-full object-cover" />
+              ) : (
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container-high text-sm font-bold text-primary">
+                  {(c.user?.displayName ?? '?')[0]}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-medium text-on-surface">{c.user?.displayName ?? 'User'}</span>
+                  <span className="font-label-caps text-[10px] text-outline">{timeAgo(c.createdAt)}</span>
+                </div>
+                <p className="mt-1 text-sm leading-relaxed text-on-surface-variant">{c.content}</p>
+              </div>
+            </article>
           ))
         ) : (
-          <p className="text-sm text-gray-400">No comments yet.</p>
+          <p className="text-sm text-on-surface-variant">No comments yet. Start the discussion.</p>
         )}
       </div>
     </section>
   );
 }
-

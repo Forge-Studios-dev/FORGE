@@ -1,14 +1,11 @@
+import { Permission } from '@forge/shared-types';
 import { User } from '@/types';
+import { hasPermission as checkPermission } from '@/lib/access';
 
-export type Permission =
-  | 'VIEW_DASHBOARD'
-  | 'UPLOAD_VIDEO'
-  | 'START_STREAM'
-  | 'MANAGE_PLATFORM';
+export type { Permission };
 
 export function hasPermission(user: User | null | undefined, permission: Permission): boolean {
-  if (!user) return false;
-  return Array.isArray(user.permissions) && user.permissions.includes(permission);
+  return checkPermission(user, permission, !!user);
 }
 
 export function getStoredUser(): User | null {

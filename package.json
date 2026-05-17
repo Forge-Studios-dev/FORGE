@@ -10,14 +10,25 @@
   ],
   "scripts": {
     "dev:api": "npm run dev --workspace=apps/api",
-    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:web": "npm run build --workspace=@forge/shared-types && npm run dev --workspace=apps/web",
     "dev:admin": "npm run dev --workspace=apps/admin",
     "build:api": "npm run build --workspace=apps/api",
     "build:web": "npm run build --workspace=apps/web",
     "build:admin": "npm run build --workspace=apps/admin",
     "build:all": "npm run build --workspace=@forge/shared-types && npm run build:api && npm run build:web && npm run build:admin",
     "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "smoke:api": "bash scripts/smoke-api.sh",
+    "verify:roles": "bash scripts/verify-platform-roles.sh",
+    "build:design-system": "npm run build --workspace=@forge/design-system",
+    "dev:catalog": "vite --config docs/design/catalog/vite.config.ts",
+    "manifest": "node scripts/generate-manifest.mjs",
+    "verify:blueprints": "node scripts/verify-blueprints.mjs",
+    "parity": "node scripts/blueprint-parity.mjs"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0",
+    "typescript": "^5.4.4"
   },
   "engines": {
     "node": ">=20.0.0",

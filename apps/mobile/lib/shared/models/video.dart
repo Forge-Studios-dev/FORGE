@@ -52,6 +52,9 @@ class UserModel {
   final String displayName;
   final String? avatarUrl;
   final String role;
+  final bool isVerified;
+  final String? creatorStatus;
+  final String? creatorReviewNote;
   final int followerCount;
   final int followingCount;
   final int videoCount;
@@ -62,6 +65,9 @@ class UserModel {
     required this.displayName,
     this.avatarUrl,
     required this.role,
+    this.isVerified = false,
+    this.creatorStatus,
+    this.creatorReviewNote,
     required this.followerCount,
     required this.followingCount,
     required this.videoCount,
@@ -73,6 +79,9 @@ class UserModel {
         displayName: json['displayName'] as String,
         avatarUrl: json['avatarUrl'] as String?,
         role: json['role'] as String? ?? 'user',
+        isVerified: json['isVerified'] as bool? ?? false,
+        creatorStatus: json['creatorStatus'] as String?,
+        creatorReviewNote: json['creatorReviewNote'] as String?,
         followerCount: (json['followerCount'] as num?)?.toInt() ?? 0,
         followingCount: (json['followingCount'] as num?)?.toInt() ?? 0,
         videoCount: (json['videoCount'] as num?)?.toInt() ?? 0,

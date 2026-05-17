@@ -1,32 +1,35 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search } from 'lucide-react';
+import { PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { AdminSearchInput } from '@/components/admin/AdminSearchInput';
+import { AdminDataTable } from '@/components/admin/AdminDataTable';
+import { AdminPagination } from '@/components/admin/AdminPagination';
+import type { AdminUser } from '@/lib/admin-user-types';
 
-interface User {
-  id: string;
-  email: string;
-  username: string;
-  displayName: string;
-  role: string;
-  isVerified: boolean;
-  followerCount: number;
-  videoCount: number;
-  createdAt: string;
-}
+const ROLE_CLASS: Record<string, string> = {
+  admin: 'bg-error/10 text-error',
+  creator: 'bg-primary/10 text-primary',
+  user: 'bg-surface-container-high text-on-surface-variant',
+};
 
 export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [creatorFilter, setCreatorFilter] = useState('');
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-users', page, search],
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['admin-users', page, search, roleFilter, creatorFilter],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (search) params.set('search', search);
+      if (roleFilter) params.set('role', roleFilter);
+      if (creatorFilter) params.set('creatorStatus', creatorFilter);
       const { data } = await api.get(`/admin/users?${params}`);
       return data.data;
     },
@@ -38,107 +41,139 @@ export default function UsersPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
   });
 
+  const users = data?.data as AdminUser[] | undefined;
+
+  if (isError) {
+    return (
+      <section>
+        <PageHeader title="Users" subtitle="Search accounts and open a profile to review uploads, reports, and activity" />
+        <p className="text-error">Failed to load users.</p>
+        <button type="button" onClick={() => refetch()} className="mt-4 text-sm text-primary hover:underline">
+          Retry
+        </button>
+      </section>
+    );
+  }
+
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold">Users</h1>
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search users…"
+    <section>
+      <div className="mb-8 flex flex-col gap-4">
+        <PageHeader title="Users" subtitle="Search accounts and open a profile to review uploads, reports, and activity" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <AdminSearchInput
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="bg-gray-900 border border-gray-800 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-indigo-500 w-64"
+            onChange={(v) => {
+              setSearch(v);
+              setPage(1);
+            }}
+            placeholder="Search name, email, or username…"
+            className="sm:min-w-[240px] sm:flex-1"
           />
+          <select
+            value={roleFilter}
+            onChange={(e) => {
+              setRoleFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+          >
+            <option value="">All roles</option>
+            <option value="user">User</option>
+            <option value="creator">Creator</option>
+            <option value="admin">Admin</option>
+          </select>
+          <select
+            value={creatorFilter}
+            onChange={(e) => {
+              setCreatorFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+          >
+            <option value="">Creator status</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
         </div>
       </div>
 
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-800/50">
-            <tr>
-              {['User', 'Email', 'Role', 'Followers', 'Videos', 'Joined', 'Actions'].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800">
-            {isLoading
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: 7 }).map((__, j) => (
-                      <td key={j} className="px-4 py-3">
-                        <div className="h-4 bg-gray-800 rounded animate-pulse" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              : data?.data?.map((user: User) => (
-                  <tr key={user.id} className="hover:bg-gray-800/30 transition">
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="font-medium">{user.displayName}</p>
-                        <p className="text-gray-500 text-xs">@{user.username}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-400">{user.email}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        user.role === 'admin' ? 'bg-red-500/10 text-red-400' :
-                        user.role === 'creator' ? 'bg-indigo-500/10 text-indigo-400' :
-                        'bg-gray-700 text-gray-300'
-                      }`}>
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-400">{user.followerCount}</td>
-                    <td className="px-4 py-3 text-gray-400">{user.videoCount}</td>
-                    <td className="px-4 py-3 text-gray-400">
-                      {new Date(user.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={user.role}
-                        onChange={(e) => updateRole.mutate({ id: user.id, role: e.target.value })}
-                        className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs"
-                      >
-                        <option value="user">user</option>
-                        <option value="creator">creator</option>
-                        <option value="admin">admin</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-          </tbody>
-        </table>
-
-        {data?.meta && (
-          <div className="px-4 py-3 flex items-center justify-between border-t border-gray-800 text-sm text-gray-400">
-            <span>
-              Page {data.meta.page} of {data.meta.totalPages} · {data.meta.total} users
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-3 py-1 bg-gray-800 rounded disabled:opacity-40 hover:bg-gray-700 transition"
-              >
-                Prev
-              </button>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page >= data.meta.totalPages}
-                className="px-3 py-1 bg-gray-800 rounded disabled:opacity-40 hover:bg-gray-700 transition"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      <AdminDataTable
+        headers={['User', 'Email', 'Role', 'Stats', 'Joined', '']}
+        colCount={6}
+        isLoading={isLoading}
+        isEmpty={!isLoading && !users?.length}
+        emptyMessage="No users found."
+        footer={
+          data?.meta ? (
+            <AdminPagination
+              page={data.meta.page}
+              totalPages={data.meta.totalPages}
+              total={data.meta.total}
+              label="users"
+              onPrev={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() => setPage((p) => p + 1)}
+            />
+          ) : undefined
+        }
+      >
+        {users?.map((user) => (
+          <tr key={user.id} className="hover:bg-surface-container-high/30">
+            <td className="px-4 py-3">
+              <Link href={`/users/${user.id}`} className="group block">
+                <p className="font-medium text-on-surface group-hover:text-primary">{user.displayName}</p>
+                <p className="text-xs text-outline">@{user.username}</p>
+              </Link>
+            </td>
+            <td className="px-4 py-3 text-on-surface-variant">{user.email}</td>
+            <td className="px-4 py-3">
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ROLE_CLASS[user.role] ?? ROLE_CLASS.user}`}>
+                {user.role}
+              </span>
+              {user.creatorStatus ? (
+                <span className="ml-1 text-[10px] text-outline">({user.creatorStatus})</span>
+              ) : null}
+            </td>
+            <td className="px-4 py-3 text-xs text-on-surface-variant">
+              {user.followerCount} followers · {user.videoCount} videos
+            </td>
+            <td className="px-4 py-3 text-on-surface-variant">
+              {new Date(user.createdAt).toLocaleDateString()}
+            </td>
+            <td className="px-4 py-3">
+              <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+                <Link
+                  href={`/users/${user.id}`}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  View profile
+                </Link>
+                <select
+                  value={user.role}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => {
+                    const role = e.target.value;
+                    if (role === 'admin' && !window.confirm(`Grant admin role to @${user.username}?`)) {
+                      e.target.value = user.role;
+                      return;
+                    }
+                    if (role !== user.role && !window.confirm(`Change @${user.username} role to ${role}?`)) {
+                      e.target.value = user.role;
+                      return;
+                    }
+                    updateRole.mutate({ id: user.id, role });
+                  }}
+                  className="rounded-lg border border-outline-variant bg-surface-container-low px-2 py-1 text-xs"
+                >
+                  <option value="user">user</option>
+                  <option value="creator">creator</option>
+                  <option value="admin">admin</option>
+                </select>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </AdminDataTable>
+    </section>
   );
 }

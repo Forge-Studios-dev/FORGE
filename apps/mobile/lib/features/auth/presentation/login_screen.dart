@@ -29,11 +29,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
     try {
-      await ref.read(authRepositoryProvider).login(
+      final data = await ref.read(authRepositoryProvider).login(
         email: _emailCtrl.text.trim(),
         password: _passwordCtrl.text,
       );
-      if (mounted) context.go('/feed');
+      if (!mounted) return;
+      final user = data['user'] as Map<String, dynamic>?;
+      if (user != null &&
+          user['role'] == 'creator' &&
+          user['creatorStatus'] != null &&
+          user['creatorStatus'] != 'approved') {
+        context.go(user['creatorStatus'] == 'rejected' ? '/approval-rejected' : '/waiting-approval');
+        return;
+      }
+      final next = GoRouterState.of(context).uri.queryParameters['next'];
+      context.go(next != null && next.isNotEmpty ? next : '/feed');
     } catch (e) {
       setState(() => _error = 'Invalid credentials. Please try again.');
     } finally {
@@ -74,9 +84,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
+                      color: Colors.red.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                     ),
                     child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
                   ),
@@ -113,6 +123,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       : const Text('Sign In'),
                 ),
                 const SizedBox(height: 16),
+
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => context.push('/forgot-password'),
+                    child: const Text('Forgot password?'),
+                  ),
+                ),
+                const SizedBox(height: 8),
 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,

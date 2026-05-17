@@ -1,9 +1,15 @@
 import { Suspense } from 'react';
 import { Metadata } from 'next';
+import Link from 'next/link';
 import { serverApi } from '@/lib/api';
 import { FeedGrid } from '@/components/FeedCard/FeedGrid';
+import { FeedGridSkeleton } from '@/components/LoadingSkeleton';
 import { CategoryFilter } from '@/components/CategoryFilter';
-import { HeroSection } from '@/components/HeroSection';
+import { HomeFeedSections } from '@/components/home/HomeFeedSections';
+import { HomeHero } from '@/components/home/HomeHero';
+import { TrendingSkills } from '@/components/home/TrendingSkills';
+import { ContinueWatching } from '@/components/ContinueWatching';
+import { VerifyEmailBanner } from '@/components/VerifyEmailBanner';
 import { Category, PaginatedResponse, Video } from '@/types';
 
 export const metadata: Metadata = {
@@ -33,12 +39,19 @@ export default async function HomePage() {
   const [feed, categories] = await Promise.all([getInitialFeed(), getCategories()]);
 
   return (
-    <main className="min-h-screen">
-      <HeroSection />
+    <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
+      <HomeFeedSections />
+      <HomeHero />
+      <ContinueWatching />
+      <TrendingSkills videos={feed.data} />
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold">Discover Skills</h2>
+      <section id="discover" className="mt-4">
+        <VerifyEmailBanner />
+        <div className="mb-8 flex items-center justify-between">
+          <h2 className="font-display-forge text-2xl font-semibold md:text-3xl">Discover lessons</h2>
+          <Link href="/explore" className="font-label-caps text-secondary hover:underline">
+            View all
+          </Link>
         </div>
 
         <Suspense fallback={<CategoryFilterSkeleton />}>
@@ -55,26 +68,14 @@ export default async function HomePage() {
 
 function CategoryFilterSkeleton() {
   return (
-    <div className="flex gap-3 mb-8 overflow-x-auto pb-2">
+    <div className="mb-8 flex gap-3 overflow-x-auto pb-2">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="h-9 w-28 bg-white/5 rounded-full animate-pulse shrink-0" />
+        <div key={i} className="h-9 w-28 shrink-0 forge-shimmer rounded-full" />
       ))}
     </div>
   );
 }
 
 function FeedSkeleton() {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="bg-surface-card rounded-xl overflow-hidden animate-pulse">
-          <div className="aspect-video bg-white/5" />
-          <div className="p-3 space-y-2">
-            <div className="h-4 bg-white/5 rounded w-3/4" />
-            <div className="h-3 bg-white/5 rounded w-1/2" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  return <FeedGridSkeleton count={8} />;
 }

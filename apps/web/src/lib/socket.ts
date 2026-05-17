@@ -7,9 +7,9 @@ function socketBaseUrl(): string {
   return api.replace(/\/api\/v1\/?$/, '');
 }
 
-export function getSocket(userId?: string | null): Socket | null {
+export function getSocket(accessToken?: string | null): Socket | null {
   if (typeof window === 'undefined') return null;
-  if (!userId) return null;
+  if (!accessToken) return null;
 
   if (!socket) {
     socket = io(`${socketBaseUrl()}/events`, {
@@ -19,10 +19,10 @@ export function getSocket(userId?: string | null): Socket | null {
       reconnectionDelay: 500,
       reconnectionDelayMax: 5000,
       timeout: 10000,
-      auth: { userId },
+      auth: { token: accessToken },
     });
   } else if (!socket.connected) {
-    socket.auth = { ...(socket.auth as Record<string, unknown>), userId };
+    socket.auth = { ...(socket.auth as Record<string, unknown>), token: accessToken };
     socket.connect();
   }
 

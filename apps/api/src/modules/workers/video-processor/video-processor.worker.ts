@@ -1,9 +1,9 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -14,7 +14,7 @@ import {
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { Video, VideoStatus } from '../../content/entities/video.entity';
-import { VIDEO_PROCESSING_QUEUE } from '../../content/videos.service';
+import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../../content/videos.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 interface VideoProcessingJob {
@@ -46,6 +46,8 @@ export class VideoProcessorWorker extends WorkerHost {
   constructor(
     @InjectRepository(Video)
     private readonly videoRepository: Repository<Video>,
+    @InjectQueue(VIDEO_PROCESSING_DLQ_QUEUE)
+    private readonly deadLetterQueue: Queue,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
   ) {
@@ -59,6 +61,31 @@ export class VideoProcessorWorker extends WorkerHost {
     });
     this.bucket = configService.get<string>('aws.s3BucketName') || '';
     this.cdnDomain = configService.get<string>('aws.cloudfrontDomain') || '';
+  }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job<VideoProcessingJob>, err: Error) {
+    const maxAttempts =
+      typeof job.opts.attempts === 'number' && job.opts.attempts > 0 ? job.opts.attempts : 5;
+    if (job.attemptsMade < maxAttempts) return;
+    await this.deadLetterQueue.add(
+      'dead',
+      {
+        ...job.data,
+        originalJobId: job.id,
+        failedReason: err?.message?.slice(0, 2000) ?? 'Unknown error',
+        failedAt: new Date().toISOString(),
+      },
+      { jobId: `dlq-${job.id}-${Date.now()}` },
+    );
+    this.logger.warn(
+      JSON.stringify({
+        msg: 'video_processing_sent_to_dlq',
+        videoId: job.data.videoId,
+        originalJobId: job.id,
+        attemptsMade: job.attemptsMade,
+      }),
+    );
   }
 
   async process(job: Job<VideoProcessingJob>): Promise<void> {
@@ -113,6 +140,7 @@ export class VideoProcessorWorker extends WorkerHost {
         hlsUrl,
         thumbnailUrl,
         durationSeconds: duration,
+        publishedAt: new Date(),
       });
 
       this.eventEmitter.emit('video.ready', { videoId, userId: job.data.userId });
@@ -120,8 +148,26 @@ export class VideoProcessorWorker extends WorkerHost {
       await job.updateProgress(100);
       this.logger.log(`Video ${videoId} processed successfully`);
     } catch (err) {
-      this.logger.error(`Failed to process video ${videoId}`, err);
-      await this.videoRepository.update(videoId, { status: VideoStatus.FAILED });
+      // attemptsMade is not incremented until after process() throws; BullMQ uses attemptsMade+1 vs opts.attempts for retry.
+      const maxAttempts = typeof job.opts.attempts === 'number' ? job.opts.attempts : 5;
+      const finalFailure = job.attemptsMade + 1 >= maxAttempts;
+      const msg = err instanceof Error ? err.message.slice(0, 500) : 'Unknown error';
+      this.logger.error(
+        JSON.stringify({
+          msg: 'video_processing_error',
+          videoId,
+          attemptsMade: job.attemptsMade,
+          maxAttempts,
+          finalFailure,
+          error: msg,
+        }),
+      );
+      if (finalFailure) {
+        await this.videoRepository.update(videoId, {
+          status: VideoStatus.FAILED,
+          failureReason: msg,
+        });
+      }
       throw err;
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });

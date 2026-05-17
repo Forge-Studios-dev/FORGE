@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:go_router/go_router.dart';
 import '../constants/app_constants.dart';
+import '../router/navigation_key.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 
@@ -53,12 +57,20 @@ class ApiClient {
         '${AppConstants.apiBaseUrl}/auth/refresh',
         data: {'refreshToken': refreshToken},
       );
-      final data = response.data['data'];
-      await _storage.write(key: AppConstants.accessTokenKey, value: data['accessToken']);
-      await _storage.write(key: AppConstants.refreshTokenKey, value: data['refreshToken']);
+      final data = response.data['data'] as Map<String, dynamic>;
+      await _storage.write(key: AppConstants.accessTokenKey, value: data['accessToken'] as String);
+      await _storage.write(key: AppConstants.refreshTokenKey, value: data['refreshToken'] as String);
+      final user = data['user'];
+      if (user is Map<String, dynamic>) {
+        await _storage.write(key: AppConstants.userKey, value: jsonEncode(user));
+      }
       return true;
     } catch (_) {
       await _storage.deleteAll();
+      final ctx = rootNavigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        GoRouter.of(ctx).go('/login');
+      }
       return false;
     }
   }

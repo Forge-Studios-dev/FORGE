@@ -1,0 +1,144 @@
+/* FORGE motion tokens — respect prefers-reduced-motion */
+@theme {
+  --duration-fast: 150ms;
+  --duration-normal: 220ms;
+  --duration-slow: 360ms;
+  --ease-forge: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes forge-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes forge-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes forge-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes forge-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.forge-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-container-high) 0%,
+    var(--color-surface-container-highest) 50%,
+    var(--color-surface-container-high) 100%
+  );
+  background-size: 200% 100%;
+  animation: forge-shimmer 1.4s ease-in-out infinite;
+}
+
+.forge-card-hover {
+  transition:
+    transform var(--duration-normal) var(--ease-forge),
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease,
+    opacity var(--duration-fast) ease;
+}
+
+.forge-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.forge-fade-in {
+  animation: forge-fade-in var(--duration-normal) var(--ease-forge) both;
+}
+
+.forge-page-enter {
+  animation: forge-page-enter var(--duration-slow) var(--ease-forge) both;
+}
+
+.forge-slide-up {
+  animation: forge-slide-up var(--duration-slow) var(--ease-forge) both;
+}
+
+/* Stagger children — apply to grid/list containers */
+.forge-stagger > * {
+  animation: forge-fade-in var(--duration-normal) var(--ease-forge) both;
+}
+
+.forge-stagger > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.forge-stagger > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+.forge-stagger > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+.forge-stagger > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+.forge-stagger > *:nth-child(5) {
+  animation-delay: 160ms;
+}
+.forge-stagger > *:nth-child(6) {
+  animation-delay: 200ms;
+}
+.forge-stagger > *:nth-child(7) {
+  animation-delay: 240ms;
+}
+.forge-stagger > *:nth-child(8) {
+  animation-delay: 280ms;
+}
+.forge-stagger > *:nth-child(n + 9) {
+  animation-delay: 320ms;
+}
+
+.forge-nav-item {
+  transition:
+    color var(--duration-fast) ease,
+    transform var(--duration-fast) var(--ease-forge);
+}
+
+.forge-nav-item:active {
+  transform: scale(0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forge-shimmer,
+  .forge-fade-in,
+  .forge-page-enter,
+  .forge-slide-up,
+  .forge-stagger > * {
+    animation: none;
+  }
+  .forge-card-hover:hover {
+    transform: none;
+  }
+  .forge-nav-item:active {
+    transform: none;
+  }
+}

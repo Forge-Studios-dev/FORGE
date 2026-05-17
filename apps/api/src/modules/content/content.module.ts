@@ -5,14 +5,23 @@ import { VideosController } from './videos.controller';
 import { VideosService, VIDEO_PROCESSING_QUEUE } from './videos.service';
 import { Video } from './entities/video.entity';
 import { SkillTag } from '../categories/entities/skill-tag.entity';
+import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Video, SkillTag]),
+    TypeOrmModule.forFeature([Video, SkillTag, WatchHistory]),
     UsersModule,
-    BullModule.registerQueue({ name: VIDEO_PROCESSING_QUEUE }),
+    BullModule.registerQueue({
+      name: VIDEO_PROCESSING_QUEUE,
+      defaultJobOptions: {
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnFail: { age: 7 * 24 * 3600 },
+        removeOnComplete: { age: 24 * 3600, count: 500 },
+      },
+    }),
   ],
   controllers: [VideosController],
   providers: [VideosService, CreatorApprovedGuard],

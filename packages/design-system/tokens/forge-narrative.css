@@ -1,0 +1,32 @@
+/**
+ * Forge Narrative — CSS custom properties for non-Tailwind consumers (e.g. Flutter web views).
+ */
+:root {
+  --forge-background: #15121b;
+  --forge-on-background: #e7e0ed;
+  --forge-surface: #15121b;
+  --forge-surface-container-lowest: #0f0d15;
+  --forge-surface-container-low: #1d1a23;
+  --forge-surface-container: #211e27;
+  --forge-surface-container-high: #2c2832;
+  --forge-surface-container-highest: #37333d;
+  --forge-on-surface: #e7e0ed;
+  --forge-on-surface-variant: #cbc3d7;
+  --forge-outline: #958ea0;
+  --forge-outline-variant: #494454;
+  --forge-primary: #d0bcff;
+  --forge-on-primary: #3c0091;
+  --forge-primary-container: #a078ff;
+  --forge-secondary: #4cd7f6;
+  --forge-secondary-container: #03b5d3;
+  --forge-tertiary: #ffb869;
+  --forge-error: #ffb4ab;
+  --forge-error-container: #93000a;
+  --forge-live: #ff453a;
+  --forge-font-display: 'Space Grotesk', system-ui, sans-serif;
+  --forge-font-body: 'Inter', system-ui, sans-serif;
+  --forge-font-label: 'Geist', ui-monospace, monospace;
+  --forge-spacing-margin-mobile: 20px;
+  --forge-spacing-margin-desktop: 48px;
+  --forge-spacing-container-max: 1440px;
+}

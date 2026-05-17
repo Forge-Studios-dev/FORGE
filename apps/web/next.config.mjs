@@ -1,11 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  transpilePackages: ['@forge/design-system', '@forge/shared-types'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.amazonaws.com' },
       { protocol: 'https', hostname: '**.cloudfront.net' },
       { protocol: 'https', hostname: 'cdn.forge.app' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
     ],
   },
   async headers() {
@@ -23,4 +25,3 @@ const nextConfig = {
 };
 
 export default nextConfig;
-

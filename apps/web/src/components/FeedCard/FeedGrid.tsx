@@ -4,8 +4,10 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { PaginatedResponse, Video } from '@/types';
 import { FeedCard } from './FeedCard';
+import { EmptyState } from '@/components/EmptyState';
 
 interface Props {
   initialData: PaginatedResponse<Video>;
@@ -15,13 +17,16 @@ export function FeedGrid({ initialData }: Props) {
   const searchParams = useSearchParams();
   const categorySlug = searchParams.get('category');
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const { isGuest, isLoading: authLoading, canViewPersonalizedFeed } = useAuth();
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
-    queryKey: ['feed', categorySlug],
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isError, refetch } = useInfiniteQuery({
+    queryKey: ['feed', categorySlug, isGuest],
+    enabled: !authLoading,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '12' });
       if (pageParam) params.set('cursor', pageParam as string);
       if (categorySlug) params.set('categorySlug', categorySlug);
+      if (canViewPersonalizedFeed && !categorySlug) params.set('sort', 'forYou');
       const { data } = await api.get<{ data: PaginatedResponse<Video> }>(`/videos/feed?${params}`);
       return data.data;
     },
@@ -46,9 +51,36 @@ export function FeedGrid({ initialData }: Props) {
 
   const videos = data?.pages.flatMap((p) => p.data) ?? [];
 
+  if (isError && !videos.length) {
+    return (
+      <EmptyState
+        icon="error"
+        title="Couldn't load feed"
+        description="Check your connection and try again."
+        action={{ label: 'Retry', href: '/' }}
+        onAction={() => refetch()}
+      />
+    );
+  }
+
+  if (!videos.length) {
+    return (
+      <EmptyState
+        icon="video_library"
+        title="No lessons yet"
+        description={
+          categorySlug
+            ? 'Nothing in this category right now. Try another skill or check back soon.'
+            : 'New tutorials appear as creators publish. Explore skills to get started.'
+        }
+        action={{ label: 'Explore skills', href: '/explore' }}
+      />
+    );
+  }
+
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="forge-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {videos.map((video) => (
           <FeedCard key={video.id} video={video} />
         ))}
@@ -60,7 +92,7 @@ export function FeedGrid({ initialData }: Props) {
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="w-2 h-2 rounded-full bg-forge-500 animate-bounce"
+                className="h-2 w-2 animate-bounce rounded-full bg-secondary"
                 style={{ animationDelay: `${i * 0.15}s` }}
               />
             ))}

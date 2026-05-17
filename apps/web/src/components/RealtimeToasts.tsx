@@ -1,28 +1,27 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { AUTH_SESSION_EVENT, getAccessToken } from '@/lib/auth-storage';
 import { getSocket } from '@/lib/socket';
 
 type Toast = { id: string; title: string; body?: string };
 
-function getStoredUserId(): string | null {
-  try {
-    const raw = localStorage.getItem('forge_user');
-    if (!raw) return null;
-    const user = JSON.parse(raw) as { id?: string };
-    return user.id || null;
-  } catch {
-    return null;
-  }
-}
-
 export function RealtimeToasts() {
-  const userId = useMemo(() => (typeof window === 'undefined' ? null : getStoredUserId()), []);
+  const [accessToken, setAccessToken] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : getAccessToken(),
+  );
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   useEffect(() => {
-    if (!userId) return;
-    const socket = getSocket(userId);
+    const sync = () => setAccessToken(getAccessToken());
+    sync();
+    window.addEventListener(AUTH_SESSION_EVENT, sync);
+    return () => window.removeEventListener(AUTH_SESSION_EVENT, sync);
+  }, []);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    const socket = getSocket(accessToken);
     if (!socket) return;
 
     const onVideoReady = (payload: { videoId: string; message?: string }) => {
@@ -46,7 +45,7 @@ export function RealtimeToasts() {
       socket.off('video:ready', onVideoReady);
       socket.off('stream:started', onStreamStarted);
     };
-  }, [userId]);
+  }, [accessToken]);
 
   useEffect(() => {
     if (toasts.length === 0) return;

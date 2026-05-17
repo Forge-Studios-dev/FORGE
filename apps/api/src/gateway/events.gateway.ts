@@ -8,41 +8,95 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Server, Socket } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { createClient } from 'redis';
+import { socketIoCorsOptions } from './socket-cors.util';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: socketIoCorsOptions(),
   namespace: '/events',
 })
-export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class EventsGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server!: Server;
 
   private readonly logger = new Logger(EventsGateway.name);
   private userSockets = new Map<string, Set<string>>();
 
-  afterInit() {
-    this.logger.log('WebSocket gateway initialized');
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  async afterInit() {
+    const url = this.configService.get<string>('redis.url');
+    if (!url) {
+      this.logger.warn('Redis URL missing; Socket.IO runs without Redis adapter (single replica only)');
+      this.logger.log('WebSocket gateway initialized');
+      return;
+    }
+    try {
+      const pubClient = createClient({ url });
+      const subClient = pubClient.duplicate();
+      pubClient.on('error', (err) => this.logger.error(`Redis pub client: ${err.message}`));
+      subClient.on('error', (err) => this.logger.error(`Redis sub client: ${err.message}`));
+      await Promise.all([pubClient.connect(), subClient.connect()]);
+      this.server.adapter(createAdapter(pubClient, subClient));
+      this.logger.log('WebSocket gateway initialized with Redis adapter (multi-replica ready)');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `Socket.IO Redis adapter failed (${msg}); continuing single-replica. Ensure REDIS_URL and Redis availability for horizontal scale.`,
+      );
+      this.logger.log('WebSocket gateway initialized');
+    }
   }
 
   handleConnection(client: Socket) {
-    const userId = client.handshake.auth.userId as string;
+    const userId = this.resolveUserId(client);
     if (userId) {
       if (!this.userSockets.has(userId)) this.userSockets.set(userId, new Set());
       this.userSockets.get(userId)!.add(client.id);
       client.join(`user:${userId}`);
+      (client.data as { userId?: string }).userId = userId;
     }
     this.logger.log(`Client connected: ${client.id}`);
   }
 
   handleDisconnect(client: Socket) {
-    const userId = client.handshake.auth.userId as string;
+    const userId = (client.data as { userId?: string }).userId;
     if (userId) {
       this.userSockets.get(userId)?.delete(client.id);
     }
     this.logger.log(`Client disconnected: ${client.id}`);
+  }
+
+  private resolveUserId(client: Socket): string | null {
+    const auth = client.handshake.auth as { token?: string; userId?: string };
+    const secret = this.configService.get<string>('jwt.secret');
+    if (!secret) return null;
+
+    if (auth.token) {
+      try {
+        const payload = this.jwtService.verify<{ sub: string }>(auth.token, { secret });
+        return payload.sub;
+      } catch {
+        throw new UnauthorizedException('Invalid socket token');
+      }
+    }
+
+    // Legacy clients — ignore unverified userId (do not join user room)
+    if (auth.userId) {
+      this.logger.warn(`Socket ${client.id} connected with legacy userId auth; use token instead`);
+    }
+    return null;
   }
 
   @SubscribeMessage('join-stream')

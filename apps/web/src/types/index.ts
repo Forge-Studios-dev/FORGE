@@ -20,7 +20,7 @@ export interface User {
 export interface Video {
   id: string;
   userId: string;
-  user: User;
+  user?: User;
   title: string;
   description?: string;
   status: 'pending' | 'processing' | 'ready' | 'failed';
@@ -38,11 +38,13 @@ export interface Video {
 export interface Stream {
   id: string;
   userId: string;
-  user: User;
+  user?: User;
   title: string;
   description?: string;
   playbackUrl?: string;
   thumbnailUrl?: string;
+  streamKey?: string;
+  rtmpUrl?: string;
   status: 'idle' | 'live' | 'ended';
   viewerCount: number;
   startedAt?: string;
@@ -75,7 +77,7 @@ export interface SkillTag {
 export interface Comment {
   id: string;
   userId: string;
-  user: User;
+  user?: User;
   videoId: string;
   content: string;
   parentId?: string;

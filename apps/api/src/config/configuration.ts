@@ -1,5 +1,6 @@
 export default () => ({
   nodeEnv: process.env.NODE_ENV || 'development',
+  workerOnly: process.env.WORKER_ONLY === 'true',
   port: parseInt(process.env.PORT || '3001', 10),
 
   database: {
@@ -9,6 +10,9 @@ export default () => ({
     username: process.env.DB_USERNAME || 'forge',
     password: process.env.DB_PASSWORD || 'forge',
     name: process.env.DB_NAME || 'forge_db',
+    poolMax: parseInt(process.env.DB_POOL_MAX || '20', 10),
+    connectTimeoutMs: parseInt(process.env.DB_CONNECT_TIMEOUT_MS || '10000', 10),
+    slowQueryMs: parseInt(process.env.DB_SLOW_QUERY_MS || '2000', 10),
   },
 
   redis: {
@@ -42,5 +46,21 @@ export default () => ({
   rateLimit: {
     ttl: parseInt(process.env.RATE_LIMIT_TTL || '60', 10),
     limit: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+  },
+
+  mail: {
+    smtpHost: process.env.SMTP_HOST || '',
+    smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
+    smtpUser: process.env.SMTP_USER || '',
+    smtpPass: process.env.SMTP_PASS || '',
+    from: process.env.MAIL_FROM || 'noreply@localhost',
+    webUrl: process.env.WEB_URL || 'http://localhost:3000',
+  },
+
+  oauth: {
+    google: {
+      enabled: process.env.GOOGLE_OAUTH_ENABLED === 'true',
+      clientId: process.env.GOOGLE_CLIENT_ID || '',
+    },
   },
 });

@@ -32,6 +32,25 @@ services:
       timeout: 3s
       retries: 5
 
+  # Optional: point API/worker DATABASE_URL at pgbouncer:5432 inside the compose network
+  # (e.g. postgresql://forge:forge_local_password@pgbouncer:5432/forge_db). Host port 6432.
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.24.1-p1
+    container_name: forge-pgbouncer
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://forge:forge_local_password@postgres:5432/forge_db
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 20
+      LISTEN_ADDR: 0.0.0.0
+      LISTEN_PORT: 5432
+    ports:
+      - '6432:5432'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build:
       context: .

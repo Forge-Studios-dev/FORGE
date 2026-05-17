@@ -1,0 +1,36 @@
+{
+  "name": "@forge/design-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Forge Narrative design tokens and shared UI primitives for FORGE apps",
+  "exports": {
+    "./tokens/forge-narrative.css": "./tokens/forge-narrative.css",
+    "./tokens/forge-narrative.json": "./tokens/forge-narrative.json",
+    "./tailwind": "./tailwind/index.css",
+    "./tailwind/theme": "./tailwind/theme.css",
+    "./tailwind/utilities": "./tailwind/utilities.css",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js",
+      "require": "./dist/client.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.79",
+    "typescript": "^5.4.4"
+  }
+}

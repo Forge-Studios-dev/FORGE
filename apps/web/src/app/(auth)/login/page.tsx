@@ -1,13 +1,20 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { persistAuthSession } from '@/lib/auth-storage';
+import { useAuth } from '@/lib/auth';
+import { AuthScreen, authFieldClass, authLabelClass } from '@/components/auth/AuthScreen';
 import { AuthTokens } from '@/types';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const { refresh } = useAuth();
+  const searchParams = useSearchParams();
+  const resetOk = searchParams.get('reset') === '1';
+  const nextPath = searchParams.get('next') || '/';
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,15 +25,24 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { data } = await api.post<{ data: AuthTokens }>('/auth/login', form);
-      localStorage.setItem('forge_access_token', data.data.accessToken);
-      localStorage.setItem('forge_refresh_token', data.data.refreshToken);
-      localStorage.setItem('forge_user', JSON.stringify(data.data.user));
+      persistAuthSession(
+        data.data.accessToken,
+        data.data.refreshToken,
+        JSON.stringify(data.data.user),
+      );
+      refresh();
+      if (data.data.user.role === 'admin') {
+        const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3002';
+        window.location.href = adminUrl;
+        return;
+      }
       if (data.data.user.role === 'creator' && data.data.user.creatorStatus && data.data.user.creatorStatus !== 'approved') {
         router.push(
           data.data.user.creatorStatus === 'rejected' ? '/approval-rejected' : '/waiting-approval',
         );
       } else {
-        router.push('/');
+        const safeNext = nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/';
+        router.push(safeNext);
       }
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -37,60 +53,72 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gradient">FORGE</h1>
-          <p className="text-gray-400 mt-2">Sign in to continue learning</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="glass rounded-2xl p-8 space-y-5">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg px-4 py-3 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
-            <input
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-forge-500 transition"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Password</label>
-            <input
-              type="password"
-              required
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-forge-500 transition"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-forge-600 hover:bg-forge-500 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition"
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-
-          <p className="text-center text-sm text-gray-400">
-            Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-forge-500 hover:text-forge-400">
-              Sign up
-            </Link>
+    <AuthScreen title="Welcome back" subtitle="Continue your path to mastery.">
+      <form className="space-y-6" onSubmit={handleSubmit}>
+        {resetOk && (
+          <p className="rounded-lg bg-secondary/10 px-4 py-2 text-sm text-secondary">
+            Password updated. Sign in with your new password.
           </p>
-        </form>
-      </div>
-    </div>
+        )}
+        {error && <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{error}</p>}
+        <div>
+          <label className={authLabelClass} htmlFor="email">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            required
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            className={authFieldClass}
+            placeholder="name@company.com"
+          />
+        </div>
+        <div>
+          <div className="mb-2 flex justify-between">
+            <label className={authLabelClass} htmlFor="password">
+              Password
+            </label>
+            <Link href="/forgot-password" className="font-label-caps text-xs text-secondary hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+          <input
+            id="password"
+            type="password"
+            required
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            className={authFieldClass}
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="primary-button w-full rounded-full py-4 font-semibold text-on-primary disabled:opacity-60"
+        >
+          {loading ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+      <p className="mt-8 text-center text-sm text-on-surface-variant">
+        New to FORGE?{' '}
+        <Link href="/signup" className="text-primary hover:underline">
+          Create account
+        </Link>
+      </p>
+    </AuthScreen>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center text-on-surface-variant">Loading…</div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

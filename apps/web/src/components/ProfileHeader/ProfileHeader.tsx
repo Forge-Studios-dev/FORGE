@@ -1,11 +1,16 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { User } from '@/types';
 import { formatCount } from '@/lib/utils';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { getAccessToken, getRefreshToken, persistAuthSession } from '@/lib/auth-storage';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { AuthGateModal } from '@/components/gates/AuthGateModal';
 
 interface Props {
   user: User;
@@ -13,6 +18,8 @@ interface Props {
 
 export function ProfileHeader({ user }: Props) {
   const router = useRouter();
+  const { user: me, isGuest, canEngage, canApplyForCreator, refresh } = useAuth();
+  const [authGate, setAuthGate] = useState(false);
   const followMutation = useMutation({
     mutationFn: () => api.post(`/follow/${user.id}`),
   });
@@ -23,19 +30,17 @@ export function ProfileHeader({ user }: Props) {
       return data.data as User;
     },
     onSuccess: (updatedUser) => {
-      localStorage.setItem('forge_user', JSON.stringify(updatedUser));
+      const access = getAccessToken();
+      const refreshTok = getRefreshToken();
+      if (access && refreshTok) {
+        persistAuthSession(access, refreshTok, JSON.stringify(updatedUser));
+      }
+      refresh();
       router.push('/waiting-approval');
     },
   });
 
-  const isOwnProfile = (() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('forge_user') || 'null') as { id?: string } | null;
-      return stored?.id && stored.id === user.id;
-    } catch {
-      return false;
-    }
-  })();
+  const isOwnProfile = !!me?.id && me.id === user.id;
 
   return (
     <div className="relative">
@@ -45,11 +50,11 @@ export function ProfileHeader({ user }: Props) {
           <div className="absolute inset-0 bg-gradient-to-t from-surface-primary/80 to-transparent" />
         </div>
       ) : (
-        <div className="h-40 bg-gradient-to-br from-forge-900/50 via-surface-secondary to-purple-900/30" />
+        <div className="h-40 bg-gradient-to-br from-primary/20 via-surface-container to-secondary/10" />
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="relative -mt-16 flex items-end gap-5 pb-6 border-b border-white/5">
+      <div className="mx-auto max-w-[var(--spacing-container-max)] px-5 md:px-12">
+        <div className="relative -mt-16 flex items-end gap-5 border-b border-outline-variant/20 pb-6">
           {user.avatarUrl ? (
             <Image
               src={user.avatarUrl}
@@ -73,24 +78,39 @@ export function ProfileHeader({ user }: Props) {
                 </span>
               )}
             </div>
-            <p className="text-gray-400 text-sm">@{user.username}</p>
+            <p className="text-sm text-on-surface-variant">@{user.username}</p>
           </div>
 
-          <button
-            onClick={() => followMutation.mutate()}
-            disabled={followMutation.isPending}
-            className="shrink-0 bg-forge-600 hover:bg-forge-500 disabled:opacity-60 text-white font-semibold px-6 py-2 rounded-xl transition"
-          >
-            Follow
-          </button>
+          {isOwnProfile ? (
+            <Link
+              href="/profile/settings"
+              className="shrink-0 rounded-xl border border-outline-variant px-6 py-2 font-semibold text-on-surface transition hover:border-primary"
+            >
+              Settings
+            </Link>
+          ) : (
+            <button
+              onClick={() => {
+                if (!canEngage) {
+                  setAuthGate(true);
+                  return;
+                }
+                followMutation.mutate();
+              }}
+              disabled={followMutation.isPending}
+              className="primary-button shrink-0 rounded-xl px-6 py-2 font-semibold text-on-primary disabled:opacity-60"
+            >
+              Follow
+            </button>
+          )}
         </div>
 
-        {isOwnProfile && user.role === 'user' && (
+        {isOwnProfile && canApplyForCreator && (
           <div className="mt-4">
             <button
               onClick={() => requestCreatorMutation.mutate()}
               disabled={requestCreatorMutation.isPending}
-              className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold px-4 py-2 rounded-xl transition disabled:opacity-60"
+              className="rounded-xl border border-outline-variant bg-surface-container-high px-4 py-2 font-semibold text-on-surface transition hover:border-primary disabled:opacity-60"
             >
               {requestCreatorMutation.isPending ? 'Submitting…' : 'Become a creator'}
             </button>
@@ -100,22 +120,28 @@ export function ProfileHeader({ user }: Props) {
         <div className="flex gap-8 py-5 text-sm">
           <div className="text-center">
             <p className="font-bold text-lg">{formatCount(user.followerCount)}</p>
-            <p className="text-gray-400">Followers</p>
+            <p className="text-on-surface-variant">Followers</p>
           </div>
           <div className="text-center">
             <p className="font-bold text-lg">{formatCount(user.followingCount)}</p>
-            <p className="text-gray-400">Following</p>
+            <p className="text-on-surface-variant">Following</p>
           </div>
           <div className="text-center">
             <p className="font-bold text-lg">{formatCount(user.videoCount)}</p>
-            <p className="text-gray-400">Videos</p>
+            <p className="text-on-surface-variant">Videos</p>
           </div>
         </div>
 
         {user.bio && (
-          <p className="text-gray-300 text-sm leading-relaxed pb-6 max-w-2xl">{user.bio}</p>
+          <p className="max-w-2xl pb-6 text-sm leading-relaxed text-on-surface-variant">{user.bio}</p>
         )}
       </div>
+
+      <AuthGateModal
+        open={authGate}
+        onClose={() => setAuthGate(false)}
+        message="Sign in to follow creators."
+      />
     </div>
   );
 }

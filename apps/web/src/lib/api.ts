@@ -1,4 +1,11 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import {
+  clearAuthSession,
+  getAccessToken,
+  getRefreshToken,
+  persistAuthSession,
+  syncAuthCookieFromStorage,
+} from '@/lib/auth-storage';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -10,7 +17,8 @@ export const api = axios.create({
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('forge_access_token');
+    syncAuthCookieFromStorage();
+    const token = getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -25,17 +33,25 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       try {
-        const refreshToken = localStorage.getItem('forge_refresh_token');
+        const refreshToken = getRefreshToken();
         if (!refreshToken) throw new Error('No refresh token');
         const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
-        localStorage.setItem('forge_access_token', data.data.accessToken);
-        localStorage.setItem('forge_refresh_token', data.data.refreshToken);
-        original.headers.Authorization = `Bearer ${data.data.accessToken}`;
+        const accessToken = data.data.accessToken as string;
+        const newRefresh = data.data.refreshToken as string;
+        const refreshedUser = data.data.user;
+        persistAuthSession(
+          accessToken,
+          newRefresh,
+          refreshedUser ? JSON.stringify(refreshedUser) : undefined,
+        );
+        original.headers.Authorization = `Bearer ${accessToken}`;
         return api(original);
       } catch {
-        localStorage.removeItem('forge_access_token');
-        localStorage.removeItem('forge_refresh_token');
-        window.location.href = '/login';
+        clearAuthSession();
+        const next = encodeURIComponent(
+          window.location.pathname + window.location.search,
+        );
+        window.location.href = `/session-expired?next=${next}`;
       }
     }
     return Promise.reject(error);

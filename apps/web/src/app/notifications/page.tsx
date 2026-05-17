@@ -1,14 +1,20 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { Notification } from '@/types';
+import { EmptyState } from '@/components/EmptyState';
+import { ListSkeleton } from '@/components/LoadingSkeleton';
+import { useAuth } from '@/lib/auth';
 
 export default function NotificationsPage() {
   const qc = useQueryClient();
+  const { isGuest } = useAuth();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['notifications'],
+    enabled: !isGuest,
     queryFn: async () => {
       const { data } = await api.get('/notifications');
       return data.data as Notification[];
@@ -20,44 +26,66 @@ export default function NotificationsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
-  return (
-    <main className="min-h-screen">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <h1 className="text-2xl font-bold">Notifications</h1>
-        <p className="text-gray-400 mt-2">Updates about your creator status, uploads, and live sessions.</p>
+  if (isGuest) {
+    return (
+      <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
+        <PageHeader title="Notifications" subtitle="Creator status, uploads, and live session updates" />
+        <EmptyState
+          icon="login"
+          title="Sign in to see notifications"
+          description="Get updates on creator approval, uploads, and live sessions."
+          action={{ label: 'Sign in', href: '/login?next=/notifications' }}
+        />
+      </main>
+    );
+  }
 
-        <div className="mt-8 space-y-3">
-          {isLoading ? (
-            Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="glass rounded-xl border border-white/10 p-4 animate-pulse h-20" />
-            ))
-          ) : data?.length ? (
-            data.map((n) => (
+  return (
+    <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
+      <PageHeader title="Notifications" subtitle="Creator status, uploads, and live session updates" />
+
+      {isLoading ? (
+        <ListSkeleton rows={6} />
+      ) : isError ? (
+        <EmptyState
+          icon="error"
+          title="Couldn't load notifications"
+          description="Check your connection and try again."
+          action={{ label: 'Retry', href: '/notifications' }}
+          onAction={() => refetch()}
+        />
+      ) : !data?.length ? (
+        <EmptyState
+          icon="notifications"
+          title="No notifications yet"
+          description="When something needs your attention, it will show up here."
+        />
+      ) : (
+        <ul className="space-y-3">
+          {data.map((n) => (
+            <li key={n.id}>
               <button
-                key={n.id}
+                type="button"
                 onClick={() => markRead.mutate(n.id)}
                 disabled={markRead.isPending}
-                className={`w-full text-left glass rounded-xl border border-white/10 p-4 hover:bg-white/5 transition ${
-                  n.readAt ? 'opacity-75' : ''
+                className={`glass-panel w-full rounded-xl p-4 text-left transition hover:border-primary/30 ${
+                  n.readAt ? 'opacity-70' : 'border-primary/20'
                 }`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="font-semibold">{n.title}</p>
-                    {n.body ? <p className="text-sm text-gray-400 mt-1">{n.body}</p> : null}
+                    <p className="font-semibold text-on-surface">{n.title}</p>
+                    {n.body ? <p className="mt-1 text-sm text-on-surface-variant">{n.body}</p> : null}
                   </div>
-                  <span className="text-xs text-gray-500">{new Date(n.createdAt).toLocaleString()}</span>
+                  <span className="shrink-0 text-xs text-outline">
+                    {new Date(n.createdAt).toLocaleString()}
+                  </span>
                 </div>
               </button>
-            ))
-          ) : (
-            <div className="glass rounded-xl border border-white/10 p-6">
-              <p className="text-gray-400">No notifications yet.</p>
-            </div>
-          )}
-        </div>
-      </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }
-

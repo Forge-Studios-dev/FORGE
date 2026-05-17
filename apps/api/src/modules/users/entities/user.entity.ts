@@ -43,6 +43,10 @@ export class User {
   @Column({ name: 'display_name', length: 100 })
   displayName: string;
 
+  /** Postgres FTS column (generated). Not loaded by default. */
+  @Column({ name: 'search_vector', type: 'tsvector', select: false, insert: false, update: false })
+  searchVector?: string;
+
   @Column({ name: 'password_hash' })
   @Exclude()
   passwordHash: string;
@@ -82,6 +86,14 @@ export class User {
 
   @Column({ name: 'is_verified', default: false })
   isVerified: boolean;
+
+  @Column({ name: 'email_verification_token_hash', type: 'varchar', nullable: true })
+  @Exclude()
+  emailVerificationTokenHash: string | null;
+
+  @Column({ name: 'email_verification_expires_at', type: 'timestamptz', nullable: true })
+  @Exclude()
+  emailVerificationExpiresAt: Date | null;
 
   @Column({ name: 'follower_count', default: 0 })
   followerCount: number;

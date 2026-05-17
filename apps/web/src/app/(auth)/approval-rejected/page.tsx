@@ -4,74 +4,74 @@ import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-
-type StoredUser = {
-  displayName?: string;
-  creatorStatus?: 'pending' | 'approved' | 'rejected' | null;
-  creatorReviewNote?: string | null;
-};
-
-function getUser(): StoredUser | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return JSON.parse(localStorage.getItem('forge_user') || 'null') as StoredUser | null;
-  } catch {
-    return null;
-  }
-}
+import { useAuth } from '@/lib/auth';
+import { getAccessToken, getRefreshToken, persistAuthSession } from '@/lib/auth-storage';
+import { User } from '@/types';
+import { Icon } from '@forge/design-system';
 
 export default function ApprovalRejectedPage() {
   const router = useRouter();
-  const user = getUser();
+  const { user, refresh } = useAuth();
 
   const reRequest = useMutation({
     mutationFn: async () => {
-      const { data } = await api.post('/users/me/request-creator');
+      const { data } = await api.post<{ data: User }>('/users/me/request-creator');
       return data.data;
     },
     onSuccess: (updatedUser) => {
-      localStorage.setItem('forge_user', JSON.stringify(updatedUser));
+      const access = getAccessToken();
+      const refreshTok = getRefreshToken();
+      if (access && refreshTok) {
+        persistAuthSession(access, refreshTok, JSON.stringify(updatedUser));
+      } else {
+        localStorage.setItem('forge_user', JSON.stringify(updatedUser));
+      }
+      refresh();
       router.push('/waiting-approval');
     },
   });
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-lg glass rounded-2xl p-8">
-        <h1 className="text-2xl font-bold">Creator request rejected</h1>
-        <p className="text-gray-400 mt-2">
+    <main className="relative flex min-h-screen items-center justify-center px-5 py-12">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -right-[10%] -top-[20%] h-[500px] w-[500px] rounded-full bg-error/10 blur-[120px]" />
+      </div>
+      <div className="glass-panel relative z-10 w-full max-w-lg rounded-2xl p-10">
+        <Icon name="block" className="mb-6 text-5xl text-error" />
+        <h1 className="font-display-forge mb-3 text-2xl font-bold">Creator request rejected</h1>
+        <p className="mb-6 text-on-surface-variant">
           {user?.displayName ? `${user.displayName}, ` : ''}
-          your creator request was rejected.
+          your creator request was not approved at this time.
         </p>
 
         {user?.creatorReviewNote ? (
-          <div className="mt-5 bg-white/5 border border-white/10 rounded-xl p-4">
-            <p className="text-sm text-gray-300 font-semibold">Reason</p>
-            <p className="text-sm text-gray-400 mt-1">{user.creatorReviewNote}</p>
+          <div className="mb-6 rounded-xl border border-outline-variant/30 bg-surface-container-low p-4">
+            <p className="font-label-caps mb-1 text-outline">Reason</p>
+            <p className="text-sm text-on-surface-variant">{user.creatorReviewNote}</p>
           </div>
         ) : null}
 
-        <div className="mt-6 flex gap-3 flex-wrap">
+        <div className="flex flex-wrap gap-3">
           <button
+            type="button"
             onClick={() => reRequest.mutate()}
             disabled={reRequest.isPending}
-            className="bg-forge-600 hover:bg-forge-500 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-lg transition"
+            className="primary-button rounded-full px-6 py-2.5 font-semibold text-on-primary disabled:opacity-60"
           >
             {reRequest.isPending ? 'Submitting…' : 'Request again'}
           </button>
           <Link
             href="/"
-            className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold px-5 py-2.5 rounded-lg transition"
+            className="rounded-full border border-outline-variant px-6 py-2.5 font-semibold hover:border-primary"
           >
             Go to home
           </Link>
         </div>
 
-        <p className="text-xs text-gray-500 mt-6">
-          Need help? Contact an admin or try again after updating your profile.
+        <p className="mt-6 text-xs text-outline">
+          Update your profile and portfolio, then try again. Contact support if you need help.
         </p>
       </div>
-    </div>
+    </main>
   );
 }
-

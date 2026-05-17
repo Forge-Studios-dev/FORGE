@@ -6,14 +6,18 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { VideosService } from './videos.service';
+import { toPublicVideo } from './video.mapper';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { PresignedUrlDto } from './dto/presigned-url.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
+import { RecordWatchDto } from './dto/record-watch.dto';
+import { UpdateVideoDto } from './dto/update-video.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
@@ -57,16 +61,38 @@ export class VideosController {
     return this.videosService.completeUpload(user.sub, id, dto);
   }
 
+  @Post(':id([0-9a-fA-F-]{36})/watch')
+  @Permissions(Permission.USE_LIBRARY)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Record watch / continue watching' })
+  recordWatch(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RecordWatchDto,
+  ) {
+    return this.videosService.recordWatch(user.sub, id, dto);
+  }
+
+  @Patch(':id([0-9a-fA-F-]{36})')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @ApiOperation({ summary: 'Update own video (title, visibility, schedule)' })
+  patchVideo(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() dto: UpdateVideoDto) {
+    return this.videosService.updateVideo(user.sub, id, dto);
+  }
+
   @Public()
   @Get(':id([0-9a-fA-F-]{36})')
   @ApiOperation({ summary: 'Get video by ID' })
   async findOne(@Param('id') id: string) {
     const video = await this.videosService.findById(id);
     await this.videosService.incrementViewCount(id);
-    return video;
+    return toPublicVideo(video);
   }
 
   @Delete(':id([0-9a-fA-F-]{36})')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete video' })
   delete(@CurrentUser() user: JwtPayload, @Param('id') id: string) {

@@ -32,13 +32,22 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
     try {
-      await ref.read(authRepositoryProvider).signup(
+      final data = await ref.read(authRepositoryProvider).signup(
         email: _emailCtrl.text.trim(),
         username: _usernameCtrl.text.trim(),
         displayName: _displayNameCtrl.text.trim(),
         password: _passwordCtrl.text,
       );
-      if (mounted) context.go('/feed');
+      if (!mounted) return;
+      final user = data['user'] as Map<String, dynamic>?;
+      if (user != null &&
+          user['role'] == 'creator' &&
+          user['creatorStatus'] != null &&
+          user['creatorStatus'] != 'approved') {
+        context.go(user['creatorStatus'] == 'rejected' ? '/approval-rejected' : '/waiting-approval');
+        return;
+      }
+      context.go('/feed');
     } catch (e) {
       setState(() => _error = 'Sign up failed. Email or username may already be taken.');
     } finally {
@@ -67,9 +76,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
+                      color: Colors.red.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                     ),
                     child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
                   ),

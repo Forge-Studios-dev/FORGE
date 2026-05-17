@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -28,6 +28,16 @@ export class StreamingService {
   }
 
   async createStream(userId: string, dto: CreateStreamDto): Promise<Stream> {
+    const nodeEnv = this.configService.get<string>('nodeEnv') || 'development';
+    const muxTokenId = this.configService.get<string>('mux.tokenId');
+    const muxTokenSecret = this.configService.get<string>('mux.tokenSecret');
+    const muxConfigured =
+      muxTokenId && muxTokenSecret && muxTokenId !== 'placeholder' && muxTokenSecret !== 'placeholder';
+
+    if (nodeEnv === 'production' && !muxConfigured) {
+      throw new ServiceUnavailableException('Live streaming is not configured');
+    }
+
     let muxLiveStreamId = 'mock-stream-id';
     let streamKey = 'mock-stream-key';
     let playbackUrl: string | undefined;

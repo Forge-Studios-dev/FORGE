@@ -13,6 +13,7 @@ import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { toPublicComment } from './comment.mapper';
 
 @Injectable()
 export class EngagementService {
@@ -84,9 +85,10 @@ export class EngagementService {
 
     if (full) {
       this.eventEmitter.emit('comment.created', { videoId, comment: full });
+      return toPublicComment(full);
     }
 
-    return full;
+    throw new NotFoundException('Comment not found after create');
   }
 
   async getComments(videoId: string, limit = 20, cursor?: string) {
@@ -110,7 +112,10 @@ export class EngagementService {
       ? Buffer.from(data[data.length - 1].createdAt.toISOString()).toString('base64')
       : null;
 
-    return { data, meta: { cursor: nextCursor, hasMore } };
+    return {
+      data: data.map((c) => toPublicComment(c)),
+      meta: { cursor: nextCursor, hasMore },
+    };
   }
 
   async follow(followerId: string, followingId: string) {

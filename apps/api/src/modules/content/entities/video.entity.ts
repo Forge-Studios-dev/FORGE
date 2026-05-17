@@ -101,6 +101,16 @@ export class Video {
   @Column({ name: 'comment_count', default: 0 })
   commentCount: number;
 
+  /** Postgres FTS column (generated). Not loaded by default. */
+  @Column({ name: 'search_vector', type: 'tsvector', select: false, insert: false, update: false })
+  searchVector?: string;
+
+  @Column({ name: 'published_at', type: 'timestamptz', nullable: true })
+  publishedAt: Date | null;
+
+  @Column({ name: 'scheduled_publish_at', type: 'timestamptz', nullable: true })
+  scheduledPublishAt: Date | null;
+
   @ManyToMany(() => SkillTag, (tag) => tag.videos)
   @JoinTable({
     name: 'video_skill_tags',

@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
 import { Request, Response } from 'express';
 
 @Catch()
@@ -33,7 +34,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         errors = resp.errors || null;
       }
     } else if (exception instanceof Error) {
-      this.logger.error(`Unhandled exception: ${exception.message}`, exception.stack);
+      if (process.env.SENTRY_DSN) {
+        Sentry.captureException(exception);
+      }
+      this.logger.error(
+        JSON.stringify({
+          msg: 'unhandled_exception',
+          correlationId: request.correlationId,
+          path: request.url,
+          error: exception.message,
+          stack: exception.stack,
+        }),
+      );
     }
 
     response.status(status).json({
@@ -43,6 +55,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       errors,
       timestamp: new Date().toISOString(),
       path: request.url,
+      correlationId: request.correlationId,
     });
   }
 }

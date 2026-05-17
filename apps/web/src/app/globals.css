@@ -1,25 +1,15 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss' source(none);
+@source '../**/*.{ts,tsx}';
+@import '@forge/design-system/tailwind';
 
 @layer base {
-  :root {
-    --background: 10 10 15;
-    --foreground: 255 255 255;
-  }
-
-  * {
-    box-sizing: border-box;
-  }
-
   html {
-    scroll-behavior: smooth;
+    @apply antialiased scroll-smooth;
   }
 
   body {
-    min-height: 100vh;
-    background-color: rgb(var(--background));
-    color: rgb(var(--foreground));
+    @apply bg-background text-on-background min-h-screen;
+    font-family: var(--font-inter, 'Inter'), system-ui, sans-serif;
   }
 
   ::-webkit-scrollbar {
@@ -32,17 +22,7 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #333;
+    background: var(--color-outline-variant);
     border-radius: 3px;
-  }
-}
-
-@layer utilities {
-  .text-gradient {
-    @apply bg-gradient-to-r from-forge-500 to-purple-500 bg-clip-text text-transparent;
-  }
-
-  .glass {
-    @apply bg-white/5 backdrop-blur-md border border-white/10;
   }
 }

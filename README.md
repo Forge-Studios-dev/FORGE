@@ -92,8 +92,9 @@ npm install
 ### 5. Run database migrations + seed
 
 ```bash
-# In development mode, TypeORM auto-synchronizes schema
-# Run seed to populate categories
+# The API is configured with `synchronize: false` and `migrationsRun: true`,
+# so schema migrations are applied automatically on API startup.
+# Run seed to populate initial data (e.g. categories).
 npm run seed --workspace=apps/api
 ```
 
@@ -247,6 +248,17 @@ For manual deploy:
 docker compose -f docker-compose.prod.yml up -d
 ```
 
+## Project documentation
+
+| Document | Audience |
+|----------|----------|
+| **[docs/DEPLOYMENT_DEMO.md](docs/DEPLOYMENT_DEMO.md)** | Local + VPS + remote client demo setup |
+| **[docs/CLIENT_OVERVIEW.md](docs/CLIENT_OVERVIEW.md)** | Clients and stakeholders (executive summary) |
+| **[docs/FORGE_PROJECT_MASTER.md](docs/FORGE_PROJECT_MASTER.md)** | Full product + technical specification |
+| **[docs/README.md](docs/README.md)** | Documentation index |
+
+Setup and API examples stay in this README. UI screen specs: [docs/ui-ux-ai-design-prompt.md](docs/ui-ux-ai-design-prompt.md).
+
 ## Scalability Roadmap
 
 The codebase is designed to evolve to:
@@ -259,7 +271,7 @@ The codebase is designed to evolve to:
 
 ## Development Notes
 
-- In development mode (`NODE_ENV=development`), TypeORM `synchronize: true` auto-creates/updates tables — no migrations needed
-- Switch to `synchronize: false` + run migrations in production
+- TypeORM **`synchronize` is always `false`** — schema changes go through migrations in `apps/api/src/database/migrations/` (applied on API startup via `migrationsRun: true`)
+- Run `npm run seed --workspace=apps/api` after first migrate for sample categories
 - The BullMQ worker runs in the same process as the API in development (via `WorkersModule`). In production, run it separately using the `worker` Docker service
 - Mux webhook endpoint: configure in your Mux dashboard → `POST https://yourdomain.com/api/v1/streams/webhooks/mux`

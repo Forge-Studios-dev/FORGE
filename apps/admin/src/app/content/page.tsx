@@ -1,8 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { AdminDataTable } from '@/components/admin/AdminDataTable';
+import { AdminPagination } from '@/components/admin/AdminPagination';
 
 interface Video {
   id: string;
@@ -12,26 +17,42 @@ interface Video {
   viewCount: number;
   likeCount: number;
   createdAt: string;
-  user: { displayName: string; username: string };
+  userId: string;
+  user: { id?: string; displayName: string; username: string };
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  ready: 'bg-green-500/10 text-green-400',
-  processing: 'bg-yellow-500/10 text-yellow-400',
-  pending: 'bg-gray-500/10 text-gray-400',
-  failed: 'bg-red-500/10 text-red-400',
+const STATUS_CLASS: Record<string, string> = {
+  ready: 'bg-secondary/10 text-secondary',
+  processing: 'bg-tertiary/10 text-tertiary',
+  pending: 'bg-surface-container-high text-outline',
+  failed: 'bg-error/10 text-error',
 };
 
 export default function ContentPage() {
+  return (
+    <Suspense fallback={<p className="text-on-surface-variant">Loading content…</p>}>
+      <ContentPageInner />
+    </Suspense>
+  );
+}
+
+function ContentPageInner() {
+  const searchParams = useSearchParams();
+  const userIdFilter = searchParams.get('userId') ?? '';
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-videos', page, statusFilter],
+  useEffect(() => {
+    setPage(1);
+  }, [userIdFilter, statusFilter]);
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['admin-videos', page, statusFilter, userIdFilter],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (statusFilter) params.set('status', statusFilter);
+      if (userIdFilter) params.set('userId', userIdFilter);
       const { data } = await api.get(`/admin/videos?${params}`);
       return data.data;
     },
@@ -43,14 +64,43 @@ export default function ContentPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-videos'] }),
   });
 
+  const videos = data?.data as Video[] | undefined;
+
+  if (isError) {
+    return (
+      <section>
+        <PageHeader title="Content" subtitle="Moderate videos across the platform" />
+        <p className="text-error">Failed to load videos.</p>
+        <button type="button" onClick={() => refetch()} className="mt-4 text-sm text-primary hover:underline">
+          Retry
+        </button>
+      </section>
+    );
+  }
+
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold">Content</h1>
+    <section>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <PageHeader
+          title="Content"
+          subtitle={
+            userIdFilter
+              ? 'Videos for selected user — clear filter from Users profile'
+              : 'Moderate videos across the platform'
+          }
+        />
+        {userIdFilter ? (
+          <Link href="/content" className="text-sm text-primary hover:underline">
+            Clear user filter
+          </Link>
+        ) : null}
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
         >
           <option value="">All statuses</option>
           <option value="ready">Ready</option>
@@ -60,68 +110,64 @@ export default function ContentPage() {
         </select>
       </div>
 
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-800/50">
-            <tr>
-              {['Title', 'Creator', 'Status', 'Views', 'Likes', 'Date', 'Actions'].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800">
-            {isLoading
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: 7 }).map((__, j) => (
-                      <td key={j} className="px-4 py-3">
-                        <div className="h-4 bg-gray-800 rounded animate-pulse" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              : data?.data?.map((video: Video) => (
-                  <tr key={video.id} className="hover:bg-gray-800/30 transition">
-                    <td className="px-4 py-3 max-w-xs truncate font-medium">{video.title}</td>
-                    <td className="px-4 py-3 text-gray-400">
-                      <div>
-                        <p>{video.user?.displayName}</p>
-                        <p className="text-xs text-gray-500">@{video.user?.username}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[video.status] || 'bg-gray-700 text-gray-300'}`}>
-                        {video.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-400">{video.viewCount}</td>
-                    <td className="px-4 py-3 text-gray-400">{video.likeCount}</td>
-                    <td className="px-4 py-3 text-gray-400">{new Date(video.createdAt).toLocaleDateString()}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => updateVideo.mutate({ id: video.id, status: 'failed' })}
-                        className="text-xs text-red-400 hover:text-red-300 transition"
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-          </tbody>
-        </table>
-
-        {data?.meta && (
-          <div className="px-4 py-3 flex items-center justify-between border-t border-gray-800 text-sm text-gray-400">
-            <span>Page {data.meta.page} of {data.meta.totalPages} · {data.meta.total} videos</span>
-            <div className="flex gap-2">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1 bg-gray-800 rounded disabled:opacity-40">Prev</button>
-              <button onClick={() => setPage((p) => p + 1)} disabled={page >= data.meta.totalPages} className="px-3 py-1 bg-gray-800 rounded disabled:opacity-40">Next</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      <AdminDataTable
+        headers={['Title', 'Creator', 'Status', 'Views', 'Likes', 'Date', 'Actions']}
+        colCount={7}
+        isLoading={isLoading}
+        isEmpty={!isLoading && !videos?.length}
+        emptyMessage="No videos match this filter."
+        footer={
+          data?.meta ? (
+            <AdminPagination
+              page={data.meta.page}
+              totalPages={data.meta.totalPages}
+              total={data.meta.total}
+              label="videos"
+              onPrev={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() => setPage((p) => p + 1)}
+            />
+          ) : undefined
+        }
+      >
+        {videos?.map((video) => (
+          <tr key={video.id} className="hover:bg-surface-container-high/30">
+            <td className="max-w-xs truncate px-4 py-3 font-medium">{video.title}</td>
+            <td className="px-4 py-3 text-on-surface-variant">
+              <Link
+                href={`/users/${video.userId || video.user?.id}`}
+                className="group block hover:text-primary"
+              >
+                <p>{video.user?.displayName}</p>
+                <p className="text-xs text-outline group-hover:text-primary">@{video.user?.username}</p>
+              </Link>
+            </td>
+            <td className="px-4 py-3">
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[video.status] ?? STATUS_CLASS.pending}`}
+              >
+                {video.status}
+              </span>
+            </td>
+            <td className="px-4 py-3 text-on-surface-variant">{video.viewCount}</td>
+            <td className="px-4 py-3 text-on-surface-variant">{video.likeCount}</td>
+            <td className="px-4 py-3 text-on-surface-variant">
+              {new Date(video.createdAt).toLocaleDateString()}
+            </td>
+            <td className="px-4 py-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm(`Remove "${video.title}" from the platform?`)) return;
+                  updateVideo.mutate({ id: video.id, status: 'failed' });
+                }}
+                className="text-xs text-error hover:underline"
+              >
+                Remove
+              </button>
+            </td>
+          </tr>
+        ))}
+      </AdminDataTable>
+    </section>
   );
 }

@@ -1,11 +1,15 @@
 import 'reflect-metadata';
 import { AppDataSource } from '../data-source';
 import { seedCategories } from './categories.seed';
+import { seedDemoUsers } from './demo-users.seed';
 
 async function runSeeds() {
   await AppDataSource.initialize();
   console.log('Database connected. Running seeds...');
   await seedCategories(AppDataSource);
+  if (process.env.FORGE_SEED_DEMO !== '0') {
+    await seedDemoUsers(AppDataSource);
+  }
   await AppDataSource.destroy();
   console.log('All seeds complete.');
 }

@@ -15,6 +15,8 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { Permission } from '../../common/auth/permissions';
 
 @ApiTags('Engagement')
 @Controller()
@@ -22,6 +24,7 @@ export class EngagementController {
   constructor(private readonly engagementService: EngagementService) {}
 
   @Post('videos/:id/like')
+  @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Like a video' })
   likeVideo(@CurrentUser() user: JwtPayload, @Param('id') videoId: string) {
@@ -29,6 +32,7 @@ export class EngagementController {
   }
 
   @Delete('videos/:id/like')
+  @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unlike a video' })
   unlikeVideo(@CurrentUser() user: JwtPayload, @Param('id') videoId: string) {
@@ -36,6 +40,7 @@ export class EngagementController {
   }
 
   @Post('videos/:id/comments')
+  @Permissions(Permission.ENGAGE)
   @ApiOperation({ summary: 'Add a comment to a video' })
   createComment(
     @CurrentUser() user: JwtPayload,
@@ -57,6 +62,7 @@ export class EngagementController {
   }
 
   @Post('follow/:userId')
+  @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Follow a user' })
   follow(@CurrentUser() user: JwtPayload, @Param('userId') targetId: string) {
@@ -64,6 +70,7 @@ export class EngagementController {
   }
 
   @Delete('follow/:userId')
+  @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unfollow a user' })
   unfollow(@CurrentUser() user: JwtPayload, @Param('userId') targetId: string) {

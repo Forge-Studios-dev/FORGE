@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
+import { PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
-import { getStoredUser } from '@/lib/permissions';
+import { useAuth } from '@/lib/auth';
 
 export function NewPlaylistClient() {
   const router = useRouter();
@@ -12,7 +14,7 @@ export function NewPlaylistClient() {
   const videoId = useMemo(() => params.get('videoId'), [params]);
   const [title, setTitle] = useState('');
   const [error, setError] = useState('');
-  const user = getStoredUser();
+  const { user, isGuest } = useAuth();
 
   const create = useMutation({
     mutationFn: async () => {
@@ -25,7 +27,7 @@ export function NewPlaylistClient() {
         try {
           await api.post(`/playlists/${playlist.id}/videos`, { videoId });
         } catch {
-          // ignore; user can add later
+          // user can add videos later
         }
       }
       router.push(`/playlists/${playlist.id}`);
@@ -36,52 +38,45 @@ export function NewPlaylistClient() {
     },
   });
 
-  if (!user) {
+  if (isGuest) {
     return (
-      <main className="min-h-screen">
-        <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="glass rounded-2xl p-6 border border-white/10">
-            <h1 className="text-2xl font-bold">Create playlist</h1>
-            <p className="text-gray-400 mt-2">Please sign in to create playlists.</p>
-          </div>
+      <main className="mx-auto max-w-xl px-5 py-10 md:px-12">
+        <div className="glass-panel rounded-2xl p-8 text-center">
+          <h1 className="font-display-forge text-xl font-semibold">Create playlist</h1>
+          <p className="mt-2 text-sm text-on-surface-variant">Sign in to save lessons to a playlist.</p>
+          <Link href="/login" className="primary-button mt-6 inline-flex rounded-full px-6 py-2 text-sm font-semibold text-on-primary">
+            Sign in
+          </Link>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen">
-      <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <h1 className="text-2xl font-bold">Create playlist</h1>
-        <p className="text-gray-400 mt-2">Save videos you want to revisit.</p>
-
-        <div className="mt-6 glass rounded-2xl p-6 border border-white/10 space-y-4">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg px-4 py-3 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Title</label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-forge-500 transition"
-              placeholder="My learning playlist"
-            />
-          </div>
-
-          <button
-            onClick={() => create.mutate()}
-            disabled={create.isPending}
-            className="bg-forge-600 hover:bg-forge-500 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-lg transition"
-          >
-            {create.isPending ? 'Creating…' : 'Create'}
-          </button>
-        </div>
+    <main className="mx-auto max-w-xl px-5 py-8 md:px-12">
+      <PageHeader title="Create playlist" subtitle="Save videos you want to revisit" />
+      <div className="glass-panel mt-6 space-y-4 rounded-2xl p-6">
+        {error && (
+          <p className="rounded-lg border border-error/30 bg-error/10 px-4 py-2 text-sm text-error">{error}</p>
+        )}
+        <label className="block">
+          <span className="font-label-caps text-outline">Title</span>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-on-surface outline-none focus:border-primary"
+            placeholder="My learning playlist"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => create.mutate()}
+          disabled={create.isPending || title.trim().length < 2}
+          className="primary-button w-full rounded-full py-3 text-sm font-semibold text-on-primary disabled:opacity-40"
+        >
+          {create.isPending ? 'Creating…' : 'Create playlist'}
+        </button>
       </div>
     </main>
   );
 }
-

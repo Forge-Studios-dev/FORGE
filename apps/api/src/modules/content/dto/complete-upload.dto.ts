@@ -26,5 +26,11 @@ export class CompleteUploadDto {
   @IsArray()
   @IsUUID('4', { each: true })
   skillTagIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Resolve skill tag by name (case-insensitive)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  skillTagName?: string;
 }
 

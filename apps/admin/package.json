@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@forge/design-system": "*",
     "@tanstack/react-query": "^5.29.2",
     "@tanstack/react-table": "^8.16.0",
     "axios": "^1.6.8",
@@ -21,14 +22,14 @@
     "tailwind-merge": "^2.2.2"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.4",
     "@types/node": "^20.12.5",
     "@types/react": "^18.2.79",
     "@types/react-dom": "^18.2.25",
-    "autoprefixer": "^10.4.19",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.2",
     "postcss": "^8.4.38",
-    "tailwindcss": "^3.4.3",
+    "tailwindcss": "^4.1.4",
     "typescript": "^5.4.4"
   }
 }

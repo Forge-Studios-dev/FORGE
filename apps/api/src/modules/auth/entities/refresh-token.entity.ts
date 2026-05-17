@@ -31,6 +31,15 @@ export class RefreshToken {
   @Column({ default: false })
   revoked: boolean;
 
+  @Column({ name: 'user_agent', type: 'varchar', length: 512, nullable: true })
+  userAgent: string | null;
+
+  @Column({ name: 'device_label', type: 'varchar', length: 200, nullable: true })
+  deviceLabel: string | null;
+
+  @Column({ name: 'ip_hash', type: 'varchar', length: 128, nullable: true })
+  ipHash: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

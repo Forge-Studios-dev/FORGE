@@ -1,0 +1,67 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/theme/forge_tokens.dart';
+import '../../../core/widgets/forge_button.dart';
+import '../../../core/widgets/forge_card.dart';
+import '../data/studio_repository.dart';
+
+final studioMeProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+  return ref.read(studioRepositoryProvider).getMe();
+});
+
+class StudioSettingsScreen extends ConsumerWidget {
+  const StudioSettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final meAsync = ref.watch(studioMeProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Studio settings'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
+        ),
+      ),
+      body: meAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => const Center(child: Text('Failed to load profile')),
+        data: (me) => ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            ForgeCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _row('Display name', me['displayName'] as String? ?? '—'),
+                  const SizedBox(height: 12),
+                  _row('Username', '@${me['username'] ?? '—'}'),
+                  const SizedBox(height: 12),
+                  _row('Email', me['email'] as String? ?? '—'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            ForgeButton(
+              label: 'Edit profile settings',
+              onPressed: () => context.push('/profile/settings'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: ForgeTokens.outline)),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
+      ],
+    );
+  }
+}

@@ -12,11 +12,13 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { StreamingService } from './streaming.service';
+import { toPublicStream } from './stream.mapper';
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
 import Mux from '@mux/mux-node';
@@ -34,22 +36,28 @@ export class StreamingController {
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.START_STREAM)
   @ApiOperation({ summary: 'Create a new live stream' })
-  createStream(@CurrentUser() user: JwtPayload, @Body() dto: CreateStreamDto) {
-    return this.streamingService.createStream(user.sub, dto);
+  async createStream(@CurrentUser() user: JwtPayload, @Body() dto: CreateStreamDto) {
+    const stream = await this.streamingService.createStream(user.sub, dto);
+    return toPublicStream(stream, true);
   }
 
   @Public()
   @Get('live')
   @ApiOperation({ summary: 'Get currently live streams' })
-  getLiveStreams() {
-    return this.streamingService.getLiveStreams();
+  async getLiveStreams() {
+    const streams = await this.streamingService.getLiveStreams();
+    return streams.map((s) => toPublicStream(s, false));
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
   @ApiOperation({ summary: 'Get stream by ID' })
-  findOne(@Param('id') id: string) {
-    return this.streamingService.findById(id);
+  findOne(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
+    return this.streamingService.findById(id).then((stream) => {
+      const includeIngest = !!user && user.sub === stream.userId;
+      return toPublicStream(stream, includeIngest);
+    });
   }
 
   @Post(':id/end')

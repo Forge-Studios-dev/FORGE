@@ -1,0 +1,116 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/widgets/forge_button.dart';
+import '../../auth/data/auth_repository.dart';
+class ProfileSettingsScreen extends ConsumerStatefulWidget {
+  const ProfileSettingsScreen({super.key});
+
+  @override
+  ConsumerState<ProfileSettingsScreen> createState() => _ProfileSettingsScreenState();
+}
+
+class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
+  final _displayName = TextEditingController();
+  final _bio = TextEditingController();
+  bool _loading = true;
+  bool _saving = false;
+  String? _userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final client = ref.read(apiClientProvider);
+      final res = await client.dio.get('/users/me');
+      final data = res.data['data'] as Map<String, dynamic>;
+      _userId = data['id'] as String?;
+      _displayName.text = data['displayName'] as String? ?? '';
+      _bio.text = data['bio'] as String? ?? '';
+    } catch (_) {
+      if (mounted) context.go('/login');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (_userId == null) return;
+    setState(() => _saving = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.put('/users/$_userId', data: {
+        'displayName': _displayName.text.trim(),
+        'bio': _bio.text.trim().isEmpty ? null : _bio.text.trim(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Settings saved')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save settings')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _displayName.dispose();
+    _bio.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          TextField(
+            controller: _displayName,
+            decoration: const InputDecoration(labelText: 'Display name'),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _bio,
+            maxLines: 4,
+            decoration: const InputDecoration(labelText: 'Bio'),
+          ),
+          const SizedBox(height: 24),
+          ForgeButton(
+            label: _saving ? 'Saving…' : 'Save changes',
+            onPressed: _saving ? null : _save,
+          ),
+          const SizedBox(height: 32),
+          OutlinedButton(
+            onPressed: () async {
+              await ref.read(authRepositoryProvider).logout();
+              if (context.mounted) context.go('/login');
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.redAccent,
+              side: const BorderSide(color: Colors.redAccent),
+            ),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+  }
+}

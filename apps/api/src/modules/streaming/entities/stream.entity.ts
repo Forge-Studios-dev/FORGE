@@ -45,11 +45,11 @@ export class Stream {
   @Column({ name: 'mux_asset_id', nullable: true })
   muxAssetId: string;
 
-  @Column({ name: 'stream_key', nullable: true })
-  streamKey: string;
+  @Column({ name: 'stream_key', type: 'varchar', nullable: true })
+  streamKey: string | null;
 
-  @Column({ name: 'rtmp_url', nullable: true })
-  rtmpUrl: string;
+  @Column({ name: 'rtmp_url', type: 'varchar', nullable: true })
+  rtmpUrl: string | null;
 
   @Column({ name: 'playback_url', nullable: true })
   playbackUrl: string;

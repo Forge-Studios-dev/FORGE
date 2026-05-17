@@ -1,3 +1,14 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss' source(none);
+@source '../**/*.{ts,tsx}';
+@import '@forge/design-system/tailwind';
+
+@layer base {
+  html {
+    @apply scroll-smooth antialiased;
+  }
+
+  body {
+    @apply bg-surface-container-lowest text-on-background min-h-screen;
+    font-family: var(--font-inter, 'Inter'), system-ui, sans-serif;
+  }
+}

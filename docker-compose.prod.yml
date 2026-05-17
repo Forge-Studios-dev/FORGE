@@ -39,6 +39,22 @@ services:
     volumes:
       - redis_data:/data
 
+  # Optional: set API/worker DATABASE_URL to postgres://${DB_USERNAME}:${DB_PASSWORD}@pgbouncer:5432/${DB_NAME}
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.24.1-p1
+    container_name: forge-pgbouncer
+    restart: always
+    environment:
+      DATABASE_URL: postgres://${DB_USERNAME}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 20
+      LISTEN_ADDR: 0.0.0.0
+      LISTEN_PORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build:
       context: .

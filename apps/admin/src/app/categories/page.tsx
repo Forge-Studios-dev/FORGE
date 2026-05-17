@@ -1,6 +1,8 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Icon, Input, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 
 interface Category {
@@ -8,10 +10,24 @@ interface Category {
   name: string;
   slug: string;
   sortOrder: number;
-  createdAt: string;
+  description?: string | null;
+}
+
+function slugify(name: string) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 export default function CategoriesPage() {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState<Category | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: '', slug: '', sortOrder: '0', description: '' });
+  const [error, setError] = useState('');
+
   const { data, isLoading } = useQuery<Category[]>({
     queryKey: ['admin-categories'],
     queryFn: async () => {
@@ -20,27 +36,167 @@ export default function CategoriesPage() {
     },
   });
 
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-8">Categories</h1>
+  const save = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        name: form.name.trim(),
+        slug: form.slug.trim() || slugify(form.name),
+        sortOrder: Number(form.sortOrder) || 0,
+        description: form.description.trim() || undefined,
+      };
+      if (editing) {
+        await api.patch(`/admin/categories/${editing.id}`, payload);
+      } else {
+        await api.post('/admin/categories', payload);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-categories'] });
+      setShowForm(false);
+      setEditing(null);
+      setForm({ name: '', slug: '', sortOrder: '0', description: '' });
+      setError('');
+    },
+    onError: () => setError('Could not save category. Check name/slug uniqueness.'),
+  });
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {isLoading
-          ? Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl p-5 animate-pulse h-28" />
-            ))
-          : data?.map((cat) => (
-              <div key={cat.id} className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">{cat.name}</h3>
-                  <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded font-mono">
-                    #{cat.sortOrder}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">{cat.slug}</p>
-              </div>
-            ))}
+  const remove = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/categories/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-categories'] }),
+    onError: () => setError('Cannot delete — remove subcategories first.'),
+  });
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ name: '', slug: '', sortOrder: String((data?.length ?? 0) + 1), description: '' });
+    setShowForm(true);
+    setError('');
+  };
+
+  const openEdit = (cat: Category) => {
+    setEditing(cat);
+    setForm({
+      name: cat.name,
+      slug: cat.slug,
+      sortOrder: String(cat.sortOrder),
+      description: cat.description ?? '',
+    });
+    setShowForm(true);
+    setError('');
+  };
+
+  return (
+    <section>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <PageHeader title="Categories" subtitle="Manage skill taxonomy for discovery" />
+        <Button type="button" onClick={openCreate}>
+          Add category
+        </Button>
       </div>
-    </div>
+
+      {error ? <p className="mb-4 text-sm text-error">{error}</p> : null}
+
+      {showForm && (
+        <form
+          className="glass-panel mb-8 space-y-4 rounded-xl p-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save.mutate();
+          }}
+        >
+          <h3 className="font-display-forge font-semibold">{editing ? 'Edit category' : 'New category'}</h3>
+          <label className="block">
+            <span className="font-label-caps text-outline">Name</span>
+            <Input
+              className="mt-1"
+              value={form.name}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  name: e.target.value,
+                  slug: f.slug || slugify(e.target.value),
+                }))
+              }
+              required
+            />
+          </label>
+          <label className="block">
+            <span className="font-label-caps text-outline">Slug</span>
+            <Input className="mt-1" value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))} required />
+          </label>
+          <label className="block">
+            <span className="font-label-caps text-outline">Sort order</span>
+            <Input
+              className="mt-1"
+              type="number"
+              min={0}
+              value={form.sortOrder}
+              onChange={(e) => setForm((f) => ({ ...f, sortOrder: e.target.value }))}
+            />
+          </label>
+          <label className="block">
+            <span className="font-label-caps text-outline">Description</span>
+            <Input className="mt-1" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+          </label>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? 'Saving…' : 'Save'}
+            </Button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false);
+                setEditing(null);
+              }}
+              className="rounded-full border border-outline-variant px-4 py-2 text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="glass-panel h-28 animate-pulse rounded-xl" />
+          ))}
+        </div>
+      ) : !data?.length ? (
+        <div className="glass-panel flex flex-col items-center rounded-xl px-6 py-12 text-center">
+          <Icon name="category" className="mb-4 text-4xl text-outline" />
+          <p className="font-display-forge text-lg font-semibold">No categories</p>
+          <p className="mt-2 text-sm text-on-surface-variant">Add your first category to organize discovery.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {data.map((cat) => (
+            <article key={cat.id} className="glass-panel rounded-xl p-5">
+              <header className="mb-2 flex items-start justify-between gap-2">
+                <h3 className="font-semibold">{cat.name}</h3>
+                <span className="font-label-caps shrink-0 rounded bg-surface-container-high px-2 py-0.5 text-xs text-outline">
+                  #{cat.sortOrder}
+                </span>
+              </header>
+              <p className="mb-4 text-xs text-outline">{cat.slug}</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => openEdit(cat)} className="text-xs text-primary hover:underline">
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`Delete "${cat.name}"?`)) remove.mutate(cat.id);
+                  }}
+                  className="text-xs text-error hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

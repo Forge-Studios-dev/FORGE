@@ -2,16 +2,31 @@ node_modules/
 dist/
 .next/
 build/
+.turbo/
 .env
 .env.local
 .env.*.local
 .env.production
+compose.prod.env
+!compose.prod.env.example
+!**/.env.example
+!**/.env.production.example
+
+# TLS (generate on server; never commit keys)
+infra/nginx/ssl/
+
+# Accidental tsc output in shared-types src (build goes to dist/)
+packages/shared-types/src/**/*.js
+packages/shared-types/src/**/*.js.map
+packages/shared-types/src/**/*.d.ts
+packages/shared-types/src/**/*.d.ts.map
 *.log
 .DS_Store
 .idea/
 .vscode/
 coverage/
 *.tsbuildinfo
+*.zip
 
 # Flutter
 apps/mobile/.dart_tool/

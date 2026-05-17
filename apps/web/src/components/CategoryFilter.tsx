@@ -2,7 +2,6 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Category } from '@/types';
-import { cn } from '@/lib/utils';
 
 interface Props {
   categories: Category[];
@@ -11,9 +10,9 @@ interface Props {
 export function CategoryFilter({ categories }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeCategory = searchParams.get('category');
+  const active = searchParams.get('category') || '';
 
-  const handleSelect = (slug: string | null) => {
+  const setCategory = (slug: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (slug) params.set('category', slug);
     else params.delete('category');
@@ -21,28 +20,28 @@ export function CategoryFilter({ categories }: Props) {
   };
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2 mb-8 scrollbar-hide">
+    <div className="mb-8 flex gap-3 overflow-x-auto pb-2 hide-scrollbar">
       <button
-        onClick={() => handleSelect(null)}
-        className={cn(
-          'shrink-0 px-4 py-1.5 rounded-full text-sm font-medium border transition',
-          !activeCategory
-            ? 'bg-forge-600 border-forge-600 text-white'
-            : 'border-white/10 text-gray-400 hover:border-white/20 hover:text-white',
-        )}
+        type="button"
+        onClick={() => setCategory('')}
+        className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition ${
+          !active
+            ? 'border-primary bg-primary/20 text-primary'
+            : 'border-subtle bg-surface-container-low text-on-surface-variant hover:border-primary/50'
+        }`}
       >
         All
       </button>
       {categories.map((cat) => (
         <button
           key={cat.id}
-          onClick={() => handleSelect(cat.slug)}
-          className={cn(
-            'shrink-0 px-4 py-1.5 rounded-full text-sm font-medium border transition',
-            activeCategory === cat.slug
-              ? 'bg-forge-600 border-forge-600 text-white'
-              : 'border-white/10 text-gray-400 hover:border-white/20 hover:text-white',
-          )}
+          type="button"
+          onClick={() => setCategory(cat.slug)}
+          className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition ${
+            active === cat.slug
+              ? 'border-primary bg-primary/20 text-primary'
+              : 'border-subtle bg-surface-container-low text-on-surface-variant hover:border-primary/50'
+          }`}
         >
           {cat.name}
         </button>

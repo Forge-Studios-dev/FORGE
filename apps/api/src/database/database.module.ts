@@ -17,8 +17,15 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         database: config.get<string>('database.name'),
         entities: [__dirname + '/../**/*.entity{.ts,.js}'],
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
-        synchronize: config.get<string>('nodeEnv') === 'development',
+        // Never use synchronize for this project; it can break prod-like DBs.
+        synchronize: false,
+        migrationsRun: true,
         logging: config.get<string>('nodeEnv') === 'development',
+        maxQueryExecutionTime: config.get<number>('database.slowQueryMs') ?? 2000,
+        extra: {
+          max: config.get<number>('database.poolMax') ?? 20,
+          connectionTimeoutMillis: config.get<number>('database.connectTimeoutMs') ?? 10_000,
+        },
         ssl:
           config.get<string>('nodeEnv') === 'production'
             ? { rejectUnauthorized: false }

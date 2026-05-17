@@ -4,10 +4,21 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { persistAuthSession } from '@/lib/auth-storage';
+import { useAuth } from '@/lib/auth';
+import { AuthScreen, authFieldClass } from '@/components/auth/AuthScreen';
 import { AuthTokens } from '@/types';
+
+const FIELDS = [
+  { key: 'displayName', label: 'Display name', type: 'text', placeholder: 'Your name' },
+  { key: 'username', label: 'Username', type: 'text', placeholder: 'your_handle' },
+  { key: 'email', label: 'Email', type: 'email', placeholder: 'name@company.com' },
+  { key: 'password', label: 'Password', type: 'password', placeholder: 'Min 8 characters' },
+] as const;
 
 export default function SignupPage() {
   const router = useRouter();
+  const { refresh } = useAuth();
   const [form, setForm] = useState({ email: '', username: '', displayName: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,9 +29,12 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const { data } = await api.post<{ data: AuthTokens }>('/auth/signup', form);
-      localStorage.setItem('forge_access_token', data.data.accessToken);
-      localStorage.setItem('forge_refresh_token', data.data.refreshToken);
-      localStorage.setItem('forge_user', JSON.stringify(data.data.user));
+      persistAuthSession(
+        data.data.accessToken,
+        data.data.refreshToken,
+        JSON.stringify(data.data.user),
+      );
+      refresh();
       if (data.data.user.role === 'creator' && data.data.user.creatorStatus && data.data.user.creatorStatus !== 'approved') {
         router.push(
           data.data.user.creatorStatus === 'rejected' ? '/approval-rejected' : '/waiting-approval',
@@ -37,55 +51,41 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gradient">FORGE</h1>
-          <p className="text-gray-400 mt-2">Start your learning journey</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="glass rounded-2xl p-8 space-y-5">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg px-4 py-3 text-sm">
-              {error}
-            </div>
-          )}
-
-          {[
-            { key: 'email', label: 'Email', type: 'email', placeholder: 'you@example.com' },
-            { key: 'username', label: 'Username', type: 'text', placeholder: 'john_doe' },
-            { key: 'displayName', label: 'Display Name', type: 'text', placeholder: 'John Doe' },
-            { key: 'password', label: 'Password', type: 'password', placeholder: '••••••••' },
-          ].map((field) => (
-            <div key={field.key}>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">{field.label}</label>
-              <input
-                type={field.type}
-                required
-                value={form[field.key as keyof typeof form]}
-                onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-forge-500 transition"
-                placeholder={field.placeholder}
-              />
-            </div>
-          ))}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-forge-600 hover:bg-forge-500 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition"
-          >
-            {loading ? 'Creating account...' : 'Create Account'}
-          </button>
-
-          <p className="text-center text-sm text-gray-400">
-            Already have an account?{' '}
-            <Link href="/login" className="text-forge-500 hover:text-forge-400">
-              Sign in
-            </Link>
-          </p>
-        </form>
-      </div>
-    </div>
+    <AuthScreen
+      title="Join FORGE"
+      subtitle="Start your skill-first learning journey."
+      showHeader={false}
+    >
+      <form className="space-y-5" onSubmit={handleSubmit}>
+        {error && <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{error}</p>}
+        {FIELDS.map((field) => (
+          <input
+            key={field.key}
+            type={field.type}
+            required
+            placeholder={field.placeholder}
+            value={form[field.key]}
+            onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
+            className={authFieldClass}
+          />
+        ))}
+        <button
+          type="submit"
+          disabled={loading}
+          className="primary-button w-full rounded-full py-4 font-semibold text-on-primary disabled:opacity-60"
+        >
+          {loading ? 'Creating account…' : 'Create account'}
+        </button>
+      </form>
+      <p className="mt-6 text-center text-sm text-on-surface-variant">
+        Already have an account?{' '}
+        <Link href="/login" className="text-primary hover:underline">
+          Sign in
+        </Link>
+      </p>
+      <p className="mt-4 text-center text-xs text-outline">
+        We send a verification link after sign up. Verify your email to unlock creator tools once approved.
+      </p>
+    </AuthScreen>
   );
 }
