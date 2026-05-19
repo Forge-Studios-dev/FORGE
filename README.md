@@ -253,6 +253,7 @@ docker compose -f docker-compose.prod.yml up -d
 | Document | Audience |
 |----------|----------|
 | **[docs/DEPLOYMENT_DEMO.md](docs/DEPLOYMENT_DEMO.md)** | Local + VPS + remote client demo setup |
+| **[docs/DEPLOYMENT_VERCEL_FLY.md](docs/DEPLOYMENT_VERCEL_FLY.md)** | Vercel (web/admin) + Fly.io (API) + Neon + Upstash |
 | **[docs/CLIENT_OVERVIEW.md](docs/CLIENT_OVERVIEW.md)** | Clients and stakeholders (executive summary) |
 | **[docs/FORGE_PROJECT_MASTER.md](docs/FORGE_PROJECT_MASTER.md)** | Full product + technical specification |
 | **[docs/README.md](docs/README.md)** | Documentation index |

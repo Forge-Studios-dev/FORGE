@@ -1,0 +1,37 @@
+# Deploy NestJS API to Fly.io on push to main.
+# Required secret: FLY_API_TOKEN
+# Set runtime secrets on Fly: fly secrets set DATABASE_URL=... REDIS_URL=... (see docs/DEPLOYMENT_VERCEL_FLY.md)
+
+name: Deploy API (Fly.io)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'packages/**'
+      - 'fly.toml'
+      - 'apps/api/Dockerfile'
+      - '.github/workflows/deploy-fly.yml'
+
+concurrency:
+  group: fly-api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: flyctl deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --remote-only --ha=false
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
