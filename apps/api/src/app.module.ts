@@ -95,10 +95,15 @@ import { bullMqConnectionFromConfig } from './config/bull-redis.util';
 
     RedisModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'single',
-        url: config.get<string>('redis.url'),
-      }),
+      useFactory: (config: ConfigService) => {
+        const url = config.get<string>('redis.url') || 'redis://localhost:6379';
+        const useTls = url.startsWith('rediss://');
+        return {
+          type: 'single',
+          url,
+          ...(useTls ? { options: { tls: { rejectUnauthorized: false } } } : {}),
+        };
+      },
     }),
 
     BullModule.forRootAsync({

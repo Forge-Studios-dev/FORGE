@@ -7,9 +7,11 @@ export function bullMqConnectionFromRedisUrl(redisUrl: string): ConnectionOption
   try {
     const u = new URL(redisUrl);
     const port = u.port ? parseInt(u.port, 10) : 6379;
+    const tls = u.protocol === 'rediss:' ? { rejectUnauthorized: false } : undefined;
     const conn: ConnectionOptions = {
       host: u.hostname || 'localhost',
       port,
+      ...(tls ? { tls } : {}),
     };
     if (u.password) {
       conn.password = decodeURIComponent(u.password);

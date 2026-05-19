@@ -1,3 +1,5 @@
+import { resolveRedisUrl } from './resolve-redis-url';
+
 export default () => ({
   nodeEnv: process.env.NODE_ENV || 'development',
   workerOnly: process.env.WORKER_ONLY === 'true',
@@ -16,7 +18,7 @@ export default () => ({
   },
 
   redis: {
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
+    url: resolveRedisUrl(process.env),
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
     password: process.env.REDIS_PASSWORD || '',
