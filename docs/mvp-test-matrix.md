@@ -2,7 +2,9 @@
 
 Role × flow × expected behavior across API, Web, Mobile, Admin.
 
-## Demo accounts (local)
+> **After cloud deploy:** use the same demo accounts on your Vercel URLs. Deploy guide: [MVP_GO_LIVE.md](./MVP_GO_LIVE.md).
+
+## Demo accounts (local or production)
 
 | Email | Password | Role | Use on |
 |-------|----------|------|--------|

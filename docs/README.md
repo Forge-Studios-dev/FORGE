@@ -4,6 +4,18 @@ Documentation for the FORGE skill-first creator platform. Use this index to find
 
 ---
 
+## Go live (MVP) — start here
+
+| Document | Purpose | Read time |
+|----------|---------|-----------|
+| **[MVP_GO_LIVE.md](./MVP_GO_LIVE.md)** | **Deploy MVP for free** — Vercel, Fly.io, Neon, Upstash, CI/CD, verification | ~20 min |
+| [mvp-test-matrix.md](./mvp-test-matrix.md) | Role × flow testing after deploy | ~15 min |
+| [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) | Local demo, ngrok, Oracle/VPS only (not cloud MVP) | ~10 min |
+
+**Recommended order:** `MVP_GO_LIVE.md` → deploy → `mvp-test-matrix.md` → share [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) with client.
+
+---
+
 ## For clients and stakeholders
 
 | Document | Purpose | Read time |
@@ -19,11 +31,16 @@ Documentation for the FORGE skill-first creator platform. Use this index to find
 
 | Document | Purpose |
 |----------|---------|
-| [../README.md](../README.md) | Clone, install, run locally, API examples, deployment |
+| [../README.md](../README.md) | Clone, install, run locally, API examples |
+| [MVP_GO_LIVE.md](./MVP_GO_LIVE.md) | Production deploy (free tier) |
 | [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) §25 | Production readiness checklist |
 | [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) §24 | Implementation status (feature matrix) |
-| [phase4-platform-evaluation.md](./phase4-platform-evaluation.md) | When to adopt search, analytics warehouse, vector DB, etc. |
+| [phase4-platform-evaluation.md](./phase4-platform-evaluation.md) | When to adopt search warehouse, vector DB, etc. |
 | [Recommended_Things.md](./Recommended_Things.md) | External tools catalog (in use vs deferred) |
+
+**Env templates:** `apps/api/.env.neon.example`, `apps/api/.env.upstash.example`
+
+**Scripts:** `npm run db:neon:setup` · `npm run redis:upstash:test` · `bash scripts/setup-local-demo.sh`
 
 ---
 
@@ -40,17 +57,17 @@ Documentation for the FORGE skill-first creator platform. Use this index to find
 
 ---
 
-## Redirects (legacy filenames)
+## Redirects (do not duplicate content)
 
-These files only point to the consolidated master document:
-
-- `PROJECT_OVERVIEW.md` → [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md)
-- `project-goals-and-scope.md` → [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md)
-- `mvp-audit.md` → §24 in master
-- `production-readiness-checklist.md` → §25 in master
-- `FORGE_ENHANCEMENT.MD` / `FORGE_MVP_Enhancement_Prompt.md` → relevant sections in master
-
-**Do not maintain duplicate content in redirect files.** Update [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) only.
+| File | Points to |
+|------|-----------|
+| [DEPLOYMENT_VERCEL_FLY.md](./DEPLOYMENT_VERCEL_FLY.md) | [MVP_GO_LIVE.md](./MVP_GO_LIVE.md) |
+| [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) | [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) |
+| [project-goals-and-scope.md](./project-goals-and-scope.md) | [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) |
+| [mvp-audit.md](./mvp-audit.md) | Master §24 |
+| [production-readiness-checklist.md](./production-readiness-checklist.md) | Master §25 |
+| [FORGE_ENHANCEMENT.MD](./FORGE_ENHANCEMENT.MD) | Master §26–31 |
+| [FORGE_MVP_Enhancement_Prompt.md](./FORGE_MVP_Enhancement_Prompt.md) | Master (enhancement sections) |
 
 ---
 
@@ -65,6 +82,8 @@ FORGE/
 ├── packages/
 │   ├── shared-types/  API contracts shared by web/admin
 │   └── design-system/ Shared UI tokens and React components
+├── fly.toml           Fly.io API deploy config
+├── .github/workflows/ CI + deploy-fly + deploy-vercel
 └── docs/              ← You are here
 ```
 
@@ -74,9 +93,10 @@ FORGE/
 
 | When you change… | Update… |
 |------------------|---------|
-| Product vision, scope, feature status | `FORGE_PROJECT_MASTER.md` + `CLIENT_OVERVIEW.md` status table |
-| Go-live requirements | `FORGE_PROJECT_MASTER.md` §25 |
-| UI screens or routes | `ui-ux-ai-design-prompt.md` + blueprints under `design/blueprints/` |
-| Setup or deploy steps | Root `README.md` |
+| Deploy / go-live steps | `MVP_GO_LIVE.md` only |
+| Local demo / ngrok / VPS | `DEPLOYMENT_DEMO.md` |
+| Product vision, scope, feature status | `FORGE_PROJECT_MASTER.md` + `CLIENT_OVERVIEW.md` |
+| UI screens or routes | `ui-ux-ai-design-prompt.md` + blueprints |
+| Local setup commands | Root `README.md` |
 
-*Last reviewed: 2026-05-16*
+*Last reviewed: 2026-05-19*

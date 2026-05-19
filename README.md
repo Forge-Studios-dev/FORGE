@@ -215,45 +215,27 @@ Connect to: `ws://localhost:3001/events`
 | `stream:started` | Server → Broadcast | New live stream started |
 | `comment:new` | Server → Room | New comment on video |
 
-## Production Deployment
+## Production deployment (MVP)
 
-### Docker Compose (production file)
-
-`docker-compose.prod.yml` expects a **root** `.env` file for Postgres and Redis credentials (variable substitution). Copy the template and edit values:
+**Recommended (free tier):** [docs/MVP_GO_LIVE.md](docs/MVP_GO_LIVE.md) — Vercel (web + admin), Fly.io (API), Neon (Postgres), Upstash (Redis).
 
 ```bash
-cp compose.prod.env.example .env
+npm run db:neon:setup        # migrate + seed Neon
+npm run redis:upstash:test   # verify Upstash
+fly deploy                   # API (after fly secrets set)
 ```
 
-Create `apps/api/.env.production`, `apps/web/.env.production`, and `apps/admin/.env.production` from each app’s `.env.production.example` (these paths match `env_file` in the compose file).
+GitHub Actions: `deploy-fly.yml`, `deploy-vercel.yml` on push to `main`.
 
-### Environment Variables
-
-Set production secrets in GitHub → Settings → Secrets:
-
-- `EC2_HOST` – EC2 instance IP
-- `EC2_USER` – SSH user (usually `ec2-user` or `ubuntu`)
-- `EC2_SSH_KEY` – Private SSH key
-- `NEXT_PUBLIC_API_URL` – Production API URL
-
-### Deploy
-
-Push to `main` branch triggers:
-1. Lint + test
-2. Docker build + push to GHCR
-3. SSH deploy to EC2
-
-For manual deploy:
-```bash
-docker compose -f docker-compose.prod.yml up -d
-```
+**Alternative (single VPS):** `docker-compose.prod.yml` — see [docs/DEPLOYMENT_DEMO.md](docs/DEPLOYMENT_DEMO.md) Path C. EC2 CI deploy uses secrets `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY` in `.github/workflows/api.yml`.
 
 ## Project documentation
 
 | Document | Audience |
 |----------|----------|
-| **[docs/DEPLOYMENT_DEMO.md](docs/DEPLOYMENT_DEMO.md)** | Local + VPS + remote client demo setup |
-| **[docs/DEPLOYMENT_VERCEL_FLY.md](docs/DEPLOYMENT_VERCEL_FLY.md)** | Vercel (web/admin) + Fly.io (API) + Neon + Upstash |
+| **[docs/MVP_GO_LIVE.md](docs/MVP_GO_LIVE.md)** | **MVP go-live** — free deploy (Vercel + Fly + Neon + Upstash) |
+| **[docs/mvp-test-matrix.md](docs/mvp-test-matrix.md)** | Post-deploy testing by role |
+| **[docs/DEPLOYMENT_DEMO.md](docs/DEPLOYMENT_DEMO.md)** | Local / ngrok / VPS demos only |
 | **[docs/CLIENT_OVERVIEW.md](docs/CLIENT_OVERVIEW.md)** | Clients and stakeholders (executive summary) |
 | **[docs/FORGE_PROJECT_MASTER.md](docs/FORGE_PROJECT_MASTER.md)** | Full product + technical specification |
 | **[docs/README.md](docs/README.md)** | Documentation index |

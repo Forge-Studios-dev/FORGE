@@ -1,6 +1,8 @@
-# FORGE — Client demo deployment guide
+# FORGE — Local & VPS demo guide
 
-Use this when you need to **show the product to a client** (local screen share, remote URL, or a small VPS).
+> **Going live on the internet (MVP)?** Use **[MVP_GO_LIVE.md](./MVP_GO_LIVE.md)** — Vercel + Fly.io + Neon + Upstash (free tier, step-by-step).
+
+This doc is for **local screen share**, **ngrok tunnels**, or a **single VPS** — not the recommended cloud MVP path.
 
 ## What you are deploying
 
