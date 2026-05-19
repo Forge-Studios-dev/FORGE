@@ -143,8 +143,7 @@ Full roadmap: [FORGE_PROJECT_MASTER.md §26](./FORGE_PROJECT_MASTER.md#26-growth
 
 - **Positioning:** Modern learning product — familiar video-app patterns, **distinct** visual identity (not a YouTube clone)  
 - **Design system:** Shared tokens and components (`packages/design-system`)  
-- **Screen specifications:** [ui-ux-ai-design-prompt.md](./ui-ux-ai-design-prompt.md)  
-- **Visual blueprints:** `docs/design/blueprints/` (web, mobile, admin)
+- **Screen specifications:** [ui-ux-design-prompt-any-ai.md](./ui-ux-design-prompt-any-ai.md)
 
 ---
 
@@ -170,7 +169,7 @@ Full roadmap: [FORGE_PROJECT_MASTER.md §26](./FORGE_PROJECT_MASTER.md#26-growth
 | This overview | `CLIENT_OVERVIEW.md` (this file) |
 | Full product + technical spec | [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) |
 | Setup & run | [README.md](../README.md) |
-| UI/UX for design tools | [ui-ux-ai-design-prompt.md](./ui-ux-ai-design-prompt.md) |
+| UI/UX for design tools | [ui-ux-design-prompt-any-ai.md](./ui-ux-design-prompt-any-ai.md) |
 | All docs listed | [README.md](./README.md) |
 
 ---

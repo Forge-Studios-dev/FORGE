@@ -940,7 +940,7 @@ Generate FORGE mobile (Flutter) screens for /feed, /watch/:id, /profile/:usernam
 
 - [mvp-audit.md](./mvp-audit.md) — API vs UI parity
 - [Recommended_Things.md](./Recommended_Things.md) — stack (TanStack Query web, Riverpod mobile)
-- [ui-ux-ai-design-prompt.md](./ui-ux-ai-design-prompt.md) — Google Stitch-flavored version of this same spec
+- [GETTING_STARTED.md](./GETTING_STARTED.md) — local development
 
 ---
 

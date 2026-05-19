@@ -1,6 +1,6 @@
 # Deploy Next.js web + admin to Vercel on push to main.
 # Required secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID_WEB, VERCEL_PROJECT_ID_ADMIN
-# See docs/DEPLOYMENT_VERCEL_FLY.md
+# See docs/MVP_GO_LIVE.md
 
 name: Deploy Web & Admin (Vercel)
 

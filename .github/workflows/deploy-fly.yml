@@ -1,6 +1,6 @@
 # Deploy NestJS API to Fly.io on push to main.
 # Required secret: FLY_API_TOKEN
-# Set runtime secrets on Fly: fly secrets set DATABASE_URL=... REDIS_URL=... (see docs/DEPLOYMENT_VERCEL_FLY.md)
+# Set runtime secrets on Fly: fly secrets set DATABASE_URL=... (see docs/MVP_GO_LIVE.md)
 
 name: Deploy API (Fly.io)
 

@@ -297,9 +297,9 @@ Stakeholder summary: [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md)
 
 | Path | When to use | Doc |
 |------|-------------|-----|
-| **Local + ngrok** | Quick call, no hosting setup | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) Path B |
-| **Oracle Cloud free VM** | Full Docker Compose, one server | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) Path C |
-| **EC2 + docker-compose.prod** | You already have AWS + CI SSH secrets | Root [README.md](../README.md) |
+| **Local + ngrok** | Quick call, no hosting setup | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) |
+| **Oracle Cloud free VM** | Full Docker Compose, one server | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) |
+| **EC2 + docker-compose.prod** | AWS + CI SSH secrets | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) |
 
 ---
 

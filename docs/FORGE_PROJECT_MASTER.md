@@ -6,7 +6,7 @@
 
 **Client handoff:** Share [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) first (~10 min read), then this document for full depth. Index: [docs/README.md](./README.md).
 
-**Maintenance:** Update **this file** when vision, scope, feature status, or go-live requirements change; sync the status table in `CLIENT_OVERVIEW.md` §4. Setup commands remain in [README.md](../README.md). UI screen specs remain in [ui-ux-ai-design-prompt.md](./ui-ux-ai-design-prompt.md).
+**Maintenance:** Update **this file** when vision, scope, feature status, or go-live requirements change; sync the status table in `CLIENT_OVERVIEW.md` §4. Setup commands remain in [README.md](../README.md). UI screen specs remain in [ui-ux-design-prompt-any-ai.md](./ui-ux-design-prompt-any-ai.md).
 
 ---
 
@@ -389,12 +389,10 @@ FORGE/
 │   └── nginx/               # Production reverse proxy
 ├── docs/
 │   ├── FORGE_PROJECT_MASTER.md   # ← This file (single project doc)
-│   └── ui-ux-ai-design-prompt.md # Screen-level UI spec
+│   └── ui-ux-design-prompt-any-ai.md # Screen-level UI spec
 ├── .github/workflows/              # CI/CD (api.yml, web.yml)
 ├── docker-compose.yml
 ├── docker-compose.prod.yml
-├── FORGE_ENHANCEMENT.MD            # Redirect → docs/FORGE_PROJECT_MASTER.md
-├── FORGE_MVP_Enhancement_Prompt.md   # Redirect → docs/FORGE_PROJECT_MASTER.md
 └── README.md                       # Setup and API cheat sheet
 ```
 
@@ -695,7 +693,7 @@ This section is the **full product intent** from MVP and enhancement prompts, ma
 |---------|--------|
 | Creator onboarding request | MVP |
 | Admin approve/reject | MVP |
-| Creator dashboard / studio | MVP shells on web + mobile; analytics depth incremental — see [ui-ux-ai-design-prompt.md](./ui-ux-ai-design-prompt.md) |
+| Creator dashboard / studio | MVP shells on web + mobile; analytics depth incremental — see [ui-ux-design-prompt-any-ai.md](./ui-ux-design-prompt-any-ai.md) |
 | Earnings / monetization prep | Post-MVP |
 | Growth metrics, analytics dashboard | Partial ingest; full dashboard post-MVP |
 
@@ -1208,7 +1206,7 @@ Not implemented. Post-MVP: FCM/APNs for mobile; optional web push with PWA.
 
 ## 22. UI/UX identity and design direction
 
-**Full screen-level spec:** [ui-ux-ai-design-prompt.md](./ui-ux-ai-design-prompt.md) (893 lines — use for Stitch / Figma / AI design tools).
+**Full screen-level spec:** [ui-ux-design-prompt-any-ai.md](./ui-ux-design-prompt-any-ai.md) (use for Stitch / Figma / v0 / Claude).
 
 ### 22.1 Product identity (design)
 
@@ -1245,7 +1243,7 @@ Success (happy path), loading, empty, error, offline (mobile), validation errors
 
 ### 22.5 Design system package
 
-Shared **Forge Narrative** tokens and React primitives live in [`packages/design-system`](../packages/design-system/) (`@forge/design-system`). Web and admin import Tailwind v4 theme via `@import '@forge/design-system/tailwind'`. Mobile tokens: [`apps/mobile/lib/core/theme/forge_tokens.dart`](../apps/mobile/lib/core/theme/forge_tokens.dart). Stitch HTML blueprints for QA: [`docs/design/blueprints/`](./design/blueprints/).
+Shared **Forge Narrative** tokens and React primitives live in [`packages/design-system`](../packages/design-system/) (`@forge/design-system`). Web and admin import Tailwind v4 theme via `@import '@forge/design-system/tailwind'`. Mobile tokens: [`apps/mobile/lib/core/theme/forge_tokens.dart`](../apps/mobile/lib/core/theme/forge_tokens.dart). Design tokens and components: `packages/design-system/` (HTML blueprints optional under `docs/design/blueprints/` if added).
 
 ### 22.6 Component inventory (web)
 
@@ -1255,7 +1253,7 @@ Shared **Forge Narrative** tokens and React primitives live in [`packages/design
 
 ## 23. MVP scope definition
 
-**MVP** = minimum **credible** product for a closed beta—not every line item in [FORGE_MVP_Enhancement_Prompt.md](../FORGE_MVP_Enhancement_Prompt.md).
+**MVP** = minimum **credible** product for a closed beta—see §23–24 for scope.
 
 ### 23.1 In scope (largely done)
 
@@ -1604,12 +1602,12 @@ Incremental improvements toward millions of users (from architecture enhancement
 | [README.md](./README.md) | Documentation index |
 | [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) | Executive summary for clients |
 | [../README.md](../README.md) | Clone, install, run, API examples |
-| [ui-ux-ai-design-prompt.md](./ui-ux-ai-design-prompt.md) | Screen-level UI/UX for design tools |
+| [ui-ux-design-prompt-any-ai.md](./ui-ux-design-prompt-any-ai.md) | Screen-level UI/UX for design tools |
 | [ui-ux-design-prompt-any-ai.md](./ui-ux-design-prompt-any-ai.md) | Same spec, tool-agnostic |
 | [Recommended_Things.md](./Recommended_Things.md) | External tools catalog (optional reference) |
 | [phase4-platform-evaluation.md](./phase4-platform-evaluation.md) | Vendor decision criteria (optional detail) |
 
-Legacy filenames (`project-goals-and-scope.md`, `PROJECT_OVERVIEW.md`, `mvp-audit.md`, etc.) redirect here.
+Documentation index: [docs/README.md](./README.md). Setup: [GETTING_STARTED.md](./GETTING_STARTED.md). Deploy: [MVP_GO_LIVE.md](./MVP_GO_LIVE.md).
 
 ---
 
