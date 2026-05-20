@@ -158,7 +158,7 @@ Full roadmap: [FORGE_PROJECT_MASTER.md §26](./FORGE_PROJECT_MASTER.md#26-growth
 | API docs (dev) | http://localhost:3001/api/docs |
 | Admin | http://localhost:3002 |
 
-**Production:** Docker Compose production file, GitHub Actions deploy to EC2, environment templates in each app’s `.env.example`.
+**Production:** Fly.io (API) + Vercel (web/admin) via GitHub Actions; optional VPS path with `docker-compose.prod.yml`. See [MVP_GO_LIVE.md](./MVP_GO_LIVE.md) and [CI_CD.md](./CI_CD.md).
 
 ---
 
@@ -170,6 +170,7 @@ Full roadmap: [FORGE_PROJECT_MASTER.md §26](./FORGE_PROJECT_MASTER.md#26-growth
 | Full product + technical spec | [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) |
 | Setup & run | [README.md](../README.md) |
 | UI/UX for design tools | [ui-ux-design-prompt-any-ai.md](./ui-ux-design-prompt-any-ai.md) |
+| CI/CD & deploy | [CI_CD.md](./CI_CD.md) |
 | All docs listed | [README.md](./README.md) |
 
 ---

@@ -1,171 +1,181 @@
 # Domain setup — forgestudios.net
 
-Connect your domain to **Vercel** (web + admin) and **Fly.io** (API).
+Connect **forgestudios.net** to Vercel (web + admin) and Fly.io (API).
 
-**Domain on Squarespace DNS?** Use the copy-paste guide: **[SQUARESPACE_DNS_FORGESTUDIOS.md](./SQUARESPACE_DNS_FORGESTUDIOS.md)**
-
-**Live API today:** `https://forge-studios-api.fly.dev/api/v1`  
-**Target layout:**
+**Registrar / DNS:** Squarespace (`squarespacedns.com`) — use **Part 3** for copy-paste records.  
+Other registrars: same record types; use values from your Vercel/Fly dashboards.
 
 | URL | Service |
 |-----|---------|
-| `https://forgestudios.net` | Web app (Vercel) |
+| `https://forgestudios.net` | Web (Vercel) |
 | `https://www.forgestudios.net` | Redirect → apex (optional) |
-| `https://admin.forgestudios.net` | Admin panel (Vercel) |
+| `https://admin.forgestudios.net` | Admin (Vercel) |
 | `https://api.forgestudios.net` | API (Fly.io) |
+
+**API fallback:** `https://forge-studios-api.fly.dev/api/v1`
 
 ---
 
-## Part 1 — Vercel (web + admin)
+## Part 1 — Deploy apps (Vercel + Fly)
 
-### 1.1 Install CLI & login
+### Vercel (web + admin)
 
 ```bash
 npm i -g vercel@39
 vercel login
 cd /path/to/FORGE
+npm run deploy:vercel
+# or: bash scripts/vercel-setup.sh
 ```
 
-### 1.2 Automated deploy (recommended)
+**Monorepo:** In each Vercel project → **Settings → General** → enable **“Include source files outside of the Root Directory in the Build Step”**.
 
-```bash
-cd /path/to/FORGE
-bash scripts/vercel-setup.sh
-```
-
-Or: `npm run deploy:vercel`
-
-**Important (monorepo):** In each Vercel project → **Settings → General** → enable  
-**“Include source files outside of the Root Directory in the Build Step”**.  
-Without this, `npm ci` fails because the repo root `package-lock.json` is missing.
-
-### 1.3 Manual — two projects
-
-**Web**
-
-1. [vercel.com/new](https://vercel.com/new) → Import `Forge-Studios-dev/FORGE`
-2. **Root Directory:** `apps/web`
-3. **Production env:**
+**Production env (both projects):**
 
 | Variable | Value |
 |----------|--------|
 | `NEXT_PUBLIC_API_URL` | `https://api.forgestudios.net/api/v1` |
-| `API_INTERNAL_URL` | `https://api.forgestudios.net/api/v1` |
-| `NEXT_PUBLIC_APP_URL` | `https://forgestudios.net` |
-| `NEXT_PUBLIC_ADMIN_URL` | `https://admin.forgestudios.net` |
-
-4. Deploy.
-
-**Admin**
-
-1. New project → same repo → **Root Directory:** `apps/admin`
-2. **Production env:**
-
-| Variable | Value |
-|----------|--------|
-| `NEXT_PUBLIC_API_URL` | `https://api.forgestudios.net/api/v1` |
-| `NEXT_PUBLIC_ADMIN_URL` | `https://admin.forgestudios.net` |
+| `API_INTERNAL_URL` | `https://api.forgestudios.net/api/v1` (web only) |
+| `NEXT_PUBLIC_APP_URL` | `https://forgestudios.net` (web only) |
 | `NEXT_PUBLIC_WEB_URL` | `https://forgestudios.net` |
+| `NEXT_PUBLIC_ADMIN_URL` | `https://admin.forgestudios.net` |
 
-3. Deploy.
+Manual import: [vercel.com/new](https://vercel.com/new) → repo `Forge-Studios-dev/FORGE` → root `apps/web` and `apps/admin` as separate projects.
 
----
-
-## Part 2 — Custom domains on Vercel
-
-### Web project → Domains
-
-1. Vercel → **forge-web** (or your web project) → **Settings → Domains**
-2. Add: `forgestudios.net` and `www.forgestudios.net`
-3. Vercel shows DNS records (usually **A** `76.76.21.21` and **CNAME** `www` → `cname.vercel-dns.com`)
-
-### Admin project → Domains
-
-1. Admin project → **Settings → Domains**
-2. Add: `admin.forgestudios.net`
-3. Note the **CNAME** target (e.g. `cname.vercel-dns.com` or project-specific)
-
----
-
-## Part 3 — Google domain DNS
-
-Where you bought the domain (Google Workspace / Squarespace / Google Domains):
-
-1. Open **DNS management** for `forgestudios.net`  
-   - [Google Domains](https://domains.google.com) (may redirect to Squarespace)  
-   - Or **Google Admin** → Account → Domains → Manage domains → DNS  
-   - Or **Squarespace** → Domains → forgestudios.net → DNS Settings
-
-2. Add records Vercel shows (example — **use values from your Vercel dashboard**):
-
-| Type | Host / Name | Value | TTL |
-|------|-------------|--------|-----|
-| A | `@` | `76.76.21.21` | 3600 |
-| CNAME | `www` | `cname.vercel-dns.com` | 3600 |
-| CNAME | `admin` | `cname.vercel-dns.com` (or Vercel’s admin target) | 3600 |
-
-3. Save. DNS can take **5 minutes – 48 hours** (often &lt; 1 hour).
-
-4. In Vercel, wait until each domain shows **Valid Configuration**.
-
----
-
-## Part 4 — API on Fly.io (`api.forgestudios.net`)
-
-### 4.1 Add certificate on Fly
+### Fly (API)
 
 ```bash
 fly certs add api.forgestudios.net --app forge-studios-api
 fly certs show api.forgestudios.net --app forge-studios-api
-```
-
-Fly prints a **CNAME** like `_flydns.api` → `api.forgestudios.net.flydns.net` (use **your** output).
-
-### 4.2 DNS record (Google)
-
-| Type | Host / Name | Value |
-|------|-------------|--------|
-| CNAME | `api` | `forge-studios-api.fly.dev` |
-
-Or use the exact target from `fly certs show` if Fly asks for `_flydns` style records.
-
-### 4.3 Update Fly CORS + app URLs
-
-```bash
 fly secrets set \
   WEB_URL='https://forgestudios.net' \
   ADMIN_URL='https://admin.forgestudios.net' \
   --app forge-studios-api
 ```
 
-### 4.4 Verify API
+---
+
+## Part 2 — Attach domains in Vercel
+
+| Project | Domains to add |
+|---------|----------------|
+| **web** | `forgestudios.net`, `www.forgestudios.net` |
+| **admin** | `admin.forgestudios.net` |
+
+**Settings → Domains** → wait for **Valid Configuration**.  
+If apex is on another project, remove it there first.
+
+Vercel usually shows:
+
+| Type | Host | Value |
+|------|------|--------|
+| A | `@` | `76.76.21.21` |
+| CNAME | `www` | `cname.vercel-dns.com` |
+| CNAME | `admin` | `cname.vercel-dns.com` (or project-specific target) |
+
+**Always prefer values from your Vercel dashboard** over this table.
+
+---
+
+## Part 3 — Squarespace DNS (forgestudios.net)
+
+**Where:** [account.squarespace.com](https://account.squarespace.com) → **Domains** → **forgestudios.net** → **DNS Settings** → **Custom records**
+
+1. **Delete** old apex **A** records pointing to Squarespace parking (`198.185.159.x`).
+2. **Delete** old `www` CNAME → `ext-sq.squarespace.com` (if present).
+3. **Add** records below. Save. Propagation: 15 min – 48 h (often &lt; 1 h).
+4. Do **not** remove **MX** / email **TXT** records (Google Workspace).
+
+### Records to add
+
+**Web (Vercel)**
+
+| Type | Host | Data / Points to | TTL |
+|------|------|------------------|-----|
+| A | `@` | `76.76.21.21` | 3600 |
+| CNAME | `www` | `cname.vercel-dns.com` | 3600 |
+
+**Admin (Vercel)**
+
+| Type | Host | Data / Points to | TTL |
+|------|------|------------------|-----|
+| CNAME | `admin` | `cname.vercel-dns.com` | 3600 |
+
+Use Vercel’s admin-specific CNAME if the dashboard shows one (e.g. `xxxxx.vercel-dns-017.com`).
+
+**API (Fly.io)**
+
+| Type | Host | Data / Points to | TTL |
+|------|------|------------------|-----|
+| CNAME | `api` | `ked1nor.forge-studios-api.fly.dev` | 3600 |
+
+Or **A** `api` → `66.241.125.64` if you prefer A records. Verify:
 
 ```bash
+fly certs check api.forgestudios.net --app forge-studios-api
+```
+
+---
+
+## Part 4 — Other registrars (Google / generic)
+
+If DNS is not on Squarespace, add the same logical records at your provider:
+
+| Type | Host | Value |
+|------|------|--------|
+| A | `@` | Vercel apex IP (usually `76.76.21.21`) |
+| CNAME | `www` | Vercel `www` target |
+| CNAME | `admin` | Vercel admin target |
+| CNAME | `api` | `ked1nor.forge-studios-api.fly.dev` or output from `fly certs show` |
+
+---
+
+## Part 5 — After DNS propagates
+
+| URL | Expected |
+|-----|----------|
+| https://forgestudios.net | FORGE web app |
+| https://admin.forgestudios.net | Admin login |
+| https://api.forgestudios.net/api/v1/health | `{"success":true,...}` |
+
+Redeploy frontends if you changed API URL:
+
+```bash
+npm run deploy:vercel
+```
+
+Seed production DB if demo logins fail: `npm run db:neon:setup`
+
+### Quick verify (terminal)
+
+```bash
+dig forgestudios.net A +short
+dig www.forgestudios.net CNAME +short
+dig admin.forgestudios.net CNAME +short
+dig api.forgestudios.net CNAME +short
 curl -s https://api.forgestudios.net/api/v1/health
 ```
 
 ---
 
-## Part 5 — Remove “Coming Soon” on apex
+## Part 6 — Remove “Coming Soon” on apex
 
-Your apex [forgestudios.net](http://forgestudios.net/) may show a parking page until:
+The apex may show a parking page until:
 
-1. Vercel web project owns `forgestudios.net` (Part 2)
-2. DNS **A** / **CNAME** point to Vercel (Part 3)
-3. Old Google/Squarespace site forwarding is disabled
+1. Vercel **web** project owns `forgestudios.net`
+2. DNS **A** for `@` points to Vercel (`76.76.21.21`), not Squarespace parking
+3. Old site forwarding at the registrar is disabled
 
 ---
 
-## Part 6 — Checklist
+## Checklist
 
-- [ ] Vercel web deployed with env vars (Part 1)
-- [ ] Vercel admin deployed with env vars (Part 1)
-- [ ] `forgestudios.net` + `admin.forgestudios.net` on Vercel (Part 2)
-- [ ] Google DNS records added (Part 3)
-- [ ] `api.forgestudios.net` on Fly + DNS (Part 4)
-- [ ] `fly secrets set WEB_URL` + `ADMIN_URL` (Part 4.3)
-- [ ] Login test: `viewer@forge.local` on web, `admin@forge.local` on admin
-- [ ] Seed DB if needed: `npm run db:neon:setup`
+- [ ] Vercel web + admin deployed with env vars (Part 1)
+- [ ] Domains attached in Vercel (Part 2)
+- [ ] Squarespace (or registrar) DNS records (Part 3–4)
+- [ ] Fly cert + `api` DNS + `WEB_URL` / `ADMIN_URL` secrets (Part 1)
+- [ ] Health + login tests (viewer / admin demo users)
+- [ ] Neon seed if needed: `npm run db:neon:setup`
 
 ---
 
@@ -173,12 +183,13 @@ Your apex [forgestudios.net](http://forgestudios.net/) may show a parking page u
 
 | Issue | Fix |
 |-------|-----|
-| Site still “Coming Soon” | DNS not pointing to Vercel yet; remove old A records at registrar |
-| CORS errors | `WEB_URL` / `ADMIN_URL` on Fly must match `https://forgestudios.net` and `https://admin.forgestudios.net` exactly |
-| SSL pending on Vercel | Wait for DNS propagation; click Refresh in Domains |
-| API SSL pending on Fly | `fly certs show api.forgestudios.net` — add CNAME Fly shows |
-| Admin on wrong domain | Admin is a **separate** Vercel project with `admin.forgestudios.net` only |
+| “Coming Soon” / Squarespace page | Apex A still `198.185.159.x` → set `@` → `76.76.21.21` |
+| **www** wrong host | Remove `www` → `ext-sq.squarespace.com`; use Vercel CNAME only |
+| Vercel Invalid Configuration | Wait for DNS; match host names exactly (`@` = root) |
+| API SSL pending | CNAME `api` → `ked1nor.forge-studios-api.fly.dev`; `fly certs check` |
+| CORS errors | `fly secrets set WEB_URL` / `ADMIN_URL` must match live URLs exactly (no trailing slash) |
+| SSL pending on Vercel | Refresh Domains after DNS propagates |
 
 ---
 
-*API fallback until custom domain works:* `https://forge-studios-api.fly.dev/api/v1`
+*Last updated: 2026-05-21*

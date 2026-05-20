@@ -322,7 +322,7 @@ Comparable capability surface to creator economy platforms (YouTube, Twitch, Tik
 | **Realtime** | Socket.IO | ^4.7 | `@socket.io/redis-adapter` for scale-out |
 | **Auth** | JWT + Passport | access 15m default, refresh 7d | bcrypt password hashing |
 | **Containers** | Docker Compose | dev + prod files | Optional PgBouncer on host port 6432 |
-| **CI/CD** | GitHub Actions | `api.yml`, `web.yml` | GHCR images; SSH deploy EC2 on `main` |
+| **CI/CD** | GitHub Actions | `ci.yml`, `deploy-fly.yml`, `deploy-vercel.yml` | CI on PR/main; Fly + Vercel deploy |
 
 ### 6.2 API dependencies (`@forge/api`)
 
@@ -390,7 +390,7 @@ FORGE/
 ├── docs/
 │   ├── FORGE_PROJECT_MASTER.md   # ← This file (single project doc)
 │   └── ui-ux-design-prompt-any-ai.md # Screen-level UI spec
-├── .github/workflows/              # CI/CD (api.yml, web.yml)
+├── .github/workflows/              # CI + Fly/Vercel deploy (see docs/CI_CD.md)
 ├── docker-compose.yml
 ├── docker-compose.prod.yml
 └── README.md                       # Setup and API cheat sheet
@@ -1507,8 +1507,8 @@ Without AWS/Mux credentials, core stack runs; upload/stream features fail gracef
 
 ### 29.3 Production deploy
 
-- `docker-compose.prod.yml` + per-app `.env.production`
-- GitHub Actions: lint/test → build images → push GHCR → SSH deploy EC2
+- **Default MVP:** Fly.io (API) + Vercel (web/admin) — [MVP_GO_LIVE.md](./MVP_GO_LIVE.md), [CI_CD.md](./CI_CD.md)
+- **Optional VPS:** `docker-compose.prod.yml` + per-app `.env.production` — [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md)
 - Mux webhook URL: `POST https://yourdomain.com/api/v1/streams/webhooks/mux`
 - Worker: separate container with `WORKER_ONLY=true`
 
@@ -1525,12 +1525,15 @@ Without AWS/Mux credentials, core stack runs; upload/stream features fail gracef
 
 ### 29.5 CI/CD (GitHub Actions)
 
-| Workflow | Triggers | Jobs |
-|----------|----------|------|
-| `api.yml` | Push/PR to `main` (api paths) | lint → test (Postgres + Redis services) → build → push GHCR → SSH deploy EC2 |
-| `web.yml` | Web paths | lint → build |
+Canonical reference: **[CI_CD.md](./CI_CD.md)**
 
-**Deploy secrets:** `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`. Images tagged with git SHA + `latest`.
+| Workflow | Triggers | Purpose |
+|----------|----------|---------|
+| `ci.yml` | PR + push to `main` | Lint, build, test (Postgres + Redis services for API) |
+| `deploy-fly.yml` | Push to `main` (api paths) or manual | `flyctl deploy` |
+| `deploy-vercel.yml` | Push to `main` (web/admin paths) or manual | Vercel prod deploy |
+
+**Deploy secrets:** `FLY_API_TOKEN`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_WEB`, `VERCEL_PROJECT_ID_ADMIN`.
 
 ### 29.6 Smoke testing
 
@@ -1603,11 +1606,11 @@ Incremental improvements toward millions of users (from architecture enhancement
 | [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) | Executive summary for clients |
 | [../README.md](../README.md) | Clone, install, run, API examples |
 | [ui-ux-design-prompt-any-ai.md](./ui-ux-design-prompt-any-ai.md) | Screen-level UI/UX for design tools |
-| [ui-ux-design-prompt-any-ai.md](./ui-ux-design-prompt-any-ai.md) | Same spec, tool-agnostic |
+| [CI_CD.md](./CI_CD.md) | GitHub Actions workflows + secrets |
 | [Recommended_Things.md](./Recommended_Things.md) | External tools catalog (optional reference) |
 | [phase4-platform-evaluation.md](./phase4-platform-evaluation.md) | Vendor decision criteria (optional detail) |
 
-Documentation index: [docs/README.md](./README.md). Setup: [GETTING_STARTED.md](./GETTING_STARTED.md). Deploy: [MVP_GO_LIVE.md](./MVP_GO_LIVE.md).
+Documentation index: [docs/README.md](./README.md). Setup: [GETTING_STARTED.md](./GETTING_STARTED.md). Deploy: [MVP_GO_LIVE.md](./MVP_GO_LIVE.md). CI/CD: [CI_CD.md](./CI_CD.md).
 
 ---
 

@@ -55,7 +55,7 @@ cp apps/admin/.env.production.example apps/admin/.env.production
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-EC2 auto-deploy: `.github/workflows/api.yml` (secrets `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`).
+Production deploy uses GitHub Actions → Fly + Vercel — see [CI_CD.md](./CI_CD.md). This VPS path is manual `docker compose` only.
 
 ---
 

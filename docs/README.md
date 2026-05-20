@@ -10,7 +10,7 @@
 |----------|-----|------|
 | **[GETTING_STARTED.md](./GETTING_STARTED.md)** | Developers | Clone, env, run locally, demo logins |
 | **[MVP_GO_LIVE.md](./MVP_GO_LIVE.md)** | DevOps | Deploy free MVP (Vercel + Fly + Neon + Upstash) |
-| **[DOMAIN_FORGESTUDIOS.md](./DOMAIN_FORGESTUDIOS.md)** | DevOps | Custom domain forgestudios.net (Google DNS + Vercel) |
+| **[CI_CD.md](./CI_CD.md)** | DevOps | GitHub Actions workflows + secrets |
 | **[mvp-test-matrix.md](./mvp-test-matrix.md)** | QA / dev | Test every role after deploy |
 | **[CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md)** | Clients | Executive summary to share |
 | **[FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md)** | All | Full product + technical spec |
@@ -23,6 +23,8 @@
 
 | Topic | Document |
 |-------|----------|
+| CI/CD & GitHub secrets | [CI_CD.md](./CI_CD.md) · [scripts/README.md](../scripts/README.md) |
+| Custom domain (Vercel + Fly + Squarespace DNS) | [DOMAIN_FORGESTUDIOS.md](./DOMAIN_FORGESTUDIOS.md) |
 | Local ngrok / VPS only | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) |
 | Remediation & deferred work | [mvp-audit.md](./mvp-audit.md) |
 | Scale / vendor decisions | [phase4-platform-evaluation.md](./phase4-platform-evaluation.md) |
@@ -46,15 +48,17 @@
 
 ## Scripts
 
+See **[scripts/README.md](../scripts/README.md)** for the full list.
+
 ```bash
 bash scripts/setup-local-demo.sh   # Docker Postgres/Redis + seed
+npm run ci                         # Local CI parity
+npm run gh:secrets                 # GitHub Actions secret helper
 npm run db:neon:setup              # Neon migrate + seed
 npm run redis:upstash:test         # Upstash ping
 npm run smoke:api                  # API health + auth smoke
 npm run verify:roles               # Role permission matrix
 ```
-
-Optional (require `docs/design/blueprints/` if you add design assets): `npm run verify:blueprints`, `npm run manifest`, `npm run parity`
 
 ---
 
@@ -67,9 +71,9 @@ apps/admin/     Next.js (:3002)
 apps/mobile/    Flutter
 packages/       shared-types, design-system
 docs/           ← you are here
-scripts/        automation
+scripts/        automation (see scripts/README.md)
+.github/workflows/  CI + Fly/Vercel deploy
 fly.toml        Fly.io deploy
-.github/workflows/  CI + Fly/Vercel deploy (see [.github/workflows/README.md](../.github/workflows/README.md))
 ```
 
 ---
@@ -80,7 +84,8 @@ fly.toml        Fly.io deploy
 |--------|--------|
 | Local setup | `GETTING_STARTED.md` |
 | Cloud deploy | `MVP_GO_LIVE.md` |
+| CI workflows or secrets | `CI_CD.md` + `.github/workflows/` |
 | Product / features | `FORGE_PROJECT_MASTER.md` + `CLIENT_OVERVIEW.md` §4 |
 | UI screens | `ui-ux-design-prompt-any-ai.md` |
 
-*Last reviewed: 2026-05-19*
+*Last reviewed: 2026-05-21*

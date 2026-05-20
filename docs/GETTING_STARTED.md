@@ -86,6 +86,7 @@ flutter run --dart-define=API_BASE_URL=http://YOUR_IP:3001/api/v1
 ```bash
 npm run dev:api | dev:web | dev:admin
 npm run build:all
+npm run ci                     # Same checks as GitHub CI
 npm run lint
 npm run test
 npm run db:neon:setup          # Neon migrate + seed
@@ -107,6 +108,7 @@ Upload transcoding and live streaming need AWS S3 and Mux credentials in `apps/a
 | Goal | Doc |
 |------|-----|
 | **Deploy MVP online** | [MVP_GO_LIVE.md](./MVP_GO_LIVE.md) |
+| **GitHub Actions / secrets** | [CI_CD.md](./CI_CD.md) |
 | **Test by role** | [mvp-test-matrix.md](./mvp-test-matrix.md) |
 | **Share with client** | [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) |
 | **All documentation** | [README.md](./README.md) |

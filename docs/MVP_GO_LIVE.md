@@ -254,7 +254,7 @@ Redeploy is automatic when secrets change. Update Vercel env vars if you had pla
 | `VERCEL_PROJECT_ID_WEB` | `prj_…` in `apps/web/.vercel/project.json` |
 | `VERCEL_PROJECT_ID_ADMIN` | `prj_…` in `apps/admin/.vercel/project.json` |
 
-Full reference: [.github/workflows/README.md](../.github/workflows/README.md)
+Full reference: [CI_CD.md](./CI_CD.md) · `npm run gh:secrets`
 
 **Recommended:** enable branch protection on `main` requiring the **CI** workflow to pass before merge.
 
@@ -327,7 +327,7 @@ Stakeholder summary: [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md)
 |------|-------------|-----|
 | **Local + ngrok** | Quick call, no hosting setup | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) |
 | **Oracle Cloud free VM** | Full Docker Compose, one server | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) |
-| **EC2 + docker-compose.prod** | AWS + CI SSH secrets | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) |
+| **VPS + docker-compose.prod** | Single server, manual compose | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) |
 
 ---
 
@@ -344,7 +344,7 @@ Stakeholder summary: [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md)
 
 ## After MVP (paid upgrades)
 
-1. **Custom domain** — Vercel Domains + `fly certs add api.yourdomain.com`
+1. **Custom domain** — [DOMAIN_FORGESTUDIOS.md](./DOMAIN_FORGESTUDIOS.md) (Vercel + Fly + Squarespace DNS)
 2. **Video upload** — AWS S3 + worker on Fly/Railway
 3. **Live** — Mux account + webhook to Fly API
 4. **Mobile** — Flutter build → TestFlight / Play Internal Testing
@@ -375,4 +375,4 @@ bash scripts/setup-local-demo.sh  # Local Docker demo only
 
 ---
 
-*Last updated: 2026-05-19 — canonical go-live doc for Forge-Studios-dev/FORGE*
+*Last updated: 2026-05-21 — canonical go-live doc for Forge-Studios-dev/FORGE*

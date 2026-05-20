@@ -16,6 +16,7 @@ Skill-first platform for learning journeys, tutorial videos, live teaching, and 
 | **Test after deploy** | [docs/mvp-test-matrix.md](docs/mvp-test-matrix.md) |
 | **Show a client** | [docs/CLIENT_OVERVIEW.md](docs/CLIENT_OVERVIEW.md) |
 | **Full specification** | [docs/FORGE_PROJECT_MASTER.md](docs/FORGE_PROJECT_MASTER.md) |
+| **CI/CD & secrets** | [docs/CI_CD.md](docs/CI_CD.md) |
 | **All docs** | [docs/README.md](docs/README.md) |
 
 ```bash
@@ -56,8 +57,9 @@ FORGE/
 ├── packages/
 │   ├── shared-types/
 │   └── design-system/
-├── docs/                  # Documentation index
-├── scripts/               # setup, smoke, neon, upstash
+├── docs/                  # Documentation (see docs/README.md)
+├── scripts/               # setup, deploy, CI — see scripts/README.md
+├── .github/workflows/     # CI + Fly/Vercel deploy
 ├── fly.toml               # Fly.io API deploy
 └── docker-compose.yml     # Local Postgres + Redis
 ```
@@ -87,9 +89,12 @@ More detail: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) · [docs/FORGE_P
 ```bash
 npm run dev:api | dev:web | dev:admin
 npm run build:all
+npm run ci
 npm run smoke:api
+npm run gh:secrets
 npm run db:neon:setup
 npm run redis:upstash:test
+npm run deploy:production
 ```
 
 ---
