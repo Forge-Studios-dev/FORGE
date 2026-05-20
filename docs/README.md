@@ -10,6 +10,7 @@
 |----------|-----|------|
 | **[GETTING_STARTED.md](./GETTING_STARTED.md)** | Developers | Clone, env, run locally, demo logins |
 | **[MVP_GO_LIVE.md](./MVP_GO_LIVE.md)** | DevOps | Deploy free MVP (Vercel + Fly + Neon + Upstash) |
+| **[DOMAIN_FORGESTUDIOS.md](./DOMAIN_FORGESTUDIOS.md)** | DevOps | Custom domain forgestudios.net (Google DNS + Vercel) |
 | **[mvp-test-matrix.md](./mvp-test-matrix.md)** | QA / dev | Test every role after deploy |
 | **[CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md)** | Clients | Executive summary to share |
 | **[FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md)** | All | Full product + technical spec |
@@ -68,7 +69,7 @@ packages/       shared-types, design-system
 docs/           ← you are here
 scripts/        automation
 fly.toml        Fly.io deploy
-.github/        CI + deploy workflows
+.github/workflows/  CI + Fly/Vercel deploy (see [.github/workflows/README.md](../.github/workflows/README.md))
 ```
 
 ---

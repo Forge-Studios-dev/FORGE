@@ -1,0 +1,165 @@
+# Quality gate for all apps — runs on PRs and pushes to main.
+# Deploy workflows (Fly / Vercel) should pass this before shipping.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+      admin: ${{ steps.filter.outputs.admin }}
+      packages: ${{ steps.filter.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'package-lock.json'
+            web:
+              - 'apps/web/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'package-lock.json'
+            admin:
+              - 'apps/admin/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'package-lock.json'
+            packages:
+              - 'packages/**'
+
+  build-packages:
+    name: Build shared packages
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.api == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.admin == 'true' || needs.changes.outputs.packages == 'true' || github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build --workspace=@forge/shared-types
+      - run: npm run build --workspace=@forge/design-system
+
+  api:
+    name: API — lint, build, test
+    runs-on: ubuntu-latest
+    needs: [changes, build-packages]
+    if: needs.changes.outputs.api == 'true' || github.event_name == 'pull_request'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: forge_test
+          POSTGRES_USER: forge
+          POSTGRES_PASSWORD: forge_test_pass
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint:ci --workspace=@forge/api
+      - run: npm run build --workspace=@forge/api
+      - run: npm run test --workspace=@forge/api
+        env:
+          DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
+          NODE_ENV: test
+
+  web:
+    name: Web — lint & build
+    runs-on: ubuntu-latest
+    needs: [changes, build-packages]
+    if: needs.changes.outputs.web == 'true' || github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build --workspace=@forge/shared-types
+      - run: npm run build --workspace=@forge/design-system
+      - run: npm run lint --workspace=@forge/web
+      - run: npm run build --workspace=@forge/web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.forgestudios.net/api/v1
+          API_INTERNAL_URL: https://api.forgestudios.net/api/v1
+          NEXT_PUBLIC_APP_URL: https://forgestudios.net
+          NEXT_PUBLIC_WEB_URL: https://forgestudios.net
+          NEXT_PUBLIC_ADMIN_URL: https://admin.forgestudios.net
+
+  admin:
+    name: Admin — lint & build
+    runs-on: ubuntu-latest
+    needs: [changes, build-packages]
+    if: needs.changes.outputs.admin == 'true' || github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build --workspace=@forge/shared-types
+      - run: npm run build --workspace=@forge/design-system
+      - run: npm run lint --workspace=@forge/admin
+      - run: npm run build --workspace=@forge/admin
+        env:
+          NEXT_PUBLIC_API_URL: https://api.forgestudios.net/api/v1
+          NEXT_PUBLIC_WEB_URL: https://forgestudios.net
+          NEXT_PUBLIC_ADMIN_URL: https://admin.forgestudios.net
+
+  ci-ok:
+    name: CI passed
+    runs-on: ubuntu-latest
+    needs: [api, web, admin]
+    if: always()
+    steps:
+      - name: Require jobs
+        run: |
+          test "${{ needs.api.result }}" = "success" || test "${{ needs.api.result }}" = "skipped"
+          test "${{ needs.web.result }}" = "success" || test "${{ needs.web.result }}" = "skipped"
+          test "${{ needs.admin.result }}" = "success" || test "${{ needs.admin.result }}" = "skipped"
+          if [ "${{ needs.api.result }}" = "failure" ] || [ "${{ needs.web.result }}" = "failure" ] || [ "${{ needs.admin.result }}" = "failure" ]; then
+            echo "One or more CI jobs failed"
+            exit 1
+          fi

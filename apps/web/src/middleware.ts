@@ -13,6 +13,13 @@ const PROTECTED_PREFIXES = [
 const PLAYLIST_PROTECTED = ['/playlists/new'];
 
 export function middleware(request: NextRequest) {
+  const host = request.headers.get('host') ?? '';
+  if (host.startsWith('www.')) {
+    const apexHost = host.slice(4);
+    const dest = new URL(request.nextUrl.pathname + request.nextUrl.search, `https://${apexHost}`);
+    return NextResponse.redirect(dest, 308);
+  }
+
   const { pathname } = request.nextUrl;
 
   const isProtected =
@@ -35,13 +42,10 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/studio/:path*',
-    '/upload/:path*',
-    '/history',
-    '/notifications',
-    '/playlists/new',
-    '/playlists/new/:path*',
-    '/library',
-    '/profile/settings',
+    /*
+     * Run on all app routes (www → apex redirect + protected-route auth).
+     * Excludes Next static assets and common image files.
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };

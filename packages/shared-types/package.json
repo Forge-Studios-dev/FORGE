@@ -5,6 +5,19 @@
   "description": "Shared TypeScript types for FORGE apps (extend as APIs stabilize)",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./access": {
+      "types": "./dist/access.d.ts",
+      "require": "./dist/access.js",
+      "default": "./dist/access.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },

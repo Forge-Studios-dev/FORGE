@@ -39,19 +39,5 @@ export const SocketEvents = {
 
 export type SocketEventName = (typeof SocketEvents)[keyof typeof SocketEvents];
 
-export {
-  Permission,
-  getAccessTier,
-  permissionsForProfile,
-  hasPermission as hasAccessPermission,
-  isPlatformAdminTier,
-  isApprovedCreatorTier,
-  canViewPersonalizedFeed,
-  canUploadOnConsumerApp,
-  canGoLiveOnConsumerApp,
-  canOpenStudioEntry,
-  type AccessTier,
-  type UserAccessProfile,
-  type UserRole,
-  type CreatorStatus,
-} from './access';
+export * from './access';
+export { hasPermission as hasAccessPermission } from './access';

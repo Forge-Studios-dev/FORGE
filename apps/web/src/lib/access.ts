@@ -1,6 +1,6 @@
 import {
   getAccessTier,
-  hasAccessPermission,
+  hasPermission as hasAccessPermission,
   Permission,
   isPlatformAdminTier,
   isApprovedCreatorTier,
@@ -10,7 +10,7 @@ import {
   canOpenStudioEntry,
   type AccessTier,
   type UserAccessProfile,
-} from '@forge/shared-types';
+} from '@forge/shared-types/access';
 import { User } from '@/types';
 
 export type { AccessTier, Permission };

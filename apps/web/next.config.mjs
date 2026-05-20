@@ -1,7 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  transpilePackages: ['@forge/design-system', '@forge/shared-types'],
+  transpilePackages: ['@forge/design-system'],
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.forgestudios.net' }],
+        destination: 'https://forgestudios.net/:path*',
+        permanent: true,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.amazonaws.com' },

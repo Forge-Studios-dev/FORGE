@@ -124,7 +124,24 @@ fly auth login
 cd /path/to/FORGE
 ```
 
-### 3.2 Create app
+You are logged in when `fly auth whoami` shows your account (e.g. `forge-support@forgestudios.net`).
+
+### 3.1b Billing (required once)
+
+Fly asks for a **credit card** even on the free allowance ([billing](https://fly.io/dashboard/personal/billing)). You are not charged unless you exceed free limits.
+
+### 3.2 Automated setup (recommended)
+
+After Neon + Upstash are in `apps/api/.env`:
+
+```bash
+chmod +x scripts/fly-setup.sh
+bash scripts/fly-setup.sh
+```
+
+This creates the app, sets secrets, and runs `fly deploy`.
+
+### 3.2b Manual — create app
 
 ```bash
 fly apps create forge-studios-api
@@ -219,16 +236,27 @@ fly secrets set \
 
 Redeploy is automatic when secrets change. Update Vercel env vars if you had placeholders, then **Redeploy** web + admin.
 
-### 4.4 GitHub Actions for Vercel (optional)
+### 4.4 GitHub Actions (CI/CD)
+
+| Workflow | Purpose |
+|----------|---------|
+| **CI** | Lint + build + test on every PR and `main` |
+| **Deploy API (Fly.io)** | `flyctl deploy` on API changes |
+| **Deploy Web & Admin (Vercel)** | Monorepo deploy (same as `scripts/vercel-setup.sh`) |
+
+**Secrets** (repo → Settings → Secrets → Actions):
 
 | Secret | Where |
 |--------|--------|
+| `FLY_API_TOKEN` | [Fly tokens](https://fly.io/user/personal_access_tokens) |
 | `VERCEL_TOKEN` | Vercel → Account → Tokens |
-| `VERCEL_ORG_ID` | Team Settings → General |
-| `VERCEL_PROJECT_ID_WEB` | Web project → Settings → General |
-| `VERCEL_PROJECT_ID_ADMIN` | Admin project → Settings → General |
+| `VERCEL_ORG_ID` | `team_…` in `apps/web/.vercel/project.json` |
+| `VERCEL_PROJECT_ID_WEB` | `prj_…` in `apps/web/.vercel/project.json` |
+| `VERCEL_PROJECT_ID_ADMIN` | `prj_…` in `apps/admin/.vercel/project.json` |
 
-Workflow: **Deploy Web & Admin (Vercel)** on push to `main`.
+Full reference: [.github/workflows/README.md](../.github/workflows/README.md)
+
+**Recommended:** enable branch protection on `main` requiring the **CI** workflow to pass before merge.
 
 ---
 

@@ -1,6 +1,10 @@
-# Deploy Next.js web + admin to Vercel on push to main.
-# Required secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID_WEB, VERCEL_PROJECT_ID_ADMIN
-# See docs/MVP_GO_LIVE.md
+# Deploy Next.js web + admin to Vercel (monorepo root upload — matches scripts/vercel-setup.sh).
+#
+# Required GitHub secrets:
+#   VERCEL_TOKEN
+#   VERCEL_ORG_ID          (team_… from apps/web/.vercel/project.json)
+#   VERCEL_PROJECT_ID_WEB  (prj_…)
+#   VERCEL_PROJECT_ID_ADMIN
 
 name: Deploy Web & Admin (Vercel)
 
@@ -12,11 +16,18 @@ on:
       - 'apps/web/**'
       - 'apps/admin/**'
       - 'packages/**'
+      - 'apps/web/vercel.project.json'
+      - 'apps/admin/vercel.project.json'
       - '.github/workflows/deploy-vercel.yml'
 
 concurrency:
   group: vercel-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  FORGE_API_URL: https://api.forgestudios.net/api/v1
+  FORGE_WEB_URL: https://forgestudios.net
+  FORGE_ADMIN_URL: https://admin.forgestudios.net
 
 jobs:
   deploy-web:
@@ -33,42 +44,32 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install Vercel CLI
+        run: npm i -g vercel@39
 
-      - name: Build shared-types
-        run: npm run build --workspace=@forge/shared-types
-
-      - name: Pull Vercel environment (web)
-        working-directory: apps/web
-        run: npx vercel@39 pull --yes --environment=production
+      - name: Deploy web (monorepo root)
+        run: |
+          vercel deploy . --prod --yes --token="$VERCEL_TOKEN" \
+            --local-config=apps/web/vercel.project.json \
+            -e "NEXT_PUBLIC_API_URL=${FORGE_API_URL}" \
+            -e "API_INTERNAL_URL=${FORGE_API_URL}" \
+            -e "NEXT_PUBLIC_APP_URL=${FORGE_WEB_URL}" \
+            -e "NEXT_PUBLIC_WEB_URL=${FORGE_WEB_URL}" \
+            -e "NEXT_PUBLIC_ADMIN_URL=${FORGE_ADMIN_URL}"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
-
-      - name: Build (web)
-        working-directory: apps/web
-        run: npx vercel@39 build --prod
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
-
-      - name: Deploy (web)
-        working-directory: apps/web
-        run: npx vercel@39 deploy --prebuilt --prod
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
+          FORGE_API_URL: ${{ env.FORGE_API_URL }}
+          FORGE_WEB_URL: ${{ env.FORGE_WEB_URL }}
+          FORGE_ADMIN_URL: ${{ env.FORGE_ADMIN_URL }}
 
   deploy-admin:
     name: Deploy admin
     runs-on: ubuntu-latest
+    needs: deploy-web
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     environment: production
-    needs: deploy-web
 
     steps:
       - uses: actions/checkout@v4
@@ -78,29 +79,20 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install Vercel CLI
+        run: npm i -g vercel@39
 
-      - name: Pull Vercel environment (admin)
-        working-directory: apps/admin
-        run: npx vercel@39 pull --yes --environment=production
+      - name: Deploy admin (monorepo root)
+        run: |
+          vercel deploy . --prod --yes --token="$VERCEL_TOKEN" \
+            --local-config=apps/admin/vercel.project.json \
+            -e "NEXT_PUBLIC_API_URL=${FORGE_API_URL}" \
+            -e "NEXT_PUBLIC_WEB_URL=${FORGE_WEB_URL}" \
+            -e "NEXT_PUBLIC_ADMIN_URL=${FORGE_ADMIN_URL}"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_ADMIN }}
-
-      - name: Build (admin)
-        working-directory: apps/admin
-        run: npx vercel@39 build --prod
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_ADMIN }}
-
-      - name: Deploy (admin)
-        working-directory: apps/admin
-        run: npx vercel@39 deploy --prebuilt --prod
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_ADMIN }}
+          FORGE_API_URL: ${{ env.FORGE_API_URL }}
+          FORGE_WEB_URL: ${{ env.FORGE_WEB_URL }}
+          FORGE_ADMIN_URL: ${{ env.FORGE_ADMIN_URL }}

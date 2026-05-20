@@ -3,21 +3,29 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
+COPY packages/shared-types/package*.json ./packages/shared-types/
+COPY packages/design-system/package*.json ./packages/design-system/
 COPY apps/web/package*.json ./apps/web/
 
-RUN npm ci --workspace=apps/web
+RUN npm ci \
+  --workspace=@forge/web \
+  --workspace=@forge/shared-types \
+  --workspace=@forge/design-system \
+  --include-workspace-root
 
-COPY apps/web/ ./apps/web/
+COPY packages/shared-types ./packages/shared-types
+COPY packages/design-system ./packages/design-system
+COPY apps/web ./apps/web
 COPY tsconfig.base.json ./
 
-ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_URL=https://api.forgestudios.net/api/v1
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN npm run build --workspace=apps/web
+RUN npm run build --workspace=@forge/shared-types \
+  && npm run build --workspace=@forge/design-system \
+  && npm run build --workspace=@forge/web
 
-# --- Production stage ---
 FROM node:20-alpine AS runner
 
 WORKDIR /app

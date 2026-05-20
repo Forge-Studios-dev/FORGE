@@ -12,6 +12,7 @@ Skill-first platform for learning journeys, tutorial videos, live teaching, and 
 |------------|------|
 | **Run locally** | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) |
 | **Deploy MVP (free)** | [docs/MVP_GO_LIVE.md](docs/MVP_GO_LIVE.md) |
+| **Domain forgestudios.net** | [docs/DOMAIN_FORGESTUDIOS.md](docs/DOMAIN_FORGESTUDIOS.md) |
 | **Test after deploy** | [docs/mvp-test-matrix.md](docs/mvp-test-matrix.md) |
 | **Show a client** | [docs/CLIENT_OVERVIEW.md](docs/CLIENT_OVERVIEW.md) |
 | **Full specification** | [docs/FORGE_PROJECT_MASTER.md](docs/FORGE_PROJECT_MASTER.md) |
