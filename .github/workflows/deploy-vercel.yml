@@ -39,6 +39,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Require Vercel secrets
+        run: |
+          missing=0
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID_WEB; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing GitHub secret: $name (see docs/CI_CD.md)"
+              missing=1
+            fi
+          done
+          exit "$missing"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID_WEB: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -73,6 +88,21 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Require Vercel secrets
+        run: |
+          missing=0
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID_ADMIN; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing GitHub secret: $name (see docs/CI_CD.md)"
+              missing=1
+            fi
+          done
+          exit "$missing"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID_ADMIN: ${{ secrets.VERCEL_PROJECT_ID_ADMIN }}
 
       - uses: actions/setup-node@v4
         with:
