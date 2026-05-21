@@ -1,19 +1,33 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useState } from 'react';
 import { Icon, PageHeader } from '@forge/design-system';
 import { getMyVideos } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
 import { formatCount, timeAgo } from '@/lib/utils';
 
 export default function StudioVideosPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const { data, isLoading, isError } = useQuery({
     queryKey: ['studio-videos', user?.id],
     queryFn: () => getMyVideos(user?.id),
     enabled: !!user?.id,
   });
+
+  const cancelUpload = async (videoId: string) => {
+    setCancellingId(videoId);
+    try {
+      await api.post(`/videos/${videoId}/cancel-upload`);
+      await queryClient.invalidateQueries({ queryKey: ['studio-videos', user?.id] });
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-8 md:px-12">
@@ -43,9 +57,22 @@ export default function StudioVideosPage() {
                 {video.status} · {formatCount(video.viewCount)} views · {timeAgo(video.createdAt)}
               </p>
             </div>
-            <Link href={`/watch/${video.id}`} className="text-sm text-primary hover:underline">
-              View
-            </Link>
+            <div className="flex items-center gap-3">
+              {video.status === 'uploading' ? (
+                <button
+                  type="button"
+                  disabled={cancellingId === video.id}
+                  onClick={() => void cancelUpload(video.id)}
+                  className="text-sm text-error hover:underline disabled:opacity-50"
+                >
+                  {cancellingId === video.id ? 'Cancelling…' : 'Cancel upload'}
+                </button>
+              ) : (
+                <Link href={`/watch/${video.id}`} className="text-sm text-primary hover:underline">
+                  View
+                </Link>
+              )}
+            </div>
           </li>
         ))}
       </ul>

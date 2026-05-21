@@ -61,6 +61,15 @@ export class VideosController {
     return this.videosService.completeUpload(user.sub, id, dto);
   }
 
+  @Post(':id([0-9a-fA-F-]{36})/cancel-upload')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel an in-progress upload and free the upload slot' })
+  cancelUpload(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.videosService.cancelUpload(user.sub, id);
+  }
+
   @Post(':id([0-9a-fA-F-]{36})/watch')
   @Permissions(Permission.USE_LIBRARY)
   @HttpCode(HttpStatus.NO_CONTENT)

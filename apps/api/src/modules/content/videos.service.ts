@@ -61,33 +61,73 @@ export class VideosService {
     this.cdnDomain = configService.get<string>('aws.cloudfrontDomain') || '';
   }
 
-  /** Drop abandoned presign rows so a failed browser upload does not block forever. */
-  private async abandonStaleUploads(userId: string) {
-    const staleBefore = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    const stale = await this.videoRepository.find({
+  /** Presigned PUT URLs expire in 10 minutes — treat older incomplete rows as abandoned. */
+  private static readonly PRESIGN_TTL_MS = 11 * 60 * 1000;
+  /** Grace for an active browser PUT before the S3 object appears. */
+  private static readonly ACTIVE_UPLOAD_GRACE_MS = 45 * 1000;
+
+  private async s3ObjectExists(key: string): Promise<boolean> {
+    try {
+      await this.s3.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async removeUploadRow(row: Video): Promise<void> {
+    if (row.s3Key) {
+      await this.s3
+        .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: row.s3Key }))
+        .catch(() => undefined);
+    }
+    await this.bustVideoDetailCache(row.id);
+    await this.videoRepository.remove(row);
+  }
+
+  /**
+   * Clear ghost uploads: presign creates a DB row immediately; if the browser never
+   * finishes PUT + /complete, the row must not block the next attempt.
+   */
+  private async releaseIncompleteUploads(userId: string): Promise<void> {
+    const rows = await this.videoRepository.find({
       where: { userId, status: VideoStatus.UPLOADING },
     });
-    for (const row of stale) {
-      if (!row.uploadCompletedAt && row.createdAt < staleBefore) {
-        if (row.s3Key) {
-          await this.s3
-            .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: row.s3Key }))
-            .catch(() => undefined);
-        }
-        await this.videoRepository.remove(row);
+    const now = Date.now();
+    for (const row of rows) {
+      if (row.uploadCompletedAt) continue;
+      const ageMs = now - row.createdAt.getTime();
+      const hasS3 = row.s3Key ? await this.s3ObjectExists(row.s3Key) : false;
+      const presignExpired = ageMs > VideosService.PRESIGN_TTL_MS;
+      const neverUploaded = !hasS3 && ageMs > VideosService.ACTIVE_UPLOAD_GRACE_MS;
+      const uploadedButNotFinished = hasS3 && ageMs > VideosService.PRESIGN_TTL_MS;
+
+      if (presignExpired || neverUploaded || uploadedButNotFinished) {
+        await this.removeUploadRow(row);
       }
     }
   }
 
+  /** Cancel an in-progress upload (Studio or retry after a failed publish). */
+  async cancelUpload(userId: string, videoId: string): Promise<{ ok: true }> {
+    const video = await this.findById(videoId, { skipCache: true });
+    if (video.userId !== userId) throw new ForbiddenException();
+    if (video.status !== VideoStatus.UPLOADING) {
+      throw new BadRequestException('Only in-progress uploads can be cancelled');
+    }
+    await this.removeUploadRow(video);
+    return { ok: true };
+  }
+
   async getPresignedUploadUrl(userId: string, dto: PresignedUrlDto) {
-    await this.abandonStaleUploads(userId);
+    await this.releaseIncompleteUploads(userId);
 
     const uploadingCount = await this.videoRepository.count({
       where: { userId, status: VideoStatus.UPLOADING },
     });
     if (uploadingCount >= 1) {
       throw new BadRequestException(
-        'Another upload is already in progress. Finish it, or cancel it from Studio → Videos.',
+        'An upload is still in progress. Wait a moment and try again, or cancel it from Studio → Videos.',
       );
     }
 
