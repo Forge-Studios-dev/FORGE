@@ -42,7 +42,26 @@ else
 fi
 echo ""
 echo "--- VERCEL_TOKEN ---"
-echo "Create manually (shown once): https://vercel.com/account/settings/tokens"
+VERCEL_AUTH="${VERCEL_AUTH:-$HOME/Library/Application Support/com.vercel.cli/auth.json}"
+if [[ ! -f "$VERCEL_AUTH" && -f "$HOME/.local/share/com.vercel.cli/auth.json" ]]; then
+  VERCEL_AUTH="$HOME/.local/share/com.vercel.cli/auth.json"
+fi
+if [[ -f "$VERCEL_AUTH" ]]; then
+  VERCEL_TOKEN="$(python3 -c "import json; print(json.load(open('$VERCEL_AUTH')).get('token',''))" 2>/dev/null || true)"
+  if [[ -n "$VERCEL_TOKEN" ]]; then
+    if command -v pbcopy >/dev/null 2>&1; then
+      printf '%s' "$VERCEL_TOKEN" | pbcopy
+      echo "Vercel token copied to clipboard → paste as GitHub secret VERCEL_TOKEN"
+    else
+      echo "Vercel token found in CLI auth — paste as VERCEL_TOKEN in GitHub"
+    fi
+  else
+    echo "No token in $VERCEL_AUTH — create: https://vercel.com/account/settings/tokens"
+  fi
+else
+  echo "Vercel CLI not logged in. Run: vercel login"
+  echo "Or create token: https://vercel.com/account/settings/tokens"
+fi
 echo "Account: forge-support-5996 / team forge-s-projects3"
 echo ""
 echo "Full guide: docs/CI_CD.md"

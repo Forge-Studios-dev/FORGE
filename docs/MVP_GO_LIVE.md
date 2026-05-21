@@ -278,7 +278,7 @@ npm run db:neon:setup
 curl -s https://forge-studios-api.fly.dev/api/v1/health
 
 # Optional: full smoke (API must be reachable)
-NEXT_PUBLIC_API_URL=https://forge-studios-api.fly.dev/api/v1 bash scripts/smoke-api.sh
+npm run smoke:api:prod
 ```
 
 **Manual MVP checklist:**

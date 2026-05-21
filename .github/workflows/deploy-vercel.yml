@@ -59,12 +59,15 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install Vercel CLI
-        run: npm i -g vercel@39
+      - name: Verify Vercel token
+        run: npx --yes vercel@39 whoami --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TELEMETRY_DISABLED: '1'
 
       - name: Deploy web (monorepo root)
         run: |
-          vercel deploy . --prod --yes --token="$VERCEL_TOKEN" \
+          npx --yes vercel@39 deploy . --prod --yes --token="$VERCEL_TOKEN" \
             --local-config=apps/web/vercel.project.json \
             -e "NEXT_PUBLIC_API_URL=${FORGE_API_URL}" \
             -e "API_INTERNAL_URL=${FORGE_API_URL}" \
@@ -75,6 +78,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
+          VERCEL_TELEMETRY_DISABLED: '1'
           FORGE_API_URL: ${{ env.FORGE_API_URL }}
           FORGE_WEB_URL: ${{ env.FORGE_WEB_URL }}
           FORGE_ADMIN_URL: ${{ env.FORGE_ADMIN_URL }}
@@ -109,12 +113,15 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install Vercel CLI
-        run: npm i -g vercel@39
+      - name: Verify Vercel token
+        run: npx --yes vercel@39 whoami --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TELEMETRY_DISABLED: '1'
 
       - name: Deploy admin (monorepo root)
         run: |
-          vercel deploy . --prod --yes --token="$VERCEL_TOKEN" \
+          npx --yes vercel@39 deploy . --prod --yes --token="$VERCEL_TOKEN" \
             --local-config=apps/admin/vercel.project.json \
             -e "NEXT_PUBLIC_API_URL=${FORGE_API_URL}" \
             -e "NEXT_PUBLIC_WEB_URL=${FORGE_WEB_URL}" \
@@ -123,6 +130,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_ADMIN }}
+          VERCEL_TELEMETRY_DISABLED: '1'
           FORGE_API_URL: ${{ env.FORGE_API_URL }}
           FORGE_WEB_URL: ${{ env.FORGE_WEB_URL }}
           FORGE_ADMIN_URL: ${{ env.FORGE_ADMIN_URL }}
