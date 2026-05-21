@@ -1,4 +1,5 @@
 # Deploy Next.js web + admin to Vercel (monorepo root upload — matches scripts/vercel-setup.sh).
+# CLI: vercel@latest (API requires >=47.2.2). Secrets: docs/CI_CD.md
 #
 # Required GitHub secrets:
 #   VERCEL_TOKEN
