@@ -96,13 +96,7 @@ jobs:
           cache: 'npm'
 
       - name: Verify Vercel token (team scope)
-        run: |
-          case "$VERCEL_TOKEN" in vcp_*) ;; *)
-            echo "::error::VERCEL_TOKEN must be a classic token (vcp_...) from https://vercel.com/account/settings/tokens"
-            exit 1
-            ;;
-          esac
-          npx --yes vercel@54.2.0 whoami
+        run: npx --yes vercel@54.2.0 whoami
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -160,13 +154,7 @@ jobs:
           cache: 'npm'
 
       - name: Verify Vercel token (team scope)
-        run: |
-          case "$VERCEL_TOKEN" in vcp_*) ;; *)
-            echo "::error::VERCEL_TOKEN must be a classic token (vcp_...) from https://vercel.com/account/settings/tokens"
-            exit 1
-            ;;
-          esac
-          npx --yes vercel@54.2.0 whoami
+        run: npx --yes vercel@54.2.0 whoami
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
