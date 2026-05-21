@@ -23,7 +23,7 @@ export interface Video {
   user?: User;
   title: string;
   description?: string;
-  status: 'pending' | 'processing' | 'ready' | 'failed';
+  status: 'uploading' | 'pending' | 'processing' | 'ready' | 'failed';
   visibility: 'public' | 'private' | 'unlisted';
   hlsUrl?: string;
   thumbnailUrl?: string;
