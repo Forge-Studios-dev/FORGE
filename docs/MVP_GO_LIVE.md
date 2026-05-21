@@ -90,7 +90,15 @@ DB_POOL_MAX=10
 npm run db:neon:setup
 ```
 
-Demo users created: `viewer@forge.local` / `ForgeDemo123!`, `admin@forge.local` / `ForgeAdmin123!`
+Demo users created:
+
+| Email | Password | Role |
+|-------|----------|------|
+| `viewer@forge.local` | `ForgeDemo123!` | Viewer |
+| `creator@forge.local` | `ForgeDemo123!` | Approved creator (upload & Studio) |
+| `admin@forge.local` | `ForgeAdmin123!` | Admin panel only |
+
+If `creator@forge.local` login fails with “Invalid credentials”, run `npm run db:neon:setup` again (seed creates/updates demo accounts).
 
 ---
 

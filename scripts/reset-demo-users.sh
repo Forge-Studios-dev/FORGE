@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
-# Reset local demo accounts to documented roles (viewer=user, admin=admin).
-# Requires forge-postgres container from docker compose.
+# Reset all demo accounts (viewer, creator, admin) to documented passwords and roles.
+# Uses apps/api seed against DATABASE_URL in apps/api/.env, or local Docker Postgres.
 set -euo pipefail
 
-docker exec forge-postgres psql -U forge -d forge_db -v ON_ERROR_STOP=1 <<'SQL'
-UPDATE users SET
-  role = 'user',
-  creator_status = NULL,
-  creator_requested_at = NULL,
-  creator_reviewed_at = NULL,
-  creator_review_note = NULL,
-  is_verified = true
-WHERE email = 'viewer@forge.local';
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
 
-UPDATE users SET
-  role = 'admin',
-  creator_status = NULL,
-  is_verified = true
-WHERE email = 'admin@forge.local';
-SQL
+if [[ -f apps/api/.env ]] && grep -q '^DATABASE_URL=' apps/api/.env 2>/dev/null; then
+  echo "==> Seeding demo users via apps/api/.env DATABASE_URL"
+  npm run seed --workspace=apps/api
+  echo "Done. Accounts:"
+  echo "  viewer@forge.local  / ForgeDemo123!  (viewer)"
+  echo "  creator@forge.local / ForgeDemo123!  (approved creator — upload & studio)"
+  echo "  admin@forge.local   / ForgeAdmin123! (admin panel only)"
+  exit 0
+fi
 
-echo "Demo users reset. viewer@forge.local → user, admin@forge.local → admin."
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx forge-postgres; then
+  echo "==> No apps/api/.env — using Docker Postgres + API seed"
+  export DATABASE_URL="${DATABASE_URL:-postgresql://forge:forge@localhost:5432/forge_db}"
+  npm run seed --workspace=apps/api
+  echo "Done (see accounts above)."
+  exit 0
+fi
+
+echo "ERROR: Set DATABASE_URL in apps/api/.env or start forge-postgres (docker compose up -d postgres)" >&2
+exit 1

@@ -25,7 +25,11 @@ function LoginForm() {
     setError('');
     setLoading(true);
     try {
-      const { data } = await api.post<{ data: AuthTokens }>('/auth/login', form);
+      const payload = {
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+      };
+      const { data } = await api.post<{ data: AuthTokens }>('/auth/login', payload);
       if (data.data.user.role === 'admin') {
         setError(
           'Platform administrator accounts cannot sign in here. Use the dedicated admin application.',

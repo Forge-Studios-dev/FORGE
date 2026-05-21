@@ -84,12 +84,31 @@ fi
 viewer_upload="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${BASE}/videos/presigned-url" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H 'Content-Type: application/json' \
-  -d '{"filename":"x.mp4","contentType":"video/mp4","fileSizeBytes":1024}')"
+  -d '{"contentType":"video/mp4","fileSizeBytes":1024}')"
 if [[ "$viewer_upload" != "403" ]]; then
   echo "FAIL: viewer POST presigned-url expected 403, got ${viewer_upload}" >&2
   exit 1
 fi
 echo "OK: viewer cannot upload (403)"
+
+CREATOR_LOGIN="$(curl -sS -X POST "${BASE}/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"creator@forge.local","password":"ForgeDemo123!"}' 2>/dev/null || true)"
+CREATOR_TOKEN="$(echo "$CREATOR_LOGIN" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['accessToken'])" 2>/dev/null || true)"
+if [[ -z "$CREATOR_TOKEN" ]]; then
+  echo "WARN: creator@forge.local login failed — run: npm run db:neon:setup" >&2
+else
+  echo "OK: POST ${BASE}/auth/login (creator@forge.local)"
+  creator_upload="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${BASE}/videos/presigned-url" \
+    -H "Authorization: Bearer ${CREATOR_TOKEN}" \
+    -H 'Content-Type: application/json' \
+    -d '{"contentType":"video/mp4","fileSizeBytes":2048}')"
+  if [[ "$creator_upload" != "200" && "$creator_upload" != "201" ]]; then
+    echo "FAIL: creator POST presigned-url expected 200/201, got ${creator_upload}" >&2
+    exit 1
+  fi
+  echo "OK: creator can presign upload (${creator_upload})"
+fi
 
 ADMIN_LOGIN="$(curl -sS -X POST "${BASE}/auth/login" \
   -H 'Content-Type: application/json' \

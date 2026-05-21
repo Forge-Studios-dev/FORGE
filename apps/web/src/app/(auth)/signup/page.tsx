@@ -28,7 +28,12 @@ export default function SignupPage() {
     setError('');
     setLoading(true);
     try {
-      const { data } = await api.post<{ data: AuthTokens }>('/auth/signup', form);
+      const { data } = await api.post<{ data: AuthTokens }>('/auth/signup', {
+        ...form,
+        email: form.email.trim().toLowerCase(),
+        username: form.username.trim(),
+        displayName: form.displayName.trim(),
+      });
       persistAuthSession(
         data.data.accessToken,
         data.data.refreshToken,

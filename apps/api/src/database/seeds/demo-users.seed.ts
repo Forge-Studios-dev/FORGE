@@ -50,6 +50,9 @@ export async function seedDemoUsers(dataSource: DataSource) {
     const passwordHash = await bcrypt.hash(demo.password, rounds);
     let user = await repo.findOne({ where: { email } });
 
+    const reviewedAt =
+      demo.creatorStatus === CreatorStatus.APPROVED ? new Date() : null;
+
     if (!user) {
       user = repo.create({
         email,
@@ -59,6 +62,9 @@ export async function seedDemoUsers(dataSource: DataSource) {
         role: demo.role,
         isVerified: demo.isVerified,
         creatorStatus: demo.creatorStatus,
+        creatorRequestedAt: demo.creatorStatus ? new Date() : null,
+        creatorReviewedAt: reviewedAt,
+        creatorReviewNote: null,
         followerCount: 0,
         followingCount: 0,
         videoCount: 0,
@@ -70,8 +76,8 @@ export async function seedDemoUsers(dataSource: DataSource) {
       user.role = demo.role;
       user.isVerified = demo.isVerified;
       user.creatorStatus = demo.creatorStatus;
-      user.creatorRequestedAt = null;
-      user.creatorReviewedAt = null;
+      user.creatorRequestedAt = demo.creatorStatus ? user.creatorRequestedAt ?? new Date() : null;
+      user.creatorReviewedAt = reviewedAt;
       user.creatorReviewNote = null;
     }
 

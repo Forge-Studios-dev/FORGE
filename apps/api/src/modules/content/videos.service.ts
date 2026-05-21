@@ -61,12 +61,34 @@ export class VideosService {
     this.cdnDomain = configService.get<string>('aws.cloudfrontDomain') || '';
   }
 
+  /** Drop abandoned presign rows so a failed browser upload does not block forever. */
+  private async abandonStaleUploads(userId: string) {
+    const staleBefore = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const stale = await this.videoRepository.find({
+      where: { userId, status: VideoStatus.UPLOADING },
+    });
+    for (const row of stale) {
+      if (!row.uploadCompletedAt && row.createdAt < staleBefore) {
+        if (row.s3Key) {
+          await this.s3
+            .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: row.s3Key }))
+            .catch(() => undefined);
+        }
+        await this.videoRepository.remove(row);
+      }
+    }
+  }
+
   async getPresignedUploadUrl(userId: string, dto: PresignedUrlDto) {
+    await this.abandonStaleUploads(userId);
+
     const uploadingCount = await this.videoRepository.count({
       where: { userId, status: VideoStatus.UPLOADING },
     });
     if (uploadingCount >= 1) {
-      throw new BadRequestException('Another upload is already in progress');
+      throw new BadRequestException(
+        'Another upload is already in progress. Finish it, or cancel it from Studio → Videos.',
+      );
     }
 
     const videoId = uuidv4();
