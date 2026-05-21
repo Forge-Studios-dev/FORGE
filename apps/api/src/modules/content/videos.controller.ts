@@ -8,8 +8,12 @@ import {
   Param,
   Patch,
   Post,
+  Put,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { VideosService } from './videos.service';
 import { CreateVideoDto } from './dto/create-video.dto';
@@ -55,6 +59,26 @@ export class VideosController {
   @ApiOperation({ summary: 'Get presigned S3 URL for video upload' })
   getPresignedUrl(@CurrentUser() user: JwtPayload, @Body() dto: PresignedUrlDto) {
     return this.videosService.getPresignedUploadUrl(user.sub, dto);
+  }
+
+  @Put(':id([0-9a-fA-F-]{36})/upload')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 500 * 1024 * 1024 },
+    }),
+  )
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Upload video file via API (fallback when direct S3 PUT fails)',
+  })
+  proxyUpload(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.videosService.receiveProxyUpload(user.sub, id, file);
   }
 
   @Post()

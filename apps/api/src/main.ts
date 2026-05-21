@@ -44,9 +44,16 @@ async function bootstrap() {
 
   app.use(helmet());
 
-  const prodOrigins = [process.env.WEB_URL, process.env.ADMIN_URL]
+  const prodOrigins = [
+    process.env.WEB_URL,
+    process.env.ADMIN_URL,
+    'https://forgestudios.net',
+    'https://www.forgestudios.net',
+    'https://admin.forgestudios.net',
+  ]
     .map((o) => (typeof o === 'string' ? o.trim() : ''))
-    .filter((o) => o.length > 0);
+    .filter((o) => o.length > 0)
+    .filter((o, i, arr) => arr.indexOf(o) === i);
   if (nodeEnv === 'production' && prodOrigins.length === 0) {
     logger.warn('WEB_URL / ADMIN_URL unset — set both for browser CORS in production.');
   }

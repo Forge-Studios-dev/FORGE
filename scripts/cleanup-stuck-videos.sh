@@ -18,7 +18,7 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
 fi
 
 echo "==> Cleaning stuck videos in database"
-NODE_PATH="${ROOT}/apps/api/node_modules:${ROOT}/node_modules" node -e "
+npm exec --workspace=apps/api -- node -e "
 const { Client } = require('pg');
 const client = new Client({ connectionString: process.env.DATABASE_URL });
 (async () => {

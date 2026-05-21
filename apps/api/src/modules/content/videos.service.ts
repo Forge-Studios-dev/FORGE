@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { createReadStream, promises as fsPromises } from 'fs';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -15,6 +16,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  type HeadObjectCommandOutput,
   ListObjectsV2Command,
   DeleteObjectsCommand,
 } from '@aws-sdk/client-s3';
@@ -276,14 +278,18 @@ export class VideosService {
     const ext = dto.contentType === 'video/quicktime' ? 'mov' : 'mp4';
     const key = `videos/${userId}/${videoId}/original.${ext}`;
 
+    // Sign only Content-Type — not Content-Length. Browsers must send a matching
+    // Content-Type; mismatched signed Content-Length causes opaque CORS/network errors.
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
       ContentType: dto.contentType,
-      ContentLength: dto.fileSizeBytes,
     });
 
-    const uploadUrl = await getSignedUrl(this.presignS3, command, { expiresIn: 600 });
+    const uploadUrl = await getSignedUrl(this.presignS3, command, {
+      expiresIn: 600,
+      signableHeaders: new Set(['content-type']),
+    });
 
     const video = this.videoRepository.create({
       id: videoId,
@@ -301,6 +307,52 @@ export class VideosService {
     await this.videoRepository.save(video);
 
     return { videoId, uploadUrl, key, expiresIn: 600 };
+  }
+
+  /**
+   * Proxy upload when browser → S3 PUT fails (CORS, corporate firewall, etc.).
+   * Multipart field name: `file`.
+   */
+  async receiveProxyUpload(
+    userId: string,
+    videoId: string,
+    file: Express.Multer.File,
+  ): Promise<{ ok: true }> {
+    if (!file?.path) {
+      throw new BadRequestException('Missing upload file');
+    }
+
+    const video = await this.videoRepository.findOne({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+    if (video.userId !== userId) throw new ForbiddenException();
+    if (video.status !== VideoStatus.UPLOADING) {
+      throw new BadRequestException('Video is not in uploading state');
+    }
+    if (!video.s3Key) throw new BadRequestException('Missing upload key');
+
+    const expected = Number(video.uploadFileSizeBytes ?? 0);
+    if (expected > 0 && file.size !== expected) {
+      throw new BadRequestException(
+        `File size mismatch (expected ${expected} bytes, got ${file.size})`,
+      );
+    }
+
+    const stream = createReadStream(file.path);
+    try {
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: video.s3Key,
+          Body: stream,
+          ContentType: video.uploadContentType || file.mimetype || 'video/mp4',
+          ContentLength: file.size,
+        }),
+      );
+    } finally {
+      await fsPromises.unlink(file.path).catch(() => undefined);
+    }
+
+    return { ok: true };
   }
 
   /**
@@ -344,10 +396,21 @@ export class VideosService {
 
     if (!video.s3Key) throw new BadRequestException('Missing upload key');
 
+    let head: HeadObjectCommandOutput;
     try {
-      await this.s3.send(new HeadObjectCommand({ Bucket: this.bucket, Key: video.s3Key }));
+      head = await this.s3.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: video.s3Key }),
+      );
     } catch {
       throw new BadRequestException('Upload not found in storage');
+    }
+
+    const storedSize = Number(head.ContentLength ?? 0);
+    const expectedSize = Number(video.uploadFileSizeBytes ?? 0);
+    if (expectedSize > 0 && storedSize > 0 && storedSize !== expectedSize) {
+      throw new BadRequestException(
+        `Uploaded file size mismatch (expected ${expectedSize}, stored ${storedSize})`,
+      );
     }
 
     let skillTags = dto.skillTagIds?.length

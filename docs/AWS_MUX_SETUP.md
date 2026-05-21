@@ -58,7 +58,9 @@ Add your Vercel preview URLs if you test uploads from preview deployments.
 
 **Ops:** re-apply CORS with admin AWS credentials: `./scripts/fix-s3-cors.sh`
 
-**Presigned PUT:** the API disables AWS flexible checksums on presign URLs so browser `XMLHttpRequest` uploads work (CRC32 query params break XHR).
+**Presigned PUT:** the API disables AWS flexible checksums on presign URLs so browser `XMLHttpRequest` uploads work (CRC32 query params break XHR). Only `Content-Type` is signed (not `Content-Length`) to avoid opaque browser failures.
+
+**Fallback:** if direct S3 PUT fails (CORS, firewall), the web app automatically retries `PUT /api/v1/videos/:id/upload` (multipart `file`) — no S3 CORS required.
 
 ### 1.3 IAM user (API + worker access)
 

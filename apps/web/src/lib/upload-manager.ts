@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import { putVideoToStorage } from '@/lib/upload-storage';
 import type { CompleteUploadOptions, UploadPhase } from '@/lib/upload-lesson';
 import { resolveVideoContentType } from '@/lib/upload-lesson';
 
@@ -14,12 +15,12 @@ export type ActiveUploadMeta = {
   phase: UploadPhase;
   progress: number;
   startedAt: string;
+  uploadVia?: 'direct' | 'proxy';
 };
 
 type Listener = (state: ActiveUploadMeta | null) => void;
 
 let meta: ActiveUploadMeta | null = null;
-let xhr: XMLHttpRequest | null = null;
 let listeners = new Set<Listener>();
 
 function persistMeta() {
@@ -52,7 +53,7 @@ export function getActiveUpload(): ActiveUploadMeta | null {
 }
 
 export function isUploadInFlight(): boolean {
-  return !!xhr || meta?.phase === 'uploading' || meta?.phase === 'presigning';
+  return meta?.phase === 'uploading' || meta?.phase === 'presigning';
 }
 
 async function cancelVideoQuietly(videoId: string) {
@@ -70,7 +71,7 @@ export async function runBackgroundUpload(
   skillTagName?: string,
   options?: CompleteUploadOptions,
 ): Promise<string> {
-  if (xhr) {
+  if (meta?.phase === 'uploading' || meta?.phase === 'presigning') {
     throw new Error('Another upload is already running.');
   }
 
@@ -97,46 +98,14 @@ export async function runBackgroundUpload(
   emit();
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      const request = new XMLHttpRequest();
-      xhr = request;
-      request.open('PUT', uploadUrl);
-      request.setRequestHeader('Content-Type', contentType);
-      request.upload.onprogress = (evt) => {
-        if (evt.lengthComputable && meta) {
-          meta = {
-            ...meta,
-            progress: Math.round((evt.loaded / evt.total) * 100),
-            phase: 'uploading',
-          };
-          emit();
-        }
-      };
-      request.onload = () => {
-        xhr = null;
-        if (request.status >= 200 && request.status < 300) resolve();
-        else {
-          reject(
-            new Error(
-              `Storage upload failed (${request.status}). If this persists, ask ops to run scripts/fix-s3-cors.sh.`,
-            ),
-          );
-        }
-      };
-      request.onerror = () => {
-        xhr = null;
-        reject(
-          new Error(
-            'Network error while uploading to storage. Check S3 CORS and try again from Studio.',
-          ),
-        );
-      };
-      request.onabort = () => {
-        xhr = null;
-        reject(new Error('Upload cancelled.'));
-      };
-      request.send(file);
+    const via = await putVideoToStorage(videoId, uploadUrl, file, contentType, (pct) => {
+      if (meta) {
+        meta = { ...meta, progress: pct, phase: 'uploading' };
+        emit();
+      }
     });
+    meta = meta ? { ...meta, uploadVia: via } : meta;
+    emit();
 
     if (meta) {
       meta = { ...meta, phase: 'completing', progress: 100 };
@@ -164,10 +133,6 @@ export async function runBackgroundUpload(
 }
 
 export function abortActiveUpload() {
-  if (xhr) {
-    xhr.abort();
-    xhr = null;
-  }
   const id = meta?.videoId;
   meta = null;
   emit();

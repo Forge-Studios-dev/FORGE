@@ -21,6 +21,7 @@ cat >"$CORS_FILE" <<'EOF'
         "https://forgestudios.net",
         "https://www.forgestudios.net",
         "https://admin.forgestudios.net",
+        "https://*.vercel.app",
         "http://localhost:3000",
         "http://localhost:3002"
       ],
