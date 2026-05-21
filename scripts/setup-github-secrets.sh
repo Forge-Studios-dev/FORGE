@@ -37,13 +37,9 @@ ensure_gh_auth() {
 set_secret_with_retry() {
   local name="$1"
   local value="$2"
-  local tmp
-  tmp="$(mktemp)"
-  printf '%s' "$value" >"$tmp"
   local attempt=1
   while [[ "$attempt" -le "$MAX_RETRIES" ]]; do
-    if gh secret set "$name" --body-file "$tmp" --repo "$REPO" 2>&1; then
-      rm -f "$tmp"
+    if printf '%s' "$value" | gh secret set "$name" --repo "$REPO" 2>&1; then
       echo "  OK: $name"
       return 0
     fi
@@ -52,7 +48,6 @@ set_secret_with_retry() {
     sleep "$RETRY_DELAY_SEC"
     attempt=$((attempt + 1))
   done
-  rm -f "$tmp"
   echo "  FAIL: $name after $MAX_RETRIES attempts"
   return 1
 }
@@ -78,9 +73,9 @@ VERCEL_TOKEN="${VERCEL_TOKEN:-}"
 validate_vercel_token() {
   local tok="$1"
   [[ -n "$tok" ]] || return 1
-  # OAuth session tokens from `vercel login` are ~60 chars and fail in GitHub Actions.
-  if [[ "${#tok}" -lt 70 ]]; then
-    echo "  (token length ${#tok} — need classic token from vercel.com/account/settings/tokens)"
+  # Classic dashboard tokens start with vcp_; OAuth CLI tokens do not.
+  if [[ ! "$tok" =~ ^vcp_ ]]; then
+    echo "  (expected classic token starting with vcp_ from vercel.com/account/settings/tokens)"
     return 1
   fi
   export VERCEL_ORG_ID="$VERCEL_ORG_ID"

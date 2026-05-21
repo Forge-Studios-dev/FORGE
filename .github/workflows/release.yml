@@ -97,11 +97,11 @@ jobs:
 
       - name: Verify Vercel token (team scope)
         run: |
-          echo "Token length: ${#VERCEL_TOKEN}"
-          if [ "${#VERCEL_TOKEN}" -lt 70 ]; then
-            echo "::error::VERCEL_TOKEN is ${#VERCEL_TOKEN} chars (likely OAuth). Create a classic token at https://vercel.com/account/settings/tokens and run: export VERCEL_TOKEN='...' && npm run gh:secrets:set"
+          case "$VERCEL_TOKEN" in vcp_*) ;; *)
+            echo "::error::VERCEL_TOKEN must be a classic token (vcp_...) from https://vercel.com/account/settings/tokens"
             exit 1
-          fi
+            ;;
+          esac
           npx --yes vercel@54.2.0 whoami
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -161,11 +161,11 @@ jobs:
 
       - name: Verify Vercel token (team scope)
         run: |
-          echo "Token length: ${#VERCEL_TOKEN}"
-          if [ "${#VERCEL_TOKEN}" -lt 70 ]; then
-            echo "::error::VERCEL_TOKEN is ${#VERCEL_TOKEN} chars (likely OAuth). Create a classic token at https://vercel.com/account/settings/tokens and run: export VERCEL_TOKEN='...' && npm run gh:secrets:set"
+          case "$VERCEL_TOKEN" in vcp_*) ;; *)
+            echo "::error::VERCEL_TOKEN must be a classic token (vcp_...) from https://vercel.com/account/settings/tokens"
             exit 1
-          fi
+            ;;
+          esac
           npx --yes vercel@54.2.0 whoami
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
