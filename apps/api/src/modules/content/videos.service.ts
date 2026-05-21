@@ -4,7 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { createReadStream, promises as fsPromises } from 'fs';
+import { createReadStream } from 'fs';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -318,7 +318,7 @@ export class VideosService {
     videoId: string,
     file: Express.Multer.File,
   ): Promise<{ ok: true }> {
-    if (!file?.path) {
+    if (!file?.buffer?.length && !file?.path) {
       throw new BadRequestException('Missing upload file');
     }
 
@@ -337,20 +337,17 @@ export class VideosService {
       );
     }
 
-    const stream = createReadStream(file.path);
-    try {
-      await this.s3.send(
-        new PutObjectCommand({
-          Bucket: this.bucket,
-          Key: video.s3Key,
-          Body: stream,
-          ContentType: video.uploadContentType || file.mimetype || 'video/mp4',
-          ContentLength: file.size,
-        }),
-      );
-    } finally {
-      await fsPromises.unlink(file.path).catch(() => undefined);
-    }
+    const body = file.buffer?.length ? file.buffer : createReadStream(file.path);
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: video.s3Key,
+        Body: body,
+        ContentType: video.uploadContentType || file.mimetype || 'video/mp4',
+        ContentLength: file.size,
+      }),
+    );
 
     return { ok: true };
   }
