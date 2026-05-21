@@ -22,6 +22,15 @@ const DEMO_USERS: Array<{
     creatorStatus: null,
   },
   {
+    email: 'creator@forge.local',
+    password: 'ForgeDemo123!',
+    username: 'forgecreator',
+    displayName: 'Forge Creator',
+    role: UserRole.CREATOR,
+    isVerified: true,
+    creatorStatus: CreatorStatus.APPROVED,
+  },
+  {
     email: 'admin@forge.local',
     password: 'ForgeAdmin123!',
     username: 'forgeadmin',

@@ -59,9 +59,12 @@ export function canAccessStudio(user: User | null | undefined, hasSession: boole
   return canOpenStudioEntry(tier);
 }
 
-/** Upload on web — approved creators only (not platform admin). */
+/** Upload on web — approved + verified creators (uses API permissions when present). */
 export function canUpload(user: User | null | undefined, hasSession: boolean): boolean {
-  if (!hasSession) return false;
+  if (!hasSession || !user) return false;
+  if (Array.isArray(user.permissions) && user.permissions.includes(Permission.UPLOAD_VIDEO)) {
+    return true;
+  }
   return canUploadOnConsumerApp(getTier(user, hasSession));
 }
 

@@ -9,6 +9,7 @@ Role × flow × expected behavior across API, Web, Mobile, Admin.
 | Email | Password | Role | Use on |
 |-------|----------|------|--------|
 | `viewer@forge.local` | `ForgeDemo123!` | Viewer (`user`) | Web, mobile |
+| `creator@forge.local` | `ForgeDemo123!` | Approved creator | Upload, Studio, go live |
 | `admin@forge.local` | `ForgeAdmin123!` | Platform admin | Admin panel only |
 
 Ensure API is running with **current code**. The Docker `forge-api` image is often **stale** (leaks `passwordHash`, missing `GET /playlists/me`, no `permissions` on `/users/me`).

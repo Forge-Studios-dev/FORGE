@@ -7,25 +7,55 @@ import { PageHeader } from '@forge/design-system';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
 import { useAuth } from '@/lib/auth';
 import { clearUploadDraft, getUploadDraft, saveUploadDraft } from '@/lib/upload-draft';
-import { uploadLesson, validateUploadFile } from '@/lib/upload-lesson';
+import { clearUploadFile, getUploadFile, setUploadFile } from '@/lib/upload-file-store';
+import { uploadLesson, validateUploadFile, type UploadPhase } from '@/lib/upload-lesson';
 
 const TOTAL = 3;
+
+const PHASE_LABEL: Record<UploadPhase, string> = {
+  presigning: 'Preparing upload…',
+  uploading: 'Uploading to storage…',
+  completing: 'Finalizing lesson…',
+};
 
 export default function UploadStepPage() {
   const params = useParams();
   const router = useRouter();
   const step = Math.min(TOTAL, Math.max(1, Number(params.step) || 1));
-  const { canUpload, accessTier, canApplyForCreator } = useAuth();
+  const { canUpload, accessTier, canApplyForCreator, user } = useAuth();
 
   const [draft, setDraft] = useState(getUploadDraft);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [phase, setPhase] = useState<UploadPhase>('presigning');
   const [error, setError] = useState('');
+
+  const needsEmailVerification =
+    user?.role === 'creator' && user?.creatorStatus === 'approved' && !user?.isVerified;
 
   useEffect(() => {
     setDraft(getUploadDraft());
+    const stored = getUploadFile();
+    if (stored) setFile(stored);
   }, [step]);
+
+  if (needsEmailVerification) {
+    return (
+      <main className="mx-auto max-w-lg px-5 py-20 md:px-12">
+        <NoAccessCallout
+          title="Verify your email to upload"
+          description="Your creator application is approved. Confirm your email address before publishing lessons."
+        />
+        <Link href="/verify-email" className="mt-4 inline-block text-primary hover:underline">
+          Resend verification email
+        </Link>
+        <Link href="/profile/settings" className="mt-2 block text-sm text-on-surface-variant hover:underline">
+          Account settings
+        </Link>
+      </main>
+    );
+  }
 
   if (!canUpload) {
     return (
@@ -57,17 +87,33 @@ export default function UploadStepPage() {
     saveUploadDraft(next);
   };
 
+  const selectFile = (f: File | null) => {
+    setFile(f);
+    setUploadFile(f);
+    if (f) {
+      const validation = validateUploadFile(f);
+      if (validation) setError(validation);
+      else setError('');
+      persist({ fileName: f.name, fileSize: f.size, fileType: f.type });
+    }
+  };
+
   const canContinueStep1 = draft.title.trim().length >= 3;
   const canContinueStep2 = !!file && !validateUploadFile(file);
+  const canPublish = !!file && !validateUploadFile(file);
 
-  const goNext = () => router.push(`/upload/step/${step + 1}`);
+  const goNext = () => {
+    if (step === 2 && file) setUploadFile(file);
+    router.push(`/upload/step/${step + 1}`);
+  };
 
   const handlePublish = async () => {
-    if (!file) {
-      setError('Select a video file first.');
+    const activeFile = file ?? getUploadFile();
+    if (!activeFile) {
+      setError('Select a video file on step 2 (or re-select below).');
       return;
     }
-    const validation = validateUploadFile(file);
+    const validation = validateUploadFile(activeFile);
     if (validation) {
       setError(validation);
       return;
@@ -75,9 +121,20 @@ export default function UploadStepPage() {
     setError('');
     setUploading(true);
     setProgress(0);
+    setPhase('presigning');
     try {
-      await uploadLesson(file, draft.title, draft.description, setProgress, draft.skillTag);
+      await uploadLesson(
+        activeFile,
+        draft.title,
+        draft.description,
+        (pct, p) => {
+          setPhase(p);
+          setProgress(p === 'uploading' ? pct : p === 'completing' ? 100 : 0);
+        },
+        draft.skillTag,
+      );
       clearUploadDraft();
+      clearUploadFile();
       router.push('/upload/success');
     } catch (e: unknown) {
       const message =
@@ -146,13 +203,9 @@ export default function UploadStepPage() {
             <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant p-12 text-center text-on-surface-variant hover:border-primary">
               <input
                 type="file"
-                accept="video/mp4,video/quicktime"
+                accept="video/mp4,video/quicktime,.mp4,.mov"
                 className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  setFile(f);
-                  if (f) persist({ fileName: f.name, fileSize: f.size, fileType: f.type });
-                }}
+                onChange={(e) => selectFile(e.target.files?.[0] ?? null)}
               />
               {file || draft.fileName ? (
                 <span className="text-on-surface">
@@ -188,15 +241,42 @@ export default function UploadStepPage() {
               ) : null}
               <div>
                 <dt className="text-outline">File</dt>
-                <dd>{file?.name ?? draft.fileName ?? '—'}</dd>
+                <dd>
+                  {file?.name ?? draft.fileName ?? '—'}
+                  {file ? ` (${(file.size / (1024 * 1024)).toFixed(1)} MB)` : null}
+                </dd>
               </div>
             </dl>
+
+            {!file && draft.fileName ? (
+              <div className="rounded-lg border border-tertiary/30 bg-tertiary/5 p-4">
+                <p className="text-sm text-on-surface-variant">
+                  Video file was lost after changing steps. Re-select your file to publish.
+                </p>
+                <label className="mt-3 inline-block cursor-pointer text-sm font-semibold text-primary hover:underline">
+                  Re-select video
+                  <input
+                    type="file"
+                    accept="video/mp4,video/quicktime,.mp4,.mov"
+                    className="hidden"
+                    onChange={(e) => selectFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+              </div>
+            ) : null}
+
             {uploading ? (
               <div className="pt-2">
                 <div className="h-2 overflow-hidden rounded-full bg-surface-container-high">
-                  <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{ width: `${phase === 'uploading' ? progress : phase === 'completing' ? 100 : 12}%` }}
+                  />
                 </div>
-                <p className="mt-1 text-xs text-outline">Uploading… {progress}%</p>
+                <p className="mt-1 text-xs text-outline">
+                  {PHASE_LABEL[phase]}
+                  {phase === 'uploading' ? ` ${progress}%` : ''}
+                </p>
               </div>
             ) : null}
           </>
@@ -223,7 +303,7 @@ export default function UploadStepPage() {
           ) : (
             <button
               type="button"
-              disabled={uploading || !file}
+              disabled={uploading || !canPublish}
               onClick={() => void handlePublish()}
               className="primary-button ml-auto rounded-full px-8 py-2 text-sm font-semibold text-on-primary disabled:opacity-40"
             >

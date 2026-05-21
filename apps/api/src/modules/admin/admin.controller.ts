@@ -152,6 +152,8 @@ export class AdminController {
       creatorStatus: CreatorStatus.APPROVED,
       creatorReviewedAt: new Date(),
       creatorReviewNote: null,
+      /** MVP: approved creators can upload without a separate email-verify step */
+      isVerified: true,
     });
     this.eventEmitter.emit('creator.approved', { userId: id });
     return { ok: true };
