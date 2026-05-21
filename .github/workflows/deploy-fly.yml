@@ -1,19 +1,10 @@
-# Deploy NestJS API to Fly.io on push to main.
+# Deploy NestJS API to Fly.io (manual). Automatic deploys: Release (production) after CI on main.
 # Required secret: FLY_API_TOKEN
-# Runtime secrets on Fly: DATABASE_URL, REDIS_URL, JWT_*, WEB_URL, ADMIN_URL (see docs/MVP_GO_LIVE.md)
 
 name: Deploy API (Fly.io)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/api/**'
-      - 'packages/**'
-      - 'fly.toml'
-      - 'apps/api/Dockerfile'
-      - '.github/workflows/deploy-fly.yml'
 
 concurrency:
   group: fly-api-${{ github.ref }}

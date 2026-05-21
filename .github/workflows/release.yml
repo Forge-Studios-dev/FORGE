@@ -1,36 +1,86 @@
-# Deploy web + admin to Vercel (manual). Automatic deploys: Release (production) after CI on main.
-# Secrets: docs/CI_CD.md — VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID_WEB, VERCEL_PROJECT_ID_ADMIN
+# Production release: deploy API + web + admin after CI passes on main.
+# Manual: Actions → Release (production) → Run workflow
 
-name: Deploy Web & Admin (Vercel)
+name: Release (production)
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 
 concurrency:
-  group: vercel-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  FORGE_API_URL: https://api.forgestudios.net/api/v1
-  FORGE_WEB_URL: https://forgestudios.net
-  FORGE_ADMIN_URL: https://admin.forgestudios.net
+  group: release-production
+  cancel-in-progress: false
 
 jobs:
-  deploy-web:
-    name: Deploy web
+  gate:
+    name: CI gate
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
-    environment: production
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success')
+    steps:
+      - run: echo "CI passed — deploying production"
 
+  deploy-api:
+    name: Deploy API (Fly.io)
+    needs: gate
+    runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Require Fly secret
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::Missing GitHub secret: FLY_API_TOKEN (see docs/CI_CD.md)"
+            exit 1
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --remote-only --ha=false
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Smoke test API health
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -sf https://api.forgestudios.net/api/v1/health; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Health check failed after deploy"
+          exit 1
+
+  deploy-web:
+    name: Deploy web (Vercel)
+    needs: gate
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      FORGE_API_URL: https://api.forgestudios.net/api/v1
+      FORGE_WEB_URL: https://forgestudios.net
+      FORGE_ADMIN_URL: https://admin.forgestudios.net
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Require Vercel secrets
         run: |
           missing=0
           for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID_WEB; do
             if [ -z "${!name}" ]; then
-              echo "::error::Missing GitHub secret: $name (see docs/CI_CD.md)"
+              echo "::error::Missing GitHub secret: $name"
               missing=1
             fi
           done
@@ -45,13 +95,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Verify Vercel token
-        run: npx --yes vercel@latest whoami --token="$VERCEL_TOKEN"
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_TELEMETRY_DISABLED: '1'
-
-      - name: Deploy web (monorepo root)
+      - name: Deploy web
         run: |
           npx --yes vercel@latest deploy . --prod --yes --token="$VERCEL_TOKEN" \
             --local-config=apps/web/vercel.project.json \
@@ -64,26 +108,30 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
           VERCEL_TELEMETRY_DISABLED: '1'
-          FORGE_API_URL: ${{ env.FORGE_API_URL }}
-          FORGE_WEB_URL: ${{ env.FORGE_WEB_URL }}
-          FORGE_ADMIN_URL: ${{ env.FORGE_ADMIN_URL }}
+
+      - name: Smoke test web
+        run: curl -sfI https://forgestudios.net | head -5
 
   deploy-admin:
-    name: Deploy admin
-    runs-on: ubuntu-latest
+    name: Deploy admin (Vercel)
     needs: deploy-web
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
     environment: production
-
+    env:
+      FORGE_API_URL: https://api.forgestudios.net/api/v1
+      FORGE_WEB_URL: https://forgestudios.net
+      FORGE_ADMIN_URL: https://admin.forgestudios.net
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Require Vercel secrets
         run: |
           missing=0
           for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID_ADMIN; do
             if [ -z "${!name}" ]; then
-              echo "::error::Missing GitHub secret: $name (see docs/CI_CD.md)"
+              echo "::error::Missing GitHub secret: $name"
               missing=1
             fi
           done
@@ -98,13 +146,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Verify Vercel token
-        run: npx --yes vercel@latest whoami --token="$VERCEL_TOKEN"
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_TELEMETRY_DISABLED: '1'
-
-      - name: Deploy admin (monorepo root)
+      - name: Deploy admin
         run: |
           npx --yes vercel@latest deploy . --prod --yes --token="$VERCEL_TOKEN" \
             --local-config=apps/admin/vercel.project.json \
@@ -116,6 +158,6 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_ADMIN }}
           VERCEL_TELEMETRY_DISABLED: '1'
-          FORGE_API_URL: ${{ env.FORGE_API_URL }}
-          FORGE_WEB_URL: ${{ env.FORGE_WEB_URL }}
-          FORGE_ADMIN_URL: ${{ env.FORGE_ADMIN_URL }}
+
+      - name: Smoke test admin
+        run: curl -sfI https://admin.forgestudios.net | head -5

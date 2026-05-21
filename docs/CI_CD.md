@@ -11,8 +11,9 @@
 | Workflow | When | Purpose |
 |----------|------|---------|
 | **ci.yml** | Every PR + push to `main` | Lint, build, test (quality gate) |
-| **deploy-fly.yml** | Push to `main` (API paths) or manual | Deploy API to Fly.io |
-| **deploy-vercel.yml** | Push to `main` (web/admin paths) or manual | Deploy web + admin to Vercel |
+| **release.yml** | After **CI** succeeds on `main`, or manual | Deploy API (Fly) + web + admin (Vercel) |
+| **deploy-fly.yml** | Manual only | Deploy API only (emergency) |
+| **deploy-vercel.yml** | Manual only | Deploy web + admin only (emergency) |
 
 Lint and test run only in **ci.yml**. Deploy workflows do not replace CI.
 
@@ -77,10 +78,11 @@ Prints Vercel IDs and copies Fly token to clipboard (macOS). Vercel token must s
 
 ### Verify after all five secrets are set
 
-1. **Actions** → **Deploy API (Fly.io)** → **Run workflow**
-2. **Actions** → **Deploy Web & Admin (Vercel)** → **Run workflow**
+1. Push to `main` (or open a PR) — **CI** should pass.
+2. **Actions** → **Release (production)** runs automatically after green CI on `main`.
+3. Or run **Release (production)** manually to deploy everything at once.
 
-Both should finish without missing-secret or auth errors.
+Emergency single-target deploys: **Deploy API (Fly.io)** or **Deploy Web & Admin (Vercel)**.
 
 ---
 
