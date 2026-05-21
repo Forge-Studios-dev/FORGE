@@ -23,7 +23,12 @@ Self-hosted Docker (GHCR image workflows) was removed; production uses Fly + Ver
 
 ## Required GitHub secrets
 
-**Path:** [github.com/Forge-Studios-dev/FORGE/settings/secrets/actions](https://github.com/Forge-Studios-dev/FORGE/settings/secrets/actions)
+Set secrets in **both** places (Release jobs use `environment: production`, and environment secrets override repo secrets):
+
+1. [Repo secrets](https://github.com/Forge-Studios-dev/FORGE/settings/secrets/actions)
+2. [Environment `production`](https://github.com/Forge-Studios-dev/FORGE/settings/environments)
+
+`npm run gh:secrets:set` updates repo + `production` when `VERCEL_TOKEN` is set.
 
 | Secret | Used by | Notes |
 |--------|---------|-------|

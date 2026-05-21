@@ -37,9 +37,10 @@ ensure_gh_auth() {
 set_secret_with_retry() {
   local name="$1"
   local value="$2"
+  local gh_args=("${@:3}")
   local attempt=1
   while [[ "$attempt" -le "$MAX_RETRIES" ]]; do
-    if printf '%s' "$value" | gh secret set "$name" --repo "$REPO" 2>&1; then
+    if printf '%s' "$value" | gh secret set "$name" "${gh_args[@]}" 2>&1; then
       echo "  OK: $name"
       return 0
     fi
@@ -111,31 +112,47 @@ missing=0
 [[ -n "$FLY_API_TOKEN" ]] || { echo "ERROR: FLY_API_TOKEN missing — run: fly auth login"; missing=1; }
 [[ "$missing" -eq 0 ]] || exit 1
 
-echo "==> Setting GitHub Actions secrets on $REPO (retries=$MAX_RETRIES)"
+# Release workflows use environment: production — env secrets override repo secrets.
+GH_ENV="${GITHUB_ENVIRONMENT:-production}"
+
+set_secrets_batch() {
+  local label="$1"
+  shift
+  local gh_extra=("$@")
+  echo "==> Setting GitHub Actions secrets ($label) on $REPO (retries=$MAX_RETRIES)"
+  local batch_failed=0
+  set_secret_with_retry VERCEL_ORG_ID "$VERCEL_ORG_ID" "${gh_extra[@]}" || batch_failed=1
+  sleep 2
+  set_secret_with_retry VERCEL_PROJECT_ID_WEB "$VERCEL_PROJECT_ID_WEB" "${gh_extra[@]}" || batch_failed=1
+  sleep 2
+  set_secret_with_retry VERCEL_PROJECT_ID_ADMIN "$VERCEL_PROJECT_ID_ADMIN" "${gh_extra[@]}" || batch_failed=1
+  sleep 2
+  set_secret_with_retry FLY_API_TOKEN "$FLY_API_TOKEN" "${gh_extra[@]}" || batch_failed=1
+  sleep 2
+  set_secret_with_retry VERCEL_TOKEN "$VERCEL_TOKEN" "${gh_extra[@]}" || batch_failed=1
+  return "$batch_failed"
+}
+
 failed=0
-set_secret_with_retry VERCEL_ORG_ID "$VERCEL_ORG_ID" || failed=1
+set_secrets_batch "repo" --repo "$REPO" || failed=1
 sleep 2
-set_secret_with_retry VERCEL_PROJECT_ID_WEB "$VERCEL_PROJECT_ID_WEB" || failed=1
-sleep 2
-set_secret_with_retry VERCEL_PROJECT_ID_ADMIN "$VERCEL_PROJECT_ID_ADMIN" || failed=1
-sleep 2
-set_secret_with_retry FLY_API_TOKEN "$FLY_API_TOKEN" || failed=1
-sleep 2
-set_secret_with_retry VERCEL_TOKEN "$VERCEL_TOKEN" || failed=1
+set_secrets_batch "environment:$GH_ENV" --repo "$REPO" --env "$GH_ENV" || failed=1
 
 if [[ "$failed" -ne 0 ]]; then
   echo ""
   echo "Some secrets failed (often GitHub 504 timeout). Retry:"
   echo "  npm run gh:secrets:set"
-  echo "Or set individually:"
-  echo "  gh secret set VERCEL_ORG_ID --body '$VERCEL_ORG_ID' --repo $REPO"
+  echo "Or set individually (repo + production environment):"
+  echo "  printf '%s' '$VERCEL_ORG_ID' | gh secret set VERCEL_ORG_ID --repo $REPO"
+  echo "  printf '%s' '$VERCEL_ORG_ID' | gh secret set VERCEL_ORG_ID --repo $REPO --env production"
   exit 1
 fi
 
 echo ""
-echo "OK: all five secrets set."
+echo "OK: all five secrets set (repo + environment:$GH_ENV)."
 echo "==> Verifying (names only)"
 gh secret list --repo "$REPO" 2>/dev/null || true
+gh secret list --env "$GH_ENV" --repo "$REPO" 2>/dev/null || true
 
 echo ""
 echo "==> Trigger Release (production)"
