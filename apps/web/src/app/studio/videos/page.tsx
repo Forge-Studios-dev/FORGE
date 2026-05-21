@@ -8,11 +8,18 @@ import { getMyVideos } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { formatCount, timeAgo } from '@/lib/utils';
+import type { UploadVisibility } from '@/lib/upload-draft';
+import type { Video } from '@/types';
 
 export default function StudioVideosPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Video | null>(null);
+  const [editVisibility, setEditVisibility] = useState<UploadVisibility>('public');
+  const [editSchedule, setEditSchedule] = useState('');
+  const [saving, setSaving] = useState(false);
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['studio-videos', user?.id],
     queryFn: () => getMyVideos(user?.id),
@@ -26,6 +33,31 @@ export default function StudioVideosPage() {
       await queryClient.invalidateQueries({ queryKey: ['studio-videos', user?.id] });
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const openEdit = (video: Video) => {
+    setEditing(video);
+    setEditVisibility((video.visibility as UploadVisibility) ?? 'public');
+    setEditSchedule(
+      video.scheduledPublishAt
+        ? new Date(video.scheduledPublishAt).toISOString().slice(0, 16)
+        : '',
+    );
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    setSaving(true);
+    try {
+      await api.patch(`/videos/${editing.id}`, {
+        visibility: editVisibility,
+        scheduledPublishAt: editSchedule ? new Date(editSchedule).toISOString() : null,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['studio-videos', user?.id] });
+      setEditing(null);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -54,7 +86,11 @@ export default function StudioVideosPage() {
             <div>
               <p className="font-medium">{video.title}</p>
               <p className="text-sm text-on-surface-variant">
-                {video.status} · {formatCount(video.viewCount)} views · {timeAgo(video.createdAt)}
+                {video.status} · {video.visibility}
+                {video.scheduledPublishAt
+                  ? ` · scheduled ${new Date(video.scheduledPublishAt).toLocaleString()}`
+                  : ''}{' '}
+                · {formatCount(video.viewCount)} views · {timeAgo(video.createdAt)}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -68,14 +104,71 @@ export default function StudioVideosPage() {
                   {cancellingId === video.id ? 'Cancelling…' : 'Cancel upload'}
                 </button>
               ) : (
-                <Link href={`/watch/${video.id}`} className="text-sm text-primary hover:underline">
-                  View
-                </Link>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => openEdit(video)}
+                    className="text-sm text-on-surface-variant hover:underline"
+                  >
+                    Edit
+                  </button>
+                  <Link href={`/watch/${video.id}`} className="text-sm text-primary hover:underline">
+                    View
+                  </Link>
+                </>
               )}
             </div>
           </li>
         ))}
       </ul>
+
+      {editing ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="glass-panel w-full max-w-md space-y-4 rounded-2xl p-6">
+            <h2 className="font-display-forge text-lg font-semibold">Edit lesson</h2>
+            <p className="text-sm text-on-surface-variant">{editing.title}</p>
+            <fieldset className="space-y-2">
+              <legend className="font-label-caps text-outline">Visibility</legend>
+              {(['public', 'unlisted', 'private'] as UploadVisibility[]).map((vis) => (
+                <label key={vis} className="flex items-center gap-2 text-sm capitalize">
+                  <input
+                    type="radio"
+                    checked={editVisibility === vis}
+                    onChange={() => setEditVisibility(vis)}
+                  />
+                  {vis}
+                </label>
+              ))}
+            </fieldset>
+            <label className="block text-sm">
+              <span className="font-label-caps text-outline">Schedule publish (optional)</span>
+              <input
+                type="datetime-local"
+                value={editSchedule}
+                onChange={(e) => setEditSchedule(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
+              />
+            </label>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                className="text-sm text-on-surface-variant"
+                onClick={() => setEditing(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void saveEdit()}
+                className="primary-button rounded-full px-5 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -10,24 +10,40 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  DeleteObjectsCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { v4 as uuidv4 } from 'uuid';
-import { Video, VideoStatus } from './entities/video.entity';
+import {
+  Video,
+  VideoStatus,
+  VideoVisibility,
+  ModerationStatus,
+} from './entities/video.entity';
 import { SkillTag } from '../categories/entities/skill-tag.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
+import { Playlist } from '../playlists/entities/playlist.entity';
+import { PlaylistVideo } from '../playlists/entities/playlist-video.entity';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { PresignedUrlDto } from './dto/presigned-url.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { RecordWatchDto } from './dto/record-watch.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
+import { PublicVideo, toPublicVideo } from './video.mapper';
+import { rewriteMediaUrlToCdn } from '../../common/media-url.util';
+import { videoDetailCacheKey } from './video-cache';
 
 export const VIDEO_PROCESSING_QUEUE = 'video-processing';
 export const VIDEO_PROCESSING_DLQ_QUEUE = 'video-processing-dlq';
 
-const VIDEO_DETAIL_CACHE_PREFIX = 'video:detail:';
 const VIDEO_DETAIL_CACHE_TTL = 120;
 
 @Injectable()
@@ -43,6 +59,10 @@ export class VideosService {
     private readonly skillTagRepository: Repository<SkillTag>,
     @InjectRepository(WatchHistory)
     private readonly watchHistoryRepository: Repository<WatchHistory>,
+    @InjectRepository(Playlist)
+    private readonly playlistRepository: Repository<Playlist>,
+    @InjectRepository(PlaylistVideo)
+    private readonly playlistVideoRepository: Repository<PlaylistVideo>,
     @InjectQueue(VIDEO_PROCESSING_QUEUE)
     private readonly videoQueue: Queue,
     @InjectRedis()
@@ -66,6 +86,45 @@ export class VideosService {
   /** Grace for an active browser PUT before the S3 object appears. */
   private static readonly ACTIVE_UPLOAD_GRACE_MS = 45 * 1000;
 
+  assertCanWatchVideo(video: Video, viewerId?: string | null): void {
+    const isOwner = !!viewerId && viewerId === video.userId;
+
+    if (video.moderationStatus === ModerationStatus.BLOCKED && !isOwner) {
+      throw new ForbiddenException('This video is not available');
+    }
+    if (video.moderationStatus === ModerationStatus.HELD && !isOwner) {
+      throw new ForbiddenException('This video is not available');
+    }
+    if (video.visibility === VideoVisibility.PRIVATE && !isOwner) {
+      throw new ForbiddenException('This video is private');
+    }
+
+    const now = new Date();
+    if (video.scheduledPublishAt && video.scheduledPublishAt > now && !isOwner) {
+      throw new ForbiddenException('This video is not published yet');
+    }
+    if (video.publishedAt && video.publishedAt > now && !isOwner) {
+      throw new ForbiddenException('This video is not published yet');
+    }
+  }
+
+  mapToPublicVideo(video: Video): PublicVideo {
+    return toPublicVideo(video, {
+      rewriteMediaUrl: (url) => this.rewritePlaybackUrl(url),
+    });
+  }
+
+  rewritePlaybackUrl(url: string | null | undefined): string | null {
+    if (!url) return null;
+    if (this.cdnDomain) return rewriteMediaUrlToCdn(url, this.cdnDomain);
+    return url;
+  }
+
+  /** @deprecated use rewritePlaybackUrl */
+  getSignedPlaybackUrl(hlsUrl: string): string {
+    return this.rewritePlaybackUrl(hlsUrl) ?? hlsUrl;
+  }
+
   private async s3ObjectExists(key: string): Promise<boolean> {
     try {
       await this.s3.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
@@ -75,12 +134,41 @@ export class VideosService {
     }
   }
 
-  private async removeUploadRow(row: Video): Promise<void> {
-    if (row.s3Key) {
+  private async deleteS3Prefix(prefix: string): Promise<void> {
+    let token: string | undefined;
+    do {
+      const list = await this.s3.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: prefix,
+          ContinuationToken: token,
+        }),
+      );
+      const keys = (list.Contents ?? []).map((o) => o.Key).filter((k): k is string => !!k);
+      if (keys.length > 0) {
+        await this.s3.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            Delete: { Objects: keys.map((Key) => ({ Key })) },
+          }),
+        );
+      }
+      token = list.IsTruncated ? list.NextContinuationToken : undefined;
+    } while (token);
+  }
+
+  private async deleteVideoAssets(video: Video): Promise<void> {
+    if (video.s3Key) {
       await this.s3
-        .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: row.s3Key }))
+        .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: video.s3Key }))
         .catch(() => undefined);
     }
+    await this.deleteS3Prefix(`videos/${video.id}/`);
+    await this.deleteS3Prefix(`videos/${video.userId}/${video.id}/`);
+  }
+
+  private async removeUploadRow(row: Video): Promise<void> {
+    await this.deleteVideoAssets(row);
     await this.bustVideoDetailCache(row.id);
     await this.videoRepository.remove(row);
   }
@@ -150,7 +238,7 @@ export class VideosService {
       title: 'Untitled upload',
       description: null,
       status: VideoStatus.UPLOADING,
-      visibility: undefined,
+      visibility: VideoVisibility.PUBLIC,
       s3Key: key,
       uploadContentType: dto.contentType,
       uploadFileSizeBytes: dto.fileSizeBytes,
@@ -224,6 +312,18 @@ export class VideosService {
     video.title = dto.title ?? video.title ?? 'Untitled upload';
     video.description = dto.description ?? video.description ?? null;
     if (dto.visibility) video.visibility = dto.visibility;
+    if (dto.scheduledPublishAt) {
+      const scheduled = new Date(dto.scheduledPublishAt);
+      if (Number.isNaN(scheduled.getTime())) {
+        throw new BadRequestException('Invalid scheduled publish time');
+      }
+      if (scheduled.getTime() <= Date.now() + 14 * 60 * 1000) {
+        throw new BadRequestException('Schedule must be at least 15 minutes in the future');
+      }
+      video.scheduledPublishAt = scheduled;
+    } else {
+      video.scheduledPublishAt = null;
+    }
     if (skillTags.length > 0) video.skillTags = skillTags;
 
     video.status = VideoStatus.PROCESSING;
@@ -232,13 +332,41 @@ export class VideosService {
 
     const saved = await this.videoRepository.save(video);
 
+    if (dto.playlistIds?.length) {
+      await this.addVideoToPlaylists(userId, saved.id, dto.playlistIds);
+    }
+
     await this.enqueueProcessJob(saved.id, saved.s3Key!, userId);
 
     return saved;
   }
 
+  private async addVideoToPlaylists(
+    userId: string,
+    videoId: string,
+    playlistIds: string[],
+  ): Promise<void> {
+    const unique = [...new Set(playlistIds)];
+    const playlists = await this.playlistRepository.find({
+      where: { id: In(unique), userId },
+    });
+    if (playlists.length !== unique.length) {
+      throw new BadRequestException('One or more playlists were not found');
+    }
+    for (const playlist of playlists) {
+      const existing = await this.playlistVideoRepository.findOne({
+        where: { playlistId: playlist.id, videoId },
+      });
+      if (!existing) {
+        await this.playlistVideoRepository.save(
+          this.playlistVideoRepository.create({ playlistId: playlist.id, videoId }),
+        );
+      }
+    }
+  }
+
   async findById(id: string, opts?: { skipCache?: boolean }): Promise<Video> {
-    const cacheKey = `${VIDEO_DETAIL_CACHE_PREFIX}${id}`;
+    const cacheKey = videoDetailCacheKey(id);
     if (!opts?.skipCache) {
       const cached = await this.redis.get(cacheKey);
       if (cached) {
@@ -256,18 +384,24 @@ export class VideosService {
     return video;
   }
 
-  private async bustVideoDetailCache(videoId: string) {
-    await this.redis.del(`${VIDEO_DETAIL_CACHE_PREFIX}${videoId}`);
+  async bustVideoDetailCache(videoId: string): Promise<void> {
+    await this.redis.del(videoDetailCacheKey(videoId));
+  }
+
+  async getVideoForViewer(id: string, viewerId?: string | null): Promise<PublicVideo> {
+    const video = await this.findById(id);
+    this.assertCanWatchVideo(video, viewerId);
+    if (video.status === VideoStatus.READY) {
+      await this.incrementViewCount(id);
+    }
+    return this.mapToPublicVideo(video);
   }
 
   async delete(requesterId: string, videoId: string): Promise<void> {
     const video = await this.findById(videoId, { skipCache: true });
     if (video.userId !== requesterId) throw new ForbiddenException();
 
-    if (video.s3Key) {
-      await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: video.s3Key }));
-    }
-
+    await this.deleteVideoAssets(video);
     await this.bustVideoDetailCache(videoId);
     this.eventEmitter.emit('video.updated', { videoId });
     await this.videoRepository.remove(video);
@@ -277,15 +411,9 @@ export class VideosService {
     await this.videoRepository.increment({ id: videoId }, 'viewCount', 1);
   }
 
-  getSignedPlaybackUrl(hlsUrl: string): string {
-    if (this.cdnDomain && hlsUrl) {
-      return hlsUrl.replace(/^https?:\/\/[^/]+/, this.cdnDomain);
-    }
-    return hlsUrl;
-  }
-
   async recordWatch(userId: string, videoId: string, dto: RecordWatchDto) {
     const video = await this.findById(videoId);
+    this.assertCanWatchVideo(video, userId);
     if (video.status !== VideoStatus.READY) {
       throw new BadRequestException('Video is not available');
     }
@@ -309,12 +437,20 @@ export class VideosService {
     if (dto.description !== undefined) video.description = dto.description;
     if (dto.visibility !== undefined) video.visibility = dto.visibility;
     if (dto.scheduledPublishAt !== undefined) {
-      video.scheduledPublishAt = dto.scheduledPublishAt ? new Date(dto.scheduledPublishAt) : null;
+      if (dto.scheduledPublishAt === null) {
+        video.scheduledPublishAt = null;
+      } else {
+        const scheduled = new Date(dto.scheduledPublishAt);
+        if (Number.isNaN(scheduled.getTime())) {
+          throw new BadRequestException('Invalid scheduled publish time');
+        }
+        video.scheduledPublishAt = scheduled;
+      }
     }
     const saved = await this.videoRepository.save(video);
     await this.bustVideoDetailCache(videoId);
     this.eventEmitter.emit('video.updated', { videoId });
-    return saved;
+    return this.mapToPublicVideo(saved);
   }
 
   private enqueueProcessJob(videoId: string, s3Key: string, userId: string) {

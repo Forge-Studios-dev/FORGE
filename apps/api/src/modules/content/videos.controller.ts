@@ -12,7 +12,6 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { VideosService } from './videos.service';
-import { toPublicVideo } from './video.mapper';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { PresignedUrlDto } from './dto/presigned-url.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
@@ -21,6 +20,7 @@ import { UpdateVideoDto } from './dto/update-video.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
@@ -91,12 +91,11 @@ export class VideosController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id([0-9a-fA-F-]{36})')
   @ApiOperation({ summary: 'Get video by ID' })
-  async findOne(@Param('id') id: string) {
-    const video = await this.videosService.findById(id);
-    await this.videosService.incrementViewCount(id);
-    return toPublicVideo(video);
+  async findOne(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
+    return this.videosService.getVideoForViewer(id, user?.sub);
   }
 
   @Delete(':id([0-9a-fA-F-]{36})')

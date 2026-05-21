@@ -33,6 +33,8 @@ export interface Video {
   commentCount: number;
   skillTags: SkillTag[];
   createdAt: string;
+  publishedAt?: string | null;
+  scheduledPublishAt?: string | null;
 }
 
 export interface Stream {

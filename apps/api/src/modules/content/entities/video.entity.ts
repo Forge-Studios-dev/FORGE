@@ -30,6 +30,12 @@ export enum VideoVisibility {
   UNLISTED = 'unlisted',
 }
 
+export enum ModerationStatus {
+  NONE = 'none',
+  HELD = 'held',
+  BLOCKED = 'blocked',
+}
+
 @Entity('videos')
 @Index(['userId'])
 @Index(['status'])
@@ -110,6 +116,23 @@ export class Video {
 
   @Column({ name: 'scheduled_publish_at', type: 'timestamptz', nullable: true })
   scheduledPublishAt: Date | null;
+
+  @Column({
+    name: 'moderation_status',
+    type: 'enum',
+    enum: ModerationStatus,
+    default: ModerationStatus.NONE,
+  })
+  moderationStatus: ModerationStatus;
+
+  @Column({ name: 'moderation_note', type: 'varchar', nullable: true, length: 500 })
+  moderationNote: string | null;
+
+  @Column({ name: 'moderated_at', type: 'timestamptz', nullable: true })
+  moderatedAt: Date | null;
+
+  @Column({ name: 'moderated_by', type: 'uuid', nullable: true })
+  moderatedBy: string | null;
 
   @ManyToMany(() => SkillTag, (tag) => tag.videos)
   @JoinTable({

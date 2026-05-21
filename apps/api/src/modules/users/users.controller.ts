@@ -6,6 +6,7 @@ import {
   Post,
   Put,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
@@ -14,6 +15,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { RequestCreatorDto } from './dto/request-creator.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { PlaylistsService } from '../playlists/playlists.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -66,21 +68,24 @@ export class UsersController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/videos')
   @ApiOperation({ summary: 'Get videos by user' })
   getUserVideos(
     @Param('id') id: string,
     @Query('limit') limit: number,
     @Query('cursor') cursor: string,
+    @CurrentUser() user?: JwtPayload,
   ) {
-    return this.usersService.getUserVideos(id, limit || 20, cursor);
+    return this.usersService.getUserVideos(id, limit || 20, cursor, user?.sub);
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/playlists')
   @ApiOperation({ summary: 'Get playlists by user' })
-  getUserPlaylists(@Param('id') id: string) {
-    return this.playlistsService.listByUser(id);
+  getUserPlaylists(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
+    return this.playlistsService.listByUser(id, user?.sub);
   }
 
   @Post(':id/avatar-upload-url')

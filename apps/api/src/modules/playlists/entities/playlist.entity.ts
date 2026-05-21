@@ -9,6 +9,11 @@ import {
 } from 'typeorm';
 import { PlaylistVideo } from './playlist-video.entity';
 
+export enum PlaylistVisibility {
+  PUBLIC = 'public',
+  PRIVATE = 'private',
+}
+
 @Entity('playlists')
 @Index(['userId'])
 export class Playlist {
@@ -20,6 +25,13 @@ export class Playlist {
 
   @Column({ length: 200 })
   title: string;
+
+  @Column({
+    type: 'enum',
+    enum: PlaylistVisibility,
+    default: PlaylistVisibility.PUBLIC,
+  })
+  visibility: PlaylistVisibility;
 
   @OneToMany(() => PlaylistVideo, (pv) => pv.playlist)
   items: PlaylistVideo[];

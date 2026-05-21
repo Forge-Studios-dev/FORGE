@@ -14,12 +14,12 @@ export async function RelatedVideos({
   let videos: Video[] = [];
   try {
     const { data } = await serverApi.get<{ data: { data: Video[] } }>('/videos/feed?limit=8');
-    videos = data.data.data.filter((v) => v.id !== videoId && v.userId !== creatorId).slice(0, 4);
+    videos = (data.data?.data ?? []).filter((v) => v.id !== videoId && v.userId !== creatorId).slice(0, 4);
     if (videos.length < 2 && skillTag) {
-      const search = await serverApi.get<{ data: { data: Video[] } }>(
+      const search = await serverApi.get<{ data: { videos: Video[] } }>(
         `/search?q=${encodeURIComponent(skillTag)}&limit=4`,
       );
-      videos = search.data.data.data.filter((v) => v.id !== videoId).slice(0, 4);
+      videos = (search.data.data?.videos ?? []).filter((v) => v.id !== videoId).slice(0, 4);
     }
   } catch {
     videos = [];

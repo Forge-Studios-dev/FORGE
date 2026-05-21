@@ -283,12 +283,26 @@ npm run db:neon:setup
 ## Step 6 — Go-live verification
 
 ```bash
-# API health
+# API health (includes video queue depth when Redis/BullMQ are up)
 curl -s https://forge-studios-api.fly.dev/api/v1/health
 
 # Optional: full smoke (API must be reachable)
 npm run smoke:api:prod
+
+# VOD pipeline: presign → complete → poll until ready → HEAD hlsUrl
+npm run verify:video-pipeline:prod
+# With a real S3 PUT (requires creator credentials + CORS): FORGE_PIPELINE_PUT=1 npm run verify:video-pipeline:prod
 ```
+
+**Video upload / playback (production):**
+
+| Check | Command / action |
+|-------|------------------|
+| Fly RAM for FFmpeg | `fly.toml` VM memory ≥ **1024mb**; redeploy API after change |
+| `CLOUDFRONT_DOMAIN` | `fly secrets list` — must match CDN serving `videos/{id}/hls/` |
+| Redis / worker | Health `checks.videoQueue`; upload should move `processing` → `ready` within ~10 min |
+| Web images | Vercel `next.config` allows CloudFront host for thumbnails |
+| Manual | Upload ~10MB clip on web as approved creator; watch page polls until playable |
 
 **Manual MVP checklist:**
 
@@ -380,6 +394,8 @@ Production checklist: [FORGE_PROJECT_MASTER.md §25](./FORGE_PROJECT_MASTER.md)
 ```bash
 npm run db:neon:setup      # Neon migrate + seed
 npm run redis:upstash:test # Upstash connectivity
+npm run verify:video-pipeline      # Local API VOD smoke
+npm run verify:video-pipeline:prod # Production VOD smoke
 bash scripts/setup-local-demo.sh  # Local Docker demo only
 ```
 

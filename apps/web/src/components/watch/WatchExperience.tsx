@@ -12,18 +12,23 @@ import { NoAccessCallout } from '@/components/NoAccessCallout';
 import { useAuth } from '@/lib/auth';
 
 export function WatchExperience({ video }: { video: Video }) {
-  const { isGuest, canEngage } = useAuth();
+  const { isGuest, canEngage, user } = useAuth();
   const [authGate, setAuthGate] = useState(false);
   const skillTag = video.skillTags?.[0]?.name;
   const canPlay = video.status === 'ready' && !!video.hlsUrl;
   const isPrivate = video.visibility === 'private';
+  const isOwner = user?.id === video.userId;
 
-  if (isPrivate && isGuest) {
+  if (isPrivate && (isGuest || !isOwner)) {
     return (
       <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
         <NoAccessCallout
           title="Private lesson"
-          description="This content is only available to signed-in viewers with access."
+          description={
+            isGuest
+              ? 'Sign in with the creator account that owns this lesson to watch it.'
+              : 'You do not have permission to watch this private lesson.'
+          }
         />
       </main>
     );

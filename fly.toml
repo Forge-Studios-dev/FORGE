@@ -28,6 +28,6 @@ primary_region = 'bom'
     timeout = '5s'
 
 [[vm]]
-  memory = '512mb'
+  memory = '1024mb'
   cpu_kind = 'shared'
   cpus = 1

@@ -14,7 +14,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreatorStatus, User, UserRole } from '../users/entities/user.entity';
-import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.entity';
+import {
+  Video,
+  VideoStatus,
+  VideoVisibility,
+  ModerationStatus,
+} from '../content/entities/video.entity';
+import { UpdateAdminVideoDto } from './dto/update-admin-video.dto';
+import { VideosService } from '../content/videos.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ReportsService } from '../reports/reports.service';
 import { ReportStatus } from '../reports/entities/report.entity';
@@ -41,6 +48,7 @@ export class AdminController {
     private readonly analyticsService: AnalyticsService,
     private readonly categoriesService: CategoriesService,
     private readonly adminService: AdminService,
+    private readonly videosService: VideosService,
   ) {}
 
   @Get('users')
@@ -179,6 +187,7 @@ export class AdminController {
     @Query('limit') limit = 20,
     @Query('status') status?: VideoStatus,
     @Query('userId') userId?: string,
+    @Query('moderationStatus') moderationStatus?: ModerationStatus,
   ) {
     const query = this.videoRepository
       .createQueryBuilder('v')
@@ -186,6 +195,7 @@ export class AdminController {
       .orderBy('v.createdAt', 'DESC');
     if (status) query.andWhere('v.status = :status', { status });
     if (userId) query.andWhere('v.userId = :userId', { userId });
+    if (moderationStatus) query.andWhere('v.moderationStatus = :moderationStatus', { moderationStatus });
     const [data, total] = await query
       .skip((page - 1) * limit)
       .take(limit)
@@ -194,16 +204,31 @@ export class AdminController {
   }
 
   @Patch('videos/:id')
-  @ApiOperation({ summary: 'Update video status (admin)' })
+  @ApiOperation({ summary: 'Moderate or update video (admin)' })
   async updateVideo(
     @Param('id') id: string,
-    @Body() dto: { status?: VideoStatus; visibility?: VideoVisibility },
+    @Body() dto: UpdateAdminVideoDto,
+    @CurrentUser() admin: JwtPayload,
   ) {
     const video = await this.videoRepository.findOne({ where: { id }, relations: ['user'] });
     if (!video) throw new NotFoundException('Video not found');
-    Object.assign(video, dto);
+
+    if (dto.status !== undefined) video.status = dto.status;
+    if (dto.visibility !== undefined) video.visibility = dto.visibility;
+    if (dto.moderationStatus !== undefined) {
+      video.moderationStatus = dto.moderationStatus;
+      video.moderatedAt = new Date();
+      video.moderatedBy = admin.sub;
+      if (dto.moderationStatus === ModerationStatus.BLOCKED) {
+        video.visibility = VideoVisibility.PRIVATE;
+      }
+    }
+    if (dto.moderationNote !== undefined) video.moderationNote = dto.moderationNote;
+    if (dto.clearScheduledPublish) video.scheduledPublishAt = null;
+
     const saved = await this.videoRepository.save(video);
-    this.eventEmitter.emit('video.updated', { videoId: id, ...dto });
+    await this.videosService.bustVideoDetailCache(id);
+    this.eventEmitter.emit('video.updated', { videoId: id });
     return saved;
   }
 

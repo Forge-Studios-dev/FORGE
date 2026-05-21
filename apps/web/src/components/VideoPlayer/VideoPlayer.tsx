@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { api } from '@/lib/api';
 import { getAccessToken } from '@/lib/auth-storage';
@@ -16,7 +16,9 @@ interface Props {
 
 export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const lastProgressRef = useRef(0);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
 
   const recordProgress = useCallback(
     async (seconds: number) => {
@@ -34,6 +36,39 @@ export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }
     [videoId],
   );
 
+  const attachHls = useCallback(() => {
+    if (!hlsUrl || !videoRef.current) return;
+    const video = videoRef.current;
+    setPlaybackError(null);
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({ enableWorker: true, lowLatencyMode: !!lowLatency });
+      hlsRef.current = hls;
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (!data.fatal) return;
+        setPlaybackError(
+          data.type === Hls.ErrorTypes.NETWORK_ERROR
+            ? 'Network error loading video. Check your connection or try again.'
+            : 'Playback failed. The video may still be processing.',
+        );
+      });
+      return;
+    }
+
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = hlsUrl;
+    } else {
+      setPlaybackError('HLS playback is not supported in this browser.');
+    }
+  }, [hlsUrl, lowLatency]);
+
   useEffect(() => {
     if (!hlsUrl || !videoRef.current) return;
     const video = videoRef.current;
@@ -43,25 +78,17 @@ export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }
     };
 
     video.addEventListener('timeupdate', onTimeUpdate);
+    attachHls();
 
-    if (Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: !!lowLatency });
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(video);
-      return () => {
-        video.removeEventListener('timeupdate', onTimeUpdate);
-        void recordProgress(video.currentTime);
-        hls.destroy();
-      };
-    }
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = hlsUrl;
-    }
     return () => {
       video.removeEventListener('timeupdate', onTimeUpdate);
       void recordProgress(video.currentTime);
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
     };
-  }, [hlsUrl, lowLatency, recordProgress]);
+  }, [hlsUrl, attachHls, recordProgress]);
 
   if (!hlsUrl) {
     return (
@@ -81,6 +108,18 @@ export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }
         title={title}
         playsInline
       />
+      {playbackError ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-surface/90 p-6 text-center">
+          <p className="text-sm text-error">{playbackError}</p>
+          <button
+            type="button"
+            className="rounded-full border border-outline-variant px-4 py-2 text-sm hover:border-primary"
+            onClick={() => attachHls()}
+          >
+            Retry playback
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,5 +1,8 @@
 const STORAGE_KEY = 'forge_upload_draft';
 
+export type PublishMode = 'immediate' | 'scheduled';
+export type UploadVisibility = 'public' | 'unlisted' | 'private';
+
 export type UploadDraft = {
   title: string;
   description: string;
@@ -7,18 +10,30 @@ export type UploadDraft = {
   fileName?: string;
   fileSize?: number;
   fileType?: string;
+  publishMode: PublishMode;
+  scheduledAt: string;
+  visibility: UploadVisibility;
+  playlistIds: string[];
+};
+
+const DEFAULT_DRAFT: UploadDraft = {
+  title: '',
+  description: '',
+  skillTag: '',
+  publishMode: 'immediate',
+  scheduledAt: '',
+  visibility: 'public',
+  playlistIds: [],
 };
 
 export function getUploadDraft(): UploadDraft {
-  if (typeof window === 'undefined') {
-    return { title: '', description: '', skillTag: '' };
-  }
+  if (typeof window === 'undefined') return { ...DEFAULT_DRAFT };
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return { title: '', description: '', skillTag: '' };
-    return { title: '', description: '', skillTag: '', ...JSON.parse(raw) };
+    if (!raw) return { ...DEFAULT_DRAFT };
+    return { ...DEFAULT_DRAFT, ...JSON.parse(raw) };
   } catch {
-    return { title: '', description: '', skillTag: '' };
+    return { ...DEFAULT_DRAFT };
   }
 }
 

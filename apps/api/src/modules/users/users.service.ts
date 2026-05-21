@@ -13,8 +13,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { CreatorStatus, User, UserRole } from './entities/user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Video, VideoStatus } from '../content/entities/video.entity';
-import { toPublicVideo, toPublicVideos } from '../content/video.mapper';
+import { toPublicVideo } from '../content/video.mapper';
+import { VideosService } from '../content/videos.service';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
+import { ModerationStatus } from '../content/entities/video.entity';
 
 @Injectable()
 export class UsersService {
@@ -28,6 +30,7 @@ export class UsersService {
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(WatchHistory)
     private readonly watchHistoryRepository: Repository<WatchHistory>,
+    private readonly videosService: VideosService,
     private readonly configService: ConfigService,
   ) {
     this.s3 = new S3Client({
@@ -86,7 +89,8 @@ export class UsersService {
     return { uploadUrl: url, publicUrl, key };
   }
 
-  async getUserVideos(userId: string, limit = 20, cursor?: string) {
+  async getUserVideos(userId: string, limit = 20, cursor?: string, viewerId?: string) {
+    const isOwner = viewerId === userId;
     const query = this.videoRepository
       .createQueryBuilder('v')
       .leftJoinAndSelect('v.user', 'user')
@@ -95,6 +99,18 @@ export class UsersService {
       .andWhere('v.status = :status', { status: 'ready' })
       .orderBy('v.createdAt', 'DESC')
       .take(limit + 1);
+
+    if (!isOwner) {
+      query
+        .andWhere('v.visibility IN (:...vis)', {
+          vis: ['public', 'unlisted'],
+        })
+        .andWhere('v.moderationStatus = :mod', { mod: ModerationStatus.NONE })
+        .andWhere(
+          '(v.scheduledPublishAt IS NULL OR v.scheduledPublishAt <= CURRENT_TIMESTAMP)',
+        )
+        .andWhere('(v.publishedAt IS NULL OR v.publishedAt <= CURRENT_TIMESTAMP)');
+    }
 
     if (cursor) {
       const cursorDate = new Date(Buffer.from(cursor, 'base64').toString('utf-8'));
@@ -107,7 +123,10 @@ export class UsersService {
     const nextCursor =
       hasMore ? Buffer.from(data[data.length - 1].createdAt.toISOString()).toString('base64') : null;
 
-    return { data: toPublicVideos(data), meta: { cursor: nextCursor, hasMore } };
+    return {
+      data: data.map((v) => this.videosService.mapToPublicVideo(v)),
+      meta: { cursor: nextCursor, hasMore },
+    };
   }
 
   async getWatchHistory(userId: string, limit = 20, incompleteOnly = false) {

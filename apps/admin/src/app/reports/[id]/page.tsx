@@ -127,7 +127,31 @@ export default function ReportDetailPage() {
         )}
         <p className="whitespace-pre-wrap border-t border-outline-variant/20 pt-3">{report.reason}</p>
       </div>
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
+        {report.targetType === 'video' ? (
+          <>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!window.confirm('Block this video and mark report reviewed?')) return;
+                await api.patch(`/admin/videos/${report.targetId}`, {
+                  moderationStatus: 'blocked',
+                  visibility: 'private',
+                });
+                await updateStatus('reviewed');
+              }}
+              className="rounded-full border border-error/40 px-6 py-2 text-sm text-error hover:bg-error/10"
+            >
+              Block video
+            </button>
+            <Link
+              href="/content?moderationStatus=held"
+              className="rounded-full border border-outline-variant px-6 py-2 text-sm hover:border-primary"
+            >
+              Moderation queue
+            </Link>
+          </>
+        ) : null}
         <button
           type="button"
           disabled={report.status !== 'pending'}
@@ -142,7 +166,7 @@ export default function ReportDetailPage() {
           onClick={() => void updateStatus('dismissed')}
           className="rounded-full border border-outline-variant px-6 py-2 text-sm hover:border-primary"
         >
-          Dismiss
+          Dismiss report
         </button>
       </div>
     </section>

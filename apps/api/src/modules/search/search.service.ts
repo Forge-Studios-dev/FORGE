@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
-import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.entity';
+import { Video, VideoStatus, VideoVisibility, ModerationStatus } from '../content/entities/video.entity';
+import { VideosService } from '../content/videos.service';
 import { User } from '../users/entities/user.entity';
-import { toPublicVideos } from '../content/video.mapper';
 import { toPublicUser } from '../users/user.mapper';
 
 @Injectable()
@@ -15,6 +15,7 @@ export class SearchService {
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly videosService: VideosService,
   ) {}
 
   async search(q: string, limit = 20) {
@@ -40,6 +41,8 @@ export class SearchService {
       .leftJoinAndSelect('v.user', 'user')
       .where('v.status = :status', { status: VideoStatus.READY })
       .andWhere('v.visibility = :visibility', { visibility: VideoVisibility.PUBLIC })
+      .andWhere('v.moderationStatus = :mod', { mod: ModerationStatus.NONE })
+      .andWhere('(v.publishedAt IS NULL OR v.publishedAt <= CURRENT_TIMESTAMP)')
       .andWhere(`v.searchVector @@ plainto_tsquery('english', :fts)`, { fts: term })
       .orderBy(`ts_rank_cd(v.searchVector, plainto_tsquery('english', :fts))`, 'DESC')
       .addOrderBy('v.createdAt', 'DESC')
@@ -55,7 +58,7 @@ export class SearchService {
       .getMany();
 
     return {
-      videos: toPublicVideos(videos),
+      videos: videos.map((v) => this.videosService.mapToPublicVideo(v)),
       users: users.map(toPublicUser),
       meta: { q: term, limit: take, mode: 'fts' as const },
     };
@@ -73,6 +76,7 @@ export class SearchService {
       .select('v.title', 'title')
       .where('v.status = :status', { status: VideoStatus.READY })
       .andWhere('v.visibility = :visibility', { visibility: VideoVisibility.PUBLIC })
+      .andWhere('v.moderationStatus = :mod', { mod: ModerationStatus.NONE })
       .andWhere('v.title ILIKE :p', { p: `${prefix}%` })
       .orderBy('v.title', 'ASC')
       .distinct(true)
@@ -93,6 +97,8 @@ export class SearchService {
       .leftJoinAndSelect('v.user', 'user')
       .where('v.status = :status', { status: VideoStatus.READY })
       .andWhere('v.visibility = :visibility', { visibility: VideoVisibility.PUBLIC })
+      .andWhere('v.moderationStatus = :mod', { mod: ModerationStatus.NONE })
+      .andWhere('(v.publishedAt IS NULL OR v.publishedAt <= CURRENT_TIMESTAMP)')
       .andWhere('(v.title ILIKE :q OR v.description ILIKE :q)', { q: pattern })
       .orderBy('v.createdAt', 'DESC')
       .take(take)
@@ -103,7 +109,7 @@ export class SearchService {
       take,
     });
     return {
-      videos: toPublicVideos(videos),
+      videos: videos.map((v) => this.videosService.mapToPublicVideo(v)),
       users: users.map(toPublicUser),
       meta: { q: term, limit: take, mode: 'legacy_ilike' as const },
     };

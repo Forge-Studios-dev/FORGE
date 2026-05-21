@@ -24,6 +24,7 @@
 | Topic | Document |
 |-------|----------|
 | CI/CD & GitHub secrets | [CI_CD.md](./CI_CD.md) · [scripts/README.md](../scripts/README.md) |
+| AWS S3 + Mux (upload & live) | [AWS_MUX_SETUP.md](./AWS_MUX_SETUP.md) |
 | Custom domain (Vercel + Fly + Squarespace DNS) | [DOMAIN_FORGESTUDIOS.md](./DOMAIN_FORGESTUDIOS.md) |
 | Local ngrok / VPS only | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) |
 | Remediation & deferred work | [mvp-audit.md](./mvp-audit.md) |

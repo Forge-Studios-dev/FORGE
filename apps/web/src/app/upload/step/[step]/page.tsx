@@ -2,11 +2,18 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@forge/design-system';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
 import { useAuth } from '@/lib/auth';
-import { clearUploadDraft, getUploadDraft, saveUploadDraft } from '@/lib/upload-draft';
+import {
+  clearUploadDraft,
+  getUploadDraft,
+  saveUploadDraft,
+  type UploadVisibility,
+} from '@/lib/upload-draft';
+import { api } from '@/lib/api';
 import { clearUploadFile, getUploadFile, setUploadFile } from '@/lib/upload-file-store';
 import { uploadLesson, validateUploadFile, type UploadPhase } from '@/lib/upload-lesson';
 
@@ -39,6 +46,21 @@ export default function UploadStepPage() {
     const stored = getUploadFile();
     if (stored) setFile(stored);
   }, [step]);
+
+  const minScheduleLocal = useMemo(() => {
+    const d = new Date(Date.now() + 15 * 60 * 1000);
+    d.setSeconds(0, 0);
+    return d.toISOString().slice(0, 16);
+  }, []);
+
+  const { data: myPlaylists } = useQuery({
+    queryKey: ['my-playlists'],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: { id: string; title: string }[] }>('/playlists/me');
+      return data.data ?? [];
+    },
+    enabled: step === 3 && canUpload,
+  });
 
   if (needsEmailVerification) {
     return (
@@ -100,7 +122,12 @@ export default function UploadStepPage() {
 
   const canContinueStep1 = draft.title.trim().length >= 3;
   const canContinueStep2 = !!file && !validateUploadFile(file);
-  const canPublish = !!file && !validateUploadFile(file);
+
+  const scheduleInvalid =
+    draft.publishMode === 'scheduled' &&
+    (!draft.scheduledAt || new Date(draft.scheduledAt).getTime() <= Date.now() + 14 * 60 * 1000);
+
+  const canPublish = !!file && !validateUploadFile(file) && !scheduleInvalid;
 
   const goNext = () => {
     if (step === 2 && file) setUploadFile(file);
@@ -123,6 +150,11 @@ export default function UploadStepPage() {
     setProgress(0);
     setPhase('presigning');
     try {
+      const scheduledPublishAt =
+        draft.publishMode === 'scheduled' && draft.scheduledAt
+          ? new Date(draft.scheduledAt).toISOString()
+          : undefined;
+
       await uploadLesson(
         activeFile,
         draft.title,
@@ -132,6 +164,11 @@ export default function UploadStepPage() {
           setProgress(p === 'uploading' ? pct : p === 'completing' ? 100 : 0);
         },
         draft.skillTag,
+        {
+          visibility: draft.visibility,
+          scheduledPublishAt,
+          playlistIds: draft.playlistIds,
+        },
       );
       clearUploadDraft();
       clearUploadFile();
@@ -247,6 +284,73 @@ export default function UploadStepPage() {
                 </dd>
               </div>
             </dl>
+
+            <fieldset className="space-y-3">
+              <legend className="font-label-caps text-outline">Publish</legend>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="publishMode"
+                  checked={draft.publishMode === 'immediate'}
+                  onChange={() => persist({ publishMode: 'immediate' })}
+                />
+                Publish immediately
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="publishMode"
+                  checked={draft.publishMode === 'scheduled'}
+                  onChange={() => persist({ publishMode: 'scheduled' })}
+                />
+                Schedule for later
+              </label>
+              {draft.publishMode === 'scheduled' ? (
+                <input
+                  type="datetime-local"
+                  min={minScheduleLocal}
+                  value={draft.scheduledAt}
+                  onChange={(e) => persist({ scheduledAt: e.target.value })}
+                  className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+                />
+              ) : null}
+            </fieldset>
+
+            <fieldset className="space-y-2">
+              <legend className="font-label-caps text-outline">Visibility</legend>
+              {(['public', 'unlisted', 'private'] as UploadVisibility[]).map((vis) => (
+                <label key={vis} className="flex items-center gap-2 text-sm capitalize">
+                  <input
+                    type="radio"
+                    name="visibility"
+                    checked={draft.visibility === vis}
+                    onChange={() => persist({ visibility: vis })}
+                  />
+                  {vis}
+                </label>
+              ))}
+            </fieldset>
+
+            {myPlaylists && myPlaylists.length > 0 ? (
+              <fieldset className="space-y-2">
+                <legend className="font-label-caps text-outline">Add to playlist (optional)</legend>
+                {myPlaylists.map((pl) => (
+                  <label key={pl.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={draft.playlistIds.includes(pl.id)}
+                      onChange={(e) => {
+                        const ids = e.target.checked
+                          ? [...draft.playlistIds, pl.id]
+                          : draft.playlistIds.filter((id) => id !== pl.id);
+                        persist({ playlistIds: ids });
+                      }}
+                    />
+                    {pl.title}
+                  </label>
+                ))}
+              </fieldset>
+            ) : null}
 
             {!file && draft.fileName ? (
               <div className="rounded-lg border border-tertiary/30 bg-tertiary/5 p-4">

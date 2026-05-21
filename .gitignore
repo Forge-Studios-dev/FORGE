@@ -7,6 +7,7 @@ build/
 .env.local
 .env.*.local
 .env.production
+.aws-forge-output.env
 compose.prod.env
 !compose.prod.env.example
 !**/.env.example

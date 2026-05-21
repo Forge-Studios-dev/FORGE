@@ -3,11 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.entity';
+import { Video, VideoStatus, VideoVisibility, ModerationStatus } from '../content/entities/video.entity';
+import { VideosService } from '../content/videos.service';
 import { Follow } from '../engagement/entities/follow.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { Category } from '../categories/entities/category.entity';
-import { toPublicVideos } from '../content/video.mapper';
 
 const FEED_CACHE_TTL_BASE = 300;
 const FEED_CACHE_JITTER_SEC = 60;
@@ -85,6 +85,7 @@ export class FeedService {
     private readonly categoryRepository: Repository<Category>,
     @InjectRedis()
     private readonly redis: Redis,
+    private readonly videosService: VideosService,
   ) {}
 
   private feedCacheTtl(): number {
@@ -148,6 +149,7 @@ export class FeedService {
       .leftJoinAndSelect('subcategory.category', 'category')
       .where('v.status = :status', { status: VideoStatus.READY })
       .andWhere('v.visibility = :visibility', { visibility: VideoVisibility.PUBLIC })
+      .andWhere('v.moderationStatus = :mod', { mod: ModerationStatus.NONE })
       .andWhere(
         '(v.scheduledPublishAt IS NULL OR v.scheduledPublishAt <= CURRENT_TIMESTAMP)',
       )
@@ -240,7 +242,10 @@ export class FeedService {
       }
     }
 
-    const result = { data: toPublicVideos(data), meta: { cursor: nextCursor, hasMore } };
+    const result = {
+      data: data.map((v) => this.videosService.mapToPublicVideo(v)),
+      meta: { cursor: nextCursor, hasMore },
+    };
 
     if (!options.userId && sort !== 'forYou') {
       await this.redis.setex(cacheKey, this.feedCacheTtl(), JSON.stringify(result));

@@ -18,9 +18,15 @@ export type PublicVideo = {
   skillTags: Video['skillTags'];
   createdAt: Date;
   publishedAt: Date | null;
+  scheduledPublishAt: Date | null;
 };
 
-export function toPublicVideo(video: Video): PublicVideo {
+export type PublicVideoMapperOpts = {
+  rewriteMediaUrl?: (url: string | null | undefined) => string | null;
+};
+
+export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): PublicVideo {
+  const rewrite = opts?.rewriteMediaUrl ?? ((u: string | null | undefined) => u ?? null);
   return {
     id: video.id,
     userId: video.userId,
@@ -29,8 +35,8 @@ export function toPublicVideo(video: Video): PublicVideo {
     description: video.description,
     status: video.status,
     visibility: video.visibility,
-    hlsUrl: video.hlsUrl,
-    thumbnailUrl: video.thumbnailUrl,
+    hlsUrl: rewrite(video.hlsUrl),
+    thumbnailUrl: rewrite(video.thumbnailUrl),
     durationSeconds: video.durationSeconds,
     viewCount: video.viewCount,
     likeCount: video.likeCount,
@@ -38,9 +44,10 @@ export function toPublicVideo(video: Video): PublicVideo {
     skillTags: video.skillTags ?? [],
     createdAt: video.createdAt,
     publishedAt: video.publishedAt,
+    scheduledPublishAt: video.scheduledPublishAt ?? null,
   };
 }
 
-export function toPublicVideos(videos: Video[]): PublicVideo[] {
-  return videos.map(toPublicVideo);
+export function toPublicVideos(videos: Video[], opts?: PublicVideoMapperOpts): PublicVideo[] {
+  return videos.map((v) => toPublicVideo(v, opts));
 }

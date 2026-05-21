@@ -3,8 +3,11 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Request } from 'express';
 import { Public } from './common/decorators/public.decorator';
+import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
 
 @Controller('health')
 export class HealthController {
@@ -13,6 +16,8 @@ export class HealthController {
     private readonly dataSource: DataSource,
     @InjectRedis()
     private readonly redis: Redis,
+    @InjectQueue(VIDEO_PROCESSING_QUEUE)
+    private readonly videoQueue: Queue,
   ) {}
 
   @Public()
@@ -36,6 +41,18 @@ export class HealthController {
     } catch {
       checks.redis = 'down';
       degraded = true;
+    }
+
+    try {
+      const counts = await this.videoQueue.getJobCounts(
+        'waiting',
+        'active',
+        'delayed',
+        'failed',
+      );
+      checks.videoQueue = JSON.stringify(counts);
+    } catch {
+      checks.videoQueue = 'unavailable';
     }
 
     return {

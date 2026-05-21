@@ -11,10 +11,12 @@ import { CategoriesModule } from '../categories/categories.module';
 import { UsersModule } from '../users/users.module';
 import { PlaylistsModule } from '../playlists/playlists.module';
 import { AuthModule } from '../auth/auth.module';
+import { ContentModule } from '../content/content.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Video, Report]),
+    ContentModule,
     ReportsModule,
     AnalyticsModule,
     CategoriesModule,

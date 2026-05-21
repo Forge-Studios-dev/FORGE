@@ -3,6 +3,8 @@ import { Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import { Redis } from 'ioredis';
 import { Job, Queue } from 'bullmq';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -16,6 +18,8 @@ import {
 import { Video, VideoStatus } from '../../content/entities/video.entity';
 import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../../content/videos.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { buildPublicMediaUrl } from '../../../common/media-url.util';
+import { videoDetailCacheKey } from '../../content/video-cache';
 
 interface VideoProcessingJob {
   videoId: string;
@@ -48,6 +52,8 @@ export class VideoProcessorWorker extends WorkerHost {
     private readonly videoRepository: Repository<Video>,
     @InjectQueue(VIDEO_PROCESSING_DLQ_QUEUE)
     private readonly deadLetterQueue: Queue,
+    @InjectRedis()
+    private readonly redis: Redis,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
   ) {
@@ -61,6 +67,14 @@ export class VideoProcessorWorker extends WorkerHost {
     });
     this.bucket = configService.get<string>('aws.s3BucketName') || '';
     this.cdnDomain = configService.get<string>('aws.cloudfrontDomain') || '';
+  }
+
+  private mediaUrl(key: string): string {
+    return buildPublicMediaUrl(key, {
+      cdnDomain: this.cdnDomain,
+      bucket: this.bucket,
+      region: this.configService.get<string>('aws.region'),
+    });
   }
 
   @OnWorkerEvent('failed')
@@ -127,23 +141,32 @@ export class VideoProcessorWorker extends WorkerHost {
 
       await job.updateProgress(95);
 
-      const hlsUrl = this.cdnDomain
-        ? `${this.cdnDomain}/${hlsBaseKey}/master.m3u8`
-        : `https://${this.bucket}.s3.amazonaws.com/${hlsBaseKey}/master.m3u8`;
+      const hlsUrl = this.mediaUrl(`${hlsBaseKey}/master.m3u8`);
+      const thumbnailUrl = this.mediaUrl(thumbnailKey);
 
-      const thumbnailUrl = this.cdnDomain
-        ? `${this.cdnDomain}/${thumbnailKey}`
-        : `https://${this.bucket}.s3.amazonaws.com/${thumbnailKey}`;
+      const row = await this.videoRepository.findOne({ where: { id: videoId } });
+      const now = new Date();
+      const scheduled = row?.scheduledPublishAt;
+      const publishedAt =
+        scheduled && scheduled.getTime() > now.getTime() ? scheduled : now;
 
       await this.videoRepository.update(videoId, {
         status: VideoStatus.READY,
         hlsUrl,
         thumbnailUrl,
         durationSeconds: duration,
-        publishedAt: new Date(),
+        publishedAt,
       });
 
-      this.eventEmitter.emit('video.ready', { videoId, userId: job.data.userId });
+      await this.redis.del(videoDetailCacheKey(videoId));
+      this.eventEmitter.emit('video.updated', { videoId });
+      this.eventEmitter.emit('video.ready', {
+        videoId,
+        userId: job.data.userId,
+        status: VideoStatus.READY,
+        hlsUrl,
+        thumbnailUrl,
+      });
 
       await job.updateProgress(100);
       this.logger.log(`Video ${videoId} processed successfully`);

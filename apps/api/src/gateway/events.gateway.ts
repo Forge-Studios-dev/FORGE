@@ -122,11 +122,22 @@ export class EventsGateway
   }
 
   @OnEvent('video.ready')
-  handleVideoReady(payload: { videoId: string; userId: string }) {
-    this.server.to(`user:${payload.userId}`).emit('video:ready', {
+  handleVideoReady(payload: {
+    videoId: string;
+    userId: string;
+    status?: string;
+    hlsUrl?: string;
+    thumbnailUrl?: string;
+  }) {
+    const body = {
       videoId: payload.videoId,
+      status: payload.status ?? 'ready',
+      hlsUrl: payload.hlsUrl,
+      thumbnailUrl: payload.thumbnailUrl,
       message: 'Your video is ready!',
-    });
+    };
+    this.server.to(`user:${payload.userId}`).emit('video:ready', body);
+    this.server.to(`video:${payload.videoId}`).emit('video:ready', body);
   }
 
   @OnEvent('stream.started')

@@ -1,4 +1,13 @@
-import { IsArray, IsEnum, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import {
+  IsArray,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { VideoVisibility } from '../entities/video.entity';
 
@@ -32,5 +41,16 @@ export class CompleteUploadDto {
   @IsString()
   @MaxLength(100)
   skillTagName?: string;
+
+  @ApiPropertyOptional({ description: 'ISO8601 — hide from feed until this instant' })
+  @IsOptional()
+  @IsDateString()
+  scheduledPublishAt?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'Add video to these playlists after processing' })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  playlistIds?: string[];
 }
 

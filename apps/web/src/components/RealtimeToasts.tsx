@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AUTH_SESSION_EVENT, getAccessToken } from '@/lib/auth-storage';
 import { getSocket } from '@/lib/socket';
+import { dispatchVideoReady } from '@/lib/video-events';
 
 type Toast = { id: string; title: string; body?: string };
 
@@ -25,6 +26,7 @@ export function RealtimeToasts() {
     if (!socket) return;
 
     const onVideoReady = (payload: { videoId: string; message?: string }) => {
+      dispatchVideoReady(payload);
       setToasts((t) => [
         { id: `video:${payload.videoId}:${Date.now()}`, title: 'Video ready', body: payload.message },
         ...t,

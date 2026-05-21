@@ -1,9 +1,16 @@
 import { api } from '@/lib/api';
+import type { UploadVisibility } from '@/lib/upload-draft';
 
 const MAX_BYTES = 500 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/x-m4v', '']);
 
 export type UploadPhase = 'presigning' | 'uploading' | 'completing';
+
+export type CompleteUploadOptions = {
+  visibility?: UploadVisibility;
+  scheduledPublishAt?: string;
+  playlistIds?: string[];
+};
 
 export function resolveVideoContentType(file: File): string {
   if (file.type && ALLOWED_TYPES.has(file.type)) return file.type === '' ? 'video/mp4' : file.type;
@@ -31,6 +38,7 @@ export async function uploadLesson(
   description: string,
   onProgress: (pct: number, phase: UploadPhase) => void,
   skillTagName?: string,
+  options?: CompleteUploadOptions,
 ): Promise<string> {
   const contentType = resolveVideoContentType(file);
 
@@ -65,6 +73,9 @@ export async function uploadLesson(
     title: title.trim(),
     description: description.trim() || undefined,
     skillTagName: skillTagName?.trim() || undefined,
+    visibility: options?.visibility ?? 'public',
+    scheduledPublishAt: options?.scheduledPublishAt,
+    playlistIds: options?.playlistIds?.length ? options.playlistIds : undefined,
   });
 
   return videoId;

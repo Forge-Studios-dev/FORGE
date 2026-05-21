@@ -30,6 +30,8 @@
     "deploy:vercel": "bash scripts/vercel-setup.sh",
     "deploy:production": "bash scripts/deploy-production-complete.sh",
     "verify:roles": "bash scripts/verify-platform-roles.sh",
+    "verify:video-pipeline": "bash scripts/verify-video-pipeline.sh",
+    "verify:video-pipeline:prod": "FORGE_SMOKE_API=https://api.forgestudios.net/api/v1 bash scripts/verify-video-pipeline.sh",
     "build:design-system": "npm run build --workspace=@forge/design-system"
   },
   "devDependencies": {
