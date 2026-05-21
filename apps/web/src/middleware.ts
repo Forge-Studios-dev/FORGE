@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { decodeJwtPayload, isJwtExpired } from '@forge/shared-types';
+import { decodeJwtPayload, isJwtExpired } from '@forge/shared-types/jwt';
 
 const PROTECTED_PREFIXES = [
   '/studio',
