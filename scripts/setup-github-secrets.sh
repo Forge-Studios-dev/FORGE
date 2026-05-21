@@ -37,9 +37,13 @@ ensure_gh_auth() {
 set_secret_with_retry() {
   local name="$1"
   local value="$2"
+  local tmp
+  tmp="$(mktemp)"
+  printf '%s' "$value" >"$tmp"
   local attempt=1
   while [[ "$attempt" -le "$MAX_RETRIES" ]]; do
-    if gh secret set "$name" --body "$value" --repo "$REPO" 2>&1; then
+    if gh secret set "$name" --body-file "$tmp" --repo "$REPO" 2>&1; then
+      rm -f "$tmp"
       echo "  OK: $name"
       return 0
     fi
@@ -48,6 +52,7 @@ set_secret_with_retry() {
     sleep "$RETRY_DELAY_SEC"
     attempt=$((attempt + 1))
   done
+  rm -f "$tmp"
   echo "  FAIL: $name after $MAX_RETRIES attempts"
   return 1
 }
@@ -73,11 +78,12 @@ VERCEL_TOKEN="${VERCEL_TOKEN:-}"
 validate_vercel_token() {
   local tok="$1"
   [[ -n "$tok" ]] || return 1
-  # Quick sanity: OAuth session tokens are often ~60 chars; classic tokens are longer.
-  if [[ "${#tok}" -lt 24 ]]; then
+  # Classic tokens are usually 24+ chars; reject obvious OAuth session tokens (~60) unless whoami works in CI mode.
+  if [[ "${#tok}" -lt 20 ]]; then
     return 1
   fi
-  if npx --yes vercel@latest whoami --token="$tok" >/dev/null 2>&1; then
+  export VERCEL_ORG_ID="$VERCEL_ORG_ID"
+  if VERCEL_TOKEN="$tok" npx --yes vercel@47.4.0 whoami >/dev/null 2>&1; then
     return 0
   fi
   return 1
