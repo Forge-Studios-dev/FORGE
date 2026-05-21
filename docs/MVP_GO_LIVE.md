@@ -24,7 +24,7 @@ This is the **single guide** to put your MVP on the internet using free (or free
 
 - Sign up / login, roles (guest → viewer → creator flow UI)
 - Feed, explore, search, watch pages
-- Admin panel (users, reports, impersonation)
+- Admin panel (separate app; users, reports, impersonation)
 - Real-time toasts (single Fly machine)
 
 ### What needs paid services later
@@ -204,7 +204,8 @@ Create **two** projects from the same repo.
 | `NEXT_PUBLIC_API_URL` | `https://forge-studios-api.fly.dev/api/v1` |
 | `API_INTERNAL_URL` | `https://forge-studios-api.fly.dev/api/v1` |
 | `NEXT_PUBLIC_APP_URL` | `https://YOUR-WEB-PROJECT.vercel.app` (after first deploy) |
-| `NEXT_PUBLIC_ADMIN_URL` | `https://YOUR-ADMIN-PROJECT.vercel.app` (after admin deploy) |
+
+Do **not** set `NEXT_PUBLIC_ADMIN_URL` on the web project — admin is a separate app with no links from the public site.
 
 5. **Deploy**.
 
@@ -288,8 +289,9 @@ npm run smoke:api:prod
 | 1 | Guest browse home / explore | Web |
 | 2 | Login viewer | `viewer@forge.local` / `ForgeDemo123!` |
 | 3 | Library, profile, search | Web |
-| 4 | Admin login | `admin@forge.local` / `ForgeAdmin123!` on **admin** URL |
-| 5 | Users list, impersonation | Admin |
+| 4 | Admin login | `admin@forge.local` / `ForgeAdmin123!` on **admin** URL only |
+| 5 | Admin blocked on web | Same credentials on **web** login must fail with error |
+| 6 | Users list, impersonation | Admin |
 
 Full matrix: [mvp-test-matrix.md](./mvp-test-matrix.md)
 
@@ -345,8 +347,8 @@ Stakeholder summary: [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md)
 ## After MVP (paid upgrades)
 
 1. **Custom domain** — [DOMAIN_FORGESTUDIOS.md](./DOMAIN_FORGESTUDIOS.md) (Vercel + Fly + Squarespace DNS)
-2. **Video upload** — AWS S3 + worker on Fly/Railway
-3. **Live** — Mux account + webhook to Fly API
+2. **Video upload** — AWS S3 + worker on Fly — [AWS_MUX_SETUP.md](./AWS_MUX_SETUP.md)
+3. **Live** — Mux account + webhook — [AWS_MUX_SETUP.md](./AWS_MUX_SETUP.md)
 4. **Mobile** — Flutter build → TestFlight / Play Internal Testing
 
 Production checklist: [FORGE_PROJECT_MASTER.md §25](./FORGE_PROJECT_MASTER.md)

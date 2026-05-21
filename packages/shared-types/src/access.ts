@@ -10,7 +10,7 @@
  * | creator_pending   | Channel / YPP pending         | yes          | yes                    | yes             | status only  | no             |
  * | creator_rejected  | Monetization rejected         | yes          | yes                    | yes             | re-apply     | no             |
  * | creator           | Channel owner (approved)      | yes          | yes                    | yes             | full Studio  | yes*           |
- * | admin             | Internal ops (admin app only) | N/A on web   | N/A                    | N/A             | admin panel  | via API only   |
+ * | admin             | Internal ops (admin app only) | N/A on web   | N/A                    | N/A             | N/A on web   | via API only   |
  *
  * *Creator upload/live requires email verified + creatorStatus approved.
  * Platform admins use the admin app (:3002), not consumer Studio/upload UI.

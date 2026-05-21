@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { decodeJwtPayload, isJwtExpired } from '@forge/shared-types';
 
 const PROTECTED_PREFIXES = [
   '/studio',
@@ -12,6 +13,19 @@ const PROTECTED_PREFIXES = [
 
 const PLAYLIST_PROTECTED = ['/playlists/new'];
 
+const ADMIN_ROUTE_PREFIXES = ['/admin'];
+
+function isPlatformAdminToken(token: string): boolean {
+  const payload = decodeJwtPayload(token);
+  if (!payload || isJwtExpired(payload)) return false;
+  return payload.role === 'admin';
+}
+
+function clearConsumerSession(response: NextResponse) {
+  response.cookies.set('forge_access_token', '', { path: '/', maxAge: 0 });
+  return response;
+}
+
 export function middleware(request: NextRequest) {
   const host = request.headers.get('host') ?? '';
   if (host.startsWith('www.')) {
@@ -22,6 +36,17 @@ export function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  if (ADMIN_ROUTE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  const token = request.cookies.get('forge_access_token')?.value;
+  if (token && isPlatformAdminToken(token)) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('error', 'platform_admin');
+    return clearConsumerSession(NextResponse.redirect(loginUrl));
+  }
+
   const isProtected =
     PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
     PLAYLIST_PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -30,7 +55,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = request.cookies.get('forge_access_token')?.value;
   if (token) {
     return NextResponse.next();
   }
@@ -42,10 +66,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Run on all app routes (www → apex redirect + protected-route auth).
-     * Excludes Next static assets and common image files.
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };

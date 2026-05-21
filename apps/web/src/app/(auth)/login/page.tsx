@@ -14,6 +14,7 @@ function LoginForm() {
   const { refresh } = useAuth();
   const searchParams = useSearchParams();
   const resetOk = searchParams.get('reset') === '1';
+  const adminBlocked = searchParams.get('error') === 'platform_admin';
   const nextPath = searchParams.get('next') || '/';
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
@@ -25,17 +26,18 @@ function LoginForm() {
     setLoading(true);
     try {
       const { data } = await api.post<{ data: AuthTokens }>('/auth/login', form);
+      if (data.data.user.role === 'admin') {
+        setError(
+          'Platform administrator accounts cannot sign in here. Use the dedicated admin application.',
+        );
+        return;
+      }
       persistAuthSession(
         data.data.accessToken,
         data.data.refreshToken,
         JSON.stringify(data.data.user),
       );
       refresh();
-      if (data.data.user.role === 'admin') {
-        const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3002';
-        window.location.href = adminUrl;
-        return;
-      }
       if (data.data.user.role === 'creator' && data.data.user.creatorStatus && data.data.user.creatorStatus !== 'approved') {
         router.push(
           data.data.user.creatorStatus === 'rejected' ? '/approval-rejected' : '/waiting-approval',
@@ -58,6 +60,11 @@ function LoginForm() {
         {resetOk && (
           <p className="rounded-lg bg-secondary/10 px-4 py-2 text-sm text-secondary">
             Password updated. Sign in with your new password.
+          </p>
+        )}
+        {adminBlocked && (
+          <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">
+            Platform administrator accounts cannot use the public site. Sign in on the admin application.
           </p>
         )}
         {error && <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{error}</p>}

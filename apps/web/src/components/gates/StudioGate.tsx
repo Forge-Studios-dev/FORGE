@@ -7,8 +7,6 @@ import { useAuth } from '@/lib/auth';
 /**
  * YouTube Studio gate: guests sign in; viewers apply; pending/rejected see status; approved creators enter studio.
  */
-const ADMIN_URL = process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3002';
-
 export function StudioGate({ children }: { children: React.ReactNode }) {
   const { isGuest, accessTier, isPlatformAdmin } = useAuth();
 
@@ -16,15 +14,9 @@ export function StudioGate({ children }: { children: React.ReactNode }) {
     return (
       <main className="mx-auto max-w-lg px-5 py-20 text-center md:px-12">
         <PageHeader
-          title="Platform admin"
-          subtitle="Like YouTube internal tools — moderation and user management live in the admin panel, not Creator Studio on the public site."
+          title="Not available"
+          subtitle="Platform administrator accounts are separate from the public site. Sign in with your admin credentials on the dedicated admin application."
         />
-        <a
-          href={ADMIN_URL}
-          className="primary-button mt-6 inline-block rounded-full px-8 py-3 font-semibold text-on-primary"
-        >
-          Open admin panel
-        </a>
       </main>
     );
   }

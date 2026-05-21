@@ -14,12 +14,10 @@ const NAV = [
 
 export function SideNav() {
   const pathname = usePathname();
-  const { isGuest, isLoading, accessTier, canApplyForCreator, isPlatformAdmin } = useAuth();
-  const showStudioExtras = !isLoading && !isGuest && !isPlatformAdmin;
-  const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3002';
-  const studioHref = isPlatformAdmin
-    ? adminUrl
-    : accessTier === 'guest'
+  const { isGuest, isLoading, accessTier, canApplyForCreator } = useAuth();
+  const showStudioExtras = !isLoading && !isGuest;
+  const studioHref =
+    accessTier === 'guest'
       ? '/login?next=/studio'
       : accessTier === 'viewer' || accessTier === 'creator_rejected'
         ? '/studio'
@@ -49,30 +47,20 @@ export function SideNav() {
           </Link>
         );
       })}
-      {isPlatformAdmin ? (
-        <a
-          href={studioHref}
-          className="mt-auto flex items-center gap-4 px-6 py-3 text-outline transition-all hover:bg-surface-container-high/60 hover:text-on-surface"
-        >
-          <Icon name="admin_panel_settings" />
-          <span className="font-label-caps">Admin panel</span>
-        </a>
-      ) : (
-        <Link
-          href={studioHref}
-          className={`mt-auto flex items-center gap-4 px-6 py-3 transition-all ${
-            pathname.startsWith('/studio')
-              ? 'border-r-2 border-primary bg-primary/5 text-primary'
-              : 'text-outline hover:bg-surface-container-high/60 hover:text-on-surface'
-          }`}
-        >
-          <Icon name="auto_videocam" />
-          <span className="font-label-caps">Studio</span>
-          {showStudioExtras && canApplyForCreator ? (
-            <span className="text-[10px] text-tertiary">Apply</span>
-          ) : null}
-        </Link>
-      )}
+      <Link
+        href={studioHref}
+        className={`mt-auto flex items-center gap-4 px-6 py-3 transition-all ${
+          pathname.startsWith('/studio')
+            ? 'border-r-2 border-primary bg-primary/5 text-primary'
+            : 'text-outline hover:bg-surface-container-high/60 hover:text-on-surface'
+        }`}
+      >
+        <Icon name="auto_videocam" />
+        <span className="font-label-caps">Studio</span>
+        {showStudioExtras && canApplyForCreator ? (
+          <span className="text-[10px] text-tertiary">Apply</span>
+        ) : null}
+      </Link>
     </nav>
   );
 }

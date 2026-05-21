@@ -73,8 +73,7 @@ jobs:
             -e "NEXT_PUBLIC_API_URL=${FORGE_API_URL}" \
             -e "API_INTERNAL_URL=${FORGE_API_URL}" \
             -e "NEXT_PUBLIC_APP_URL=${FORGE_WEB_URL}" \
-            -e "NEXT_PUBLIC_WEB_URL=${FORGE_WEB_URL}" \
-            -e "NEXT_PUBLIC_ADMIN_URL=${FORGE_ADMIN_URL}"
+            -e "NEXT_PUBLIC_WEB_URL=${FORGE_WEB_URL}"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}

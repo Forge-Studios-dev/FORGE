@@ -33,6 +33,7 @@ import { ClsUserInterceptor } from './common/interceptors/cls-user.interceptor';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { ConsumerOnlyGuard } from './common/guards/consumer-only.guard';
 import { HealthController } from './health.controller';
 import { MetricsController } from './common/metrics/metrics.controller';
 import { bullMqConnectionFromConfig } from './config/bull-redis.util';
@@ -146,6 +147,7 @@ import { bullMqConnectionFromConfig } from './config/bull-redis.util';
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: ConsumerOnlyGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],

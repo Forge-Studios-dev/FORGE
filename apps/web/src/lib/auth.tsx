@@ -80,6 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .get<{ data: User }>('/users/me')
       .then(({ data }) => {
         const me = data.data;
+        if (me.role === 'admin') {
+          clearAuthSession();
+          setUser(null);
+          return;
+        }
         localStorage.setItem('forge_user', JSON.stringify(me));
         setUser(me);
       })

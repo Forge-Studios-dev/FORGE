@@ -14,17 +14,11 @@ const BASE_NAV = [
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { isGuest, isCreator, isLoading, isPlatformAdmin } = useAuth();
+  const { isGuest, isCreator, isLoading } = useAuth();
 
   const lastItem =
     isLoading
       ? { href: '/profile', label: 'Profile', icon: 'person' }
-      : isPlatformAdmin
-        ? {
-            href: process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3002',
-            label: 'Admin',
-            icon: 'admin_panel_settings',
-          }
       : isCreator
         ? { href: '/studio', label: 'Studio', icon: 'dashboard' }
         : { href: isGuest ? '/login' : '/profile', label: 'Profile', icon: 'person' };
@@ -38,18 +32,9 @@ export function MobileNav() {
           'guestHref' in item && isGuest ? item.guestHref : item.href;
         const active =
           pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
-        const external = href.startsWith('http');
         const className = `forge-nav-item flex flex-1 flex-col items-center justify-center gap-1 py-3 text-[10px] ${
           active ? 'text-primary' : 'text-on-surface-variant'
         }`;
-        if (external) {
-          return (
-            <a key={item.href} href={href} className={className}>
-              <Icon name={item.icon} filled={active} className="text-xl" />
-              {item.label}
-            </a>
-          );
-        }
         return (
           <Link
             key={item.href}

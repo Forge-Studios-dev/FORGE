@@ -3,13 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3002",
+    "dev": "npm run build --workspace=@forge/shared-types && next dev -p 3002",
     "build": "next build",
     "start": "next start -p 3002",
     "lint": "next lint"
   },
   "dependencies": {
     "@forge/design-system": "*",
+    "@forge/shared-types": "*",
     "@tanstack/react-query": "^5.29.2",
     "@tanstack/react-table": "^8.16.0",
     "axios": "^1.6.8",

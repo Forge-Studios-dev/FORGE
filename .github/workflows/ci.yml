@@ -125,7 +125,6 @@ jobs:
           API_INTERNAL_URL: https://api.forgestudios.net/api/v1
           NEXT_PUBLIC_APP_URL: https://forgestudios.net
           NEXT_PUBLIC_WEB_URL: https://forgestudios.net
-          NEXT_PUBLIC_ADMIN_URL: https://admin.forgestudios.net
 
   admin:
     name: Admin — lint & build

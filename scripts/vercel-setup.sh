@@ -38,26 +38,33 @@ load_vercel_ids() {
   VERCEL_PROJECT_ID="$(python3 -c "import json; print(json.load(open('$link'))['projectId'])")"
 }
 
-deploy_from_root() {
-  local config="$1"
-  local subdir="$2"
-  local label="$3"
+deploy_web() {
   echo ""
-  echo "==> Deploying $label (full monorepo upload)"
-
-  load_vercel_ids "$subdir"
+  echo "==> Deploying web (full monorepo upload)"
+  load_vercel_ids "apps/web"
   cd "$ROOT"
   vercel deploy . --prod --yes \
-    --local-config="$config" \
+    --local-config=apps/web/vercel.project.json \
     -e "NEXT_PUBLIC_API_URL=${API_URL}" \
     -e "API_INTERNAL_URL=${API_URL}" \
     -e "NEXT_PUBLIC_APP_URL=${WEB_URL}" \
-    -e "NEXT_PUBLIC_ADMIN_URL=${ADMIN_URL}" \
     -e "NEXT_PUBLIC_WEB_URL=${WEB_URL}"
 }
 
-deploy_from_root "apps/web/vercel.project.json" "apps/web" "web"
-deploy_from_root "apps/admin/vercel.project.json" "apps/admin" "admin"
+deploy_admin() {
+  echo ""
+  echo "==> Deploying admin (full monorepo upload)"
+  load_vercel_ids "apps/admin"
+  cd "$ROOT"
+  vercel deploy . --prod --yes \
+    --local-config=apps/admin/vercel.project.json \
+    -e "NEXT_PUBLIC_API_URL=${API_URL}" \
+    -e "NEXT_PUBLIC_WEB_URL=${WEB_URL}" \
+    -e "NEXT_PUBLIC_ADMIN_URL=${ADMIN_URL}"
+}
+
+deploy_web
+deploy_admin
 
 echo ""
 echo "==> Done. Production URLs in Vercel dashboard."
