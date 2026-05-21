@@ -15,7 +15,7 @@ echo "    WEB_URL=$WEB_URL"
 echo "    ADMIN_URL=$ADMIN_URL"
 
 if ! command -v vercel >/dev/null 2>&1; then
-  npm i -g vercel@39
+  npm i -g vercel@latest
 fi
 
 if ! vercel whoami >/dev/null 2>&1; then

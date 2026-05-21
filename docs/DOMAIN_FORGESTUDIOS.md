@@ -21,7 +21,7 @@ Other registrars: same record types; use values from your Vercel/Fly dashboards.
 ### Vercel (web + admin)
 
 ```bash
-npm i -g vercel@39
+npm i -g vercel@latest
 vercel login
 cd /path/to/FORGE
 npm run deploy:vercel

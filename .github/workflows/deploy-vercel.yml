@@ -60,14 +60,14 @@ jobs:
           cache: 'npm'
 
       - name: Verify Vercel token
-        run: npx --yes vercel@39 whoami --token="$VERCEL_TOKEN"
+        run: npx --yes vercel@latest whoami --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_TELEMETRY_DISABLED: '1'
 
       - name: Deploy web (monorepo root)
         run: |
-          npx --yes vercel@39 deploy . --prod --yes --token="$VERCEL_TOKEN" \
+          npx --yes vercel@latest deploy . --prod --yes --token="$VERCEL_TOKEN" \
             --local-config=apps/web/vercel.project.json \
             -e "NEXT_PUBLIC_API_URL=${FORGE_API_URL}" \
             -e "API_INTERNAL_URL=${FORGE_API_URL}" \
@@ -114,14 +114,14 @@ jobs:
           cache: 'npm'
 
       - name: Verify Vercel token
-        run: npx --yes vercel@39 whoami --token="$VERCEL_TOKEN"
+        run: npx --yes vercel@latest whoami --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_TELEMETRY_DISABLED: '1'
 
       - name: Deploy admin (monorepo root)
         run: |
-          npx --yes vercel@39 deploy . --prod --yes --token="$VERCEL_TOKEN" \
+          npx --yes vercel@latest deploy . --prod --yes --token="$VERCEL_TOKEN" \
             --local-config=apps/admin/vercel.project.json \
             -e "NEXT_PUBLIC_API_URL=${FORGE_API_URL}" \
             -e "NEXT_PUBLIC_WEB_URL=${FORGE_WEB_URL}" \
