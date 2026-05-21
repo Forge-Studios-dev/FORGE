@@ -21,14 +21,29 @@ if [[ -z "${TOKEN}" ]]; then
 fi
 echo "OK: logged in as ${EMAIL}"
 
-PRESIGN=$(curl -sf -X POST "${API_BASE}/videos/presigned-url" \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -H 'Content-Type: application/json' \
-  -d '{"contentType":"video/mp4","fileSizeBytes":2048}')
+presign_once() {
+  curl -sS -X POST "${API_BASE}/videos/presigned-url" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H 'Content-Type: application/json' \
+    -d '{"contentType":"video/mp4","fileSizeBytes":2048}'
+}
+
+PRESIGN=$(presign_once)
 VIDEO_ID=$(echo "$PRESIGN" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);process.stdout.write(j.data?.videoId||'')})")
 
 if [[ -z "${VIDEO_ID}" ]]; then
-  echo "FAIL: presign missing videoId"
+  MSG=$(echo "$PRESIGN" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);process.stdout.write(j.message||'')})" 2>/dev/null || true)
+  if [[ "${MSG}" == *"upload is still in progress"* ]]; then
+    echo "WARN: ghost upload slot — waiting 50s for auto-release, then retrying presign…"
+    sleep 50
+    PRESIGN=$(presign_once)
+    VIDEO_ID=$(echo "$PRESIGN" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);process.stdout.write(j.data?.videoId||'')})")
+  fi
+fi
+
+if [[ -z "${VIDEO_ID}" ]]; then
+  echo "FAIL: presign missing videoId — ${MSG:-unknown error}"
+  echo "$PRESIGN"
   exit 1
 fi
 echo "OK: presigned video ${VIDEO_ID}"
@@ -43,10 +58,21 @@ if [[ "${FORGE_PIPELINE_PUT:-0}" == "1" ]]; then
   fi
 fi
 
-curl -sf -X POST "${API_BASE}/videos/${VIDEO_ID}/complete" \
+if [[ "${FORGE_PIPELINE_PUT:-0}" != "1" ]]; then
+  echo "OK: presign-only mode (set FORGE_PIPELINE_PUT=1 for full transcode smoke)"
+  exit 0
+fi
+
+COMPLETE=$(curl -sS -X POST "${API_BASE}/videos/${VIDEO_ID}/complete" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H 'Content-Type: application/json' \
-  -d '{"title":"Pipeline verify","visibility":"unlisted"}' >/dev/null
+  -d '{"title":"Pipeline verify","visibility":"unlisted"}')
+COMPLETE_OK=$(echo "$COMPLETE" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);process.stdout.write(j.success?'1':'')})" 2>/dev/null || true)
+if [[ "${COMPLETE_OK}" != "1" ]]; then
+  echo "FAIL: complete failed"
+  echo "$COMPLETE"
+  exit 1
+fi
 echo "OK: complete enqueued processing"
 
 DEADLINE=$(( $(date +%s) + POLL_SEC ))
