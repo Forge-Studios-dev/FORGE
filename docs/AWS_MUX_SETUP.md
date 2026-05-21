@@ -43,6 +43,7 @@ Browser uploads use **presigned PUT** from `forgestudios.net` and `localhost:300
     "AllowedMethods": ["PUT", "GET", "HEAD"],
     "AllowedOrigins": [
       "https://forgestudios.net",
+      "https://www.forgestudios.net",
       "https://admin.forgestudios.net",
       "http://localhost:3000",
       "http://localhost:3002"
@@ -54,6 +55,10 @@ Browser uploads use **presigned PUT** from `forgestudios.net` and `localhost:300
 ```
 
 Add your Vercel preview URLs if you test uploads from preview deployments.
+
+**Ops:** re-apply CORS with admin AWS credentials: `./scripts/fix-s3-cors.sh`
+
+**Presigned PUT:** the API disables AWS flexible checksums on presign URLs so browser `XMLHttpRequest` uploads work (CRC32 query params break XHR).
 
 ### 1.3 IAM user (API + worker access)
 

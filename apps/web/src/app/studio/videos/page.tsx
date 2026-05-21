@@ -2,7 +2,8 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { getActiveUpload, subscribeActiveUpload } from '@/lib/upload-manager';
 import { Icon, PageHeader } from '@forge/design-system';
 import { getStudioVideos } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
@@ -31,11 +32,13 @@ function VideoRow({
   cancellingId,
   onCancel,
   onEdit,
+  browserUploadPct,
 }: {
   video: Video;
   cancellingId: string | null;
   onCancel: (id: string) => void;
   onEdit?: (v: Video) => void;
+  browserUploadPct?: number | null;
 }) {
   const inProgress = video.status === 'uploading' || video.status === 'processing';
   const canCancel =
@@ -63,9 +66,19 @@ function VideoRow({
         {inProgress ? (
           <p className="mt-1 text-xs text-tertiary">
             {video.status === 'uploading'
-              ? 'Waiting for upload to finish. Cancel to free the slot and upload again.'
+              ? browserUploadPct != null
+                ? `Uploading ${browserUploadPct}% in this browser tab.`
+                : 'File is uploading to storage. Cancel to free the slot and upload again.'
               : 'Transcoding in progress. Cancel only if this is stuck.'}
           </p>
+        ) : null}
+        {video.status === 'uploading' && browserUploadPct != null ? (
+          <div className="mt-2 h-1 max-w-xs overflow-hidden rounded-full bg-surface-container-high">
+            <div
+              className="h-full bg-tertiary transition-all"
+              style={{ width: `${browserUploadPct}%` }}
+            />
+          </div>
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-3">
@@ -107,6 +120,18 @@ export default function StudioVideosPage() {
   const [editVisibility, setEditVisibility] = useState<UploadVisibility>('public');
   const [editSchedule, setEditSchedule] = useState('');
   const [saving, setSaving] = useState(false);
+  const [browserUploadPct, setBrowserUploadPct] = useState<number | null>(null);
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const sync = () => {
+      const a = getActiveUpload();
+      setActiveVideoId(a?.videoId || null);
+      setBrowserUploadPct(a?.phase === 'uploading' ? a.progress : null);
+    };
+    sync();
+    return subscribeActiveUpload(sync);
+  }, []);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['studio-videos'],
@@ -228,6 +253,9 @@ export default function StudioVideosPage() {
                 video={video}
                 cancellingId={cancellingId}
                 onCancel={cancelVideo}
+                browserUploadPct={
+                  video.id === activeVideoId ? browserUploadPct : null
+                }
               />
             ))}
           </ul>

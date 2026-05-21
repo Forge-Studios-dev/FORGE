@@ -410,6 +410,13 @@ export default function UploadStepPage() {
                   {PHASE_LABEL[phase]}
                   {phase === 'uploading' ? ` ${progress}%` : ''}
                 </p>
+                <p className="mt-2 text-xs text-on-surface-variant">
+                  You can open{' '}
+                  <Link href="/studio/videos" className="font-semibold text-primary hover:underline">
+                    Studio → Videos
+                  </Link>{' '}
+                  while this runs — upload continues in the background.
+                </p>
               </div>
             ) : null}
           </>

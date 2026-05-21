@@ -39,6 +39,10 @@ import { RecordWatchDto } from './dto/record-watch.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { PublicVideo, toPublicVideo } from './video.mapper';
 import { rewriteMediaUrlToCdn } from '../../common/media-url.util';
+import {
+  createS3Client,
+  createS3ClientForBrowserPresign,
+} from '../../common/create-s3-client';
 import { videoDetailCacheKey } from './video-cache';
 
 export const VIDEO_PROCESSING_QUEUE = 'video-processing';
@@ -49,6 +53,7 @@ const VIDEO_DETAIL_CACHE_TTL = 120;
 @Injectable()
 export class VideosService {
   private readonly s3: S3Client;
+  private readonly presignS3: S3Client;
   private readonly bucket: string;
   private readonly cdnDomain: string;
 
@@ -70,13 +75,13 @@ export class VideosService {
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
   ) {
-    this.s3 = new S3Client({
-      region: configService.get<string>('aws.region'),
-      credentials: {
-        accessKeyId: configService.get<string>('aws.accessKeyId') || '',
-        secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
-      },
-    });
+    const awsCreds = {
+      region: configService.get<string>('aws.region') || 'ap-south-1',
+      accessKeyId: configService.get<string>('aws.accessKeyId') || '',
+      secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
+    };
+    this.s3 = createS3Client(awsCreds);
+    this.presignS3 = createS3ClientForBrowserPresign(awsCreds);
     this.bucket = configService.get<string>('aws.s3BucketName') || '';
     this.cdnDomain = configService.get<string>('aws.cloudfrontDomain') || '';
   }
@@ -278,7 +283,7 @@ export class VideosService {
       ContentLength: dto.fileSizeBytes,
     });
 
-    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 600 });
+    const uploadUrl = await getSignedUrl(this.presignS3, command, { expiresIn: 600 });
 
     const video = this.videoRepository.create({
       id: videoId,

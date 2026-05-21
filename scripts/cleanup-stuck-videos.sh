@@ -18,7 +18,7 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
 fi
 
 echo "==> Cleaning stuck videos in database"
-node -e "
+NODE_PATH="${ROOT}/apps/api/node_modules:${ROOT}/node_modules" node -e "
 const { Client } = require('pg');
 const client = new Client({ connectionString: process.env.DATABASE_URL });
 (async () => {
@@ -42,4 +42,27 @@ const client = new Client({ connectionString: process.env.DATABASE_URL });
 })().catch((e) => { console.error(e); process.exit(1); });
 "
 
-echo "OK: database cleanup done. Redeploy API if you changed upload logic."
+if [[ -n "${REDIS_URL:-}" ]]; then
+  echo "==> Clearing video detail cache keys in Redis"
+  node -e "
+const Redis = require('ioredis');
+const redis = new Redis(process.env.REDIS_URL);
+(async () => {
+  let cursor = '0';
+  let removed = 0;
+  do {
+    const [next, keys] = await redis.scan(cursor, 'MATCH', 'video:detail:*', 'COUNT', 200);
+    cursor = next;
+    if (keys.length) {
+      removed += await redis.del(...keys);
+    }
+  } while (cursor !== '0');
+  console.log('Removed cache keys:', removed);
+  await redis.quit();
+})().catch((e) => { console.error(e); process.exit(1); });
+"
+else
+  echo "SKIP: REDIS_URL not set — Redis cache not cleared"
+fi
+
+echo "OK: cleanup done. For S3 CORS run ./scripts/fix-s3-cors.sh with admin AWS creds."

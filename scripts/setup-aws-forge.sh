@@ -67,6 +67,7 @@ cat >"$CORS_FILE" <<'EOF'
       "AllowedMethods": ["PUT", "GET", "HEAD"],
       "AllowedOrigins": [
         "https://forgestudios.net",
+        "https://www.forgestudios.net",
         "https://admin.forgestudios.net",
         "http://localhost:3000",
         "http://localhost:3002"

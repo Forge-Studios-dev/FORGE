@@ -8,7 +8,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Logger, UnauthorizedException } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -60,7 +60,15 @@ export class EventsGateway
   }
 
   handleConnection(client: Socket) {
-    const userId = this.resolveUserId(client);
+    let userId: string | null = null;
+    try {
+      userId = this.resolveUserId(client);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Socket ${client.id} auth failed: ${msg}`);
+      client.disconnect(true);
+      return;
+    }
     if (userId) {
       if (!this.userSockets.has(userId)) this.userSockets.set(userId, new Set());
       this.userSockets.get(userId)!.add(client.id);
@@ -88,7 +96,7 @@ export class EventsGateway
         const payload = this.jwtService.verify<{ sub: string }>(auth.token, { secret });
         return payload.sub;
       } catch {
-        throw new UnauthorizedException('Invalid socket token');
+        return null;
       }
     }
 

@@ -52,9 +52,10 @@ echo "OK: presigned video ${VIDEO_ID}"
 if [[ "${FORGE_PIPELINE_PUT:-0}" == "1" ]]; then
   UPLOAD_URL=$(echo "$PRESIGN" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);process.stdout.write(j.data?.uploadUrl||'')})")
   if [[ -n "${UPLOAD_URL}" ]]; then
-    printf '\x00\x00\x00\x20ftypmp42\x00\x00\x00\x00' | curl -sf -X PUT "${UPLOAD_URL}" \
-      -H 'Content-Type: video/mp4' --data-binary @- >/dev/null || true
-    echo "OK: optional PUT to S3"
+    # Body must match presigned ContentLength (2048 bytes) or S3 rejects the PUT.
+    dd if=/dev/zero bs=2048 count=1 2>/dev/null | curl -sf -X PUT "${UPLOAD_URL}" \
+      -H 'Content-Type: video/mp4' --data-binary @- >/dev/null
+    echo "OK: PUT to S3 (2048 bytes)"
   fi
 fi
 
