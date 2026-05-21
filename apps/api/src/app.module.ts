@@ -37,6 +37,7 @@ import { ConsumerOnlyGuard } from './common/guards/consumer-only.guard';
 import { HealthController } from './health.controller';
 import { MetricsController } from './common/metrics/metrics.controller';
 import { bullMqConnectionFromConfig } from './config/bull-redis.util';
+import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
 
 @Module({
   imports: [
@@ -118,6 +119,8 @@ import { bullMqConnectionFromConfig } from './config/bull-redis.util';
         }),
       }),
     }),
+
+    BullModule.registerQueue({ name: VIDEO_PROCESSING_QUEUE }),
 
     EventEmitterModule.forRoot(),
 
