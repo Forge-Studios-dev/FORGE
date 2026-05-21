@@ -1,25 +1,58 @@
 #!/usr/bin/env bash
 # Push Fly + Vercel credentials to GitHub Actions secrets (repo: Forge-Studios-dev/FORGE).
-# Requires: gh auth login (or GH_TOKEN / GITHUB_TOKEN with repo admin).
+# Requires: gh auth login as a user with admin on the repo (e.g. Forge-Studios-dev org account).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="${GITHUB_REPO:-Forge-Studios-dev/FORGE}"
+MAX_RETRIES="${GH_SECRET_RETRIES:-5}"
+RETRY_DELAY_SEC="${GH_SECRET_RETRY_DELAY:-8}"
 
 if ! command -v gh >/dev/null 2>&1; then
   echo "ERROR: Install GitHub CLI: brew install gh && gh auth login"
   exit 1
 fi
 
-if ! gh auth status >/dev/null 2>&1; then
+ensure_gh_auth() {
+  # GH_TOKEN in the environment overrides keyring logins (often the wrong user).
   if [[ -n "${GH_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]]; then
-    printf '%s' "${GH_TOKEN:-$GITHUB_TOKEN}" | gh auth login --with-token
-  else
+    if [[ "${FORGE_GH_USE_ENV_TOKEN:-}" == "1" ]]; then
+      printf '%s' "${GH_TOKEN:-$GITHUB_TOKEN}" | gh auth login --with-token 2>/dev/null || true
+    else
+      echo "==> Unsetting GH_TOKEN/GITHUB_TOKEN so gh uses keyring (Forge-Studios-dev)"
+      unset GH_TOKEN GITHUB_TOKEN
+    fi
+  fi
+  if ! gh auth status >/dev/null 2>&1; then
     echo "ERROR: Run: gh auth login"
-    echo "  Or: export GH_TOKEN=ghp_... && bash scripts/setup-github-secrets.sh"
+    echo "  Log in as Forge-Studios-dev (or another account with admin on $REPO)."
     exit 1
   fi
-fi
+  if gh auth status 2>&1 | grep -q 'Forge-Studios-dev'; then
+    gh auth switch --user Forge-Studios-dev 2>/dev/null || true
+  fi
+  echo "==> GitHub CLI user: $(gh api user -q .login 2>/dev/null || echo unknown)"
+}
+
+set_secret_with_retry() {
+  local name="$1"
+  local value="$2"
+  local attempt=1
+  while [[ "$attempt" -le "$MAX_RETRIES" ]]; do
+    if gh secret set "$name" --body "$value" --repo "$REPO" 2>&1; then
+      echo "  OK: $name"
+      return 0
+    fi
+    local err=$?
+    echo "  WARN: $name attempt $attempt/$MAX_RETRIES failed (exit $err) — retry in ${RETRY_DELAY_SEC}s…"
+    sleep "$RETRY_DELAY_SEC"
+    attempt=$((attempt + 1))
+  done
+  echo "  FAIL: $name after $MAX_RETRIES attempts"
+  return 1
+}
+
+ensure_gh_auth
 
 VERCEL_ORG_ID="$(python3 -c "import json; print(json.load(open('$ROOT/apps/web/.vercel/project.json'))['orgId'])")"
 VERCEL_PROJECT_ID_WEB="$(python3 -c "import json; print(json.load(open('$ROOT/apps/web/.vercel/project.json'))['projectId'])")"
@@ -33,33 +66,77 @@ if [[ -z "$FLY_API_TOKEN" && -n "${FLY_API_TOKEN_FILE:-}" && -f "$FLY_API_TOKEN_
   FLY_API_TOKEN="$(tr -d '\n' <"$FLY_API_TOKEN_FILE")"
 fi
 
-VERCEL_TOKEN=""
-VERCEL_AUTH="${VERCEL_AUTH:-$HOME/Library/Application Support/com.vercel.cli/auth.json}"
-if [[ ! -f "$VERCEL_AUTH" && -f "$HOME/.local/share/com.vercel.cli/auth.json" ]]; then
-  VERCEL_AUTH="$HOME/.local/share/com.vercel.cli/auth.json"
+# Classic Vercel token required for `vercel deploy --token` in GitHub Actions.
+# OAuth tokens from `vercel login` do NOT work in CI (invalid token error).
+VERCEL_TOKEN="${VERCEL_TOKEN:-}"
+
+validate_vercel_token() {
+  local tok="$1"
+  [[ -n "$tok" ]] || return 1
+  # Quick sanity: OAuth session tokens are often ~60 chars; classic tokens are longer.
+  if [[ "${#tok}" -lt 24 ]]; then
+    return 1
+  fi
+  if npx --yes vercel@latest whoami --token="$tok" >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+if [[ -z "$VERCEL_TOKEN" ]]; then
+  echo "ERROR: Set VERCEL_TOKEN to a classic token before running this script."
+  echo ""
+  echo "  1. Open https://vercel.com/account/settings/tokens"
+  echo "  2. Create Token (full access or deploy scope for team forge-s-projects3)"
+  echo "  3. Run:"
+  echo "       export VERCEL_TOKEN='paste_token_here'"
+  echo "       unset GH_TOKEN GITHUB_TOKEN"
+  echo "       gh auth switch --user Forge-Studios-dev"
+  echo "       npm run gh:secrets:set"
+  echo ""
+  echo "  Do NOT use the OAuth token from vercel login — CI rejects it."
+  exit 1
 fi
-if [[ -f "$VERCEL_AUTH" ]]; then
-  VERCEL_TOKEN="$(python3 -c "import json; print(json.load(open('$VERCEL_AUTH')).get('token',''))" 2>/dev/null || true)"
+
+if ! validate_vercel_token "$VERCEL_TOKEN"; then
+  echo "ERROR: VERCEL_TOKEN failed validation (vercel whoami)."
+  echo "  Create a new classic token at https://vercel.com/account/settings/tokens"
+  exit 1
 fi
-if [[ -z "$VERCEL_TOKEN" && -n "${VERCEL_TOKEN:-}" ]]; then
-  VERCEL_TOKEN="${VERCEL_TOKEN}"
-fi
+echo "==> VERCEL_TOKEN validated (classic token OK)"
 
 missing=0
-[[ -n "$FLY_API_TOKEN" ]] || { echo "ERROR: FLY_API_TOKEN missing (fly auth login)"; missing=1; }
-[[ -n "$VERCEL_TOKEN" ]] || { echo "ERROR: VERCEL_TOKEN missing (vercel login)"; missing=1; }
+[[ -n "$FLY_API_TOKEN" ]] || { echo "ERROR: FLY_API_TOKEN missing — run: fly auth login"; missing=1; }
 [[ "$missing" -eq 0 ]] || exit 1
 
-echo "==> Setting GitHub Actions secrets on $REPO"
-gh secret set VERCEL_ORG_ID --body "$VERCEL_ORG_ID" --repo "$REPO"
-gh secret set VERCEL_PROJECT_ID_WEB --body "$VERCEL_PROJECT_ID_WEB" --repo "$REPO"
-gh secret set VERCEL_PROJECT_ID_ADMIN --body "$VERCEL_PROJECT_ID_ADMIN" --repo "$REPO"
-gh secret set FLY_API_TOKEN --body "$FLY_API_TOKEN" --repo "$REPO"
-gh secret set VERCEL_TOKEN --body "$VERCEL_TOKEN" --repo "$REPO"
+echo "==> Setting GitHub Actions secrets on $REPO (retries=$MAX_RETRIES)"
+failed=0
+set_secret_with_retry VERCEL_ORG_ID "$VERCEL_ORG_ID" || failed=1
+sleep 2
+set_secret_with_retry VERCEL_PROJECT_ID_WEB "$VERCEL_PROJECT_ID_WEB" || failed=1
+sleep 2
+set_secret_with_retry VERCEL_PROJECT_ID_ADMIN "$VERCEL_PROJECT_ID_ADMIN" || failed=1
+sleep 2
+set_secret_with_retry FLY_API_TOKEN "$FLY_API_TOKEN" || failed=1
+sleep 2
+set_secret_with_retry VERCEL_TOKEN "$VERCEL_TOKEN" || failed=1
 
-echo "OK: secrets set (FLY_API_TOKEN, VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID_WEB, VERCEL_PROJECT_ID_ADMIN)"
+if [[ "$failed" -ne 0 ]]; then
+  echo ""
+  echo "Some secrets failed (often GitHub 504 timeout). Retry:"
+  echo "  npm run gh:secrets:set"
+  echo "Or set individually:"
+  echo "  gh secret set VERCEL_ORG_ID --body '$VERCEL_ORG_ID' --repo $REPO"
+  exit 1
+fi
+
 echo ""
-echo "==> Triggering CI + Release workflows"
-gh workflow run CI.yml --repo "$REPO" --ref main 2>/dev/null || gh workflow run ci.yml --repo "$REPO" --ref main || true
-sleep 3
+echo "OK: all five secrets set."
+echo "==> Verifying (names only)"
+gh secret list --repo "$REPO" 2>/dev/null || true
+
+echo ""
+echo "==> Trigger Release (production)"
+gh workflow run "Release (production)" --repo "$REPO" --ref main 2>/dev/null || \
+  gh workflow run release.yml --repo "$REPO" --ref main || true
 echo "Watch: https://github.com/$REPO/actions"

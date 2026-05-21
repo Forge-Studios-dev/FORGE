@@ -95,6 +95,12 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Verify Vercel token
+        run: npx --yes vercel@latest whoami --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TELEMETRY_DISABLED: '1'
+
       - name: Deploy web
         run: |
           npx --yes vercel@latest deploy . --prod --yes --token="$VERCEL_TOKEN" \
@@ -145,6 +151,12 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+
+      - name: Verify Vercel token
+        run: npx --yes vercel@latest whoami --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TELEMETRY_DISABLED: '1'
 
       - name: Deploy admin
         run: |

@@ -77,6 +77,16 @@ npm run gh:secrets
 
 `gh:secrets:set` pushes all five secrets from local Fly + Vercel CLI. Requires `gh auth login` with **admin** on `Forge-Studios-dev/FORGE`.
 
+If you see **HTTP 504** (GitHub timeout), wait a minute and run `npm run gh:secrets:set` again — the script retries each secret.
+
+Use a **classic** Vercel token for `VERCEL_TOKEN` (dashboard token, not OAuth):
+
+```bash
+export VERCEL_TOKEN='your_classic_vercel_token'
+gh auth switch --user Forge-Studios-dev   # if you have multiple gh accounts
+npm run gh:secrets:set
+```
+
 ### Verify after all five secrets are set
 
 1. Push to `main` (or open a PR) — **CI** should pass.
