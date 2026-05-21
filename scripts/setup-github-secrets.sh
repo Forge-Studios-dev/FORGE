@@ -78,12 +78,13 @@ VERCEL_TOKEN="${VERCEL_TOKEN:-}"
 validate_vercel_token() {
   local tok="$1"
   [[ -n "$tok" ]] || return 1
-  # Classic tokens are usually 24+ chars; reject obvious OAuth session tokens (~60) unless whoami works in CI mode.
-  if [[ "${#tok}" -lt 20 ]]; then
+  # OAuth session tokens from `vercel login` are ~60 chars and fail in GitHub Actions.
+  if [[ "${#tok}" -lt 70 ]]; then
+    echo "  (token length ${#tok} — need classic token from vercel.com/account/settings/tokens)"
     return 1
   fi
   export VERCEL_ORG_ID="$VERCEL_ORG_ID"
-  if VERCEL_TOKEN="$tok" npx --yes vercel@47.4.0 whoami >/dev/null 2>&1; then
+  if VERCEL_TOKEN="$tok" npx --yes vercel@54.2.0 whoami >/dev/null 2>&1; then
     return 0
   fi
   return 1
