@@ -1,7 +1,13 @@
 import { Test } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
+import { getQueueToken } from '@nestjs/bullmq';
 import { HealthController } from './health.controller';
+import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
+
+const mockVideoQueue = {
+  getJobCounts: jest.fn().mockResolvedValue({ waiting: 0, active: 0, delayed: 0, failed: 0 }),
+};
 
 describe('HealthController', () => {
   it('returns ok when database and redis succeed', async () => {
@@ -10,6 +16,7 @@ describe('HealthController', () => {
       providers: [
         { provide: DataSource, useValue: { query: jest.fn().mockResolvedValue([{ '?column?': 1 }]) } },
         { provide: getRedisConnectionToken(), useValue: { ping: jest.fn().mockResolvedValue('PONG') } },
+        { provide: getQueueToken(VIDEO_PROCESSING_QUEUE), useValue: mockVideoQueue },
       ],
     }).compile();
 
@@ -29,6 +36,7 @@ describe('HealthController', () => {
       providers: [
         { provide: DataSource, useValue: { query: jest.fn().mockRejectedValue(new Error('db down')) } },
         { provide: getRedisConnectionToken(), useValue: { ping: jest.fn().mockResolvedValue('PONG') } },
+        { provide: getQueueToken(VIDEO_PROCESSING_QUEUE), useValue: mockVideoQueue },
       ],
     }).compile();
 

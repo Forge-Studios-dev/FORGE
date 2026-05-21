@@ -70,11 +70,12 @@ fly auth token | pbcopy   # paste into GitHub
 ### Local helper
 
 ```bash
+npm run gh:secrets:set   # after: gh auth login (repo admin)
+# or print values only:
 npm run gh:secrets
-# or: bash scripts/print-github-secrets.sh
 ```
 
-Prints Vercel IDs and copies Fly token to clipboard (macOS). Vercel token must still be created in the dashboard.
+`gh:secrets:set` pushes all five secrets from local Fly + Vercel CLI. Requires `gh auth login` with **admin** on `Forge-Studios-dev/FORGE`.
 
 ### Verify after all five secrets are set
 

@@ -6,6 +6,7 @@ import { UsersService } from './users.service';
 import { User, UserRole, CreatorStatus } from './entities/user.entity';
 import { Video } from '../content/entities/video.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
+import { VideosService } from '../content/videos.service';
 
 describe('UsersService', () => {
   const userRepo = {
@@ -20,6 +21,13 @@ describe('UsersService', () => {
         { provide: getRepositoryToken(User), useValue: userRepo },
         { provide: getRepositoryToken(Video), useValue: {} },
         { provide: getRepositoryToken(WatchHistory), useValue: {} },
+        {
+          provide: VideosService,
+          useValue: {
+            listStudioVideos: jest.fn(),
+            releaseAllStuckUploads: jest.fn(),
+          },
+        },
         {
           provide: ConfigService,
           useValue: {

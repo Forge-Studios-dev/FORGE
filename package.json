@@ -22,6 +22,7 @@
     "ci": "bash scripts/ci-local.sh",
     "ci:local": "bash scripts/ci-local.sh",
     "gh:secrets": "bash scripts/print-github-secrets.sh",
+    "gh:secrets:set": "bash scripts/setup-github-secrets.sh",
     "smoke:api": "bash scripts/smoke-api.sh",
     "smoke:api:prod": "FORGE_SMOKE_API=https://api.forgestudios.net/api/v1 bash scripts/smoke-api.sh",
     "db:neon:setup": "bash scripts/neon-db-setup.sh",
