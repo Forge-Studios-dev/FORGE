@@ -31,6 +31,23 @@ import { Throttle } from '@nestjs/throttler';
 export class VideosController {
   constructor(private readonly videosService: VideosService) {}
 
+  @Get('studio')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @ApiOperation({ summary: 'List all own videos for Studio (every status)' })
+  listStudio(@CurrentUser() user: JwtPayload) {
+    return this.videosService.listStudioVideos(user.sub);
+  }
+
+  @Post('release-stuck-uploads')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear all ghost uploading rows for the current creator' })
+  releaseStuck(@CurrentUser() user: JwtPayload) {
+    return this.videosService.releaseAllStuckUploads(user.sub);
+  }
+
   @Post('presigned-url')
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.UPLOAD_VIDEO)
@@ -65,7 +82,7 @@ export class VideosController {
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.UPLOAD_VIDEO)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Cancel an in-progress upload and free the upload slot' })
+  @ApiOperation({ summary: 'Cancel/remove uploading, processing, or failed video' })
   cancelUpload(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.videosService.cancelUpload(user.sub, id);
   }

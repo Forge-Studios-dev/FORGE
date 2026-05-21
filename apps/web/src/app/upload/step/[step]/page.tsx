@@ -15,6 +15,7 @@ import {
 } from '@/lib/upload-draft';
 import { api } from '@/lib/api';
 import { clearUploadFile, getUploadFile, setUploadFile } from '@/lib/upload-file-store';
+import { getStudioVideos } from '@/lib/creator-studio';
 import { uploadLesson, validateUploadFile, type UploadPhase } from '@/lib/upload-lesson';
 
 const TOTAL = 3;
@@ -61,6 +62,15 @@ export default function UploadStepPage() {
     },
     enabled: step === 3 && canUpload,
   });
+
+  const { data: studioVideos } = useQuery({
+    queryKey: ['studio-videos'],
+    queryFn: getStudioVideos,
+    enabled: canUpload && !!user?.id,
+  });
+
+  const inProgressUploads =
+    studioVideos?.filter((v) => v.status === 'uploading' || v.status === 'processing') ?? [];
 
   if (needsEmailVerification) {
     return (
@@ -194,9 +204,28 @@ export default function UploadStepPage() {
         />
       </div>
 
+      {inProgressUploads.length > 0 ? (
+        <div className="mb-4 rounded-lg border border-tertiary/30 bg-tertiary/5 px-4 py-3 text-sm">
+          <p className="font-medium text-on-surface">
+            {inProgressUploads.length} upload{inProgressUploads.length === 1 ? '' : 's'} still in progress
+          </p>
+          <p className="mt-1 text-on-surface-variant">
+            Cancel them in Studio before starting a new upload, or use Clear stuck uploads there.
+          </p>
+          <Link href="/studio/videos" className="mt-2 inline-block font-semibold text-primary hover:underline">
+            Open Studio → Videos
+          </Link>
+        </div>
+      ) : null}
+
       {error ? (
         <p className="mb-4 rounded-lg border border-error/30 bg-error/10 px-4 py-2 text-sm text-error">
           {error}
+          {error.includes('upload is still in progress') ? (
+            <Link href="/studio/videos" className="mt-2 block font-semibold text-primary hover:underline">
+              Manage in-progress uploads
+            </Link>
+          ) : null}
         </p>
       ) : null}
 

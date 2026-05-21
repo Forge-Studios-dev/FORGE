@@ -12,7 +12,10 @@ export default function StudioAnalyticsDetailsPage() {
   const { user } = useAuth();
   const { data: videos, isLoading, isError } = useQuery({
     queryKey: ['studio-analytics-videos', user?.id],
-    queryFn: () => getMyVideos(user?.id),
+    queryFn: async () => {
+      const all = await getMyVideos(user?.id);
+      return all.filter((v) => v.status === 'ready');
+    },
     enabled: !!user?.id,
   });
 

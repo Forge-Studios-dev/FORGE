@@ -85,6 +85,8 @@ export class VideosService {
   private static readonly PRESIGN_TTL_MS = 11 * 60 * 1000;
   /** Grace for an active browser PUT before the S3 object appears. */
   private static readonly ACTIVE_UPLOAD_GRACE_MS = 45 * 1000;
+  /** S3 object present but /complete never called (smoke tests, failed publish). */
+  private static readonly STUCK_INCOMPLETE_MS = 2 * 60 * 1000;
 
   assertCanWatchVideo(video: Video, viewerId?: string | null): void {
     const isOwner = !!viewerId && viewerId === video.userId;
@@ -188,7 +190,8 @@ export class VideosService {
       const hasS3 = row.s3Key ? await this.s3ObjectExists(row.s3Key) : false;
       const presignExpired = ageMs > VideosService.PRESIGN_TTL_MS;
       const neverUploaded = !hasS3 && ageMs > VideosService.ACTIVE_UPLOAD_GRACE_MS;
-      const uploadedButNotFinished = hasS3 && ageMs > VideosService.PRESIGN_TTL_MS;
+      const uploadedButNotFinished =
+        hasS3 && ageMs > VideosService.STUCK_INCOMPLETE_MS;
 
       if (presignExpired || neverUploaded || uploadedButNotFinished) {
         await this.removeUploadRow(row);
@@ -196,15 +199,60 @@ export class VideosService {
     }
   }
 
-  /** Cancel an in-progress upload (Studio or retry after a failed publish). */
+  /** All own videos for Studio (uploading, processing, ready, failed). */
+  async listStudioVideos(userId: string, limit = 50) {
+    await this.releaseIncompleteUploads(userId);
+    const rows = await this.videoRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+      take: Math.min(limit, 100),
+    });
+    return { data: rows.map((v) => this.mapToPublicVideo(v)) };
+  }
+
+  /** Cancel or remove a non-published video (uploading, processing, failed). */
   async cancelUpload(userId: string, videoId: string): Promise<{ ok: true }> {
     const video = await this.findById(videoId, { skipCache: true });
     if (video.userId !== userId) throw new ForbiddenException();
-    if (video.status !== VideoStatus.UPLOADING) {
-      throw new BadRequestException('Only in-progress uploads can be cancelled');
+
+    const cancellable = [
+      VideoStatus.UPLOADING,
+      VideoStatus.PROCESSING,
+      VideoStatus.FAILED,
+      VideoStatus.PENDING,
+    ];
+    if (!cancellable.includes(video.status)) {
+      throw new BadRequestException(
+        'Only uploading, processing, or failed videos can be cancelled',
+      );
     }
-    await this.removeUploadRow(video);
+
+    if (video.status === VideoStatus.PROCESSING) {
+      const jobId = `video-process-${videoId}`;
+      const job = await this.videoQueue.getJob(jobId);
+      if (job) await job.remove().catch(() => undefined);
+    }
+
+    await this.deleteVideoAssets(video);
+    await this.bustVideoDetailCache(videoId);
+    this.eventEmitter.emit('video.updated', { videoId });
+    await this.videoRepository.remove(video);
     return { ok: true };
+  }
+
+  /** Force-release every incomplete upload slot for this creator. */
+  async releaseAllStuckUploads(userId: string): Promise<{ released: number }> {
+    const rows = await this.videoRepository.find({
+      where: { userId, status: VideoStatus.UPLOADING },
+    });
+    let released = 0;
+    for (const row of rows) {
+      if (!row.uploadCompletedAt) {
+        await this.removeUploadRow(row);
+        released += 1;
+      }
+    }
+    return { released };
   }
 
   async getPresignedUploadUrl(userId: string, dto: PresignedUrlDto) {

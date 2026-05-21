@@ -32,6 +32,7 @@
     "verify:roles": "bash scripts/verify-platform-roles.sh",
     "verify:video-pipeline": "bash scripts/verify-video-pipeline.sh",
     "verify:video-pipeline:prod": "FORGE_SMOKE_API=https://api.forgestudios.net/api/v1 bash scripts/verify-video-pipeline.sh",
+    "cleanup:stuck-videos": "bash scripts/cleanup-stuck-videos.sh",
     "build:design-system": "npm run build --workspace=@forge/design-system"
   },
   "devDependencies": {
