@@ -55,8 +55,8 @@ export class SearchService {
         { fts: term, pattern },
       )
       .orderBy(`ts_rank_cd(v.searchVector, plainto_tsquery('english', :fts))`, 'DESC')
-      .addOrderBy('v.publishedAt', 'DESC', 'NULLS LAST')
-      .addOrderBy('v.createdAt', 'DESC')
+      .addOrderBy('v.published_at', 'DESC', 'NULLS LAST')
+      .addOrderBy('v.created_at', 'DESC')
       .take(take)
       .getMany();
 

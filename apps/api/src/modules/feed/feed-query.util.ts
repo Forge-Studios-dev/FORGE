@@ -8,12 +8,14 @@ export function applyDiscoverableVideoFilters(
 ): SelectQueryBuilder<Video> {
   return query
     .where(`${alias}.status = :status`, { status: VideoStatus.READY })
-    .andWhere(`${alias}.publishStatus = :publishStatus`, { publishStatus: PublishStatus.PUBLISHED })
+    .andWhere(`${alias}.publish_status = :publishStatus`, {
+      publishStatus: PublishStatus.PUBLISHED,
+    })
     .andWhere(`${alias}.visibility = :visibility`, { visibility: VideoVisibility.PUBLIC })
-    .andWhere(`${alias}.moderationStatus = :mod`, { mod: ModerationStatus.NONE })
+    .andWhere(`${alias}.moderation_status = :mod`, { mod: ModerationStatus.NONE })
     .andWhere(
-      `(${alias}.scheduledPublishAt IS NULL OR ${alias}.scheduledPublishAt <= CURRENT_TIMESTAMP)`,
+      `(${alias}.scheduled_publish_at IS NULL OR ${alias}.scheduled_publish_at <= CURRENT_TIMESTAMP)`,
     )
-    .andWhere(`(${alias}.publishedAt IS NULL OR ${alias}.publishedAt <= CURRENT_TIMESTAMP)`)
-    .andWhere(`${alias}.indexedAt IS NOT NULL`);
+    .andWhere(`(${alias}.published_at IS NULL OR ${alias}.published_at <= CURRENT_TIMESTAMP)`)
+    .andWhere(`${alias}.indexed_at IS NOT NULL`);
 }

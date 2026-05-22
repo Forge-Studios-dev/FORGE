@@ -95,27 +95,27 @@ export class UsersService {
       .createQueryBuilder('v')
       .leftJoinAndSelect('v.user', 'creator')
       .leftJoinAndSelect('v.skillTags', 'skillTags')
-      .where('v.userId = :userId', { userId })
+      .where('v.user_id = :userId', { userId })
       .andWhere('v.status = :status', { status: 'ready' })
-      .orderBy('v.createdAt', 'DESC')
+      .orderBy('v.created_at', 'DESC')
       .take(limit + 1);
 
     if (!isOwner) {
       query
-        .andWhere('v.publishStatus = :publishStatus', { publishStatus: 'published' })
+        .andWhere('v.publish_status = :publishStatus', { publishStatus: 'published' })
         .andWhere('v.visibility IN (:...vis)', {
           vis: ['public', 'unlisted'],
         })
-        .andWhere('v.moderationStatus = :mod', { mod: ModerationStatus.NONE })
+        .andWhere('v.moderation_status = :mod', { mod: ModerationStatus.NONE })
         .andWhere(
-          '(v.scheduledPublishAt IS NULL OR v.scheduledPublishAt <= CURRENT_TIMESTAMP)',
+          '(v.scheduled_publish_at IS NULL OR v.scheduled_publish_at <= CURRENT_TIMESTAMP)',
         )
-        .andWhere('(v.publishedAt IS NULL OR v.publishedAt <= CURRENT_TIMESTAMP)');
+        .andWhere('(v.published_at IS NULL OR v.published_at <= CURRENT_TIMESTAMP)');
     }
 
     if (cursor) {
       const cursorDate = new Date(Buffer.from(cursor, 'base64').toString('utf-8'));
-      query.andWhere('v.createdAt < :cursor', { cursor: cursorDate });
+      query.andWhere('v.created_at < :cursor', { cursor: cursorDate });
     }
 
     const videos = await query.getMany();

@@ -14,7 +14,7 @@ const FEED_CACHE_TTL_BASE = 300;
 const FEED_CACHE_JITTER_SEC = 60;
 
 /** SQL expression — must match ordering for popular / forYou base component. */
-export const POPULAR_SCORE_SQL = `(v.viewCount * 0.6 + v.likeCount * 0.3 + (EXTRACT(EPOCH FROM v.createdAt) / 86400) * 0.1)`;
+export const POPULAR_SCORE_SQL = `(v.view_count * 0.6 + v.like_count * 0.3 + (EXTRACT(EPOCH FROM v.created_at) / 86400) * 0.1)`;
 
 export type FeedSort = 'latest' | 'popular' | 'forYou';
 
@@ -160,7 +160,7 @@ export class FeedService {
     ).take(limit + 1);
 
     if (categoryId) {
-      query.andWhere('(v.categoryId = :categoryId OR category.id = :categoryId)', {
+      query.andWhere('(v.category_id = :categoryId OR category.id = :categoryId)', {
         categoryId,
       });
     }
@@ -177,7 +177,7 @@ export class FeedService {
 
     const cursor = parseCursor(options.cursor, sort);
 
-    const orderTime = 'COALESCE(v.publishedAt, v.createdAt)';
+    const orderTime = 'COALESCE(v.published_at, v.created_at)';
 
     if (sort === 'popular') {
       query.addSelect(POPULAR_SCORE_SQL, 'score');
@@ -195,11 +195,11 @@ export class FeedService {
     } else if (sort === 'forYou' && options.userId) {
       const followCase =
         followingIds.length > 0
-          ? `(CASE WHEN v.userId IN (:...followingIds) THEN 2.0 ELSE 0.0 END)`
+          ? `(CASE WHEN v.user_id IN (:...followingIds) THEN 2.0 ELSE 0.0 END)`
           : `0.0`;
       const affCase =
         affinityIds.length > 0
-          ? `(CASE WHEN v.userId IN (:...affinityIds) THEN 1.0 ELSE 0.0 END)`
+          ? `(CASE WHEN v.user_id IN (:...affinityIds) THEN 1.0 ELSE 0.0 END)`
           : `0.0`;
       const personSql = `(${followCase} + ${affCase} + ${POPULAR_SCORE_SQL})`;
       query.addSelect(personSql, 'personScore');
