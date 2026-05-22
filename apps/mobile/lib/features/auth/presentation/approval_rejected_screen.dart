@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/network/api_client.dart';
 import '../data/auth_repository.dart';
 
 final _rejectedProfileProvider = FutureProvider.autoDispose<_UserSummary>((ref) async {

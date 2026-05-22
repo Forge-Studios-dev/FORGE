@@ -50,6 +50,10 @@ import {
 } from '../../common/create-s3-client';
 import { videoDetailCacheKey } from './video-cache';
 import { indexedAtOnReady, shouldIndexVideo } from './video-publish.util';
+import { VideoMultipartService } from './video-multipart.service';
+import { MultipartPartUrlsDto } from './dto/multipart-part-urls.dto';
+import { MultipartCompletePartsDto } from './dto/multipart-complete-parts.dto';
+import { MultipartCheckpointDto } from './dto/multipart-checkpoint.dto';
 
 export const VIDEO_PROCESSING_QUEUE = 'video-processing';
 export const VIDEO_PROCESSING_DLQ_QUEUE = 'video-processing-dlq';
@@ -82,6 +86,7 @@ export class VideosService {
     private readonly redis: Redis,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly videoMultipart: VideoMultipartService,
   ) {
     const awsCreds = {
       region: configService.get<string>('aws.region') || 'ap-south-1',
@@ -196,6 +201,7 @@ export class VideosService {
   }
 
   private async removeUploadRow(row: Video): Promise<void> {
+    await this.videoMultipart.abortIfAny(this.s3, this.bucket, row.id, row.s3Key);
     await this.deleteVideoAssets(row);
     await this.bustVideoDetailCache(row.id);
     await this.videoRepository.remove(row);
@@ -259,6 +265,7 @@ export class VideosService {
       if (job) await job.remove().catch(() => undefined);
     }
 
+    await this.videoMultipart.abortIfAny(this.s3, this.bucket, videoId, video.s3Key);
     await this.deleteVideoAssets(video);
     await this.bustVideoDetailCache(videoId);
     this.eventEmitter.emit('video.updated', { videoId });
@@ -297,19 +304,6 @@ export class VideosService {
     const ext = dto.contentType === 'video/quicktime' ? 'mov' : 'mp4';
     const key = `videos/${userId}/${videoId}/original.${ext}`;
 
-    // Sign only Content-Type — not Content-Length. Browsers must send a matching
-    // Content-Type; mismatched signed Content-Length causes opaque CORS/network errors.
-    const command = new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: key,
-      ContentType: dto.contentType,
-    });
-
-    const uploadUrl = await getSignedUrl(this.presignS3, command, {
-      expiresIn: 600,
-      signableHeaders: new Set(['content-type']),
-    });
-
     const video = this.videoRepository.create({
       id: videoId,
       userId,
@@ -326,7 +320,57 @@ export class VideosService {
     });
     await this.videoRepository.save(video);
 
-    return { videoId, uploadUrl, key, expiresIn: 600 };
+    if (this.videoMultipart.isEnabledForSize(dto.fileSizeBytes)) {
+      return this.videoMultipart.initiate(
+        this.presignS3,
+        this.bucket,
+        userId,
+        video,
+        dto.contentType,
+        dto.fileSizeBytes,
+      );
+    }
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: dto.contentType,
+    });
+
+    const uploadUrl = await getSignedUrl(this.presignS3, command, {
+      expiresIn: 600,
+      signableHeaders: new Set(['content-type']),
+    });
+
+    return { videoId, uploadUrl, key, expiresIn: 600, uploadMode: 'single' as const };
+  }
+
+  getMultipartProgress(userId: string, videoId: string) {
+    return this.videoMultipart.getProgress(userId, videoId);
+  }
+
+  checkpointMultipart(userId: string, videoId: string, dto: MultipartCheckpointDto) {
+    return this.videoMultipart.checkpoint(userId, videoId, dto.parts);
+  }
+
+  signMultipartPartUrls(userId: string, videoId: string, dto: MultipartPartUrlsDto) {
+    return this.videoMultipart.signParts(
+      this.presignS3,
+      this.bucket,
+      userId,
+      videoId,
+      dto.partNumbers,
+    );
+  }
+
+  completeMultipartParts(userId: string, videoId: string, dto: MultipartCompletePartsDto) {
+    return this.videoMultipart.completeParts(
+      this.s3,
+      this.bucket,
+      userId,
+      videoId,
+      dto.parts,
+    );
   }
 
   /** Presigned PUT for optional custom thumbnail (before /complete). */
@@ -369,6 +413,15 @@ export class VideosService {
     videoId: string,
     file: Express.Multer.File,
   ): Promise<{ ok: true }> {
+    const nodeEnv = this.configService.get<string>('nodeEnv');
+    if (
+      nodeEnv === 'production' &&
+      process.env.ALLOW_PROXY_UPLOAD !== 'true'
+    ) {
+      throw new BadRequestException(
+        'Direct API upload is disabled in production — use presigned S3 upload',
+      );
+    }
     if (!file?.buffer?.length && !file?.path) {
       throw new BadRequestException('Missing upload file');
     }
@@ -591,9 +644,14 @@ export class VideosService {
     const video = await this.findById(id);
     this.assertCanWatchVideo(video, viewerId, viewerRole);
     if (video.status === VideoStatus.READY) {
-      await this.incrementViewCount(id);
+      await this.incrementViewCount(id, viewerId ?? undefined);
     }
-    return this.mapToPublicVideo(video);
+    const mapped = this.mapToPublicVideo(video);
+    const pending = await this.getPendingViewCount(id);
+    if (pending > 0) {
+      return { ...mapped, viewCount: mapped.viewCount + pending };
+    }
+    return mapped;
   }
 
   async delete(requesterId: string, videoId: string): Promise<void> {
@@ -606,8 +664,32 @@ export class VideosService {
     await this.videoRepository.remove(video);
   }
 
-  async incrementViewCount(videoId: string): Promise<void> {
-    await this.videoRepository.increment({ id: videoId }, 'viewCount', 1);
+  private pendingViewKey(videoId: string): string {
+    return `video:views:pending:${videoId}`;
+  }
+
+  private viewDedupeKey(viewerKey: string, videoId: string): string {
+    return `video:view:dedupe:${viewerKey}:${videoId}`;
+  }
+
+  async getPendingViewCount(videoId: string): Promise<number> {
+    const raw = await this.redis.get(this.pendingViewKey(videoId));
+    return raw ? parseInt(raw, 10) || 0 : 0;
+  }
+
+  /** Buffered in Redis; flushed to Postgres periodically (see ViewCountFlushService). */
+  async incrementViewCount(videoId: string, viewerKey?: string): Promise<void> {
+    if (viewerKey) {
+      const dedupe = await this.redis.set(
+        this.viewDedupeKey(viewerKey, videoId),
+        '1',
+        'EX',
+        3600,
+        'NX',
+      );
+      if (dedupe !== 'OK') return;
+    }
+    await this.redis.incr(this.pendingViewKey(videoId));
   }
 
   async recordWatch(userId: string, videoId: string, dto: RecordWatchDto) {

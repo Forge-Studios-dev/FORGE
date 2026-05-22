@@ -43,3 +43,12 @@ apps/mobile/ios/.symlinks/
 # Docker volumes
 postgres_data/
 redis_data/
+
+# Playwright
+**/test-results/
+**/playwright-report/
+**/blob-report/
+
+# Local Cursor rules (optional — commit .cursor/rules/ to share team standards)
+.cursor/*
+!.cursor/rules/

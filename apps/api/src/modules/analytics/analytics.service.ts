@@ -1,24 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Repository } from 'typeorm';
 import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { IngestEventDto } from './dto/ingest-event.dto';
+import { ANALYTICS_INGEST_QUEUE } from './analytics-ingest.constants';
+import type { AnalyticsIngestJob } from '../workers/analytics-ingest/analytics-ingest.worker';
 
 @Injectable()
 export class AnalyticsService {
   constructor(
     @InjectRepository(AnalyticsEvent)
     private readonly analyticsRepository: Repository<AnalyticsEvent>,
+    @InjectQueue(ANALYTICS_INGEST_QUEUE)
+    private readonly analyticsQueue: Queue<AnalyticsIngestJob>,
   ) {}
 
   async ingest(userId: string | null, dto: IngestEventDto) {
-    await this.analyticsRepository.save(
-      this.analyticsRepository.create({
+    await this.analyticsQueue.add(
+      'ingest',
+      {
         eventName: dto.eventName,
         properties: dto.properties ?? null,
         userId,
         videoId: dto.videoId ?? null,
-      }),
+      },
+      {
+        removeOnComplete: true,
+        removeOnFail: 1000,
+      },
     );
   }
 

@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import { serverApi } from '@/lib/api';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 120;
 import { FeedGrid } from '@/components/FeedCard/FeedGrid';
 import { PageHeader } from '@forge/design-system';
 import { PaginatedResponse, Video } from '@/types';

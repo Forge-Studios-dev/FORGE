@@ -75,16 +75,20 @@ export class StreamingController {
   @ApiOperation({ summary: 'Mux webhook handler' })
   handleMuxWebhook(@Req() req: { headers: Record<string, unknown>; rawBody?: Buffer }, @Body() payload: Record<string, unknown>) {
     const secret = this.configService.get<string>('mux.webhookSecret');
-    if (secret) {
-      const signature = (req.headers['mux-signature'] as string | undefined) || '';
-      try {
-        const raw = req.rawBody ? req.rawBody.toString('utf-8') : JSON.stringify(payload);
-        // @mux/mux-node supports Webhooks.verifyHeader but typings can lag behind.
-        (Mux as unknown as { Webhooks: { verifyHeader: (body: string, sig: string, secret: string) => boolean } })
-          .Webhooks.verifyHeader(raw, signature, secret);
-      } catch {
-        throw new ForbiddenException('Invalid webhook signature');
-      }
+    const nodeEnv = this.configService.get<string>('nodeEnv');
+    if (nodeEnv === 'production' && !secret?.trim()) {
+      throw new ForbiddenException('Mux webhook verification is not configured');
+    }
+    if (!secret?.trim()) {
+      return this.streamingService.handleMuxWebhook(payload);
+    }
+    const signature = (req.headers['mux-signature'] as string | undefined) || '';
+    try {
+      const raw = req.rawBody ? req.rawBody.toString('utf-8') : JSON.stringify(payload);
+      (Mux as unknown as { Webhooks: { verifyHeader: (body: string, sig: string, secret: string) => boolean } })
+        .Webhooks.verifyHeader(raw, signature, secret);
+    } catch {
+      throw new ForbiddenException('Invalid webhook signature');
     }
     return this.streamingService.handleMuxWebhook(payload);
   }

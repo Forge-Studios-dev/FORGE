@@ -16,8 +16,9 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
 cp apps/admin/.env.example apps/admin/.env.local
 
-# Option A — Docker Postgres + Redis (default in .env.example)
+# Option A — Docker Postgres + Redis + worker (recommended)
 docker compose up postgres redis -d
+docker compose up worker -d   # FFmpeg / BullMQ (WORKER_ONLY)
 bash scripts/setup-local-demo.sh
 
 # Option B — Cloud DB (you already use Neon + Upstash)
@@ -29,10 +30,12 @@ npm run redis:upstash:test
 **Run apps** (three terminals):
 
 ```bash
-npm run dev:api      # http://localhost:3001
+npm run dev:api      # http://localhost:3001 (HTTP only — no FFmpeg)
 npm run dev:web      # http://localhost:3000
 npm run dev:admin    # http://localhost:3002
 ```
+
+For **video transcoding** locally, either run `docker compose up worker -d` or set `ENABLE_VIDEO_WORKER=true` in `apps/api/.env` (not for production API).
 
 | Service | URL |
 |---------|-----|
@@ -51,7 +54,8 @@ npm run dev:admin    # http://localhost:3002
 | `admin@forge.local` | `ForgeAdmin123!` | Admin only (`:3002`) |
 
 Reset roles: `bash scripts/reset-demo-users.sh`  
-API smoke test: `npm run smoke:api`
+API smoke test: `npm run smoke:api`  
+Web E2E: `cd apps/web && npm run test:e2e`
 
 ---
 
@@ -89,10 +93,17 @@ npm run build:all
 npm run ci                     # Same checks as GitHub CI
 npm run lint
 npm run test
+npm run deploy:fly             # Fly API (production)
+npm run deploy:fly:worker        # Fly worker (video transcode)
 npm run db:neon:setup          # Neon migrate + seed
 npm run redis:upstash:test     # Upstash ping
 bash scripts/setup-local-demo.sh
 ```
+
+**Feature flags** (optional): `FEATURE_FLAGS` in `apps/api/.env`, `NEXT_PUBLIC_FEATURE_FLAGS` in web — see `GET /api/v1/platform/config`.  
+Large uploads (≥50MB): enable `multipart_upload` in API flags. See [VIDEO_UPLOAD.md](./VIDEO_UPLOAD.md).
+
+Pre-deploy checklist: `npm run verify:production`
 
 ---
 
@@ -111,4 +122,6 @@ Upload transcoding and live streaming need AWS S3 and Mux credentials in `apps/a
 | **GitHub Actions / secrets** | [CI_CD.md](./CI_CD.md) |
 | **Test by role** | [mvp-test-matrix.md](./mvp-test-matrix.md) |
 | **Share with client** | [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) |
+| **Observability** | [OBSERVABILITY.md](./OBSERVABILITY.md) |
+| **Audit / hardening log** | [PLATFORM_AUDIT_REMEDIATION.md](./PLATFORM_AUDIT_REMEDIATION.md) |
 | **All documentation** | [README.md](./README.md) |

@@ -1,5 +1,12 @@
 import type { ConnectionOptions } from 'bullmq';
 
+function redisTlsFromEnv(): { rejectUnauthorized: boolean } {
+  const envFlag = process.env.REDIS_TLS_REJECT_UNAUTHORIZED;
+  const rejectUnauthorized =
+    envFlag !== undefined ? envFlag !== 'false' : process.env.NODE_ENV === 'production';
+  return { rejectUnauthorized };
+}
+
 /**
  * BullMQ uses ioredis-style options; parse REDIS_URL so auth (requirepass / ACL) works in production.
  */
@@ -7,7 +14,7 @@ export function bullMqConnectionFromRedisUrl(redisUrl: string): ConnectionOption
   try {
     const u = new URL(redisUrl);
     const port = u.port ? parseInt(u.port, 10) : 6379;
-    const tls = u.protocol === 'rediss:' ? { rejectUnauthorized: false } : undefined;
+    const tls = u.protocol === 'rediss:' ? redisTlsFromEnv() : undefined;
     const conn: ConnectionOptions = {
       host: u.hostname || 'localhost',
       port,

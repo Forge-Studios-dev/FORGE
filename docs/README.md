@@ -14,6 +14,8 @@
 | **[mvp-test-matrix.md](./mvp-test-matrix.md)** | QA / dev | Test every role after deploy |
 | **[CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md)** | Clients | Executive summary to share |
 | **[FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md)** | All | Full product + technical spec |
+| **[PLATFORM_AUDIT_REMEDIATION.md](./PLATFORM_AUDIT_REMEDIATION.md)** | Engineering | Production hardening phases 0–4 |
+| **[OBSERVABILITY.md](./OBSERVABILITY.md)** | DevOps | Metrics, Sentry, OpenTelemetry, smoke tests |
 
 **Typical path:** `GETTING_STARTED` → `MVP_GO_LIVE` → `mvp-test-matrix` → send `CLIENT_OVERVIEW` to client.
 
@@ -24,6 +26,10 @@
 | Topic | Document |
 |-------|----------|
 | CI/CD & GitHub secrets | [CI_CD.md](./CI_CD.md) · [scripts/README.md](../scripts/README.md) |
+| Observability & E2E | [OBSERVABILITY.md](./OBSERVABILITY.md) |
+| Video upload (S3 / multipart) | [VIDEO_UPLOAD.md](./VIDEO_UPLOAD.md) |
+| Audit remediation log | [PLATFORM_AUDIT_REMEDIATION.md](./PLATFORM_AUDIT_REMEDIATION.md) |
+| Pre-merge checklist | [MERGE_CHECKLIST.md](./MERGE_CHECKLIST.md) |
 | AWS S3 + Mux (upload & live) | [AWS_MUX_SETUP.md](./AWS_MUX_SETUP.md) |
 | Custom domain (Vercel + Fly + Squarespace DNS) | [DOMAIN_FORGESTUDIOS.md](./DOMAIN_FORGESTUDIOS.md) |
 | Local ngrok / VPS only | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) |

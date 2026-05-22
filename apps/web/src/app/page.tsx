@@ -12,7 +12,8 @@ import { ContinueWatching } from '@/components/ContinueWatching';
 import { VerifyEmailBanner } from '@/components/VerifyEmailBanner';
 import { Category, PaginatedResponse, Video } from '@/types';
 
-export const dynamic = 'force-dynamic';
+/** ISR: shell + category list; personalized sort handled client-side in FeedGrid. */
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: 'FORGE – Learn from Creators',
@@ -54,13 +55,16 @@ export default async function HomePage() {
   ]);
 
   return (
-    <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
+    <main
+      data-testid="forge-home"
+      className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12"
+    >
       <HomeFeedSections />
       <HomeHero />
       <ContinueWatching />
       <TrendingSkills videos={trending.data.length > 0 ? trending.data : feed.data} />
 
-      <section id="discover" className="mt-4">
+      <section id="discover" data-testid="discover-section" className="mt-4">
         <VerifyEmailBanner />
         <div className="mb-8 flex items-center justify-between">
           <h2 className="font-display-forge text-2xl font-semibold md:text-3xl">Discover lessons</h2>

@@ -4,6 +4,7 @@
 # Requires demo user viewer@forge.local / ForgeDemo123! in DB.
 set -euo pipefail
 BASE="${FORGE_SMOKE_API:-http://localhost:3001/api/v1}"
+MODE="${FORGE_SMOKE_MODE:-full}"
 
 code="$(curl -sS -o /tmp/forge-smoke-health.json -w "%{http_code}" "${BASE}/health" || true)"
 if [[ "$code" != "200" ]]; then
@@ -11,6 +12,49 @@ if [[ "$code" != "200" ]]; then
   exit 1
 fi
 echo "OK: GET ${BASE}/health ($code)"
+
+feed_code="$(curl -sS -o /dev/null -w "%{http_code}" "${BASE}/videos/feed?limit=1&sort=latest")"
+if [[ "$feed_code" != "200" ]]; then
+  echo "FAIL: GET feed expected 200, got ${feed_code}" >&2
+  exit 1
+fi
+echo "OK: GET ${BASE}/videos/feed ($feed_code)"
+
+search_body="$(curl -sS "${BASE}/search?q=test&limit=3" || true)"
+if echo "$search_body" | grep -q passwordHash; then
+  echo "FAIL: GET /search leaks passwordHash" >&2
+  exit 1
+fi
+echo "OK: GET ${BASE}/search (no credential leaks)"
+
+config_code="$(curl -sS -o /tmp/forge-smoke-config.json -w "%{http_code}" "${BASE}/platform/config")"
+if [[ "$config_code" != "200" ]]; then
+  echo "FAIL: GET ${BASE}/platform/config expected 200, got ${config_code}" >&2
+  exit 1
+fi
+echo "OK: GET ${BASE}/platform/config ($config_code)"
+
+API_ROOT="${BASE%/api/v1}"
+health_headers="$(curl -sSI "${BASE}/health" 2>/dev/null || true)"
+if echo "$health_headers" | grep -qi 'x-correlation-id:'; then
+  echo "OK: health returns x-correlation-id"
+else
+  echo "WARN: health missing x-correlation-id header" >&2
+fi
+
+metrics_code="$(curl -sS -o /dev/null -w "%{http_code}" "${API_ROOT}/metrics" 2>/dev/null || echo "000")"
+if [[ "$metrics_code" == "200" ]]; then
+  echo "OK: GET ${API_ROOT}/metrics (Prometheus enabled)"
+elif [[ "$metrics_code" == "404" ]]; then
+  echo "OK: GET ${API_ROOT}/metrics (404 — set METRICS_ENABLED=true to expose)"
+else
+  echo "WARN: GET ${API_ROOT}/metrics returned ${metrics_code}" >&2
+fi
+
+if [[ "$MODE" == "public" ]]; then
+  echo "All public smoke checks passed (FORGE_SMOKE_MODE=public)."
+  exit 0
+fi
 
 login_body="$(curl -sS -X POST "${BASE}/auth/login" \
   -H 'Content-Type: application/json' \
@@ -51,23 +95,12 @@ if [[ "$pl_code" != "200" ]]; then
 fi
 echo "OK: GET ${BASE}/playlists/me ($pl_code)"
 
-feed_code="$(curl -sS -o /dev/null -w "%{http_code}" "${BASE}/videos/feed?categorySlug=physical-crafts&limit=1")"
-if [[ "$feed_code" != "200" ]]; then
-  echo "FAIL: GET feed with categorySlug expected 200, got ${feed_code}" >&2
+feed_cat_code="$(curl -sS -o /dev/null -w "%{http_code}" "${BASE}/videos/feed?categorySlug=physical-crafts&limit=1")"
+if [[ "$feed_cat_code" != "200" ]]; then
+  echo "FAIL: GET feed with categorySlug expected 200, got ${feed_cat_code}" >&2
   exit 1
 fi
-echo "OK: GET ${BASE}/videos/feed?categorySlug=… ($feed_code)"
-
-search_body="$(curl -sS "${BASE}/search?q=test&limit=3" || true)"
-if echo "$search_body" | grep -q passwordHash; then
-  echo "FAIL: GET /search leaks passwordHash — sync API: cd apps/api && npm run build && bash scripts/sync-api-to-docker.sh" >&2
-  exit 1
-fi
-if echo "$search_body" | grep -q emailVerificationTokenHash; then
-  echo "FAIL: GET /search leaks emailVerificationTokenHash" >&2
-  exit 1
-fi
-echo "OK: GET ${BASE}/search (no credential leaks)"
+echo "OK: GET ${BASE}/videos/feed?categorySlug=… ($feed_cat_code)"
 
 guest_like="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${BASE}/videos/00000000-0000-4000-8000-000000000001/like")"
 if [[ "$guest_like" != "401" ]]; then

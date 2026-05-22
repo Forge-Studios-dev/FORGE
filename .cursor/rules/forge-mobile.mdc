@@ -1,0 +1,34 @@
+---
+description: FORGE Flutter mobile app standards
+globs: apps/mobile/**
+alwaysApply: false
+---
+
+# FORGE — Mobile Standards
+
+## Architecture
+
+- Feature folders: `data` / `presentation` / domain logic in repositories.
+- API abstraction via `core/network`; no raw HTTP in widgets.
+- Reuse `forge_card`, motion tokens, and shared patterns from `lib/core`.
+
+## UX & Performance
+
+- Offline-first mindset: cache watch history, graceful offline states.
+- Background-friendly uploads; adaptive video quality on watch.
+- Efficient lists; avoid rebuilding entire trees on minor state changes.
+
+## Platform Readiness
+
+- Deep links via router (`app_router.dart`); push notification hooks when adding features.
+- Secure token storage; session refresh aligned with API JWT/refresh flow.
+
+## Consistency with Web
+
+- Same creator-first, skill-learning identity — not a generic video app shell.
+- Parity on critical flows: auth, watch, studio upload, notifications, live.
+
+## Testing & Changes
+
+- Match Dart conventions in repo; minimal scope per PR.
+- Validate on both iOS and Android paths when touching platform channels.

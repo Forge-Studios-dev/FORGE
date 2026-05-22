@@ -26,6 +26,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { SearchModule } from './modules/search/search.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { PlatformModule } from './modules/platform/platform.module';
 import { forgeClsSetup } from './common/cls/forge-cls.setup';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -37,7 +38,9 @@ import { ConsumerOnlyGuard } from './common/guards/consumer-only.guard';
 import { HealthController } from './health.controller';
 import { MetricsController } from './common/metrics/metrics.controller';
 import { bullMqConnectionFromConfig } from './config/bull-redis.util';
+import { redisTlsOptions } from './common/redis/redis-tls.util';
 import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
+import { ANALYTICS_INGEST_QUEUE } from './modules/analytics/analytics-ingest.constants';
 
 @Module({
   imports: [
@@ -77,6 +80,7 @@ import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
                 },
             customProps: (req) => ({
               correlationId: (req as { correlationId?: string }).correlationId,
+              traceId: (req as { traceId?: string }).traceId,
             }),
           },
         };
@@ -99,11 +103,12 @@ import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const url = config.get<string>('redis.url') || 'redis://localhost:6379';
-        const useTls = url.startsWith('rediss://');
+        const nodeEnv = config.get<string>('nodeEnv') || 'development';
+        const tls = redisTlsOptions(url, nodeEnv);
         return {
           type: 'single',
           url,
-          ...(useTls ? { options: { tls: { rejectUnauthorized: false } } } : {}),
+          ...(tls ? { options: tls } : {}),
         };
       },
     }),
@@ -121,6 +126,15 @@ import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
     }),
 
     BullModule.registerQueue({ name: VIDEO_PROCESSING_QUEUE }),
+    BullModule.registerQueue({
+      name: ANALYTICS_INGEST_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: { age: 3600, count: 5000 },
+        removeOnFail: { age: 86400, count: 10000 },
+      },
+    }),
 
     EventEmitterModule.forRoot(),
 
@@ -141,6 +155,7 @@ import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
     SearchModule,
     ReportsModule,
     AnalyticsModule,
+    PlatformModule,
   ],
 
   controllers: [HealthController, MetricsController],

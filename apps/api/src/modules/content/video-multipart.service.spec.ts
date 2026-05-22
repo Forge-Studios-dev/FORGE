@@ -1,0 +1,33 @@
+import { VideoMultipartService } from './video-multipart.service';
+import { MULTIPART_PART_SIZE_BYTES } from './video-multipart.constants';
+
+describe('VideoMultipartService', () => {
+  const service = new VideoMultipartService(
+    { get: jest.fn(), setex: jest.fn(), del: jest.fn() } as never,
+    { get: jest.fn(() => 'multipart_upload') } as never,
+  );
+
+  it('computes part count from file size', () => {
+    expect(service.partCountForFileSize(MULTIPART_PART_SIZE_BYTES)).toBe(1);
+    expect(service.partCountForFileSize(MULTIPART_PART_SIZE_BYTES + 1)).toBe(2);
+    expect(service.partCountForFileSize(50 * 1024 * 1024)).toBe(5);
+  });
+
+  it('merges completed parts without duplicates', () => {
+    const merged = service.mergeCompletedParts(
+      [{ partNumber: 1, etag: '"a"' }],
+      [{ partNumber: 2, etag: '"b"' }, { partNumber: 1, etag: '"a2"' }],
+      3,
+    );
+    expect(merged).toEqual([
+      { partNumber: 1, etag: '"a2"' },
+      { partNumber: 2, etag: '"b"' },
+    ]);
+  });
+
+  it('rejects invalid part numbers', () => {
+    expect(() =>
+      service.mergeCompletedParts([], [{ partNumber: 0, etag: '"x"' }], 5),
+    ).toThrow();
+  });
+});

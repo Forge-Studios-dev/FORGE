@@ -6,6 +6,8 @@ import { Category } from '@/types';
 
 export const metadata: Metadata = { title: 'Explore' };
 
+export const revalidate = 300;
+
 async function getCategories(): Promise<Category[]> {
   try {
     const { data } = await serverApi.get('/categories');
@@ -19,7 +21,10 @@ export default async function ExplorePage() {
   const categories = await getCategories();
 
   return (
-    <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
+    <main
+      data-testid="forge-explore"
+      className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12"
+    >
       <PageHeader title="Explore" subtitle="Discover skills and learning paths by discipline" />
 
       <section className="mb-12">

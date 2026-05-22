@@ -1,0 +1,19 @@
+# Fly.io — FORGE video/analytics worker (BullMQ consumers, no public HTTP)
+# Deploy: fly deploy -c fly.worker.toml
+# Set secrets same as API + WORKER_ONLY=true
+
+app = 'forge-studios-worker'
+primary_region = 'bom'
+
+[build]
+  dockerfile = 'apps/api/Dockerfile.worker'
+
+[env]
+  NODE_ENV = 'production'
+  WORKER_ONLY = 'true'
+  PORT = '3001'
+
+[[vm]]
+  memory = '2048mb'
+  cpu_kind = 'shared'
+  cpus = 2

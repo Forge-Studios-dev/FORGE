@@ -9,7 +9,13 @@ import { VIDEO_READY_EVENT, dispatchVideoReady, type VideoReadyDetail } from '@/
 import { Video } from '@/types';
 import { WatchExperience } from '@/components/watch/WatchExperience';
 
-export function WatchPageClient({ video: initial }: { video: Video }) {
+export function WatchPageClient({
+  video: initial,
+  sidebar,
+}: {
+  video: Video;
+  sidebar?: React.ReactNode;
+}) {
   const { data: video = initial, refetch } = useQuery({
     queryKey: ['video', initial.id],
     queryFn: async () => {
@@ -17,6 +23,7 @@ export function WatchPageClient({ video: initial }: { video: Video }) {
       return data.data;
     },
     initialData: initial,
+    refetchOnMount: initial.status === 'ready' || initial.status === 'failed' ? false : true,
     refetchInterval: (query) => {
       const v = query.state.data;
       if (!v || v.status === 'ready' || v.status === 'failed') return false;
@@ -50,5 +57,5 @@ export function WatchPageClient({ video: initial }: { video: Video }) {
     return () => window.removeEventListener(VIDEO_READY_EVENT, handler);
   }, [initial.id, refetch]);
 
-  return <WatchExperience video={video} />;
+  return <WatchExperience video={video} sidebar={sidebar} />;
 }

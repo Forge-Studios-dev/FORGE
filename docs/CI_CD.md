@@ -11,7 +11,7 @@
 | Workflow | When | Purpose |
 |----------|------|---------|
 | **ci.yml** | Every PR + push to `main` | Lint, build, test (quality gate) |
-| **release.yml** | After **CI** succeeds on `main`, or manual | Deploy API (Fly) + web + admin (Vercel) |
+| **release.yml** | After **CI** succeeds on `main`, or manual | Deploy API (Fly) + **worker** (`fly.worker.toml`) + web + admin (Vercel) |
 | **deploy-fly.yml** | Manual only | Deploy API only (emergency) |
 | **deploy-vercel.yml** | Manual only | Deploy web + admin only (emergency) |
 
@@ -92,9 +92,32 @@ gh auth switch --user Forge-Studios-dev   # if you have multiple gh accounts
 npm run gh:secrets:set
 ```
 
+### Fly worker app (video transcoding)
+
+API machines must **not** run FFmpeg. Create a dedicated worker once:
+
+```bash
+fly apps create forge-studios-worker --org personal
+fly secrets set WORKER_ONLY=true --app forge-studios-worker
+# Copy DATABASE_URL, REDIS_URL, AWS_*, JWT_* from forge-studios-api
+fly deploy -c fly.worker.toml
+```
+
+`release.yml` deploys this app after the API. If the worker app does not exist, the worker job fails — create it before the first production release.
+
+### Production smoke tests
+
+After API deploy, release runs:
+
+```bash
+FORGE_SMOKE_API=https://api.forgestudios.net/api/v1 FORGE_SMOKE_MODE=public bash scripts/smoke-api.sh
+```
+
+Full smoke (demo users) remains for local/staging: `npm run smoke:api`.
+
 ### Verify after all five secrets are set
 
-1. Push to `main` (or open a PR) — **CI** should pass.
+1. Push to `main` (or open a PR) — **CI** should pass (includes **Mobile — Flutter analyze** when `apps/mobile/**` changes).
 2. **Actions** → **Release (production)** runs automatically after green CI on `main`.
 3. Or run **Release (production)** manually to deploy everything at once.
 

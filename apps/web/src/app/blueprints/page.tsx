@@ -1,9 +1,17 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { PageHeader } from '@forge/design-system';
+import { isFeatureEnabled, parseFeatureFlags } from '@forge/shared-types';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Stitch blueprints' };
 
 export default function BlueprintsPage() {
+  const flags = parseFeatureFlags(process.env.NEXT_PUBLIC_FEATURE_FLAGS);
+  if (!isFeatureEnabled(flags, 'blueprints_public')) {
+    redirect('/');
+  }
   return (
     <main className="mx-auto max-w-2xl px-5 py-12 md:px-12">
       <PageHeader

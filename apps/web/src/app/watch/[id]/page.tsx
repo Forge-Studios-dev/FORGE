@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { serverApi } from '@/lib/api';
 import { Video } from '@/types';
 import { WatchPageClient } from '@/components/watch/WatchPageClient';
+import { RelatedVideos } from '@/components/watch/RelatedVideos';
 
 interface Props {
   params: { id: string };
@@ -45,5 +46,17 @@ export default async function WatchPage({ params }: Props) {
   const video = await getVideo(params.id);
   if (!video) notFound();
 
-  return <WatchPageClient video={video} />;
+  const skillTag = video.skillTags?.[0]?.name;
+  return (
+    <WatchPageClient
+      video={video}
+      sidebar={
+        <RelatedVideos
+          videoId={video.id}
+          creatorId={video.userId}
+          skillTag={skillTag}
+        />
+      }
+    />
+  );
 }

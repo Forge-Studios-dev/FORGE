@@ -31,6 +31,9 @@ import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
 import { Throttle } from '@nestjs/throttler';
+import { MultipartPartUrlsDto } from './dto/multipart-part-urls.dto';
+import { MultipartCompletePartsDto } from './dto/multipart-complete-parts.dto';
+import { MultipartCheckpointDto } from './dto/multipart-checkpoint.dto';
 
 @ApiTags('Videos')
 @Controller('videos')
@@ -103,6 +106,55 @@ export class VideosController {
     @Body() dto: ThumbnailPresignedDto,
   ) {
     return this.videosService.getThumbnailPresignedUrl(user.sub, id, dto.contentType);
+  }
+
+  @Get(':id([0-9a-fA-F-]{36})/multipart/progress')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @ApiOperation({ summary: 'Multipart upload progress (server checkpoint)' })
+  getMultipartProgress(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.videosService.getMultipartProgress(user.sub, id);
+  }
+
+  @Post(':id([0-9a-fA-F-]{36})/multipart/checkpoint')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Record completed S3 parts for resume' })
+  checkpointMultipart(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: MultipartCheckpointDto,
+  ) {
+    return this.videosService.checkpointMultipart(user.sub, id, dto);
+  }
+
+  @Post(':id([0-9a-fA-F-]{36})/multipart/parts')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Presigned URLs for S3 multipart upload parts' })
+  signMultipartParts(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: MultipartPartUrlsDto,
+  ) {
+    return this.videosService.signMultipartPartUrls(user.sub, id, dto);
+  }
+
+  @Post(':id([0-9a-fA-F-]{36})/multipart/complete')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Complete S3 multipart upload (assemble object)' })
+  completeMultipart(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: MultipartCompletePartsDto,
+  ) {
+    return this.videosService.completeMultipartParts(user.sub, id, dto);
   }
 
   @Post(':id([0-9a-fA-F-]{36})/complete')

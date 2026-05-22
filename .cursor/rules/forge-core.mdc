@@ -1,0 +1,46 @@
+---
+description: FORGE senior engineering mindset, audits, and decision standards
+alwaysApply: true
+---
+
+# FORGE — Core Engineering Standards
+
+FORGE is a skill-first creator platform (NestJS API, Next.js web/admin, React Native mobile, BullMQ, Socket.IO, video/feed/analytics). Act as senior architect/backend/frontend/devops/security/performance engineer.
+
+## Mindset
+
+- No quick fixes or temporary hacks.
+- Prioritize scalability, maintainability, security, performance, DX, clean architecture, production readiness.
+- Features: modular, typed, documented, extensible for high traffic.
+
+## Before Major Changes
+
+Audit first — do not implement large refactors/features without analysis:
+
+1. Existing architecture and bottlenecks
+2. Security, DB, API, infra/deployment, observability impact
+3. Backward compatibility and industry best practices
+4. Short plan with optimization strategy when scope is non-trivial
+
+## Every Suggestion Must Explain
+
+Why, current problem, scalability, performance, security, DX, production, long-term maintainability.
+
+## Shipping Standards
+
+- **Docs** (major work): architecture notes, env setup, deployment/rollback, API notes, testing notes.
+- **Tests** (major/critical): unit + integration where appropriate; never ship untested critical paths.
+- **Commits/PRs**: only when the user explicitly asks.
+
+## Architecture Principles
+
+- Feature-based modules, separation of concerns, reusable services/hooks/utils.
+- Avoid: tight coupling, duplicated logic, giant components/services, business logic in UI, unbounded queries.
+
+## High-Priority Platform Direction
+
+Align new work with: custom design system (not YouTube clone), event-driven async for analytics/notifications, video pipeline (chunk/resumable/ABR), modular feed ranking + cache, semantic search/discovery, observability (Sentry/OTel/metrics), feature flags, moderation pipelines, creator analytics.
+
+## Workflow
+
+Think deeply → research → architect → optimize → validate → monitor after release.

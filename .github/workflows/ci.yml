@@ -21,6 +21,7 @@ jobs:
       api: ${{ steps.filter.outputs.api }}
       web: ${{ steps.filter.outputs.web }}
       admin: ${{ steps.filter.outputs.admin }}
+      mobile: ${{ steps.filter.outputs.mobile }}
       packages: ${{ steps.filter.outputs.packages }}
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +44,8 @@ jobs:
               - 'packages/**'
               - 'package.json'
               - 'package-lock.json'
+            mobile:
+              - 'apps/mobile/**'
             packages:
               - 'packages/**'
 
@@ -103,6 +106,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
+      - run: npm run build --workspace=@forge/shared-types
       - run: npm run lint:ci --workspace=@forge/api
       - run: npm run build --workspace=@forge/api
       - run: npm run test --workspace=@forge/api
@@ -138,6 +142,37 @@ jobs:
           NEXT_PUBLIC_APP_URL: https://forgestudios.net
           NEXT_PUBLIC_WEB_URL: https://forgestudios.net
 
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+
+      - name: E2E smoke (web)
+        run: npm run test:e2e --workspace=@forge/web
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+
+  mobile:
+    name: Mobile — Flutter analyze
+    runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      needs.changes.outputs.mobile == 'true' ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+        working-directory: apps/mobile
+      - run: flutter analyze --no-fatal-infos
+        working-directory: apps/mobile
+
   admin:
     name: Admin — lint & build
     runs-on: ubuntu-latest
@@ -165,7 +200,7 @@ jobs:
   ci-ok:
     name: CI passed
     runs-on: ubuntu-latest
-    needs: [api, web, admin]
+    needs: [api, web, admin, mobile]
     if: always()
     steps:
       - name: Require jobs
@@ -173,7 +208,8 @@ jobs:
           test "${{ needs.api.result }}" = "success" || test "${{ needs.api.result }}" = "skipped"
           test "${{ needs.web.result }}" = "success" || test "${{ needs.web.result }}" = "skipped"
           test "${{ needs.admin.result }}" = "success" || test "${{ needs.admin.result }}" = "skipped"
-          if [ "${{ needs.api.result }}" = "failure" ] || [ "${{ needs.web.result }}" = "failure" ] || [ "${{ needs.admin.result }}" = "failure" ]; then
+          test "${{ needs.mobile.result }}" = "success" || test "${{ needs.mobile.result }}" = "skipped"
+          if [ "${{ needs.api.result }}" = "failure" ] || [ "${{ needs.web.result }}" = "failure" ] || [ "${{ needs.admin.result }}" = "failure" ] || [ "${{ needs.mobile.result }}" = "failure" ]; then
             echo "One or more CI jobs failed"
             exit 1
           fi
