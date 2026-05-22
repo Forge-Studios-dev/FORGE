@@ -16,7 +16,7 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
-import { Video, VideoStatus, PublishStatus } from '../../content/entities/video.entity';
+import { Video, VideoStatus } from '../../content/entities/video.entity';
 import { indexedAtOnReady, publishStatusOnReady } from '../../content/video-publish.util';
 import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../../content/videos.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
