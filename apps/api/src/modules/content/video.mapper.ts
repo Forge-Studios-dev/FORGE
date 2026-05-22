@@ -16,6 +16,7 @@ export type PublicVideo = {
   likeCount: number;
   commentCount: number;
   skillTags: Video['skillTags'];
+  categoryId: string | null;
   createdAt: Date;
   publishedAt: Date | null;
   scheduledPublishAt: Date | null;
@@ -42,6 +43,7 @@ export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): Publi
     likeCount: video.likeCount,
     commentCount: video.commentCount,
     skillTags: video.skillTags ?? [],
+    categoryId: video.categoryId ?? null,
     createdAt: video.createdAt,
     publishedAt: video.publishedAt,
     scheduledPublishAt: video.scheduledPublishAt ?? null,

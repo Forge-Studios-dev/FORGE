@@ -4,21 +4,23 @@ import { FeedGrid } from '@/components/FeedCard/FeedGrid';
 import { PageHeader } from '@forge/design-system';
 import { PaginatedResponse, Video } from '@/types';
 
-const LABELS: Record<string, string> = {
-  'physical-crafts': 'Physical Crafts',
-  'art-design': 'Art & Design',
-  'building-tech': 'Building & Tech',
-  fitness: 'Fitness & Transformation',
-  'learning-journeys': 'Learning Journeys',
-  music: 'Music & Practice',
-};
-
 interface Props {
   params: { skill: string };
 }
 
+async function getCategoryName(slug: string): Promise<string> {
+  try {
+    const { data } = await serverApi.get<{ data: { name: string; slug: string }[] }>('/categories');
+    const match = data.data?.find((c) => c.slug === slug);
+    return match?.name ?? slug.replace(/-/g, ' ');
+  } catch {
+    return slug.replace(/-/g, ' ');
+  }
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  return { title: LABELS[params.skill] ?? 'Explore' };
+  const title = await getCategoryName(params.skill);
+  return { title };
 }
 
 async function getFeed(skill: string): Promise<PaginatedResponse<Video>> {
@@ -33,13 +35,12 @@ async function getFeed(skill: string): Promise<PaginatedResponse<Video>> {
 }
 
 export default async function ExploreSkillPage({ params }: Props) {
-  const feed = await getFeed(params.skill);
-  const title = LABELS[params.skill] ?? params.skill.replace(/-/g, ' ');
+  const [feed, title] = await Promise.all([getFeed(params.skill), getCategoryName(params.skill)]);
 
   return (
     <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
       <PageHeader title={title} subtitle="Lessons and creators in this discipline" />
-      <FeedGrid initialData={feed} />
+      <FeedGrid initialData={feed} categorySlug={params.skill} />
     </main>
   );
 }

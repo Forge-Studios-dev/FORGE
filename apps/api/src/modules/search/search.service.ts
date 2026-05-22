@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
-import { Video, VideoStatus, VideoVisibility, ModerationStatus } from '../content/entities/video.entity';
+import { Video } from '../content/entities/video.entity';
+import { applyDiscoverableVideoFilters } from '../feed/feed-query.util';
 import { VideosService } from '../content/videos.service';
 import { User } from '../users/entities/user.entity';
 import { toPublicUser } from '../users/user.mapper';
@@ -36,15 +37,25 @@ export class SearchService {
       return { videos: [], users: [], meta: { q: term } };
     }
 
-    const videos = await this.videoRepository
-      .createQueryBuilder('v')
-      .leftJoinAndSelect('v.user', 'user')
-      .where('v.status = :status', { status: VideoStatus.READY })
-      .andWhere('v.visibility = :visibility', { visibility: VideoVisibility.PUBLIC })
-      .andWhere('v.moderationStatus = :mod', { mod: ModerationStatus.NONE })
-      .andWhere('(v.publishedAt IS NULL OR v.publishedAt <= CURRENT_TIMESTAMP)')
-      .andWhere(`v.searchVector @@ plainto_tsquery('english', :fts)`, { fts: term })
+    const pattern = `%${term}%`;
+    const videos = await applyDiscoverableVideoFilters(
+      this.videoRepository
+        .createQueryBuilder('v')
+        .leftJoinAndSelect('v.user', 'user')
+        .leftJoin('v.skillTags', 'st')
+        .leftJoin('st.subcategory', 'sub')
+        .leftJoin('sub.category', 'cat'),
+    )
+      .andWhere(
+        `(v.searchVector @@ plainto_tsquery('english', :fts)
+          OR v.title ILIKE :pattern
+          OR v.description ILIKE :pattern
+          OR st.name ILIKE :pattern
+          OR cat.name ILIKE :pattern)`,
+        { fts: term, pattern },
+      )
       .orderBy(`ts_rank_cd(v.searchVector, plainto_tsquery('english', :fts))`, 'DESC')
+      .addOrderBy('v.publishedAt', 'DESC', 'NULLS LAST')
       .addOrderBy('v.createdAt', 'DESC')
       .take(take)
       .getMany();
@@ -71,12 +82,9 @@ export class SearchService {
       return { titles: [] as string[] };
     }
     const take = Math.min(limit, 20);
-    const rows = await this.videoRepository
-      .createQueryBuilder('v')
-      .select('v.title', 'title')
-      .where('v.status = :status', { status: VideoStatus.READY })
-      .andWhere('v.visibility = :visibility', { visibility: VideoVisibility.PUBLIC })
-      .andWhere('v.moderationStatus = :mod', { mod: ModerationStatus.NONE })
+    const rows = await applyDiscoverableVideoFilters(
+      this.videoRepository.createQueryBuilder('v').select('v.title', 'title'),
+    )
       .andWhere('v.title ILIKE :p', { p: `${prefix}%` })
       .orderBy('v.title', 'ASC')
       .distinct(true)
@@ -92,14 +100,16 @@ export class SearchService {
       return { videos: [], users: [], meta: { q: term } };
     }
     const pattern = `%${term}%`;
-    const videos = await this.videoRepository
-      .createQueryBuilder('v')
-      .leftJoinAndSelect('v.user', 'user')
-      .where('v.status = :status', { status: VideoStatus.READY })
-      .andWhere('v.visibility = :visibility', { visibility: VideoVisibility.PUBLIC })
-      .andWhere('v.moderationStatus = :mod', { mod: ModerationStatus.NONE })
-      .andWhere('(v.publishedAt IS NULL OR v.publishedAt <= CURRENT_TIMESTAMP)')
-      .andWhere('(v.title ILIKE :q OR v.description ILIKE :q)', { q: pattern })
+    const videos = await applyDiscoverableVideoFilters(
+      this.videoRepository.createQueryBuilder('v').leftJoinAndSelect('v.user', 'user'),
+    )
+      .leftJoin('v.skillTags', 'st')
+      .leftJoin('st.subcategory', 'sub')
+      .leftJoin('sub.category', 'cat')
+      .andWhere(
+        '(v.title ILIKE :q OR v.description ILIKE :q OR st.name ILIKE :q OR cat.name ILIKE :q)',
+        { q: pattern },
+      )
       .orderBy('v.createdAt', 'DESC')
       .take(take)
       .getMany();

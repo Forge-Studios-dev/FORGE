@@ -19,7 +19,16 @@ export const metadata: Metadata = {
 
 async function getInitialFeed(): Promise<PaginatedResponse<Video>> {
   try {
-    const { data } = await serverApi.get('/videos/feed?limit=12');
+    const { data } = await serverApi.get('/videos/feed?limit=12&sort=latest');
+    return data.data;
+  } catch {
+    return { data: [], meta: { cursor: null, hasMore: false } };
+  }
+}
+
+async function getTrendingFeed(): Promise<PaginatedResponse<Video>> {
+  try {
+    const { data } = await serverApi.get('/videos/feed/trending?limit=8');
     return data.data;
   } catch {
     return { data: [], meta: { cursor: null, hasMore: false } };
@@ -36,14 +45,18 @@ async function getCategories(): Promise<Category[]> {
 }
 
 export default async function HomePage() {
-  const [feed, categories] = await Promise.all([getInitialFeed(), getCategories()]);
+  const [feed, trending, categories] = await Promise.all([
+    getInitialFeed(),
+    getTrendingFeed(),
+    getCategories(),
+  ]);
 
   return (
     <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
       <HomeFeedSections />
       <HomeHero />
       <ContinueWatching />
-      <TrendingSkills videos={feed.data} />
+      <TrendingSkills videos={trending.data.length > 0 ? trending.data : feed.data} />
 
       <section id="discover" className="mt-4">
         <VerifyEmailBanner />

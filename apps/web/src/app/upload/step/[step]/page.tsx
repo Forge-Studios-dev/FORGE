@@ -15,7 +15,13 @@ import {
 } from '@/lib/upload-draft';
 import { api } from '@/lib/api';
 import { clearUploadFile, getUploadFile, setUploadFile } from '@/lib/upload-file-store';
+import {
+  clearUploadThumbnail,
+  getUploadThumbnail,
+  setUploadThumbnail,
+} from '@/lib/upload-thumbnail-store';
 import { getStudioVideos } from '@/lib/creator-studio';
+import { fetchUploadOptions, type UploadCategoryOption } from '@/lib/categories';
 import { uploadLesson, validateUploadFile, type UploadPhase } from '@/lib/upload-lesson';
 
 const TOTAL = 3;
@@ -38,6 +44,8 @@ export default function UploadStepPage() {
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<UploadPhase>('presigning');
   const [error, setError] = useState('');
+  const [thumbnail, setThumbnail] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
 
   const needsEmailVerification =
     user?.role === 'creator' && user?.creatorStatus === 'approved' && !user?.isVerified;
@@ -46,6 +54,11 @@ export default function UploadStepPage() {
     setDraft(getUploadDraft());
     const stored = getUploadFile();
     if (stored) setFile(stored);
+    const storedThumb = getUploadThumbnail();
+    if (storedThumb) {
+      setThumbnail(storedThumb);
+      setThumbnailPreview(URL.createObjectURL(storedThumb));
+    }
   }, [step]);
 
   const minScheduleLocal = useMemo(() => {
@@ -53,6 +66,16 @@ export default function UploadStepPage() {
     d.setSeconds(0, 0);
     return d.toISOString().slice(0, 16);
   }, []);
+
+  const { data: uploadOptions } = useQuery({
+    queryKey: ['upload-options'],
+    queryFn: fetchUploadOptions,
+    enabled: canUpload,
+    staleTime: 60_000,
+  });
+
+  const selectedCategory = uploadOptions?.find((c) => c.id === draft.categoryId);
+  const availableSkills = selectedCategory?.skillTags ?? [];
 
   const { data: myPlaylists } = useQuery({
     queryKey: ['my-playlists'],
@@ -130,14 +153,20 @@ export default function UploadStepPage() {
     }
   };
 
-  const canContinueStep1 = draft.title.trim().length >= 3;
+  const metadataComplete =
+    draft.title.trim().length >= 3 &&
+    !!draft.categoryId &&
+    draft.skillTagIds.length >= 1;
+
+  const canContinueStep1 = metadataComplete;
   const canContinueStep2 = !!file && !validateUploadFile(file);
 
   const scheduleInvalid =
     draft.publishMode === 'scheduled' &&
     (!draft.scheduledAt || new Date(draft.scheduledAt).getTime() <= Date.now() + 14 * 60 * 1000);
 
-  const canPublish = !!file && !validateUploadFile(file) && !scheduleInvalid;
+  const canPublish =
+    metadataComplete && !!file && !validateUploadFile(file) && !scheduleInvalid;
 
   const goNext = () => {
     if (step === 2 && file) setUploadFile(file);
@@ -173,8 +202,9 @@ export default function UploadStepPage() {
           setPhase(p);
           setProgress(p === 'uploading' ? pct : p === 'completing' ? 100 : 0);
         },
-        draft.skillTag,
         {
+          categoryId: draft.categoryId,
+          skillTagIds: draft.skillTagIds,
           visibility: draft.visibility,
           scheduledPublishAt,
           playlistIds: draft.playlistIds,
@@ -182,6 +212,7 @@ export default function UploadStepPage() {
       );
       clearUploadDraft();
       clearUploadFile();
+      clearUploadThumbnail();
       router.push('/upload/success');
     } catch (e: unknown) {
       const message =
@@ -252,13 +283,81 @@ export default function UploadStepPage() {
               />
             </label>
             <label className="block">
-              <span className="font-label-caps text-outline">Skill tag</span>
-              <input
-                className="mt-1 w-full border-b border-outline-variant bg-transparent py-2 outline-none focus:border-primary"
-                placeholder="React.js"
-                value={draft.skillTag}
-                onChange={(e) => persist({ skillTag: e.target.value })}
-              />
+              <span className="font-label-caps text-outline">
+                Category <span className="text-error">*</span>
+              </span>
+              <select
+                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 outline-none focus:border-primary"
+                value={draft.categoryId}
+                onChange={(e) =>
+                  persist({ categoryId: e.target.value, skillTagIds: [] })
+                }
+              >
+                <option value="">Select a category</option>
+                {(uploadOptions ?? []).map((cat: UploadCategoryOption) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <fieldset className="block" disabled={!draft.categoryId}>
+              <legend className="font-label-caps text-outline">
+                Skills / tags <span className="text-error">*</span>
+              </legend>
+              <p className="mt-1 text-xs text-on-surface-variant">
+                Select at least one skill learners can use to find this lesson.
+              </p>
+              <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded-lg border border-outline-variant p-3">
+                {availableSkills.length === 0 ? (
+                  <p className="text-sm text-on-surface-variant">Choose a category first.</p>
+                ) : (
+                  availableSkills.map((tag) => (
+                    <label key={tag.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={draft.skillTagIds.includes(tag.id)}
+                        onChange={(e) => {
+                          const ids = e.target.checked
+                            ? [...draft.skillTagIds, tag.id]
+                            : draft.skillTagIds.filter((id) => id !== tag.id);
+                          persist({ skillTagIds: ids });
+                        }}
+                      />
+                      {tag.name}
+                    </label>
+                  ))
+                )}
+              </div>
+            </fieldset>
+            <label className="block">
+              <span className="font-label-caps text-outline">Thumbnail</span>
+              <p className="mt-1 text-xs text-on-surface-variant">
+                Optional custom cover image. If omitted, a frame is captured automatically when processing finishes.
+              </p>
+              <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant p-8 text-center text-sm text-on-surface-variant hover:border-primary">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setThumbnail(f);
+                    setUploadThumbnail(f);
+                    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+                    setThumbnailPreview(f ? URL.createObjectURL(f) : null);
+                  }}
+                />
+                {thumbnailPreview ? (
+                  <img
+                    src={thumbnailPreview}
+                    alt="Thumbnail preview"
+                    className="max-h-32 rounded-lg object-cover"
+                  />
+                ) : (
+                  <span>Upload JPG, PNG, or WebP (optional)</span>
+                )}
+              </label>
             </label>
           </>
         )}
@@ -299,12 +398,27 @@ export default function UploadStepPage() {
                   <dd>{draft.description}</dd>
                 </div>
               ) : null}
-              {draft.skillTag ? (
+              {selectedCategory ? (
                 <div>
-                  <dt className="text-outline">Skill</dt>
-                  <dd>{draft.skillTag}</dd>
+                  <dt className="text-outline">Category</dt>
+                  <dd>{selectedCategory.name}</dd>
                 </div>
               ) : null}
+              {draft.skillTagIds.length > 0 ? (
+                <div>
+                  <dt className="text-outline">Skills</dt>
+                  <dd>
+                    {availableSkills
+                      .filter((t) => draft.skillTagIds.includes(t.id))
+                      .map((t) => t.name)
+                      .join(', ')}
+                  </dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="text-outline">Thumbnail</dt>
+                <dd>{thumbnail ? thumbnail.name : 'Auto-generated from video'}</dd>
+              </div>
               <div>
                 <dt className="text-outline">File</dt>
                 <dd>
@@ -434,7 +548,15 @@ export default function UploadStepPage() {
           {step < TOTAL ? (
             <button
               type="button"
-              disabled={(step === 1 && !canContinueStep1) || (step === 2 && !canContinueStep2)}
+              disabled={
+                (step === 1 && !canContinueStep1) ||
+                (step === 2 && !canContinueStep2)
+              }
+              title={
+                step === 1 && !metadataComplete
+                  ? 'Title, category, and at least one skill are required'
+                  : undefined
+              }
               onClick={goNext}
               className="primary-button ml-auto rounded-full px-8 py-2 text-sm font-semibold text-on-primary disabled:opacity-40"
             >

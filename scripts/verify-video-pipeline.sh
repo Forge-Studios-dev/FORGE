@@ -64,10 +64,21 @@ if [[ "${FORGE_PIPELINE_PUT:-0}" != "1" ]]; then
   exit 0
 fi
 
+UPLOAD_OPTS=$(curl -sf "${API_BASE}/categories/upload-options" || echo '{}')
+CATEGORY_ID=$(echo "$UPLOAD_OPTS" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);const cats=j.data||j;const c=Array.isArray(cats)?cats[0]:null;process.stdout.write(c?.id||'')})")
+SKILL_TAG_ID=$(echo "$UPLOAD_OPTS" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);const cats=j.data||j;const c=Array.isArray(cats)?cats[0]:null;const t=c?.skillTags?.[0];process.stdout.write(t?.id||'')})")
+
+if [[ -z "${CATEGORY_ID}" || -z "${SKILL_TAG_ID}" ]]; then
+  echo "FAIL: upload-options missing category/skill tag (run db seed?)"
+  echo "$UPLOAD_OPTS"
+  exit 1
+fi
+echo "OK: category ${CATEGORY_ID}, skill ${SKILL_TAG_ID}"
+
 COMPLETE=$(curl -sS -X POST "${API_BASE}/videos/${VIDEO_ID}/complete" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H 'Content-Type: application/json' \
-  -d '{"title":"Pipeline verify","visibility":"unlisted"}')
+  -d "{\"title\":\"Pipeline verify\",\"visibility\":\"unlisted\",\"categoryId\":\"${CATEGORY_ID}\",\"skillTagIds\":[\"${SKILL_TAG_ID}\"]}")
 COMPLETE_OK=$(echo "$COMPLETE" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);process.stdout.write(j.success?'1':'')})" 2>/dev/null || true)
 if [[ "${COMPLETE_OK}" != "1" ]]; then
   echo "FAIL: complete failed"

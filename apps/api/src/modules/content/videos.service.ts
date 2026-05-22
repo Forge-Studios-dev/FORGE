@@ -29,8 +29,11 @@ import {
   VideoStatus,
   VideoVisibility,
   ModerationStatus,
+  PublishStatus,
 } from './entities/video.entity';
 import { SkillTag } from '../categories/entities/skill-tag.entity';
+import { Category } from '../categories/entities/category.entity';
+import { UserRole } from '../users/entities/user.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { Playlist } from '../playlists/entities/playlist.entity';
 import { PlaylistVideo } from '../playlists/entities/playlist-video.entity';
@@ -46,6 +49,7 @@ import {
   createS3ClientForBrowserPresign,
 } from '../../common/create-s3-client';
 import { videoDetailCacheKey } from './video-cache';
+import { indexedAtOnReady, shouldIndexVideo } from './video-publish.util';
 
 export const VIDEO_PROCESSING_QUEUE = 'video-processing';
 export const VIDEO_PROCESSING_DLQ_QUEUE = 'video-processing-dlq';
@@ -64,6 +68,8 @@ export class VideosService {
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(SkillTag)
     private readonly skillTagRepository: Repository<SkillTag>,
+    @InjectRepository(Category)
+    private readonly categoryRepository: Repository<Category>,
     @InjectRepository(WatchHistory)
     private readonly watchHistoryRepository: Repository<WatchHistory>,
     @InjectRepository(Playlist)
@@ -95,24 +101,37 @@ export class VideosService {
   /** S3 object present but /complete never called (smoke tests, failed publish). */
   private static readonly STUCK_INCOMPLETE_MS = 2 * 60 * 1000;
 
-  assertCanWatchVideo(video: Video, viewerId?: string | null): void {
+  assertCanWatchVideo(
+    video: Video,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ): void {
     const isOwner = !!viewerId && viewerId === video.userId;
+    const isAdmin = viewerRole === UserRole.ADMIN;
 
-    if (video.moderationStatus === ModerationStatus.BLOCKED && !isOwner) {
+    if (video.moderationStatus === ModerationStatus.BLOCKED && !isOwner && !isAdmin) {
       throw new ForbiddenException('This video is not available');
     }
-    if (video.moderationStatus === ModerationStatus.HELD && !isOwner) {
+    if (video.moderationStatus === ModerationStatus.HELD && !isOwner && !isAdmin) {
       throw new ForbiddenException('This video is not available');
     }
-    if (video.visibility === VideoVisibility.PRIVATE && !isOwner) {
+    if (video.visibility === VideoVisibility.PRIVATE && !isOwner && !isAdmin) {
       throw new ForbiddenException('This video is private');
+    }
+    if (!isOwner && !isAdmin) {
+      if (video.status !== VideoStatus.READY) {
+        throw new ForbiddenException('This video is not available yet');
+      }
+      if (video.publishStatus !== PublishStatus.PUBLISHED) {
+        throw new ForbiddenException('This video is not published yet');
+      }
     }
 
     const now = new Date();
-    if (video.scheduledPublishAt && video.scheduledPublishAt > now && !isOwner) {
+    if (video.scheduledPublishAt && video.scheduledPublishAt > now && !isOwner && !isAdmin) {
       throw new ForbiddenException('This video is not published yet');
     }
-    if (video.publishedAt && video.publishedAt > now && !isOwner) {
+    if (video.publishedAt && video.publishedAt > now && !isOwner && !isAdmin) {
       throw new ForbiddenException('This video is not published yet');
     }
   }
@@ -298,6 +317,7 @@ export class VideosService {
       description: null,
       status: VideoStatus.UPLOADING,
       visibility: VideoVisibility.PUBLIC,
+      publishStatus: PublishStatus.DRAFT,
       s3Key: key,
       uploadContentType: dto.contentType,
       uploadFileSizeBytes: dto.fileSizeBytes,
@@ -307,6 +327,37 @@ export class VideosService {
     await this.videoRepository.save(video);
 
     return { videoId, uploadUrl, key, expiresIn: 600 };
+  }
+
+  /** Presigned PUT for optional custom thumbnail (before /complete). */
+  async getThumbnailPresignedUrl(
+    userId: string,
+    videoId: string,
+    contentType: string,
+  ): Promise<{ uploadUrl: string; key: string; expiresIn: number }> {
+    const video = await this.videoRepository.findOne({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+    if (video.userId !== userId) throw new ForbiddenException();
+    if (video.status !== VideoStatus.UPLOADING) {
+      throw new BadRequestException('Video is not in uploading state');
+    }
+
+    const ext =
+      contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
+    const key = `videos/${userId}/${videoId}/thumbnail.custom.${ext}`;
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: contentType,
+    });
+
+    const uploadUrl = await getSignedUrl(this.presignS3, command, {
+      expiresIn: 600,
+      signableHeaders: new Set(['content-type']),
+    });
+
+    return { uploadUrl, key, expiresIn: 600 };
   }
 
   /**
@@ -410,21 +461,53 @@ export class VideosService {
       );
     }
 
-    let skillTags = dto.skillTagIds?.length
-      ? await this.skillTagRepository.find({ where: { id: In(dto.skillTagIds) } })
-      : [];
+    const category = await this.categoryRepository.findOne({ where: { id: dto.categoryId } });
+    if (!category) {
+      throw new BadRequestException('Category not found');
+    }
 
-    if (dto.skillTagName?.trim() && skillTags.length === 0) {
+    const uniqueTagIds = [...new Set(dto.skillTagIds)];
+    let skillTags = await this.skillTagRepository.find({
+      where: { id: In(uniqueTagIds) },
+      relations: ['subcategory'],
+    });
+
+    if (skillTags.length !== uniqueTagIds.length) {
+      throw new BadRequestException('One or more skill tags were not found');
+    }
+
+    const invalidForCategory = skillTags.filter(
+      (t) => t.subcategory?.categoryId !== dto.categoryId,
+    );
+    if (invalidForCategory.length > 0) {
+      throw new BadRequestException('All skill tags must belong to the selected category');
+    }
+
+    if (skillTags.length === 0 && dto.skillTagName?.trim()) {
       const byName = await this.skillTagRepository
         .createQueryBuilder('tag')
+        .leftJoinAndSelect('tag.subcategory', 'subcategory')
         .where('LOWER(tag.name) = LOWER(:name)', { name: dto.skillTagName.trim() })
+        .andWhere('subcategory.categoryId = :categoryId', { categoryId: dto.categoryId })
         .getOne();
       if (byName) skillTags = [byName];
     }
 
-    video.title = dto.title ?? video.title ?? 'Untitled upload';
-    video.description = dto.description ?? video.description ?? null;
-    if (dto.visibility) video.visibility = dto.visibility;
+    if (skillTags.length === 0) {
+      throw new BadRequestException('At least one skill tag is required');
+    }
+
+    video.title = dto.title.trim();
+    video.description = dto.description?.trim() ?? null;
+    video.visibility = dto.visibility;
+    video.categoryId = category.id;
+    video.skillTags = skillTags;
+    video.tagsSearchText = [
+      category.name,
+      ...skillTags.map((t) => t.name),
+    ]
+      .filter(Boolean)
+      .join(' ');
     if (dto.scheduledPublishAt) {
       const scheduled = new Date(dto.scheduledPublishAt);
       if (Number.isNaN(scheduled.getTime())) {
@@ -437,9 +520,8 @@ export class VideosService {
     } else {
       video.scheduledPublishAt = null;
     }
-    if (skillTags.length > 0) video.skillTags = skillTags;
-
     video.status = VideoStatus.PROCESSING;
+    video.publishStatus = PublishStatus.DRAFT;
     video.uploadCompletedAt = new Date();
     video.failureReason = null;
 
@@ -501,9 +583,13 @@ export class VideosService {
     await this.redis.del(videoDetailCacheKey(videoId));
   }
 
-  async getVideoForViewer(id: string, viewerId?: string | null): Promise<PublicVideo> {
+  async getVideoForViewer(
+    id: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ): Promise<PublicVideo> {
     const video = await this.findById(id);
-    this.assertCanWatchVideo(video, viewerId);
+    this.assertCanWatchVideo(video, viewerId, viewerRole);
     if (video.status === VideoStatus.READY) {
       await this.incrementViewCount(id);
     }
@@ -560,6 +646,12 @@ export class VideosService {
         video.scheduledPublishAt = scheduled;
       }
     }
+    if (shouldIndexVideo(video)) {
+      video.indexedAt = video.indexedAt ?? indexedAtOnReady(video) ?? new Date();
+    } else if (video.visibility !== VideoVisibility.PUBLIC) {
+      video.indexedAt = null;
+    }
+
     const saved = await this.videoRepository.save(video);
     await this.bustVideoDetailCache(videoId);
     this.eventEmitter.emit('video.updated', { videoId });

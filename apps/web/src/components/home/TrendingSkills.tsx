@@ -9,11 +9,11 @@ type Props = {
   videos: Video[];
 };
 
-/** Horizontal trending row for guests — matches Stitch home blueprint */
+/** Horizontal trending row on the homepage */
 export function TrendingSkills({ videos }: Props) {
-  const { isGuest } = useAuth();
+  useAuth();
 
-  if (!isGuest || videos.length === 0) return null;
+  if (videos.length === 0) return null;
 
   return (
     <section className="mb-12 forge-fade-in">

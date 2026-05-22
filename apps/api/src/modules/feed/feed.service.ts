@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-import { Video, VideoStatus, VideoVisibility, ModerationStatus } from '../content/entities/video.entity';
+import { Video } from '../content/entities/video.entity';
+import { applyDiscoverableVideoFilters } from './feed-query.util';
 import { VideosService } from '../content/videos.service';
 import { Follow } from '../engagement/entities/follow.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
@@ -95,6 +96,8 @@ export class FeedService {
   async getFeed(options: {
     categoryId?: string;
     categorySlug?: string;
+    skillTagIds?: string[];
+    skillTagSlugs?: string[];
     cursor?: string;
     limit?: number;
     sort?: FeedSort;
@@ -114,7 +117,13 @@ export class FeedService {
       categoryId = cat?.id;
     }
 
-    const cacheKey = `feed:v2:${sort}:${categoryId || options.categorySlug || 'all'}:${options.cursor || 'start'}:${limit}`;
+    const skillKey =
+      options.skillTagIds?.length
+        ? options.skillTagIds.sort().join(',')
+        : options.skillTagSlugs?.length
+          ? options.skillTagSlugs.sort().join(',')
+          : 'all';
+    const cacheKey = `feed:v3:${sort}:${categoryId || options.categorySlug || 'all'}:${skillKey}:${options.cursor || 'start'}:${limit}`;
 
     const cached = await this.redis.get(cacheKey);
     if (cached && !options.userId && sort !== 'forYou') {
@@ -141,32 +150,43 @@ export class FeedService {
       affinityIds = [...aff];
     }
 
-    const query = this.videoRepository
-      .createQueryBuilder('v')
-      .leftJoinAndSelect('v.user', 'user')
-      .leftJoinAndSelect('v.skillTags', 'skillTags')
-      .leftJoinAndSelect('skillTags.subcategory', 'subcategory')
-      .leftJoinAndSelect('subcategory.category', 'category')
-      .where('v.status = :status', { status: VideoStatus.READY })
-      .andWhere('v.visibility = :visibility', { visibility: VideoVisibility.PUBLIC })
-      .andWhere('v.moderationStatus = :mod', { mod: ModerationStatus.NONE })
-      .andWhere(
-        '(v.scheduledPublishAt IS NULL OR v.scheduledPublishAt <= CURRENT_TIMESTAMP)',
-      )
-      .andWhere('(v.publishedAt IS NULL OR v.publishedAt <= CURRENT_TIMESTAMP)')
-      .take(limit + 1);
+    const query = applyDiscoverableVideoFilters(
+      this.videoRepository
+        .createQueryBuilder('v')
+        .leftJoinAndSelect('v.user', 'user')
+        .leftJoinAndSelect('v.skillTags', 'skillTags')
+        .leftJoinAndSelect('skillTags.subcategory', 'subcategory')
+        .leftJoinAndSelect('subcategory.category', 'category'),
+    ).take(limit + 1);
 
     if (categoryId) {
-      query.andWhere('category.id = :categoryId', { categoryId });
+      query.andWhere('(v.categoryId = :categoryId OR category.id = :categoryId)', {
+        categoryId,
+      });
+    }
+
+    if (options.skillTagIds?.length) {
+      query
+        .innerJoin('v.skillTags', 'filterTag')
+        .andWhere('filterTag.id IN (:...skillTagIds)', { skillTagIds: options.skillTagIds });
+    } else if (options.skillTagSlugs?.length) {
+      query
+        .innerJoin('v.skillTags', 'filterTag')
+        .andWhere('filterTag.slug IN (:...skillTagSlugs)', { skillTagSlugs: options.skillTagSlugs });
     }
 
     const cursor = parseCursor(options.cursor, sort);
 
+    const orderTime = 'COALESCE(v.publishedAt, v.createdAt)';
+
     if (sort === 'popular') {
       query.addSelect(POPULAR_SCORE_SQL, 'score');
-      query.orderBy('score', 'DESC').addOrderBy('v.createdAt', 'DESC').addOrderBy('v.id', 'DESC');
+      query
+        .orderBy('score', 'DESC')
+        .addOrderBy(orderTime, 'DESC')
+        .addOrderBy('v.id', 'DESC');
       if (cursor && cursor.sort === 'popular') {
-        query.andWhere(`(${POPULAR_SCORE_SQL}, v.createdAt, v.id) < (:cs, :ca, :cid)`, {
+        query.andWhere(`(${POPULAR_SCORE_SQL}, ${orderTime}, v.id) < (:cs, :ca, :cid)`, {
           cs: cursor.s,
           ca: new Date(cursor.ca),
           cid: cursor.id,
@@ -183,29 +203,32 @@ export class FeedService {
           : `0.0`;
       const personSql = `(${followCase} + ${affCase} + ${POPULAR_SCORE_SQL})`;
       query.addSelect(personSql, 'personScore');
-      query.orderBy('personScore', 'DESC').addOrderBy('v.createdAt', 'DESC').addOrderBy('v.id', 'DESC');
+      query
+        .orderBy('personScore', 'DESC')
+        .addOrderBy(orderTime, 'DESC')
+        .addOrderBy('v.id', 'DESC');
       if (followingIds.length) query.setParameter('followingIds', followingIds);
       if (affinityIds.length) query.setParameter('affinityIds', affinityIds);
 
       if (cursor && cursor.sort === 'forYou') {
-        query.andWhere(`(${personSql}, v.createdAt, v.id) < (:cs, :ca, :cid)`, {
+        query.andWhere(`(${personSql}, ${orderTime}, v.id) < (:cs, :ca, :cid)`, {
           cs: cursor.s,
           ca: new Date(cursor.ca),
           cid: cursor.id,
         });
       }
     } else {
-      query.orderBy('v.createdAt', 'DESC').addOrderBy('v.id', 'DESC');
+      query.orderBy(orderTime, 'DESC').addOrderBy('v.id', 'DESC');
       if (cursor) {
         if (cursor.sort === 'latest') {
-          query.andWhere('(v.createdAt, v.id) < (:ca, :cid)', {
+          query.andWhere(`(${orderTime}, v.id) < (:ca, :cid)`, {
             ca: new Date(cursor.ca),
             cid: cursor.id,
           });
         } else if (cursor.sort === 'legacy') {
           const d = new Date(cursor.iso);
           if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid cursor');
-          query.andWhere('v.createdAt < :legacyCursor', { legacyCursor: d });
+          query.andWhere(`${orderTime} < :legacyCursor`, { legacyCursor: d });
         }
       }
     }
@@ -221,13 +244,14 @@ export class FeedService {
         nextCursor = encodeCursor({
           sort: 'popular',
           s: popularScore(last),
-          ca: last.createdAt.toISOString(),
+          ca: (last.publishedAt ?? last.createdAt).toISOString(),
           id: last.id,
         });
       } else if (sort === 'latest') {
+        const sortTime = last.publishedAt ?? last.createdAt;
         nextCursor = encodeCursor({
           sort: 'latest',
-          ca: last.createdAt.toISOString(),
+          ca: sortTime.toISOString(),
           id: last.id,
         });
       } else if (sort === 'forYou' && options.userId) {
@@ -236,7 +260,7 @@ export class FeedService {
         nextCursor = encodeCursor({
           sort: 'forYou',
           s: forYouScore(last, following, affinity),
-          ca: last.createdAt.toISOString(),
+          ca: (last.publishedAt ?? last.createdAt).toISOString(),
           id: last.id,
         });
       }
@@ -255,9 +279,15 @@ export class FeedService {
   }
 
   async invalidateFeedCache(categoryId?: string) {
-    const pattern = categoryId ? `feed:*:${categoryId}:*` : 'feed:*';
-    const keys = await this.redis.keys(pattern);
-    if (keys.length > 0) {
+    const patterns = categoryId
+      ? [`feed:v3:*:${categoryId}:*`, `feed:*:${categoryId}:*`]
+      : ['feed:v3:*', 'feed:*'];
+    const keys = new Set<string>();
+    for (const pattern of patterns) {
+      const found = await this.redis.keys(pattern);
+      found.forEach((k) => keys.add(k));
+    }
+    if (keys.size > 0) {
       await this.redis.del(...keys);
     }
   }

@@ -11,23 +11,39 @@ import { EmptyState } from '@/components/EmptyState';
 
 interface Props {
   initialData: PaginatedResponse<Video>;
+  /** Fixed category slug (e.g. explore pages) — overrides ?category= query param */
+  categorySlug?: string;
+  /** Fixed skill tag slug for /explore/skills/[slug] */
+  skillTagSlug?: string;
+  /** API path for pagination (default: /videos/feed) */
+  feedPath?: string;
+  sort?: 'latest' | 'popular' | 'forYou';
 }
 
-export function FeedGrid({ initialData }: Props) {
+export function FeedGrid({
+  initialData,
+  categorySlug: categorySlugProp,
+  skillTagSlug,
+  feedPath = '/videos/feed',
+  sort,
+}: Props) {
   const searchParams = useSearchParams();
-  const categorySlug = searchParams.get('category');
+  const categorySlug = categorySlugProp ?? searchParams.get('category') ?? undefined;
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const { isGuest, isLoading: authLoading, canViewPersonalizedFeed } = useAuth();
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isError, refetch } = useInfiniteQuery({
-    queryKey: ['feed', categorySlug, isGuest],
+    queryKey: ['feed', feedPath, categorySlug, skillTagSlug, sort, isGuest],
     enabled: !authLoading,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '12' });
       if (pageParam) params.set('cursor', pageParam as string);
       if (categorySlug) params.set('categorySlug', categorySlug);
-      if (canViewPersonalizedFeed && !categorySlug) params.set('sort', 'forYou');
-      const { data } = await api.get<{ data: PaginatedResponse<Video> }>(`/videos/feed?${params}`);
+      if (skillTagSlug) params.set('skillTagSlugs', skillTagSlug);
+      const effectiveSort =
+        sort ?? (canViewPersonalizedFeed && !categorySlug && !skillTagSlug ? 'forYou' : 'latest');
+      params.set('sort', effectiveSort);
+      const { data } = await api.get<{ data: PaginatedResponse<Video> }>(`${feedPath}?${params}`);
       return data.data;
     },
     initialPageParam: undefined as string | undefined,

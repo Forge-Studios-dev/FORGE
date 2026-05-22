@@ -6,7 +6,8 @@ export type UploadVisibility = 'public' | 'unlisted' | 'private';
 export type UploadDraft = {
   title: string;
   description: string;
-  skillTag: string;
+  categoryId: string;
+  skillTagIds: string[];
   fileName?: string;
   fileSize?: number;
   fileType?: string;
@@ -19,7 +20,8 @@ export type UploadDraft = {
 const DEFAULT_DRAFT: UploadDraft = {
   title: '',
   description: '',
-  skillTag: '',
+  categoryId: '',
+  skillTagIds: [],
   publishMode: 'immediate',
   scheduledAt: '',
   visibility: 'public',
@@ -31,7 +33,16 @@ export function getUploadDraft(): UploadDraft {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_DRAFT };
-    return { ...DEFAULT_DRAFT, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw) as Partial<UploadDraft> & { skillTag?: string };
+    const skillTagIds =
+      parsed.skillTagIds ??
+      (parsed.skillTag ? [] : []);
+    return {
+      ...DEFAULT_DRAFT,
+      ...parsed,
+      skillTagIds,
+      categoryId: parsed.categoryId ?? '',
+    };
   } catch {
     return { ...DEFAULT_DRAFT };
   }

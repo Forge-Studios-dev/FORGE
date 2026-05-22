@@ -147,9 +147,10 @@ export function VideoInfo({ video, onGuestAction }: Props) {
           {video.skillTags && video.skillTags.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {video.skillTags.map((tag, i) => (
-                <span
+                <Link
                   key={tag.id}
-                  className={`font-label-caps rounded-full border px-3 py-1 ${
+                  href={`/explore/skills/${tag.slug}`}
+                  className={`font-label-caps rounded-full border px-3 py-1 hover:opacity-90 ${
                     i % 3 === 0
                       ? 'border-primary/20 bg-primary/10 text-primary'
                       : i % 3 === 1
@@ -158,7 +159,7 @@ export function VideoInfo({ video, onGuestAction }: Props) {
                   }`}
                 >
                   {tag.name}
-                </span>
+                </Link>
               ))}
             </div>
           )}

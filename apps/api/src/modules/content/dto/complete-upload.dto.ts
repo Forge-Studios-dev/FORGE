@@ -1,4 +1,5 @@
 import {
+  ArrayMinSize,
   IsArray,
   IsDateString,
   IsEnum,
@@ -8,39 +9,35 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { VideoVisibility } from '../entities/video.entity';
 
 export class CompleteUploadDto {
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty({ minLength: 3, maxLength: 200 })
   @IsString()
   @MinLength(3)
   @MaxLength(200)
-  title?: string;
+  title: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: 2000 })
   @IsOptional()
   @IsString()
   @MaxLength(2000)
   description?: string;
 
-  @ApiPropertyOptional({ enum: VideoVisibility })
-  @IsOptional()
+  @ApiProperty({ enum: VideoVisibility })
   @IsEnum(VideoVisibility)
-  visibility?: VideoVisibility;
+  visibility: VideoVisibility;
 
-  @ApiPropertyOptional({ type: [String], description: 'Skill tag IDs' })
-  @IsOptional()
+  @ApiProperty({ description: 'Primary category for discovery' })
+  @IsUUID('4')
+  categoryId: string;
+
+  @ApiProperty({ type: [String], description: 'At least one skill tag ID' })
   @IsArray()
+  @ArrayMinSize(1)
   @IsUUID('4', { each: true })
-  skillTagIds?: string[];
-
-  @ApiPropertyOptional({ description: 'Resolve skill tag by name (case-insensitive)' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  skillTagName?: string;
+  skillTagIds: string[];
 
   @ApiPropertyOptional({ description: 'ISO8601 — hide from feed until this instant' })
   @IsOptional()
@@ -52,5 +49,11 @@ export class CompleteUploadDto {
   @IsArray()
   @IsUUID('4', { each: true })
   playlistIds?: string[];
-}
 
+  /** @deprecated Use skillTagIds — kept for backward compatibility */
+  @ApiPropertyOptional({ description: 'Resolve skill tag by name (case-insensitive)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  skillTagName?: string;
+}

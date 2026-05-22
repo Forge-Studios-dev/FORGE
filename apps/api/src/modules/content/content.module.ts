@@ -5,6 +5,7 @@ import { VideosController } from './videos.controller';
 import { VideosService, VIDEO_PROCESSING_QUEUE } from './videos.service';
 import { Video } from './entities/video.entity';
 import { SkillTag } from '../categories/entities/skill-tag.entity';
+import { Category } from '../categories/entities/category.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { Playlist } from '../playlists/entities/playlist.entity';
 import { PlaylistVideo } from '../playlists/entities/playlist-video.entity';
@@ -13,7 +14,7 @@ import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Video, SkillTag, WatchHistory, Playlist, PlaylistVideo]),
+    TypeOrmModule.forFeature([Video, SkillTag, Category, WatchHistory, Playlist, PlaylistVideo]),
     forwardRef(() => UsersModule),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,

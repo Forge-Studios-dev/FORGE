@@ -12,6 +12,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { Category } from '../../categories/entities/category.entity';
 import { SkillTag } from '../../categories/entities/skill-tag.entity';
 import { Like } from '../../engagement/entities/like.entity';
 import { Comment } from '../../engagement/entities/comment.entity';
@@ -36,10 +37,17 @@ export enum ModerationStatus {
   BLOCKED = 'blocked',
 }
 
+export enum PublishStatus {
+  DRAFT = 'draft',
+  PUBLISHED = 'published',
+}
+
 @Entity('videos')
 @Index(['userId'])
 @Index(['status'])
 @Index(['createdAt'])
+@Index(['categoryId'])
+@Index(['publishStatus'])
 export class Video {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -56,6 +64,10 @@ export class Video {
 
   @Column({ type: 'varchar', nullable: true, length: 2000 })
   description: string | null;
+
+  /** Denormalized category + skill names for FTS (set at upload complete). */
+  @Column({ name: 'tags_search_text', type: 'varchar', nullable: true, length: 2000 })
+  tagsSearchText: string | null;
 
   @Column({
     type: 'enum',
@@ -111,8 +123,26 @@ export class Video {
   @Column({ name: 'search_vector', type: 'tsvector', select: false, insert: false, update: false })
   searchVector?: string;
 
+  @Column({
+    name: 'publish_status',
+    type: 'enum',
+    enum: PublishStatus,
+    default: PublishStatus.DRAFT,
+  })
+  publishStatus: PublishStatus;
+
+  @ManyToOne(() => Category, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'category_id' })
+  category: Category | null;
+
+  @Column({ name: 'category_id', type: 'uuid', nullable: true })
+  categoryId: string | null;
+
   @Column({ name: 'published_at', type: 'timestamptz', nullable: true })
   publishedAt: Date | null;
+
+  @Column({ name: 'indexed_at', type: 'timestamptz', nullable: true })
+  indexedAt: Date | null;
 
   @Column({ name: 'scheduled_publish_at', type: 'timestamptz', nullable: true })
   scheduledPublishAt: Date | null;

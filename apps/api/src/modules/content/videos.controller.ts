@@ -20,6 +20,7 @@ import { VideosService } from './videos.service';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { PresignedUrlDto } from './dto/presigned-url.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
+import { ThumbnailPresignedDto } from './dto/thumbnail-presigned.dto';
 import { RecordWatchDto } from './dto/record-watch.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -91,6 +92,19 @@ export class VideosController {
     return this.videosService.create(user.sub, dto);
   }
 
+  @Post(':id([0-9a-fA-F-]{36})/thumbnail/presigned-url')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Get presigned S3 URL for custom thumbnail image' })
+  getThumbnailPresigned(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: ThumbnailPresignedDto,
+  ) {
+    return this.videosService.getThumbnailPresignedUrl(user.sub, id, dto.contentType);
+  }
+
   @Post(':id([0-9a-fA-F-]{36})/complete')
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.UPLOAD_VIDEO)
@@ -138,7 +152,7 @@ export class VideosController {
   @Get(':id([0-9a-fA-F-]{36})')
   @ApiOperation({ summary: 'Get video by ID' })
   async findOne(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
-    return this.videosService.getVideoForViewer(id, user?.sub);
+    return this.videosService.getVideoForViewer(id, user?.sub, user?.role);
   }
 
   @Delete(':id([0-9a-fA-F-]{36})')

@@ -46,6 +46,40 @@ export class CategoriesService {
     });
   }
 
+  /** All skill tags for a category (for upload picker). */
+  async getSkillTagsForCategory(categoryId: string): Promise<SkillTag[]> {
+    await this.findById(categoryId);
+    return this.skillTagRepository
+      .createQueryBuilder('tag')
+      .innerJoin('tag.subcategory', 'sub')
+      .where('sub.categoryId = :categoryId', { categoryId })
+      .orderBy('tag.name', 'ASC')
+      .getMany();
+  }
+
+  /** Categories with nested skill tags for the upload flow. */
+  async getUploadOptions(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      slug: string;
+      skillTags: Array<{ id: string; name: string; slug: string }>;
+    }>
+  > {
+    const categories = await this.categoryRepository.find({ order: { sortOrder: 'ASC' } });
+    const result = [];
+    for (const cat of categories) {
+      const tags = await this.getSkillTagsForCategory(cat.id);
+      result.push({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        skillTags: tags.map((t) => ({ id: t.id, name: t.name, slug: t.slug })),
+      });
+    }
+    return result;
+  }
+
   async create(dto: CreateCategoryDto): Promise<Category> {
     const existing = await this.categoryRepository.findOne({
       where: [{ slug: dto.slug }, { name: dto.name }],

@@ -14,8 +14,10 @@ import {
   S3Client,
   GetObjectCommand,
   PutObjectCommand,
+  HeadObjectCommand,
 } from '@aws-sdk/client-s3';
-import { Video, VideoStatus } from '../../content/entities/video.entity';
+import { Video, VideoStatus, PublishStatus } from '../../content/entities/video.entity';
+import { indexedAtOnReady, publishStatusOnReady } from '../../content/video-publish.util';
 import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../../content/videos.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { buildPublicMediaUrl } from '../../../common/media-url.util';
@@ -121,7 +123,12 @@ export class VideoProcessorWorker extends WorkerHost {
       await job.updateProgress(20);
 
       const thumbnailPath = path.join(tmpDir, 'thumbnail.jpg');
-      await this.generateThumbnail(rawFilePath, thumbnailPath);
+      const customThumbKey = await this.findCustomThumbnailKey(job.data.userId, videoId);
+      if (customThumbKey) {
+        await this.downloadFromS3(customThumbKey, thumbnailPath);
+      } else {
+        await this.generateThumbnail(rawFilePath, thumbnailPath);
+      }
 
       await job.updateProgress(35);
 
@@ -144,18 +151,35 @@ export class VideoProcessorWorker extends WorkerHost {
       const hlsUrl = this.mediaUrl(`${hlsBaseKey}/master.m3u8`);
       const thumbnailUrl = this.mediaUrl(thumbnailKey);
 
-      const row = await this.videoRepository.findOne({ where: { id: videoId } });
+      const row = await this.videoRepository.findOne({
+        where: { id: videoId },
+        relations: ['skillTags'],
+      });
       const now = new Date();
       const scheduled = row?.scheduledPublishAt;
       const publishedAt =
         scheduled && scheduled.getTime() > now.getTime() ? scheduled : now;
 
+      const publishStatus = publishStatusOnReady();
+      const indexedAt = row
+        ? indexedAtOnReady({
+            ...row,
+            status: VideoStatus.READY,
+            publishStatus,
+            hlsUrl,
+            thumbnailUrl,
+            publishedAt,
+          })
+        : null;
+
       await this.videoRepository.update(videoId, {
         status: VideoStatus.READY,
+        publishStatus,
         hlsUrl,
         thumbnailUrl,
         durationSeconds: duration,
         publishedAt,
+        indexedAt,
       });
 
       await this.redis.del(videoDetailCacheKey(videoId));
@@ -163,6 +187,7 @@ export class VideoProcessorWorker extends WorkerHost {
       this.eventEmitter.emit('video.ready', {
         videoId,
         userId: job.data.userId,
+        categoryId: row?.categoryId ?? null,
         status: VideoStatus.READY,
         hlsUrl,
         thumbnailUrl,
@@ -195,6 +220,20 @@ export class VideoProcessorWorker extends WorkerHost {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
+  }
+
+  private async findCustomThumbnailKey(userId: string, videoId: string): Promise<string | null> {
+    const prefixes = ['thumbnail.custom.jpg', 'thumbnail.custom.png', 'thumbnail.custom.webp'];
+    for (const suffix of prefixes) {
+      const key = `videos/${userId}/${videoId}/${suffix}`;
+      try {
+        await this.s3.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+        return key;
+      } catch {
+        /* try next */
+      }
+    }
+    return null;
   }
 
   private async downloadFromS3(key: string, destPath: string): Promise<void> {

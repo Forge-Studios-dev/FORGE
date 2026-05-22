@@ -7,8 +7,8 @@ export class FeedListener {
   constructor(private readonly feedService: FeedService) {}
 
   @OnEvent('video.ready')
-  async onVideoReady(payload: { videoId: string }) {
-    await this.feedService.invalidateFeedCache();
+  async onVideoReady(payload: { videoId: string; categoryId?: string | null }) {
+    await this.feedService.invalidateFeedCache(payload?.categoryId ?? undefined);
     if (payload?.videoId) await this.feedService.invalidateVideoDetailCache(payload.videoId);
   }
 

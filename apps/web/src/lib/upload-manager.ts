@@ -1,5 +1,9 @@
 import { api } from '@/lib/api';
 import { putVideoToStorage } from '@/lib/upload-storage';
+import {
+  getUploadThumbnail,
+  resolveThumbnailContentType,
+} from '@/lib/upload-thumbnail-store';
 import type { CompleteUploadOptions, UploadPhase } from '@/lib/upload-lesson';
 import { resolveVideoContentType } from '@/lib/upload-lesson';
 
@@ -10,8 +14,7 @@ export type ActiveUploadMeta = {
   fileName: string;
   title: string;
   description: string;
-  skillTag?: string;
-  options?: CompleteUploadOptions;
+  options: CompleteUploadOptions;
   phase: UploadPhase;
   progress: number;
   startedAt: string;
@@ -68,8 +71,7 @@ export async function runBackgroundUpload(
   file: File,
   title: string,
   description: string,
-  skillTagName?: string,
-  options?: CompleteUploadOptions,
+  options: CompleteUploadOptions,
 ): Promise<string> {
   if (meta?.phase === 'uploading' || meta?.phase === 'presigning') {
     throw new Error('Another upload is already running.');
@@ -81,7 +83,6 @@ export async function runBackgroundUpload(
     fileName: file.name,
     title,
     description,
-    skillTag: skillTagName,
     options,
     phase: 'presigning',
     progress: 0,
@@ -98,6 +99,20 @@ export async function runBackgroundUpload(
   emit();
 
   try {
+    const thumb = getUploadThumbnail();
+    if (thumb) {
+      const thumbType = resolveThumbnailContentType(thumb);
+      const thumbRes = await api.post(`/videos/${videoId}/thumbnail/presigned-url`, {
+        contentType: thumbType,
+      });
+      const { uploadUrl: thumbUrl } = thumbRes.data.data as { uploadUrl: string };
+      await fetch(thumbUrl, {
+        method: 'PUT',
+        body: thumb,
+        headers: { 'Content-Type': thumbType },
+      });
+    }
+
     const via = await putVideoToStorage(videoId, uploadUrl, file, contentType, (pct) => {
       if (meta) {
         meta = { ...meta, progress: pct, phase: 'uploading' };
@@ -115,10 +130,11 @@ export async function runBackgroundUpload(
     await api.post(`/videos/${videoId}/complete`, {
       title: title.trim(),
       description: description.trim() || undefined,
-      skillTagName: skillTagName?.trim() || undefined,
-      visibility: options?.visibility ?? 'public',
-      scheduledPublishAt: options?.scheduledPublishAt,
-      playlistIds: options?.playlistIds?.length ? options.playlistIds : undefined,
+      categoryId: options.categoryId,
+      skillTagIds: options.skillTagIds,
+      visibility: options.visibility ?? 'public',
+      scheduledPublishAt: options.scheduledPublishAt,
+      playlistIds: options.playlistIds?.length ? options.playlistIds : undefined,
     });
 
     meta = null;

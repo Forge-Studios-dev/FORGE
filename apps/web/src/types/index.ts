@@ -32,6 +32,7 @@ export interface Video {
   likeCount: number;
   commentCount: number;
   skillTags: SkillTag[];
+  categoryId?: string | null;
   createdAt: string;
   publishedAt?: string | null;
   scheduledPublishAt?: string | null;

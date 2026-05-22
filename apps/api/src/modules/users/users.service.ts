@@ -102,6 +102,7 @@ export class UsersService {
 
     if (!isOwner) {
       query
+        .andWhere('v.publishStatus = :publishStatus', { publishStatus: 'published' })
         .andWhere('v.visibility IN (:...vis)', {
           vis: ['public', 'unlisted'],
         })

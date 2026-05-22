@@ -7,6 +7,8 @@ const ALLOWED_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/x-m4v', ''
 export type UploadPhase = 'presigning' | 'uploading' | 'completing';
 
 export type CompleteUploadOptions = {
+  categoryId: string;
+  skillTagIds: string[];
   visibility?: UploadVisibility;
   scheduledPublishAt?: string;
   playlistIds?: string[];
@@ -37,8 +39,7 @@ export async function uploadLesson(
   title: string,
   description: string,
   onProgress: (pct: number, phase: UploadPhase) => void,
-  skillTagName?: string,
-  options?: CompleteUploadOptions,
+  options: CompleteUploadOptions,
 ): Promise<string> {
   const unsub = subscribeActiveUpload((state) => {
     if (!state) return;
@@ -46,7 +47,7 @@ export async function uploadLesson(
   });
 
   try {
-    return await runBackgroundUpload(file, title, description, skillTagName, options);
+    return await runBackgroundUpload(file, title, description, options);
   } finally {
     unsub();
   }
