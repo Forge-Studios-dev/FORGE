@@ -6,6 +6,7 @@ Run from **repository root** unless noted.
 |--------|-----------|---------|
 | `setup-local-demo.sh` | — | Docker Postgres/Redis + API seed |
 | `reset-demo-users.sh` | — | Reset demo user roles/passwords |
+| `wipe-platform-data.sh` | `FORGE_WIPE_CONFIRM=yes` | Wipe DB + S3 + Redis and re-seed demo users |
 | `ci-local.sh` | `npm run ci` | Same checks as `.github/workflows/ci.yml` |
 | `smoke-api.sh` | `npm run smoke:api` | Health + auth smoke against API |
 | `neon-db-setup.sh` | `npm run db:neon:setup` | Neon migrate + seed |
