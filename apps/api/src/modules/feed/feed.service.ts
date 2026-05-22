@@ -16,6 +16,9 @@ const FEED_CACHE_JITTER_SEC = 60;
 /** SQL expression — must match ordering for popular / forYou base component. */
 export const POPULAR_SCORE_SQL = `(v.view_count * 0.6 + v.like_count * 0.3 + (EXTRACT(EPOCH FROM v.created_at) / 86400) * 0.1)`;
 
+/** Sort key for latest/popular/forYou tie-break (use addSelect alias — not raw orderBy). */
+export const SORT_TIME_SQL = 'COALESCE(v.published_at, v.created_at)';
+
 export type FeedSort = 'latest' | 'popular' | 'forYou';
 
 type PopularCursor = { sort: 'popular'; s: number; ca: string; id: string };
@@ -177,16 +180,16 @@ export class FeedService {
 
     const cursor = parseCursor(options.cursor, sort);
 
-    const orderTime = 'COALESCE(v.published_at, v.created_at)';
+    query.addSelect(SORT_TIME_SQL, 'sortTime');
 
     if (sort === 'popular') {
       query.addSelect(POPULAR_SCORE_SQL, 'score');
       query
         .orderBy('score', 'DESC')
-        .addOrderBy(orderTime, 'DESC')
+        .addOrderBy('sortTime', 'DESC')
         .addOrderBy('v.id', 'DESC');
       if (cursor && cursor.sort === 'popular') {
-        query.andWhere(`(${POPULAR_SCORE_SQL}, ${orderTime}, v.id) < (:cs, :ca, :cid)`, {
+        query.andWhere(`(${POPULAR_SCORE_SQL}, ${SORT_TIME_SQL}, v.id) < (:cs, :ca, :cid)`, {
           cs: cursor.s,
           ca: new Date(cursor.ca),
           cid: cursor.id,
@@ -205,30 +208,30 @@ export class FeedService {
       query.addSelect(personSql, 'personScore');
       query
         .orderBy('personScore', 'DESC')
-        .addOrderBy(orderTime, 'DESC')
+        .addOrderBy('sortTime', 'DESC')
         .addOrderBy('v.id', 'DESC');
       if (followingIds.length) query.setParameter('followingIds', followingIds);
       if (affinityIds.length) query.setParameter('affinityIds', affinityIds);
 
       if (cursor && cursor.sort === 'forYou') {
-        query.andWhere(`(${personSql}, ${orderTime}, v.id) < (:cs, :ca, :cid)`, {
+        query.andWhere(`(${personSql}, ${SORT_TIME_SQL}, v.id) < (:cs, :ca, :cid)`, {
           cs: cursor.s,
           ca: new Date(cursor.ca),
           cid: cursor.id,
         });
       }
     } else {
-      query.orderBy(orderTime, 'DESC').addOrderBy('v.id', 'DESC');
+      query.orderBy('sortTime', 'DESC').addOrderBy('v.id', 'DESC');
       if (cursor) {
         if (cursor.sort === 'latest') {
-          query.andWhere(`(${orderTime}, v.id) < (:ca, :cid)`, {
+          query.andWhere(`(${SORT_TIME_SQL}, v.id) < (:ca, :cid)`, {
             ca: new Date(cursor.ca),
             cid: cursor.id,
           });
         } else if (cursor.sort === 'legacy') {
           const d = new Date(cursor.iso);
           if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid cursor');
-          query.andWhere(`${orderTime} < :legacyCursor`, { legacyCursor: d });
+          query.andWhere(`${SORT_TIME_SQL} < :legacyCursor`, { legacyCursor: d });
         }
       }
     }
