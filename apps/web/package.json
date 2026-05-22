@@ -6,12 +6,15 @@
     "dev": "npm run build --workspace=@forge/shared-types && next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@forge/design-system": "*",
     "@forge/shared-types": "*",
     "@tanstack/react-query": "^5.29.2",
+    "@tanstack/react-virtual": "^3.13.24",
     "axios": "^1.6.8",
     "clsx": "^2.1.0",
     "hls.js": "^1.5.7",
@@ -22,6 +25,7 @@
     "tailwind-merge": "^2.2.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4.1.4",
     "@types/node": "^20.12.5",
     "@types/react": "^18.2.79",

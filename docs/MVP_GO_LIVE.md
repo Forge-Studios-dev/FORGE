@@ -187,6 +187,26 @@ curl -s https://forge-studios-api.fly.dev/api/v1/health
 
 Swagger: `https://forge-studios-api.fly.dev/api/docs`
 
+### 3.4b Fly worker (video transcoding — required for uploads)
+
+The API must **not** run FFmpeg. Deploy a separate worker app:
+
+```bash
+npm run deploy:fly:worker
+# or: bash scripts/fly-worker-setup.sh
+```
+
+Uses `fly.worker.toml` (`WORKER_ONLY=true`). Release workflow deploys this after the API when `release.yml` runs.
+
+Production secrets on the worker must match API: `DATABASE_URL`, Redis/Upstash, `AWS_*`, `S3_BUCKET_NAME`, `CLOUDFRONT_DOMAIN`.
+
+Also set on **API** (production):
+
+```bash
+MUX_WEBHOOK_SECRET='...'   # if using live
+METRICS_ENABLED='true'     # optional Prometheus scrape
+```
+
 ### 3.5 GitHub Actions (optional auto-deploy)
 
 1. [fly.io/user/personal_access_tokens](https://fly.io/user/personal_access_tokens) → create token.

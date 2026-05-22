@@ -17,6 +17,9 @@ Skill-first platform for learning journeys, tutorial videos, live teaching, and 
 | **Show a client** | [docs/CLIENT_OVERVIEW.md](docs/CLIENT_OVERVIEW.md) |
 | **Full specification** | [docs/FORGE_PROJECT_MASTER.md](docs/FORGE_PROJECT_MASTER.md) |
 | **CI/CD & secrets** | [docs/CI_CD.md](docs/CI_CD.md) |
+| **Production hardening log** | [docs/PLATFORM_AUDIT_REMEDIATION.md](docs/PLATFORM_AUDIT_REMEDIATION.md) |
+| **Pre-merge checklist** | [docs/MERGE_CHECKLIST.md](docs/MERGE_CHECKLIST.md) |
+| **Video upload / multipart** | [docs/VIDEO_UPLOAD.md](docs/VIDEO_UPLOAD.md) |
 | **All docs** | [docs/README.md](docs/README.md) |
 
 ```bash

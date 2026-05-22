@@ -2,19 +2,23 @@
 
 import { useState } from 'react';
 import { Video } from '@/types';
-import { VideoPlayer } from '@/components/VideoPlayer/VideoPlayer';
+import { VideoPlayer } from '@/components/VideoPlayer/VideoPlayerLazy';
 import { VideoInfo } from '@/components/VideoPlayer/VideoInfo';
 import { CommentsPanel } from '@/components/Comments/CommentsPanel';
-import { RelatedVideos } from '@/components/watch/RelatedVideos';
 import { AuthGateModal } from '@/components/gates/AuthGateModal';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
 import { useAuth } from '@/lib/auth';
 
-export function WatchExperience({ video }: { video: Video }) {
+export function WatchExperience({
+  video,
+  sidebar,
+}: {
+  video: Video;
+  sidebar?: React.ReactNode;
+}) {
   const { isGuest, canEngage, user } = useAuth();
   const [authGate, setAuthGate] = useState(false);
-  const skillTag = video.skillTags?.[0]?.name;
   const canPlay = video.status === 'ready' && !!video.hlsUrl;
   const isPrivate = video.visibility === 'private';
   const isOwner = user?.id === video.userId;
@@ -71,10 +75,12 @@ export function WatchExperience({ video }: { video: Video }) {
             onGuestInteract={!canEngage ? () => setAuthGate(true) : undefined}
           />
         </div>
-        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-          <h2 className="font-label-caps text-outline">Up next</h2>
-          <RelatedVideos videoId={video.id} creatorId={video.userId} skillTag={skillTag} />
-        </aside>
+        {sidebar ? (
+          <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+            <h2 className="font-label-caps text-outline">Up next</h2>
+            {sidebar}
+          </aside>
+        ) : null}
       </div>
       <AuthGateModal
         open={authGate}

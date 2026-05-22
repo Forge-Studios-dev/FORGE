@@ -5,7 +5,7 @@ import Hls from 'hls.js';
 import { api } from '@/lib/api';
 import { getAccessToken } from '@/lib/auth-storage';
 
-interface Props {
+export interface VideoPlayerProps {
   videoId?: string;
   hlsUrl?: string;
   thumbnailUrl?: string;
@@ -14,7 +14,7 @@ interface Props {
   lowLatency?: boolean;
 }
 
-export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }: Props) {
+export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const lastProgressRef = useRef(0);

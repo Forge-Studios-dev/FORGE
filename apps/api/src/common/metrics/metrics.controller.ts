@@ -1,24 +1,25 @@
 import { Controller, Get, NotFoundException, Res } from '@nestjs/common';
 import { Response } from 'express';
-import { collectDefaultMetrics, Registry } from 'prom-client';
+import { collectDefaultMetrics } from 'prom-client';
 import { Public } from '../decorators/public.decorator';
+import { forgeMetricsEnabled, getForgeMetricsRegistry } from './forge-metrics';
 
 @Controller('metrics')
 export class MetricsController {
-  private readonly register: Registry;
-
-  constructor() {
-    this.register = new Registry();
-    collectDefaultMetrics({ register: this.register });
-  }
+  private defaultsRegistered = false;
 
   @Public()
   @Get()
   async metrics(@Res({ passthrough: true }) res: Response): Promise<string> {
-    if (process.env.METRICS_ENABLED !== 'true') {
+    if (!forgeMetricsEnabled()) {
       throw new NotFoundException();
     }
-    res.setHeader('Content-Type', this.register.contentType);
-    return this.register.metrics();
+    const register = getForgeMetricsRegistry();
+    if (!this.defaultsRegistered) {
+      collectDefaultMetrics({ register });
+      this.defaultsRegistered = true;
+    }
+    res.setHeader('Content-Type', register.contentType);
+    return register.metrics();
   }
 }

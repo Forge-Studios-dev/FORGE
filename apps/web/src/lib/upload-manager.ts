@@ -1,5 +1,8 @@
 import { api } from '@/lib/api';
-import { putVideoToStorage } from '@/lib/upload-storage';
+import {
+  putVideoToStorageFromPresign,
+  type VideoPresignResponse,
+} from '@/lib/upload-storage-multipart';
 import {
   getUploadThumbnail,
   resolveThumbnailContentType,
@@ -94,7 +97,8 @@ export async function runBackgroundUpload(
     contentType,
     fileSizeBytes: file.size,
   });
-  const { videoId, uploadUrl } = presignRes.data.data as { videoId: string; uploadUrl: string };
+  const presignData = presignRes.data.data as VideoPresignResponse;
+  const videoId = presignData.videoId;
   meta = { ...meta!, videoId, phase: 'uploading', progress: 0 };
   emit();
 
@@ -113,13 +117,15 @@ export async function runBackgroundUpload(
       });
     }
 
-    const via = await putVideoToStorage(videoId, uploadUrl, file, contentType, (pct) => {
+    const via = await putVideoToStorageFromPresign(file, presignData, contentType, (pct) => {
       if (meta) {
         meta = { ...meta, progress: pct, phase: 'uploading' };
         emit();
       }
     });
-    meta = meta ? { ...meta, uploadVia: via } : meta;
+    meta = meta
+      ? { ...meta, uploadVia: via === 'multipart' ? 'direct' : via }
+      : meta;
     emit();
 
     if (meta) {

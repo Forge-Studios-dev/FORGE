@@ -1,0 +1,12 @@
+# Example Prometheus scrape config for FORGE API (Fly or K8s).
+# Enable on API: METRICS_ENABLED=true
+# Scrape path: GET /metrics (not under /api/v1)
+
+scrape_configs:
+  - job_name: forge-api
+    metrics_path: /metrics
+    scheme: https
+    static_configs:
+      - targets:
+          - forge-studios-api.fly.dev
+    # Fly: use fly-prometheus or private scraper with FLY_API_TOKEN proxy

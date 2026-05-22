@@ -28,6 +28,8 @@
     "db:neon:setup": "bash scripts/neon-db-setup.sh",
     "redis:upstash:test": "bash scripts/upstash-redis-test.sh",
     "deploy:fly": "bash scripts/fly-setup.sh",
+    "deploy:fly:worker": "bash scripts/fly-worker-setup.sh",
+    "verify:production": "bash scripts/verify-production-ready.sh",
     "deploy:vercel": "bash scripts/vercel-setup.sh",
     "deploy:production": "bash scripts/deploy-production-complete.sh",
     "verify:roles": "bash scripts/verify-platform-roles.sh",

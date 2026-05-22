@@ -35,4 +35,12 @@ echo "==> Admin lint + build"
 npm run lint --workspace=@forge/admin
 npm run build --workspace=@forge/admin
 
+if command -v flutter >/dev/null 2>&1; then
+  echo "==> Mobile analyze"
+  (cd apps/mobile && flutter pub get && flutter analyze --no-fatal-infos)
+else
+  echo "==> Skip mobile (flutter not installed)"
+fi
+
 echo "==> CI local checks passed"
+echo "Optional: cd apps/web && npm run test:e2e  (requires web build + playwright)"

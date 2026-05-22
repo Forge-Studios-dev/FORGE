@@ -11,6 +11,8 @@ import { Playlist } from '../playlists/entities/playlist.entity';
 import { PlaylistVideo } from '../playlists/entities/playlist-video.entity';
 import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { ViewCountFlushService } from './view-count-flush.service';
+import { VideoMultipartService } from './video-multipart.service';
 
 @Module({
   imports: [
@@ -27,7 +29,7 @@ import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard
     }),
   ],
   controllers: [VideosController],
-  providers: [VideosService, CreatorApprovedGuard],
+  providers: [VideosService, CreatorApprovedGuard, ViewCountFlushService, VideoMultipartService],
   exports: [VideosService],
 })
 export class ContentModule {}

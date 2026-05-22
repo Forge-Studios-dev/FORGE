@@ -65,4 +65,7 @@ export default () => ({
       clientId: process.env.GOOGLE_CLIENT_ID || '',
     },
   },
+
+  /** Comma-separated: e.g. multipart_upload,blueprints_public */
+  featureFlags: process.env.FEATURE_FLAGS || '',
 });

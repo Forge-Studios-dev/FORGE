@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Stream, User } from '@/types';
-import { VideoPlayer } from '@/components/VideoPlayer/VideoPlayer';
+import { VideoPlayer } from '@/components/VideoPlayer/VideoPlayerLazy';
 import { useAuth } from '@/lib/auth';
 import { EmptyState } from '@/components/EmptyState';
 import { SkeletonBlock } from '@/components/LoadingSkeleton';

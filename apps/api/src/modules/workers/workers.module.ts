@@ -3,12 +3,22 @@ import { BullModule } from '@nestjs/bullmq';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { VideoProcessorWorker } from './video-processor/video-processor.worker';
+import { AnalyticsIngestWorker } from './analytics-ingest/analytics-ingest.worker';
 import { Video } from '../content/entities/video.entity';
+import { AnalyticsEvent } from '../analytics/entities/analytics-event.entity';
 import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../content/videos.service';
+import { ANALYTICS_INGEST_QUEUE } from '../analytics/analytics-ingest.constants';
+
+/** FFmpeg must not run on API replicas unless explicitly enabled (local dev). */
+function shouldRegisterVideoProcessor(): boolean {
+  return (
+    process.env.WORKER_ONLY === 'true' || process.env.ENABLE_VIDEO_WORKER === 'true'
+  );
+}
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Video]),
+    TypeOrmModule.forFeature([Video, AnalyticsEvent]),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
       defaultJobOptions: {
@@ -25,8 +35,20 @@ import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../content/v
         removeOnFail: false,
       },
     }),
+    BullModule.registerQueue({
+      name: ANALYTICS_INGEST_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: { age: 3600, count: 5000 },
+        removeOnFail: { age: 86400, count: 10000 },
+      },
+    }),
     EventEmitterModule,
   ],
-  providers: [VideoProcessorWorker],
+  providers: [
+    AnalyticsIngestWorker,
+    ...(shouldRegisterVideoProcessor() ? [VideoProcessorWorker] : []),
+  ],
 })
 export class WorkersModule {}

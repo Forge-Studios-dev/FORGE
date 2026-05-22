@@ -1,0 +1,35 @@
+---
+description: FORGE DevOps, observability, and documentation conventions
+globs: docs/**,scripts/**,.github/**,docker-compose*.yml,Dockerfile*
+alwaysApply: false
+---
+
+# FORGE — Infra, Observability & Docs
+
+## DevOps Mindset
+
+- Horizontal scale, zero-downtime deploys, rollback strategy for every infra change.
+- Queues, CDN, object storage, Redis, workers — prefer async over scaling API replicas alone.
+- CI/CD (GitHub Actions): keep pipelines fast; no secrets in logs or committed files.
+
+## Observability (implement early)
+
+- Structured logging; correlate API ↔ worker ↔ socket events.
+- Plan for: Sentry (errors), OpenTelemetry (tracing), Prometheus/Grafana (metrics), queue dashboards.
+- Health checks must reflect DB, Redis, and critical dependencies (`health.controller.ts` pattern).
+
+## Documentation (`docs/`)
+
+- Major features: update `FORGE_PROJECT_MASTER.md` or focused doc with architecture + env vars + rollback.
+- Deployment: align with `GETTING_STARTED.md`, `DEPLOYMENT_DEMO.md`; never document real credentials.
+- API changes: note breaking changes and migration steps.
+
+## Scripts (`scripts/`)
+
+- Destructive scripts (`wipe-platform-data`, `flush-redis`) require clear warnings and env guards.
+- Idempotent where possible; exit non-zero on failure; no hardcoded secrets.
+
+## Security in Ops
+
+- Environment isolation (local/staging/prod); `.env*.example` only in git.
+- Audit S3/Redis/AWS config changes for least privilege.

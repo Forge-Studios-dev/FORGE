@@ -6,16 +6,20 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ClsService } from 'nestjs-cls';
 import { JwtPayload } from '../../modules/auth/strategies/jwt.strategy';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { Permission, permissionsForUser } from '../auth/permissions';
 import { UsersService } from '../../modules/users/users.service';
+import { User } from '../../modules/users/entities/user.entity';
+import { AUTH_USER_CLS_KEY, type AuthUserSnapshot } from '../cls/auth-cls.keys';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly usersService: UsersService,
+    private readonly cls: ClsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -29,7 +33,11 @@ export class PermissionsGuard implements CanActivate {
     const authUser = req.user;
     if (!authUser?.sub) throw new UnauthorizedException('Authentication required');
 
-    const user = await this.usersService.findById(authUser.sub);
+    const snapshot = this.cls.get<AuthUserSnapshot>(AUTH_USER_CLS_KEY);
+    const user: User =
+      snapshot && snapshot.id === authUser.sub
+        ? (snapshot as User)
+        : await this.usersService.findById(authUser.sub);
     const userPermissions = permissionsForUser(user);
 
     const ok = required.every((p) => userPermissions.includes(p));

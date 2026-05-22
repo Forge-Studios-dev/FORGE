@@ -107,6 +107,17 @@ export class EventsGateway
     return null;
   }
 
+  @SubscribeMessage('join-live-feed')
+  handleJoinLiveFeed(@ConnectedSocket() client: Socket) {
+    client.join('streams:live');
+    return { event: 'joined-live-feed', data: { ok: true } };
+  }
+
+  @SubscribeMessage('leave-live-feed')
+  handleLeaveLiveFeed(@ConnectedSocket() client: Socket) {
+    client.leave('streams:live');
+  }
+
   @SubscribeMessage('join-stream')
   handleJoinStream(@MessageBody() data: { streamId: string }, @ConnectedSocket() client: Socket) {
     client.join(`stream:${data.streamId}`);
@@ -150,12 +161,16 @@ export class EventsGateway
 
   @OnEvent('stream.started')
   handleStreamStarted(payload: { streamId: string; userId: string; title: string }) {
-    this.server.emit('stream:started', payload);
+    this.server.to('streams:live').emit('stream:started', payload);
+    this.server.to(`stream:${payload.streamId}`).emit('stream:started', payload);
+    this.server.to(`user:${payload.userId}`).emit('stream:started', payload);
   }
 
   @OnEvent('stream.ended')
   handleStreamEnded(payload: { streamId: string; userId: string; title: string }) {
-    this.server.emit('stream:ended', payload);
+    this.server.to('streams:live').emit('stream:ended', payload);
+    this.server.to(`stream:${payload.streamId}`).emit('stream:ended', payload);
+    this.server.to(`user:${payload.userId}`).emit('stream:ended', payload);
   }
 
   @OnEvent('comment.created')

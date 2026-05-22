@@ -12,6 +12,7 @@ import { Category } from '../categories/entities/category.entity';
 
 const FEED_CACHE_TTL_BASE = 300;
 const FEED_CACHE_JITTER_SEC = 60;
+const FEED_CACHE_GEN_KEY = 'feed:cache:generation';
 
 /** SQL expression — must match ordering for popular / forYou base component. */
 export const POPULAR_SCORE_SQL = `(v.view_count * 0.6 + v.like_count * 0.3 + (EXTRACT(EPOCH FROM v.created_at) / 86400) * 0.1)`;
@@ -96,6 +97,13 @@ export class FeedService {
     return FEED_CACHE_TTL_BASE + Math.floor(Math.random() * FEED_CACHE_JITTER_SEC);
   }
 
+  private async feedCacheGeneration(): Promise<number> {
+    const raw = await this.redis.get(FEED_CACHE_GEN_KEY);
+    if (raw) return parseInt(raw, 10) || 1;
+    await this.redis.set(FEED_CACHE_GEN_KEY, '1');
+    return 1;
+  }
+
   async getFeed(options: {
     categoryId?: string;
     categorySlug?: string;
@@ -126,7 +134,8 @@ export class FeedService {
         : options.skillTagSlugs?.length
           ? options.skillTagSlugs.sort().join(',')
           : 'all';
-    const cacheKey = `feed:v3:${sort}:${categoryId || options.categorySlug || 'all'}:${skillKey}:${options.cursor || 'start'}:${limit}`;
+    const gen = await this.feedCacheGeneration();
+    const cacheKey = `feed:v4:g${gen}:${sort}:${categoryId || options.categorySlug || 'all'}:${skillKey}:${options.cursor || 'start'}:${limit}`;
 
     const cached = await this.redis.get(cacheKey);
     if (cached && !options.userId && sort !== 'forYou') {
@@ -282,18 +291,9 @@ export class FeedService {
     return result;
   }
 
-  async invalidateFeedCache(categoryId?: string) {
-    const patterns = categoryId
-      ? [`feed:v3:*:${categoryId}:*`, `feed:*:${categoryId}:*`]
-      : ['feed:v3:*', 'feed:*'];
-    const keys = new Set<string>();
-    for (const pattern of patterns) {
-      const found = await this.redis.keys(pattern);
-      found.forEach((k) => keys.add(k));
-    }
-    if (keys.size > 0) {
-      await this.redis.del(...keys);
-    }
+  /** Bump generation so cached v4 keys expire naturally — avoids Redis KEYS. */
+  async invalidateFeedCache(_categoryId?: string) {
+    await this.redis.incr(FEED_CACHE_GEN_KEY);
   }
 
   async invalidateVideoDetailCache(videoId: string) {

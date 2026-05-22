@@ -1329,11 +1329,15 @@ Status: **Done** | **Partial** | **Missing**. Update this table when shipping fe
 - RBAC: `roles.guard.ts`, `permissions.guard.ts`.
 - Correlation ID: middleware + CLS + error payload + `x-correlation-id`.
 
-### 24.4 Testing and monitoring gaps
+### 24.4 Testing and monitoring
 
-- Tests: `health.controller.spec.ts`, `auth.service.spec.ts` — expand to services and e2e.
-- Health: `GET /api/v1/health`; optional `GET /metrics` when `METRICS_ENABLED=true`.
+- **Health:** `GET /api/v1/health` (DB, Redis, BullMQ); `x-correlation-id` on responses.
+- **Metrics:** `GET /metrics` when `METRICS_ENABLED=true` — see [OBSERVABILITY.md](./OBSERVABILITY.md), [infra/observability/](../infra/observability/).
+- **Tests:** API unit specs (auth, multipart, CLS traceparent); web Playwright smoke in CI; `flutter analyze` in CI.
+- **E2E:** `apps/web/e2e/` — public smoke; optional auth via `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD`.
 - OAuth: config keys exist; Passport Google strategy deferred.
+- **Remediation (2026-05-23):** Phases 0–6 — [PLATFORM_AUDIT_REMEDIATION.md](./PLATFORM_AUDIT_REMEDIATION.md) (worker split, feed cache, async views/analytics, feature flags, multipart + checkpoint resume, observability IaC, mobile multipart).
+- **Upload reference:** [VIDEO_UPLOAD.md](./VIDEO_UPLOAD.md).
 
 ---
 
@@ -1359,8 +1363,11 @@ Use before promoting builds to production.
 
 ### 25.3 Observability
 
-- [ ] Structured logs with `correlationId` (`x-correlation-id`, nestjs-pino).
+- [ ] Structured logs with `correlationId` (`x-correlation-id`, nestjs-pino); optional W3C `traceparent` → `traceId`.
 - [ ] Uptime checks on `GET /api/v1/health`.
+- [ ] Prometheus scrape `GET /metrics` (`METRICS_ENABLED=true`); import [infra/observability/](../infra/observability/) dashboard + alerts.
+- [ ] Optional OpenTelemetry: `OTEL_EXPORTER_OTLP_ENDPOINT`.
+- [ ] Sentry `SENTRY_DSN` on API (and clients as needed).
 - [ ] Optional: `SENTRY_DSN`, `METRICS_ENABLED=true` → scrape `GET /metrics`.
 - [ ] Optional: OpenTelemetry APM for latency and DB hotspots.
 

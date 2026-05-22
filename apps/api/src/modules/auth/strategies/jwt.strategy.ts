@@ -3,8 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ClsService } from 'nestjs-cls';
 import { Repository } from 'typeorm';
 import { User, UserRole } from '../../users/entities/user.entity';
+import { AUTH_USER_CLS_KEY, type AuthUserSnapshot } from '../../../common/cls/auth-cls.keys';
 
 export interface JwtPayload {
   sub: string;
@@ -18,6 +20,7 @@ export interface JwtPayload {
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
     private readonly configService: ConfigService,
+    private readonly cls: ClsService,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {
@@ -29,8 +32,19 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: JwtPayload): Promise<JwtPayload> {
-    const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+    const user = await this.userRepository.findOne({
+      where: { id: payload.sub },
+      select: ['id', 'email', 'role', 'creatorStatus', 'isVerified'],
+    });
     if (!user) throw new UnauthorizedException('User no longer exists');
-    return { sub: payload.sub, email: payload.email, role: payload.role };
+    const snapshot: AuthUserSnapshot = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      creatorStatus: user.creatorStatus,
+      isVerified: user.isVerified,
+    };
+    this.cls.set(AUTH_USER_CLS_KEY, snapshot);
+    return { sub: user.id, email: user.email, role: user.role };
   }
 }

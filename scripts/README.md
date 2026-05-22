@@ -10,9 +10,11 @@ Run from **repository root** unless noted.
 | `flush-redis.sh` | `FORGE_FLUSH_CONFIRM=yes` | Flush all Upstash/Redis keys (cache + BullMQ) |
 | `ci-local.sh` | `npm run ci` | Same checks as `.github/workflows/ci.yml` |
 | `smoke-api.sh` | `npm run smoke:api` | Health + auth smoke against API |
+| `verify-production-ready.sh` | `npm run verify:production` | Pre-deploy env checklist (JWT, worker, Redis) |
 | `neon-db-setup.sh` | `npm run db:neon:setup` | Neon migrate + seed |
 | `upstash-redis-test.sh` | `npm run redis:upstash:test` | Upstash connectivity |
 | `fly-setup.sh` | `npm run deploy:fly` | First-time / update Fly API app |
+| `fly-worker-setup.sh` | `npm run deploy:fly:worker` | Fly worker app (FFmpeg / BullMQ, `WORKER_ONLY`) |
 | `vercel-setup.sh` | `npm run deploy:vercel` | Deploy web + admin to Vercel |
 | `deploy-production-complete.sh` | `npm run deploy:production` | Fly + Vercel + DNS hints |
 | `print-github-secrets.sh` | `npm run gh:secrets` | Print Vercel IDs; copy Fly token |

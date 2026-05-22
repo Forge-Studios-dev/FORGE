@@ -29,6 +29,19 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   exit 1
 fi
 
+# Block accidental production wipes
+PROD_DB_MARKERS='neon.tech forgestudios.net production'
+for marker in $PROD_DB_MARKERS; do
+  if [[ "$DATABASE_URL" == *"$marker"* ]]; then
+    if [[ "${FORGE_WIPE_ALLOW_PRODUCTION:-}" != "yes" ]]; then
+      echo "ERROR: DATABASE_URL looks like production (matched: $marker)."
+      echo "  To override: FORGE_WIPE_ALLOW_PRODUCTION=yes FORGE_WIPE_CONFIRM=yes ..."
+      exit 1
+    fi
+    break
+  fi
+done
+
 echo "=============================================="
 echo "  FORGE platform wipe (database + S3 + Redis)"
 echo "=============================================="

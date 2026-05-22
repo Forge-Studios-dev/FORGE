@@ -29,7 +29,10 @@ export function getSocket(accessToken?: string | null): Socket | null {
   return socket;
 }
 
-export function joinRoom(roomEvent: 'join-video' | 'join-stream', payload: Record<string, unknown>) {
+export function joinRoom(
+  roomEvent: 'join-video' | 'join-stream' | 'join-live-feed',
+  payload: Record<string, unknown> = {},
+) {
   return new Promise<void>((resolve) => {
     if (!socket) return resolve();
     socket.emit(roomEvent, payload, () => resolve());

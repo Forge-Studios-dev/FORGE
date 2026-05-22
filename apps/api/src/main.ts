@@ -8,12 +8,15 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { validateProductionConfig } from './config/validate-production-config';
+import { httpMetricsMiddleware } from './common/metrics/http-metrics.middleware';
 
 async function bootstrapWorker() {
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: false,
     bufferLogs: true,
   });
+  validateProductionConfig(app.get(ConfigService));
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks();
   const logger = app.get(Logger);
@@ -34,6 +37,7 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
 
   const configService = app.get(ConfigService);
+  validateProductionConfig(configService);
   const port = configService.get<number>('port') || 3001;
   const nodeEnv = configService.get<string>('nodeEnv');
   const logger = app.get(Logger);
@@ -43,6 +47,7 @@ async function bootstrap() {
   });
 
   app.use(helmet());
+  app.use(httpMetricsMiddleware);
 
   const prodOrigins = [
     process.env.WEB_URL,

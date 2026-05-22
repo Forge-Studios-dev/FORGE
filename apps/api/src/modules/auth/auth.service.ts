@@ -48,7 +48,7 @@ export class AuthService {
     });
     if (existing) {
       throw new BadRequestException(
-        existing.email === dto.email ? 'Email already registered' : 'Username already taken',
+        existing.email === emailNorm ? 'Email already registered' : 'Username already taken',
       );
     }
 
@@ -134,11 +134,22 @@ export class AuthService {
   async refreshWithToken(rawRefreshToken: string, meta?: ClientSessionMeta) {
     const tokenHash = this.hashToken(rawRefreshToken);
     const storedToken = await this.refreshTokenRepository.findOne({
-      where: { tokenHash, revoked: false },
+      where: { tokenHash },
       relations: ['user'],
     });
 
-    if (!storedToken?.user || storedToken.expiresAt < new Date()) {
+    if (!storedToken) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    if (storedToken.revoked) {
+      await this.refreshTokenRepository.update({ userId: storedToken.userId }, { revoked: true });
+      throw new UnauthorizedException(
+        'Refresh token reuse detected — sign in again on all devices',
+      );
+    }
+
+    if (!storedToken.user || storedToken.expiresAt < new Date()) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
