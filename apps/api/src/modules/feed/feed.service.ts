@@ -180,13 +180,14 @@ export class FeedService {
 
     const cursor = parseCursor(options.cursor, sort);
 
-    query.addSelect(SORT_TIME_SQL, 'sortTime');
+    // snake_case aliases — PostgreSQL lowercases unquoted identifiers (sortTime → sorttime mismatch).
+    query.addSelect(SORT_TIME_SQL, 'sort_time');
 
     if (sort === 'popular') {
       query.addSelect(POPULAR_SCORE_SQL, 'score');
       query
         .orderBy('score', 'DESC')
-        .addOrderBy('sortTime', 'DESC')
+        .addOrderBy('sort_time', 'DESC')
         .addOrderBy('v.id', 'DESC');
       if (cursor && cursor.sort === 'popular') {
         query.andWhere(`(${POPULAR_SCORE_SQL}, ${SORT_TIME_SQL}, v.id) < (:cs, :ca, :cid)`, {
@@ -205,10 +206,10 @@ export class FeedService {
           ? `(CASE WHEN v.user_id IN (:...affinityIds) THEN 1.0 ELSE 0.0 END)`
           : `0.0`;
       const personSql = `(${followCase} + ${affCase} + ${POPULAR_SCORE_SQL})`;
-      query.addSelect(personSql, 'personScore');
+      query.addSelect(personSql, 'person_score');
       query
-        .orderBy('personScore', 'DESC')
-        .addOrderBy('sortTime', 'DESC')
+        .orderBy('person_score', 'DESC')
+        .addOrderBy('sort_time', 'DESC')
         .addOrderBy('v.id', 'DESC');
       if (followingIds.length) query.setParameter('followingIds', followingIds);
       if (affinityIds.length) query.setParameter('affinityIds', affinityIds);
@@ -221,7 +222,7 @@ export class FeedService {
         });
       }
     } else {
-      query.orderBy('sortTime', 'DESC').addOrderBy('v.id', 'DESC');
+      query.orderBy('sort_time', 'DESC').addOrderBy('v.id', 'DESC');
       if (cursor) {
         if (cursor.sort === 'latest') {
           query.andWhere(`(${SORT_TIME_SQL}, v.id) < (:ca, :cid)`, {
