@@ -153,7 +153,7 @@ export class FeedService {
     const query = applyDiscoverableVideoFilters(
       this.videoRepository
         .createQueryBuilder('v')
-        .leftJoinAndSelect('v.user', 'user')
+        .leftJoinAndSelect('v.user', 'creator')
         .leftJoinAndSelect('v.skillTags', 'skillTags')
         .leftJoinAndSelect('skillTags.subcategory', 'subcategory')
         .leftJoinAndSelect('subcategory.category', 'category'),

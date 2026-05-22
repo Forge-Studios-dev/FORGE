@@ -93,7 +93,7 @@ export class UsersService {
     const isOwner = viewerId === userId;
     const query = this.videoRepository
       .createQueryBuilder('v')
-      .leftJoinAndSelect('v.user', 'user')
+      .leftJoinAndSelect('v.user', 'creator')
       .leftJoinAndSelect('v.skillTags', 'skillTags')
       .where('v.userId = :userId', { userId })
       .andWhere('v.status = :status', { status: 'ready' })

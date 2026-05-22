@@ -41,7 +41,7 @@ export class SearchService {
     const videos = await applyDiscoverableVideoFilters(
       this.videoRepository
         .createQueryBuilder('v')
-        .leftJoinAndSelect('v.user', 'user')
+        .leftJoinAndSelect('v.user', 'creator')
         .leftJoin('v.skillTags', 'st')
         .leftJoin('st.subcategory', 'sub')
         .leftJoin('sub.category', 'cat'),
@@ -101,7 +101,7 @@ export class SearchService {
     }
     const pattern = `%${term}%`;
     const videos = await applyDiscoverableVideoFilters(
-      this.videoRepository.createQueryBuilder('v').leftJoinAndSelect('v.user', 'user'),
+      this.videoRepository.createQueryBuilder('v').leftJoinAndSelect('v.user', 'creator'),
     )
       .leftJoin('v.skillTags', 'st')
       .leftJoin('st.subcategory', 'sub')

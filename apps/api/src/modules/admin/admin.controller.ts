@@ -191,7 +191,7 @@ export class AdminController {
   ) {
     const query = this.videoRepository
       .createQueryBuilder('v')
-      .leftJoinAndSelect('v.user', 'user')
+      .leftJoinAndSelect('v.user', 'creator')
       .orderBy('v.createdAt', 'DESC');
     if (status) query.andWhere('v.status = :status', { status });
     if (userId) query.andWhere('v.userId = :userId', { userId });
