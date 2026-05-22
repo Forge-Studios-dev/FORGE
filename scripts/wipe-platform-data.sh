@@ -103,36 +103,10 @@ else
   fi
 fi
 
-# --- Redis ---
+# --- Redis (feed cache, video detail, BullMQ queues, rate limits) ---
 echo ""
 echo "[3/4] Flushing Redis..."
-node -e "
-const Redis = require('ioredis');
-
-function resolveRedisUrl() {
-  if (process.env.REDIS_URL?.trim()) return process.env.REDIS_URL.trim();
-  const restUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-  if (!restUrl || !token) return null;
-  const host = new URL(restUrl).hostname;
-  return 'rediss://default:' + encodeURIComponent(token) + '@' + host + ':6379';
-}
-
-(async () => {
-  const url = resolveRedisUrl();
-  if (!url) {
-    console.log('SKIP: no REDIS_URL or UPSTASH_REDIS_REST_*');
-    return;
-  }
-  const redis = new Redis(url, {
-    tls: url.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
-    maxRetriesPerRequest: 1,
-  });
-  await redis.flushall();
-  console.log('OK: FLUSHALL');
-  await redis.quit();
-})().catch((e) => { console.error(e); process.exit(1); });
-"
+FORGE_FLUSH_CONFIRM=yes bash "$ROOT/scripts/flush-redis.sh"
 
 # --- Re-seed ---
 echo ""

@@ -1,5 +1,7 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+
+export const dynamic = 'force-dynamic';
 import { serverApi } from '@/lib/api';
 import { Video } from '@/types';
 import { WatchPageClient } from '@/components/watch/WatchPageClient';

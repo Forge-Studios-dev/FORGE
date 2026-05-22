@@ -1,5 +1,7 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+
+export const dynamic = 'force-dynamic';
 import { serverApi } from '@/lib/api';
 import { User, PaginatedResponse, Video } from '@/types';
 import { ProfileHeader } from '@/components/ProfileHeader/ProfileHeader';

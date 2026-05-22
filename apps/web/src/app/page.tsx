@@ -12,6 +12,8 @@ import { ContinueWatching } from '@/components/ContinueWatching';
 import { VerifyEmailBanner } from '@/components/VerifyEmailBanner';
 import { Category, PaginatedResponse, Video } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'FORGE – Learn from Creators',
   description: 'Discover skill-based tutorials and live sessions from expert creators.',
