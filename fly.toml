@@ -29,7 +29,7 @@ primary_region = 'bom'
     interval = '30s'
     method = 'GET'
     path = '/api/v1/health'
-    timeout = '5s'
+    timeout = '10s'
 
 [[vm]]
   memory = '2048mb'

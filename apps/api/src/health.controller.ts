@@ -9,6 +9,17 @@ import { Request } from 'express';
 import { Public } from './common/decorators/public.decorator';
 import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
 
+const HEALTH_CHECK_MS = 2_500;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
 @Controller('health')
 export class HealthController {
   constructor(
@@ -27,7 +38,7 @@ export class HealthController {
     let degraded = false;
 
     try {
-      await this.dataSource.query('SELECT 1');
+      await withTimeout(this.dataSource.query('SELECT 1'), HEALTH_CHECK_MS, 'database');
       checks.database = 'ok';
     } catch {
       checks.database = 'down';
@@ -35,7 +46,7 @@ export class HealthController {
     }
 
     try {
-      const pong = await this.redis.ping();
+      const pong = await withTimeout(this.redis.ping(), HEALTH_CHECK_MS, 'redis');
       checks.redis = pong === 'PONG' ? 'ok' : 'degraded';
       if (checks.redis !== 'ok') degraded = true;
     } catch {
@@ -44,11 +55,10 @@ export class HealthController {
     }
 
     try {
-      const counts = await this.videoQueue.getJobCounts(
-        'waiting',
-        'active',
-        'delayed',
-        'failed',
+      const counts = await withTimeout(
+        this.videoQueue.getJobCounts('waiting', 'active', 'delayed', 'failed'),
+        HEALTH_CHECK_MS,
+        'videoQueue',
       );
       checks.videoQueue = JSON.stringify(counts);
     } catch {
