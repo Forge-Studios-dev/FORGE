@@ -5,18 +5,20 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-STANDALONE="$ROOT/.next/standalone/apps/web"
-if [[ ! -f "$STANDALONE/server.js" ]]; then
-  echo "Missing $STANDALONE/server.js — run npm run build first" >&2
+STANDALONE_ROOT="$ROOT/.next/standalone"
+APP_DIR="$STANDALONE_ROOT/apps/web"
+
+if [[ ! -f "$APP_DIR/server.js" ]]; then
+  echo "Missing $APP_DIR/server.js — run npm run build first" >&2
   exit 1
 fi
 
-mkdir -p "$STANDALONE/.next"
-rm -rf "$STANDALONE/.next/static" "$STANDALONE/public"
-cp -r .next/static "$STANDALONE/.next/static"
-cp -r public "$STANDALONE/public"
+mkdir -p "$APP_DIR/.next"
+rm -rf "$APP_DIR/.next/static" "$APP_DIR/public"
+cp -r .next/static "$APP_DIR/.next/static"
+cp -r public "$APP_DIR/public"
 
-export HOSTNAME="${HOSTNAME:-0.0.0.0}"
+export HOSTNAME="${HOSTNAME:-127.0.0.1}"
 export PORT="${PORT:-3000}"
-cd "$STANDALONE"
-exec node server.js
+cd "$STANDALONE_ROOT"
+exec node apps/web/server.js

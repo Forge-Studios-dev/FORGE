@@ -20,10 +20,10 @@ export default defineConfig({
     ? undefined
     : {
         command: process.env.CI
-          ? 'bash scripts/start-standalone-e2e.sh'
+          ? 'npx next start -p 3000 -H 127.0.0.1'
           : 'npm run start',
         url: baseURL,
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        timeout: 180_000,
       },
 });
