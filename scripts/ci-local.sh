@@ -13,6 +13,7 @@ npm run build --workspace=@forge/shared-types
 npm run build --workspace=@forge/design-system
 
 echo "==> API lint + build + test"
+npm run build --workspace=@forge/shared-types
 npm run lint:ci --workspace=@forge/api
 npm run build --workspace=@forge/api
 DATABASE_URL="${DATABASE_URL:-postgresql://forge:forge@localhost:5432/forge}"

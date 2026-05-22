@@ -106,6 +106,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
+      - run: npm run build --workspace=@forge/shared-types
       - run: npm run lint:ci --workspace=@forge/api
       - run: npm run build --workspace=@forge/api
       - run: npm run test --workspace=@forge/api

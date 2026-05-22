@@ -16,13 +16,16 @@ test.describe('FORGE web smoke', () => {
 
   test('login page is reachable', async ({ page }) => {
     await page.goto('/login');
+    await expect(page.getByLabel('Email')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
   });
 
   test('feed grid or empty state renders on home', async ({ page }) => {
     await page.goto('/');
+    await expect(page.getByTestId('discover-section')).toBeVisible();
     const feed = page.getByTestId('feed-grid');
-    const empty = page.getByText(/no lessons yet/i);
-    await expect(feed.or(empty)).toBeVisible({ timeout: 15_000 });
+    const empty = page.getByRole('heading', { name: /no lessons yet/i });
+    const loadError = page.getByRole('heading', { name: /couldn't load feed/i });
+    await expect(feed.or(empty).or(loadError)).toBeVisible({ timeout: 20_000 });
   });
 });

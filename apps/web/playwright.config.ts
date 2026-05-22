@@ -20,7 +20,7 @@ export default defineConfig({
     ? undefined
     : {
         command: process.env.CI
-          ? 'node .next/standalone/apps/web/server.js'
+          ? 'bash scripts/start-standalone-e2e.sh'
           : 'npm run start',
         url: baseURL,
         reuseExistingServer: !process.env.CI,
