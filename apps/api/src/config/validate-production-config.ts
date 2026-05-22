@@ -16,8 +16,11 @@ export function validateProductionConfig(config: ConfigService): void {
     );
   }
 
+  const muxTokenId = config.get<string>('mux.tokenId') || '';
   const muxWebhookSecret = config.get<string>('mux.webhookSecret') || '';
-  if (!muxWebhookSecret.trim()) {
-    throw new Error('Production requires MUX_WEBHOOK_SECRET for Mux webhook signature verification.');
+  if (muxTokenId.trim() && !muxWebhookSecret.trim()) {
+    throw new Error(
+      'MUX_WEBHOOK_SECRET is required when MUX_TOKEN_ID is set (Mux live webhooks).',
+    );
   }
 }

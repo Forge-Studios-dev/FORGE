@@ -39,11 +39,24 @@ describe('validateProductionConfig', () => {
     ).toThrow(/JWT_SECRET/);
   });
 
-  it('requires MUX_WEBHOOK_SECRET in production', () => {
+  it('allows missing MUX_WEBHOOK_SECRET when Mux is not configured', () => {
     expect(() =>
       validateProductionConfig(
         config({
           nodeEnv: 'production',
+          'mux.tokenId': '',
+          'mux.webhookSecret': '',
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('requires MUX_WEBHOOK_SECRET when MUX_TOKEN_ID is set', () => {
+    expect(() =>
+      validateProductionConfig(
+        config({
+          nodeEnv: 'production',
+          'mux.tokenId': 'mux-token-id',
           'mux.webhookSecret': '',
         }),
       ),
