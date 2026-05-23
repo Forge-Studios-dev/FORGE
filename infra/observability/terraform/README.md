@@ -1,15 +1,20 @@
 # Grafana Cloud — Metrics Endpoint scrape job (Terraform)
 
-Creates the `forge-api` scrape job that pulls `https://api.forgestudios.net/metrics` into Grafana Cloud Prometheus.
+Creates the `forge-api` scrape job pulling `https://api.forgestudios.net/metrics` into Grafana Cloud Prometheus.
 
 ## Prerequisites
 
-1. API has `METRICS_ENABLED=true` and `METRICS_SCRAPE_TOKEN` set on Fly (`npm run setup:fly:metrics-token`).
-2. **Grafana Cloud Access Policy** token with Connections / Metrics Endpoint scopes (not the same as a Grafana `glsa_` service account token).
-   - Portal → your stack → **Administration** → **Cloud access policies** → create policy → add token.
-   - Copy the token once; use as `connections_api_access_token`.
-3. **Connections API URL** for your stack (from Grafana Cloud → Connections → Metrics Endpoint → Terraform/docs link), e.g.  
-   `https://connections-api-prod-us-east-0.grafana.net/connections`
+1. Fly API: `METRICS_ENABLED=true` and `METRICS_SCRAPE_TOKEN` (`npm run setup:fly:metrics-token`).
+2. **Grafana Cloud access policy token** (not a `glsa_` service account token).
+   - Stack → **Administration** → **Cloud access policies** → create token with Connections / Metrics Endpoint permissions.
+3. Bearer scrape token = same value as Fly `METRICS_SCRAPE_TOKEN`.
+
+## Discover stack URLs (optional)
+
+```bash
+export GRAFANA_CLOUD_ACCESS_POLICY_TOKEN='...'
+npm run discover:grafana-cloud
+```
 
 ## Apply
 
@@ -21,16 +26,26 @@ terraform plan
 terraform apply
 ```
 
-Or pass via env:
+One-liner token from Fly:
 
 ```bash
-export TF_VAR_connections_api_access_token='...'
 export TF_VAR_metrics_scrape_token="$(fly ssh console -a forge-studios-api -C 'printenv METRICS_SCRAPE_TOKEN' 2>/dev/null | tail -1)"
+export TF_VAR_grafana_cloud_access_policy_token='...'
 terraform apply
 ```
 
 ## UI alternative
 
 ```bash
-npm run configure:grafana-scrape
+SHOW_SCRAPE_TOKEN=1 npm run configure:grafana-scrape
 ```
+
+## Verify
+
+```bash
+npm run verify:metrics-scrape
+```
+
+In Grafana **Explore** → `grafanacloud-forgesupport-prom` → `forge_http_requests_total`.
+
+Dashboard: https://forgesupport.grafana.net/d/forge-api/forge-api

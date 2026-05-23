@@ -45,7 +45,9 @@ export GRAFANA_SA_TOKEN='<service-account-token>'   # never commit
 npm run import:grafana-dashboard
 ```
 
-**Terraform (scrape job as code):** [terraform/README.md](./terraform/README.md) — requires a **Cloud access policy** token (not `glsa_`).
+**Terraform (scrape job as code):** [terraform/README.md](./terraform/README.md) — single **Cloud access policy** token (auto-discovers Connections API URL).
+
+**Discover stack URLs:** `GRAFANA_CLOUD_ACCESS_POLICY_TOKEN=... npm run discover:grafana-cloud`
 
 **Verify scrape auth:**
 
