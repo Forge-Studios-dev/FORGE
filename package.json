@@ -35,6 +35,7 @@
     "configure:grafana-scrape": "bash scripts/configure-grafana-metrics-scrape.sh",
     "import:grafana-dashboard": "bash scripts/import-grafana-dashboard.sh",
     "verify:metrics-scrape": "bash scripts/verify-metrics-scrape.sh",
+    "verify:grafana-metrics": "bash scripts/verify-grafana-metrics.sh",
     "discover:grafana-cloud": "bash scripts/discover-grafana-cloud.sh",
     "create:grafana-scrape-job": "bash scripts/create-grafana-scrape-job.sh",
     "verify:production": "bash scripts/verify-production-ready.sh",

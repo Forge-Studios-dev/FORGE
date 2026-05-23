@@ -7,8 +7,8 @@
 | API metrics enabled | `METRICS_ENABLED=true` on Fly | `npm run verify:metrics-scrape` → bearer **200** |
 | Scrape token on Fly | `npm run setup:fly:metrics-token` | `/metrics` returns **401** without auth |
 | Dashboard imported | `GRAFANA_SA_TOKEN=... npm run import:grafana-dashboard` | [FORGE API dashboard](https://forgesupport.grafana.net/d/forge-api/forge-api) loads |
-| **Scrape job** | UI or Terraform below | Explore shows `forge_http_requests_total` |
-| Rotate leaked tokens | Revoke any `glsa_` pasted in chat | New SA token only in secrets |
+| **Scrape job** | UI or Terraform below | `npm run verify:grafana-metrics` → OK |
+| Rotate leaked tokens | [SECRET_ROTATION.md](./SECRET_ROTATION.md) | Revoke any tokens pasted in chat |
 
 ## Create scrape job (pick one)
 
@@ -71,6 +71,7 @@ npm run create:grafana-scrape-job
 | NPM | Purpose |
 |-----|---------|
 | `npm run verify:metrics-scrape` | Prod `/metrics` auth check |
+| `npm run verify:grafana-metrics` | Grafana has `forge_http_requests_total` (needs `GRAFANA_SA_TOKEN`) |
 | `npm run configure:grafana-scrape` | Scrape job field values |
 | `npm run import:grafana-dashboard` | Re-import dashboard |
 | `npm run discover:grafana-cloud` | Stack + Connections API URLs |
