@@ -35,6 +35,7 @@
     "import:grafana-dashboard": "bash scripts/import-grafana-dashboard.sh",
     "verify:metrics-scrape": "bash scripts/verify-metrics-scrape.sh",
     "discover:grafana-cloud": "bash scripts/discover-grafana-cloud.sh",
+    "create:grafana-scrape-job": "bash scripts/create-grafana-scrape-job.sh",
     "verify:production": "bash scripts/verify-production-ready.sh",
     "deploy:vercel": "bash scripts/vercel-setup.sh",
     "deploy:production": "bash scripts/deploy-production-complete.sh",
