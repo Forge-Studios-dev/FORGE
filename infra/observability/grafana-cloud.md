@@ -21,13 +21,29 @@ Grafana Cloud → **Connections** → **Metrics Endpoint** → **Create scrape j
 
 The API also accepts a raw `Authorization: <token>` header if your scraper omits the `Bearer` prefix.
 
-Grafana Cloud **requires** the metrics URL to be authenticated. On the API:
+Grafana Cloud **requires** the metrics URL to be authenticated.
+
+**Fly API (done once per stack):**
 
 ```bash
-fly secrets set METRICS_SCRAPE_TOKEN='<random-hex>' -a forge-studios-api
+npm run setup:fly:metrics-token
+# or: fly secrets set METRICS_SCRAPE_TOKEN='...' -a forge-studios-api
 ```
 
-Deploy the API after `METRICS_SCRAPE_TOKEN` support is on `main`, then use the same value in the scrape job. Test in Grafana before saving.
+**Print scrape job values from production:**
+
+```bash
+npm run configure:grafana-scrape
+```
+
+Paste the bearer token into the Grafana scrape job (token only in the credential field). Test connection → Save.
+
+**Import dashboard:**
+
+```bash
+export GRAFANA_SA_TOKEN='<service-account-token>'   # never commit
+npm run import:grafana-dashboard
+```
 
 Within a few minutes, query `forge_http_requests_total` in **Explore** (datasource `grafanacloud-forgesupport-prom`).
 
