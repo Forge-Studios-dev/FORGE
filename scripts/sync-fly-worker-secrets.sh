@@ -12,8 +12,8 @@ trap cleanup EXIT
 
 echo "==> Syncing secrets: $API_APP → $WORKER_APP"
 
-if ! fly auth whoami >/dev/null 2>&1; then
-  echo "ERROR: fly auth login required" >&2
+if [[ -z "${FLY_API_TOKEN:-}" ]] && ! fly auth whoami >/dev/null 2>&1; then
+  echo "ERROR: fly auth login required (or set FLY_API_TOKEN)" >&2
   exit 1
 fi
 
