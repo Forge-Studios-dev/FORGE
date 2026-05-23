@@ -67,6 +67,11 @@ jobs:
       - name: Smoke test API (public routes)
         run: FORGE_SMOKE_API=https://api.forgestudios.net/api/v1 FORGE_SMOKE_MODE=public bash scripts/smoke-api.sh
 
+      - name: Verify Prometheus metrics scrape
+        run: bash scripts/verify-metrics-scrape.sh
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
   deploy-worker:
     name: Deploy worker (Fly.io)
     needs: deploy-api

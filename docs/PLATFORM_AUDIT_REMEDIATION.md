@@ -125,9 +125,19 @@ See [MERGE_CHECKLIST.md](./MERGE_CHECKLIST.md) for local CI, review map, and pos
 | Queue consumers | Production API enqueues only; `AnalyticsIngestWorker` + `VideoProcessorWorker` on worker app |
 | Mux guard | `MUX_WEBHOOK_SECRET` required only when `MUX_TOKEN_ID` is set |
 
+## Phase 10 (2026-05-23) — Grafana + release verification
+
+| Item | Change |
+|------|--------|
+| Metrics format | `/metrics` returns raw Prometheus (not JSON wrapper) for Grafana scrape test |
+| Grafana docs | `GRAFANA_SETUP.md` — correct Connections URL, example form, troubleshooting |
+| Release CI | `verify-metrics-scrape` after API deploy |
+| Ops | `npm run check:production` — smoke + metrics in one command |
+
 ## Next phases
 
+- **Grafana:** save Metrics Endpoint scrape job in UI (`docs/GRAFANA_SETUP.md`) — API side ready
 - Persist multipart state in Postgres for audit / longer TTL
-- Wire Grafana Cloud or Fly Prometheus to `infra/observability` assets
+- Prod video pipeline E2E with real creator credentials
 
 See `FORGE_PROJECT_MASTER.md` §31 and `docs/OBSERVABILITY.md`.

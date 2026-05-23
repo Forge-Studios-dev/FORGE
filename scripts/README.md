@@ -10,6 +10,7 @@ Run from **repository root** unless noted.
 | `flush-redis.sh` | `FORGE_FLUSH_CONFIRM=yes` | Flush all Upstash/Redis keys (cache + BullMQ) |
 | `ci-local.sh` | `npm run ci` | Same checks as `.github/workflows/ci.yml` |
 | `smoke-api.sh` | `npm run smoke:api` | Health + auth smoke against API |
+| `check-production.sh` | `npm run check:production` | Prod smoke + metrics scrape verify |
 | `verify-production-ready.sh` | `npm run verify:production` | Pre-deploy env checklist (JWT, worker, Redis) |
 | `neon-db-setup.sh` | `npm run db:neon:setup` | Neon migrate + seed |
 | `upstash-redis-test.sh` | `npm run redis:upstash:test` | Upstash connectivity |
