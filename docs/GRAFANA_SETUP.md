@@ -29,7 +29,27 @@
    | Interval | `60s` |
    | Auth | **Bearer** (paste token only — no `Bearer ` prefix) |
 
-5. `SHOW_SCRAPE_TOKEN=1 npm run configure:grafana-scrape` → copy token → **Test connection** → **Save**.
+5. `SHOW_SCRAPE_TOKEN=1 npm run configure:grafana-scrape` → copy token → **Test connection** → **Save** → **Install** (optional).
+
+**Example (your production stack):**
+
+| Field | Example value |
+|-------|----------------|
+| Scrape job name | `forge-api` |
+| Scrape Job URL | `https://api.forgestudios.net/metrics` |
+| Scrape Interval | Every minute |
+| Auth | Bearer |
+| Bearer Token | *(from `SHOW_SCRAPE_TOKEN=1 npm run configure:grafana-scrape`)* |
+
+### Troubleshooting
+
+| Error | Fix |
+|-------|-----|
+| Unknown datasource | Use [Connections](https://forgesupport.grafana.net/connections), not `.../datasources/metrics-endpoint` |
+| Not Prometheus-compatible metrics | Fixed in API PR #14 — `/metrics` must return raw `# HELP ...` text (deployed). Re-run **Test connection**. |
+| Test OK but Explore empty | Click **Save Scrape Job**; wait 2–5 minutes; query `forge_http_requests_total{job="forge-api"}` |
+
+Verify API before Grafana: `npm run verify:metrics-scrape` (must show raw Prometheus, not JSON).
 
 ### Terraform / API script
 

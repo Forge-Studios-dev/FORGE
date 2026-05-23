@@ -12,7 +12,7 @@ Use before merging the production-hardening branch to `main`.
 | Public smoke | `FORGE_SMOKE_MODE=public npm run smoke:api:prod` |
 | Prometheus | `METRICS_ENABLED=true` on API — `GET /metrics` |
 | Multipart upload | `FEATURE_FLAGS=multipart_upload` on API (≥50MB uploads) |
-| Metrics scrape | `METRICS_SCRAPE_TOKEN` on API; Grafana job via UI or `infra/observability/terraform/` |
+| Metrics scrape | `METRICS_SCRAPE_TOKEN` on API; raw Prometheus at `/metrics` (not JSON); Grafana job via UI |
 | Grafana dashboard | https://forgesupport.grafana.net/d/forge-api/forge-api |
 | Release CI | API → worker secret sync (`flyctl`) → worker deploy → Vercel |
 
