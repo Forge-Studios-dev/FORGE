@@ -34,6 +34,9 @@ RUN npm ci --workspace=apps/api --omit=dev
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/packages/shared-types/dist ./packages/shared-types/dist
 
-RUN test -f apps/api/dist/main.js
+RUN test -f apps/api/dist/apps/api/src/main.js
 
-CMD ["node", "apps/api/dist/main.js"]
+COPY apps/api/docker-entrypoint.sh ./apps/api/docker-entrypoint.sh
+RUN chmod +x apps/api/docker-entrypoint.sh
+
+CMD ["apps/api/docker-entrypoint.sh"]
