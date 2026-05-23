@@ -8,6 +8,7 @@ Import into your Prometheus / Grafana stack. Requires `METRICS_ENABLED=true` on 
 | `prometheus-alerts.yml` | Load as Prometheus rule file |
 | `grafana-dashboard-forge-api.json` | Grafana → Dashboards → Import |
 | `grafana-cloud.md` | Step-by-step Grafana Cloud scrape + import |
+| `terraform/` | Metrics Endpoint scrape job (Terraform; Cloud access policy token) |
 
 **Metrics exposed**
 

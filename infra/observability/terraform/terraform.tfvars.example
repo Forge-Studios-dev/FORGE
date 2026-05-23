@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars — do not commit.
+
+stack_slug = "forgesupport"
+
+# From Grafana Cloud → Connections → Metrics Endpoint → Terraform / Connections API docs
+connections_api_url = "https://connections-api-prod-<region>.grafana.net/connections"
+
+# Cloud access policy token (not glsa_ service account token)
+connections_api_access_token = ""
+
+# Same value as Fly METRICS_SCRAPE_TOKEN (npm run configure:grafana-scrape)
+metrics_scrape_token = ""
