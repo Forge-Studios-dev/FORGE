@@ -8,7 +8,6 @@ cd "$ROOT"
 
 WORKER_APP="${FLY_WORKER_APP:-forge-studios-worker}"
 API_APP="${FLY_API_APP:-forge-studios-api}"
-ENV_FILE="${FLY_ENV_FILE:-$ROOT/apps/api/.env}"
 
 echo "==> FORGE Fly worker setup (app: $WORKER_APP)"
 
@@ -27,31 +26,8 @@ if ! fly apps list 2>/dev/null | grep -q "$WORKER_APP"; then
   fly apps create "$WORKER_APP"
 fi
 
-echo "==> Copying secrets from API app ($API_APP) when possible..."
-if fly secrets list -a "$API_APP" >/dev/null 2>&1; then
-  echo "    Ensure DATABASE_URL, REDIS/Upstash, AWS_*, JWT_* match API."
-  echo "    Set manually if needed: fly secrets set -a $WORKER_APP ..."
-else
-  echo "WARN: API app $API_APP not found — set worker secrets manually."
-fi
-
-if [[ -f "$ENV_FILE" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
-  set +a
-  SECRETS=(WORKER_ONLY=true NODE_ENV=production)
-  [[ -n "${DATABASE_URL:-}" ]] && SECRETS+=(DATABASE_URL="$DATABASE_URL")
-  [[ -n "${REDIS_URL:-}" ]] && SECRETS+=(REDIS_URL="$REDIS_URL")
-  [[ -n "${UPSTASH_REDIS_REST_URL:-}" ]] && SECRETS+=(UPSTASH_REDIS_REST_URL="$UPSTASH_REDIS_REST_URL")
-  [[ -n "${UPSTASH_REDIS_REST_TOKEN:-}" ]] && SECRETS+=(UPSTASH_REDIS_REST_TOKEN="$UPSTASH_REDIS_REST_TOKEN")
-  [[ -n "${AWS_ACCESS_KEY_ID:-}" ]] && SECRETS+=(AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID")
-  [[ -n "${AWS_SECRET_ACCESS_KEY:-}" ]] && SECRETS+=(AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY")
-  [[ -n "${AWS_REGION:-}" ]] && SECRETS+=(AWS_REGION="$AWS_REGION")
-  [[ -n "${S3_BUCKET_NAME:-}" ]] && SECRETS+=(S3_BUCKET_NAME="$S3_BUCKET_NAME")
-  [[ -n "${CLOUDFRONT_DOMAIN:-}" ]] && SECRETS+=(CLOUDFRONT_DOMAIN="$CLOUDFRONT_DOMAIN")
-  fly secrets set -a "$WORKER_APP" "${SECRETS[@]}"
-fi
+echo "==> Syncing production secrets from $API_APP (not local .env)..."
+bash "$ROOT/scripts/sync-fly-worker-secrets.sh"
 
 echo "==> Deploying worker (fly.worker.toml)..."
 fly deploy -c fly.worker.toml -a "$WORKER_APP" --remote-only --ha=false
