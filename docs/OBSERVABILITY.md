@@ -16,6 +16,14 @@ METRICS_ENABLED=true
 
 Scrape `GET /metrics` (not under `/api/v1`).
 
+Optional bearer protection for production scrapers:
+
+```bash
+METRICS_SCRAPE_TOKEN=your-long-random-token
+```
+
+When set, scrapers must send `Authorization: Bearer <token>`. Leave unset for open scrape (current production default).
+
 | Metric | Description |
 |--------|-------------|
 | `forge_http_requests_total` | Counter by method + status |
