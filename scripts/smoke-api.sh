@@ -34,6 +34,16 @@ if [[ "$config_code" != "200" ]]; then
 fi
 echo "OK: GET ${BASE}/platform/config ($config_code)"
 
+if [[ "${FORGE_EXPECT_FLAGS:-}" == *multipart* ]] || [[ "$BASE" == *forgestudios.net* ]]; then
+  if python3 -c "import json,sys; f=json.load(open('/tmp/forge-smoke-config.json')); sys.exit(0 if 'multipart_upload' in (f.get('data',{}).get('featureFlags') or []) else 1)" 2>/dev/null; then
+    echo "OK: platform/config includes multipart_upload"
+  else
+    echo "FAIL: production expected multipart_upload in platform/config" >&2
+    cat /tmp/forge-smoke-config.json >&2 || true
+    exit 1
+  fi
+fi
+
 API_ROOT="${BASE%/api/v1}"
 health_headers="$(curl -sSI "${BASE}/health" 2>/dev/null || true)"
 if echo "$health_headers" | grep -qi 'x-correlation-id:'; then

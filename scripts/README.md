@@ -16,6 +16,7 @@ Run from **repository root** unless noted.
 | `fly-setup.sh` | `npm run deploy:fly` | First-time / update Fly API app |
 | `fly-worker-setup.sh` | `npm run deploy:fly:worker` | Fly worker app (FFmpeg / BullMQ, `WORKER_ONLY`) |
 | `sync-fly-worker-secrets.sh` | `npm run sync:fly:worker-secrets` | Copy secrets from API Fly app → worker |
+| `setup-fly-metrics-token.sh` | `npm run setup:fly:metrics-token` | Generate/set `METRICS_SCRAPE_TOKEN` on Fly API |
 | `vercel-setup.sh` | `npm run deploy:vercel` | Deploy web + admin to Vercel |
 | `deploy-production-complete.sh` | `npm run deploy:production` | Fly + Vercel + DNS hints |
 | `print-github-secrets.sh` | `npm run gh:secrets` | Print Vercel IDs; copy Fly token |

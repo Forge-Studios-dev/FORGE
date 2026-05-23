@@ -45,4 +45,14 @@ describe('MetricsController', () => {
     );
     expect(body).toContain('forge_http_requests_total');
   });
+
+  it('accepts raw Authorization token without Bearer prefix', async () => {
+    process.env.METRICS_ENABLED = 'true';
+    process.env.METRICS_SCRAPE_TOKEN = 'raw-token';
+    const body = await controller.metrics(
+      { headers: { authorization: 'raw-token' } } as import('express').Request,
+      res,
+    );
+    expect(body).toContain('forge_http_requests_total');
+  });
 });

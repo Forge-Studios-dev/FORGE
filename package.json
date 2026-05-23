@@ -30,6 +30,7 @@
     "deploy:fly": "bash scripts/fly-setup.sh",
     "deploy:fly:worker": "bash scripts/fly-worker-setup.sh",
     "sync:fly:worker-secrets": "bash scripts/sync-fly-worker-secrets.sh",
+    "setup:fly:metrics-token": "bash scripts/setup-fly-metrics-token.sh",
     "verify:production": "bash scripts/verify-production-ready.sh",
     "deploy:vercel": "bash scripts/vercel-setup.sh",
     "deploy:production": "bash scripts/deploy-production-complete.sh",
