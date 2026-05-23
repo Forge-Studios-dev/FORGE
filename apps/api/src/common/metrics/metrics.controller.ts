@@ -32,10 +32,7 @@ export class MetricsController {
 
   @Public()
   @Get()
-  async metrics(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<string> {
+  async metrics(@Req() req: Request, @Res() res: Response): Promise<void> {
     if (!forgeMetricsEnabled()) {
       throw new NotFoundException();
     }
@@ -45,7 +42,8 @@ export class MetricsController {
       collectDefaultMetrics({ register });
       this.defaultsRegistered = true;
     }
+    const body = await register.metrics();
     res.setHeader('Content-Type', register.contentType);
-    return register.metrics();
+    res.send(body);
   }
 }
