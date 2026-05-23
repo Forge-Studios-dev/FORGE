@@ -19,6 +19,14 @@ Lint and test run only in **ci.yml**. Deploy workflows do not replace CI.
 
 Self-hosted Docker (GHCR image workflows) was removed; production uses Fly + Vercel only.
 
+### Release order (`release.yml`)
+
+1. **deploy-api** — `flyctl deploy` → health + public smoke
+2. **deploy-worker** — `scripts/sync-fly-worker-secrets.sh` (uses `flyctl` + `FLY_API_TOKEN` in CI) → `flyctl deploy -c fly.worker.toml`
+3. **deploy-web** / **deploy-admin** — Vercel production
+
+Worker sync reads secrets from a running API machine (`flyctl ssh console`). It does **not** use your local `apps/api/.env`.
+
 ---
 
 ## Required GitHub secrets

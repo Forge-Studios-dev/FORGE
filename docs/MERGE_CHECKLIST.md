@@ -9,9 +9,13 @@ Use before merging the production-hardening branch to `main`.
 | `https://api.forgestudios.net/api/v1/health` | 200 — db, redis, video queue ok |
 | API Fly env | No `WORKER_ONLY` / `ENABLE_VIDEO_WORKER` |
 | Worker Fly env | `WORKER_ONLY=true` |
-| Public smoke | `FORGE_SMOKE_MODE=public npm run smoke:api` |
+| Public smoke | `FORGE_SMOKE_MODE=public npm run smoke:api:prod` |
+| Prometheus | `METRICS_ENABLED=true` on API — `GET /metrics` |
+| Release CI | API → worker secret sync (`flyctl`) → worker deploy → Vercel |
 
 **Incident resolved:** Fly crash loop (`Cannot find module .../dist/main.js`) — fixed via `apps/api/docker-entrypoint.sh` and Nest dist path. Worker JWT boot failure — use `npm run sync:fly:worker-secrets`, not local `.env`.
+
+**Video pipeline smoke (creator login required):** `npm run verify:video-pipeline:prod` with `FORGE_CREATOR_EMAIL` / `FORGE_CREATOR_PASSWORD`.
 
 ## Local verification
 
