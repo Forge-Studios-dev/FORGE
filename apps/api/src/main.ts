@@ -96,8 +96,8 @@ async function bootstrap() {
     logger.log(`Swagger docs: http://localhost:${port}/api/docs`);
   }
 
-  await app.listen(port);
-  logger.log(`FORGE API running on: http://localhost:${port}/api/v1`);
+  await app.listen(port, '0.0.0.0');
+  logger.log(`FORGE API running on: http://0.0.0.0:${port}/api/v1`);
 }
 
 bootstrap().catch((err) => {
