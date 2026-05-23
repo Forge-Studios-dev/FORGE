@@ -85,7 +85,7 @@ Starter assets in [`infra/observability/`](../infra/observability/):
 
 Requires `METRICS_ENABLED=true` on the API (enabled on production Fly API).
 
-**Grafana Cloud:** [infra/observability/grafana-cloud.md](../infra/observability/grafana-cloud.md).
+**Grafana Cloud:** [infra/observability/grafana-cloud.md](../infra/observability/grafana-cloud.md) · checklist [GRAFANA_SETUP.md](./GRAFANA_SETUP.md).
 
 ## Feature flags (large uploads)
 

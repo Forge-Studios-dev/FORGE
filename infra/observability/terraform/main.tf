@@ -14,21 +14,22 @@ variable "stack_slug" {
   default     = "forgesupport"
 }
 
-variable "connections_api_url" {
-  type        = string
-  description = "Grafana Connections API base URL for your region/stack"
-}
-
-variable "connections_api_access_token" {
+variable "grafana_cloud_access_policy_token" {
   type        = string
   sensitive   = true
-  description = "Grafana Cloud access policy token (Connections API)"
+  description = "Grafana Cloud access policy token (Connections + stack read)"
+}
+
+variable "connections_api_url" {
+  type        = string
+  default     = ""
+  description = "Optional override; leave empty to use stack connections_api_url"
 }
 
 variable "metrics_scrape_token" {
   type        = string
   sensitive   = true
-  description = "METRICS_SCRAPE_TOKEN value from Fly API (Bearer credential)"
+  description = "METRICS_SCRAPE_TOKEN from Fly API"
 }
 
 variable "scrape_url" {
@@ -42,25 +43,40 @@ variable "scrape_job_name" {
 }
 
 provider "grafana" {
-  connections_api_url          = var.connections_api_url
-  connections_api_access_token = var.connections_api_access_token
+  cloud_access_policy_token = var.grafana_cloud_access_policy_token
 }
 
 data "grafana_cloud_stack" "forge" {
   slug = var.stack_slug
 }
 
+locals {
+  connections_api_url = var.connections_api_url != "" ? var.connections_api_url : data.grafana_cloud_stack.forge.connections_api_url
+}
+
+provider "grafana" {
+  alias                        = "connections"
+  connections_api_url          = local.connections_api_url
+  connections_api_access_token = var.grafana_cloud_access_policy_token
+}
+
 resource "grafana_connections_metrics_endpoint_scrape_job" "forge_api" {
+  provider                      = grafana.connections
   stack_id                      = data.grafana_cloud_stack.forge.id
   name                          = var.scrape_job_name
   enabled                       = true
   url                           = var.scrape_url
   scrape_interval_seconds       = 60
   authentication_method         = "bearer"
-  authentication_bearer_token = var.metrics_scrape_token
+  authentication_bearer_token   = var.metrics_scrape_token
 }
 
 output "scrape_job_id" {
   value       = grafana_connections_metrics_endpoint_scrape_job.forge_api.id
   description = "Terraform resource id (stack_id:job_name)"
+}
+
+output "connections_api_url" {
+  value       = local.connections_api_url
+  description = "Connections API base URL used for scrape job"
 }
