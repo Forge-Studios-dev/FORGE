@@ -45,6 +45,8 @@ fi
 metrics_code="$(curl -sS -o /dev/null -w "%{http_code}" "${API_ROOT}/metrics" 2>/dev/null || echo "000")"
 if [[ "$metrics_code" == "200" ]]; then
   echo "OK: GET ${API_ROOT}/metrics (Prometheus enabled)"
+elif [[ "$metrics_code" == "401" ]]; then
+  echo "OK: GET ${API_ROOT}/metrics (401 — METRICS_SCRAPE_TOKEN required; use Bearer in scraper)"
 elif [[ "$metrics_code" == "404" ]]; then
   echo "OK: GET ${API_ROOT}/metrics (404 — set METRICS_ENABLED=true to expose)"
 else
