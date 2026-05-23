@@ -10,14 +10,23 @@ SECRETS_OUT="$(mktemp)"
 cleanup() { rm -f "$ENV_DUMP" "$SECRETS_OUT"; }
 trap cleanup EXIT
 
-echo "==> Syncing secrets: $API_APP → $WORKER_APP"
+if command -v flyctl >/dev/null 2>&1; then
+  FLY=flyctl
+elif command -v fly >/dev/null 2>&1; then
+  FLY=fly
+else
+  echo "ERROR: flyctl/fly not found in PATH" >&2
+  exit 1
+fi
 
-if [[ -z "${FLY_API_TOKEN:-}" ]] && ! fly auth whoami >/dev/null 2>&1; then
+echo "==> Syncing secrets: $API_APP → $WORKER_APP (via $FLY)"
+
+if [[ -z "${FLY_API_TOKEN:-}" ]] && ! "$FLY" auth whoami >/dev/null 2>&1; then
   echo "ERROR: fly auth login required (or set FLY_API_TOKEN)" >&2
   exit 1
 fi
 
-fly ssh console -a "$API_APP" -C 'printenv' 2>&1 | grep -v '^Connecting' > "$ENV_DUMP"
+"$FLY" ssh console -a "$API_APP" -C 'printenv' 2>&1 | grep -v '^Connecting' > "$ENV_DUMP"
 
 ENV_DUMP="$ENV_DUMP" SECRETS_OUT="$SECRETS_OUT" python3 <<'PY'
 import os
@@ -42,5 +51,5 @@ open(os.environ["SECRETS_OUT"], "w").write("\n".join(out) + "\n")
 print(f"Prepared {len(out)} secrets for worker")
 PY
 
-fly secrets import -a "$WORKER_APP" < "$SECRETS_OUT"
+"$FLY" secrets import -a "$WORKER_APP" < "$SECRETS_OUT"
 echo "==> Worker secrets updated"

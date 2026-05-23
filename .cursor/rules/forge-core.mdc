@@ -28,6 +28,7 @@ Why, current problem, scalability, performance, security, DX, production, long-t
 
 ## Shipping Standards
 
+- **Git**: never push directly to `main` — use a feature branch, verify, then one PR/merge (see `forge-git-branching.mdc`). Pushes to `main` trigger CI + production release and restart servers.
 - **Docs** (major work): architecture notes, env setup, deployment/rollback, API notes, testing notes.
 - **Tests** (major/critical): unit + integration where appropriate; never ship untested critical paths.
 - **Commits/PRs**: only when the user explicitly asks.
