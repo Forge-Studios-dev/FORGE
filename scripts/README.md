@@ -21,6 +21,7 @@ Run from **repository root** unless noted.
 | `import-grafana-dashboard.sh` | `npm run import:grafana-dashboard` | Import API dashboard (`GRAFANA_SA_TOKEN`) |
 | `verify-metrics-scrape.sh` | `npm run verify:metrics-scrape` | Check `/metrics` 401/200 + forge_http_* |
 | `discover-grafana-cloud.sh` | `npm run discover:grafana-cloud` | Stack + Connections URLs (`GRAFANA_CLOUD_*` token) |
+| `create-grafana-scrape-job.sh` | `npm run create:grafana-scrape-job` | PUT scrape job (needs `GRAFANA_STACK_ID` + `glc_` token) |
 | `vercel-setup.sh` | `npm run deploy:vercel` | Deploy web + admin to Vercel |
 | `deploy-production-complete.sh` | `npm run deploy:production` | Fly + Vercel + DNS hints |
 | `print-github-secrets.sh` | `npm run gh:secrets` | Print Vercel IDs; copy Fly token |

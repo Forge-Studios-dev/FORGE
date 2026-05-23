@@ -5,8 +5,9 @@ Creates the `forge-api` scrape job pulling `https://api.forgestudios.net/metrics
 ## Prerequisites
 
 1. Fly API: `METRICS_ENABLED=true` and `METRICS_SCRAPE_TOKEN` (`npm run setup:fly:metrics-token`).
-2. **Grafana Cloud access policy token** (not a `glsa_` service account token).
-   - Stack → **Administration** → **Cloud access policies** → create token with Connections / Metrics Endpoint permissions.
+2. **Grafana Cloud access policy token** (`glc_…`, not `glsa_`).
+   - Token needs **metrics** + **`stacks:read`** scopes for Terraform (UI works without `stacks:read`).
+   - Stack → **Administration** → **Cloud access policies** → edit `forge_setup` or create a new policy.
 3. Bearer scrape token = same value as Fly `METRICS_SCRAPE_TOKEN`.
 
 ## Discover stack URLs (optional)
