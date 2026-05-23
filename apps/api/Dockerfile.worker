@@ -27,10 +27,13 @@ ENV NODE_ENV=production
 
 COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
+COPY packages/shared-types/package.json ./packages/shared-types/
 
 RUN npm ci --workspace=apps/api --omit=dev
 
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/packages/shared-types/dist ./packages/shared-types/dist
 
-CMD ["node", "apps/api/dist/apps/api/src/main.js"]
+RUN test -f apps/api/dist/main.js
+
+CMD ["node", "apps/api/dist/main.js"]

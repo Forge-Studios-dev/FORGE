@@ -27,15 +27,19 @@ ENV NODE_ENV=production
 
 COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
+COPY packages/shared-types/package.json ./packages/shared-types/
 
 RUN npm ci --workspace=apps/api --omit=dev
 
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/packages/shared-types/dist ./packages/shared-types/dist
 
+# Fail the image build if Nest output path drifts (prevents Fly crash-loop on missing main.js).
+RUN test -f apps/api/dist/main.js
+
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD curl -f http://localhost:3001/api/v1/health || exit 1
 
-CMD ["node", "apps/api/dist/apps/api/src/main.js"]
+CMD ["node", "apps/api/dist/main.js"]
