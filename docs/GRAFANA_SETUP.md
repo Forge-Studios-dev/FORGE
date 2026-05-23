@@ -12,11 +12,24 @@
 
 ## Create scrape job (pick one)
 
-### UI
+### UI (correct navigation)
 
-1. [Metrics Endpoint connection](https://forgesupport.grafana.net/connections/datasources/metrics-endpoint) → **Create scrape job**
-2. Name `forge-api`, URL `https://api.forgestudios.net/metrics`, interval `60s`, **Bearer** (token only)
-3. `SHOW_SCRAPE_TOKEN=1 npm run configure:grafana-scrape` → paste token → **Test** → **Save**
+**Do not open** `/connections/datasources/metrics-endpoint` — that URL is wrong and shows *Unknown datasource* (see Grafana docs: Metrics Endpoint is a **Connection integration**, not a datasource).
+
+1. Open **[Connections](https://forgesupport.grafana.net/connections)** (left menu → **Connections**).
+2. Search or browse for the **Metrics Endpoint** tile → click it.  
+   Direct app URL (if listed): [Metrics Endpoint app](https://forgesupport.grafana.net/a/grafana-metricsendpoints-app)
+3. On the integration page, add a **scrape job** (or open **Configuration** first, then create job).
+4. Fill in:
+
+   | Field | Value |
+   |-------|--------|
+   | Name | `forge-api` |
+   | URL | `https://api.forgestudios.net/metrics` |
+   | Interval | `60s` |
+   | Auth | **Bearer** (paste token only — no `Bearer ` prefix) |
+
+5. `SHOW_SCRAPE_TOKEN=1 npm run configure:grafana-scrape` → copy token → **Test connection** → **Save**.
 
 ### Terraform / API script
 
@@ -32,12 +45,6 @@ export GRAFANA_STACK_ID='<stack-id-from-portal>'
 export GRAFANA_CONNECTIONS_CLUSTER='prod-ap-south-1'
 npm run create:grafana-scrape-job
 ```
-
-### UI (works with current token — recommended)
-
-1. [Metrics Endpoint](https://forgesupport.grafana.net/connections/datasources/metrics-endpoint) → **Create scrape job**
-2. Name `forge-api`, URL `https://api.forgestudios.net/metrics`, interval `60s`, **Bearer**
-3. `SHOW_SCRAPE_TOKEN=1 npm run configure:grafana-scrape` → paste token (no `Bearer ` prefix) → **Test** → **Save**
 
 ## Scripts
 
