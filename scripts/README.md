@@ -17,6 +17,8 @@ Run from **repository root** unless noted.
 | `fly-worker-setup.sh` | `npm run deploy:fly:worker` | Fly worker app (FFmpeg / BullMQ, `WORKER_ONLY`) |
 | `sync-fly-worker-secrets.sh` | `npm run sync:fly:worker-secrets` | Copy secrets from API Fly app → worker |
 | `setup-fly-metrics-token.sh` | `npm run setup:fly:metrics-token` | Generate/set `METRICS_SCRAPE_TOKEN` on Fly API |
+| `configure-grafana-metrics-scrape.sh` | `npm run configure:grafana-scrape` | Print Grafana scrape job values (token from Fly) |
+| `import-grafana-dashboard.sh` | `npm run import:grafana-dashboard` | Import API dashboard (`GRAFANA_SA_TOKEN`) |
 | `vercel-setup.sh` | `npm run deploy:vercel` | Deploy web + admin to Vercel |
 | `deploy-production-complete.sh` | `npm run deploy:production` | Fly + Vercel + DNS hints |
 | `print-github-secrets.sh` | `npm run gh:secrets` | Print Vercel IDs; copy Fly token |
