@@ -45,6 +45,14 @@ export GRAFANA_SA_TOKEN='<service-account-token>'   # never commit
 npm run import:grafana-dashboard
 ```
 
+**Terraform (scrape job as code):** [terraform/README.md](./terraform/README.md) — requires a **Cloud access policy** token (not `glsa_`).
+
+**Verify scrape auth:**
+
+```bash
+npm run verify:metrics-scrape
+```
+
 Within a few minutes, query `forge_http_requests_total` in **Explore** (datasource `grafanacloud-forgesupport-prom`).
 
 Legacy self-hosted scrape YAML (not used for Grafana Cloud Metrics Endpoint): `prometheus-scrape.example.yml`.

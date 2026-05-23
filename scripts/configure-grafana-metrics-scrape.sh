@@ -15,9 +15,13 @@ if [[ -z "${FLY_API_TOKEN:-}" ]] && ! "$FLY" auth whoami >/dev/null 2>&1; then
   exit 1
 fi
 
-SCRAPE_TOKEN="$("$FLY" ssh console -a "$API_APP" -C 'printenv METRICS_SCRAPE_TOKEN' 2>&1 | grep -v '^Connecting' | tail -1 || true)"
+SCRAPE_TOKEN="${METRICS_SCRAPE_TOKEN:-}"
 if [[ -z "$SCRAPE_TOKEN" ]]; then
-  echo "METRICS_SCRAPE_TOKEN not set on $API_APP. Run: npm run setup:fly:metrics-token" >&2
+  SCRAPE_TOKEN="$("$FLY" ssh console -a "$API_APP" -C 'printenv METRICS_SCRAPE_TOKEN' 2>&1 | grep -v '^Connecting' | tail -1 || true)"
+fi
+if [[ -z "$SCRAPE_TOKEN" ]]; then
+  echo "METRICS_SCRAPE_TOKEN not set. Run: npm run setup:fly:metrics-token" >&2
+  echo "Or: METRICS_SCRAPE_TOKEN=... npm run configure:grafana-scrape" >&2
   exit 1
 fi
 
@@ -33,8 +37,12 @@ echo "   URL:      https://api.forgestudios.net/metrics"
 echo "   Interval: 60s"
 echo "   Auth:     Bearer (paste token only — no 'Bearer ' prefix in the field)"
 echo ""
-echo "Bearer credential (copy from Fly METRICS_SCRAPE_TOKEN):"
-echo "  ${SCRAPE_TOKEN}"
+if [[ "${SHOW_SCRAPE_TOKEN:-0}" == "1" ]]; then
+  echo "Bearer credential (METRICS_SCRAPE_TOKEN):"
+  echo "  ${SCRAPE_TOKEN}"
+else
+  echo "Bearer credential: set (length ${#SCRAPE_TOKEN}). Export SHOW_SCRAPE_TOKEN=1 to print."
+fi
 echo ""
 echo "3. Test connection → Save"
 echo "4. Explore → datasource grafanacloud-forgesupport-prom → query: forge_http_requests_total"
