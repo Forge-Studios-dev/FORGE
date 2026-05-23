@@ -21,6 +21,10 @@ export class TransformInterceptor<T>
 {
   intercept(context: ExecutionContext, next: CallHandler): Observable<ApiResponse<T>> {
     const req = context.switchToHttp().getRequest<Request>();
+    // Prometheus scrapers require raw text/plain exposition, not { success, data } JSON.
+    if (req.path === '/metrics' || req.url?.startsWith('/metrics')) {
+      return next.handle();
+    }
     const correlationId = req.correlationId;
     return next.handle().pipe(
       map((data) => ({

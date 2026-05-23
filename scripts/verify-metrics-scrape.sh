@@ -29,8 +29,13 @@ if [[ "$auth" != "200" ]]; then
   exit 1
 fi
 echo "OK: bearer scrape → 200"
-if curl -sS -H "Authorization: Bearer ${TOKEN}" "$URL" 2>/dev/null | grep -q forge_http_requests_total; then
-  echo "OK: response includes forge_http_requests_total"
+body="$(curl -sS -H "Authorization: Bearer ${TOKEN}" "$URL" 2>/dev/null || true)"
+if echo "$body" | head -1 | grep -q '^{'; then
+  echo "FAIL: /metrics returned JSON (Prometheus scrapers need raw text). Deploy metrics transform skip." >&2
+  exit 1
+fi
+if echo "$body" | grep -q forge_http_requests_total; then
+  echo "OK: raw Prometheus body includes forge_http_requests_total"
 else
   echo "WARN: 200 but forge_http_requests_total not found in body" >&2
 fi

@@ -3,7 +3,10 @@ import { MetricsController } from './metrics.controller';
 
 describe('MetricsController', () => {
   const controller = new MetricsController();
-  const res = { setHeader: jest.fn() } as unknown as import('express').Response;
+  const res = {
+    setHeader: jest.fn(),
+    send: jest.fn(),
+  } as unknown as import('express').Response;
 
   const originalEnabled = process.env.METRICS_ENABLED;
   const originalToken = process.env.METRICS_SCRAPE_TOKEN;
@@ -24,10 +27,8 @@ describe('MetricsController', () => {
   it('allows scrape without token when METRICS_SCRAPE_TOKEN unset', async () => {
     process.env.METRICS_ENABLED = 'true';
     delete process.env.METRICS_SCRAPE_TOKEN;
-    const body = await controller.metrics(
-      { headers: {} } as import('express').Request,
-      res,
-    );
+    await controller.metrics({ headers: {} } as import('express').Request, res);
+    const body = (res.send as jest.Mock).mock.calls[0][0] as string;
     expect(body).toContain('forge_http_requests_total');
   });
 
@@ -37,22 +38,20 @@ describe('MetricsController', () => {
     await expect(
       controller.metrics({ headers: {} } as import('express').Request, res),
     ).rejects.toBeInstanceOf(UnauthorizedException);
-    const body = await controller.metrics(
-      {
-        headers: { authorization: 'Bearer secret-scrape' },
-      } as import('express').Request,
+    await controller.metrics(
+      { headers: { authorization: 'Bearer secret-scrape' } } as import('express').Request,
       res,
     );
-    expect(body).toContain('forge_http_requests_total');
+    expect((res.send as jest.Mock).mock.calls[0][0]).toContain('forge_http_requests_total');
   });
 
   it('accepts raw Authorization token without Bearer prefix', async () => {
     process.env.METRICS_ENABLED = 'true';
     process.env.METRICS_SCRAPE_TOKEN = 'raw-token';
-    const body = await controller.metrics(
+    await controller.metrics(
       { headers: { authorization: 'raw-token' } } as import('express').Request,
       res,
     );
-    expect(body).toContain('forge_http_requests_total');
+    expect((res.send as jest.Mock).mock.calls[0][0]).toContain('forge_http_requests_total');
   });
 });
