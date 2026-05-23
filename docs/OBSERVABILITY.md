@@ -73,5 +73,18 @@ Starter assets in [`infra/observability/`](../infra/observability/):
 | `prometheus-scrape.example.yml` | Scrape `GET /metrics` on the API |
 | `prometheus-alerts.yml` | Error rate + latency alerts |
 | `grafana-dashboard-forge-api.json` | Import into Grafana (Dashboards → Import) |
+| `grafana-cloud.md` | Grafana Cloud scrape + dashboard import |
 
-Requires `METRICS_ENABLED=true` on the API.
+Requires `METRICS_ENABLED=true` on the API (enabled on production Fly API).
+
+**Grafana Cloud:** [infra/observability/grafana-cloud.md](../infra/observability/grafana-cloud.md).
+
+## Feature flags (large uploads)
+
+Multipart S3 uploads (≥50MB) require:
+
+```bash
+FEATURE_FLAGS=multipart_upload   # Fly: fly secrets set -a forge-studios-api
+```
+
+Web merges flags from `GET /api/v1/platform/config` — no extra Vercel env needed.
