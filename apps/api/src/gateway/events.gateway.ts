@@ -12,9 +12,10 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { OnEvent } from '@nestjs/event-emitter';
-import { Server, Socket } from 'socket.io';
+import { Namespace, Server, Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { createClient } from 'redis';
+import { createClient, type RedisClientOptions } from 'redis';
+import { redisTlsOptions } from '../common/redis/redis-tls.util';
 import { socketIoCorsOptions } from './socket-cors.util';
 
 @WebSocketGateway({
@@ -43,12 +44,15 @@ export class EventsGateway
       return;
     }
     try {
-      const pubClient = createClient({ url });
+      const nodeEnv = this.configService.get<string>('nodeEnv') || 'development';
+      const clientOptions = this.redisSocketOptions(url, nodeEnv);
+      const pubClient = createClient(clientOptions);
       const subClient = pubClient.duplicate();
       pubClient.on('error', (err) => this.logger.error(`Redis pub client: ${err.message}`));
       subClient.on('error', (err) => this.logger.error(`Redis sub client: ${err.message}`));
       await Promise.all([pubClient.connect(), subClient.connect()]);
-      this.server.adapter(createAdapter(pubClient, subClient));
+      const io = this.socketIoServer();
+      io.adapter(createAdapter(pubClient, subClient));
       this.logger.log('WebSocket gateway initialized with Redis adapter (multi-replica ready)');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -180,5 +184,25 @@ export class EventsGateway
 
   emitToRoom(room: string, event: string, data: unknown) {
     this.server.to(room).emit(event, data);
+  }
+
+  /** Nest may expose the namespace or root Server; adapter must attach to the root IO instance. */
+  private socketIoServer(): Server {
+    const srv = this.server;
+    const parent = (srv as unknown as Namespace).server;
+    if (parent && typeof parent.adapter === 'function') return parent;
+    return srv;
+  }
+
+  private redisSocketOptions(url: string, nodeEnv: string): RedisClientOptions {
+    const options: RedisClientOptions = { url };
+    const tls = redisTlsOptions(url, nodeEnv);
+    if (tls) {
+      options.socket = {
+        tls: true,
+        rejectUnauthorized: tls.tls.rejectUnauthorized,
+      };
+    }
+    return options;
   }
 }
