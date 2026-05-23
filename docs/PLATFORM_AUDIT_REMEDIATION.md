@@ -134,9 +134,17 @@ See [MERGE_CHECKLIST.md](./MERGE_CHECKLIST.md) for local CI, review map, and pos
 | Release CI | `verify-metrics-scrape` after API deploy |
 | Ops | `npm run check:production` — smoke + metrics in one command |
 
+## Phase 11 (2026-05-23) — Grafana ingest verification
+
+| Item | Change |
+|------|--------|
+| Grafana verify | `verify-grafana-metrics.sh` — queries Cloud Prometheus for `forge_http_requests_total` |
+| Production check | `check:production` runs Grafana verify when `GRAFANA_SA_TOKEN` is set |
+| Secret rotation | `docs/SECRET_ROTATION.md` |
+
 ## Next phases
 
-- **Grafana:** save Metrics Endpoint scrape job in UI (`docs/GRAFANA_SETUP.md`) — API side ready
+- **Rotate secrets** if any were shared outside a vault — `docs/SECRET_ROTATION.md`
 - Persist multipart state in Postgres for audit / longer TTL
 - Prod video pipeline E2E with real creator credentials
 
