@@ -11,6 +11,7 @@ Use before merging the production-hardening branch to `main`.
 | Worker Fly env | `WORKER_ONLY=true` |
 | Public smoke | `FORGE_SMOKE_MODE=public npm run smoke:api:prod` |
 | Prometheus | `METRICS_ENABLED=true` on API — `GET /metrics` |
+| Multipart upload | `FEATURE_FLAGS=multipart_upload` on API (≥50MB uploads) |
 | Release CI | API → worker secret sync (`flyctl`) → worker deploy → Vercel |
 
 **Incident resolved:** Fly crash loop (`Cannot find module .../dist/main.js`) — fixed via `apps/api/docker-entrypoint.sh` and Nest dist path. Worker JWT boot failure — use `npm run sync:fly:worker-secrets`, not local `.env`.
@@ -55,7 +56,7 @@ cd apps/web && npm run test:e2e
 | Env | Effect |
 |-----|--------|
 | `METRICS_ENABLED=true` | `GET /metrics` |
-| `FEATURE_FLAGS=multipart_upload` | Large video multipart |
+| `FEATURE_FLAGS=multipart_upload` | Large video multipart (enabled on prod API) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT=...` | Distributed tracing |
 | `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` (GitHub) | Authenticated Playwright in CI |
 
