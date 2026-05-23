@@ -198,7 +198,15 @@ npm run deploy:fly:worker
 
 Uses `fly.worker.toml` (`WORKER_ONLY=true`). Release workflow deploys this after the API when `release.yml` runs.
 
-Production secrets on the worker must match API: `DATABASE_URL`, Redis/Upstash, `AWS_*`, `S3_BUCKET_NAME`, `CLOUDFRONT_DOMAIN`.
+**Worker secrets must come from the running API app**, not your local `.env`:
+
+```bash
+npm run sync:fly:worker-secrets
+```
+
+Production secrets on the worker must match API: `DATABASE_URL`, Redis/Upstash, `AWS_*`, `S3_BUCKET_NAME`, `CLOUDFRONT_DOMAIN`, `JWT_*`.
+
+**Fly crash loop (`Cannot find module .../dist/main.js`):** the API image uses `apps/api/docker-entrypoint.sh` to resolve the Nest monorepo output path. Redeploy API after pulling latest `main`.
 
 Also set on **API** (production):
 

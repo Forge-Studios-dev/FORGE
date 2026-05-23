@@ -114,6 +114,17 @@ See [MERGE_CHECKLIST.md](./MERGE_CHECKLIST.md) for local CI, review map, and pos
 | Production config tests | `validate-production-config.spec.ts` |
 | Release worker | Explicit `-a forge-studios-worker` in `release.yml` |
 
+## Phase 9 (2026-05-23) — Fly production incident + ops
+
+| Item | Change |
+|------|--------|
+| Docker entrypoint | `docker-entrypoint.sh` resolves `main.js` for Nest monorepo dist layout |
+| Fly bind | `app.listen(port, '0.0.0.0')` |
+| Socket.IO | Redis adapter on root IO server (`events.gateway.ts`) |
+| Worker secrets | `sync-fly-worker-secrets.sh`, `npm run sync:fly:worker-secrets`; CI runs before worker deploy |
+| Queue consumers | Production API enqueues only; `AnalyticsIngestWorker` + `VideoProcessorWorker` on worker app |
+| Mux guard | `MUX_WEBHOOK_SECRET` required only when `MUX_TOKEN_ID` is set |
+
 ## Next phases
 
 - Persist multipart state in Postgres for audit / longer TTL
