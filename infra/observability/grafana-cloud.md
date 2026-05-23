@@ -17,7 +17,9 @@ Grafana Cloud → **Connections** → **Metrics Endpoint** → **Create scrape j
 | Name | `forge-api` |
 | URL | `https://api.forgestudios.net/metrics` |
 | Interval | `30s` |
-| Auth | **Bearer** (token only — no `Bearer ` prefix) |
+| Auth | **Bearer** — paste the token only in the credential field (Grafana sends `Authorization: Bearer <token>`) |
+
+The API also accepts a raw `Authorization: <token>` header if your scraper omits the `Bearer` prefix.
 
 Grafana Cloud **requires** the metrics URL to be authenticated. On the API:
 

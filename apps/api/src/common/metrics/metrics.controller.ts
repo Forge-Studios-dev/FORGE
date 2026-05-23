@@ -20,7 +20,9 @@ function assertMetricsScrapeAuthorized(req: Request): void {
   const expected = metricsScrapeToken();
   if (!expected) return;
   const auth = req.headers.authorization?.trim();
-  if (auth === `Bearer ${expected}`) return;
+  // Grafana Cloud Bearer field: paste token only; client sends `Bearer <token>`.
+  // Also accept raw token for scrapers that set Authorization without the prefix.
+  if (auth === expected || auth === `Bearer ${expected}`) return;
   throw new UnauthorizedException();
 }
 
