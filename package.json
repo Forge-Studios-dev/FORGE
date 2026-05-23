@@ -25,6 +25,7 @@
     "gh:secrets:set": "bash scripts/setup-github-secrets.sh",
     "smoke:api": "bash scripts/smoke-api.sh",
     "smoke:api:prod": "FORGE_SMOKE_API=https://api.forgestudios.net/api/v1 bash scripts/smoke-api.sh",
+    "check:production": "bash scripts/check-production.sh",
     "db:neon:setup": "bash scripts/neon-db-setup.sh",
     "redis:upstash:test": "bash scripts/upstash-redis-test.sh",
     "deploy:fly": "bash scripts/fly-setup.sh",

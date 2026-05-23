@@ -51,7 +51,7 @@ cd apps/web && npm run test:e2e
 4. **Worker secrets:** `npm run sync:fly:worker-secrets` (copies from running API machine; release workflow runs this before worker deploy).
 5. **Production secrets** (Fly API + worker): strong `JWT_*`, `MUX_WEBHOOK_SECRET`, same `DATABASE_URL` / Redis / AWS as API.
 6. **Do not** set `ENABLE_VIDEO_WORKER` on API machines.
-7. **Smoke production:** `FORGE_SMOKE_MODE=public npm run smoke:api:prod`
+7. **Smoke production:** `npm run check:production` (smoke + metrics scrape)
 
 ## Optional toggles
 
