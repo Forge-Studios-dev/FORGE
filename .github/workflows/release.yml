@@ -52,13 +52,16 @@ jobs:
 
       - name: Smoke test API health
         run: |
-          for i in 1 2 3 4 5 6; do
-            if curl -sf https://api.forgestudios.net/api/v1/health; then
-              exit 0
-            fi
-            sleep 10
+          for url in https://api.forgestudios.net/api/v1/health https://forge-studios-api.fly.dev/api/v1/health; do
+            for i in 1 2 3 4 5 6 8 10 12; do
+              if curl -sf --max-time 15 "$url"; then
+                echo "OK: $url"
+                exit 0
+              fi
+              sleep 10
+            done
           done
-          echo "Health check failed after deploy"
+          echo "Health check failed after deploy (custom domain and fly.dev)"
           exit 1
 
       - name: Smoke test API (public routes)
