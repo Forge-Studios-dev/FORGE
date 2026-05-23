@@ -10,7 +10,11 @@ Production API exposes Prometheus metrics at `https://api.forgestudios.net/metri
 
 ## 2. Scrape from Grafana Cloud (recommended)
 
-Grafana Cloud → **Connections** → **Metrics Endpoint** → **Create scrape job** ([docs](https://grafana.com/docs/grafana-cloud/monitor-infrastructure/integrations/integration-reference/integration-metrics-endpoint/)).
+Grafana Cloud → **Connections** → **Metrics Endpoint** tile → **Create scrape job** ([docs](https://grafana.com/docs/grafana-cloud/monitor-infrastructure/integrations/integration-reference/integration-metrics-endpoint/)).
+
+**Wrong URL (shows “Unknown datasource”):** `.../connections/datasources/metrics-endpoint` — that is not a valid path.
+
+**Use:** [Connections hub](https://forgesupport.grafana.net/connections) or [Metrics Endpoint app](https://forgesupport.grafana.net/a/grafana-metricsendpoints-app).
 
 | Field | Value |
 |-------|--------|
