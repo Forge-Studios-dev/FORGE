@@ -8,5 +8,6 @@ scrape_configs:
     scheme: https
     static_configs:
       - targets:
-          - forge-studios-api.fly.dev
+          - api.forgestudios.net
+          # fallback: forge-studios-api.fly.dev
     # Fly: use fly-prometheus or private scraper with FLY_API_TOKEN proxy
