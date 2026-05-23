@@ -9,11 +9,21 @@ import { AnalyticsEvent } from '../analytics/entities/analytics-event.entity';
 import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../content/videos.service';
 import { ANALYTICS_INGEST_QUEUE } from '../analytics/analytics-ingest.constants';
 
-/** FFmpeg must not run on API replicas unless explicitly enabled (local dev). */
-function shouldRegisterVideoProcessor(): boolean {
+function isDedicatedWorkerProcess(): boolean {
   return (
     process.env.WORKER_ONLY === 'true' || process.env.ENABLE_VIDEO_WORKER === 'true'
   );
+}
+
+/** FFmpeg must not run on API replicas unless explicitly enabled (local dev). */
+function shouldRegisterVideoProcessor(): boolean {
+  return isDedicatedWorkerProcess();
+}
+
+/** In production, only the Fly worker app consumes BullMQ jobs; API enqueues only. */
+function shouldRegisterAnalyticsIngest(): boolean {
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
 }
 
 @Module({
@@ -47,7 +57,7 @@ function shouldRegisterVideoProcessor(): boolean {
     EventEmitterModule,
   ],
   providers: [
-    AnalyticsIngestWorker,
+    ...(shouldRegisterAnalyticsIngest() ? [AnalyticsIngestWorker] : []),
     ...(shouldRegisterVideoProcessor() ? [VideoProcessorWorker] : []),
   ],
 })

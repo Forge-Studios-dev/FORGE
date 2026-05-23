@@ -79,6 +79,11 @@ jobs:
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
+      - name: Sync worker secrets from API
+        run: bash scripts/sync-fly-worker-secrets.sh
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
       - name: Deploy BullMQ worker
         run: flyctl deploy -c fly.worker.toml -a forge-studios-worker --remote-only --ha=false
         env:
