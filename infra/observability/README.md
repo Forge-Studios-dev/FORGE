@@ -5,7 +5,8 @@ Import into your Prometheus / Grafana stack. Requires `METRICS_ENABLED=true` on 
 | File | Use |
 |------|-----|
 | `prometheus-scrape.example.yml` | Scrape `https://api.forgestudios.net/metrics` |
-| `prometheus-alerts.yml` | Load as Prometheus rule file |
+| `prometheus-alerts.yml` | Reference PromQL (see `grafana-alert-rules.json` for Cloud) |
+| `grafana-alert-rules.json` | Grafana-managed alert rules (`npm run import:grafana-alerts`) |
 | `grafana-dashboard-forge-api.json` | Grafana → Dashboards → Import |
 | `grafana-cloud.md` | Step-by-step Grafana Cloud scrape + import |
 | `terraform/` | Metrics Endpoint scrape job (Terraform; Cloud access policy token) |

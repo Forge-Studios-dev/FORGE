@@ -4,6 +4,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { VideosController } from './videos.controller';
 import { VideosService, VIDEO_PROCESSING_QUEUE } from './videos.service';
 import { Video } from './entities/video.entity';
+import { VideoMultipartSession } from './entities/video-multipart-session.entity';
 import { SkillTag } from '../categories/entities/skill-tag.entity';
 import { Category } from '../categories/entities/category.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
@@ -16,7 +17,15 @@ import { VideoMultipartService } from './video-multipart.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Video, SkillTag, Category, WatchHistory, Playlist, PlaylistVideo]),
+    TypeOrmModule.forFeature([
+      Video,
+      VideoMultipartSession,
+      SkillTag,
+      Category,
+      WatchHistory,
+      Playlist,
+      PlaylistVideo,
+    ]),
     forwardRef(() => UsersModule),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,

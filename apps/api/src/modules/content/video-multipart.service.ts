@@ -2,10 +2,13 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
+import { Repository } from 'typeorm';
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
@@ -15,10 +18,12 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { isFeatureEnabled, parseFeatureFlags } from '@forge/shared-types';
 import { Video } from './entities/video.entity';
+import { VideoMultipartSession } from './entities/video-multipart-session.entity';
 import {
   MULTIPART_MAX_PARTS_PER_REQUEST,
   MULTIPART_MIN_FILE_BYTES,
   MULTIPART_PART_SIZE_BYTES,
+  MULTIPART_POSTGRES_TTL_SEC,
   MULTIPART_REDIS_PREFIX,
   MULTIPART_REDIS_TTL_SEC,
   type MultipartCompletedPart,
@@ -28,10 +33,14 @@ import type { S3Client } from '@aws-sdk/client-s3';
 
 @Injectable()
 export class VideoMultipartService {
+  private readonly logger = new Logger(VideoMultipartService.name);
+
   constructor(
     @InjectRedis()
     private readonly redis: Redis,
     private readonly configService: ConfigService,
+    @InjectRepository(VideoMultipartSession)
+    private readonly sessionRepository: Repository<VideoMultipartSession>,
   ) {}
 
   isEnabledForSize(fileSizeBytes: number): boolean {
@@ -45,18 +54,53 @@ export class VideoMultipartService {
     return `${MULTIPART_REDIS_PREFIX}${videoId}`;
   }
 
+  private postgresExpiresAt(): Date {
+    return new Date(Date.now() + MULTIPART_POSTGRES_TTL_SEC * 1000);
+  }
+
   async saveState(videoId: string, state: MultipartUploadState): Promise<void> {
     await this.redis.setex(this.redisKey(videoId), MULTIPART_REDIS_TTL_SEC, JSON.stringify(state));
+    try {
+      await this.sessionRepository.save({
+        videoId,
+        userId: state.userId,
+        state,
+        expiresAt: this.postgresExpiresAt(),
+      });
+    } catch (err) {
+      this.logger.warn(
+        `multipart postgres save failed for ${videoId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 
   async loadState(videoId: string): Promise<MultipartUploadState | null> {
     const raw = await this.redis.get(this.redisKey(videoId));
-    if (!raw) return null;
-    return JSON.parse(raw) as MultipartUploadState;
+    if (raw) return JSON.parse(raw) as MultipartUploadState;
+
+    const row = await this.sessionRepository.findOne({ where: { videoId } });
+    if (!row || row.expiresAt.getTime() <= Date.now()) {
+      if (row) await this.sessionRepository.delete({ videoId });
+      return null;
+    }
+
+    await this.redis.setex(
+      this.redisKey(videoId),
+      MULTIPART_REDIS_TTL_SEC,
+      JSON.stringify(row.state),
+    );
+    return row.state;
   }
 
   async clearState(videoId: string): Promise<void> {
     await this.redis.del(this.redisKey(videoId));
+    try {
+      await this.sessionRepository.delete({ videoId });
+    } catch (err) {
+      this.logger.warn(
+        `multipart postgres delete failed for ${videoId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 
   partCountForFileSize(fileSizeBytes: number): number {

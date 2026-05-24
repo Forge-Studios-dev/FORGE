@@ -34,6 +34,8 @@
     "setup:fly:metrics-token": "bash scripts/setup-fly-metrics-token.sh",
     "configure:grafana-scrape": "bash scripts/configure-grafana-metrics-scrape.sh",
     "import:grafana-dashboard": "bash scripts/import-grafana-dashboard.sh",
+    "import:grafana-alerts": "bash scripts/import-grafana-alerts.sh",
+    "verify:grafana-alerts": "bash scripts/verify-grafana-alerts.sh",
     "verify:metrics-scrape": "bash scripts/verify-metrics-scrape.sh",
     "verify:grafana-metrics": "bash scripts/verify-grafana-metrics.sh",
     "discover:grafana-cloud": "bash scripts/discover-grafana-cloud.sh",

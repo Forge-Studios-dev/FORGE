@@ -11,7 +11,7 @@ Use before merging the production-hardening branch to `main`.
 | Worker Fly env | `WORKER_ONLY=true` |
 | Public smoke | `FORGE_SMOKE_MODE=public npm run smoke:api:prod` |
 | Prometheus | `METRICS_ENABLED=true` on API — `GET /metrics` |
-| Multipart upload | `FEATURE_FLAGS=multipart_upload` on API (≥50MB uploads) |
+| Multipart upload | `FEATURE_FLAGS=multipart_upload` on API; state in Redis (24h) + Postgres (7d) |
 | Metrics scrape | `METRICS_SCRAPE_TOKEN` on API; `npm run verify:grafana-metrics` OK when scrape job saved |
 | Grafana dashboard | https://forgesupport.grafana.net/d/forge-api/forge-api |
 | Release CI | API → worker secret sync (`flyctl`) → worker deploy → Vercel |

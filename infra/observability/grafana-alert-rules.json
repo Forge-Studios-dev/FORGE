@@ -1,0 +1,146 @@
+[
+  {
+    "uid": "forge-api-high-error-rate",
+    "folderUID": "dfmwlxxyccvswe",
+    "ruleGroup": "forge-api",
+    "title": "ForgeApiHighErrorRate",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "relativeTimeRange": { "from": 600, "to": 0 },
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum(rate(forge_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(forge_http_requests_total[5m]))",
+          "instant": true,
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": { "from": 0, "to": 0 },
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": { "params": [0.05], "type": "gt" },
+              "operator": { "type": "and" },
+              "query": { "params": ["C"] },
+              "reducer": { "params": [], "type": "last" },
+              "type": "query"
+            }
+          ],
+          "datasource": { "type": "__expr__", "uid": "__expr__" },
+          "expression": "A",
+          "refId": "C",
+          "type": "threshold"
+        }
+      }
+    ],
+    "noDataState": "NoData",
+    "execErrState": "Error",
+    "for": "5m",
+    "annotations": {
+      "summary": "FORGE API 5xx rate above 5%",
+      "description": "More than 5% of requests returned 5xx over the last 5 minutes."
+    },
+    "labels": { "severity": "warning" }
+  },
+  {
+    "uid": "forge-api-high-latency-p95",
+    "folderUID": "dfmwlxxyccvswe",
+    "ruleGroup": "forge-api",
+    "title": "ForgeApiHighLatencyP95",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "relativeTimeRange": { "from": 600, "to": 0 },
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(forge_http_request_duration_seconds_bucket[5m])) by (le))",
+          "instant": true,
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": { "from": 0, "to": 0 },
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": { "params": [2], "type": "gt" },
+              "operator": { "type": "and" },
+              "query": { "params": ["C"] },
+              "reducer": { "params": [], "type": "last" },
+              "type": "query"
+            }
+          ],
+          "datasource": { "type": "__expr__", "uid": "__expr__" },
+          "expression": "A",
+          "refId": "C",
+          "type": "threshold"
+        }
+      }
+    ],
+    "noDataState": "NoData",
+    "execErrState": "Error",
+    "for": "10m",
+    "annotations": {
+      "summary": "FORGE API p95 latency above 2s",
+      "description": "HTTP request duration p95 exceeded 2 seconds for 10 minutes."
+    },
+    "labels": { "severity": "warning" }
+  },
+  {
+    "uid": "forge-api-metrics-missing",
+    "folderUID": "dfmwlxxyccvswe",
+    "ruleGroup": "forge-api",
+    "title": "ForgeApiMetricsMissing",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "relativeTimeRange": { "from": 600, "to": 0 },
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "absent(forge_http_requests_total)",
+          "instant": true,
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": { "from": 0, "to": 0 },
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": { "params": [0], "type": "gt" },
+              "operator": { "type": "and" },
+              "query": { "params": ["C"] },
+              "reducer": { "params": [], "type": "last" },
+              "type": "query"
+            }
+          ],
+          "datasource": { "type": "__expr__", "uid": "__expr__" },
+          "expression": "A",
+          "refId": "C",
+          "type": "threshold"
+        }
+      }
+    ],
+    "noDataState": "NoData",
+    "execErrState": "Error",
+    "for": "15m",
+    "annotations": {
+      "summary": "No forge_http_requests_total samples",
+      "description": "Metrics scrape may be down or METRICS_ENABLED is false on the API."
+    },
+    "labels": { "severity": "info" }
+  }
+]

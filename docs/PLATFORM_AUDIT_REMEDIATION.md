@@ -142,10 +142,18 @@ See [MERGE_CHECKLIST.md](./MERGE_CHECKLIST.md) for local CI, review map, and pos
 | Production check | `check:production` runs Grafana verify when `GRAFANA_SA_TOKEN` is set |
 | Secret rotation | `docs/SECRET_ROTATION.md` |
 
+## Phase 12 (2026-05-23) — Alerts as code + multipart Postgres
+
+| Item | Change |
+|------|--------|
+| Grafana alerts | `grafana-alert-rules.json`, `import/verify-grafana-alerts` scripts |
+| Multipart persistence | `video_multipart_sessions` table — Redis 24h + Postgres 7d |
+| Production check | `check:production` includes Grafana alert verification |
+
 ## Next phases
 
 - **Rotate secrets** if any were shared outside a vault — `docs/SECRET_ROTATION.md`
-- Persist multipart state in Postgres for audit / longer TTL
-- Prod video pipeline E2E with real creator credentials
+- Prod video pipeline E2E with real creator credentials (`FORGE_CREATOR_EMAIL` / `PASSWORD`)
+- Configure Grafana notification contact points for alert rules
 
 See `FORGE_PROJECT_MASTER.md` §31 and `docs/OBSERVABILITY.md`.
