@@ -1,15 +1,24 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreatorStatus, User, UserRole } from '../users/entities/user.entity';
-import { Video, VideoStatus } from '../content/entities/video.entity';
+import {
+  ModerationStatus,
+  Video,
+  VideoStatus,
+  VideoVisibility,
+} from '../content/entities/video.entity';
 import { Report, ReportStatus } from '../reports/entities/report.entity';
 import { UsersService } from '../users/users.service';
 import { PlaylistsService } from '../playlists/playlists.service';
 import { AuthService } from '../auth/auth.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { VideosService } from '../content/videos.service';
+import { AdminVideo, toAdminVideo, toAdminVideos } from '../content/video.mapper';
 import { permissionsForUser } from '../../common/auth/permissions';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
+import { UpdateAdminVideoDto } from './dto/update-admin-video.dto';
 
 export type AdminUserDetail = {
   id: string;
@@ -46,7 +55,36 @@ export class AdminService {
     private readonly playlistsService: PlaylistsService,
     private readonly authService: AuthService,
     private readonly analyticsService: AnalyticsService,
+    private readonly videosService: VideosService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
+
+  async moderateVideo(
+    id: string,
+    adminId: string,
+    dto: UpdateAdminVideoDto,
+  ): Promise<AdminVideo> {
+    const video = await this.videoRepository.findOne({ where: { id }, relations: ['user'] });
+    if (!video) throw new NotFoundException('Video not found');
+
+    if (dto.status !== undefined) video.status = dto.status;
+    if (dto.visibility !== undefined) video.visibility = dto.visibility;
+    if (dto.moderationStatus !== undefined) {
+      video.moderationStatus = dto.moderationStatus;
+      video.moderatedAt = new Date();
+      video.moderatedBy = adminId;
+      if (dto.moderationStatus === ModerationStatus.BLOCKED) {
+        video.visibility = VideoVisibility.PRIVATE;
+      }
+    }
+    if (dto.moderationNote !== undefined) video.moderationNote = dto.moderationNote;
+    if (dto.clearScheduledPublish) video.scheduledPublishAt = null;
+
+    const saved = await this.videoRepository.save(video);
+    await this.videosService.bustVideoDetailCache(id);
+    this.eventEmitter.emit('video.updated', { videoId: id });
+    return toAdminVideo(saved);
+  }
 
   async updateUser(id: string, dto: UpdateAdminUserDto) {
     await this.userRepository.update(id, dto);
@@ -136,12 +174,15 @@ export class AdminService {
 
     if (status) query.andWhere('v.status = :status', { status });
 
-    const [data, total] = await query
+    const [rows, total] = await query
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
 
-    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: toAdminVideos(rows),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async getUserReports(userId: string, page = 1, limit = 20) {

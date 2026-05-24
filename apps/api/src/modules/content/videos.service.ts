@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -42,7 +43,8 @@ import { PresignedUrlDto } from './dto/presigned-url.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { RecordWatchDto } from './dto/record-watch.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
-import { PublicVideo, toPublicVideo } from './video.mapper';
+import { PublicVideo, serializeVideoForCache, toPublicVideo } from './video.mapper';
+import { safeRedisDel, safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
 import { rewriteMediaUrlToCdn } from '../../common/media-url.util';
 import {
   createS3Client,
@@ -62,6 +64,7 @@ const VIDEO_DETAIL_CACHE_TTL = 120;
 
 @Injectable()
 export class VideosService {
+  private readonly logger = new Logger(VideosService.name);
   private readonly s3: S3Client;
   private readonly presignS3: S3Client;
   private readonly bucket: string;
@@ -616,7 +619,7 @@ export class VideosService {
   async findById(id: string, opts?: { skipCache?: boolean }): Promise<Video> {
     const cacheKey = videoDetailCacheKey(id);
     if (!opts?.skipCache) {
-      const cached = await this.redis.get(cacheKey);
+      const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
       if (cached) {
         return this.videoRepository.create(JSON.parse(cached) as Video);
       }
@@ -627,13 +630,19 @@ export class VideosService {
     });
     if (!video) throw new NotFoundException('Video not found');
     if (!opts?.skipCache) {
-      await this.redis.setex(cacheKey, VIDEO_DETAIL_CACHE_TTL, JSON.stringify(video));
+      await safeRedisSetex(
+        this.redis,
+        cacheKey,
+        VIDEO_DETAIL_CACHE_TTL,
+        serializeVideoForCache(video),
+        this.logger,
+      );
     }
     return video;
   }
 
   async bustVideoDetailCache(videoId: string): Promise<void> {
-    await this.redis.del(videoDetailCacheKey(videoId));
+    await safeRedisDel(this.redis, videoDetailCacheKey(videoId), this.logger);
   }
 
   async getVideoForViewer(

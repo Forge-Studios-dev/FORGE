@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -14,14 +13,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreatorStatus, User, UserRole } from '../users/entities/user.entity';
-import {
-  Video,
-  VideoStatus,
-  VideoVisibility,
-  ModerationStatus,
-} from '../content/entities/video.entity';
+import { ModerationStatus, Video, VideoStatus } from '../content/entities/video.entity';
 import { UpdateAdminVideoDto } from './dto/update-admin-video.dto';
-import { VideosService } from '../content/videos.service';
+import { toAdminVideos } from '../content/video.mapper';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ReportsService } from '../reports/reports.service';
 import { ReportStatus } from '../reports/entities/report.entity';
@@ -48,7 +42,6 @@ export class AdminController {
     private readonly analyticsService: AnalyticsService,
     private readonly categoriesService: CategoriesService,
     private readonly adminService: AdminService,
-    private readonly videosService: VideosService,
   ) {}
 
   @Get('users')
@@ -196,40 +189,24 @@ export class AdminController {
     if (status) query.andWhere('v.status = :status', { status });
     if (userId) query.andWhere('v.userId = :userId', { userId });
     if (moderationStatus) query.andWhere('v.moderationStatus = :moderationStatus', { moderationStatus });
-    const [data, total] = await query
+    const [rows, total] = await query
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
-    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: toAdminVideos(rows),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   @Patch('videos/:id')
   @ApiOperation({ summary: 'Moderate or update video (admin)' })
-  async updateVideo(
+  updateVideo(
     @Param('id') id: string,
     @Body() dto: UpdateAdminVideoDto,
     @CurrentUser() admin: JwtPayload,
   ) {
-    const video = await this.videoRepository.findOne({ where: { id }, relations: ['user'] });
-    if (!video) throw new NotFoundException('Video not found');
-
-    if (dto.status !== undefined) video.status = dto.status;
-    if (dto.visibility !== undefined) video.visibility = dto.visibility;
-    if (dto.moderationStatus !== undefined) {
-      video.moderationStatus = dto.moderationStatus;
-      video.moderatedAt = new Date();
-      video.moderatedBy = admin.sub;
-      if (dto.moderationStatus === ModerationStatus.BLOCKED) {
-        video.visibility = VideoVisibility.PRIVATE;
-      }
-    }
-    if (dto.moderationNote !== undefined) video.moderationNote = dto.moderationNote;
-    if (dto.clearScheduledPublish) video.scheduledPublishAt = null;
-
-    const saved = await this.videoRepository.save(video);
-    await this.videosService.bustVideoDetailCache(id);
-    this.eventEmitter.emit('video.updated', { videoId: id });
-    return saved;
+    return this.adminService.moderateVideo(id, admin.sub, dto);
   }
 
   @Get('reports')
