@@ -34,7 +34,7 @@ Response:
 | Checkpoint | `POST /videos/:id/multipart/checkpoint` `{ "parts": [{ "partNumber", "etag" }] }` |
 | Finish | `POST /videos/:id/multipart/complete` `{ "parts": [...] }` |
 
-Server state lives in Redis for **24 hours** (`video:multipart:{videoId}`). Web also caches completed parts in `sessionStorage`.
+Server state: **Redis** hot cache (24h) plus **Postgres** backup (`video_multipart_sessions`, 7d) for cross-device resume and audit. Web also caches completed parts in `sessionStorage`.
 
 ## After upload
 

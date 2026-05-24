@@ -2,9 +2,16 @@ import { VideoMultipartService } from './video-multipart.service';
 import { MULTIPART_PART_SIZE_BYTES } from './video-multipart.constants';
 
 describe('VideoMultipartService', () => {
+  const sessionRepo = {
+    save: jest.fn().mockResolvedValue(undefined),
+    findOne: jest.fn().mockResolvedValue(null),
+    delete: jest.fn().mockResolvedValue(undefined),
+  };
+
   const service = new VideoMultipartService(
     { get: jest.fn(), setex: jest.fn(), del: jest.fn() } as never,
     { get: jest.fn(() => 'multipart_upload') } as never,
+    sessionRepo as never,
   );
 
   it('computes part count from file size', () => {

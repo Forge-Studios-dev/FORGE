@@ -13,6 +13,7 @@ echo ""
 npm run verify:metrics-scrape
 echo ""
 npm run verify:grafana-metrics
+npm run verify:grafana-alerts
 
 echo ""
 echo "==> Summary"

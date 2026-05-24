@@ -21,6 +21,8 @@ Run from **repository root** unless noted.
 | `setup-fly-metrics-token.sh` | `npm run setup:fly:metrics-token` | Generate/set `METRICS_SCRAPE_TOKEN` on Fly API |
 | `configure-grafana-metrics-scrape.sh` | `npm run configure:grafana-scrape` | Print Grafana scrape job values (token from Fly) |
 | `import-grafana-dashboard.sh` | `npm run import:grafana-dashboard` | Import API dashboard (`GRAFANA_SA_TOKEN`) |
+| `import-grafana-alerts.sh` | `npm run import:grafana-alerts` | Provision Grafana alert rules |
+| `verify-grafana-alerts.sh` | `npm run verify:grafana-alerts` | Confirm alert rules exist |
 | `verify-metrics-scrape.sh` | `npm run verify:metrics-scrape` | Check `/metrics` 401/200 + forge_http_* |
 | `discover-grafana-cloud.sh` | `npm run discover:grafana-cloud` | Stack + Connections URLs (`GRAFANA_CLOUD_*` token) |
 | `create-grafana-scrape-job.sh` | `npm run create:grafana-scrape-job` | PUT scrape job (needs `GRAFANA_STACK_ID` + `glc_` token) |
