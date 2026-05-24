@@ -150,6 +150,13 @@ See [MERGE_CHECKLIST.md](./MERGE_CHECKLIST.md) for local CI, review map, and pos
 | Multipart persistence | `video_multipart_sessions` table — Redis 24h + Postgres 7d |
 | Production check | `check:production` includes Grafana alert verification |
 
+## Phase 13 (2026-05-24) — Upstash quota resilience
+
+| Item | Change |
+|------|--------|
+| Redis safe helpers | Feed/multipart degrade when Upstash monthly cap hit |
+| Runbook | `docs/UPSTASH_REDIS.md` |
+
 ## Next phases
 
 - **Rotate secrets** if any were shared outside a vault — `docs/SECRET_ROTATION.md`

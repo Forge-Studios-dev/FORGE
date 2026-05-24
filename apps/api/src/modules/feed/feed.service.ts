@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -9,6 +9,12 @@ import { VideosService } from '../content/videos.service';
 import { Follow } from '../engagement/entities/follow.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { Category } from '../categories/entities/category.entity';
+import {
+  safeRedisDel,
+  safeRedisGet,
+  safeRedisIncr,
+  safeRedisSetex,
+} from '../../common/redis/redis-safe.util';
 
 const FEED_CACHE_TTL_BASE = 300;
 const FEED_CACHE_JITTER_SEC = 60;
@@ -79,6 +85,8 @@ function parseCursor(raw: string | undefined, sort: FeedSort): FeedCursor | null
 
 @Injectable()
 export class FeedService {
+  private readonly logger = new Logger(FeedService.name);
+
   constructor(
     @InjectRepository(Video)
     private readonly videoRepository: Repository<Video>,
@@ -98,9 +106,9 @@ export class FeedService {
   }
 
   private async feedCacheGeneration(): Promise<number> {
-    const raw = await this.redis.get(FEED_CACHE_GEN_KEY);
+    const raw = await safeRedisGet(this.redis, FEED_CACHE_GEN_KEY, this.logger);
     if (raw) return parseInt(raw, 10) || 1;
-    await this.redis.set(FEED_CACHE_GEN_KEY, '1');
+    await safeRedisSetex(this.redis, FEED_CACHE_GEN_KEY, 86400 * 30, '1', this.logger);
     return 1;
   }
 
@@ -137,9 +145,13 @@ export class FeedService {
     const gen = await this.feedCacheGeneration();
     const cacheKey = `feed:v4:g${gen}:${sort}:${categoryId || options.categorySlug || 'all'}:${skillKey}:${options.cursor || 'start'}:${limit}`;
 
-    const cached = await this.redis.get(cacheKey);
+    const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
     if (cached && !options.userId && sort !== 'forYou') {
-      return JSON.parse(cached);
+      try {
+        return JSON.parse(cached);
+      } catch {
+        /* corrupt cache — fall through to DB */
+      }
     }
 
     let followingIds: string[] = [];
@@ -285,7 +297,13 @@ export class FeedService {
     };
 
     if (!options.userId && sort !== 'forYou') {
-      await this.redis.setex(cacheKey, this.feedCacheTtl(), JSON.stringify(result));
+      await safeRedisSetex(
+        this.redis,
+        cacheKey,
+        this.feedCacheTtl(),
+        JSON.stringify(result),
+        this.logger,
+      );
     }
 
     return result;
@@ -293,10 +311,10 @@ export class FeedService {
 
   /** Bump generation so cached v4 keys expire naturally — avoids Redis KEYS. */
   async invalidateFeedCache(_categoryId?: string) {
-    await this.redis.incr(FEED_CACHE_GEN_KEY);
+    await safeRedisIncr(this.redis, FEED_CACHE_GEN_KEY, this.logger);
   }
 
   async invalidateVideoDetailCache(videoId: string) {
-    await this.redis.del(`video:detail:${videoId}`);
+    await safeRedisDel(this.redis, `video:detail:${videoId}`, this.logger);
   }
 }
