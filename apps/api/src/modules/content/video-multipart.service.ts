@@ -30,6 +30,11 @@ import {
   type MultipartUploadState,
 } from './video-multipart.constants';
 import type { S3Client } from '@aws-sdk/client-s3';
+import {
+  safeRedisDel,
+  safeRedisGet,
+  safeRedisSetex,
+} from '../../common/redis/redis-safe.util';
 
 @Injectable()
 export class VideoMultipartService {
@@ -59,7 +64,13 @@ export class VideoMultipartService {
   }
 
   async saveState(videoId: string, state: MultipartUploadState): Promise<void> {
-    await this.redis.setex(this.redisKey(videoId), MULTIPART_REDIS_TTL_SEC, JSON.stringify(state));
+    await safeRedisSetex(
+      this.redis,
+      this.redisKey(videoId),
+      MULTIPART_REDIS_TTL_SEC,
+      JSON.stringify(state),
+      this.logger,
+    );
     try {
       await this.sessionRepository.save({
         videoId,
@@ -75,7 +86,7 @@ export class VideoMultipartService {
   }
 
   async loadState(videoId: string): Promise<MultipartUploadState | null> {
-    const raw = await this.redis.get(this.redisKey(videoId));
+    const raw = await safeRedisGet(this.redis, this.redisKey(videoId), this.logger);
     if (raw) return JSON.parse(raw) as MultipartUploadState;
 
     const row = await this.sessionRepository.findOne({ where: { videoId } });
@@ -84,16 +95,18 @@ export class VideoMultipartService {
       return null;
     }
 
-    await this.redis.setex(
+    await safeRedisSetex(
+      this.redis,
       this.redisKey(videoId),
       MULTIPART_REDIS_TTL_SEC,
       JSON.stringify(row.state),
+      this.logger,
     );
     return row.state;
   }
 
   async clearState(videoId: string): Promise<void> {
-    await this.redis.del(this.redisKey(videoId));
+    await safeRedisDel(this.redis, this.redisKey(videoId), this.logger);
     try {
       await this.sessionRepository.delete({ videoId });
     } catch (err) {
