@@ -15,19 +15,19 @@ import type { MultipartUploadState } from '../video-multipart.constants';
 @Index(['expiresAt'])
 @Index(['userId'])
 export class VideoMultipartSession {
-  @PrimaryColumn('uuid')
+  @PrimaryColumn('uuid', { name: 'video_id' })
   videoId!: string;
 
-  @Column('uuid')
+  @Column('uuid', { name: 'user_id' })
   userId!: string;
 
   @Column({ type: 'jsonb' })
   state!: MultipartUploadState;
 
-  @Column({ type: 'timestamptz' })
+  @Column({ type: 'timestamptz', name: 'expires_at' })
   expiresAt!: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn({ type: 'timestamptz', name: 'updated_at' })
   updatedAt!: Date;
 
   @ManyToOne(() => Video, { onDelete: 'CASCADE' })

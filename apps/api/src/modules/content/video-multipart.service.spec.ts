@@ -37,4 +37,17 @@ describe('VideoMultipartService', () => {
       service.mergeCompletedParts([], [{ partNumber: 0, etag: '"x"' }], 5),
     ).toThrow();
   });
+
+  it('returns null when postgres load fails (schema/migration drift)', async () => {
+    sessionRepo.findOne.mockRejectedValueOnce(
+      new Error('column VideoMultipartSession.videoId does not exist'),
+    );
+    const redis = { get: jest.fn().mockResolvedValue(null) };
+    const svc = new VideoMultipartService(
+      redis as never,
+      { get: jest.fn(() => 'multipart_upload') } as never,
+      sessionRepo as never,
+    );
+    await expect(svc.loadState('video-1')).resolves.toBeNull();
+  });
 });
