@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { createReadStream } from 'fs';
 import { ConfigService } from '@nestjs/config';
@@ -44,7 +45,12 @@ import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { RecordWatchDto } from './dto/record-watch.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { PublicVideo, serializeVideoForCache, toPublicVideo } from './video.mapper';
-import { safeRedisDel, safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
+import {
+  isRedisQuotaError,
+  safeRedisDel,
+  safeRedisGet,
+  safeRedisSetex,
+} from '../../common/redis/redis-safe.util';
 import { rewriteMediaUrlToCdn } from '../../common/media-url.util';
 import {
   createS3Client,
@@ -264,8 +270,14 @@ export class VideosService {
 
     if (video.status === VideoStatus.PROCESSING) {
       const jobId = `video-process-${videoId}`;
-      const job = await this.videoQueue.getJob(jobId);
-      if (job) await job.remove().catch(() => undefined);
+      try {
+        const job = await this.videoQueue.getJob(jobId);
+        if (job) await job.remove().catch(() => undefined);
+      } catch (err) {
+        this.logger.warn(
+          `could not remove process job ${jobId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
     }
 
     await this.videoMultipart.abortIfAny(this.s3, this.bucket, videoId, video.s3Key);
@@ -465,7 +477,7 @@ export class VideosService {
    *
    * New flow should use: presigned-url -> S3 PUT -> /videos/:id/complete.
    */
-  async create(userId: string, dto: CreateVideoDto): Promise<Video> {
+  async create(userId: string, dto: CreateVideoDto): Promise<PublicVideo> {
     const skillTags = dto.skillTagIds?.length
       ? await this.skillTagRepository.find({ where: { id: In(dto.skillTagIds) } })
       : [];
@@ -481,9 +493,9 @@ export class VideosService {
     });
     const saved = await this.videoRepository.save(video);
 
-    await this.enqueueProcessJob(saved.id, dto.s3Key, userId);
+    await this.enqueueProcessJobOrThrow(saved.id, dto.s3Key, userId);
 
-    return saved;
+    return this.mapToPublicVideo(saved);
   }
 
   async completeUpload(userId: string, videoId: string, dto: CompleteUploadDto) {
@@ -587,9 +599,9 @@ export class VideosService {
       await this.addVideoToPlaylists(userId, saved.id, dto.playlistIds);
     }
 
-    await this.enqueueProcessJob(saved.id, saved.s3Key!, userId);
+    await this.enqueueProcessJobOrThrow(saved.id, saved.s3Key!, userId);
 
-    return saved;
+    return this.mapToPublicVideo(saved);
   }
 
   private async addVideoToPlaylists(
@@ -749,17 +761,39 @@ export class VideosService {
     return this.mapToPublicVideo(saved);
   }
 
-  private enqueueProcessJob(videoId: string, s3Key: string, userId: string) {
-    return this.videoQueue.add(
-      'process-video',
-      { videoId, s3Key, userId },
-      {
-        jobId: `video-process-${videoId}`,
-        attempts: 5,
-        backoff: { type: 'exponential', delay: 5000 },
-        removeOnFail: { age: 7 * 24 * 3600 },
-        removeOnComplete: { age: 24 * 3600, count: 500 },
-      },
-    );
+  private async enqueueProcessJobOrThrow(
+    videoId: string,
+    s3Key: string,
+    userId: string,
+  ): Promise<void> {
+    try {
+      await this.videoQueue.add(
+        'process-video',
+        { videoId, s3Key, userId },
+        {
+          jobId: `video-process-${videoId}`,
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnFail: { age: 7 * 24 * 3600 },
+          removeOnComplete: { age: 24 * 3600, count: 500 },
+        },
+      );
+    } catch (err) {
+      const quota = isRedisQuotaError(err);
+      this.logger.error(
+        `enqueue process-video failed for ${videoId}: ${err instanceof Error ? err.message : err}`,
+      );
+      await this.videoRepository.update(videoId, {
+        status: VideoStatus.FAILED,
+        failureReason: quota
+          ? 'Processing queue is temporarily unavailable (Redis quota). Try again later or contact support.'
+          : 'Failed to start video processing. Try again shortly.',
+      });
+      throw new ServiceUnavailableException(
+        quota
+          ? 'Upload saved but processing could not start — platform cache/queue limit reached. Try again in a few minutes.'
+          : 'Upload saved but processing could not start. Try again shortly.',
+      );
+    }
   }
 }

@@ -87,22 +87,37 @@ export class VideoMultipartService {
 
   async loadState(videoId: string): Promise<MultipartUploadState | null> {
     const raw = await safeRedisGet(this.redis, this.redisKey(videoId), this.logger);
-    if (raw) return JSON.parse(raw) as MultipartUploadState;
-
-    const row = await this.sessionRepository.findOne({ where: { videoId } });
-    if (!row || row.expiresAt.getTime() <= Date.now()) {
-      if (row) await this.sessionRepository.delete({ videoId });
-      return null;
+    if (raw) {
+      try {
+        return JSON.parse(raw) as MultipartUploadState;
+      } catch (err) {
+        this.logger.warn(
+          `multipart redis parse failed for ${videoId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
     }
 
-    await safeRedisSetex(
-      this.redis,
-      this.redisKey(videoId),
-      MULTIPART_REDIS_TTL_SEC,
-      JSON.stringify(row.state),
-      this.logger,
-    );
-    return row.state;
+    try {
+      const row = await this.sessionRepository.findOne({ where: { videoId } });
+      if (!row || row.expiresAt.getTime() <= Date.now()) {
+        if (row) await this.sessionRepository.delete({ videoId });
+        return null;
+      }
+
+      await safeRedisSetex(
+        this.redis,
+        this.redisKey(videoId),
+        MULTIPART_REDIS_TTL_SEC,
+        JSON.stringify(row.state),
+        this.logger,
+      );
+      return row.state;
+    } catch (err) {
+      this.logger.warn(
+        `multipart postgres load failed for ${videoId}: ${err instanceof Error ? err.message : err}`,
+      );
+      return null;
+    }
   }
 
   async clearState(videoId: string): Promise<void> {
