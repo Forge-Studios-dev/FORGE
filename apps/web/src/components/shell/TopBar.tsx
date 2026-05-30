@@ -87,7 +87,7 @@ export function TopBar() {
                 <Icon name="person" className="text-on-surface-variant" />
               )}
             </Link>
-            <button type="button" onClick={logout} className="hidden text-xs text-outline hover:text-on-surface md:block">
+            <button type="button" onClick={() => logout()} className="hidden text-xs text-outline hover:text-on-surface md:block">
               Log out
             </button>
           </>

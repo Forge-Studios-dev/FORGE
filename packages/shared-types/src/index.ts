@@ -42,4 +42,6 @@ export type SocketEventName = (typeof SocketEvents)[keyof typeof SocketEvents];
 export * from './access';
 export { hasPermission as hasAccessPermission } from './access';
 export * from './jwt';
+export * from './consumer-session';
+export * from './safe-return-path';
 export * from './feature-flags';

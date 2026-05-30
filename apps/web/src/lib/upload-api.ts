@@ -2,10 +2,10 @@ import axios from 'axios';
 import {
   clearAuthSession,
   getAccessToken,
-  getRefreshToken,
   persistAuthSession,
   syncAuthCookieFromStorage,
 } from '@/lib/auth-storage';
+import { currentReturnPath } from '@/lib/safe-return-path';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -15,6 +15,7 @@ export const uploadApi = axios.create({
   timeout: 0,
   maxBodyLength: Infinity,
   maxContentLength: Infinity,
+  withCredentials: true,
 });
 
 uploadApi.interceptors.request.use((config) => {
@@ -35,21 +36,20 @@ uploadApi.interceptors.response.use(
     if (error.response?.status === 401 && original && !original._retry) {
       original._retry = true;
       try {
-        const refreshToken = getRefreshToken();
-        if (!refreshToken) throw new Error('No refresh token');
-        const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+        const { data } = await axios.post(`${API_URL}/auth/refresh`, {}, { withCredentials: true });
         const accessToken = data.data.accessToken as string;
-        const newRefresh = data.data.refreshToken as string;
         persistAuthSession(
           accessToken,
-          newRefresh,
+          data.data.refreshToken,
           data.data.user ? JSON.stringify(data.data.user) : undefined,
+          data.data.sessionId as string | undefined,
         );
         original.headers.Authorization = `Bearer ${accessToken}`;
         return uploadApi(original);
       } catch {
         clearAuthSession();
-        window.location.href = '/session-expired';
+        const next = encodeURIComponent(currentReturnPath());
+        window.location.href = `/session-expired?next=${next}`;
       }
     }
     return Promise.reject(error);

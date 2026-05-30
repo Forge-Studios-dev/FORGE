@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Verify Upstash Redis connectivity (uses REDIS_URL or UPSTASH_REDIS_REST_* from apps/api/.env).
+# Verify Redis connectivity (REDIS_URL from apps/api/.env).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${UPSTASH_ENV_FILE:-$ROOT/apps/api/.env}"
+ENV_FILE="${REDIS_ENV_FILE:-$ROOT/apps/api/.env}"
 
 if [[ -f "$ENV_FILE" ]]; then
   set -a
@@ -15,19 +15,11 @@ fi
 node -e "
 const Redis = require('ioredis');
 
-function resolveRedisUrl() {
-  if (process.env.REDIS_URL?.trim()) return process.env.REDIS_URL.trim();
-  const restUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-  if (!restUrl || !token) return 'redis://localhost:6379';
-  const host = new URL(restUrl).hostname;
-  return 'rediss://default:' + encodeURIComponent(token) + '@' + host + ':6379';
-}
+const url = (process.env.REDIS_URL || '').trim() || 'redis://localhost:6379';
 
 (async () => {
-  const url = resolveRedisUrl();
   if (url.includes('localhost')) {
-    console.error('ERROR: Set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN in apps/api/.env');
+    console.error('ERROR: Set REDIS_URL in apps/api/.env (see apps/api/.env.redis-cloud.example)');
     process.exit(1);
   }
   console.log('Connecting:', url.replace(/:([^:@/]+)@/, ':***@'));
@@ -45,4 +37,4 @@ function resolveRedisUrl() {
 });
 "
 
-echo "Upstash Redis is reachable."
+echo "Redis is reachable."

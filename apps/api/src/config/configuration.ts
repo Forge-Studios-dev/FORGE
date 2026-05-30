@@ -31,6 +31,11 @@ export default () => ({
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
 
+  auth: {
+    /** e.g. `.forgestudios.net` when API and web are on different subdomains */
+    refreshCookieDomain: process.env.AUTH_REFRESH_COOKIE_DOMAIN || '',
+  },
+
   aws: {
     region: process.env.AWS_REGION || 'ap-south-1',
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',

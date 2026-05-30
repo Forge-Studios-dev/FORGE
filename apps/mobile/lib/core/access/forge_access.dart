@@ -26,35 +26,36 @@ class ForgeAccess {
   }
 
   /// Like, comment, follow (signed-in only).
-  static bool canEngage(ForgeAccessTier tier) =>
-      tier != ForgeAccessTier.guest;
+  static bool canEngage(ForgeAccessTier tier) => tier != ForgeAccessTier.guest;
 
-  /// Library, history, playlists (signed-in only).
-  static bool canUseLibrary(ForgeAccessTier tier) =>
-      tier != ForgeAccessTier.guest;
+  /// Playlists, watch history, notifications.
+  static bool canUseLibrary(ForgeAccessTier tier) => tier != ForgeAccessTier.guest;
 
-  /// Personalized home feed (signed-in only).
+  /// Personalized home feed (For You).
   static bool canViewPersonalizedFeed(ForgeAccessTier tier) =>
       tier != ForgeAccessTier.guest;
 
-  /// Upload — approved creator channel only (not platform admin).
-  static bool canUpload(ForgeAccessTier tier) =>
-      tier == ForgeAccessTier.creator;
+  /// Upload — approved creator channel only.
+  static bool canUpload(ForgeAccessTier tier) => tier == ForgeAccessTier.creator;
 
-  static bool canGoLive(ForgeAccessTier tier) =>
-      tier == ForgeAccessTier.creator;
+  static bool canGoLive(ForgeAccessTier tier) => tier == ForgeAccessTier.creator;
 
   static bool canApplyForCreator(ForgeAccessTier tier) =>
       tier == ForgeAccessTier.viewer || tier == ForgeAccessTier.creatorRejected;
 
-  /// Approved creator channel (not admin).
   static bool isApprovedCreator(ForgeAccessTier tier) =>
       tier == ForgeAccessTier.creator;
 
-  static bool isPlatformAdmin(ForgeAccessTier tier) =>
-      tier == ForgeAccessTier.admin;
+  static bool isPlatformAdmin(ForgeAccessTier tier) => tier == ForgeAccessTier.admin;
 
   /// Studio entry for apply/status (not guest or platform admin).
   static bool canOpenStudioEntry(ForgeAccessTier tier) =>
       tier != ForgeAccessTier.guest && tier != ForgeAccessTier.admin;
+
+  /// Consumer app create/upload button — channel owners only.
+  static bool canUploadOnConsumerApp(ForgeAccessTier tier) =>
+      tier == ForgeAccessTier.creator;
+
+  static bool canGoLiveOnConsumerApp(ForgeAccessTier tier) =>
+      tier == ForgeAccessTier.creator;
 }

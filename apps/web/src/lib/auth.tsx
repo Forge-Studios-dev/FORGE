@@ -53,7 +53,7 @@ type AuthContextValue = {
   canViewPersonalizedFeed: boolean;
   role: User['role'] | null;
   refresh: () => void;
-  logout: () => void;
+  logout: (options?: { allDevices?: boolean }) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -94,9 +94,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           const next =
             typeof window !== 'undefined'
-              ? encodeURIComponent(window.location.pathname + window.location.search)
+              ? window.location.pathname + window.location.search
               : '';
-          router.replace(next ? `/session-expired?next=${next}` : '/session-expired');
+          router.replace(
+            next ? `/session-expired?next=${encodeURIComponent(next)}` : '/session-expired',
+          );
           return;
         }
         setUser(getStoredUser());
@@ -115,26 +117,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       fetchMe();
     };
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'forge_user' || e.key === 'forge_access_token') onSessionChange();
+      if (e.key === 'forge_user' || e.key === 'forge_session_id') onSessionChange();
+    };
+    const onFocus = () => {
+      syncAuthCookieFromStorage();
+      onSessionChange();
     };
 
     window.addEventListener(AUTH_SESSION_EVENT, onSessionChange);
     window.addEventListener('storage', onStorage);
+    window.addEventListener('focus', onFocus);
     return () => {
       window.removeEventListener(AUTH_SESSION_EVENT, onSessionChange);
       window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', onFocus);
     };
   }, [refresh, fetchMe]);
 
-  const logout = useCallback(() => {
-    const token = getAccessToken();
-    if (token) {
-      api.post('/auth/logout').catch(() => undefined);
-    }
-    clearAuthSession();
-    setUser(null);
-    router.push('/login');
-  }, [router]);
+  const logout = useCallback(
+    (options?: { allDevices?: boolean }) => {
+      const token = getAccessToken();
+      if (token) {
+        api.post('/auth/logout', { allDevices: !!options?.allDevices }).catch(() => undefined);
+      }
+      clearAuthSession();
+      setUser(null);
+      router.push('/login');
+    },
+    [router],
+  );
 
   const value = useMemo<AuthContextValue>(() => {
     if (!hydrated) {

@@ -68,6 +68,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build --workspace=@forge/shared-types
+      - run: npm run test --workspace=@forge/shared-types
       - run: npm run build --workspace=@forge/design-system
 
   api:
@@ -107,6 +108,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build --workspace=@forge/shared-types
+      - run: npm run test --workspace=@forge/shared-types
       - run: npm run lint:ci --workspace=@forge/api
       - run: npm run build --workspace=@forge/api
       - run: npm run test --workspace=@forge/api
@@ -133,6 +135,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build --workspace=@forge/shared-types
+      - run: npm run test --workspace=@forge/shared-types
       - run: npm run build --workspace=@forge/design-system
       - run: npm run lint --workspace=@forge/web
       - run: npm run build --workspace=@forge/web
@@ -189,6 +192,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build --workspace=@forge/shared-types
+      - run: npm run test --workspace=@forge/shared-types
       - run: npm run build --workspace=@forge/design-system
       - run: npm run lint --workspace=@forge/admin
       - run: npm run build --workspace=@forge/admin

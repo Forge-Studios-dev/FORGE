@@ -5,7 +5,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { getAccessToken, getRefreshToken, persistAuthSession } from '@/lib/auth-storage';
+import { getAccessToken, persistAuthSession } from '@/lib/auth-storage';
 import { User } from '@/types';
 import { Icon } from '@forge/design-system';
 
@@ -20,9 +20,8 @@ export default function ApprovalRejectedPage() {
     },
     onSuccess: (updatedUser) => {
       const access = getAccessToken();
-      const refreshTok = getRefreshToken();
-      if (access && refreshTok) {
-        persistAuthSession(access, refreshTok, JSON.stringify(updatedUser));
+      if (access) {
+        persistAuthSession(access, undefined, JSON.stringify(updatedUser));
       } else {
         localStorage.setItem('forge_user', JSON.stringify(updatedUser));
       }

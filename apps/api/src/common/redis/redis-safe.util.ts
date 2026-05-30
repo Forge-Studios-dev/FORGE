@@ -1,7 +1,7 @@
 import type { Logger } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 
-/** True when Upstash (or similar) blocks commands due to monthly request quota. */
+/** True when Redis provider blocks commands due to quota or limits. */
 export function isRedisQuotaError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   return msg.includes('max requests limit exceeded');

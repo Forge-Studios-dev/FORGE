@@ -7,14 +7,14 @@ Run from **repository root** unless noted.
 | `setup-local-demo.sh` | — | Docker Postgres/Redis + API seed |
 | `reset-demo-users.sh` | — | Reset demo user roles/passwords |
 | `wipe-platform-data.sh` | `FORGE_WIPE_CONFIRM=yes` | Wipe DB + S3 + Redis and re-seed demo users |
-| `flush-redis.sh` | `FORGE_FLUSH_CONFIRM=yes` | Flush all Upstash/Redis keys (cache + BullMQ) |
+| `flush-redis.sh` | `FORGE_FLUSH_CONFIRM=yes` | Flush all Redis keys (cache + BullMQ) |
 | `ci-local.sh` | `npm run ci` | Same checks as `.github/workflows/ci.yml` |
 | `smoke-api.sh` | `npm run smoke:api` | Health + auth smoke against API |
 | `check-production.sh` | `npm run check:production` | Prod smoke + metrics + Grafana ingest |
 | `verify-grafana-metrics.sh` | `npm run verify:grafana-metrics` | Query Grafana for `forge_http_requests_total` |
 | `verify-production-ready.sh` | `npm run verify:production` | Pre-deploy env checklist (JWT, worker, Redis) |
 | `neon-db-setup.sh` | `npm run db:neon:setup` | Neon migrate + seed |
-| `upstash-redis-test.sh` | `npm run redis:upstash:test` | Upstash connectivity |
+| `redis-test.sh` | `npm run redis:test` | Redis connectivity |
 | `fly-setup.sh` | `npm run deploy:fly` | First-time / update Fly API app |
 | `fly-worker-setup.sh` | `npm run deploy:fly:worker` | Fly worker app (FFmpeg / BullMQ, `WORKER_ONLY`) |
 | `sync-fly-worker-secrets.sh` | `npm run sync:fly:worker-secrets` | Copy secrets from API Fly app → worker |
@@ -31,6 +31,7 @@ Run from **repository root** unless noted.
 | `print-github-secrets.sh` | `npm run gh:secrets` | Print Vercel IDs; copy Fly token |
 | `verify-platform-roles.sh` | `npm run verify:roles` | Role permission matrix |
 | `sync-api-to-docker.sh` | — | Dev only: hot-sync API `dist/` into `forge-api` container |
+| `package-for-sharing.sh` | — | Small ZIP for sharing (excludes `node_modules`, `.next`, `dist`; optional `--strip-local`) |
 
 **CI/CD details:** [docs/CI_CD.md](../docs/CI_CD.md)
 

@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { persistAuthSession } from '@/lib/auth-storage';
 import { useAuth } from '@/lib/auth';
 import { AuthScreen, authFieldClass } from '@/components/auth/AuthScreen';
 import { AuthTokens } from '@/types';
+import { safeReturnPath } from '@/lib/safe-return-path';
 
 const FIELDS = [
   { key: 'displayName', label: 'Display name', type: 'text', placeholder: 'Your name' },
@@ -16,8 +17,10 @@ const FIELDS = [
   { key: 'password', label: 'Password', type: 'password', placeholder: 'Min 8 characters' },
 ] as const;
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get('next') || '/';
   const { refresh } = useAuth();
   const [form, setForm] = useState({ email: '', username: '', displayName: '', password: '' });
   const [error, setError] = useState('');
@@ -38,6 +41,7 @@ export default function SignupPage() {
         data.data.accessToken,
         data.data.refreshToken,
         JSON.stringify(data.data.user),
+        data.data.sessionId,
       );
       refresh();
       if (data.data.user.role === 'creator' && data.data.user.creatorStatus && data.data.user.creatorStatus !== 'approved') {
@@ -45,7 +49,7 @@ export default function SignupPage() {
           data.data.user.creatorStatus === 'rejected' ? '/approval-rejected' : '/waiting-approval',
         );
       } else {
-        router.push('/');
+        router.push(safeReturnPath(nextPath));
       }
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -84,7 +88,14 @@ export default function SignupPage() {
       </form>
       <p className="mt-6 text-center text-sm text-on-surface-variant">
         Already have an account?{' '}
-        <Link href="/login" className="text-primary hover:underline">
+        <Link
+          href={
+            nextPath && nextPath !== '/'
+              ? `/login?next=${encodeURIComponent(safeReturnPath(nextPath))}`
+              : '/login'
+          }
+          className="text-primary hover:underline"
+        >
           Sign in
         </Link>
       </p>
@@ -92,5 +103,17 @@ export default function SignupPage() {
         We send a verification link after sign up. Verify your email to unlock creator tools once approved.
       </p>
     </AuthScreen>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center text-on-surface-variant">Loading…</div>
+      }
+    >
+      <SignupForm />
+    </Suspense>
   );
 }

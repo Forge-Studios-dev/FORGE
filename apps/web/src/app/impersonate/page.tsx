@@ -8,13 +8,28 @@ import { persistAuthSession } from '@/lib/auth-storage';
 import { useAuth } from '@/lib/auth';
 import { AuthTokens } from '@/types';
 
+function readImpersonationToken(searchParams: URLSearchParams): string {
+  if (typeof window === 'undefined') {
+    return searchParams.get('token') || '';
+  }
+  const hash = window.location.hash;
+  if (hash.startsWith('#token=')) {
+    return decodeURIComponent(hash.slice('#token='.length));
+  }
+  return searchParams.get('token') || '';
+}
+
 function ImpersonateContent() {
   const router = useRouter();
   const { refresh } = useAuth();
   const searchParams = useSearchParams();
-  const token = searchParams.get('token') || '';
+  const [token, setToken] = useState('');
   const [status, setStatus] = useState<'loading' | 'ok' | 'err'>('loading');
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    setToken(readImpersonationToken(searchParams));
+  }, [searchParams]);
 
   useEffect(() => {
     if (!token || token.length < 16) {
@@ -31,8 +46,12 @@ function ImpersonateContent() {
           data.data.accessToken,
           data.data.refreshToken,
           JSON.stringify(data.data.user),
+          data.data.sessionId,
         );
         refresh();
+        if (typeof window !== 'undefined' && window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
         setStatus('ok');
         setMessage(`Signed in as ${data.data.user.displayName}. Redirecting…`);
         setTimeout(() => router.replace('/'), 800);

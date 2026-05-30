@@ -1,7 +1,7 @@
 import { isRedisQuotaError } from './redis-safe.util';
 
 describe('isRedisQuotaError', () => {
-  it('detects Upstash quota message', () => {
+  it('detects Redis quota message', () => {
     expect(
       isRedisQuotaError(new Error('ERR max requests limit exceeded. Limit: 500000')),
     ).toBe(true);

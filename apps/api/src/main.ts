@@ -7,6 +7,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { validateProductionConfig } from './config/validate-production-config';
 import { httpMetricsMiddleware } from './common/metrics/http-metrics.middleware';
@@ -46,6 +47,7 @@ async function bootstrap() {
     exclude: [{ path: 'metrics', method: RequestMethod.ALL }],
   });
 
+  app.use(cookieParser());
   app.use(helmet());
   app.use(httpMetricsMiddleware);
 

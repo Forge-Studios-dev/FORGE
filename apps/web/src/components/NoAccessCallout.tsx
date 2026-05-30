@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { loginHrefWithNext, currentReturnPath } from '@/lib/safe-return-path';
 
 export function NoAccessCallout({
   title = 'You don’t have access',
@@ -7,6 +10,8 @@ export function NoAccessCallout({
   title?: string;
   description?: string;
 }) {
+  const signInHref = loginHrefWithNext(currentReturnPath());
+
   return (
     <div className="glass rounded-2xl p-6 border border-white/10">
       <h2 className="text-lg font-semibold">{title}</h2>
@@ -19,7 +24,7 @@ export function NoAccessCallout({
           Go home
         </Link>
         <Link
-          href="/login"
+          href={signInHref}
           className="bg-forge-600 hover:bg-forge-500 text-white font-semibold px-4 py-2 rounded-lg transition"
         >
           Sign in
@@ -28,4 +33,3 @@ export function NoAccessCallout({
     </div>
   );
 }
-

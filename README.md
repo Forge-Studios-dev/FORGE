@@ -45,7 +45,7 @@ npm run dev:api   # + dev:web, dev:admin in other terminals
 
 PostgreSQL · Redis · AWS S3 · Mux · FFmpeg · Docker · GitHub Actions
 
-Recommended cloud MVP: **Neon** (DB) + **Upstash** (Redis) + **Fly.io** (API) + **Vercel** (web/admin).
+Recommended cloud stack: **Neon** (DB) + **Redis Cloud** (Redis) + **Fly.io** (API) + **Vercel** (web/admin).
 
 ---
 
@@ -96,7 +96,7 @@ npm run ci
 npm run smoke:api
 npm run gh:secrets
 npm run db:neon:setup
-npm run redis:upstash:test
+npm run redis:test
 npm run deploy:production
 ```
 

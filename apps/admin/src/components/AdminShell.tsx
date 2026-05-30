@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Icon } from '@forge/design-system';
+import { adminLogout } from '@/lib/api';
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -25,10 +26,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   const logout = () => {
-    localStorage.removeItem('forge_admin_token');
-    localStorage.removeItem('forge_admin_refresh_token');
-    document.cookie = 'forge_admin_token=; path=/; max-age=0';
-    router.push('/login');
+    void adminLogout().then(() => router.push('/login'));
   };
 
   return (

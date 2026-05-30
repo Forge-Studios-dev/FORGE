@@ -1,6 +1,6 @@
 # CI/CD — GitHub Actions
 
-**Production:** Fly.io (API) · Vercel (web + admin) · Neon · Upstash
+**Production:** Fly.io (API) · Vercel (web + admin) · Neon · Redis Cloud
 
 **Repo workflows:** [.github/workflows/](../.github/workflows/)
 
