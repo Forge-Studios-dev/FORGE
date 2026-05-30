@@ -21,12 +21,32 @@
       "types": "./dist/jwt.d.ts",
       "require": "./dist/jwt.js",
       "default": "./dist/jwt.js"
+    },
+    "./consumer-session": {
+      "types": "./dist/consumer-session.d.ts",
+      "require": "./dist/consumer-session.js",
+      "default": "./dist/consumer-session.js"
+    },
+    "./safe-return-path": {
+      "types": "./dist/safe-return-path.d.ts",
+      "require": "./dist/safe-return-path.js",
+      "default": "./dist/safe-return-path.js"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "test": "jest --passWithNoTests"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.11",
     "typescript": "^5.4.4"
   }
 }

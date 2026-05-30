@@ -5,7 +5,7 @@
 # Usage:
 #   FORGE_WIPE_CONFIRM=yes bash scripts/wipe-platform-data.sh
 #
-# Requires apps/api/.env with DATABASE_URL, AWS_*, and REDIS_URL or UPSTASH_REDIS_REST_*.
+# Requires apps/api/.env with DATABASE_URL, AWS_*, and REDIS_URL.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

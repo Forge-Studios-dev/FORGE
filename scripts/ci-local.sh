@@ -10,6 +10,7 @@ npm ci
 
 echo "==> shared packages"
 npm run build --workspace=@forge/shared-types
+npm run test --workspace=@forge/shared-types
 npm run build --workspace=@forge/design-system
 
 echo "==> API lint + build + test"

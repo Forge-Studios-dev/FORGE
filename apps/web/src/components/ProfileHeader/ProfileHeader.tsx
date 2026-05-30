@@ -7,7 +7,7 @@ import { formatCount } from '@/lib/utils';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { getAccessToken, getRefreshToken, persistAuthSession } from '@/lib/auth-storage';
+import { getAccessToken, persistAuthSession } from '@/lib/auth-storage';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AuthGateModal } from '@/components/gates/AuthGateModal';
@@ -31,9 +31,8 @@ export function ProfileHeader({ user }: Props) {
     },
     onSuccess: (updatedUser) => {
       const access = getAccessToken();
-      const refreshTok = getRefreshToken();
-      if (access && refreshTok) {
-        persistAuthSession(access, refreshTok, JSON.stringify(updatedUser));
+      if (access) {
+        persistAuthSession(access, undefined, JSON.stringify(updatedUser));
       }
       refresh();
       router.push('/waiting-approval');

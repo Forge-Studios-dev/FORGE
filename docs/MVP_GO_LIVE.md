@@ -2,7 +2,7 @@
 
 **Repo:** [github.com/Forge-Studios-dev/FORGE](https://github.com/Forge-Studios-dev/FORGE)
 
-This is the **single guide** to put your MVP on the internet using free (or free-tier) services. You already have **Neon** (Postgres) and **Upstash** (Redis) configured locally — this doc finishes the rest.
+This is the **single guide** to put your MVP on the internet. You already have **Neon** (Postgres) and **Redis Cloud** (Redis) configured locally — this doc finishes the rest.
 
 ---
 
@@ -14,7 +14,7 @@ This is the **single guide** to put your MVP on the internet using free (or free
 | **Admin** | [Vercel](https://vercel.com) | Second project, same repo |
 | **API** | [Fly.io](https://fly.io) | Runs your Docker/NestJS API + BullMQ |
 | **Database** | [Neon](https://neon.tech) | Serverless Postgres, free tier |
-| **Redis** | [Upstash](https://upstash.com) | Free tier, works with BullMQ |
+| **Redis** | [Redis Cloud](https://redis.io/cloud/) | Essentials; BullMQ + Socket.IO via `REDIS_URL` |
 | **CI/CD** | GitHub Actions | Already in repo (`.github/workflows/`) |
 | **Code** | GitHub | `Forge-Studios-dev/FORGE` |
 
@@ -53,7 +53,7 @@ This is the **single guide** to put your MVP on the internet using free (or free
                                     ┌──────────────────────────┴──────────┐
                                     ▼                                     ▼
                          ┌──────────────────┐                 ┌──────────────────┐
-                         │ Neon (Postgres)  │                 │ Upstash (Redis)  │
+                         │ Neon (Postgres)  │                 │ Redis Cloud      │
                          └──────────────────┘                 └──────────────────┘
 ```
 
@@ -63,9 +63,9 @@ This is the **single guide** to put your MVP on the internet using free (or free
 
 - [ ] Code pushed to [Forge-Studios-dev/FORGE](https://github.com/Forge-Studios-dev/FORGE) on `main`
 - [ ] `apps/api/.env` has Neon `DATABASE_URL` (see `apps/api/.env.neon.example`)
-- [ ] `apps/api/.env` has Upstash `UPSTASH_REDIS_REST_*` (see `apps/api/.env.upstash.example`)
-- [ ] Local verify: `npm run db:neon:setup` and `npm run redis:upstash:test` both pass
-- [ ] Accounts: [Neon](https://neon.tech), [Upstash](https://upstash.com), [Fly](https://fly.io), [Vercel](https://vercel.com), GitHub
+- [ ] `apps/api/.env` has `REDIS_URL` (see `apps/api/.env.redis-cloud.example`)
+- [ ] Local verify: `npm run db:neon:setup` and `npm run redis:test` both pass
+- [ ] Accounts: [Neon](https://neon.tech), [Redis Cloud](https://redis.io/cloud/), [Fly](https://fly.io), [Vercel](https://vercel.com), GitHub
 
 **Time estimate:** ~2–3 hours first time.
 
@@ -102,23 +102,24 @@ If `creator@forge.local` login fails with “Invalid credentials”, run `npm ru
 
 ---
 
-## Step 2 — Upstash (Redis) ✓ likely done
+## Step 2 — Redis Cloud ✓ likely done
 
-1. [console.upstash.com](https://console.upstash.com) → create Redis database.
-2. Copy **REST API** URL + token (or `rediss://` URL from **Redis Connect**).
+1. [Redis Cloud](https://redis.io/cloud/) → create database (Essentials **250MB** for production).
+2. **Connect** → copy connection string (`redis://` or `rediss://` — use exactly as shown).
 
 **Local `apps/api/.env`:**
 
 ```env
-UPSTASH_REDIS_REST_URL=https://YOUR-ENDPOINT.upstash.io
-UPSTASH_REDIS_REST_TOKEN=your-token
+REDIS_URL=redis://default:YOUR_PASSWORD@YOUR-HOST.db.redis.io:13195
 ```
 
 **Test:**
 
 ```bash
-npm run redis:upstash:test
+npm run redis:test
 ```
+
+Runbook: [REDIS.md](./REDIS.md)
 
 ---
 
@@ -140,7 +141,7 @@ Fly asks for a **credit card** even on the free allowance ([billing](https://fly
 
 ### 3.2 Automated setup (recommended)
 
-After Neon + Upstash are in `apps/api/.env`:
+After Neon + `REDIS_URL` are in `apps/api/.env`:
 
 ```bash
 chmod +x scripts/fly-setup.sh
@@ -158,14 +159,13 @@ fly apps create forge-studios-api
 
 ### 3.3 Set secrets
 
-Use your **real** Neon pooled URL and Upstash credentials. Generate new JWT secrets for production.
+Use your **real** Neon pooled URL and Redis Cloud `REDIS_URL`. Generate new JWT secrets for production.
 
 ```bash
 fly secrets set \
   DATABASE_URL='postgresql://USER:PASS@ep-xxxx-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require' \
   DB_POOL_MAX='10' \
-  UPSTASH_REDIS_REST_URL='https://YOUR-ENDPOINT.upstash.io' \
-  UPSTASH_REDIS_REST_TOKEN='your-token' \
+  REDIS_URL='redis://default:PASSWORD@HOST.db.redis.io:13195' \
   JWT_SECRET="$(openssl rand -base64 64)" \
   JWT_REFRESH_SECRET="$(openssl rand -base64 64)" \
   NODE_ENV='production'
@@ -204,7 +204,7 @@ Uses `fly.worker.toml` (`WORKER_ONLY=true`). Release workflow deploys this after
 npm run sync:fly:worker-secrets
 ```
 
-Production secrets on the worker must match API: `DATABASE_URL`, Redis/Upstash, `AWS_*`, `S3_BUCKET_NAME`, `CLOUDFRONT_DOMAIN`, `JWT_*`.
+Production secrets on the worker must match API: `DATABASE_URL`, `REDIS_URL`, `AWS_*`, `S3_BUCKET_NAME`, `CLOUDFRONT_DOMAIN`, `JWT_*`.
 
 **Fly crash loop (`Cannot find module .../dist/main.js`):** the API image uses `apps/api/docker-entrypoint.sh` to resolve the Nest monorepo output path. Redeploy API after pulling latest `main`.
 
@@ -364,11 +364,11 @@ Stakeholder summary: [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md)
 | Problem | Fix |
 |---------|-----|
 | Vercel build fails (workspace) | Root Directory = `apps/web` or `apps/admin`; `vercel.json` in each app runs `npm ci` from repo root |
-| API 502 / crash on Fly | `fly logs` — check `DATABASE_URL`, Upstash vars |
+| API 502 / crash on Fly | `fly logs` — check `DATABASE_URL`, `REDIS_URL` |
 | CORS / login blocked | `WEB_URL` + `ADMIN_URL` on Fly must **exactly** match Vercel URLs (no trailing slash) |
 | 401 on all API calls | `NEXT_PUBLIC_API_URL` must end with `/api/v1` |
 | Demo users missing | `npm run db:neon:setup` against Neon |
-| Redis errors | `npm run redis:upstash:test` locally; match secrets on Fly |
+| Redis errors | `npm run redis:test` locally; match `REDIS_URL` on Fly + worker |
 | GitHub Action skipped | Add secrets; enable Actions |
 
 ---
@@ -390,7 +390,7 @@ Stakeholder summary: [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md)
 | Vercel | Hobby bandwidth/build minutes | Fine for demos |
 | Fly.io | Small VM hours / credit | API may sleep when idle (cold start ~5s) |
 | Neon | Storage + compute caps | Fine for demo data |
-| Upstash | Commands/day | Fine for demo traffic |
+| Redis Cloud | Essentials 250MB | Production cache + queues |
 
 ---
 
@@ -409,9 +409,9 @@ Production checklist: [FORGE_PROJECT_MASTER.md §25](./FORGE_PROJECT_MASTER.md)
 
 | File | Purpose |
 |------|---------|
-| `apps/api/.env` | Local + Neon + Upstash (gitignored) |
+| `apps/api/.env` | Local + Neon + Redis (gitignored) |
 | `apps/api/.env.neon.example` | Neon template |
-| `apps/api/.env.upstash.example` | Upstash template |
+| `apps/api/.env.redis-cloud.example` | Redis Cloud template |
 | `apps/web/.env.local` | Local web |
 | `apps/admin/.env.local` | Local admin |
 
@@ -421,7 +421,7 @@ Production checklist: [FORGE_PROJECT_MASTER.md §25](./FORGE_PROJECT_MASTER.md)
 
 ```bash
 npm run db:neon:setup      # Neon migrate + seed
-npm run redis:upstash:test # Upstash connectivity
+npm run redis:test         # Redis connectivity
 npm run verify:video-pipeline      # Local API VOD smoke
 npm run verify:video-pipeline:prod # Production VOD smoke
 bash scripts/setup-local-demo.sh  # Local Docker demo only

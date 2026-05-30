@@ -2,11 +2,12 @@
 
 import { useSearchParams } from 'next/navigation';
 import { StatusPage } from '@forge/design-system';
+import { loginHrefWithNext } from '@/lib/safe-return-path';
 
 export function SessionExpiredContent() {
   const searchParams = useSearchParams();
   const next = searchParams.get('next');
-  const loginHref = next ? `/login?next=${encodeURIComponent(next)}` : '/login';
+  const loginHref = next ? loginHrefWithNext(next) : '/login';
 
   return (
     <StatusPage

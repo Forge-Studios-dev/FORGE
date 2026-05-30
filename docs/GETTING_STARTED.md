@@ -21,10 +21,10 @@ docker compose up postgres redis -d
 docker compose up worker -d   # FFmpeg / BullMQ (WORKER_ONLY)
 bash scripts/setup-local-demo.sh
 
-# Option B — Cloud DB (you already use Neon + Upstash)
-# Edit apps/api/.env: DATABASE_URL + UPSTASH_REDIS_REST_*
+# Option B — Cloud DB (Neon + Redis Cloud)
+# Edit apps/api/.env: DATABASE_URL + REDIS_URL
 npm run db:neon:setup
-npm run redis:upstash:test
+npm run redis:test
 ```
 
 **Run apps** (three terminals):
@@ -55,7 +55,8 @@ For **video transcoding** locally, either run `docker compose up worker -d` or s
 
 Reset roles: `bash scripts/reset-demo-users.sh`  
 API smoke test: `npm run smoke:api`  
-Web E2E: `cd apps/web && npm run test:e2e`
+Web E2E: `cd apps/web && npm run test:e2e`  
+Auth architecture (sessions, cookies, middleware): [AUTH_SESSION.md](./AUTH_SESSION.md)
 
 ---
 
@@ -65,7 +66,7 @@ Web E2E: `cd apps/web && npm run test:e2e`
 |------|---------|
 | `apps/api/.env.example` | Local API defaults |
 | `apps/api/.env.neon.example` | Neon Postgres |
-| `apps/api/.env.upstash.example` | Upstash Redis |
+| `apps/api/.env.redis-cloud.example` | Redis Cloud |
 | `apps/web/.env.example` | Web app |
 | `apps/admin/.env.example` | Admin panel |
 
@@ -96,7 +97,7 @@ npm run test
 npm run deploy:fly             # Fly API (production)
 npm run deploy:fly:worker        # Fly worker (video transcode)
 npm run db:neon:setup          # Neon migrate + seed
-npm run redis:upstash:test     # Upstash ping
+npm run redis:test             # Redis ping
 bash scripts/setup-local-demo.sh
 ```
 

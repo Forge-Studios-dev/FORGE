@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import { PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { loginHrefWithNext } from '@/lib/safe-return-path';
 
 export function NewPlaylistClient() {
   const router = useRouter();
@@ -44,7 +45,10 @@ export function NewPlaylistClient() {
         <div className="glass-panel rounded-2xl p-8 text-center">
           <h1 className="font-display-forge text-xl font-semibold">Create playlist</h1>
           <p className="mt-2 text-sm text-on-surface-variant">Sign in to save lessons to a playlist.</p>
-          <Link href="/login" className="primary-button mt-6 inline-flex rounded-full px-6 py-2 text-sm font-semibold text-on-primary">
+          <Link
+            href={loginHrefWithNext('/playlists/new')}
+            className="primary-button mt-6 inline-flex rounded-full px-6 py-2 text-sm font-semibold text-on-primary"
+          >
             Sign in
           </Link>
         </div>

@@ -41,7 +41,7 @@ else
   ok "NODE_ENV=$NODE_ENV (skipping strict production secret checks)"
 fi
 
-if [[ -n "${REDIS_URL:-}" ]] || [[ -n "${UPSTASH_REDIS_REST_URL:-}" ]]; then
+if [[ -n "${REDIS_URL:-}" ]]; then
   ok "Redis configured"
 else
   fail "Redis not configured"

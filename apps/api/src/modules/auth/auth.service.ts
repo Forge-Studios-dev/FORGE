@@ -99,7 +99,8 @@ export class AuthService {
 
     return {
       token,
-      url: `${webUrl}/impersonate?token=${encodeURIComponent(token)}`,
+      /** Hash fragment avoids token in server logs / Referer (consumed client-side only). */
+      url: `${webUrl}/impersonate#token=${encodeURIComponent(token)}`,
       expiresInSeconds: 120,
       targetUser: {
         id: target.id,
@@ -157,7 +158,19 @@ export class AuthService {
     return this.issueTokens(storedToken.user, meta);
   }
 
-  async logout(userId: string) {
+  /** Revoke only the refresh token for this browser (from HttpOnly cookie or body). */
+  async logoutCurrent(userId: string, rawRefreshToken: string | null) {
+    if (!rawRefreshToken) {
+      return this.logoutAll(userId);
+    }
+    const tokenHash = this.hashToken(rawRefreshToken);
+    await this.refreshTokenRepository.update(
+      { userId, tokenHash, revoked: false },
+      { revoked: true },
+    );
+  }
+
+  async logoutAll(userId: string) {
     await this.refreshTokenRepository.update(
       { userId, revoked: false },
       { revoked: true },
@@ -284,7 +297,7 @@ export class AuthService {
     const deviceLabel = this.deriveDeviceLabel(meta?.userAgent);
     const ipHash = meta?.ip ? this.hashToken(meta.ip).slice(0, 128) : null;
 
-    await this.refreshTokenRepository.save(
+    const session = await this.refreshTokenRepository.save(
       this.refreshTokenRepository.create({
         userId: user.id,
         tokenHash,
@@ -298,6 +311,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken: rawRefreshToken,
+      sessionId: session.id,
       user: toPublicUser(user),
     };
   }

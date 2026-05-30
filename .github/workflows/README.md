@@ -1,6 +1,6 @@
 # GitHub Actions
 
-Production: **Fly.io** (API) + **Vercel** (web/admin) + **Neon** + **Upstash**.
+Production: **Fly.io** (API) + **Vercel** (web/admin) + **Neon** + **Redis Cloud**.
 
 **Pipeline:** push/merge to `main` → **CI** → **Release (production)** deploys all apps.
 

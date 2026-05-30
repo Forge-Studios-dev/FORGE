@@ -27,7 +27,7 @@
     "smoke:api:prod": "FORGE_SMOKE_API=https://api.forgestudios.net/api/v1 bash scripts/smoke-api.sh",
     "check:production": "bash scripts/check-production.sh",
     "db:neon:setup": "bash scripts/neon-db-setup.sh",
-    "redis:upstash:test": "bash scripts/upstash-redis-test.sh",
+    "redis:test": "bash scripts/redis-test.sh",
     "deploy:fly": "bash scripts/fly-setup.sh",
     "deploy:fly:worker": "bash scripts/fly-worker-setup.sh",
     "sync:fly:worker-secrets": "bash scripts/sync-fly-worker-secrets.sh",

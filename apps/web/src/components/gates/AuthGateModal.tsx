@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Icon } from '@forge/design-system';
+import { currentReturnPath, loginHrefWithNext, safeReturnPath } from '@/lib/safe-return-path';
 
 export function AuthGateModal({
   open,
@@ -12,12 +13,10 @@ export function AuthGateModal({
   onClose: () => void;
   message?: string;
 }) {
-  const returnPath =
-    typeof window !== 'undefined'
-      ? encodeURIComponent(window.location.pathname + window.location.search)
-      : encodeURIComponent('/');
-  const loginHref = `/login?next=${returnPath}`;
-  const signupHref = `/signup?next=${returnPath}`;
+  const returnPath = typeof window !== 'undefined' ? currentReturnPath() : '/';
+  const safe = safeReturnPath(returnPath);
+  const loginHref = loginHrefWithNext(safe);
+  const signupHref = `/signup?next=${encodeURIComponent(safe)}`;
 
   if (!open) return null;
 

@@ -8,6 +8,7 @@ import { persistAuthSession } from '@/lib/auth-storage';
 import { useAuth } from '@/lib/auth';
 import { AuthScreen, authFieldClass, authLabelClass } from '@/components/auth/AuthScreen';
 import { AuthTokens } from '@/types';
+import { safeReturnPath } from '@/lib/safe-return-path';
 
 function LoginForm() {
   const router = useRouter();
@@ -40,6 +41,7 @@ function LoginForm() {
         data.data.accessToken,
         data.data.refreshToken,
         JSON.stringify(data.data.user),
+        data.data.sessionId,
       );
       refresh();
       if (data.data.user.role === 'creator' && data.data.user.creatorStatus && data.data.user.creatorStatus !== 'approved') {
@@ -47,8 +49,7 @@ function LoginForm() {
           data.data.user.creatorStatus === 'rejected' ? '/approval-rejected' : '/waiting-approval',
         );
       } else {
-        const safeNext = nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/';
-        router.push(safeNext);
+        router.push(safeReturnPath(nextPath));
       }
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -114,7 +115,14 @@ function LoginForm() {
       </form>
       <p className="mt-8 text-center text-sm text-on-surface-variant">
         New to FORGE?{' '}
-        <Link href="/signup" className="text-primary hover:underline">
+        <Link
+          href={
+            nextPath && nextPath !== '/'
+              ? `/signup?next=${encodeURIComponent(safeReturnPath(nextPath))}`
+              : '/signup'
+          }
+          className="text-primary hover:underline"
+        >
           Create account
         </Link>
       </p>

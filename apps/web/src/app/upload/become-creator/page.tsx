@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Button, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { getAccessToken, getRefreshToken, persistAuthSession } from '@/lib/auth-storage';
+import { getAccessToken, persistAuthSession } from '@/lib/auth-storage';
 import { User } from '@/types';
 
 export default function BecomeCreatorPage() {
@@ -23,9 +23,8 @@ export default function BecomeCreatorPage() {
     try {
       const { data } = await api.post<{ data: User }>('/users/me/request-creator', { bio });
       const access = getAccessToken();
-      const refreshTok = getRefreshToken();
-      if (access && refreshTok) {
-        persistAuthSession(access, refreshTok, JSON.stringify(data.data));
+      if (access) {
+        persistAuthSession(access, undefined, JSON.stringify(data.data));
       } else if (user) {
         localStorage.setItem('forge_user', JSON.stringify(data.data));
       }

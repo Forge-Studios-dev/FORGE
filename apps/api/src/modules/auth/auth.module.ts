@@ -6,7 +6,6 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
@@ -19,7 +18,7 @@ import { PasswordResetToken } from './entities/password-reset-token.entity';
     TypeOrmModule.forFeature([User, RefreshToken, PasswordResetToken]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
+  providers: [AuthService, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

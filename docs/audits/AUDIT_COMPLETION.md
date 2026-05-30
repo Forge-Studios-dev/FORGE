@@ -1,0 +1,42 @@
+# Auth & Navigation Audit — Completion Status
+
+**Status:** Complete (P0, P1, P2 implemented; P3 deferred by design)
+
+## Deliverables
+
+| # | Document | Status |
+|---|----------|--------|
+| 1 | [NAVIGATION_AUTH_EXECUTIVE_SUMMARY.md](./NAVIGATION_AUTH_EXECUTIVE_SUMMARY.md) | Done |
+| 2 | [NAVIGATION_AUDIT_REPORT.md](./NAVIGATION_AUDIT_REPORT.md) | Done |
+| 3 | [AUTHENTICATION_AUDIT_REPORT.md](./AUTHENTICATION_AUDIT_REPORT.md) | Done |
+| 4 | [SESSION_MANAGEMENT_REPORT.md](./SESSION_MANAGEMENT_REPORT.md) | Done |
+| 5 | [ACCESS_CONTROL_MATRIX.md](./ACCESS_CONTROL_MATRIX.md) | Done |
+| 6 | [SECURITY_FINDINGS.md](./SECURITY_FINDINGS.md) | Done |
+| 7 | [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) | Done |
+| 8 | [YOUTUBE_GAP_ANALYSIS.md](./YOUTUBE_GAP_ANALYSIS.md) | Done |
+| 9 | [PRIORITY_FIX_ROADMAP.md](./PRIORITY_FIX_ROADMAP.md) | Done |
+
+Implementation guide: [AUTH_SESSION.md](../AUTH_SESSION.md)
+
+## Code changes (summary)
+
+- **API:** HttpOnly refresh cookie, per-device logout, `sessionId` in token response, impersonation hash URL
+- **Web:** Middleware JWT validation, `safeReturnPath`, session UI, memory/sessionStorage access token
+- **Admin:** `withCredentials` refresh, API logout on sign-out
+- **Mobile:** `sessionId`, `logout(allDevices)`, access tier parity
+- **Packages:** `consumer-session`, `safe-return-path` + unit tests
+- **CI:** `shared-types` tests in workflow; Playwright `auth-nav` (7 cases); standalone E2E server script
+- **UX:** Home feed scroll restore (`useFeedScrollRestore`) when returning from watch
+
+## Verification commands
+
+```bash
+npm run test --workspace=@forge/shared-types
+npm run test --workspace=apps/api -- --testPathPattern=auth
+npm run build --workspace=apps/web
+cd apps/web && npm run test:e2e -- e2e/auth-nav.spec.ts
+```
+
+## P3 (not in scope)
+
+Modal watch routes, OAuth, MFA, `studio.` subdomain, feed scroll restoration — tracked in [PRIORITY_FIX_ROADMAP.md](./PRIORITY_FIX_ROADMAP.md).

@@ -33,7 +33,6 @@ function AdminLoginForm() {
         return;
       }
       localStorage.setItem('forge_admin_token', data.data.accessToken);
-      localStorage.setItem('forge_admin_refresh_token', data.data.refreshToken);
       document.cookie = `forge_admin_token=${encodeURIComponent(data.data.accessToken)}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
       const next = searchParams.get('next');
       router.push(next && next.startsWith('/') ? next : '/dashboard');

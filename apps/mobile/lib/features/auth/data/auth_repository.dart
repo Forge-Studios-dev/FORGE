@@ -55,9 +55,9 @@ class AuthRepository {
     });
   }
 
-  Future<void> logout() async {
+  Future<void> logout({bool allDevices = false}) async {
     try {
-      await _apiClient.dio.post('/auth/logout');
+      await _apiClient.dio.post('/auth/logout', data: {'allDevices': allDevices});
     } catch (_) {}
     await _storage.deleteAll();
   }
@@ -99,6 +99,10 @@ class AuthRepository {
   Future<void> _saveTokens(Map<String, dynamic> data) async {
     await _storage.write(key: AppConstants.accessTokenKey, value: data['accessToken'] as String);
     await _storage.write(key: AppConstants.refreshTokenKey, value: data['refreshToken'] as String);
+    final sessionId = data['sessionId'];
+    if (sessionId is String) {
+      await _storage.write(key: AppConstants.sessionIdKey, value: sessionId);
+    }
     final user = data['user'];
     if (user is Map<String, dynamic>) {
       await _storage.write(key: AppConstants.userKey, value: jsonEncode(user));

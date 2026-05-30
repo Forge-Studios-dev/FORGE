@@ -9,16 +9,25 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
+import { Request, Response } from 'express';
 import { AuthService, ClientSessionMeta } from './auth.service';
+import {
+  clearRefreshTokenCookie,
+  readRefreshTokenFromRequest,
+  setRefreshTokenCookie,
+} from './auth-cookies';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConsumeImpersonationDto } from './dto/consume-impersonation.dto';
+import { LogoutDto } from './dto/logout.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from './strategies/jwt.strategy';
@@ -41,14 +50,19 @@ function sessionMeta(req: Request): ClientSessionMeta {
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Public()
   @Post('signup')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Register a new user' })
-  signup(@Body() dto: SignupDto, @Req() req: Request) {
-    return this.authService.signup(dto, sessionMeta(req));
+  async signup(@Body() dto: SignupDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const tokens = await this.authService.signup(dto, sessionMeta(req));
+    setRefreshTokenCookie(res, tokens.refreshToken, this.configService);
+    return tokens;
   }
 
   @Public()
@@ -56,8 +70,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Login with email and password' })
-  login(@Body() dto: LoginDto, @Req() req: Request) {
-    return this.authService.login(dto, sessionMeta(req));
+  async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const tokens = await this.authService.login(dto, sessionMeta(req));
+    setRefreshTokenCookie(res, tokens.refreshToken, this.configService);
+    return tokens;
   }
 
   @Public()
@@ -65,24 +81,51 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Exchange admin impersonation token for a user session' })
-  impersonate(@Body() dto: ConsumeImpersonationDto, @Req() req: Request) {
-    return this.authService.consumeImpersonationToken(dto.token, sessionMeta(req));
+  async impersonate(
+    @Body() dto: ConsumeImpersonationDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokens = await this.authService.consumeImpersonationToken(dto.token, sessionMeta(req));
+    setRefreshTokenCookie(res, tokens.refreshToken, this.configService);
+    return tokens;
   }
 
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Refresh access token using opaque refresh token' })
-  refresh(@Body() dto: RefreshTokenDto, @Req() req: Request) {
-    return this.authService.refreshWithToken(dto.refreshToken, sessionMeta(req));
+  @ApiOperation({ summary: 'Refresh access token using opaque refresh token (body or HttpOnly cookie)' })
+  async refresh(
+    @Body() dto: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const raw = readRefreshTokenFromRequest(req, dto.refreshToken);
+    if (!raw) {
+      throw new UnauthorizedException('Refresh token required');
+    }
+    const tokens = await this.authService.refreshWithToken(raw, sessionMeta(req));
+    setRefreshTokenCookie(res, tokens.refreshToken, this.configService);
+    return tokens;
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Logout and revoke refresh tokens' })
-  logout(@CurrentUser() user: JwtPayload) {
-    return this.authService.logout(user.sub);
+  @ApiOperation({ summary: 'Logout — current device by default; pass allDevices to sign out everywhere' })
+  async logout(
+    @CurrentUser() user: JwtPayload,
+    @Req() req: Request,
+    @Body() body: LogoutDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (body?.allDevices) {
+      await this.authService.logoutAll(user.sub);
+    } else {
+      const raw = readRefreshTokenFromRequest(req);
+      await this.authService.logoutCurrent(user.sub, raw);
+    }
+    clearRefreshTokenCookie(res, this.configService);
   }
 
   @Get('sessions')

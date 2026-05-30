@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Flush all keys from production/staging Redis (Upstash or REDIS_URL).
+# Flush all keys from production/staging Redis (REDIS_URL).
 # Clears feed cache, video detail cache, BullMQ queues, rate-limit keys, etc.
 #
 # Usage:
@@ -8,7 +8,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${UPSTASH_ENV_FILE:-$ROOT/apps/api/.env}"
+ENV_FILE="${REDIS_ENV_FILE:-$ROOT/apps/api/.env}"
 
 if [[ -f "$ENV_FILE" ]]; then
   set -a
@@ -20,19 +20,10 @@ fi
 node -e "
 const Redis = require('ioredis');
 
-function resolveRedisUrl() {
-  if (process.env.REDIS_URL?.trim()) return process.env.REDIS_URL.trim();
-  const restUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-  if (!restUrl || !token) return null;
-  const host = new URL(restUrl).hostname;
-  return 'rediss://default:' + encodeURIComponent(token) + '@' + host + ':6379';
-}
-
 (async () => {
-  const url = resolveRedisUrl();
+  const url = (process.env.REDIS_URL || '').trim();
   if (!url) {
-    console.error('ERROR: Set REDIS_URL or UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN');
+    console.error('ERROR: Set REDIS_URL in apps/api/.env');
     process.exit(1);
   }
   const isLocal = url.includes('localhost') || url.includes('127.0.0.1');

@@ -9,7 +9,9 @@
 | Document | Who | What |
 |----------|-----|------|
 | **[GETTING_STARTED.md](./GETTING_STARTED.md)** | Developers | Clone, env, run locally, demo logins |
-| **[MVP_GO_LIVE.md](./MVP_GO_LIVE.md)** | DevOps | Deploy free MVP (Vercel + Fly + Neon + Upstash) |
+| **[MVP_GO_LIVE.md](./MVP_GO_LIVE.md)** | DevOps | Deploy MVP (Vercel + Fly + Neon + Redis Cloud) |
+| **[PRODUCTION_INFRASTRUCTURE_GUIDE.md](./PRODUCTION_INFRASTRUCTURE_GUIDE.md)** | DevOps / leads | Production stack choices, costs, step-by-step roadmap |
+| **[PRODUCTION_UPGRADE_CHECKLIST.md](./PRODUCTION_UPGRADE_CHECKLIST.md)** | DevOps | Paid tiers, secrets, Fly/Neon/Redis upgrades (commands) |
 | **[CI_CD.md](./CI_CD.md)** | DevOps | GitHub Actions workflows + secrets |
 | **[mvp-test-matrix.md](./mvp-test-matrix.md)** | QA / dev | Test every role after deploy |
 | **[CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md)** | Clients | Executive summary to share |
@@ -29,9 +31,14 @@
 | Observability & E2E | [OBSERVABILITY.md](./OBSERVABILITY.md) |
 | Video upload (S3 / multipart) | [VIDEO_UPLOAD.md](./VIDEO_UPLOAD.md) |
 | Audit remediation log | [PLATFORM_AUDIT_REMEDIATION.md](./PLATFORM_AUDIT_REMEDIATION.md) |
+| Auth, navigation & access control audit | [audits/README.md](./audits/README.md) |
+| Auth & session architecture (implemented) | [AUTH_SESSION.md](./AUTH_SESSION.md) |
 | Pre-merge checklist | [MERGE_CHECKLIST.md](./MERGE_CHECKLIST.md) |
 | AWS S3 + Mux (upload & live) | [AWS_MUX_SETUP.md](./AWS_MUX_SETUP.md) |
 | Custom domain (Vercel + Fly + Squarespace DNS) | [DOMAIN_FORGESTUDIOS.md](./DOMAIN_FORGESTUDIOS.md) |
+| Production stack & roadmap | [PRODUCTION_INFRASTRUCTURE_GUIDE.md](./PRODUCTION_INFRASTRUCTURE_GUIDE.md) |
+| Redis (Redis Cloud, Fly secrets) | [REDIS.md](./REDIS.md) |
+| Production upgrade (Redis, Neon, secrets) | [PRODUCTION_UPGRADE_CHECKLIST.md](./PRODUCTION_UPGRADE_CHECKLIST.md) |
 | Local ngrok / VPS only | [DEPLOYMENT_DEMO.md](./DEPLOYMENT_DEMO.md) |
 | Remediation & deferred work | [mvp-audit.md](./mvp-audit.md) |
 | Scale / vendor decisions | [phase4-platform-evaluation.md](./phase4-platform-evaluation.md) |
@@ -47,7 +54,7 @@
 |------|---------|
 | `apps/api/.env.example` | Local API |
 | `apps/api/.env.neon.example` | Neon Postgres |
-| `apps/api/.env.upstash.example` | Upstash Redis |
+| `apps/api/.env.redis-cloud.example` | Redis Cloud |
 | `apps/web/.env.example` | Web |
 | `apps/admin/.env.example` | Admin |
 
@@ -62,7 +69,7 @@ bash scripts/setup-local-demo.sh   # Docker Postgres/Redis + seed
 npm run ci                         # Local CI parity
 npm run gh:secrets                 # GitHub Actions secret helper
 npm run db:neon:setup              # Neon migrate + seed
-npm run redis:upstash:test         # Upstash ping
+npm run redis:test                 # Redis ping
 npm run smoke:api                  # API health + auth smoke
 npm run verify:roles               # Role permission matrix
 ```

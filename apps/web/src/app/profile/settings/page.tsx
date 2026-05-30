@@ -6,6 +6,7 @@ import { PageHeader, Button, Input } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
+import { ActiveSessions } from '@/components/settings/ActiveSessions';
 
 export default function ProfileSettingsPage() {
   const router = useRouter();
@@ -79,6 +80,13 @@ export default function ProfileSettingsPage() {
           {saving ? 'Saving…' : 'Save changes'}
         </Button>
       </form>
+
+      <section className="glass-panel mt-8 rounded-2xl p-6">
+        <h2 className="font-display-forge text-lg font-semibold">Active sessions</h2>
+        <div className="mt-4">
+          <ActiveSessions />
+        </div>
+      </section>
     </main>
   );
 }

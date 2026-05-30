@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { decodeJwtPayload, isJwtExpired } from '@forge/shared-types/jwt';
+import { decodeJwtPayload } from '@forge/shared-types/jwt';
+import {
+  accessTokenAllowsCreatorUpload,
+  isValidConsumerAccessToken,
+} from '@forge/shared-types/consumer-session';
+import { MAX_RETURN_PATH_LEN } from '@/lib/safe-return-path';
 
 const PROTECTED_PREFIXES = [
   '/studio',
@@ -8,6 +13,7 @@ const PROTECTED_PREFIXES = [
   '/history',
   '/notifications',
   '/library',
+  '/profile',
   '/profile/settings',
 ];
 
@@ -15,10 +21,17 @@ const PLAYLIST_PROTECTED = ['/playlists/new'];
 
 const ADMIN_ROUTE_PREFIXES = ['/admin'];
 
-function isPlatformAdminToken(token: string): boolean {
-  const payload = decodeJwtPayload(token);
-  if (!payload || isJwtExpired(payload)) return false;
-  return payload.role === 'admin';
+/** Upload paths that require creator role in JWT (not become-creator apply flow). */
+function requiresCreatorRole(pathname: string): boolean {
+  if (pathname.startsWith('/upload/become-creator')) return false;
+  if (pathname === '/upload' || pathname.startsWith('/upload/')) return true;
+  return false;
+}
+
+function buildReturnPath(request: NextRequest): string {
+  const { pathname, search } = request.nextUrl;
+  const full = `${pathname}${search}`;
+  return full.length > MAX_RETURN_PATH_LEN ? full.slice(0, MAX_RETURN_PATH_LEN) : full;
 }
 
 function clearConsumerSession(response: NextResponse) {
@@ -41,9 +54,19 @@ export function middleware(request: NextRequest) {
   }
 
   const token = request.cookies.get('forge_access_token')?.value;
-  if (token && isPlatformAdminToken(token)) {
+  const payload = token ? decodeJwtPayload(token) : null;
+
+  if (token && payload?.role === 'admin') {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('error', 'platform_admin');
+    return clearConsumerSession(NextResponse.redirect(loginUrl));
+  }
+
+  const sessionValid = isValidConsumerAccessToken(token);
+
+  if (token && !sessionValid) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('next', buildReturnPath(request));
     return clearConsumerSession(NextResponse.redirect(loginUrl));
   }
 
@@ -51,17 +74,17 @@ export function middleware(request: NextRequest) {
     PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
     PLAYLIST_PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
-  if (!isProtected) {
-    return NextResponse.next();
+  if (isProtected && (!token || !sessionValid)) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('next', buildReturnPath(request));
+    return NextResponse.redirect(loginUrl);
   }
 
-  if (token) {
-    return NextResponse.next();
+  if (requiresCreatorRole(pathname) && token && sessionValid && !accessTokenAllowsCreatorUpload(token)) {
+    return NextResponse.redirect(new URL('/upload/become-creator', request.url));
   }
 
-  const loginUrl = new URL('/login', request.url);
-  loginUrl.searchParams.set('next', pathname);
-  return NextResponse.redirect(loginUrl);
+  return NextResponse.next();
 }
 
 export const config = {

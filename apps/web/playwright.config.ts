@@ -19,9 +19,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER
     ? undefined
     : {
-        command: process.env.CI
-          ? 'npx next start -p 3000 -H 127.0.0.1'
-          : 'npm run start',
+        command: 'bash scripts/start-standalone-e2e.sh',
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 180_000,

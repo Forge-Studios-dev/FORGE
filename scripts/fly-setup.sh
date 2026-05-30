@@ -23,7 +23,7 @@ fi
 echo "Logged in as: $(fly auth whoami 2>/dev/null | tail -1)"
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "ERROR: Missing $ENV_FILE — copy apps/api/.env.example and configure Neon + Upstash."
+  echo "ERROR: Missing $ENV_FILE — copy apps/api/.env.example and configure Neon + REDIS_URL."
   exit 1
 fi
 
@@ -37,11 +37,9 @@ if [[ -z "${DATABASE_URL:-}" ]] || [[ "$DATABASE_URL" == *localhost* ]]; then
   exit 1
 fi
 
-if [[ -z "${UPSTASH_REDIS_REST_URL:-}" ]] || [[ -z "${UPSTASH_REDIS_REST_TOKEN:-}" ]]; then
-  if [[ -z "${REDIS_URL:-}" ]] || [[ "$REDIS_URL" == *localhost* ]]; then
-    echo "ERROR: Set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (or REDIS_URL) in $ENV_FILE"
-    exit 1
-  fi
+if [[ -z "${REDIS_URL:-}" ]] || [[ "$REDIS_URL" == *localhost* ]]; then
+  echo "ERROR: Set REDIS_URL (Redis Cloud) in $ENV_FILE — see apps/api/.env.redis-cloud.example"
+  exit 1
 fi
 
 # Production JWT — generate if still using example placeholders
@@ -75,8 +73,7 @@ echo "==> Setting secrets (never printed)"
 fly secrets set \
   DATABASE_URL="$DATABASE_URL" \
   DB_POOL_MAX="$DB_POOL_MAX" \
-  UPSTASH_REDIS_REST_URL="${UPSTASH_REDIS_REST_URL:-}" \
-  UPSTASH_REDIS_REST_TOKEN="${UPSTASH_REDIS_REST_TOKEN:-}" \
+  REDIS_URL="$REDIS_URL" \
   JWT_SECRET="$JWT_SECRET" \
   JWT_REFRESH_SECRET="$JWT_REFRESH_SECRET" \
   WEB_URL="$WEB_URL" \
@@ -84,9 +81,8 @@ fly secrets set \
   NODE_ENV=production \
   --app "$APP_NAME"
 
-if [[ -n "${REDIS_URL:-}" ]] && [[ "$REDIS_URL" != *localhost* ]]; then
-  fly secrets set REDIS_URL="$REDIS_URL" --app "$APP_NAME"
-fi
+echo "==> Removing legacy Upstash secrets (if any)"
+fly secrets unset UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN --app "$APP_NAME" 2>/dev/null || true
 
 echo "==> Deploying (Docker build may take several minutes)..."
 fly deploy --app "$APP_NAME" --ha=false

@@ -2,10 +2,10 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import {
   clearAuthSession,
   getAccessToken,
-  getRefreshToken,
   persistAuthSession,
   syncAuthCookieFromStorage,
 } from '@/lib/auth-storage';
+import { currentReturnPath } from '@/lib/safe-return-path';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -13,6 +13,7 @@ export const api = axios.create({
   baseURL: API_URL,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
@@ -33,24 +34,25 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       try {
-        const refreshToken = getRefreshToken();
-        if (!refreshToken) throw new Error('No refresh token');
-        const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+        const { data } = await axios.post(
+          `${API_URL}/auth/refresh`,
+          {},
+          { withCredentials: true },
+        );
         const accessToken = data.data.accessToken as string;
-        const newRefresh = data.data.refreshToken as string;
+        const newRefresh = data.data.refreshToken as string | undefined;
         const refreshedUser = data.data.user;
         persistAuthSession(
           accessToken,
           newRefresh,
           refreshedUser ? JSON.stringify(refreshedUser) : undefined,
+          data.data.sessionId as string | undefined,
         );
         original.headers.Authorization = `Bearer ${accessToken}`;
         return api(original);
       } catch {
         clearAuthSession();
-        const next = encodeURIComponent(
-          window.location.pathname + window.location.search,
-        );
+        const next = encodeURIComponent(currentReturnPath());
         window.location.href = `/session-expired?next=${next}`;
       }
     }

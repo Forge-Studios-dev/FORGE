@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useFeedScrollRestore } from '@/lib/use-feed-scroll-restore';
 import { chunkFeedRows, useFeedColumns } from '@/lib/use-feed-columns';
 import { PaginatedResponse, Video } from '@/types';
 import { FeedCard } from './FeedCard';
@@ -37,6 +38,7 @@ export function FeedGrid({
   const [scrollMargin, setScrollMargin] = useState(0);
   const columnCount = useFeedColumns();
   const { isGuest, isLoading: authLoading, canViewPersonalizedFeed } = useAuth();
+  useFeedScrollRestore(feedPath === '/videos/feed' && !skillTagSlug);
 
   const {
     data,
