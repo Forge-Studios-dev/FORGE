@@ -21,7 +21,7 @@ export default defineConfig({
     : {
         command: 'bash scripts/start-standalone-e2e.sh',
         url: baseURL,
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: !!process.env.PLAYWRIGHT_REUSE_SERVER,
         timeout: 180_000,
       },
 });
