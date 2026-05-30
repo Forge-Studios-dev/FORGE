@@ -1,5 +1,7 @@
 # Shipping the Auth & Navigation Audit
 
+**Status (2026-05-30):** Shipped — PR [#24](https://github.com/Forge-Studios-dev/FORGE/pull/24) merged; production release green; `AUTH_REFRESH_COOKIE_DOMAIN` set on Fly.
+
 The audit implementation touches API, web, admin, mobile, shared-types, CI, and docs. **Do not push directly to `main`** (see repo branching rules).
 
 ## Recommended PR path

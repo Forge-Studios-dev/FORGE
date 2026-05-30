@@ -1,20 +1,20 @@
-import { Suspense } from 'react';
 import { StatusPage } from '@forge/design-system';
-import { SessionExpiredContent } from './SessionExpiredContent';
+import { loginHrefWithNext } from '@/lib/safe-return-path';
 
-export default function SessionExpiredPage() {
+type SessionExpiredPageProps = {
+  searchParams?: { next?: string };
+};
+
+export default function SessionExpiredPage({ searchParams }: SessionExpiredPageProps) {
+  const rawNext = searchParams?.next;
+  const loginHref = rawNext ? loginHrefWithNext(rawNext) : '/login';
+
   return (
-    <Suspense
-      fallback={
-        <StatusPage
-          icon="schedule"
-          title="Session expired"
-          description="Please sign in again to continue."
-          action={{ label: 'Sign in', href: '/login' }}
-        />
-      }
-    >
-      <SessionExpiredContent />
-    </Suspense>
+    <StatusPage
+      icon="schedule"
+      title="Session expired"
+      description="Please sign in again to continue."
+      action={{ label: 'Sign in', href: loginHref }}
+    />
   );
 }

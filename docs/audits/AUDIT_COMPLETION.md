@@ -1,6 +1,6 @@
 # Auth & Navigation Audit — Completion Status
 
-**Status:** Complete (P0, P1, P2 implemented; P3 deferred by design)
+**Status:** Complete and shipped (P0, P1, P2 on production; P3 deferred by design). Merged 2026-05-30 (`4e4476f`).
 
 ## Deliverables
 
