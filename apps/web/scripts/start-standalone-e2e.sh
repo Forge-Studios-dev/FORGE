@@ -18,7 +18,8 @@ rm -rf "$APP_DIR/.next/static" "$APP_DIR/public"
 cp -r .next/static "$APP_DIR/.next/static"
 cp -r public "$APP_DIR/public"
 
-export HOSTNAME="${HOSTNAME:-127.0.0.1}"
+# GHA sets HOSTNAME to the runner id — force loopback so Playwright can reach the server.
+export HOSTNAME="127.0.0.1"
 export PORT="${PORT:-3000}"
 cd "$STANDALONE_ROOT"
 exec node apps/web/server.js
