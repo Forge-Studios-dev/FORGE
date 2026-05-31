@@ -1,5 +1,5 @@
 import { Permission, permissionsForUser } from './permissions';
-import { CreatorStatus, User, UserRole } from '../../modules/users/entities/user.entity';
+import { User, UserRole } from '../../modules/users/entities/user.entity';
 
 function user(partial: Partial<User>): User {
   return {

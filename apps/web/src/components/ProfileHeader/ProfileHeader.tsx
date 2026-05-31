@@ -24,7 +24,7 @@ interface Props {
 
 export function ProfileHeader({ user }: Props) {
   const router = useRouter();
-  const { user: me, isGuest, canEngage, canApplyForCreator, refresh } = useAuth();
+  const { user: me, isGuest, canApplyForCreator, refresh } = useAuth();
   const [engageBlock, setEngageBlock] = useState<EngageBlockReason | null>(null);
   const blockReason = getEngageBlockReason(me, isGuest);
   const followMutation = useMutation({
