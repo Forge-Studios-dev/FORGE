@@ -19,6 +19,7 @@ Production-grade email auth, recovery, sessions, and security — **built on cus
 | [DELIVERABLES.md](./DELIVERABLES.md) | All Phase 13 diagrams + reports (single doc) |
 | [POST_DEPLOY.md](./POST_DEPLOY.md) | Migrations, secrets, smoke tests after merge |
 | [ENABLEMENT_GUIDE.md](./ENABLEMENT_GUIDE.md) | **Enable Google, SMTP, Firebase on production** |
+| [FIREBASE_CONNECTION_BLOCKER.md](./FIREBASE_CONNECTION_BLOCKER.md) | **Firebase not connected — owner fix steps** |
 | [IMPLEMENTATION_STATUS_AUDIT.md](./IMPLEMENTATION_STATUS_AUDIT.md) | **Are we on Firebase Auth? Feature checklist** |
 
 Related: [docs/firebase/AUTH_DESIGN.md](../firebase/AUTH_DESIGN.md), [docs/AUTH_SESSION.md](../AUTH_SESSION.md).

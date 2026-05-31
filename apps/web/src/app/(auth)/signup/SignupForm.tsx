@@ -11,6 +11,7 @@ import { AuthTokens } from '@/types';
 import { safeReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
 import { AuthSetupNotice } from '@/components/auth/AuthSetupNotice';
+import { FirebaseSetupNotice } from '@/components/auth/FirebaseSetupNotice';
 import { isGoogleOAuthEnabled, loadPlatformConfig } from '@/lib/platform-config';
 import type { PlatformPublicConfig } from '@forge/shared-types';
 
@@ -96,7 +97,12 @@ export function SignupForm({ nextPath }: { nextPath: string }) {
       showHeader={false}
     >
       <form className="space-y-5" onSubmit={handleSubmit}>
-        {platformConfig && <AuthSetupNotice config={platformConfig} />}
+        {platformConfig && (
+          <>
+            <FirebaseSetupNotice config={platformConfig} />
+            <AuthSetupNotice config={platformConfig} />
+          </>
+        )}
         {error && <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{error}</p>}
         {FIELDS.map((field) => (
           <input
