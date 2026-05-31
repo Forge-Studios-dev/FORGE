@@ -19,8 +19,10 @@ Web shows **Verify your email** modal when a signed-in unverified user tries eng
 
 - Sent on signup and via `POST /auth/verify-email/resend` (JWT).
 - Admin: `POST /admin/users/:id/resend-verification`.
-- Requires Fly `SMTP_*` + `MAIL_FROM` (see `secrets/auth-deploy.env.example`).
-- If send fails, API returns `503` with `MAIL_NOT_CONFIGURED` or `MAIL_DELIVERY_FAILED` (not silent skip in production).
+- Requires Fly `RESEND_API_KEY` / `SMTP_PASS` (`re_...`) and `MAIL_FROM` (e.g. `noreply@forgestudios.net`).
+- **Resend:** add and verify **forgestudios.net** at [resend.com/domains](https://resend.com/domains) (DNS records). Until verified, sends from `@forgestudios.net` return 403; `onboarding@resend.dev` only delivers to the Resend account email.
+- Deploy key: `RESEND_API_KEY=re_xxx bash scripts/set-resend-api-key-fly.sh`
+- If send fails, API returns `503` with `MAIL_NOT_CONFIGURED`, `MAIL_AUTH_FAILED`, or `MAIL_DELIVERY_FAILED` (not silent skip in production).
 
 ## Firebase Console
 
