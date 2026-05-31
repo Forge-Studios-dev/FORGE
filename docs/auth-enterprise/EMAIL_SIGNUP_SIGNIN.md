@@ -31,6 +31,7 @@
 | `ACCOUNT_LOCKED` | 401 | Too many failed logins |
 | `EMAIL_NOT_VERIFIED` | 403 | Login blocked when strict mode on |
 | `USE_GOOGLE_SIGNIN` | 401 | Password login on Google-linked account |
+| `ACCOUNT_DISABLED` | 403 | Admin deactivated account (`is_active=false`) |
 
 ## Email verification (Phase 3)
 

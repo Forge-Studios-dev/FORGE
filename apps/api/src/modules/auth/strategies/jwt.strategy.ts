@@ -35,9 +35,15 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   async validate(payload: JwtPayload): Promise<JwtPayload> {
     const user = await this.userRepository.findOne({
       where: { id: payload.sub },
-      select: ['id', 'email', 'role', 'creatorStatus', 'isVerified'],
+      select: ['id', 'email', 'role', 'creatorStatus', 'isVerified', 'isActive'],
     });
     if (!user) throw new UnauthorizedException('User no longer exists');
+    if (user.isActive === false) {
+      throw new UnauthorizedException({
+        message: 'This account has been disabled',
+        code: 'ACCOUNT_DISABLED',
+      });
+    }
     const snapshot: AuthUserSnapshot = {
       id: user.id,
       email: user.email,

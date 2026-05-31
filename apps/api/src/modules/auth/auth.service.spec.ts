@@ -88,6 +88,7 @@ describe('AuthService', () => {
       passwordHash: 'hash',
       role: 'user',
       isVerified: false,
+      isActive: true,
       creatorStatus: null,
       creatorReviewNote: null,
       avatarUrl: null,

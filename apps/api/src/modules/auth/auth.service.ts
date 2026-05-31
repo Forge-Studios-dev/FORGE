@@ -92,6 +92,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (user.isActive === false) {
+      throw new ForbiddenException({
+        message: 'This account has been disabled. Contact support if you believe this is an error.',
+        code: 'ACCOUNT_DISABLED',
+      });
+    }
+
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordValid) {
       const oauthOnly = await this.oauthAccountRepository.findOne({
@@ -137,6 +144,13 @@ export class AuthService {
     if (!user) {
       user = await this.userRepository.findOne({ where: { email: profile.email } });
     }
+    if (user?.isActive === false) {
+      throw new ForbiddenException({
+        message: 'This account has been disabled',
+        code: 'ACCOUNT_DISABLED',
+      });
+    }
+
     if (!user) {
       const username = await this.uniqueUsernameFromEmail(profile.email);
       const passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), this.BCRYPT_ROUNDS);
@@ -291,6 +305,18 @@ export class AuthService {
       take: 50,
       select: ['id', 'deviceLabel', 'userAgent', 'createdAt', 'expiresAt'],
     });
+  }
+
+  /** Device login history (same rows as active sessions — `createdAt` = sign-in time). */
+  async listLoginHistory(userId: string) {
+    const sessions = await this.listSessions(userId);
+    return sessions.map((s) => ({
+      id: s.id,
+      deviceLabel: s.deviceLabel,
+      userAgent: s.userAgent,
+      loginAt: s.createdAt,
+      expiresAt: s.expiresAt,
+    }));
   }
 
   async revokeSession(userId: string, sessionId: string) {

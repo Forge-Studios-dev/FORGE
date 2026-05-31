@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -40,6 +41,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       );
       if (!mounted) return;
       final user = data['user'] as Map<String, dynamic>?;
+      if (user != null && user['isVerified'] != true) {
+        context.go('/verify-email');
+        return;
+      }
       if (user != null &&
           user['role'] == 'creator' &&
           user['creatorStatus'] != null &&
@@ -48,7 +53,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         return;
       }
       context.go('/feed');
-    } catch (e) {
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final msg = data is Map ? data['message'] : null;
+      setState(() => _error = msg is String ? msg : 'Sign up failed. Email or username may already be taken.');
+    } catch (_) {
       setState(() => _error = 'Sign up failed. Email or username may already be taken.');
     } finally {
       if (mounted) setState(() => _loading = false);

@@ -180,6 +180,12 @@ export class AuthController {
     return this.authService.listSessions(user.sub);
   }
 
+  @Get('login-history')
+  @ApiOperation({ summary: 'Recent sign-ins (device sessions with login timestamps)' })
+  loginHistory(@CurrentUser() user: JwtPayload) {
+    return this.authService.listLoginHistory(user.sub);
+  }
+
   @Delete('sessions/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Revoke a single session' })

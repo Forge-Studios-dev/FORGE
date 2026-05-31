@@ -87,6 +87,10 @@ export class User {
   @Column({ name: 'is_verified', default: false })
   isVerified: boolean;
 
+  /** Platform ban / admin deactivation — blocks login and refresh. */
+  @Column({ name: 'is_active', default: true })
+  isActive: boolean;
+
   @Column({ name: 'email_verification_token_hash', type: 'varchar', nullable: true })
   @Exclude()
   emailVerificationTokenHash: string | null;

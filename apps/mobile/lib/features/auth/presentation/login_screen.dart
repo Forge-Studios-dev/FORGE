@@ -47,9 +47,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       context.go(next != null && next.isNotEmpty ? next : '/feed');
     } on DioException catch (e) {
       final data = e.response?.data;
-      if (data is Map && data['code'] == 'EMAIL_NOT_VERIFIED') {
-        if (mounted) context.go('/verify-email');
-        return;
+      if (data is Map) {
+        final code = data['code'];
+        if (code == 'EMAIL_NOT_VERIFIED') {
+          if (mounted) context.go('/verify-email');
+          return;
+        }
+        if (code == 'ACCOUNT_LOCKED' || code == 'ACCOUNT_DISABLED' || code == 'USE_GOOGLE_SIGNIN') {
+          final msg = data['message'];
+          setState(() => _error = msg is String ? msg : 'Sign in failed. Please try again.');
+          return;
+        }
       }
       final msg = data is Map ? data['message'] : null;
       setState(() => _error = msg is String ? msg : 'Invalid credentials. Please try again.');

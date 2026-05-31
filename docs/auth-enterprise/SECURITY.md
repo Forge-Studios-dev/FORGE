@@ -23,6 +23,8 @@
 | M1 | Medium | Soft email verification | Configurable strict login |
 | M2 | Medium | No MFA | Post-PMF |
 | L1 | Low | Google mobile missing | Backlog |
+| — | — | Disabled accounts | `is_active` + `ACCOUNT_DISABLED` |
+| — | — | Login history | `GET /auth/login-history` (= session sign-in times) |
 
 ## Device management
 

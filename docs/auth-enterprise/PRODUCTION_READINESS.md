@@ -15,7 +15,7 @@
 
 ## Before launch
 
-- [ ] Run migration `1742000000000-oauth-device-tokens` if not applied
+- [ ] Run migrations `1742000000000-oauth-device-tokens`, `1743000000000-user-is-active` if not applied
 - [ ] Redis available in production (lockout + queues)
 - [ ] SMTP configured for deliverability (SPF/DKIM)
 - [ ] `AUTH_REFRESH_COOKIE_DOMAIN=.forgestudios.net` on Fly

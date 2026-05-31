@@ -79,6 +79,10 @@ export function LoginForm({
         );
         return;
       }
+      if (data?.code === 'ACCOUNT_DISABLED') {
+        setError(data?.message || 'This account has been disabled.');
+        return;
+      }
       setError(data?.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
