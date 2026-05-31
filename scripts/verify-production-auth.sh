@@ -28,7 +28,13 @@ if not auth or auth.get('provider') != 'custom':
 if firebase is None or firebase.get('usesFirebaseAuth') is not False:
     sys.exit('FAIL: platform/config missing firebase.usesFirebaseAuth=false')
 print('OK: auth.provider=custom, firebase.usesFirebaseAuth=false')
-print(f\"    googleOAuth={auth.get('googleOAuth')}, fcmEnabled={firebase.get('fcmEnabled')}\")
+print(f\"    googleOAuth={auth.get('googleOAuth')}, mailConfigured={auth.get('mailConfigured')}, fcmEnabled={firebase.get('fcmEnabled')}\")
+if auth.get('googleOAuth') is not True:
+    print('WARN: auth.googleOAuth is false — Google button hidden until GOOGLE_OAUTH_* Fly secrets set')
+if auth.get('mailConfigured') is not True:
+    print('WARN: auth.mailConfigured is false — verification emails will not send until SMTP_* set')
+if firebase.get('adminConfigured') is not True:
+    print('WARN: firebase.adminConfigured is false — set FIREBASE_* on Fly')
 "
 
 echo ""

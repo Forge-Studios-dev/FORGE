@@ -16,6 +16,9 @@ export class PlatformController {
     const raw = this.configService.get<string>('featureFlags') || '';
     const featureFlags = parseFeatureFlags(raw);
     const firebaseProjectId = this.configService.get<string>('firebase.projectId') || '';
+    const smtpHost = this.configService.get<string>('mail.smtpHost') || '';
+    const smtpUser = this.configService.get<string>('mail.smtpUser') || '';
+    const smtpPass = this.configService.get<string>('mail.smtpPass') || '';
     return {
       featureFlags,
       apiVersion: 'v1',
@@ -24,6 +27,7 @@ export class PlatformController {
         provider: 'custom' as const,
         emailPassword: true,
         googleOAuth: this.configService.get<boolean>('oauth.google.enabled') === true,
+        mailConfigured: Boolean(smtpHost && smtpUser && smtpPass),
         emailVerification: 'link' as const,
         otpVerification: false,
       },

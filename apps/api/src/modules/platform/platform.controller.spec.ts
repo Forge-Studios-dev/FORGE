@@ -11,6 +11,9 @@ describe('PlatformController', () => {
         const map: Record<string, string | boolean> = {
           featureFlags: 'multipart_upload',
           'oauth.google.enabled': true,
+          'mail.smtpHost': 'smtp.example.com',
+          'mail.smtpUser': 'user',
+          'mail.smtpPass': 'pass',
           'firebase.projectId': 'proj',
           'firebase.clientEmail': 'sa@test.iam.gserviceaccount.com',
           'firebase.privateKey': 'key',
@@ -34,6 +37,7 @@ describe('PlatformController', () => {
 
     expect(result.auth.provider).toBe('custom');
     expect(result.auth.googleOAuth).toBe(true);
+    expect(result.auth.mailConfigured).toBe(true);
     expect(result.auth.otpVerification).toBe(false);
     expect(result.firebase.usesFirebaseAuth).toBe(false);
     expect(result.firebase.adminConfigured).toBe(true);

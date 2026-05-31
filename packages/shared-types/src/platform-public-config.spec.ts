@@ -1,6 +1,7 @@
 import {
   isCustomAuthProvider,
   isFirebaseComplementOnly,
+  isMailConfigured,
   type PlatformPublicConfig,
 } from './platform-public-config';
 
@@ -11,6 +12,7 @@ const base: PlatformPublicConfig = {
     provider: 'custom',
     emailPassword: true,
     googleOAuth: false,
+    mailConfigured: true,
     emailVerification: 'link',
     otpVerification: false,
   },
@@ -34,6 +36,16 @@ describe('platform-public-config', () => {
       isFirebaseComplementOnly({
         ...base,
         firebase: { ...base.firebase!, usesFirebaseAuth: true },
+      }),
+    ).toBe(false);
+  });
+
+  it('detects mail configured', () => {
+    expect(isMailConfigured(base)).toBe(true);
+    expect(
+      isMailConfigured({
+        ...base,
+        auth: { ...base.auth!, mailConfigured: false },
       }),
     ).toBe(false);
   });

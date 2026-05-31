@@ -7,6 +7,8 @@ export type PlatformAuthConfig = {
   provider: 'custom';
   emailPassword: boolean;
   googleOAuth: boolean;
+  /** True when API SMTP is configured (verification/reset emails can send). */
+  mailConfigured: boolean;
   emailVerification: 'link';
   otpVerification: boolean;
 };
@@ -33,4 +35,8 @@ export function isCustomAuthProvider(config: PlatformPublicConfig): boolean {
 /** True when Firebase is complement-only (FCM/App Check), not login IdP. */
 export function isFirebaseComplementOnly(config: PlatformPublicConfig): boolean {
   return config.firebase?.usesFirebaseAuth === false;
+}
+
+export function isMailConfigured(config: PlatformPublicConfig): boolean {
+  return config.auth?.mailConfigured === true;
 }
