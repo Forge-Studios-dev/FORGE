@@ -174,6 +174,8 @@ Full guide: [FIREBASE_INTEGRATION.md](./FIREBASE_INTEGRATION.md) and [docs/fireb
 
 Not used: Firebase Auth SDK, `signInWithEmailAndPassword`, Firebase session cookies.
 
+Full guide: [NEXTJS_INTEGRATION.md](./NEXTJS_INTEGRATION.md).
+
 ---
 
 ## 10. Production Readiness Report

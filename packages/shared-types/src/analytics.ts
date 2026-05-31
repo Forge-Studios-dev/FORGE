@@ -2,6 +2,7 @@
 export const ANALYTICS_EVENTS = [
   'auth.signup',
   'auth.login',
+  'auth.login.new_device',
   'watch.progress',
   'watch.complete',
   'watch.startup_ms',

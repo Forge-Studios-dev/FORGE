@@ -23,6 +23,20 @@ test.describe('Auth navigation (unauthenticated)', () => {
     expect(next).toContain('/profile/settings');
   });
 
+  test('unverified creator on upload redirects to verify-email', async ({ page, context }) => {
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    const payload = Buffer.from(
+      JSON.stringify({ sub: 'u1', role: 'creator', isVerified: false, exp }),
+    ).toString('base64url');
+    const token = `e30.${payload}.sig`;
+    await context.addCookies([
+      { name: 'forge_access_token', value: token, domain: 'localhost', path: '/' },
+      { name: 'forge_session', value: '1', domain: 'localhost', path: '/' },
+    ]);
+    await page.goto('/upload/step/1');
+    await expect(page).toHaveURL(/\/verify-email/, { timeout: 15_000 });
+  });
+
   test('viewer cookie cannot access upload step — redirected to become-creator', async ({ page, context }) => {
     const exp = Math.floor(Date.now() / 1000) + 3600;
     const payload = Buffer.from(JSON.stringify({ sub: 'u1', role: 'user', exp })).toString('base64url');

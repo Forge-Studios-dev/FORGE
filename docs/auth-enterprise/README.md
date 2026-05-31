@@ -13,6 +13,7 @@ Production-grade email auth, recovery, sessions, and security — **built on cus
 | [SECURITY.md](./SECURITY.md) | Phases 8 & 12 |
 | [MIDDLEWARE_ROUTES.md](./MIDDLEWARE_ROUTES.md) | Phase 9 route matrix |
 | [FIREBASE_INTEGRATION.md](./FIREBASE_INTEGRATION.md) | Phase 10 CLI + why not Firebase Auth |
+| [NEXTJS_INTEGRATION.md](./NEXTJS_INTEGRATION.md) | Phase 10 Next.js App Router guide |
 | [UX_AUDIT.md](./UX_AUDIT.md) | Phase 11 pages & states |
 | [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) | Phase 13 checklist |
 | [DELIVERABLES.md](./DELIVERABLES.md) | All Phase 13 diagrams + reports (single doc) |

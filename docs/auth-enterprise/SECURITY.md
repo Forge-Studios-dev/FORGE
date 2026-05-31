@@ -12,6 +12,7 @@
 | Disposable email block | Signup blocklist |
 | App Check | Optional on signup/login/analytics |
 | HTTPS cookies | `secure` + `sameSite` in production |
+| New-device signal | `auth.login.new_device` when IP not seen on prior sessions |
 
 ## Findings
 

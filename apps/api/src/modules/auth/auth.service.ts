@@ -123,6 +123,7 @@ export class AuthService {
 
     await this.lockoutService.clearFailures(email, meta?.ip ?? null);
 
+    await this.recordNewDeviceIfNeeded(user.id, meta, 'email');
     const tokens = await this.issueTokens(user, meta);
     void this.analyticsService.ingest(user.id, {
       eventName: 'auth.login',
@@ -176,6 +177,7 @@ export class AuthService {
       );
     }
 
+    await this.recordNewDeviceIfNeeded(user.id, meta, 'google');
     const tokens = await this.issueTokens(user, meta);
     void this.analyticsService.ingest(user.id, {
       eventName: 'auth.login',
@@ -452,6 +454,29 @@ export class AuthService {
       sessionId: session.id,
       user: toPublicUser(user),
     };
+  }
+
+  /** Flags sign-in from an IP not seen on any prior active session (suspicious-login signal). */
+  private async recordNewDeviceIfNeeded(
+    userId: string,
+    meta: ClientSessionMeta | undefined,
+    method: 'email' | 'google',
+  ): Promise<void> {
+    const ipHash = meta?.ip ? this.hashToken(meta.ip).slice(0, 128) : null;
+    if (!ipHash) return;
+
+    const prior = await this.refreshTokenRepository.find({
+      where: { userId, revoked: false },
+      select: ['ipHash'],
+      take: 20,
+    });
+    const known = new Set(prior.map((s) => s.ipHash).filter((h): h is string => !!h));
+    if (known.size === 0 || known.has(ipHash)) return;
+
+    void this.analyticsService.ingest(userId, {
+      eventName: 'auth.login.new_device',
+      properties: { method },
+    });
   }
 
   private deriveDeviceLabel(userAgent?: string | null): string | null {

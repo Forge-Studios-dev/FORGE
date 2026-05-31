@@ -12,6 +12,11 @@
 - [x] Optional strict verified login
 - [x] Auth error codes in API responses
 - [x] Web login handles verification + Google hints
+- [x] Disabled accounts (`is_active`, `ACCOUNT_DISABLED`)
+- [x] Login history API (`GET /auth/login-history`)
+- [x] New-device login signal (`auth.login.new_device`)
+- [x] Middleware gates unverified creators on upload
+- [x] Mobile verify-email resend + signup redirect
 
 ## Before launch
 
