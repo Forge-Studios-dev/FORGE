@@ -18,14 +18,19 @@
 - [x] Middleware gates unverified creators on upload
 - [x] Mobile verify-email resend + signup redirect
 
-## Before launch
+## Production (2026-05-31)
 
-- [ ] Run migrations `1742000000000-oauth-device-tokens`, `1743000000000-user-is-active` if not applied
-- [ ] Redis available in production (lockout + queues)
-- [ ] SMTP configured for deliverability (SPF/DKIM)
-- [ ] `AUTH_REFRESH_COOKIE_DOMAIN=.forgestudios.net` on Fly
+- [x] Merged to `main`, release workflow green
+- [x] Neon migrations applied (`oauth_accounts`, `device_tokens`, `users.is_active`)
+- [x] API + web smoke passing
+- [x] E2E: `apps/web/e2e/auth-nav.spec.ts` (8 cases)
+
+## Before enabling optional features
+
+- [ ] SMTP tuned for verification/reset deliverability (SPF/DKIM)
+- [ ] `AUTH_REFRESH_COOKIE_DOMAIN=.forgestudios.net` on Fly (if not already set)
+- [ ] Firebase + Google OAuth secrets when enabling those features
 - [ ] Decide `AUTH_REQUIRE_VERIFIED_LOGIN` (default false = YouTube-like)
-- [x] E2E: `apps/web/e2e/auth-nav.spec.ts` (8 cases incl. verify-email middleware)
 
 ## Post-PMF
 
