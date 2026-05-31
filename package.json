@@ -47,7 +47,12 @@
     "verify:video-pipeline": "bash scripts/verify-video-pipeline.sh",
     "verify:video-pipeline:prod": "FORGE_SMOKE_API=https://api.forgestudios.net/api/v1 bash scripts/verify-video-pipeline.sh",
     "cleanup:stuck-videos": "bash scripts/cleanup-stuck-videos.sh",
-    "build:design-system": "npm run build --workspace=@forge/design-system"
+    "build:design-system": "npm run build --workspace=@forge/design-system",
+    "auth:check": "bash scripts/check-auth-env.sh",
+    "auth:check:fly": "bash scripts/check-auth-env.sh fly",
+    "auth:bootstrap": "bash scripts/bootstrap-local-auth.sh",
+    "auth:deploy": "bash scripts/deploy-auth-secrets.sh",
+    "auth:verify": "bash scripts/verify-production-auth.sh"
   },
   "devDependencies": {
     "vite": "^6.2.0",
