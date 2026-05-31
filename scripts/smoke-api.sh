@@ -6,28 +6,33 @@ set -euo pipefail
 BASE="${FORGE_SMOKE_API:-http://localhost:3001/api/v1}"
 MODE="${FORGE_SMOKE_MODE:-full}"
 
-code="$(curl -sS -o /tmp/forge-smoke-health.json -w "%{http_code}" "${BASE}/health" || true)"
+# Transient TLS/network flakes on Fly smoke (SSL_ERROR_SYSCALL) — retry in CI release.
+curl_smoke() {
+  curl -sS --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 20 "$@"
+}
+
+code="$(curl_smoke -o /tmp/forge-smoke-health.json -w "%{http_code}" "${BASE}/health" || true)"
 if [[ "$code" != "200" ]]; then
   echo "FAIL: GET ${BASE}/health expected 200, got ${code:-curl-error}" >&2
   exit 1
 fi
 echo "OK: GET ${BASE}/health ($code)"
 
-feed_code="$(curl -sS -o /dev/null -w "%{http_code}" "${BASE}/videos/feed?limit=1&sort=latest")"
+feed_code="$(curl_smoke -o /dev/null -w "%{http_code}" "${BASE}/videos/feed?limit=1&sort=latest" || true)"
 if [[ "$feed_code" != "200" ]]; then
   echo "FAIL: GET feed expected 200, got ${feed_code}" >&2
   exit 1
 fi
 echo "OK: GET ${BASE}/videos/feed ($feed_code)"
 
-search_body="$(curl -sS "${BASE}/search?q=test&limit=3" || true)"
+search_body="$(curl_smoke "${BASE}/search?q=test&limit=3" || true)"
 if echo "$search_body" | grep -q passwordHash; then
   echo "FAIL: GET /search leaks passwordHash" >&2
   exit 1
 fi
 echo "OK: GET ${BASE}/search (no credential leaks)"
 
-config_code="$(curl -sS -o /tmp/forge-smoke-config.json -w "%{http_code}" "${BASE}/platform/config")"
+config_code="$(curl_smoke -o /tmp/forge-smoke-config.json -w "%{http_code}" "${BASE}/platform/config" || true)"
 if [[ "$config_code" != "200" ]]; then
   echo "FAIL: GET ${BASE}/platform/config expected 200, got ${config_code}" >&2
   exit 1
@@ -45,14 +50,14 @@ if [[ "${FORGE_EXPECT_FLAGS:-}" == *multipart* ]] || [[ "$BASE" == *forgestudios
 fi
 
 API_ROOT="${BASE%/api/v1}"
-health_headers="$(curl -sSI "${BASE}/health" 2>/dev/null || true)"
+health_headers="$(curl_smoke -sSI "${BASE}/health" 2>/dev/null || true)"
 if echo "$health_headers" | grep -qi 'x-correlation-id:'; then
   echo "OK: health returns x-correlation-id"
 else
   echo "WARN: health missing x-correlation-id header" >&2
 fi
 
-metrics_code="$(curl -sS -o /dev/null -w "%{http_code}" "${API_ROOT}/metrics" 2>/dev/null || echo "000")"
+metrics_code="$(curl_smoke -o /dev/null -w "%{http_code}" "${API_ROOT}/metrics" 2>/dev/null || echo "000")"
 if [[ "$metrics_code" == "200" ]]; then
   echo "OK: GET ${API_ROOT}/metrics (Prometheus enabled)"
 elif [[ "$metrics_code" == "401" ]]; then
@@ -68,7 +73,7 @@ if [[ "$MODE" == "public" ]]; then
   exit 0
 fi
 
-login_body="$(curl -sS -X POST "${BASE}/auth/login" \
+login_body="$(curl_smoke -X POST "${BASE}/auth/login" \
   -H 'Content-Type: application/json' \
   -d '{"email":"viewer@forge.local","password":"ForgeDemo123!"}')"
 TOKEN="$(echo "$login_body" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['accessToken'])" 2>/dev/null || true)"
@@ -84,7 +89,7 @@ if echo "$login_body" | grep -q passwordHash; then
 fi
 echo "OK: login user payload has no passwordHash"
 
-me_body="$(curl -sS "${BASE}/users/me" -H "Authorization: Bearer ${TOKEN}")"
+me_body="$(curl_smoke "${BASE}/users/me" -H "Authorization: Bearer ${TOKEN}")"
 if echo "$me_body" | grep -q passwordHash; then
   echo "FAIL: GET /users/me leaks passwordHash — Docker image may be stale; use npm run dev:api" >&2
   exit 1
@@ -99,7 +104,7 @@ if ! echo "$me_body" | grep -q 'ENGAGE'; then
 fi
 echo "OK: GET ${BASE}/users/me (public shape + permissions)"
 
-pl_code="$(curl -sS -o /tmp/forge-smoke-pl.json -w "%{http_code}" "${BASE}/playlists/me" -H "Authorization: Bearer ${TOKEN}")"
+pl_code="$(curl_smoke -o /tmp/forge-smoke-pl.json -w "%{http_code}" "${BASE}/playlists/me" -H "Authorization: Bearer ${TOKEN}" || true)"
 if [[ "$pl_code" != "200" ]]; then
   echo "FAIL: GET ${BASE}/playlists/me expected 200, got ${pl_code}" >&2
   cat /tmp/forge-smoke-pl.json >&2 || true
@@ -107,14 +112,14 @@ if [[ "$pl_code" != "200" ]]; then
 fi
 echo "OK: GET ${BASE}/playlists/me ($pl_code)"
 
-feed_cat_code="$(curl -sS -o /dev/null -w "%{http_code}" "${BASE}/videos/feed?categorySlug=physical-crafts&limit=1")"
+feed_cat_code="$(curl_smoke -o /dev/null -w "%{http_code}" "${BASE}/videos/feed?categorySlug=physical-crafts&limit=1" || true)"
 if [[ "$feed_cat_code" != "200" ]]; then
   echo "FAIL: GET feed with categorySlug expected 200, got ${feed_cat_code}" >&2
   exit 1
 fi
 echo "OK: GET ${BASE}/videos/feed?categorySlug=… ($feed_cat_code)"
 
-guest_like="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${BASE}/videos/00000000-0000-4000-8000-000000000001/like")"
+guest_like="$(curl_smoke -o /dev/null -w "%{http_code}" -X POST "${BASE}/videos/00000000-0000-4000-8000-000000000001/like" || true)"
 if [[ "$guest_like" != "401" ]]; then
   echo "FAIL: guest POST like expected 401, got ${guest_like}" >&2
   exit 1
@@ -126,7 +131,7 @@ if [[ "$viewer_role" != "user" ]]; then
   echo "WARN: viewer@forge.local role is '${viewer_role}' (expected user). Run: cd apps/api && npm run seed" >&2
 fi
 
-viewer_upload="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${BASE}/videos/presigned-url" \
+viewer_upload="$(curl_smoke -o /dev/null -w "%{http_code}" -X POST "${BASE}/videos/presigned-url" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H 'Content-Type: application/json' \
   -d '{"contentType":"video/mp4","fileSizeBytes":1024}')"
@@ -136,7 +141,7 @@ if [[ "$viewer_upload" != "403" ]]; then
 fi
 echo "OK: viewer cannot upload (403)"
 
-CREATOR_LOGIN="$(curl -sS -X POST "${BASE}/auth/login" \
+CREATOR_LOGIN="$(curl_smoke -X POST "${BASE}/auth/login" \
   -H 'Content-Type: application/json' \
   -d '{"email":"creator@forge.local","password":"ForgeDemo123!"}' 2>/dev/null || true)"
 CREATOR_TOKEN="$(echo "$CREATOR_LOGIN" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['accessToken'])" 2>/dev/null || true)"
@@ -144,7 +149,7 @@ if [[ -z "$CREATOR_TOKEN" ]]; then
   echo "WARN: creator@forge.local login failed — run: npm run db:neon:setup" >&2
 else
   echo "OK: POST ${BASE}/auth/login (creator@forge.local)"
-  creator_upload="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${BASE}/videos/presigned-url" \
+  creator_upload="$(curl_smoke -o /dev/null -w "%{http_code}" -X POST "${BASE}/videos/presigned-url" \
     -H "Authorization: Bearer ${CREATOR_TOKEN}" \
     -H 'Content-Type: application/json' \
     -d '{"contentType":"video/mp4","fileSizeBytes":2048}')"
@@ -155,14 +160,14 @@ else
   echo "OK: creator can presign upload (${creator_upload})"
 fi
 
-ADMIN_LOGIN="$(curl -sS -X POST "${BASE}/auth/login" \
+ADMIN_LOGIN="$(curl_smoke -X POST "${BASE}/auth/login" \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@forge.local","password":"ForgeAdmin123!"}' 2>/dev/null || true)"
 ADMIN_TOKEN="$(echo "$ADMIN_LOGIN" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['accessToken'])" 2>/dev/null || true)"
 if [[ -z "$ADMIN_TOKEN" ]]; then
   echo "WARN: admin@forge.local login failed — run: cd apps/api && npm run seed" >&2
 else
-  admin_stats="$(curl -sS -o /dev/null -w "%{http_code}" "${BASE}/admin/stats" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
+  admin_stats="$(curl_smoke -o /dev/null -w "%{http_code}" "${BASE}/admin/stats" -H "Authorization: Bearer ${ADMIN_TOKEN}" || true)"
   if [[ "$admin_stats" != "200" ]]; then
     echo "FAIL: admin GET /admin/stats expected 200, got ${admin_stats}" >&2
     exit 1
