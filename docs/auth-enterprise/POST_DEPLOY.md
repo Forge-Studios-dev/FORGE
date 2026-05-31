@@ -61,7 +61,7 @@ bash scripts/verify-production-auth.sh
 
 ## 6. Mobile
 
-- [ ] `flutterfire configure` → replace `apps/mobile/lib/firebase_options.dart` stubs for FCM/App Check
+- [ ] `bash scripts/configure-mobile-firebase.sh` (requires `FIREBASE_PROJECT_ID` + Firebase CLI login)
 
 ## Architecture
 

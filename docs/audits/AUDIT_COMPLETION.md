@@ -18,7 +18,7 @@
 
 Implementation guide: [AUTH_SESSION.md](../AUTH_SESSION.md)  
 Firebase integration (FCM, App Check, OAuth, analytics): [firebase/README.md](../firebase/README.md)  
-Enterprise email auth & recovery (13 phases): [auth-enterprise/README.md](../auth-enterprise/README.md) — **shipped** (`1fce253`, PR #26).
+Enterprise email auth & recovery (13 phases): [auth-enterprise/README.md](../auth-enterprise/README.md) — **shipped** (PR #26–#33).
 
 ## Firebase + enterprise auth (shipped 2026-05-31)
 
@@ -30,6 +30,8 @@ Enterprise email auth & recovery (13 phases): [auth-enterprise/README.md](../aut
 | Docs `docs/firebase/`, `docs/auth-enterprise/` | Shipped |
 | CI + `ci:local` + Playwright `auth-nav` (8 tests) | Shipped |
 | Firebase architecture audit (plan) | Shipped — [firebase/AUDIT_COMPLETION.md](../firebase/AUDIT_COMPLETION.md) |
+| Platform `auth`/`firebase` public config + web/mobile Google OAuth wiring | Shipped (#32–#33) |
+| Production verify script + smoke auth assertions | Shipped (#33+) |
 
 ## Code changes (summary)
 

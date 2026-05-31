@@ -49,6 +49,23 @@ if [[ "${FORGE_EXPECT_FLAGS:-}" == *multipart* ]] || [[ "$BASE" == *forgestudios
   fi
 fi
 
+if [[ "$BASE" == *forgestudios.net* ]]; then
+  if python3 -c "
+import json, sys
+d = json.load(open('/tmp/forge-smoke-config.json')).get('data', {})
+auth, fb = d.get('auth'), d.get('firebase')
+if auth and auth.get('provider') == 'custom' and fb is not None and fb.get('usesFirebaseAuth') is False:
+    sys.exit(0)
+sys.exit(1)
+" 2>/dev/null; then
+    echo "OK: platform/config auth=custom, firebase.usesFirebaseAuth=false"
+  else
+    echo "FAIL: production platform/config missing auth/firebase capability blocks" >&2
+    cat /tmp/forge-smoke-config.json >&2 || true
+    exit 1
+  fi
+fi
+
 API_ROOT="${BASE%/api/v1}"
 health_headers="$(curl_smoke -sSI "${BASE}/health" 2>/dev/null || true)"
 if echo "$health_headers" | grep -qi 'x-correlation-id:'; then

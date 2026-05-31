@@ -1,24 +1,10 @@
-export type PlatformAuthConfig = {
-  provider: 'custom';
-  emailPassword: boolean;
-  googleOAuth: boolean;
-  emailVerification: 'link';
-  otpVerification: boolean;
-};
+import type { PlatformPublicConfig } from '@forge/shared-types';
 
-export type PlatformFirebaseConfig = {
-  adminConfigured: boolean;
-  fcmEnabled: boolean;
-  appCheckEnabled: boolean;
-  usesFirebaseAuth: boolean;
-};
-
-export type PlatformPublicConfig = {
-  featureFlags: string[];
-  apiVersion: string;
-  auth?: PlatformAuthConfig;
-  firebase?: PlatformFirebaseConfig;
-};
+export type {
+  PlatformAuthConfig,
+  PlatformFirebaseConfig,
+  PlatformPublicConfig,
+} from '@forge/shared-types';
 
 let cached: PlatformPublicConfig | null = null;
 
