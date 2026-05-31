@@ -52,6 +52,9 @@ export class AdminController {
     @Query('search') search?: string,
     @Query('role') role?: UserRole,
     @Query('creatorStatus') creatorStatus?: CreatorStatus,
+    @Query('isActive') isActive?: string,
+    @Query('emailVerified') emailVerified?: string,
+    @Query('hasPendingReports') hasPendingReports?: string,
   ) {
     return this.adminService.listUsers({
       page: Number(page) || 1,
@@ -59,6 +62,10 @@ export class AdminController {
       search,
       role,
       creatorStatus,
+      isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+      emailVerified:
+        emailVerified === 'true' ? true : emailVerified === 'false' ? false : undefined,
+      hasPendingReports: hasPendingReports === 'true',
     });
   }
 
@@ -117,6 +124,18 @@ export class AdminController {
   @ApiOperation({ summary: 'Update user role or status (admin)' })
   updateUser(@Param('id') id: string, @Body() dto: UpdateAdminUserDto) {
     return this.adminService.updateUser(id, dto);
+  }
+
+  @Delete('users/:id')
+  @ApiOperation({ summary: 'Soft-delete user account (admin)' })
+  deleteUser(@Param('id') id: string) {
+    return this.adminService.deleteUser(id);
+  }
+
+  @Post('users/:id/resend-verification')
+  @ApiOperation({ summary: 'Resend email verification to user (admin)' })
+  resendUserVerification(@Param('id') id: string) {
+    return this.adminService.resendUserVerificationEmail(id);
   }
 
   @Get('creators/pending')

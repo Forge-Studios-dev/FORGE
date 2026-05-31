@@ -30,7 +30,12 @@ export function VerifyEmailBanner() {
           {resend.isPending ? 'Sending…' : 'Resend verification email'}
         </button>
       </div>
-      {resend.isError && <p className="text-red-300 text-xs mt-2">Could not send email. Try again later.</p>}
+      {resend.isError && (
+        <p className="text-red-300 text-xs mt-2">
+          {(resend.error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+            'Could not send email. Try again later.'}
+        </p>
+      )}
       {resend.isSuccess && <p className="text-emerald-300 text-xs mt-2">Check your inbox for the verification link.</p>}
     </div>
   );

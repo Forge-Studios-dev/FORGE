@@ -117,7 +117,9 @@ export function VerifyEmailPrompt({ welcome }: { welcome?: boolean }) {
                   onError: (err: unknown) => {
                     const m = (err as { response?: { data?: { message?: string } } })?.response
                       ?.data?.message;
-                    setOtpError(typeof m === 'string' ? m : 'Invalid or expired code.');
+                    setOtpError(
+                      typeof m === 'string' ? m : 'Invalid or expired code.',
+                    );
                   },
                 });
               }}
@@ -141,7 +143,10 @@ export function VerifyEmailPrompt({ welcome }: { welcome?: boolean }) {
           {resend.isPending ? 'Sending…' : 'Resend verification email'}
         </button>
         {resend.isError && (
-          <p className="text-sm text-error">Could not send email. Try again in a few minutes.</p>
+          <p className="text-sm text-error">
+            {(resend.error as { response?: { data?: { message?: string } } })?.response?.data
+              ?.message || 'Could not send email. Try again in a few minutes.'}
+          </p>
         )}
         {resend.isSuccess && (
           <p className="text-sm text-secondary">Check your inbox and spam folder.</p>

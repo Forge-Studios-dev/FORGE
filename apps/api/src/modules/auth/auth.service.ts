@@ -94,7 +94,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    if (user.isActive === false) {
+    if (user.deletedAt || user.isActive === false) {
       throw new ForbiddenException({
         message: 'This account has been disabled. Contact support if you believe this is an error.',
         code: 'ACCOUNT_DISABLED',
@@ -147,7 +147,7 @@ export class AuthService {
     if (!user) {
       user = await this.userRepository.findOne({ where: { email: profile.email } });
     }
-    if (user?.isActive === false) {
+    if (user?.deletedAt || user?.isActive === false) {
       throw new ForbiddenException({
         message: 'This account has been disabled',
         code: 'ACCOUNT_DISABLED',

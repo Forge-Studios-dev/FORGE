@@ -11,6 +11,12 @@ import { getAccessToken, persistAuthSession } from '@/lib/auth-storage';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AuthGateModal } from '@/components/gates/AuthGateModal';
+import { VerifyEmailGateModal } from '@/components/gates/VerifyEmailGateModal';
+import {
+  engageBlockedMessage,
+  getEngageBlockReason,
+  type EngageBlockReason,
+} from '@/lib/engage-access';
 
 interface Props {
   user: User;
@@ -18,8 +24,9 @@ interface Props {
 
 export function ProfileHeader({ user }: Props) {
   const router = useRouter();
-  const { user: me, isGuest, canEngage, canApplyForCreator, refresh } = useAuth();
-  const [authGate, setAuthGate] = useState(false);
+  const { user: me, isGuest, canApplyForCreator, refresh } = useAuth();
+  const [engageBlock, setEngageBlock] = useState<EngageBlockReason | null>(null);
+  const blockReason = getEngageBlockReason(me, isGuest);
   const followMutation = useMutation({
     mutationFn: () => api.post(`/follow/${user.id}`),
   });
@@ -90,8 +97,8 @@ export function ProfileHeader({ user }: Props) {
           ) : (
             <button
               onClick={() => {
-                if (!canEngage) {
-                  setAuthGate(true);
+                if (blockReason) {
+                  setEngageBlock(blockReason);
                   return;
                 }
                 followMutation.mutate();
@@ -137,9 +144,14 @@ export function ProfileHeader({ user }: Props) {
       </div>
 
       <AuthGateModal
-        open={authGate}
-        onClose={() => setAuthGate(false)}
-        message="Sign in to follow creators."
+        open={engageBlock === 'guest'}
+        onClose={() => setEngageBlock(null)}
+        message={engageBlockedMessage('guest')}
+      />
+      <VerifyEmailGateModal
+        open={engageBlock === 'unverified'}
+        onClose={() => setEngageBlock(null)}
+        message={engageBlockedMessage('unverified')}
       />
     </div>
   );

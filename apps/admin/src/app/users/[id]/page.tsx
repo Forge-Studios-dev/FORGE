@@ -64,11 +64,26 @@ export default function AdminUserDetailPage() {
   const user = summary?.user;
 
   const updateUser = useMutation({
-    mutationFn: (body: { role?: string; isVerified?: boolean }) =>
+    mutationFn: (body: { role?: string; isVerified?: boolean; isActive?: boolean }) =>
       api.patch(`/admin/users/${userId}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-user-summary', userId] });
       qc.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: () => api.delete(`/admin/users/${userId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+      router.push('/users');
+    },
+  });
+
+  const resendVerification = useMutation({
+    mutationFn: () => api.post(`/admin/users/${userId}/resend-verification`),
+    onSuccess: () => {
+      window.alert('Verification email sent (if SMTP is configured).');
     },
   });
 
@@ -190,6 +205,30 @@ export default function AdminUserDetailPage() {
           updateUser.mutate({ role });
         }}
         onVerifyToggle={() => updateUser.mutate({ isVerified: !user.isVerified })}
+        onBlockToggle={() => {
+          const block = user.isActive !== false;
+          if (
+            !window.confirm(
+              block
+                ? `Block @${user.username}? They will be signed out and cannot log in.`
+                : `Unblock @${user.username}?`,
+            )
+          ) {
+            return;
+          }
+          updateUser.mutate({ isActive: !block });
+        }}
+        onDelete={() => {
+          if (
+            !window.confirm(
+              `Permanently remove @${user.username}? This soft-deletes the account and frees the email for a new signup.`,
+            )
+          ) {
+            return;
+          }
+          deleteUser.mutate();
+        }}
+        onResendVerification={() => resendVerification.mutate()}
         onApprove={() => approveCreator.mutate()}
         onReject={() => {
           const note = window.prompt('Rejection note (optional):') ?? undefined;
@@ -197,6 +236,8 @@ export default function AdminUserDetailPage() {
         }}
         onImpersonate={() => impersonate.mutate()}
         isImpersonating={impersonate.isPending}
+        isDeleting={deleteUser.isPending}
+        isResending={resendVerification.isPending}
       />
 
       <AdminTabs tabs={[...TABS]} active={tab} onChange={setTab} />
@@ -248,20 +289,30 @@ function UserHeader({
   webBase,
   onRoleChange,
   onVerifyToggle,
+  onBlockToggle,
+  onDelete,
+  onResendVerification,
   onApprove,
   onReject,
   onImpersonate,
   isImpersonating,
+  isDeleting,
+  isResending,
 }: {
   user: AdminUser;
   summary: AdminUserSummary;
   webBase: string;
   onRoleChange: (role: string) => void;
   onVerifyToggle: () => void;
+  onBlockToggle: () => void;
+  onDelete: () => void;
+  onResendVerification: () => void;
   onApprove: () => void;
   onReject: () => void;
   onImpersonate: () => void;
   isImpersonating?: boolean;
+  isDeleting?: boolean;
+  isResending?: boolean;
 }) {
   return (
     <div className="glass-panel rounded-2xl p-6 md:p-8">
@@ -285,10 +336,15 @@ function UserHeader({
                 creator: {user.creatorStatus}
               </span>
             ) : null}
+            {user.isActive === false ? (
+              <span className="rounded-full bg-error/10 px-2 py-0.5 text-xs text-error">blocked</span>
+            ) : null}
             {user.isVerified ? (
-              <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-xs text-secondary">verified</span>
+              <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-xs text-secondary">email verified</span>
             ) : (
-              <span className="rounded-full bg-outline/10 px-2 py-0.5 text-xs text-outline">unverified</span>
+              <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700">
+                email not verified
+              </span>
             )}
           </div>
           <p className="mt-1 text-on-surface-variant">@{user.username} · {user.email}</p>
@@ -338,6 +394,35 @@ function UserHeader({
           >
             {user.isVerified ? 'Mark unverified' : 'Mark verified'}
           </button>
+          {!user.isVerified ? (
+            <button
+              type="button"
+              disabled={isResending}
+              onClick={onResendVerification}
+              className="rounded-full border border-outline-variant px-4 py-2 text-xs hover:border-primary disabled:opacity-50"
+            >
+              {isResending ? 'Sending…' : 'Resend verification email'}
+            </button>
+          ) : null}
+          {user.role !== 'admin' ? (
+            <>
+              <button
+                type="button"
+                onClick={onBlockToggle}
+                className="rounded-full border border-error/40 px-4 py-2 text-xs text-error hover:bg-error/10"
+              >
+                {user.isActive === false ? 'Unblock user' : 'Block user'}
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={onDelete}
+                className="rounded-full border border-error px-4 py-2 text-xs text-error hover:bg-error/10 disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting…' : 'Delete account'}
+              </button>
+            </>
+          ) : null}
           {user.creatorStatus === 'pending' ? (
             <>
               <button
