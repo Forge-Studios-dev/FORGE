@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "forge-studios-prod",
+    "default": "forge-studios-prod-61de0",
+    "production": "forge-studios-prod-61de0",
     "staging": "forge-studios-staging"
   }
 }

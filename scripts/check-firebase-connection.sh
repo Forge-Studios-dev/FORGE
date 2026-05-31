@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 API="${FORGE_SMOKE_API:-https://api.forgestudios.net/api/v1}"
 APP="${FLY_APP:-forge-studios-api}"
-EXPECTED_PROJECT="${FORGE_FIREBASE_PROJECT:-forge-studios-prod}"
+EXPECTED_PROJECT="${FORGE_FIREBASE_PROJECT:-forge-studios-prod-61de0}"
 
 echo "==> FORGE Firebase connection check"
 echo ""
