@@ -18,5 +18,6 @@ Production-grade email auth, recovery, sessions, and security — **built on cus
 | [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) | Phase 13 checklist |
 | [DELIVERABLES.md](./DELIVERABLES.md) | All Phase 13 diagrams + reports (single doc) |
 | [POST_DEPLOY.md](./POST_DEPLOY.md) | Migrations, secrets, smoke tests after merge |
+| [IMPLEMENTATION_STATUS_AUDIT.md](./IMPLEMENTATION_STATUS_AUDIT.md) | **Are we on Firebase Auth? Feature checklist** |
 
 Related: [docs/firebase/AUTH_DESIGN.md](../firebase/AUTH_DESIGN.md), [docs/AUTH_SESSION.md](../AUTH_SESSION.md).
