@@ -1,6 +1,6 @@
 # Firebase Architecture Implementation — Complete
 
-**Status:** Implemented in codebase (branch-ready). Not deployed until secrets and migration run in target environments.
+**Status:** Implemented — [PR #26](https://github.com/Forge-Studios-dev/FORGE/pull/26) on `feat/firebase-integration` (CI passed). Not live until merge + secrets + migration.
 
 ## Scope delivered
 

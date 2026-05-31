@@ -1,6 +1,6 @@
 # Shipping Firebase Integration
 
-**Status:** Ready for PR (code complete; `npm run ci:local` passes).
+**Status:** Merge-ready — [PR #26](https://github.com/Forge-Studios-dev/FORGE/pull/26) (CI green, `mergeable: MERGEABLE`).
 
 **Do not push directly to `main`** — one branch, one PR, one deploy.
 
