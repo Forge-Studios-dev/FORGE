@@ -1,6 +1,18 @@
-# Firebase connection — diagnosis (2026-05-31)
+# Firebase connection — diagnosis
 
-## Verdict: **NOT connected** to production
+## Production project
+
+| Item | Value |
+|------|--------|
+| Firebase project ID | `forge-studios-prod-61de0` |
+| Service account | `firebase-adminsdk-fbsvc@forge-studios-prod-61de0.iam.gserviceaccount.com` |
+| CLI | `cd firebase && firebase use forge-studios-prod-61de0` |
+
+Run: `npm run firebase:check`
+
+---
+
+## Historical: NOT connected (2026-05-31, resolved after secrets deploy)
 
 | Check | Status |
 |-------|--------|
