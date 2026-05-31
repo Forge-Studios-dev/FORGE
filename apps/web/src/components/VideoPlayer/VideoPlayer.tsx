@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { api } from '@/lib/api';
 import { getAccessToken } from '@/lib/auth-storage';
+import {
+  trackWatchComplete,
+  trackWatchProgress,
+  trackWatchStartup,
+} from '@/lib/analytics';
 
 export interface VideoPlayerProps {
   videoId?: string;
@@ -18,6 +23,8 @@ export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const lastProgressRef = useRef(0);
+  const startupTrackedRef = useRef(false);
+  const completeTrackedRef = useRef(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
   const recordProgress = useCallback(
@@ -25,6 +32,7 @@ export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }
       if (!videoId || !getAccessToken()) return;
       if (Math.abs(seconds - lastProgressRef.current) < 5 && seconds > 0) return;
       lastProgressRef.current = seconds;
+      trackWatchProgress(videoId, Math.floor(seconds));
       try {
         await api.post(`/videos/${videoId}/watch`, {
           progressSeconds: Math.floor(seconds),
@@ -75,13 +83,31 @@ export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }
 
     const onTimeUpdate = () => {
       if (video.currentTime > 0) void recordProgress(video.currentTime);
+      if (
+        videoId &&
+        !completeTrackedRef.current &&
+        video.duration > 0 &&
+        video.currentTime / video.duration >= 0.9
+      ) {
+        completeTrackedRef.current = true;
+        trackWatchComplete(videoId, Math.floor(video.duration));
+      }
+    };
+
+    const onPlaying = () => {
+      if (videoId && !startupTrackedRef.current) {
+        startupTrackedRef.current = true;
+        trackWatchStartup(videoId, Math.round(performance.now()));
+      }
     };
 
     video.addEventListener('timeupdate', onTimeUpdate);
+    video.addEventListener('playing', onPlaying);
     attachHls();
 
     return () => {
       video.removeEventListener('timeupdate', onTimeUpdate);
+      video.removeEventListener('playing', onPlaying);
       void recordProgress(video.currentTime);
       if (hlsRef.current) {
         hlsRef.current.destroy();

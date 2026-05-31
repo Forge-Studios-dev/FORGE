@@ -56,7 +56,8 @@ For **video transcoding** locally, either run `docker compose up worker -d` or s
 Reset roles: `bash scripts/reset-demo-users.sh`  
 API smoke test: `npm run smoke:api`  
 Web E2E: `cd apps/web && npm run test:e2e`  
-Auth architecture (sessions, cookies, middleware): [AUTH_SESSION.md](./AUTH_SESSION.md)
+Auth architecture (sessions, cookies, middleware): [AUTH_SESSION.md](./AUTH_SESSION.md)  
+Firebase (FCM, App Check, OAuth — optional): [firebase/README.md](./firebase/README.md)
 
 ---
 
@@ -79,6 +80,7 @@ Auth architecture (sessions, cookies, middleware): [AUTH_SESSION.md](./AUTH_SESS
 ```bash
 cd apps/mobile
 flutter pub get
+# Optional: FCM push after `flutterfire configure` (see docs/firebase/CLI_SETUP.md)
 flutter run
 # Physical device: point API at your LAN IP
 flutter run --dart-define=API_BASE_URL=http://YOUR_IP:3001/api/v1

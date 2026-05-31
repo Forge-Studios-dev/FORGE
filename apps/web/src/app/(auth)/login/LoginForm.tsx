@@ -9,6 +9,10 @@ import { useAuth } from '@/lib/auth';
 import { AuthScreen, authFieldClass, authLabelClass } from '@/components/auth/AuthScreen';
 import { AuthTokens } from '@/types';
 import { safeReturnPath } from '@/lib/safe-return-path';
+import { getAppCheckToken } from '@/lib/app-check';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const GOOGLE_OAUTH_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true';
 
 export function LoginForm({
   nextPath,
@@ -34,7 +38,9 @@ export function LoginForm({
         email: form.email.trim().toLowerCase(),
         password: form.password,
       };
-      const { data } = await api.post<{ data: AuthTokens }>('/auth/login', payload);
+      const appCheck = await getAppCheckToken();
+      const headers = appCheck ? { 'X-Firebase-AppCheck': appCheck } : undefined;
+      const { data } = await api.post<{ data: AuthTokens }>('/auth/login', payload, { headers });
       if (data.data.user.role === 'admin') {
         setError(
           'Platform administrator accounts cannot sign in here. Use the dedicated admin application.',
@@ -56,8 +62,28 @@ export function LoginForm({
         router.push(safeReturnPath(nextPath));
       }
     } catch (err: unknown) {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(message || 'Login failed. Please try again.');
+      const data = (err as { response?: { data?: { message?: string; code?: string } } })?.response
+        ?.data;
+      if (data?.code === 'EMAIL_NOT_VERIFIED') {
+        router.push('/verify-email');
+        return;
+      }
+      if (data?.code === 'USE_GOOGLE_SIGNIN') {
+        setError('This account uses Google. Use Continue with Google below.');
+        return;
+      }
+      if (data?.code === 'ACCOUNT_LOCKED') {
+        setError(
+          data?.message ||
+            'Too many failed attempts. Try again later or reset your password.',
+        );
+        return;
+      }
+      if (data?.code === 'ACCOUNT_DISABLED') {
+        setError(data?.message || 'This account has been disabled.');
+        return;
+      }
+      setError(data?.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -121,6 +147,14 @@ export function LoginForm({
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
+        {GOOGLE_OAUTH_ENABLED && (
+          <a
+            href={`${API_URL}/auth/google`}
+            className="mt-3 block w-full rounded-full border border-outline py-4 text-center text-sm font-semibold text-on-surface hover:bg-surface-container"
+          >
+            Continue with Google
+          </a>
+        )}
       </form>
       <p className="mt-8 text-center text-sm text-on-surface-variant">
         New to FORGE?{' '}

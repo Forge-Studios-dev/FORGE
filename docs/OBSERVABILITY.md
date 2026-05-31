@@ -30,7 +30,11 @@ When set, scrapers must send `Authorization: Bearer <token>`. Leave unset for op
 | `forge_http_request_duration_seconds` | Histogram by method + status |
 | Default Node/process metrics | via `prom-client` collectDefaultMetrics |
 
-## Error tracking (Sentry)
+## Client error tracking (Sentry)
+
+Web and admin use `@sentry/nextjs` when `NEXT_PUBLIC_SENTRY_DSN` is set. See [firebase/MONITORING.md](./firebase/MONITORING.md).
+
+## Error tracking (Sentry) — API
 
 ```bash
 SENTRY_DSN=https://...

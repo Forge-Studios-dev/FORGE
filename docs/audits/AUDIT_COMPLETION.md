@@ -16,7 +16,19 @@
 | 8 | [YOUTUBE_GAP_ANALYSIS.md](./YOUTUBE_GAP_ANALYSIS.md) | Done |
 | 9 | [PRIORITY_FIX_ROADMAP.md](./PRIORITY_FIX_ROADMAP.md) | Done |
 
-Implementation guide: [AUTH_SESSION.md](../AUTH_SESSION.md)
+Implementation guide: [AUTH_SESSION.md](../AUTH_SESSION.md)  
+Firebase integration (FCM, App Check, OAuth, analytics): [firebase/README.md](../firebase/README.md)  
+Enterprise email auth & recovery (13 phases): [auth-enterprise/README.md](../auth-enterprise/README.md) — **complete on PR #26** (pending merge).
+
+## Firebase + enterprise auth (PR #26)
+
+| Workstream | Status |
+|------------|--------|
+| Firebase complement (FCM, App Check, Sentry, analytics) | Done |
+| Google OAuth (Passport) | Done |
+| Enterprise email auth (lockout, verification, reset, sessions) | Done |
+| Docs `docs/firebase/`, `docs/auth-enterprise/` | Done |
+| CI + `ci:local` + Playwright `auth-nav` (8 tests) | Done |
 
 ## Code changes (summary)
 

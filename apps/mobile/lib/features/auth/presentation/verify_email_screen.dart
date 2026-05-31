@@ -18,14 +18,15 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
 class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   String _status = 'loading';
   String _message = '';
+  bool _resending = false;
 
   @override
   void initState() {
     super.initState();
     final token = widget.initialToken.trim();
     if (token.length < 16) {
-      _status = 'err';
-      _message = 'Invalid or missing verification token.';
+      _status = 'prompt';
+      _message = 'Check your inbox for the verification link, or resend it below.';
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => _runVerify(token));
@@ -51,6 +52,23 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     }
   }
 
+  Future<void> _resend() async {
+    setState(() => _resending = true);
+    try {
+      await ref.read(authRepositoryProvider).resendVerificationEmail();
+      if (!mounted) return;
+      setState(() {
+        _message = 'Verification email sent. Check your inbox.';
+        _status = 'prompt';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _message = 'Could not send email. Try again later.');
+    } finally {
+      if (mounted) setState(() => _resending = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -72,20 +90,29 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   child: const Text('Continue'),
                 ),
               ],
-              if (_status == 'err') ...[
-                const Icon(Icons.error_outline, color: Colors.redAccent, size: 56),
+              if (_status == 'prompt' || _status == 'err') ...[
+                Icon(
+                  _status == 'err' ? Icons.error_outline : Icons.mail_outline,
+                  color: _status == 'err' ? Colors.redAccent : Colors.amber,
+                  size: 56,
+                ),
                 const SizedBox(height: 16),
                 Text(_message, textAlign: TextAlign.center),
-                const SizedBox(height: 8),
-                const Text(
-                  'After signing in, open Profile and tap “Resend verification email” for a new link.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                ),
                 const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _resending ? null : _resend,
+                  child: _resending
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Resend verification email'),
+                ),
+                const SizedBox(height: 12),
                 OutlinedButton(
-                  onPressed: () => context.go('/login'),
-                  child: const Text('Back to login'),
+                  onPressed: () => context.go('/feed'),
+                  child: const Text('Continue browsing'),
                 ),
               ],
             ],

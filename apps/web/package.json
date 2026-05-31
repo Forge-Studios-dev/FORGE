@@ -13,10 +13,12 @@
   "dependencies": {
     "@forge/design-system": "*",
     "@forge/shared-types": "*",
+    "@sentry/nextjs": "^9.47.1",
     "@tanstack/react-query": "^5.29.2",
     "@tanstack/react-virtual": "^3.13.24",
     "axios": "^1.6.8",
     "clsx": "^2.1.0",
+    "firebase": "^11.10.0",
     "hls.js": "^1.5.7",
     "next": "^14.2.2",
     "react": "^18.2.0",

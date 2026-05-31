@@ -14,11 +14,16 @@ import { createHash, randomBytes } from 'crypto';
 import { User, UserRole } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
+import { OAuthAccount } from './entities/oauth-account.entity';
+import { GoogleProfilePayload } from './strategies/google.strategy';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { MailService } from '../mail/mail.service';
 import { toPublicUser } from '../users/user.mapper';
+import { AuthAccountLockoutService } from './auth-account-lockout.service';
+import { isDisposableEmail } from './utils/disposable-email.util';
 
 export type ClientSessionMeta = {
   userAgent?: string | null;
@@ -36,13 +41,20 @@ export class AuthService {
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     @InjectRepository(PasswordResetToken)
     private readonly passwordResetRepository: Repository<PasswordResetToken>,
+    @InjectRepository(OAuthAccount)
+    private readonly oauthAccountRepository: Repository<OAuthAccount>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
+    private readonly analyticsService: AnalyticsService,
+    private readonly lockoutService: AuthAccountLockoutService,
   ) {}
 
   async signup(dto: SignupDto, meta?: ClientSessionMeta) {
     const emailNorm = dto.email.trim().toLowerCase();
+    if (isDisposableEmail(emailNorm)) {
+      throw new BadRequestException('Disposable email addresses are not allowed');
+    }
     const existing = await this.userRepository.findOne({
       where: [{ email: emailNorm }, { username: dto.username }],
     });
@@ -63,18 +75,129 @@ export class AuthService {
 
     const tokens = await this.issueTokens(user, meta);
     void this.sendEmailVerification(user).catch(() => undefined);
+    void this.analyticsService.ingest(user.id, {
+      eventName: 'auth.signup',
+      properties: { method: 'email' },
+    });
     return tokens;
   }
 
   async login(dto: LoginDto, meta?: ClientSessionMeta) {
     const email = dto.email.trim().toLowerCase();
+    await this.lockoutService.assertNotLocked(email);
+
     const user = await this.userRepository.findOne({ where: { email } });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      await this.lockoutService.recordFailedLogin(email, meta?.ip ?? null);
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.isActive === false) {
+      throw new ForbiddenException({
+        message: 'This account has been disabled. Contact support if you believe this is an error.',
+        code: 'ACCOUNT_DISABLED',
+      });
+    }
 
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!passwordValid) throw new UnauthorizedException('Invalid credentials');
+    if (!passwordValid) {
+      const oauthOnly = await this.oauthAccountRepository.findOne({
+        where: { userId: user.id, provider: 'google' },
+      });
+      await this.lockoutService.recordFailedLogin(email, meta?.ip ?? null);
+      if (oauthOnly) {
+        throw new UnauthorizedException({
+          message: 'This account uses Google sign-in',
+          code: 'USE_GOOGLE_SIGNIN',
+        });
+      }
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
-    return this.issueTokens(user, meta);
+    if (this.configService.get<boolean>('auth.requireVerifiedLogin') && !user.isVerified) {
+      throw new ForbiddenException({
+        message: 'Verify your email before signing in',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+    }
+
+    await this.lockoutService.clearFailures(email, meta?.ip ?? null);
+
+    await this.recordNewDeviceIfNeeded(user.id, meta, 'email');
+    const tokens = await this.issueTokens(user, meta);
+    void this.analyticsService.ingest(user.id, {
+      eventName: 'auth.login',
+      properties: { method: 'email' },
+    });
+    return tokens;
+  }
+
+  async loginWithGoogle(profile: GoogleProfilePayload, meta?: ClientSessionMeta) {
+    const provider = 'google';
+    const oauth = await this.oauthAccountRepository.findOne({
+      where: { provider, providerId: profile.providerId },
+    });
+
+    let user: User | null = null;
+    if (oauth) {
+      user = await this.userRepository.findOne({ where: { id: oauth.userId } });
+    }
+    if (!user) {
+      user = await this.userRepository.findOne({ where: { email: profile.email } });
+    }
+    if (user?.isActive === false) {
+      throw new ForbiddenException({
+        message: 'This account has been disabled',
+        code: 'ACCOUNT_DISABLED',
+      });
+    }
+
+    if (!user) {
+      const username = await this.uniqueUsernameFromEmail(profile.email);
+      const passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), this.BCRYPT_ROUNDS);
+      user = await this.userRepository.save(
+        this.userRepository.create({
+          email: profile.email,
+          username,
+          displayName: profile.displayName,
+          passwordHash,
+          isVerified: true,
+        }),
+      );
+    }
+
+    if (!oauth) {
+      await this.oauthAccountRepository.save(
+        this.oauthAccountRepository.create({
+          userId: user.id,
+          provider,
+          providerId: profile.providerId,
+          email: profile.email,
+        }),
+      );
+    }
+
+    await this.recordNewDeviceIfNeeded(user.id, meta, 'google');
+    const tokens = await this.issueTokens(user, meta);
+    void this.analyticsService.ingest(user.id, {
+      eventName: 'auth.login',
+      properties: { method: 'google' },
+    });
+    return tokens;
+  }
+
+  private async uniqueUsernameFromEmail(email: string): Promise<string> {
+    const base = email
+      .split('@')[0]!
+      .replace(/[^a-zA-Z0-9_]/g, '_')
+      .slice(0, 40);
+    let candidate = base || 'user';
+    for (let i = 0; i < 20; i++) {
+      const taken = await this.userRepository.findOne({ where: { username: candidate } });
+      if (!taken) return candidate;
+      candidate = `${base}_${randomBytes(3).toString('hex')}`;
+    }
+    return `user_${randomBytes(6).toString('hex')}`;
   }
 
   async createImpersonationToken(adminId: string, targetUserId: string) {
@@ -186,6 +309,18 @@ export class AuthService {
     });
   }
 
+  /** Device login history (same rows as active sessions — `createdAt` = sign-in time). */
+  async listLoginHistory(userId: string) {
+    const sessions = await this.listSessions(userId);
+    return sessions.map((s) => ({
+      id: s.id,
+      deviceLabel: s.deviceLabel,
+      userAgent: s.userAgent,
+      loginAt: s.createdAt,
+      expiresAt: s.expiresAt,
+    }));
+  }
+
   async revokeSession(userId: string, sessionId: string) {
     const res = await this.refreshTokenRepository.update(
       { id: sessionId, userId, revoked: false },
@@ -281,7 +416,12 @@ export class AuthService {
   }
 
   private async issueTokens(user: User, meta?: ClientSessionMeta) {
-    const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      isVerified: user.isVerified,
+    };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('jwt.secret'),
@@ -314,6 +454,29 @@ export class AuthService {
       sessionId: session.id,
       user: toPublicUser(user),
     };
+  }
+
+  /** Flags sign-in from an IP not seen on any prior active session (suspicious-login signal). */
+  private async recordNewDeviceIfNeeded(
+    userId: string,
+    meta: ClientSessionMeta | undefined,
+    method: 'email' | 'google',
+  ): Promise<void> {
+    const ipHash = meta?.ip ? this.hashToken(meta.ip).slice(0, 128) : null;
+    if (!ipHash) return;
+
+    const prior = await this.refreshTokenRepository.find({
+      where: { userId, revoked: false },
+      select: ['ipHash'],
+      take: 20,
+    });
+    const known = new Set(prior.map((s) => s.ipHash).filter((h): h is string => !!h));
+    if (known.size === 0 || known.has(ipHash)) return;
+
+    void this.analyticsService.ingest(userId, {
+      eventName: 'auth.login.new_device',
+      properties: { method },
+    });
   }
 
   private deriveDeviceLabel(userAgent?: string | null): string | null {

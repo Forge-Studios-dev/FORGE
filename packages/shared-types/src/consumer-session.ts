@@ -15,3 +15,10 @@ export function accessTokenAllowsCreatorUpload(token: string | undefined | null)
   const payload = decodeJwtPayload(token!);
   return payload?.role === 'creator';
 }
+
+/** Creator upload/live paths require verified email in access JWT. */
+export function accessTokenIsEmailVerified(token: string | undefined | null): boolean {
+  if (!isValidConsumerAccessToken(token)) return false;
+  const payload = decodeJwtPayload(token!);
+  return payload?.isVerified === true;
+}

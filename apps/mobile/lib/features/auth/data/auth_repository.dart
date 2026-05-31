@@ -1,27 +1,38 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../../../core/network/api_client.dart';
+import '../../../core/analytics/forge_analytics.dart';
+import '../../../core/app_check/forge_app_check.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/push/forge_push.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  return AuthRepository(ref.read(apiClientProvider));
+  final api = ref.read(apiClientProvider);
+  return AuthRepository(api, ForgeAnalytics(api.dio), ForgePush(api));
 });
 
 class AuthRepository {
   final ApiClient _apiClient;
+  final ForgeAnalytics _analytics;
+  final ForgePush _push;
   final _storage = const FlutterSecureStorage();
 
-  AuthRepository(this._apiClient);
+  AuthRepository(this._apiClient, this._analytics, this._push);
 
   Future<Map<String, dynamic>> login({required String email, required String password}) async {
-    final response = await _apiClient.dio.post('/auth/login', data: {
-      'email': email,
-      'password': password,
-    });
+    final appCheck = await getForgeAppCheckToken();
+    final response = await _apiClient.dio.post(
+      '/auth/login',
+      data: {'email': email, 'password': password},
+      options: appCheck != null
+          ? Options(headers: {'X-Firebase-AppCheck': appCheck})
+          : null,
+    );
     final data = response.data['data'] as Map<String, dynamic>;
-    await _saveTokens(data);
+    await _saveTokens(data, analyticsEvent: 'auth.login', analyticsProps: {'method': 'email'});
     return data;
   }
 
@@ -31,14 +42,21 @@ class AuthRepository {
     required String displayName,
     required String password,
   }) async {
-    final response = await _apiClient.dio.post('/auth/signup', data: {
-      'email': email,
-      'username': username,
-      'displayName': displayName,
-      'password': password,
-    });
+    final appCheck = await getForgeAppCheckToken();
+    final response = await _apiClient.dio.post(
+      '/auth/signup',
+      data: {
+        'email': email,
+        'username': username,
+        'displayName': displayName,
+        'password': password,
+      },
+      options: appCheck != null
+          ? Options(headers: {'X-Firebase-AppCheck': appCheck})
+          : null,
+    );
     final data = response.data['data'] as Map<String, dynamic>;
-    await _saveTokens(data);
+    await _saveTokens(data, analyticsEvent: 'auth.signup', analyticsProps: {'method': 'email'});
     return data;
   }
 
@@ -96,7 +114,11 @@ class AuthRepository {
     }
   }
 
-  Future<void> _saveTokens(Map<String, dynamic> data) async {
+  Future<void> _saveTokens(
+    Map<String, dynamic> data, {
+    String? analyticsEvent,
+    Map<String, dynamic>? analyticsProps,
+  }) async {
     await _storage.write(key: AppConstants.accessTokenKey, value: data['accessToken'] as String);
     await _storage.write(key: AppConstants.refreshTokenKey, value: data['refreshToken'] as String);
     final sessionId = data['sessionId'];
@@ -107,6 +129,15 @@ class AuthRepository {
     if (user is Map<String, dynamic>) {
       await _storage.write(key: AppConstants.userKey, value: jsonEncode(user));
     }
+    final accessToken = data['accessToken'] as String?;
+    if (analyticsEvent != null) {
+      await _analytics.track(
+        analyticsEvent,
+        properties: analyticsProps,
+        accessToken: accessToken,
+      );
+    }
+    await _push.registerIfConfigured();
   }
 
   Future<Map<String, dynamic>?> getStoredUser() async {

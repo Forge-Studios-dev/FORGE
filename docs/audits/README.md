@@ -7,6 +7,8 @@ Deep audit of navigation, authentication, session management, and access control
 | [NAVIGATION_AUTH_EXECUTIVE_SUMMARY.md](./NAVIGATION_AUTH_EXECUTIVE_SUMMARY.md) | Executive summary and verdict |
 | [NAVIGATION_AUDIT_REPORT.md](./NAVIGATION_AUDIT_REPORT.md) | App Router, shell, deep links, history |
 | [AUTHENTICATION_AUDIT_REPORT.md](./AUTHENTICATION_AUDIT_REPORT.md) | Login, providers, tokens, clients |
+| [../auth-enterprise/README.md](../auth-enterprise/README.md) | Enterprise email auth, sessions, security (13 deliverables) |
+| [SHIPPING_AUTH_ENTERPRISE.md](./SHIPPING_AUTH_ENTERPRISE.md) | PR #26 ship checklist (Firebase + enterprise auth) |
 | [SESSION_MANAGEMENT_REPORT.md](./SESSION_MANAGEMENT_REPORT.md) | Lifecycle, refresh, multi-tab/device |
 | [ACCESS_CONTROL_MATRIX.md](./ACCESS_CONTROL_MATRIX.md) | Route and API access matrix |
 | [SECURITY_FINDINGS.md](./SECURITY_FINDINGS.md) | Severity-rated findings |

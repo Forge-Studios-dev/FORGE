@@ -12,6 +12,7 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: UserRole;
+  isVerified: boolean;
   iat?: number;
   exp?: number;
 }
@@ -34,9 +35,15 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   async validate(payload: JwtPayload): Promise<JwtPayload> {
     const user = await this.userRepository.findOne({
       where: { id: payload.sub },
-      select: ['id', 'email', 'role', 'creatorStatus', 'isVerified'],
+      select: ['id', 'email', 'role', 'creatorStatus', 'isVerified', 'isActive'],
     });
     if (!user) throw new UnauthorizedException('User no longer exists');
+    if (user.isActive === false) {
+      throw new UnauthorizedException({
+        message: 'This account has been disabled',
+        code: 'ACCOUNT_DISABLED',
+      });
+    }
     const snapshot: AuthUserSnapshot = {
       id: user.id,
       email: user.email,
@@ -45,6 +52,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       isVerified: user.isVerified,
     };
     this.cls.set(AUTH_USER_CLS_KEY, snapshot);
-    return { sub: user.id, email: user.email, role: user.role };
+    return {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      isVerified: user.isVerified,
+    };
   }
 }

@@ -30,6 +30,7 @@ export type AdminUserDetail = {
   bannerUrl: string | null;
   role: UserRole;
   isVerified: boolean;
+  isActive: boolean;
   creatorStatus: CreatorStatus | null;
   creatorRequestedAt: Date | null;
   creatorReviewedAt: Date | null;
@@ -88,6 +89,9 @@ export class AdminService {
 
   async updateUser(id: string, dto: UpdateAdminUserDto) {
     await this.userRepository.update(id, dto);
+    if (dto.isActive === false) {
+      await this.authService.logoutAll(id);
+    }
     return this.findUserById(id);
   }
 
@@ -111,6 +115,7 @@ export class AdminService {
       bannerUrl: user.bannerUrl ?? null,
       role: user.role,
       isVerified: user.isVerified,
+      isActive: user.isActive,
       creatorStatus: user.creatorStatus,
       creatorRequestedAt: user.creatorRequestedAt,
       creatorReviewedAt: user.creatorReviewedAt,

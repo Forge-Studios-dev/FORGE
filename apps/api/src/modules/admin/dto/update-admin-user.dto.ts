@@ -12,4 +12,9 @@ export class UpdateAdminUserDto {
   @IsOptional()
   @IsBoolean()
   isVerified?: boolean;
+
+  @ApiPropertyOptional({ description: 'Set false to disable sign-in' })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -7,6 +7,8 @@ import { IngestEventDto } from './dto/ingest-event.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Throttle } from '@nestjs/throttler';
+import { AppCheckGuard } from '../firebase/app-check.guard';
+import { RequireAppCheck } from '../firebase/app-check.decorator';
 
 @ApiTags('Analytics')
 @Controller('analytics')
@@ -18,6 +20,8 @@ export class AnalyticsController {
   ) {}
 
   @Public()
+  @UseGuards(AppCheckGuard)
+  @RequireAppCheck()
   @Post('events')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @HttpCode(HttpStatus.NO_CONTENT)

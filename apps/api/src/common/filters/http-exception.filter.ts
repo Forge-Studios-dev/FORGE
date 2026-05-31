@@ -19,8 +19,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal server error';
+    let message: string | string[] = 'Internal server error';
     let errors: unknown = null;
+    let code: string | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -30,8 +31,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         message = exceptionResponse;
       } else if (typeof exceptionResponse === 'object') {
         const resp = exceptionResponse as Record<string, unknown>;
-        message = (resp.message as string) || message;
+        const rawMessage = resp.message;
+        message =
+          typeof rawMessage === 'string' || Array.isArray(rawMessage)
+            ? rawMessage
+            : message;
         errors = resp.errors || null;
+        if (typeof resp.code === 'string') code = resp.code;
       }
     } else if (exception instanceof Error) {
       if (process.env.SENTRY_DSN) {
@@ -52,6 +58,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       success: false,
       statusCode: status,
       message,
+      ...(code ? { code } : {}),
       errors,
       timestamp: new Date().toISOString(),
       path: request.url,

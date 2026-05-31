@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "forge-studios-prod",
+    "staging": "forge-studios-staging"
+  }
+}

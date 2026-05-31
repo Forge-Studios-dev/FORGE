@@ -34,6 +34,12 @@ export default () => ({
   auth: {
     /** e.g. `.forgestudios.net` when API and web are on different subdomains */
     refreshCookieDomain: process.env.AUTH_REFRESH_COOKIE_DOMAIN || '',
+    requireVerifiedLogin: process.env.AUTH_REQUIRE_VERIFIED_LOGIN === 'true',
+    lockout: {
+      maxAttempts: parseInt(process.env.AUTH_LOCKOUT_MAX_ATTEMPTS || '10', 10),
+      windowSec: parseInt(process.env.AUTH_LOCKOUT_WINDOW_SEC || '900', 10),
+      lockoutSec: parseInt(process.env.AUTH_LOCKOUT_LOCKOUT_SEC || '1800', 10),
+    },
   },
 
   aws: {
@@ -68,7 +74,22 @@ export default () => ({
     google: {
       enabled: process.env.GOOGLE_OAUTH_ENABLED === 'true',
       clientId: process.env.GOOGLE_CLIENT_ID || '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+      callbackUrl:
+        process.env.GOOGLE_OAUTH_CALLBACK_URL ||
+        'http://localhost:3001/api/v1/auth/google/callback',
+      webSuccessUrl:
+        process.env.WEB_OAUTH_SUCCESS_URL ||
+        `${process.env.WEB_URL || 'http://localhost:3000'}/auth/oauth/callback`,
     },
+  },
+
+  firebase: {
+    projectId: process.env.FIREBASE_PROJECT_ID || '',
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL || '',
+    privateKey: process.env.FIREBASE_PRIVATE_KEY || '',
+    fcmEnabled: process.env.FCM_ENABLED === 'true',
+    appCheckEnabled: process.env.APP_CHECK_ENABLED === 'true',
   },
 
   /** Comma-separated: e.g. multipart_upload,blueprints_public */

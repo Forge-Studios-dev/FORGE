@@ -1,40 +1,64 @@
 # Authentication Audit Report
 
+**Last updated:** Enterprise auth pass (custom JWT + Postgres; Firebase complement only).
+
 ## Model
 
 - **Custom JWT** access tokens (~15m) + **opaque DB-backed** refresh tokens (~7d).
-- **No NextAuth/OAuth** (Google stub in config only).
-- **Three clients:** web (localStorage + cookie mirror), admin (`forge_admin_*`), mobile (`flutter_secure_storage`).
+- **Google OAuth** via Passport (`oauth_accounts` linking) — not Firebase Auth.
+- **Three clients:** web (sessionStorage + HttpOnly cookies), admin (`forge_admin_*`), mobile (`flutter_secure_storage`).
+
+Full enterprise audit: [docs/auth-enterprise/README.md](../auth-enterprise/README.md).
 
 ## API (`apps/api`)
 
 | Endpoint | Public | Notes |
 |----------|--------|-------|
-| POST `/auth/signup` | Yes | Issues tokens; sets HttpOnly refresh cookie |
-| POST `/auth/login` | Yes | Same |
+| POST `/auth/signup` | Yes | Disposable email block; verification email |
+| POST `/auth/login` | Yes | Lockout; optional strict verified login |
 | POST `/auth/refresh` | Yes | Body or `forge_refresh` cookie |
-| POST `/auth/logout` | No | Revokes all refresh rows; clears cookie |
-| POST `/auth/impersonate` | Yes | 120s admin token → user session |
+| POST `/auth/logout` | No | Revoke session(s) |
+| POST `/auth/forgot-password` | Yes | Enumeration-safe 204 |
+| POST `/auth/reset-password` | Yes | Revokes all refresh tokens |
+| GET `/auth/google` | Yes | When `GOOGLE_OAUTH_ENABLED` |
+| POST `/auth/verify-email/resend` | JWT | Rate limited |
+| GET `/auth/verify-email` | Yes | 48h token |
 
-**Guards (global):** `JwtAuthGuard`, `RolesGuard`, `ConsumerOnlyGuard`, `PermissionsGuard`, `ThrottlerGuard`.
+**Guards (global):** `JwtAuthGuard`, `RolesGuard`, `ConsumerOnlyGuard`, `PermissionsGuard`, `ThrottlerGuard`, `EmailVerifiedGuard` (opt-in via `@RequireVerified()`).
 
-**Admin isolation:** `ConsumerOnlyGuard` blocks `ADMIN` role on consumer APIs.
+**Creator paths:** `CreatorApprovedGuard` enforces `isVerified` + approved status.
+
+**Auth error codes:** `ACCOUNT_LOCKED`, `EMAIL_NOT_VERIFIED`, `USE_GOOGLE_SIGNIN`.
 
 ## Web (`apps/web`)
 
-- `AuthProvider` — `useAuth()`, tiers from `@forge/shared-types/access`.
-- `persistAuthSession` — access + user in localStorage; refresh in HttpOnly cookie (not localStorage after hardening).
-- `fetchMe` on mount; clears admin users from consumer app.
+- Middleware: JWT + `forge_session` on protected routes.
+- Login handles verification redirect and Google-only accounts.
+- OAuth callback: `/auth/oauth/callback`.
 
 ## Admin (`apps/admin`)
 
-- All routes except `/login`, `/unauthorized` require `forge_admin_token` with `role===admin` and non-expired JWT in middleware.
+- Middleware requires `forge_admin_token`, `role === admin`.
 
 ## Mobile (`apps/mobile`)
 
-- Flutter `go_router` redirect for protected paths.
-- Dio 401 → refresh → retry or `/login`.
+- Dio 401 → refresh → login.
+- Login parses API `code` for unverified email.
+
+## Security enhancements (this pass)
+
+| Control | Status |
+|---------|--------|
+| Account lockout (Redis) | Shipped |
+| Disposable email block | Shipped |
+| Strict verified login (env) | Optional |
+| App Check on auth | Optional |
+
+## Intentionally not used
+
+- Firebase Authentication as primary IdP
+- Email OTP (see [OTP_RECOMMENDATION.md](../auth-enterprise/OTP_RECOMMENDATION.md))
 
 ## Dead code
 
-- `JwtRefreshStrategy` removed — live refresh uses opaque tokens only.
+- `JwtRefreshStrategy` removed — opaque refresh only.

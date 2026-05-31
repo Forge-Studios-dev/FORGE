@@ -1,5 +1,6 @@
 import {
   accessTokenAllowsCreatorUpload,
+  accessTokenIsEmailVerified,
   isValidConsumerAccessToken,
 } from './consumer-session';
 
@@ -36,5 +37,15 @@ describe('accessTokenAllowsCreatorUpload', () => {
     const creator = b64url({ sub: '1', role: 'creator', exp: Math.floor(Date.now() / 1000) + 3600 });
     expect(accessTokenAllowsCreatorUpload(viewer)).toBe(false);
     expect(accessTokenAllowsCreatorUpload(creator)).toBe(true);
+  });
+});
+
+describe('accessTokenIsEmailVerified', () => {
+  it('requires isVerified claim', () => {
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    const unverified = b64url({ sub: '1', role: 'creator', isVerified: false, exp });
+    const verified = b64url({ sub: '1', role: 'creator', isVerified: true, exp });
+    expect(accessTokenIsEmailVerified(unverified)).toBe(false);
+    expect(accessTokenIsEmailVerified(verified)).toBe(true);
   });
 });

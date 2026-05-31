@@ -35,12 +35,15 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { ConsumerOnlyGuard } from './common/guards/consumer-only.guard';
+import { EmailVerifiedGuard } from './common/guards/email-verified.guard';
 import { HealthController } from './health.controller';
 import { MetricsController } from './common/metrics/metrics.controller';
 import { bullMqConnectionFromConfig } from './config/bull-redis.util';
 import { redisTlsOptions } from './common/redis/redis-tls.util';
 import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
 import { ANALYTICS_INGEST_QUEUE } from './modules/analytics/analytics-ingest.constants';
+import { PUSH_DISPATCH_QUEUE } from './modules/notifications/push-dispatch.constants';
+import { FirebaseModule } from './modules/firebase/firebase.module';
 
 @Module({
   imports: [
@@ -135,9 +138,11 @@ import { ANALYTICS_INGEST_QUEUE } from './modules/analytics/analytics-ingest.con
         removeOnFail: { age: 86400, count: 10000 },
       },
     }),
+    BullModule.registerQueue({ name: PUSH_DISPATCH_QUEUE }),
 
     EventEmitterModule.forRoot(),
 
+    FirebaseModule,
     DatabaseModule,
     MailModule,
     AuthModule,
@@ -168,6 +173,7 @@ import { ANALYTICS_INGEST_QUEUE } from './modules/analytics/analytics-ingest.con
     { provide: APP_GUARD, useClass: ConsumerOnlyGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: EmailVerifiedGuard },
   ],
 })
 export class AppModule implements NestModule {

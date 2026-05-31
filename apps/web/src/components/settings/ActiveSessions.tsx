@@ -43,7 +43,7 @@ export function ActiveSessions() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-on-surface-variant">
-        Devices where you are signed in. Revoke any session you do not recognize.
+        Devices where you are signed in (login history). Revoke any session you do not recognize.
       </p>
       <ul className="space-y-3">
         {sessions.map((s) => {

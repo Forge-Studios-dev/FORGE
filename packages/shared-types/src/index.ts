@@ -45,3 +45,4 @@ export * from './jwt';
 export * from './consumer-session';
 export * from './safe-return-path';
 export * from './feature-flags';
+export * from './analytics';

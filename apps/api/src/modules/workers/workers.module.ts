@@ -8,6 +8,10 @@ import { Video } from '../content/entities/video.entity';
 import { AnalyticsEvent } from '../analytics/entities/analytics-event.entity';
 import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../content/videos.service';
 import { ANALYTICS_INGEST_QUEUE } from '../analytics/analytics-ingest.constants';
+import { PUSH_DISPATCH_QUEUE } from '../notifications/push-dispatch.constants';
+import { PushDispatchWorker } from './push-dispatch/push-dispatch.worker';
+import { DeviceToken } from '../notifications/entities/device-token.entity';
+import { FirebaseModule } from '../firebase/firebase.module';
 
 function isDedicatedWorkerProcess(): boolean {
   return (
@@ -26,9 +30,15 @@ function shouldRegisterAnalyticsIngest(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+function shouldRegisterPushDispatch(): boolean {
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Video, AnalyticsEvent]),
+    FirebaseModule,
+    TypeOrmModule.forFeature([Video, AnalyticsEvent, DeviceToken]),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
       defaultJobOptions: {
@@ -54,11 +64,21 @@ function shouldRegisterAnalyticsIngest(): boolean {
         removeOnFail: { age: 86400, count: 10000 },
       },
     }),
+    BullModule.registerQueue({
+      name: PUSH_DISPATCH_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 3000 },
+        removeOnComplete: { age: 3600, count: 5000 },
+        removeOnFail: { age: 86400, count: 5000 },
+      },
+    }),
     EventEmitterModule,
   ],
   providers: [
     ...(shouldRegisterAnalyticsIngest() ? [AnalyticsIngestWorker] : []),
     ...(shouldRegisterVideoProcessor() ? [VideoProcessorWorker] : []),
+    ...(shouldRegisterPushDispatch() ? [PushDispatchWorker] : []),
   ],
 })
 export class WorkersModule {}
