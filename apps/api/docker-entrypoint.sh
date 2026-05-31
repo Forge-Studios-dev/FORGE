@@ -5,6 +5,7 @@ for candidate in \
   apps/api/dist/main.js \
   apps/api/dist/apps/api/src/main.js; do
   if [ -f "$candidate" ]; then
+    echo "Starting FORGE API: $candidate" >&2
     exec node "$candidate"
   fi
 done

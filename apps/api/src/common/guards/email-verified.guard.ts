@@ -2,16 +2,13 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { REQUIRE_VERIFIED_KEY } from '../decorators/require-verified.decorator';
 import { JwtPayload } from '../../modules/auth/strategies/jwt.strategy';
-import { User } from '../../modules/users/entities/user.entity';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { UsersService } from '../../modules/users/users.service';
 
 @Injectable()
 export class EmailVerifiedGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly usersService: UsersService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -25,11 +22,8 @@ export class EmailVerifiedGuard implements CanActivate {
     const userId = req.user?.sub;
     if (!userId) return true;
 
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      select: ['id', 'isVerified'],
-    });
-    if (!user?.isVerified) {
+    const user = await this.usersService.findById(userId);
+    if (!user.isVerified) {
       throw new ForbiddenException({
         message: 'Verify your email to continue',
         code: 'EMAIL_NOT_VERIFIED',

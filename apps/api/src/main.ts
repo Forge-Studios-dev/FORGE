@@ -103,6 +103,7 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  console.error('Fatal error during bootstrap', err);
+  const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+  process.stderr.write(`Fatal error during bootstrap: ${message}\n`);
   process.exit(1);
 });

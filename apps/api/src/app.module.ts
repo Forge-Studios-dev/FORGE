@@ -165,6 +165,7 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
 
   controllers: [HealthController, MetricsController],
   providers: [
+    EmailVerifiedGuard,
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ClsUserInterceptor },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
@@ -173,7 +174,7 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
     { provide: APP_GUARD, useClass: ConsumerOnlyGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
-    { provide: APP_GUARD, useClass: EmailVerifiedGuard },
+    { provide: APP_GUARD, useExisting: EmailVerifiedGuard },
   ],
 })
 export class AppModule implements NestModule {
