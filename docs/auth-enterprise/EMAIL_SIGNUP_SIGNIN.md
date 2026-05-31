@@ -9,7 +9,8 @@
 5. bcrypt hash → `users` row
 6. JWT + opaque refresh issued
 7. Verification email sent (48h link)
-8. User can browse as **viewer** before verify (YouTube-like)
+8. Web redirects new signups to `/verify-email?welcome=1`
+9. Viewers can browse before verify; **creator upload** blocked until verified (middleware + API)
 
 **Optional env:** `AUTH_REQUIRE_VERIFIED_LOGIN=true` blocks login until verified.
 

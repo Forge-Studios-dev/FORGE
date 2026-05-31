@@ -3,6 +3,7 @@ export interface JwtPayloadClaims {
   sub?: string;
   email?: string;
   role?: string;
+  isVerified?: boolean;
   exp?: number;
 }
 

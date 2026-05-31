@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { getStoredUser } from '@/lib/permissions';
+import { persistAuthSession, getAccessToken, getSessionId } from '@/lib/auth-storage';
+import { VerifyEmailPrompt } from '@/components/auth/VerifyEmailPrompt';
+import type { User } from '@/types';
 
-function VerifyEmailContent() {
+function VerifyEmailWithToken() {
   const { refresh } = useAuth();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') || '';
@@ -25,14 +27,22 @@ function VerifyEmailContent() {
       setStatus('loading');
       try {
         await api.get('/auth/verify-email', { params: { token } });
-        if (!cancelled) {
-          setStatus('ok');
-          setMessage('Your email is verified. You can close this tab or continue to FORGE.');
-          const u = getStoredUser();
-          if (u) {
-            localStorage.setItem('forge_user', JSON.stringify({ ...u, isVerified: true }));
-            refresh();
-          }
+        if (cancelled) return;
+        setStatus('ok');
+        setMessage('Your email is verified. You can continue to FORGE.');
+        try {
+          const { data } = await api.post<{
+            data: { accessToken: string; user: User; sessionId?: string };
+          }>('/auth/refresh', {});
+          persistAuthSession(
+            data.data.accessToken,
+            undefined,
+            JSON.stringify(data.data.user),
+            data.data.sessionId ?? getSessionId() ?? undefined,
+          );
+          refresh();
+        } catch {
+          refresh();
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -45,40 +55,51 @@ function VerifyEmailContent() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, refresh]);
 
   return (
     <div className="glass rounded-2xl p-8 space-y-4 text-center">
-      {status === 'loading' && <p className="text-gray-300">Verifying your email…</p>}
+      {status === 'loading' && <p className="text-on-surface-variant">Verifying your email…</p>}
       {status === 'ok' && (
         <>
-          <p className="text-emerald-400 font-medium">Email verified</p>
-          <p className="text-gray-300 text-sm">{message}</p>
+          <p className="text-secondary font-medium">Email verified</p>
+          <p className="text-on-surface-variant text-sm">{message}</p>
+          <Link href="/" className="inline-block mt-4 text-primary hover:underline text-sm font-medium">
+            Continue to FORGE
+          </Link>
         </>
       )}
       {status === 'err' && (
         <>
-          <p className="text-red-400 font-medium">Could not verify</p>
-          <p className="text-gray-300 text-sm">{message}</p>
+          <p className="text-error font-medium">Could not verify</p>
+          <p className="text-on-surface-variant text-sm">{message}</p>
+          <Link href="/verify-email" className="inline-block mt-4 text-primary hover:underline text-sm font-medium">
+            Resend verification
+          </Link>
         </>
       )}
-      <Link href="/" className="inline-block mt-4 text-forge-500 hover:text-forge-400 text-sm font-medium">
-        Go to home
-      </Link>
     </div>
   );
+}
+
+function VerifyEmailPageContent() {
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token');
+  const welcome = searchParams.get('welcome') === '1';
+
+  if (!token) {
+    return <VerifyEmailPrompt welcome={welcome} />;
+  }
+
+  return <VerifyEmailWithToken />;
 }
 
 export default function VerifyEmailPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gradient">FORGE</h1>
-          <p className="text-gray-400 mt-2">Email verification</p>
-        </div>
-        <Suspense fallback={<div className="glass rounded-2xl p-8 text-center text-gray-400">Loading…</div>}>
-          <VerifyEmailContent />
+        <Suspense fallback={<p className="text-center text-on-surface-variant">Loading…</p>}>
+          <VerifyEmailPageContent />
         </Suspense>
       </div>
     </div>

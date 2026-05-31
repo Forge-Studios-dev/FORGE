@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { decodeJwtPayload } from '@forge/shared-types/jwt';
 import {
   accessTokenAllowsCreatorUpload,
+  accessTokenIsEmailVerified,
   isValidConsumerAccessToken,
 } from '@forge/shared-types/consumer-session';
 import { MAX_RETURN_PATH_LEN } from '@/lib/safe-return-path';
@@ -91,6 +92,16 @@ export function middleware(request: NextRequest) {
 
   if (requiresCreatorRole(pathname) && token && sessionValid && !accessTokenAllowsCreatorUpload(token)) {
     return NextResponse.redirect(new URL('/upload/become-creator', request.url));
+  }
+
+  if (
+    requiresCreatorRole(pathname) &&
+    token &&
+    sessionValid &&
+    accessTokenAllowsCreatorUpload(token) &&
+    !accessTokenIsEmailVerified(token)
+  ) {
+    return NextResponse.redirect(new URL('/verify-email', request.url));
   }
 
   return NextResponse.next();

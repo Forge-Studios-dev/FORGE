@@ -57,6 +57,10 @@ export function SignupForm({ nextPath }: { nextPath: string }) {
         data.data.sessionId,
       );
       refresh();
+      if (!data.data.user.isVerified) {
+        router.push('/verify-email?welcome=1');
+        return;
+      }
       if (data.data.user.role === 'creator' && data.data.user.creatorStatus && data.data.user.creatorStatus !== 'approved') {
         router.push(
           data.data.user.creatorStatus === 'rejected' ? '/approval-rejected' : '/waiting-approval',

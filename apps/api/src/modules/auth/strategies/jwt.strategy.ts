@@ -12,6 +12,7 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: UserRole;
+  isVerified: boolean;
   iat?: number;
   exp?: number;
 }
@@ -45,6 +46,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       isVerified: user.isVerified,
     };
     this.cls.set(AUTH_USER_CLS_KEY, snapshot);
-    return { sub: user.id, email: user.email, role: user.role };
+    return {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      isVerified: user.isVerified,
+    };
   }
 }

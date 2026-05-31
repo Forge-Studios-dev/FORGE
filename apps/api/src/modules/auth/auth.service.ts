@@ -388,7 +388,12 @@ export class AuthService {
   }
 
   private async issueTokens(user: User, meta?: ClientSessionMeta) {
-    const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      isVerified: user.isVerified,
+    };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('jwt.secret'),
