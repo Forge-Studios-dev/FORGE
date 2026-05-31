@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/auth/google_oauth_launcher.dart';
+import '../../../core/platform/platform_config.dart';
 import '../data/auth_repository.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
@@ -66,6 +68,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final platformConfig = ref.watch(platformConfigProvider);
+    final showGoogle = platformConfig.maybeWhen(
+      data: platformGoogleOAuthEnabled,
+      orElse: () => false,
+    );
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -128,6 +136,21 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       : const Text('Create Account'),
                 ),
                 const SizedBox(height: 16),
+                if (showGoogle) ...[
+                  OutlinedButton(
+                    onPressed: _loading
+                        ? null
+                        : () async {
+                            try {
+                              await launchGoogleOAuthSignIn();
+                            } catch (_) {
+                              setState(() => _error = 'Could not open Google sign-in.');
+                            }
+                          },
+                    child: const Text('Continue with Google'),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
