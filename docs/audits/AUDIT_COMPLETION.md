@@ -29,6 +29,7 @@ Enterprise email auth & recovery (13 phases): [auth-enterprise/README.md](../aut
 | Enterprise email auth (lockout, verification, reset, sessions) | Shipped |
 | Docs `docs/firebase/`, `docs/auth-enterprise/` | Shipped |
 | CI + `ci:local` + Playwright `auth-nav` (8 tests) | Shipped |
+| Firebase architecture audit (plan) | Shipped — [firebase/AUDIT_COMPLETION.md](../firebase/AUDIT_COMPLETION.md) |
 
 ## Code changes (summary)
 
