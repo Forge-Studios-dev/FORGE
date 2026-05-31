@@ -25,7 +25,7 @@
 - [ ] SMTP configured for deliverability (SPF/DKIM)
 - [ ] `AUTH_REFRESH_COOKIE_DOMAIN=.forgestudios.net` on Fly
 - [ ] Decide `AUTH_REQUIRE_VERIFIED_LOGIN` (default false = YouTube-like)
-- [ ] E2E: `apps/web/e2e/auth-nav.spec.ts`
+- [x] E2E: `apps/web/e2e/auth-nav.spec.ts` (8 cases incl. verify-email middleware)
 
 ## Post-PMF
 

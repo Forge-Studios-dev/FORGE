@@ -1,7 +1,8 @@
 # Shipping — Enterprise Auth + Firebase Complement
 
 **Branch:** `feat/firebase-integration`  
-**PR:** [#26](https://github.com/Forge-Studios-dev/FORGE/pull/26)
+**PR:** [#26](https://github.com/Forge-Studios-dev/FORGE/pull/26)  
+**CI:** GitHub Actions + `npm run ci:local` passing (2026-05-31).
 
 ## Scope
 

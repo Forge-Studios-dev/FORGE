@@ -1,6 +1,8 @@
 # Shipping Firebase Integration
 
-**Status:** Merge-ready — [PR #26](https://github.com/Forge-Studios-dev/FORGE/pull/26) (CI green, `mergeable: MERGEABLE`).
+**Status:** Merge-ready — [PR #26](https://github.com/Forge-Studios-dev/FORGE/pull/26) (GitHub CI + `npm run ci:local` green, `mergeable: MERGEABLE`).
+
+Enterprise auth on same branch: [SHIPPING_AUTH_ENTERPRISE.md](./SHIPPING_AUTH_ENTERPRISE.md). Migrations: `1742000000000-oauth-device-tokens`, `1743000000000-user-is-active`.
 
 **Do not push directly to `main`** — one branch, one PR, one deploy.
 
