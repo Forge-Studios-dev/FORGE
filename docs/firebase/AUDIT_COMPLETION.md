@@ -23,6 +23,7 @@
 | [#29](https://github.com/Forge-Studios-dev/FORGE/pull/29) | Post-deploy verification docs |
 | [#30](https://github.com/Forge-Studios-dev/FORGE/pull/30)–[#32](https://github.com/Forge-Studios-dev/FORGE/pull/32) | Audit closure + platform `auth`/`firebase` config |
 | [#33](https://github.com/Forge-Studios-dev/FORGE/pull/33) | Web Google OAuth from platform config |
+| [#34](https://github.com/Forge-Studios-dev/FORGE/pull/34) | Shared platform config types + prod smoke assertions |
 
 ## Production verified
 
