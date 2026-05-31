@@ -21,11 +21,14 @@
 | [#27](https://github.com/Forge-Studios-dev/FORGE/pull/27) | EmailVerifiedGuard Fly boot fix |
 | [#28](https://github.com/Forge-Studios-dev/FORGE/pull/28) | Release smoke curl retries |
 | [#29](https://github.com/Forge-Studios-dev/FORGE/pull/29) | Post-deploy verification docs |
+| [#30](https://github.com/Forge-Studios-dev/FORGE/pull/30)–[#32](https://github.com/Forge-Studios-dev/FORGE/pull/32) | Audit closure + platform `auth`/`firebase` config |
+| [#33](https://github.com/Forge-Studios-dev/FORGE/pull/33) | Web Google OAuth from platform config |
 
 ## Production verified
 
 - Release workflow green
 - API health + public smoke passing
+- `GET /platform/config` exposes `auth.provider=custom`, `firebase.usesFirebaseAuth=false`
 - Neon migrations applied (`oauth_accounts`, `device_tokens`, `users.is_active`)
 
 ## Rejected by design (per plan)
