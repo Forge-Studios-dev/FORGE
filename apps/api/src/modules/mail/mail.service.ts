@@ -79,11 +79,20 @@ export class MailService {
       this.logger.error(`Mail send failed to=${to} subject=${subject}: ${detail}`);
       const authFailed =
         /535|authentication|invalid api key|unauthorized|401/i.test(detail);
+      const domainNotVerified = /domain is not verified|verify your domain/i.test(
+        detail,
+      );
       throw new ServiceUnavailableException({
         message: authFailed
           ? 'Email service is misconfigured (invalid Resend API key). Contact support.'
-          : 'Could not send email. Try again in a few minutes.',
-        code: authFailed ? 'MAIL_AUTH_FAILED' : 'MAIL_DELIVERY_FAILED',
+          : domainNotVerified
+            ? 'Email domain is not verified with Resend. Contact support.'
+            : 'Could not send email. Try again in a few minutes.',
+        code: authFailed
+          ? 'MAIL_AUTH_FAILED'
+          : domainNotVerified
+            ? 'MAIL_DOMAIN_NOT_VERIFIED'
+            : 'MAIL_DELIVERY_FAILED',
       });
     }
   }
