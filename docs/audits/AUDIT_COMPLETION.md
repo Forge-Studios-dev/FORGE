@@ -18,17 +18,17 @@
 
 Implementation guide: [AUTH_SESSION.md](../AUTH_SESSION.md)  
 Firebase integration (FCM, App Check, OAuth, analytics): [firebase/README.md](../firebase/README.md)  
-Enterprise email auth & recovery (13 phases): [auth-enterprise/README.md](../auth-enterprise/README.md) — **complete on PR #26** (pending merge).
+Enterprise email auth & recovery (13 phases): [auth-enterprise/README.md](../auth-enterprise/README.md) — **shipped** (`1fce253`, PR #26).
 
-## Firebase + enterprise auth (PR #26)
+## Firebase + enterprise auth (shipped 2026-05-31)
 
 | Workstream | Status |
 |------------|--------|
-| Firebase complement (FCM, App Check, Sentry, analytics) | Done |
-| Google OAuth (Passport) | Done |
-| Enterprise email auth (lockout, verification, reset, sessions) | Done |
-| Docs `docs/firebase/`, `docs/auth-enterprise/` | Done |
-| CI + `ci:local` + Playwright `auth-nav` (8 tests) | Done |
+| Firebase complement (FCM, App Check, Sentry, analytics) | Shipped |
+| Google OAuth (Passport) | Shipped |
+| Enterprise email auth (lockout, verification, reset, sessions) | Shipped |
+| Docs `docs/firebase/`, `docs/auth-enterprise/` | Shipped |
+| CI + `ci:local` + Playwright `auth-nav` (8 tests) | Shipped |
 
 ## Code changes (summary)
 
