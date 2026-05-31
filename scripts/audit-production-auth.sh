@@ -4,7 +4,7 @@ set -euo pipefail
 
 API="${FORGE_SMOKE_API:-https://api.forgestudios.net/api/v1}"
 WEB="${FORGE_WEB_URL:-https://forgestudios.net}"
-EXPECTED_CALLBACK="${FORGE_GOOGLE_CALLBACK:-${API%/api/v1}/auth/google/callback}"
+EXPECTED_CALLBACK="${FORGE_GOOGLE_CALLBACK:-${API}/auth/google/callback}"
 
 echo "==> FORGE production auth audit"
 echo ""
