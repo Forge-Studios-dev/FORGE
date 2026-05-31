@@ -13,18 +13,23 @@
 
 `firebase/.firebaserc` → `forge-studios-prod-61de0`
 
-## Finish API connection (private key required)
+## Finish API connection (credentials)
 
-GCP org policy **blocks programmatic key creation**. Download JSON manually:
-
-1. [Firebase Console](https://console.firebase.google.com/project/forge-studios-prod-61de0/settings/serviceaccounts/adminsdk) → **Generate new private key**
-2. Run:
+### If Console allows **Generate new private key**
 
 ```bash
 bash scripts/apply-firebase-service-account.sh ~/Downloads/forge-studios-prod-61de0-*.json
 ```
 
-This updates `secrets/auth-deploy.env` and runs `deploy-auth-secrets.sh` on Fly.
+### If Console says **Key creation is not allowed** (org policy)
+
+Your org blocks `iam.disableServiceAccountKeyCreation`. See **[FIREBASE_ORG_POLICY_WORKAROUND.md](./FIREBASE_ORG_POLICY_WORKAROUND.md)**:
+
+1. Ask a **GCP org admin** to send you the service account JSON securely, then:
+   ```bash
+   bash scripts/deploy-firebase-json-secret.sh /path/to/key.json
+   ```
+2. Or set up **Workload Identity Federation** (no keys): [FIREBASE_FLY_WORKLOAD_IDENTITY.md](./FIREBASE_FLY_WORKLOAD_IDENTITY.md)
 
 ## Vercel (web client)
 

@@ -20,10 +20,14 @@ export function LoginForm({
   nextPath,
   resetOk,
   adminBlocked,
+  initialPlatformConfig = null,
+  showGoogleInitially,
 }: {
   nextPath: string;
   resetOk: boolean;
   adminBlocked: boolean;
+  initialPlatformConfig?: PlatformPublicConfig | null;
+  showGoogleInitially?: boolean;
 }) {
   const router = useRouter();
   const { refresh } = useAuth();
@@ -31,16 +35,20 @@ export function LoginForm({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showGoogle, setShowGoogle] = useState(
-    process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true',
+    showGoogleInitially ??
+      process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true',
   );
-  const [platformConfig, setPlatformConfig] = useState<PlatformPublicConfig | null>(null);
+  const [platformConfig, setPlatformConfig] = useState<PlatformPublicConfig | null>(
+    initialPlatformConfig ?? null,
+  );
 
   useEffect(() => {
+    if (initialPlatformConfig) return;
     void loadPlatformConfig().then((cfg) => {
       setPlatformConfig(cfg);
       setShowGoogle(isGoogleOAuthEnabled(cfg));
     });
-  }, []);
+  }, [initialPlatformConfig]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

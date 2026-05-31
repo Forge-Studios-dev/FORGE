@@ -28,14 +28,18 @@ export class PlatformController {
         emailPassword: true,
         googleOAuth: this.configService.get<boolean>('oauth.google.enabled') === true,
         mailConfigured: Boolean(smtpHost && smtpUser && smtpPass),
-        emailVerification: 'link' as const,
-        otpVerification: false,
+        emailVerification: this.configService.get<boolean>('auth.emailOtpEnabled')
+          ? ('link_or_otp' as const)
+          : ('link' as const),
+        otpVerification: this.configService.get<boolean>('auth.emailOtpEnabled') === true,
       },
       firebase: {
         adminConfigured: Boolean(
           firebaseProjectId &&
-            this.configService.get<string>('firebase.clientEmail') &&
-            this.configService.get<string>('firebase.privateKey'),
+            (this.configService.get<string>('firebase.serviceAccountJson') ||
+              this.configService.get<boolean>('firebase.useApplicationDefault') ||
+              (this.configService.get<string>('firebase.clientEmail') &&
+                this.configService.get<string>('firebase.privateKey'))),
         ),
         fcmEnabled: this.configService.get<boolean>('firebase.fcmEnabled') === true,
         appCheckEnabled: this.configService.get<boolean>('firebase.appCheckEnabled') === true,

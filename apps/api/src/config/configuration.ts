@@ -40,6 +40,8 @@ export default () => ({
       windowSec: parseInt(process.env.AUTH_LOCKOUT_WINDOW_SEC || '900', 10),
       lockoutSec: parseInt(process.env.AUTH_LOCKOUT_LOCKOUT_SEC || '1800', 10),
     },
+    /** 6-digit email verification code (in addition to link). */
+    emailOtpEnabled: process.env.AUTH_EMAIL_OTP_ENABLED === 'true',
   },
 
   aws: {
@@ -88,6 +90,10 @@ export default () => ({
     projectId: process.env.FIREBASE_PROJECT_ID || '',
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL || '',
     privateKey: process.env.FIREBASE_PRIVATE_KEY || '',
+    /** Full service account JSON (when org policy blocks Console key download — admin provides file). */
+    serviceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '',
+    /** Use GOOGLE_APPLICATION_CREDENTIALS (Workload Identity Federation on Fly). */
+    useApplicationDefault: process.env.FIREBASE_USE_APPLICATION_DEFAULT === 'true',
     fcmEnabled: process.env.FCM_ENABLED === 'true',
     appCheckEnabled: process.env.APP_CHECK_ENABLED === 'true',
   },

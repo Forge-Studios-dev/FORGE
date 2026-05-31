@@ -21,10 +21,14 @@ if ! command -v flutterfire >/dev/null 2>&1; then
 fi
 
 echo "==> Configure Firebase for FORGE mobile (FCM + App Check — not Firebase Auth)"
+PROJECT="${FIREBASE_PROJECT_ID:-forge-studios-prod-61de0}"
 flutterfire configure \
-  --project="${FIREBASE_PROJECT_ID:-}" \
+  --project="$PROJECT" \
   --out=lib/firebase_options.dart \
-  --platforms=android,ios
+  --platforms=android,ios \
+  --android-package-name=com.forgestudios.app \
+  --ios-bundle-id=com.forgestudios.app \
+  --yes
 
 echo ""
 echo "OK: firebase_options.dart updated."

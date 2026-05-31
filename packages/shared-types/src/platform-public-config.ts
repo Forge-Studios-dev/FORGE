@@ -9,7 +9,7 @@ export type PlatformAuthConfig = {
   googleOAuth: boolean;
   /** True when API SMTP is configured (verification/reset emails can send). */
   mailConfigured: boolean;
-  emailVerification: 'link';
+  emailVerification: 'link' | 'link_or_otp';
   otpVerification: boolean;
 };
 

@@ -32,3 +32,7 @@ export function isGoogleOAuthEnabled(config: PlatformPublicConfig): boolean {
   if (process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true') return true;
   return config.auth?.googleOAuth === true;
 }
+
+export function isEmailOtpVerificationEnabled(config: PlatformPublicConfig): boolean {
+  return config.auth?.otpVerification === true;
+}

@@ -9,7 +9,8 @@ ENV_FILE="${FORGE_AUTH_DEPLOY_ENV:-${ROOT}/secrets/auth-deploy.env}"
 
 if [[ -z "$JSON_PATH" || ! -f "$JSON_PATH" ]]; then
   echo "Usage: $0 /path/to/firebase-adminsdk-XXXX.json" >&2
-  echo "Download from Firebase Console → Project settings → Service accounts → Generate new private key" >&2
+  echo "If Console says 'Key creation is not allowed' — see docs/auth-enterprise/FIREBASE_ORG_POLICY_WORKAROUND.md" >&2
+  echo "An org admin must provide the JSON file, or use Workload Identity Federation." >&2
   exit 1
 fi
 
@@ -45,5 +46,9 @@ open(env_path, "w").write(text)
 print(f"Updated {env_path} with project_id={project}")
 PY
 
-bash "${ROOT}/scripts/deploy-auth-secrets.sh"
+if [[ -f "${ROOT}/scripts/deploy-firebase-json-secret.sh" ]]; then
+  bash "${ROOT}/scripts/deploy-firebase-json-secret.sh" "$JSON_PATH"
+else
+  bash "${ROOT}/scripts/deploy-auth-secrets.sh"
+fi
 bash "${ROOT}/scripts/check-firebase-connection.sh"

@@ -23,6 +23,7 @@ import { JwtPayload } from './strategies/jwt.strategy';
 import { MailService } from '../mail/mail.service';
 import { toPublicUser } from '../users/user.mapper';
 import { AuthAccountLockoutService } from './auth-account-lockout.service';
+import { AuthEmailOtpService } from './auth-email-otp.service';
 import { isDisposableEmail } from './utils/disposable-email.util';
 
 export type ClientSessionMeta = {
@@ -48,6 +49,7 @@ export class AuthService {
     private readonly mailService: MailService,
     private readonly analyticsService: AnalyticsService,
     private readonly lockoutService: AuthAccountLockoutService,
+    private readonly emailOtpService: AuthEmailOtpService,
   ) {}
 
   async signup(dto: SignupDto, meta?: ClientSessionMeta) {
@@ -393,11 +395,29 @@ export class AuthService {
     if (!user || !user.emailVerificationExpiresAt || user.emailVerificationExpiresAt < new Date()) {
       throw new BadRequestException('Invalid or expired verification link');
     }
+    await this.markEmailVerified(user);
+    return { ok: true };
+  }
+
+  async verifyEmailWithOtp(email: string, code: string) {
+    const normalized = email.trim().toLowerCase();
+    const user = await this.userRepository.findOne({ where: { email: normalized } });
+    if (!user) {
+      throw new BadRequestException('Invalid verification code');
+    }
+    if (user.isVerified) {
+      return { ok: true, alreadyVerified: true };
+    }
+    await this.emailOtpService.verifyOtp(normalized, code);
+    await this.markEmailVerified(user);
+    return { ok: true };
+  }
+
+  private async markEmailVerified(user: User) {
     user.isVerified = true;
     user.emailVerificationTokenHash = null;
     user.emailVerificationExpiresAt = null;
     await this.userRepository.save(user);
-    return { ok: true };
   }
 
   private async sendEmailVerification(user: User) {
@@ -408,11 +428,12 @@ export class AuthService {
 
     const webUrl = this.configService.get<string>('mail.webUrl') || 'http://localhost:3000';
     const link = `${webUrl}/verify-email?token=${rawToken}`;
-    await this.mailService.sendMail(
-      user.email,
-      'Verify your FORGE email',
-      `Confirm your email address:\n${link}\n\nThis link expires in 48 hours.`,
-    );
+    let body = `Confirm your email address:\n${link}\n\nThis link expires in 48 hours.`;
+    if (this.emailOtpService.isEnabled()) {
+      const otp = await this.emailOtpService.issueOtp(user.email);
+      body += `\n\nOr enter this 6-digit code on the verify page (valid 10 minutes):\n${otp}`;
+    }
+    await this.mailService.sendMail(user.email, 'Verify your FORGE email', body);
   }
 
   private async issueTokens(user: User, meta?: ClientSessionMeta) {
