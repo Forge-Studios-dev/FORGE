@@ -88,6 +88,10 @@ export default () => ({
     projectId: process.env.FIREBASE_PROJECT_ID || '',
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL || '',
     privateKey: process.env.FIREBASE_PRIVATE_KEY || '',
+    /** Full service account JSON (when org policy blocks Console key download — admin provides file). */
+    serviceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '',
+    /** Use GOOGLE_APPLICATION_CREDENTIALS (Workload Identity Federation on Fly). */
+    useApplicationDefault: process.env.FIREBASE_USE_APPLICATION_DEFAULT === 'true',
     fcmEnabled: process.env.FCM_ENABLED === 'true',
     appCheckEnabled: process.env.APP_CHECK_ENABLED === 'true',
   },

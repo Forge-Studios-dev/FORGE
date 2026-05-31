@@ -34,8 +34,10 @@ export class PlatformController {
       firebase: {
         adminConfigured: Boolean(
           firebaseProjectId &&
-            this.configService.get<string>('firebase.clientEmail') &&
-            this.configService.get<string>('firebase.privateKey'),
+            (this.configService.get<string>('firebase.serviceAccountJson') ||
+              this.configService.get<boolean>('firebase.useApplicationDefault') ||
+              (this.configService.get<string>('firebase.clientEmail') &&
+                this.configService.get<string>('firebase.privateKey'))),
         ),
         fcmEnabled: this.configService.get<boolean>('firebase.fcmEnabled') === true,
         appCheckEnabled: this.configService.get<boolean>('firebase.appCheckEnabled') === true,
