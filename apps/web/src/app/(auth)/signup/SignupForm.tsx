@@ -24,23 +24,35 @@ const FIELDS = [
   { key: 'password', label: 'Password', type: 'password', placeholder: 'Min 8 characters' },
 ] as const;
 
-export function SignupForm({ nextPath }: { nextPath: string }) {
+export function SignupForm({
+  nextPath,
+  initialPlatformConfig = null,
+  showGoogleInitially,
+}: {
+  nextPath: string;
+  initialPlatformConfig?: PlatformPublicConfig | null;
+  showGoogleInitially?: boolean;
+}) {
   const router = useRouter();
   const { refresh } = useAuth();
   const [form, setForm] = useState({ email: '', username: '', displayName: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showGoogle, setShowGoogle] = useState(
-    process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true',
+    showGoogleInitially ??
+      process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true',
   );
-  const [platformConfig, setPlatformConfig] = useState<PlatformPublicConfig | null>(null);
+  const [platformConfig, setPlatformConfig] = useState<PlatformPublicConfig | null>(
+    initialPlatformConfig ?? null,
+  );
 
   useEffect(() => {
+    if (initialPlatformConfig) return;
     void loadPlatformConfig().then((cfg) => {
       setPlatformConfig(cfg);
       setShowGoogle(isGoogleOAuthEnabled(cfg));
     });
-  }, []);
+  }, [initialPlatformConfig]);
 
   const loginHref =
     nextPath && nextPath !== '/'

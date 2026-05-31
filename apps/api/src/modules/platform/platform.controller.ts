@@ -28,8 +28,10 @@ export class PlatformController {
         emailPassword: true,
         googleOAuth: this.configService.get<boolean>('oauth.google.enabled') === true,
         mailConfigured: Boolean(smtpHost && smtpUser && smtpPass),
-        emailVerification: 'link' as const,
-        otpVerification: false,
+        emailVerification: this.configService.get<boolean>('auth.emailOtpEnabled')
+          ? ('link_or_otp' as const)
+          : ('link' as const),
+        otpVerification: this.configService.get<boolean>('auth.emailOtpEnabled') === true,
       },
       firebase: {
         adminConfigured: Boolean(

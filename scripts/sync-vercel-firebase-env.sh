@@ -38,8 +38,11 @@ set_vercel NEXT_PUBLIC_FIREBASE_PROJECT_ID "$PROJECT_ID"
 set_vercel NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID "$SENDER"
 set_vercel NEXT_PUBLIC_FIREBASE_APP_ID "$APP_ID"
 
-echo ""
-echo "Add VAPID manually in Firebase Console → Cloud Messaging → Web Push →"
-echo "  vercel env add NEXT_PUBLIC_FIREBASE_VAPID_KEY production"
+if [[ -n "${NEXT_PUBLIC_FIREBASE_VAPID_KEY:-}" ]]; then
+  set_vercel NEXT_PUBLIC_FIREBASE_VAPID_KEY "$NEXT_PUBLIC_FIREBASE_VAPID_KEY"
+else
+  echo "  SKIP NEXT_PUBLIC_FIREBASE_VAPID_KEY (set env NEXT_PUBLIC_FIREBASE_VAPID_KEY to sync)"
+fi
+
 echo ""
 echo "Redeploy web: cd $ROOT && bash scripts/vercel-setup.sh"

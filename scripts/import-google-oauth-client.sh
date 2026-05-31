@@ -39,9 +39,7 @@ upsert("GOOGLE_CLIENT_SECRET", client_secret)
 upsert("GOOGLE_OAUTH_CALLBACK_URL", "https://api.forgestudios.net/api/v1/auth/google/callback")
 upsert("WEB_OAUTH_SUCCESS_URL", "https://forgestudios.net/auth/oauth/callback")
 upsert("WEB_URL", "https://forgestudios.net")
-upsert("FIREBASE_PROJECT_ID", "forge-studios-prod-61de0")
-upsert("FCM_ENABLED", "false")
-upsert("APP_CHECK_ENABLED", "false")
+# Do not overwrite FCM/SMTP — production values live in auth-deploy.env already.
 open(env_path, "w").write(text)
 print(f"Updated {env_path} with Google OAuth client (redacted in log)")
 PY

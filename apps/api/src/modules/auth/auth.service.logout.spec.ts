@@ -19,6 +19,7 @@ describe('AuthService logout', () => {
       recordFailedLogin: jest.fn(),
       clearFailures: jest.fn(),
     } as never,
+    { isEnabled: jest.fn(), issueOtp: jest.fn(), verifyOtp: jest.fn() } as never,
   );
 
   beforeEach(() => {

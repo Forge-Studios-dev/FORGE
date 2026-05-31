@@ -49,11 +49,9 @@ if [[ "${FCM_ENABLED:-false}" == "true" && -n "${FIREBASE_PRIVATE_KEY:-}" && "${
     "FCM_ENABLED=true"
   )
 else
-  echo "==> Skipping Firebase Admin secrets (no valid private key / FCM disabled)"
-  firebase_args=(
-    "FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-forge-studios-prod-61de0}"
-    "FCM_ENABLED=false"
-  )
+  echo "==> Skipping Firebase Admin secrets (no valid private key in $ENV_FILE)"
+  echo "     Existing Fly FIREBASE_* / FCM_ENABLED are left unchanged."
+  firebase_args=()
 fi
 
 smtp_args=()
@@ -86,6 +84,9 @@ set -- \
   APP_CHECK_ENABLED="${APP_CHECK_ENABLED:-false}"
 if ((${#firebase_args[@]})); then set -- "$@" "${firebase_args[@]}"; fi
 if ((${#smtp_args[@]})); then set -- "$@" "${smtp_args[@]}"; fi
+if [[ -n "${AUTH_EMAIL_OTP_ENABLED:-}" ]]; then
+  set -- "$@" "AUTH_EMAIL_OTP_ENABLED=${AUTH_EMAIL_OTP_ENABLED}"
+fi
 fly secrets set "$@" --app "$APP"
 
 echo ""

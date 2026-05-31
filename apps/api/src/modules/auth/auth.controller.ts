@@ -34,6 +34,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto';
 import { ConsumeImpersonationDto } from './dto/consume-impersonation.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { Public } from '../../common/decorators/public.decorator';
@@ -225,5 +226,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify email with token from link' })
   verifyEmail(@Query('token') token: string) {
     return this.authService.verifyEmail(token);
+  }
+
+  @Public()
+  @Post('verify-email/otp')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Verify email with 6-digit code from verification email' })
+  verifyEmailOtp(@Body() dto: VerifyEmailOtpDto) {
+    return this.authService.verifyEmailWithOtp(dto.email, dto.code);
   }
 }

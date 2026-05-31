@@ -40,6 +40,8 @@ export default () => ({
       windowSec: parseInt(process.env.AUTH_LOCKOUT_WINDOW_SEC || '900', 10),
       lockoutSec: parseInt(process.env.AUTH_LOCKOUT_LOCKOUT_SEC || '1800', 10),
     },
+    /** 6-digit email verification code (in addition to link). */
+    emailOtpEnabled: process.env.AUTH_EMAIL_OTP_ENABLED === 'true',
   },
 
   aws: {
