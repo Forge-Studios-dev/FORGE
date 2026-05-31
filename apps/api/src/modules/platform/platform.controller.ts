@@ -15,9 +15,29 @@ export class PlatformController {
   getPublicConfig() {
     const raw = this.configService.get<string>('featureFlags') || '';
     const featureFlags = parseFeatureFlags(raw);
+    const firebaseProjectId = this.configService.get<string>('firebase.projectId') || '';
     return {
       featureFlags,
       apiVersion: 'v1',
+      auth: {
+        /** Identity is custom JWT + Postgres — not Firebase Authentication. */
+        provider: 'custom' as const,
+        emailPassword: true,
+        googleOAuth: this.configService.get<boolean>('oauth.google.enabled') === true,
+        emailVerification: 'link' as const,
+        otpVerification: false,
+      },
+      firebase: {
+        adminConfigured: Boolean(
+          firebaseProjectId &&
+            this.configService.get<string>('firebase.clientEmail') &&
+            this.configService.get<string>('firebase.privateKey'),
+        ),
+        fcmEnabled: this.configService.get<boolean>('firebase.fcmEnabled') === true,
+        appCheckEnabled: this.configService.get<boolean>('firebase.appCheckEnabled') === true,
+        /** FCM + App Check only — Firebase Auth is not used for login. */
+        usesFirebaseAuth: false,
+      },
     };
   }
 }

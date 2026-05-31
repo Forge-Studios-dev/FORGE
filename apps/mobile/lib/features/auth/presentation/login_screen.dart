@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/auth/google_oauth_launcher.dart';
+import '../../../core/platform/platform_config.dart';
 import '../data/auth_repository.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -70,6 +72,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final platformConfig = ref.watch(platformConfigProvider);
+    final showGoogle = platformConfig.maybeWhen(
+      data: platformGoogleOAuthEnabled,
+      orElse: () => false,
+    );
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -140,6 +148,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       : const Text('Sign In'),
                 ),
                 const SizedBox(height: 16),
+
+                if (showGoogle) ...[
+                  OutlinedButton(
+                    onPressed: _loading
+                        ? null
+                        : () async {
+                            try {
+                              await launchGoogleOAuthSignIn();
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Complete Google sign-in in your browser, then return to the app.',
+                                  ),
+                                ),
+                              );
+                            } catch (_) {
+                              setState(() => _error = 'Could not open Google sign-in.');
+                            }
+                          },
+                    child: const Text('Continue with Google'),
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 Align(
                   alignment: Alignment.centerRight,

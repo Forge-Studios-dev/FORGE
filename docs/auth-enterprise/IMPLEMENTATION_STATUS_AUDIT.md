@@ -125,6 +125,17 @@ Recommended path: **keep current platform** and only enable optional Firebase se
 
 ---
 
+## Runtime capability check (production)
+
+```bash
+curl -s https://api.forgestudios.net/api/v1/platform/config | python3 -m json.tool
+# auth.provider = "custom"
+# auth.googleOAuth = true/false (env)
+# firebase.usesFirebaseAuth = false
+```
+
+Or: `bash scripts/verify-production-auth.sh`
+
 ## Quick verification commands
 
 ```bash
