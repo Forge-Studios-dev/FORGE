@@ -3,7 +3,7 @@
 **Branch:** `feat/firebase-integration`  
 **PR:** [#26](https://github.com/Forge-Studios-dev/FORGE/pull/26)  
 **CI:** GitHub Actions + `npm run ci:local` passing (2026-05-31).  
-**Shipped:** Merged to `main` (`1fce253`). Hotfix **#27** (`4f83c7e`) — Fly API boot (EmailVerifiedGuard DI).
+**Shipped:** Merged to `main` through PR **#32** (platform `auth`/`firebase` config). Hotfix **#27** — Fly API boot (EmailVerifiedGuard DI).
 
 **Post-deploy:** [POST_DEPLOY.md](../auth-enterprise/POST_DEPLOY.md) — migrations applied on Neon; release green; optional secrets remain.
 

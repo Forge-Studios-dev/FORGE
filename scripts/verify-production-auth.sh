@@ -17,4 +17,19 @@ echo "==> Public smoke"
 FORGE_SMOKE_API="$API" FORGE_SMOKE_MODE=public bash "$(dirname "$0")/smoke-api.sh"
 
 echo ""
-echo "Done. auth.provider should be 'custom' and firebase.usesFirebaseAuth should be false."
+echo "==> Assert auth/firebase capability blocks"
+echo "$CONFIG" | python3 -c "
+import json, sys
+data = json.load(sys.stdin).get('data', {})
+auth = data.get('auth')
+firebase = data.get('firebase')
+if not auth or auth.get('provider') != 'custom':
+    sys.exit('FAIL: platform/config missing auth.provider=custom')
+if firebase is None or firebase.get('usesFirebaseAuth') is not False:
+    sys.exit('FAIL: platform/config missing firebase.usesFirebaseAuth=false')
+print('OK: auth.provider=custom, firebase.usesFirebaseAuth=false')
+print(f\"    googleOAuth={auth.get('googleOAuth')}, fcmEnabled={firebase.get('fcmEnabled')}\")
+"
+
+echo ""
+echo "Done."
