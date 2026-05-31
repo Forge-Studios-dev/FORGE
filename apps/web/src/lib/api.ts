@@ -6,6 +6,9 @@ import {
   syncAuthCookieFromStorage,
 } from '@/lib/auth-storage';
 import { currentReturnPath } from '@/lib/safe-return-path';
+import { getAppCheckToken } from '@/lib/app-check';
+
+const APP_CHECK_ROUTES = ['/auth/login', '/auth/signup', '/analytics/events'];
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -16,12 +19,17 @@ export const api = axios.create({
   withCredentials: true,
 });
 
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   if (typeof window !== 'undefined') {
     syncAuthCookieFromStorage();
     const token = getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    const path = config.url ?? '';
+    if (APP_CHECK_ROUTES.some((r) => path.includes(r)) && config.headers) {
+      const appCheck = await getAppCheckToken();
+      if (appCheck) config.headers['X-Firebase-AppCheck'] = appCheck;
     }
   }
   return config;

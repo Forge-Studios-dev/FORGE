@@ -1,8 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Repository } from 'typeorm';
+import {
+  ANALYTICS_MAX_PROPERTIES_BYTES,
+  isAllowedAnalyticsEvent,
+} from '@forge/shared-types';
 import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { IngestEventDto } from './dto/ingest-event.dto';
 import { ANALYTICS_INGEST_QUEUE } from './analytics-ingest.constants';
@@ -18,6 +22,15 @@ export class AnalyticsService {
   ) {}
 
   async ingest(userId: string | null, dto: IngestEventDto) {
+    if (!isAllowedAnalyticsEvent(dto.eventName)) {
+      throw new BadRequestException(`Unknown analytics event: ${dto.eventName}`);
+    }
+    if (dto.properties) {
+      const size = Buffer.byteLength(JSON.stringify(dto.properties), 'utf8');
+      if (size > ANALYTICS_MAX_PROPERTIES_BYTES) {
+        throw new BadRequestException('Analytics properties payload too large');
+      }
+    }
     await this.analyticsQueue.add(
       'ingest',
       {

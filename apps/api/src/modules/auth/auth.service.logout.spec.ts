@@ -12,6 +12,8 @@ describe('AuthService logout', () => {
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
+    { ingest: jest.fn() } as never,
   );
 
   beforeEach(() => {

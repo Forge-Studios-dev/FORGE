@@ -16,7 +16,8 @@
 | 8 | [YOUTUBE_GAP_ANALYSIS.md](./YOUTUBE_GAP_ANALYSIS.md) | Done |
 | 9 | [PRIORITY_FIX_ROADMAP.md](./PRIORITY_FIX_ROADMAP.md) | Done |
 
-Implementation guide: [AUTH_SESSION.md](../AUTH_SESSION.md)
+Implementation guide: [AUTH_SESSION.md](../AUTH_SESSION.md)  
+Firebase integration (FCM, App Check, OAuth, analytics): [firebase/README.md](../firebase/README.md)
 
 ## Code changes (summary)
 

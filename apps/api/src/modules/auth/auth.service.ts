@@ -14,6 +14,9 @@ import { createHash, randomBytes } from 'crypto';
 import { User, UserRole } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
+import { OAuthAccount } from './entities/oauth-account.entity';
+import { GoogleProfilePayload } from './strategies/google.strategy';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
@@ -36,9 +39,12 @@ export class AuthService {
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     @InjectRepository(PasswordResetToken)
     private readonly passwordResetRepository: Repository<PasswordResetToken>,
+    @InjectRepository(OAuthAccount)
+    private readonly oauthAccountRepository: Repository<OAuthAccount>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
+    private readonly analyticsService: AnalyticsService,
   ) {}
 
   async signup(dto: SignupDto, meta?: ClientSessionMeta) {
@@ -63,6 +69,10 @@ export class AuthService {
 
     const tokens = await this.issueTokens(user, meta);
     void this.sendEmailVerification(user).catch(() => undefined);
+    void this.analyticsService.ingest(user.id, {
+      eventName: 'auth.signup',
+      properties: { method: 'email' },
+    });
     return tokens;
   }
 
@@ -74,7 +84,72 @@ export class AuthService {
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordValid) throw new UnauthorizedException('Invalid credentials');
 
-    return this.issueTokens(user, meta);
+    const tokens = await this.issueTokens(user, meta);
+    void this.analyticsService.ingest(user.id, {
+      eventName: 'auth.login',
+      properties: { method: 'email' },
+    });
+    return tokens;
+  }
+
+  async loginWithGoogle(profile: GoogleProfilePayload, meta?: ClientSessionMeta) {
+    const provider = 'google';
+    const oauth = await this.oauthAccountRepository.findOne({
+      where: { provider, providerId: profile.providerId },
+    });
+
+    let user: User | null = null;
+    if (oauth) {
+      user = await this.userRepository.findOne({ where: { id: oauth.userId } });
+    }
+    if (!user) {
+      user = await this.userRepository.findOne({ where: { email: profile.email } });
+    }
+    if (!user) {
+      const username = await this.uniqueUsernameFromEmail(profile.email);
+      const passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), this.BCRYPT_ROUNDS);
+      user = await this.userRepository.save(
+        this.userRepository.create({
+          email: profile.email,
+          username,
+          displayName: profile.displayName,
+          passwordHash,
+          isVerified: true,
+        }),
+      );
+    }
+
+    if (!oauth) {
+      await this.oauthAccountRepository.save(
+        this.oauthAccountRepository.create({
+          userId: user.id,
+          provider,
+          providerId: profile.providerId,
+          email: profile.email,
+        }),
+      );
+    }
+
+    const tokens = await this.issueTokens(user, meta);
+    void this.analyticsService.ingest(user.id, {
+      eventName: 'auth.login',
+      properties: { method: 'google' },
+    });
+    return tokens;
+  }
+
+  private async uniqueUsernameFromEmail(email: string): Promise<string> {
+    const base = email
+      .split('@')[0]!
+      .replace(/[^a-zA-Z0-9_]/g, '_')
+      .slice(0, 40);
+    let candidate = base || 'user';
+    for (let i = 0; i < 20; i++) {
+      const taken = await this.userRepository.findOne({ where: { username: candidate } });
+      if (!taken) return candidate;
+      candidate = `${base}_${randomBytes(3).toString('hex')}`;
+    }
+    return `user_${randomBytes(6).toString('hex')}`;
   }
 
   async createImpersonationToken(adminId: string, targetUserId: string) {

@@ -1,13 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { Notification, NotificationType } from './entities/notification.entity';
+import { DeviceToken, DevicePlatform } from './entities/device-token.entity';
 
 @Injectable()
 export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
+    @InjectRepository(DeviceToken)
+    private readonly deviceTokenRepository: Repository<DeviceToken>,
   ) {}
 
   create(input: {
@@ -44,6 +47,39 @@ export class NotificationsService {
       await this.notificationRepository.save(notif);
     }
     return notif;
+  }
+
+  async registerDevice(userId: string, platform: DevicePlatform, fcmToken: string) {
+    const existing = await this.deviceTokenRepository.findOne({ where: { fcmToken } });
+    if (existing) {
+      if (existing.userId !== userId) {
+        existing.userId = userId;
+        existing.revokedAt = null;
+      }
+      existing.platform = platform;
+      existing.lastSeenAt = new Date();
+      return this.deviceTokenRepository.save(existing);
+    }
+    return this.deviceTokenRepository.save(
+      this.deviceTokenRepository.create({
+        userId,
+        platform,
+        fcmToken,
+        lastSeenAt: new Date(),
+        revokedAt: null,
+      }),
+    );
+  }
+
+  async revokeDevice(userId: string, fcmToken?: string) {
+    if (fcmToken) {
+      await this.deviceTokenRepository.update(
+        { userId, fcmToken, revokedAt: IsNull() },
+        { revokedAt: new Date() },
+      );
+      return;
+    }
+    await this.deviceTokenRepository.update({ userId, revokedAt: IsNull() }, { revokedAt: new Date() });
   }
 }
 

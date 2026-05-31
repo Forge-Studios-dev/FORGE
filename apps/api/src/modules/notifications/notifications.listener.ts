@@ -3,6 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NotificationsService } from './notifications.service';
+import { PushDispatchService } from './push-dispatch.service';
 import { NotificationType } from './entities/notification.entity';
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
@@ -13,18 +14,24 @@ export class NotificationsListener {
 
   constructor(
     private readonly notificationsService: NotificationsService,
+    private readonly pushDispatch: PushDispatchService,
     private readonly mailService: MailService,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {}
 
   @OnEvent('creator.approved')
-  onCreatorApproved(payload: { userId: string }) {
-    return this.notificationsService.create({
+  async onCreatorApproved(payload: { userId: string }) {
+    await this.notificationsService.create({
       userId: payload.userId,
       type: NotificationType.CREATOR_APPROVED,
       title: 'Creator access approved',
       body: 'You can now upload videos and go live.',
+    });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title: 'Creator access approved',
+      body: 'You can now upload videos and go live.',
+      data: { type: 'creator_approved' },
     });
   }
 
@@ -48,6 +55,11 @@ export class NotificationsListener {
       body: 'Your upload has finished processing.',
       metadata: { videoId: payload.videoId },
     });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title: 'Your video is ready',
+      body: 'Your upload has finished processing.',
+      data: { type: 'video_ready', videoId: payload.videoId },
+    });
     await this.maybeEmailUser(
       payload.userId,
       'Your FORGE video is ready',
@@ -57,12 +69,18 @@ export class NotificationsListener {
 
   @OnEvent('stream.started')
   async onStreamStarted(payload: { streamId: string; userId: string; title: string }) {
+    const body = payload.title ? `Stream started: ${payload.title}` : 'Your live stream started.';
     await this.notificationsService.create({
       userId: payload.userId,
       type: NotificationType.STREAM_STARTED,
       title: 'You are live',
-      body: payload.title ? `Stream started: ${payload.title}` : 'Your live stream started.',
+      body,
       metadata: { streamId: payload.streamId },
+    });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title: 'You are live',
+      body,
+      data: { type: 'stream_started', streamId: payload.streamId },
     });
     await this.maybeEmailUser(
       payload.userId,

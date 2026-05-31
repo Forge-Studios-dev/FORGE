@@ -6,7 +6,9 @@ import { AuthService } from './auth.service';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
+import { OAuthAccount } from './entities/oauth-account.entity';
 import { MailService } from '../mail/mail.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 describe('AuthService', () => {
   const userRepoMock = {
@@ -24,7 +26,13 @@ describe('AuthService', () => {
     save: jest.fn(),
     findOne: jest.fn(),
   };
+  const oauthRepoMock = {
+    findOne: jest.fn(),
+    save: jest.fn(),
+    create: jest.fn((x) => x),
+  };
   const mailMock = { sendMail: jest.fn().mockResolvedValue(undefined) };
+  const analyticsMock = { ingest: jest.fn().mockResolvedValue(undefined) };
 
   const jwtMock = {
     sign: jest.fn().mockReturnValue('access.jwt'),
@@ -49,9 +57,11 @@ describe('AuthService', () => {
         { provide: getRepositoryToken(User), useValue: userRepoMock },
         { provide: getRepositoryToken(RefreshToken), useValue: refreshRepoMock },
         { provide: getRepositoryToken(PasswordResetToken), useValue: resetRepoMock },
+        { provide: getRepositoryToken(OAuthAccount), useValue: oauthRepoMock },
         { provide: JwtService, useValue: jwtMock },
         { provide: ConfigService, useValue: configMock },
         { provide: MailService, useValue: mailMock },
+        { provide: AnalyticsService, useValue: analyticsMock },
       ],
     }).compile();
     return moduleRef.get(AuthService);

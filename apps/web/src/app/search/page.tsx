@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { Icon, Input, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { trackSearchQuery } from '@/lib/analytics';
 import { User, Video } from '@/types';
 import { FeedCard } from '@/components/FeedCard/FeedCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -26,7 +27,9 @@ function SearchResults({ q }: { q: string }) {
       const { data } = await api.get<{ data: SearchPayload }>('/search', {
         params: { q, limit: 24 },
       });
-      return data.data;
+      const payload = data.data;
+      trackSearchQuery(payload.videos.length + payload.users.length);
+      return payload;
     },
   });
 

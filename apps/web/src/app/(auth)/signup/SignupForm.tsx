@@ -9,6 +9,10 @@ import { useAuth } from '@/lib/auth';
 import { AuthScreen, authFieldClass } from '@/components/auth/AuthScreen';
 import { AuthTokens } from '@/types';
 import { safeReturnPath } from '@/lib/safe-return-path';
+import { getAppCheckToken } from '@/lib/app-check';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const GOOGLE_OAUTH_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true';
 
 const FIELDS = [
   { key: 'displayName', label: 'Display name', type: 'text', placeholder: 'Your name' },
@@ -34,12 +38,18 @@ export function SignupForm({ nextPath }: { nextPath: string }) {
     setError('');
     setLoading(true);
     try {
-      const { data } = await api.post<{ data: AuthTokens }>('/auth/signup', {
-        ...form,
-        email: form.email.trim().toLowerCase(),
-        username: form.username.trim(),
-        displayName: form.displayName.trim(),
-      });
+      const appCheck = await getAppCheckToken();
+      const headers = appCheck ? { 'X-Firebase-AppCheck': appCheck } : undefined;
+      const { data } = await api.post<{ data: AuthTokens }>(
+        '/auth/signup',
+        {
+          ...form,
+          email: form.email.trim().toLowerCase(),
+          username: form.username.trim(),
+          displayName: form.displayName.trim(),
+        },
+        { headers },
+      );
       persistAuthSession(
         data.data.accessToken,
         data.data.refreshToken,
@@ -88,6 +98,14 @@ export function SignupForm({ nextPath }: { nextPath: string }) {
         >
           {loading ? 'Creating account…' : 'Create account'}
         </button>
+        {GOOGLE_OAUTH_ENABLED && (
+          <a
+            href={`${API_URL}/auth/google`}
+            className="mt-3 block w-full rounded-full border border-outline py-4 text-center text-sm font-semibold text-on-surface hover:bg-surface-container"
+          >
+            Continue with Google
+          </a>
+        )}
       </form>
       <p className="mt-6 text-center text-sm text-on-surface-variant">
         Already have an account?{' '}

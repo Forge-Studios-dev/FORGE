@@ -34,9 +34,16 @@ function buildReturnPath(request: NextRequest): string {
   return full.length > MAX_RETURN_PATH_LEN ? full.slice(0, MAX_RETURN_PATH_LEN) : full;
 }
 
+const SESSION_COOKIE = 'forge_session';
+
 function clearConsumerSession(response: NextResponse) {
   response.cookies.set('forge_access_token', '', { path: '/', maxAge: 0 });
+  response.cookies.set(SESSION_COOKIE, '', { path: '/', maxAge: 0 });
   return response;
+}
+
+function hasSessionMarker(request: NextRequest): boolean {
+  return request.cookies.get(SESSION_COOKIE)?.value === '1';
 }
 
 export function middleware(request: NextRequest) {
@@ -62,7 +69,9 @@ export function middleware(request: NextRequest) {
     return clearConsumerSession(NextResponse.redirect(loginUrl));
   }
 
-  const sessionValid = isValidConsumerAccessToken(token);
+  const sessionValid =
+    isValidConsumerAccessToken(token) &&
+    (!request.cookies.has(SESSION_COOKIE) || hasSessionMarker(request));
 
   if (token && !sessionValid) {
     const loginUrl = new URL('/login', request.url);
