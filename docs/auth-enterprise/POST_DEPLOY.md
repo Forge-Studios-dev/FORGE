@@ -27,14 +27,18 @@ Re-run locally only if a new environment is provisioned:
 npm run migration:run --workspace=@forge/api
 ```
 
-## 3. Fly secrets (optional — enable when ready)
+## 3. Fly secrets (enable Google, SMTP, Firebase)
 
-See template: `bash scripts/enable-production-auth-features.sh` (uncomment and fill values).
+**Step-by-step:** [ENABLEMENT_GUIDE.md](./ENABLEMENT_GUIDE.md)
 
 ```bash
-fly secrets set AUTH_REFRESH_COOKIE_DOMAIN='.forgestudios.net' --app forge-studios-api
-# GOOGLE_OAUTH_ENABLED, GOOGLE_CLIENT_*, FIREBASE_*, FCM_ENABLED — see script
+cp secrets/auth-deploy.env.example secrets/auth-deploy.env
+# Edit secrets/auth-deploy.env with Google, SMTP, Firebase values
+bash scripts/deploy-auth-secrets.sh
+bash scripts/check-auth-env.sh fly
 ```
+
+`AUTH_REFRESH_COOKIE_DOMAIN` is already set on Fly. Firebase Console → **Authentication** stays empty (users are in Postgres).
 
 Keep `APP_CHECK_ENABLED=false` until web/mobile send App Check tokens.
 

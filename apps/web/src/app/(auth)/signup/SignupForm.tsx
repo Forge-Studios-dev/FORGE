@@ -10,7 +10,9 @@ import { AuthScreen, authFieldClass } from '@/components/auth/AuthScreen';
 import { AuthTokens } from '@/types';
 import { safeReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
+import { AuthSetupNotice } from '@/components/auth/AuthSetupNotice';
 import { isGoogleOAuthEnabled, loadPlatformConfig } from '@/lib/platform-config';
+import type { PlatformPublicConfig } from '@forge/shared-types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -30,9 +32,13 @@ export function SignupForm({ nextPath }: { nextPath: string }) {
   const [showGoogle, setShowGoogle] = useState(
     process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true',
   );
+  const [platformConfig, setPlatformConfig] = useState<PlatformPublicConfig | null>(null);
 
   useEffect(() => {
-    void loadPlatformConfig().then((cfg) => setShowGoogle(isGoogleOAuthEnabled(cfg)));
+    void loadPlatformConfig().then((cfg) => {
+      setPlatformConfig(cfg);
+      setShowGoogle(isGoogleOAuthEnabled(cfg));
+    });
   }, []);
 
   const loginHref =
@@ -90,6 +96,7 @@ export function SignupForm({ nextPath }: { nextPath: string }) {
       showHeader={false}
     >
       <form className="space-y-5" onSubmit={handleSubmit}>
+        {platformConfig && <AuthSetupNotice config={platformConfig} />}
         {error && <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{error}</p>}
         {FIELDS.map((field) => (
           <input

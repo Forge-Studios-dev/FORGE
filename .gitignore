@@ -5,6 +5,7 @@ build/
 .turbo/
 .env
 .env.local
+secrets/auth-deploy.env
 .env.*.local
 .env.production
 .aws-forge-output.env
