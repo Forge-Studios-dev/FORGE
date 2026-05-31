@@ -35,6 +35,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { ConsumerOnlyGuard } from './common/guards/consumer-only.guard';
+import { EmailVerifiedGuard } from './common/guards/email-verified.guard';
 import { HealthController } from './health.controller';
 import { MetricsController } from './common/metrics/metrics.controller';
 import { bullMqConnectionFromConfig } from './config/bull-redis.util';
@@ -172,6 +173,7 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
     { provide: APP_GUARD, useClass: ConsumerOnlyGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: EmailVerifiedGuard },
   ],
 })
 export class AppModule implements NestModule {

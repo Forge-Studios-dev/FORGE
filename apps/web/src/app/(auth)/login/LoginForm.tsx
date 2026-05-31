@@ -62,8 +62,24 @@ export function LoginForm({
         router.push(safeReturnPath(nextPath));
       }
     } catch (err: unknown) {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(message || 'Login failed. Please try again.');
+      const data = (err as { response?: { data?: { message?: string; code?: string } } })?.response
+        ?.data;
+      if (data?.code === 'EMAIL_NOT_VERIFIED') {
+        router.push('/verify-email');
+        return;
+      }
+      if (data?.code === 'USE_GOOGLE_SIGNIN') {
+        setError('This account uses Google. Use Continue with Google below.');
+        return;
+      }
+      if (data?.code === 'ACCOUNT_LOCKED') {
+        setError(
+          data?.message ||
+            'Too many failed attempts. Try again later or reset your password.',
+        );
+        return;
+      }
+      setError(data?.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }

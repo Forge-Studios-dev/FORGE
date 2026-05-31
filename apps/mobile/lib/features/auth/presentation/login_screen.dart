@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -44,7 +45,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
       final next = GoRouterState.of(context).uri.queryParameters['next'];
       context.go(next != null && next.isNotEmpty ? next : '/feed');
-    } catch (e) {
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map && data['code'] == 'EMAIL_NOT_VERIFIED') {
+        if (mounted) context.go('/verify-email');
+        return;
+      }
+      final msg = data is Map ? data['message'] : null;
+      setState(() => _error = msg is String ? msg : 'Invalid credentials. Please try again.');
+    } catch (_) {
       setState(() => _error = 'Invalid credentials. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);

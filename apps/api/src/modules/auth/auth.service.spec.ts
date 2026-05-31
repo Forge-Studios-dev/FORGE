@@ -9,6 +9,7 @@ import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { OAuthAccount } from './entities/oauth-account.entity';
 import { MailService } from '../mail/mail.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { AuthAccountLockoutService } from './auth-account-lockout.service';
 
 describe('AuthService', () => {
   const userRepoMock = {
@@ -33,6 +34,11 @@ describe('AuthService', () => {
   };
   const mailMock = { sendMail: jest.fn().mockResolvedValue(undefined) };
   const analyticsMock = { ingest: jest.fn().mockResolvedValue(undefined) };
+  const lockoutMock = {
+    assertNotLocked: jest.fn().mockResolvedValue(undefined),
+    recordFailedLogin: jest.fn().mockResolvedValue(undefined),
+    clearFailures: jest.fn().mockResolvedValue(undefined),
+  };
 
   const jwtMock = {
     sign: jest.fn().mockReturnValue('access.jwt'),
@@ -62,6 +68,7 @@ describe('AuthService', () => {
         { provide: ConfigService, useValue: configMock },
         { provide: MailService, useValue: mailMock },
         { provide: AnalyticsService, useValue: analyticsMock },
+        { provide: AuthAccountLockoutService, useValue: lockoutMock },
       ],
     }).compile();
     return moduleRef.get(AuthService);

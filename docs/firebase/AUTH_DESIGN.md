@@ -1,5 +1,7 @@
 # Authentication Design (No Firebase Auth)
 
+Enterprise email auth audit (verification, reset, lockout, OTP recommendation): [docs/auth-enterprise/README.md](../auth-enterprise/README.md).
+
 ## Decision
 
 FORGE keeps **custom JWT + opaque refresh tokens** in Postgres. Firebase Auth is **not** the primary identity provider.

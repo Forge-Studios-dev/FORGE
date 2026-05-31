@@ -17,7 +17,8 @@
 | 9 | [PRIORITY_FIX_ROADMAP.md](./PRIORITY_FIX_ROADMAP.md) | Done |
 
 Implementation guide: [AUTH_SESSION.md](../AUTH_SESSION.md)  
-Firebase integration (FCM, App Check, OAuth, analytics): [firebase/README.md](../firebase/README.md)
+Firebase integration (FCM, App Check, OAuth, analytics): [firebase/README.md](../firebase/README.md)  
+Enterprise email auth & recovery (13 phases): [auth-enterprise/README.md](../auth-enterprise/README.md)
 
 ## Code changes (summary)
 

@@ -22,6 +22,8 @@ import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { MailService } from '../mail/mail.service';
 import { toPublicUser } from '../users/user.mapper';
+import { AuthAccountLockoutService } from './auth-account-lockout.service';
+import { isDisposableEmail } from './utils/disposable-email.util';
 
 export type ClientSessionMeta = {
   userAgent?: string | null;
@@ -45,10 +47,14 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
     private readonly analyticsService: AnalyticsService,
+    private readonly lockoutService: AuthAccountLockoutService,
   ) {}
 
   async signup(dto: SignupDto, meta?: ClientSessionMeta) {
     const emailNorm = dto.email.trim().toLowerCase();
+    if (isDisposableEmail(emailNorm)) {
+      throw new BadRequestException('Disposable email addresses are not allowed');
+    }
     const existing = await this.userRepository.findOne({
       where: [{ email: emailNorm }, { username: dto.username }],
     });
@@ -78,11 +84,37 @@ export class AuthService {
 
   async login(dto: LoginDto, meta?: ClientSessionMeta) {
     const email = dto.email.trim().toLowerCase();
+    await this.lockoutService.assertNotLocked(email);
+
     const user = await this.userRepository.findOne({ where: { email } });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      await this.lockoutService.recordFailedLogin(email, meta?.ip ?? null);
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!passwordValid) throw new UnauthorizedException('Invalid credentials');
+    if (!passwordValid) {
+      const oauthOnly = await this.oauthAccountRepository.findOne({
+        where: { userId: user.id, provider: 'google' },
+      });
+      await this.lockoutService.recordFailedLogin(email, meta?.ip ?? null);
+      if (oauthOnly) {
+        throw new UnauthorizedException({
+          message: 'This account uses Google sign-in',
+          code: 'USE_GOOGLE_SIGNIN',
+        });
+      }
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (this.configService.get<boolean>('auth.requireVerifiedLogin') && !user.isVerified) {
+      throw new ForbiddenException({
+        message: 'Verify your email before signing in',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+    }
+
+    await this.lockoutService.clearFailures(email, meta?.ip ?? null);
 
     const tokens = await this.issueTokens(user, meta);
     void this.analyticsService.ingest(user.id, {

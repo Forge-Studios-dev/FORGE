@@ -34,6 +34,12 @@ export default () => ({
   auth: {
     /** e.g. `.forgestudios.net` when API and web are on different subdomains */
     refreshCookieDomain: process.env.AUTH_REFRESH_COOKIE_DOMAIN || '',
+    requireVerifiedLogin: process.env.AUTH_REQUIRE_VERIFIED_LOGIN === 'true',
+    lockout: {
+      maxAttempts: parseInt(process.env.AUTH_LOCKOUT_MAX_ATTEMPTS || '10', 10),
+      windowSec: parseInt(process.env.AUTH_LOCKOUT_WINDOW_SEC || '900', 10),
+      lockoutSec: parseInt(process.env.AUTH_LOCKOUT_LOCKOUT_SEC || '1800', 10),
+    },
   },
 
   aws: {
