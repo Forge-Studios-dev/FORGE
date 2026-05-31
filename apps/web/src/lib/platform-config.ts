@@ -1,0 +1,48 @@
+export type PlatformAuthConfig = {
+  provider: 'custom';
+  emailPassword: boolean;
+  googleOAuth: boolean;
+  emailVerification: 'link';
+  otpVerification: boolean;
+};
+
+export type PlatformFirebaseConfig = {
+  adminConfigured: boolean;
+  fcmEnabled: boolean;
+  appCheckEnabled: boolean;
+  usesFirebaseAuth: boolean;
+};
+
+export type PlatformPublicConfig = {
+  featureFlags: string[];
+  apiVersion: string;
+  auth?: PlatformAuthConfig;
+  firebase?: PlatformFirebaseConfig;
+};
+
+let cached: PlatformPublicConfig | null = null;
+
+/** Fetch public platform config (auth + firebase capability flags). */
+export async function loadPlatformConfig(): Promise<PlatformPublicConfig> {
+  if (cached) return cached;
+  const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  try {
+    const res = await fetch(`${base}/platform/config`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('platform config failed');
+    const json = (await res.json()) as { data?: PlatformPublicConfig };
+    cached = {
+      featureFlags: json.data?.featureFlags ?? [],
+      apiVersion: json.data?.apiVersion ?? 'v1',
+      auth: json.data?.auth,
+      firebase: json.data?.firebase,
+    };
+    return cached;
+  } catch {
+    return { featureFlags: [], apiVersion: 'v1' };
+  }
+}
+
+export function isGoogleOAuthEnabled(config: PlatformPublicConfig): boolean {
+  if (process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true') return true;
+  return config.auth?.googleOAuth === true;
+}

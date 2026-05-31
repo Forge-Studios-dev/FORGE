@@ -2,7 +2,9 @@
 
 **Status:** Production operational (2026-05-31).
 
-**Shipped:** PR [#26](https://github.com/Forge-Studios-dev/FORGE/pull/26), [#27](https://github.com/Forge-Studios-dev/FORGE/pull/27), [#28](https://github.com/Forge-Studios-dev/FORGE/pull/28).
+**Shipped:** PR [#26](https://github.com/Forge-Studios-dev/FORGE/pull/26)–[#32](https://github.com/Forge-Studios-dev/FORGE/pull/32) (platform `auth`/`firebase` flags, mobile Google OAuth).
+
+**Web:** Login/signup read `GET /platform/config` for Google button (`apps/web/src/lib/platform-config.ts`) — env `NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED` still works as override.
 
 ## 1. Production release
 
@@ -27,17 +29,21 @@ npm run migration:run --workspace=@forge/api
 
 ## 3. Fly secrets (optional — enable when ready)
 
+See template: `bash scripts/enable-production-auth-features.sh` (uncomment and fill values).
+
 ```bash
 fly secrets set AUTH_REFRESH_COOKIE_DOMAIN='.forgestudios.net' --app forge-studios-api
-
-# Firebase push (when project configured):
-# FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FCM_ENABLED=true
-
-# Google OAuth (when OAuth client ready):
-# GOOGLE_OAUTH_ENABLED=true, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_OAUTH_CALLBACK_URL
+# GOOGLE_OAUTH_ENABLED, GOOGLE_CLIENT_*, FIREBASE_*, FCM_ENABLED — see script
 ```
 
 Keep `APP_CHECK_ENABLED=false` until web/mobile send App Check tokens.
+
+After deploy, confirm capability flags:
+
+```bash
+bash scripts/verify-production-auth.sh
+# Expect data.auth.provider=custom and data.firebase.usesFirebaseAuth=false
+```
 
 ## 4. Vercel (web)
 

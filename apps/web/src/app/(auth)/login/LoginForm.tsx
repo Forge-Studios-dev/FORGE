@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -10,9 +10,9 @@ import { AuthScreen, authFieldClass, authLabelClass } from '@/components/auth/Au
 import { AuthTokens } from '@/types';
 import { safeReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
+import { isGoogleOAuthEnabled, loadPlatformConfig } from '@/lib/platform-config';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-const GOOGLE_OAUTH_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true';
 
 export function LoginForm({
   nextPath,
@@ -28,6 +28,13 @@ export function LoginForm({
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showGoogle, setShowGoogle] = useState(
+    process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true',
+  );
+
+  useEffect(() => {
+    void loadPlatformConfig().then((cfg) => setShowGoogle(isGoogleOAuthEnabled(cfg)));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,7 +154,7 @@ export function LoginForm({
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
-        {GOOGLE_OAUTH_ENABLED && (
+        {showGoogle && (
           <a
             href={`${API_URL}/auth/google`}
             className="mt-3 block w-full rounded-full border border-outline py-4 text-center text-sm font-semibold text-on-surface hover:bg-surface-container"
