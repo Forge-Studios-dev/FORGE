@@ -4,7 +4,7 @@ set -euo pipefail
 
 API="${FORGE_SMOKE_API:-https://api.forgestudios.net/api/v1}"
 WEB="${FORGE_WEB_URL:-https://forgestudios.net}"
-ANDROID_CLIENT_SUFFIX="${FORGE_ANDROID_OAUTH_SUFFIX:-sfpi88tlumvlov1hotun5vtrq7m43j4h}"
+EXPECTED_CALLBACK="${FORGE_GOOGLE_CALLBACK:-${API%/api/v1}/auth/google/callback}"
 
 echo "==> FORGE production auth audit"
 echo ""
@@ -23,12 +23,16 @@ if [[ -z "$LOC" ]]; then
   echo "  FAIL: no redirect from GET /auth/google"
 else
   CID="$(python3 -c "from urllib.parse import urlparse,parse_qs; u=urlparse('''$LOC'''); print(parse_qs(u.query).get('client_id',[''])[0])" 2>/dev/null || true)"
+  REDIRECT="$(python3 -c "from urllib.parse import urlparse,parse_qs; u=urlparse('''$LOC'''); print(parse_qs(u.query).get('redirect_uri',[''])[0])" 2>/dev/null || true)"
   echo "  client_id=$CID"
-  if [[ "$CID" == *"$ANDROID_CLIENT_SUFFIX"* ]]; then
-    echo "  WARN: client_id looks like Firebase ANDROID client — Google sign-in often fails."
-    echo "        Create a Web OAuth client: docs/auth-enterprise/PRODUCTION_AUTH_AUDIT.md"
+  echo "  redirect_uri=$REDIRECT"
+  if [[ -z "$CID" ]]; then
+    echo "  FAIL: missing client_id in Google authorize URL"
+  elif [[ "$REDIRECT" == "$EXPECTED_CALLBACK" ]]; then
+    echo "  OK: server-side OAuth uses API callback (Web application client)"
   else
-    echo "  OK: client_id does not match known Android suffix"
+    echo "  WARN: redirect_uri is not $EXPECTED_CALLBACK"
+    echo "        Fix GOOGLE_CALLBACK_URL / OAuth Web client: docs/auth-enterprise/PRODUCTION_AUTH_AUDIT.md"
   fi
 fi
 
