@@ -28,8 +28,8 @@ The **Firebase Architecture Audit** (approved and shipped) explicitly **rejects 
 | Layer | Connected? | Details |
 |-------|------------|---------|
 | **API (production)** | **Optional / likely off** | `FirebaseService` only initializes if `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` are set. Defaults: `FCM_ENABLED=false`, `APP_CHECK_ENABLED=false`. |
-| **Web** | **Code ready, env-dependent** | Uses `firebase/app`, `firebase/app-check`, `firebase/messaging` — **not** `firebase/auth`. Works only when `NEXT_PUBLIC_FIREBASE_*` set in Vercel. |
-| **Mobile** | **Not connected** | `firebase_options.dart` = `REPLACE_ME` — `flutterfire configure` not done. |
+| **Web** | **Code ready, env-dependent** | Uses `firebase/app`, `firebase/app-check`, `firebase/messaging` — **not** `firebase/auth`. Google button from `GET /platform/config` (`auth.googleOAuth`) or `NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED`. |
+| **Mobile** | **Not connected** | `firebase_options.dart` = `REPLACE_ME` — run `bash scripts/configure-mobile-firebase.sh` after Firebase project access. |
 | **Login / signup / reset** | **Not via Firebase Auth** | 100% custom API + Postgres |
 
 **Verdict:** The repo has **Firebase integration code**, but production is **not** using Firebase for sign-in unless you separately configured secrets. Identity is **always** your API.
