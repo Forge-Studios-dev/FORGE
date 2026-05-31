@@ -52,7 +52,8 @@
     "auth:check:fly": "bash scripts/check-auth-env.sh fly",
     "auth:bootstrap": "bash scripts/bootstrap-local-auth.sh",
     "auth:deploy": "bash scripts/deploy-auth-secrets.sh",
-    "auth:verify": "bash scripts/verify-production-auth.sh"
+    "auth:verify": "bash scripts/verify-production-auth.sh",
+    "firebase:check": "bash scripts/check-firebase-connection.sh"
   },
   "devDependencies": {
     "vite": "^6.2.0",

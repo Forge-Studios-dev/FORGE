@@ -10,7 +10,9 @@ import { AuthScreen, authFieldClass, authLabelClass } from '@/components/auth/Au
 import { AuthTokens } from '@/types';
 import { safeReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
+import { GoogleOAuthSetupNotice } from '@/components/auth/GoogleOAuthSetupNotice';
 import { isGoogleOAuthEnabled, loadPlatformConfig } from '@/lib/platform-config';
+import type { PlatformPublicConfig } from '@forge/shared-types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -31,9 +33,13 @@ export function LoginForm({
   const [showGoogle, setShowGoogle] = useState(
     process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true',
   );
+  const [platformConfig, setPlatformConfig] = useState<PlatformPublicConfig | null>(null);
 
   useEffect(() => {
-    void loadPlatformConfig().then((cfg) => setShowGoogle(isGoogleOAuthEnabled(cfg)));
+    void loadPlatformConfig().then((cfg) => {
+      setPlatformConfig(cfg);
+      setShowGoogle(isGoogleOAuthEnabled(cfg));
+    });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -114,6 +120,7 @@ export function LoginForm({
             Platform administrator accounts cannot use the public site. Sign in on the admin application.
           </p>
         )}
+        {platformConfig && <GoogleOAuthSetupNotice config={platformConfig} />}
         {error && <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{error}</p>}
         <div>
           <label className={authLabelClass} htmlFor="email">
