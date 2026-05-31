@@ -69,6 +69,11 @@ if [[ -n "${SMTP_PASS:-}" && "${SMTP_PASS}" != *YOUR_* ]]; then
     "SMTP_PASS=${SMTP_PASS}"
     "MAIL_FROM=${MAIL_FROM}"
   )
+  if [[ -n "${RESEND_API_KEY:-}" && "${RESEND_API_KEY}" != *YOUR_* ]]; then
+    smtp_args+=("RESEND_API_KEY=${RESEND_API_KEY}")
+  elif [[ "${SMTP_PASS}" == re_* ]]; then
+    smtp_args+=("RESEND_API_KEY=${SMTP_PASS}")
+  fi
 else
   echo "WARN: SMTP_PASS not set — verification emails will not send until SMTP is configured"
 fi

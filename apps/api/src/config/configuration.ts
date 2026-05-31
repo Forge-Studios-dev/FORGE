@@ -68,6 +68,8 @@ export default () => ({
     smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
     smtpUser: process.env.SMTP_USER || '',
     smtpPass: process.env.SMTP_PASS || '',
+    /** Optional; when set (or SMTP_PASS=re_*), uses Resend HTTP API instead of SMTP. */
+    resendApiKey: process.env.RESEND_API_KEY || '',
     from: process.env.MAIL_FROM || 'noreply@localhost',
     webUrl: process.env.WEB_URL || 'http://localhost:3000',
   },
