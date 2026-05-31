@@ -10,19 +10,20 @@ let cached: PlatformPublicConfig | null = null;
 
 /** Fetch public platform config (auth + firebase capability flags). */
 export async function loadPlatformConfig(): Promise<PlatformPublicConfig> {
-  if (cached) return cached;
+  if (cached?.auth) return cached;
   const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
   try {
     const res = await fetch(`${base}/platform/config`, { cache: 'no-store' });
     if (!res.ok) throw new Error('platform config failed');
     const json = (await res.json()) as { data?: PlatformPublicConfig };
-    cached = {
+    const cfg: PlatformPublicConfig = {
       featureFlags: json.data?.featureFlags ?? [],
       apiVersion: json.data?.apiVersion ?? 'v1',
       auth: json.data?.auth,
       firebase: json.data?.firebase,
     };
-    return cached;
+    if (cfg.auth) cached = cfg;
+    return cfg;
   } catch {
     return { featureFlags: [], apiVersion: 'v1' };
   }

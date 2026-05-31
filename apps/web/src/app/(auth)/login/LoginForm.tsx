@@ -43,12 +43,11 @@ export function LoginForm({
   );
 
   useEffect(() => {
-    if (initialPlatformConfig) return;
     void loadPlatformConfig().then((cfg) => {
       setPlatformConfig(cfg);
       setShowGoogle(isGoogleOAuthEnabled(cfg));
     });
-  }, [initialPlatformConfig]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
