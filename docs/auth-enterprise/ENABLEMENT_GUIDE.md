@@ -11,6 +11,8 @@ Enable **Google Sign-In**, **email verification links**, and **Firebase (FCM)** 
 
 ## Quick deploy (production)
 
+### Option A — local env file + Fly CLI
+
 1. Copy the template:
 
 ```bash
@@ -48,7 +50,24 @@ Check Fly only (no values printed):
 bash scripts/check-auth-env.sh fly
 ```
 
+### Option B — GitHub Actions (CI token)
+
+1. `cp secrets/auth-deploy.env.example secrets/auth-deploy.env` and fill values.
+2. `bash scripts/push-auth-secrets-to-github.sh`
+3. `gh workflow run deploy-auth-secrets.yml --ref main`
+
+Requires GitHub secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SMTP_PASS`, `FIREBASE_*`, plus existing `FLY_API_TOKEN`.
+
+### Local dev (Mailpit)
+
+```bash
+npm run auth:bootstrap
+npm run dev:api
+# Signup → open http://localhost:8025 for verification email
+```
+
 ---
+
 
 ## 1. Google OAuth
 
