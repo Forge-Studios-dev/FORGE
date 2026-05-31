@@ -32,6 +32,8 @@ Enterprise email auth & recovery (13 phases): [auth-enterprise/README.md](../aut
 | Firebase architecture audit (plan) | Shipped — [firebase/AUDIT_COMPLETION.md](../firebase/AUDIT_COMPLETION.md) |
 | Platform `auth`/`firebase` public config + web/mobile Google OAuth wiring | Shipped (#32–#33) |
 | Production verify script + smoke auth assertions | Shipped (#33+) |
+| Admin verification gates, Resend mail, view counts, OAuth notice | Shipped (#40–#44, 2026-05-31) |
+| Resend domain DNS + Fly `RESEND_API_KEY` | Ops complete (forgestudios.net verified) |
 
 ## Code changes (summary)
 
