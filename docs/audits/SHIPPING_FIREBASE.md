@@ -4,18 +4,9 @@
 
 Enterprise auth on same branch: [SHIPPING_AUTH_ENTERPRISE.md](./SHIPPING_AUTH_ENTERPRISE.md). Migrations: `1742000000000-oauth-device-tokens`, `1743000000000-user-is-active`.
 
-**Do not push directly to `main`** — one branch, one PR, one deploy.
+**Audit completion:** [docs/firebase/AUDIT_COMPLETION.md](../firebase/AUDIT_COMPLETION.md)
 
-## Branch
-
-```bash
-git fetch origin main
-git checkout -b feat/firebase-integration
-# stage all firebase-related changes, commit when ready
-git push -u origin HEAD
-```
-
-## Verify locally
+## Verify locally (regression)
 
 ```bash
 npm run ci:local

@@ -11,11 +11,13 @@ Firebase is used **selectively** — not as the platform core.
 | [ANALYTICS.md](./ANALYTICS.md) | First-party event catalog |
 | [SECURITY.md](./SECURITY.md) | Findings and App Check |
 | [COST_ANALYSIS.md](./COST_ANALYSIS.md) | Firebase cost tiers |
+| [SETUP.md](./SETUP.md) | Quick start (links to CLI guide) |
 | [CLI_SETUP.md](./CLI_SETUP.md) | Firebase CLI and secrets |
+| [AUDIT_COMPLETION.md](./AUDIT_COMPLETION.md) | Plan completion status |
 | [MIGRATION_PLAN.md](./MIGRATION_PLAN.md) | Phased rollout |
 | [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) | Pre-ship checklist |
 | [SESSION_HARDENING.md](./SESSION_HARDENING.md) | HttpOnly `forge_session` ADR |
 
 Repo config: [`firebase/`](../../firebase/) (project aliases only — no Hosting/Firestore deploy).
 
-Shipping: [SHIPPING_FIREBASE.md](../audits/SHIPPING_FIREBASE.md) — branch `feat/firebase-integration`, CI verified.
+**Shipped** on `main` (2026-05-31). Shipping: [SHIPPING_FIREBASE.md](../audits/SHIPPING_FIREBASE.md) · Post-deploy: [../auth-enterprise/POST_DEPLOY.md](../auth-enterprise/POST_DEPLOY.md).
