@@ -49,8 +49,10 @@ import {
   isRedisQuotaError,
   safeRedisDel,
   safeRedisGet,
+  safeRedisIncr,
   safeRedisSetex,
 } from '../../common/redis/redis-safe.util';
+import { RecordViewDto } from './dto/record-view.dto';
 import { rewriteMediaUrlToCdn } from '../../common/media-url.util';
 import {
   createS3Client,
@@ -67,6 +69,19 @@ export const VIDEO_PROCESSING_QUEUE = 'video-processing';
 export const VIDEO_PROCESSING_DLQ_QUEUE = 'video-processing-dlq';
 
 const VIDEO_DETAIL_CACHE_TTL = 120;
+
+/** YouTube-style: count after meaningful watch time, dedupe repeat plays ~24h. */
+const VIEW_DEDUPE_TTL_SEC = 86_400;
+const VIEW_MAX_THRESHOLD_SEC = 30;
+const VIEW_MIN_THRESHOLD_SEC = 3;
+
+export function viewCountThresholdSeconds(durationSeconds?: number | null): number {
+  if (!durationSeconds || durationSeconds <= 0) return VIEW_MAX_THRESHOLD_SEC;
+  return Math.max(
+    VIEW_MIN_THRESHOLD_SEC,
+    Math.min(VIEW_MAX_THRESHOLD_SEC, Math.floor(durationSeconds * 0.3)),
+  );
+}
 
 @Injectable()
 export class VideosService {
@@ -664,9 +679,6 @@ export class VideosService {
   ): Promise<PublicVideo> {
     const video = await this.findById(id);
     this.assertCanWatchVideo(video, viewerId, viewerRole);
-    if (video.status === VideoStatus.READY) {
-      await this.incrementViewCount(id, viewerId ?? undefined);
-    }
     const mapped = this.mapToPublicVideo(video);
     const pending = await this.getPendingViewCount(id);
     if (pending > 0) {
@@ -694,23 +706,60 @@ export class VideosService {
   }
 
   async getPendingViewCount(videoId: string): Promise<number> {
-    const raw = await this.redis.get(this.pendingViewKey(videoId));
+    const raw = await safeRedisGet(this.redis, this.pendingViewKey(videoId), this.logger);
     return raw ? parseInt(raw, 10) || 0 : 0;
   }
 
-  /** Buffered in Redis; flushed to Postgres periodically (see ViewCountFlushService). */
-  async incrementViewCount(videoId: string, viewerKey?: string): Promise<void> {
-    if (viewerKey) {
-      const dedupe = await this.redis.set(
-        this.viewDedupeKey(viewerKey, videoId),
-        '1',
-        'EX',
-        3600,
-        'NX',
-      );
-      if (dedupe !== 'OK') return;
+  /**
+   * Count a view after the viewer passes the watch-time threshold (not on page load).
+   * Dedupes per viewerKey + video for 24h; skips creator watching own video.
+   */
+  async recordQualifiedView(
+    videoId: string,
+    viewerKey: string,
+    dto: RecordViewDto,
+    viewerUserId?: string,
+  ): Promise<{ counted: boolean; reason?: string }> {
+    const video = await this.findById(videoId);
+    this.assertCanWatchVideo(video, viewerUserId ?? null);
+    if (video.status !== VideoStatus.READY) {
+      return { counted: false, reason: 'not_ready' };
     }
-    await this.redis.incr(this.pendingViewKey(videoId));
+    if (viewerUserId && viewerUserId === video.userId) {
+      return { counted: false, reason: 'owner' };
+    }
+    const threshold = viewCountThresholdSeconds(
+      dto.durationSeconds ?? video.durationSeconds ?? undefined,
+    );
+    if (dto.progressSeconds < threshold) {
+      return { counted: false, reason: 'below_threshold' };
+    }
+    const counted = await this.incrementViewCount(videoId, viewerKey);
+    return { counted, reason: counted ? undefined : 'deduped' };
+  }
+
+  /** Buffered in Redis; flushed to Postgres periodically (see ViewCountFlushService). */
+  async incrementViewCount(videoId: string, viewerKey?: string): Promise<boolean> {
+    if (viewerKey) {
+      try {
+        const dedupe = await this.redis.set(
+          this.viewDedupeKey(viewerKey, videoId),
+          '1',
+          'EX',
+          VIEW_DEDUPE_TTL_SEC,
+          'NX',
+        );
+        if (dedupe !== 'OK') return false;
+      } catch (err) {
+        if (isRedisQuotaError(err)) return false;
+        this.logger.warn(
+          `view dedupe SET failed: ${err instanceof Error ? err.message : err}`,
+        );
+        return false;
+      }
+    }
+    const n = await safeRedisIncr(this.redis, this.pendingViewKey(videoId), this.logger);
+    return n !== null;
   }
 
   async recordWatch(userId: string, videoId: string, dto: RecordWatchDto) {
@@ -728,6 +777,15 @@ export class VideosService {
         watchedAt: new Date(),
       },
       { conflictPaths: ['userId', 'videoId'] },
+    );
+    await this.recordQualifiedView(
+      videoId,
+      userId,
+      {
+        progressSeconds,
+        durationSeconds: video.durationSeconds ?? undefined,
+      },
+      userId,
     );
     return { ok: true };
   }

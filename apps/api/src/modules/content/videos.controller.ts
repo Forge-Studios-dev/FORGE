@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Put,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -22,6 +23,8 @@ import { PresignedUrlDto } from './dto/presigned-url.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { ThumbnailPresignedDto } from './dto/thumbnail-presigned.dto';
 import { RecordWatchDto } from './dto/record-watch.dto';
+import { RecordViewDto } from './dto/record-view.dto';
+import { Request } from 'express';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
@@ -177,6 +180,29 @@ export class VideosController {
   @ApiOperation({ summary: 'Cancel/remove uploading, processing, or failed video' })
   cancelUpload(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.videosService.cancelUpload(user.sub, id);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Post(':id([0-9a-fA-F-]{36})/view')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Record a qualified view after watch-time threshold (YouTube-style)',
+  })
+  recordView(
+    @Param('id') id: string,
+    @Body() dto: RecordViewDto,
+    @Req() req: Request,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip =
+      (typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : undefined) ||
+      req.ip ||
+      'anon';
+    const viewerKey = user?.sub ?? ip;
+    return this.videosService.recordQualifiedView(id, viewerKey, dto, user?.sub);
   }
 
   @Post(':id([0-9a-fA-F-]{36})/watch')
