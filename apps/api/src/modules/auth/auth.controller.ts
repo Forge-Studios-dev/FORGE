@@ -213,11 +213,11 @@ export class AuthController {
   }
 
   @Post('verify-email/resend')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 3_600_000 } })
   @ApiOperation({ summary: 'Resend email verification link' })
   async resendVerification(@CurrentUser() user: JwtPayload) {
-    await this.authService.resendVerification(user.sub);
+    return this.authService.resendVerification(user.sub);
   }
 
   @Public()

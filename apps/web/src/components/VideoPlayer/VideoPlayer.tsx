@@ -25,7 +25,29 @@ export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }
   const lastProgressRef = useRef(0);
   const startupTrackedRef = useRef(false);
   const completeTrackedRef = useRef(false);
+  const viewRecordedRef = useRef(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+
+  const maybeRecordView = useCallback(
+    (currentTime: number, duration: number) => {
+      if (!videoId || viewRecordedRef.current) return;
+      const threshold =
+        duration > 0
+          ? Math.max(3, Math.min(30, Math.floor(duration * 0.3)))
+          : 30;
+      if (currentTime < threshold) return;
+      viewRecordedRef.current = true;
+      void api
+        .post(`/videos/${videoId}/view`, {
+          progressSeconds: Math.floor(currentTime),
+          durationSeconds: duration > 0 ? Math.floor(duration) : undefined,
+        })
+        .catch(() => {
+          viewRecordedRef.current = false;
+        });
+    },
+    [videoId],
+  );
 
   const recordProgress = useCallback(
     async (seconds: number) => {
@@ -82,7 +104,10 @@ export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }
     const video = videoRef.current;
 
     const onTimeUpdate = () => {
-      if (video.currentTime > 0) void recordProgress(video.currentTime);
+      if (video.currentTime > 0) {
+        void recordProgress(video.currentTime);
+        maybeRecordView(video.currentTime, video.duration);
+      }
       if (
         videoId &&
         !completeTrackedRef.current &&
@@ -114,7 +139,7 @@ export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }
         hlsRef.current = null;
       }
     };
-  }, [hlsUrl, attachHls, recordProgress]);
+  }, [hlsUrl, attachHls, recordProgress, maybeRecordView]);
 
   if (!hlsUrl) {
     return (

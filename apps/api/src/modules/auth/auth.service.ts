@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -33,6 +34,7 @@ export type ClientSessionMeta = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly BCRYPT_ROUNDS = 12;
 
   constructor(
@@ -76,7 +78,13 @@ export class AuthService {
     await this.userRepository.save(user);
 
     const tokens = await this.issueTokens(user, meta);
-    void this.sendEmailVerification(user).catch(() => undefined);
+    try {
+      await this.sendEmailVerification(user);
+    } catch (err) {
+      this.logger.warn(
+        `Verification email not sent on signup for ${user.email}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
     void this.analyticsService.ingest(user.id, {
       eventName: 'auth.signup',
       properties: { method: 'email' },
@@ -422,16 +430,26 @@ export class AuthService {
 
   private async sendEmailVerification(user: User) {
     const rawToken = randomBytes(32).toString('hex');
-    user.emailVerificationTokenHash = this.hashToken(rawToken);
-    user.emailVerificationExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
-    await this.userRepository.save(user);
+    const tokenHash = this.hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    // Partial update avoids ORM issues when optional schema columns are mid-migration.
+    await this.userRepository.update(user.id, {
+      emailVerificationTokenHash: tokenHash,
+      emailVerificationExpiresAt: expiresAt,
+    });
 
     const webUrl = this.configService.get<string>('mail.webUrl') || 'http://localhost:3000';
     const link = `${webUrl}/verify-email?token=${rawToken}`;
     let body = `Confirm your email address:\n${link}\n\nThis link expires in 48 hours.`;
     if (this.emailOtpService.isEnabled()) {
-      const otp = await this.emailOtpService.issueOtp(user.email);
-      body += `\n\nOr enter this 6-digit code on the verify page (valid 10 minutes):\n${otp}`;
+      try {
+        const otp = await this.emailOtpService.issueOtp(user.email);
+        body += `\n\nOr enter this 6-digit code on the verify page (valid 10 minutes):\n${otp}`;
+      } catch (err) {
+        this.logger.warn(
+          `Email OTP skipped for ${user.email}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
     }
     await this.mailService.sendMail(user.email, 'Verify your FORGE email', body);
   }
