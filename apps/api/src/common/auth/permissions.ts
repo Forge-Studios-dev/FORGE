@@ -33,26 +33,38 @@ function getAccessTier(user: User): AccessTier {
 }
 
 export function permissionsForUser(user: User): Permission[] {
+  if (user.isActive === false) return [];
+
   const tier = getAccessTier(user);
-  const base = [Permission.ENGAGE, Permission.USE_LIBRARY];
+  const verified = user.isVerified === true;
+  /** Browse-only until email verified — no like/comment/follow/library mutations. */
+  const signedInVerified = verified
+    ? [Permission.ENGAGE, Permission.USE_LIBRARY]
+    : [];
 
   switch (tier) {
     case 'admin':
       return [
-        ...base,
+        Permission.ENGAGE,
+        Permission.USE_LIBRARY,
         Permission.VIEW_DASHBOARD,
         Permission.UPLOAD_VIDEO,
         Permission.START_STREAM,
         Permission.MANAGE_PLATFORM,
       ];
     case 'creator':
-      return [...base, Permission.VIEW_DASHBOARD, Permission.UPLOAD_VIDEO, Permission.START_STREAM];
+      return [
+        ...signedInVerified,
+        Permission.VIEW_DASHBOARD,
+        Permission.UPLOAD_VIDEO,
+        Permission.START_STREAM,
+      ];
     case 'creator_pending':
     case 'creator_rejected':
-      return [...base, Permission.VIEW_DASHBOARD];
+      return [...signedInVerified, Permission.VIEW_DASHBOARD];
     case 'viewer':
     default:
-      return base;
+      return signedInVerified;
   }
 }
 

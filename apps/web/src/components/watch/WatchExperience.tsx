@@ -6,6 +6,12 @@ import { VideoPlayer } from '@/components/VideoPlayer/VideoPlayerLazy';
 import { VideoInfo } from '@/components/VideoPlayer/VideoInfo';
 import { CommentsPanel } from '@/components/Comments/CommentsPanel';
 import { AuthGateModal } from '@/components/gates/AuthGateModal';
+import { VerifyEmailGateModal } from '@/components/gates/VerifyEmailGateModal';
+import {
+  engageBlockedMessage,
+  getEngageBlockReason,
+  type EngageBlockReason,
+} from '@/lib/engage-access';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
 import { useAuth } from '@/lib/auth';
@@ -17,8 +23,10 @@ export function WatchExperience({
   video: Video;
   sidebar?: React.ReactNode;
 }) {
-  const { isGuest, canEngage, user } = useAuth();
-  const [authGate, setAuthGate] = useState(false);
+  const { isGuest, user } = useAuth();
+  const [engageBlock, setEngageBlock] = useState<EngageBlockReason | null>(null);
+  const blockReason = getEngageBlockReason(user, isGuest);
+  const onEngageBlocked = blockReason ? () => setEngageBlock(blockReason) : undefined;
   const canPlay = video.status === 'ready' && !!video.hlsUrl;
   const isPrivate = video.visibility === 'private';
   const isOwner = user?.id === video.userId;
@@ -65,14 +73,14 @@ export function WatchExperience({
           )}
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <VideoInfo video={video} onGuestAction={!canEngage ? () => setAuthGate(true) : undefined} />
+              <VideoInfo video={video} onGuestAction={onEngageBlocked} />
             </div>
             <ReportContentButton targetType="video" targetId={video.id} />
           </div>
           <CommentsPanel
             videoId={video.id}
             commentCount={video.commentCount}
-            onGuestInteract={!canEngage ? () => setAuthGate(true) : undefined}
+            onGuestInteract={onEngageBlocked}
           />
         </div>
         {sidebar ? (
@@ -83,9 +91,14 @@ export function WatchExperience({
         ) : null}
       </div>
       <AuthGateModal
-        open={authGate}
-        onClose={() => setAuthGate(false)}
-        message="Sign in to interact with this lesson."
+        open={engageBlock === 'guest'}
+        onClose={() => setEngageBlock(null)}
+        message={engageBlockedMessage('guest')}
+      />
+      <VerifyEmailGateModal
+        open={engageBlock === 'unverified'}
+        onClose={() => setEngageBlock(null)}
+        message={engageBlockedMessage('unverified')}
       />
     </main>
   );

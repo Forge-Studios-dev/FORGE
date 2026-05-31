@@ -41,7 +41,24 @@ export class PermissionsGuard implements CanActivate {
     const userPermissions = permissionsForUser(user);
 
     const ok = required.every((p) => userPermissions.includes(p));
-    if (!ok) throw new ForbiddenException('Insufficient permissions');
+    if (!ok) {
+      const needsVerified = required.some(
+        (p) => p === Permission.ENGAGE || p === Permission.USE_LIBRARY,
+      );
+      if (needsVerified && !user.isVerified) {
+        throw new ForbiddenException({
+          message: 'Verify your email to use this feature',
+          code: 'EMAIL_NOT_VERIFIED',
+        });
+      }
+      if (user.isActive === false) {
+        throw new ForbiddenException({
+          message: 'This account has been disabled',
+          code: 'ACCOUNT_DISABLED',
+        });
+      }
+      throw new ForbiddenException('Insufficient permissions');
+    }
     return true;
   }
 }

@@ -6,9 +6,10 @@
  * | FORGE tier        | YouTube analogue              | Browse/watch | Like/comment/subscribe | Library/history | Studio entry | Upload/go live |
  * |-------------------|-------------------------------|--------------|------------------------|-----------------|--------------|----------------|
  * | guest             | Signed out                    | yes          | no (sign-in prompts)   | no              | no           | no             |
- * | viewer            | Signed in, no channel         | yes          | yes                    | yes             | apply        | no             |
- * | creator_pending   | Channel / YPP pending         | yes          | yes                    | yes             | status only  | no             |
- * | creator_rejected  | Monetization rejected         | yes          | yes                    | yes             | re-apply     | no             |
+ * | viewer            | Signed in, no channel         | yes          | yes if email verified  | yes if verified | apply        | no             |
+ * | viewer (unverified) | Signed in, email pending    | yes          | no                     | no              | apply        | no             |
+ * | creator_pending   | Channel / YPP pending         | yes          | yes if verified        | yes if verified | status only  | no             |
+ * | creator_rejected  | Monetization rejected         | yes          | yes if verified        | yes if verified | re-apply     | no             |
  * | creator           | Channel owner (approved)      | yes          | yes                    | yes             | full Studio  | yes*           |
  * | admin             | Internal ops (admin app only) | N/A on web   | N/A                    | N/A             | N/A on web   | via API only   |
  *
@@ -64,24 +65,33 @@ export function getAccessTier(
 
 export function permissionsForProfile(profile: UserAccessProfile): Permission[] {
   const tier = getAccessTier(profile, true);
-  const base: Permission[] = [Permission.ENGAGE, Permission.USE_LIBRARY];
+  const verified = profile.isVerified === true;
+  const signedInVerified = verified
+    ? [Permission.ENGAGE, Permission.USE_LIBRARY]
+    : [];
 
   switch (tier) {
     case 'admin':
       return [
-        ...base,
+        Permission.ENGAGE,
+        Permission.USE_LIBRARY,
         Permission.VIEW_DASHBOARD,
         Permission.UPLOAD_VIDEO,
         Permission.START_STREAM,
         Permission.MANAGE_PLATFORM,
       ];
     case 'creator':
-      return [...base, Permission.VIEW_DASHBOARD, Permission.UPLOAD_VIDEO, Permission.START_STREAM];
+      return [
+        ...signedInVerified,
+        Permission.VIEW_DASHBOARD,
+        Permission.UPLOAD_VIDEO,
+        Permission.START_STREAM,
+      ];
     case 'creator_pending':
     case 'creator_rejected':
-      return [...base, Permission.VIEW_DASHBOARD];
+      return [...signedInVerified, Permission.VIEW_DASHBOARD];
     case 'viewer':
-      return base;
+      return signedInVerified;
     default:
       return [];
   }

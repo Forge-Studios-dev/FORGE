@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -31,6 +31,8 @@ export type AdminUserDetail = {
   role: UserRole;
   isVerified: boolean;
   isActive: boolean;
+  deletedAt: Date | null;
+  emailVerificationPending: boolean;
   creatorStatus: CreatorStatus | null;
   creatorRequestedAt: Date | null;
   creatorReviewedAt: Date | null;
@@ -116,6 +118,8 @@ export class AdminService {
       role: user.role,
       isVerified: user.isVerified,
       isActive: user.isActive,
+      deletedAt: user.deletedAt ?? null,
+      emailVerificationPending: !user.isVerified,
       creatorStatus: user.creatorStatus,
       creatorRequestedAt: user.creatorRequestedAt,
       creatorReviewedAt: user.creatorReviewedAt,
@@ -131,8 +135,35 @@ export class AdminService {
 
   async findUserById(id: string): Promise<AdminUserDetail> {
     const user = await this.userRepository.findOne({ where: { id } });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user || user.deletedAt) throw new NotFoundException('User not found');
     return this.toAdminUserDetail(user);
+  }
+
+  async deleteUser(id: string) {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role === UserRole.ADMIN) {
+      throw new BadRequestException('Cannot delete platform admin accounts');
+    }
+    const suffix = id.replace(/-/g, '').slice(0, 12);
+    user.deletedAt = new Date();
+    user.isActive = false;
+    user.isVerified = false;
+    user.email = `deleted+${suffix}@removed.invalid`;
+    user.username = `deleted_${suffix}`;
+    user.displayName = 'Deleted user';
+    user.emailVerificationTokenHash = null;
+    user.emailVerificationExpiresAt = null;
+    await this.userRepository.save(user);
+    await this.authService.logoutAll(id);
+    return { ok: true };
+  }
+
+  async resendUserVerificationEmail(id: string) {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.deletedAt) throw new NotFoundException('User not found');
+    return this.authService.resendVerification(id);
   }
 
   async listUsers(options: {
@@ -141,9 +172,16 @@ export class AdminService {
     search?: string;
     role?: UserRole;
     creatorStatus?: CreatorStatus;
+    isActive?: boolean;
+    emailVerified?: boolean;
+    hasPendingReports?: boolean;
   }) {
-    const { page, limit, search, role, creatorStatus } = options;
-    const query = this.userRepository.createQueryBuilder('u').orderBy('u.createdAt', 'DESC');
+    const { page, limit, search, role, creatorStatus, isActive, emailVerified, hasPendingReports } =
+      options;
+    const query = this.userRepository
+      .createQueryBuilder('u')
+      .where('u.deleted_at IS NULL')
+      .orderBy('u.createdAt', 'DESC');
 
     if (search) {
       query.andWhere(
@@ -153,6 +191,24 @@ export class AdminService {
     }
     if (role) query.andWhere('u.role = :role', { role });
     if (creatorStatus) query.andWhere('u.creatorStatus = :creatorStatus', { creatorStatus });
+    if (isActive === true) query.andWhere('u.is_active = true');
+    if (isActive === false) query.andWhere('u.is_active = false');
+    if (emailVerified === true) query.andWhere('u.is_verified = true');
+    if (emailVerified === false) query.andWhere('u.is_verified = false');
+    if (hasPendingReports === true) {
+      query.andWhere(
+        `EXISTS (
+          SELECT 1 FROM reports r
+          WHERE r.status = 'pending'
+          AND (
+            (r.target_type = 'user' AND r.target_id = u.id)
+            OR (r.target_type = 'video' AND r.target_id IN (
+              SELECT v.id FROM videos v WHERE v.user_id = u.id
+            ))
+          )
+        )`,
+      );
+    }
 
     const [rows, total] = await query
       .skip((page - 1) * limit)

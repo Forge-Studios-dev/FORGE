@@ -21,15 +21,21 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [creatorFilter, setCreatorFilter] = useState('');
+  const [activeFilter, setActiveFilter] = useState('');
+  const [verifiedFilter, setVerifiedFilter] = useState('');
+  const [reportedFilter, setReportedFilter] = useState('');
   const qc = useQueryClient();
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['admin-users', page, search, roleFilter, creatorFilter],
+    queryKey: ['admin-users', page, search, roleFilter, creatorFilter, activeFilter, verifiedFilter, reportedFilter],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (search) params.set('search', search);
       if (roleFilter) params.set('role', roleFilter);
       if (creatorFilter) params.set('creatorStatus', creatorFilter);
+      if (activeFilter) params.set('isActive', activeFilter);
+      if (verifiedFilter) params.set('emailVerified', verifiedFilter);
+      if (reportedFilter === 'yes') params.set('hasPendingReports', 'true');
       const { data } = await api.get(`/admin/users?${params}`);
       return data.data;
     },
@@ -95,12 +101,47 @@ export default function UsersPage() {
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
+          <select
+            value={activeFilter}
+            onChange={(e) => {
+              setActiveFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+          >
+            <option value="">Account status</option>
+            <option value="true">Active</option>
+            <option value="false">Blocked</option>
+          </select>
+          <select
+            value={verifiedFilter}
+            onChange={(e) => {
+              setVerifiedFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+          >
+            <option value="">Email verification</option>
+            <option value="true">Verified</option>
+            <option value="false">Unverified</option>
+          </select>
+          <select
+            value={reportedFilter}
+            onChange={(e) => {
+              setReportedFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+          >
+            <option value="">Reports</option>
+            <option value="yes">Pending reports</option>
+          </select>
         </div>
       </div>
 
       <AdminDataTable
-        headers={['User', 'Email', 'Role', 'Stats', 'Joined', '']}
-        colCount={6}
+        headers={['User', 'Email', 'Status', 'Role', 'Stats', 'Joined', '']}
+        colCount={7}
         isLoading={isLoading}
         isEmpty={!isLoading && !users?.length}
         emptyMessage="No users found."
@@ -126,6 +167,15 @@ export default function UsersPage() {
               </Link>
             </td>
             <td className="px-4 py-3 text-on-surface-variant">{user.email}</td>
+            <td className="px-4 py-3 text-xs">
+              {user.isActive === false ? (
+                <span className="text-error">Blocked</span>
+              ) : user.isVerified ? (
+                <span className="text-secondary">Verified</span>
+              ) : (
+                <span className="text-amber-700">Unverified</span>
+              )}
+            </td>
             <td className="px-4 py-3">
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ROLE_CLASS[user.role] ?? ROLE_CLASS.user}`}>
                 {user.role}

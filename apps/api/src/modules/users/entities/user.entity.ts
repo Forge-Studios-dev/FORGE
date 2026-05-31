@@ -91,6 +91,10 @@ export class User {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
+  /** Soft-delete timestamp — account removed from admin lists and sign-in. */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
+  deletedAt: Date | null;
+
   @Column({ name: 'email_verification_token_hash', type: 'varchar', nullable: true })
   @Exclude()
   emailVerificationTokenHash: string | null;

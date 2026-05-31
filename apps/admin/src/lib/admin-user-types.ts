@@ -8,6 +8,9 @@ export type AdminUser = {
   bannerUrl?: string | null;
   role: string;
   isVerified: boolean;
+  isActive?: boolean;
+  deletedAt?: string | null;
+  emailVerificationPending?: boolean;
   creatorStatus?: string | null;
   creatorRequestedAt?: string | null;
   creatorReviewedAt?: string | null;
