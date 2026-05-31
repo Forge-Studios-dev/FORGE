@@ -3,9 +3,17 @@
 import type { PlatformPublicConfig } from '@forge/shared-types';
 import { isMailConfigured } from '@forge/shared-types';
 
-/** Shown on signup when API reports SMTP is not configured. */
+function isLocalDevApi(): boolean {
+  const base = process.env.NEXT_PUBLIC_API_URL ?? '';
+  return base.includes('localhost') || base.includes('127.0.0.1');
+}
+
+/** Dev-only: signup when local API has no SMTP. */
 export function AuthSetupNotice({ config }: { config: PlatformPublicConfig }) {
   if (isMailConfigured(config)) {
+    return null;
+  }
+  if (!isLocalDevApi()) {
     return null;
   }
 

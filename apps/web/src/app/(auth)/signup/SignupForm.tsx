@@ -47,12 +47,11 @@ export function SignupForm({
   );
 
   useEffect(() => {
-    if (initialPlatformConfig) return;
     void loadPlatformConfig().then((cfg) => {
       setPlatformConfig(cfg);
       setShowGoogle(isGoogleOAuthEnabled(cfg));
     });
-  }, [initialPlatformConfig]);
+  }, []);
 
   const loginHref =
     nextPath && nextPath !== '/'
