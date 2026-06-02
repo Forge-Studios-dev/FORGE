@@ -43,6 +43,6 @@ RUN chmod +x apps/api/docker-entrypoint.sh
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD curl -f http://localhost:3001/api/v1/health || exit 1
+  CMD curl -f http://localhost:3001/api/v1/health/live || exit 1
 
 CMD ["apps/api/docker-entrypoint.sh"]

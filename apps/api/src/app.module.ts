@@ -41,6 +41,7 @@ import { MetricsController } from './common/metrics/metrics.controller';
 import { bullMqConnectionFromConfig } from './config/bull-redis.util';
 import { redisTlsOptions } from './common/redis/redis-tls.util';
 import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
+import { MUX_VOD_INGEST_QUEUE } from './modules/content/mux-vod.constants';
 import { ANALYTICS_INGEST_QUEUE } from './modules/analytics/analytics-ingest.constants';
 import { PUSH_DISPATCH_QUEUE } from './modules/notifications/push-dispatch.constants';
 import { FirebaseModule } from './modules/firebase/firebase.module';
@@ -129,6 +130,15 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
     }),
 
     BullModule.registerQueue({ name: VIDEO_PROCESSING_QUEUE }),
+    BullModule.registerQueue({
+      name: MUX_VOD_INGEST_QUEUE,
+      defaultJobOptions: {
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnFail: { age: 7 * 24 * 3600 },
+        removeOnComplete: { age: 24 * 3600, count: 500 },
+      },
+    }),
     BullModule.registerQueue({
       name: ANALYTICS_INGEST_QUEUE,
       defaultJobOptions: {

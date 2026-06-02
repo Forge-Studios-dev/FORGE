@@ -153,6 +153,17 @@ fly logs --app forge-studios-api
 
 ## Part 2 — Mux (live streaming)
 
+## Part 2.5 — Mux Video (VOD)
+
+FORGE can run VOD transcoding on **Mux Video** while keeping the existing S3 upload flow (S3 PUT → /videos/:id/complete).
+
+- Set `VIDEO_TRANSCODE_PROVIDER=mux` on both **API** and **worker** Fly apps.
+- Ensure the Mux webhook includes `video.asset.ready` + `video.asset.errored` (same webhook URL as live).
+- Playback uses `https://stream.mux.com/<playbackId>.m3u8` and thumbnails use `https://image.mux.com/<playbackId>/thumbnail.jpg`.
+
+Raw S3 uploads remain private and are never served directly to clients.
+
+
 ### 2.1 Create Mux account
 
 1. [dashboard.mux.com](https://dashboard.mux.com) → sign up (trial credits often available).
@@ -172,7 +183,8 @@ fly logs --app forge-studios-api
 3. Subscribe to events (minimum):
    - `video.live_stream.active`
    - `video.live_stream.idle`
-   - `video.asset.ready` (if recording VOD from live)
+   - `video.asset.ready` (VOD: Mux transcode ready; live: recording → VOD)
+  - `video.asset.errored` (VOD failures)
 4. Copy **Signing secret** → `MUX_WEBHOOK_SECRET`.
 
 ### 2.3 Local `apps/api/.env`
@@ -190,6 +202,7 @@ fly secrets set \
   MUX_TOKEN_ID='YOUR_MUX_TOKEN_ID' \
   MUX_TOKEN_SECRET='YOUR_MUX_TOKEN_SECRET' \
   MUX_WEBHOOK_SECRET='YOUR_MUX_SIGNING_SECRET' \
+  VIDEO_TRANSCODE_PROVIDER='mux' \
   --app forge-studios-api
 ```
 
@@ -253,6 +266,10 @@ fly secrets set \
 | `MUX_TOKEN_ID` | from Mux | API auth |
 | `MUX_TOKEN_SECRET` | from Mux | API auth |
 | `MUX_WEBHOOK_SECRET` | from Mux webhook | Signature verify |
+| `VIDEO_TRANSCODE_PROVIDER` | `mux` | Production VOD: Mux HLS/ABR (required on API + worker) |
+| `MUX_INGEST_URL_TTL_SEC` | `43200` | Presigned S3 GET TTL for Mux pull ingest |
+
+**Deploy secrets (API + worker):** `bash scripts/set-mux-secrets-fly.sh` (sets both `forge-studios-api` and `forge-studios-worker`).
 
 Templates: `apps/api/.env.example`, `apps/api/.env.production.example`
 

@@ -28,7 +28,7 @@ export default () => ({
     secret: process.env.JWT_SECRET || 'jwt-secret-change-in-production',
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
     refreshSecret: process.env.JWT_REFRESH_SECRET || 'jwt-refresh-secret-change-in-production',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
 
   auth: {
@@ -56,6 +56,13 @@ export default () => ({
     tokenId: process.env.MUX_TOKEN_ID || '',
     tokenSecret: process.env.MUX_TOKEN_SECRET || '',
     webhookSecret: process.env.MUX_WEBHOOK_SECRET || '',
+  },
+
+  video: {
+    /** VOD transcode: `mux` (Mux Video HLS/ABR) or `ffmpeg` (S3 + worker, local dev). */
+    transcodeProvider: process.env.VIDEO_TRANSCODE_PROVIDER || 'mux',
+    /** Presigned GET TTL for Mux ingest from private S3 (seconds). */
+    muxIngestUrlTtlSec: parseInt(process.env.MUX_INGEST_URL_TTL_SEC || '43200', 10),
   },
 
   rateLimit: {

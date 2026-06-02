@@ -5,7 +5,19 @@ export const REFRESH_COOKIE_NAME = 'forge_refresh';
 /** HttpOnly session marker for middleware (not a JWT). */
 export const SESSION_COOKIE_NAME = 'forge_session';
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_REFRESH_TTL_DAYS = 30;
+
+function clampInt(n: number, min: number, max: number): number {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, Math.trunc(n)));
+}
+
+function refreshTtlMs(configService: ConfigService): number {
+  // Accepts values like "30d" or "30" (days). Matches `jwt.refreshExpiresIn`.
+  const raw = configService.get<string>('jwt.refreshExpiresIn')?.trim();
+  const days = clampInt(parseInt(raw || `${DEFAULT_REFRESH_TTL_DAYS}`, 10), 1, 365);
+  return days * 24 * 60 * 60 * 1000;
+}
 
 function sessionCookieDomain(configService: ConfigService) {
   const nodeEnv = configService.get<string>('nodeEnv');
@@ -26,7 +38,7 @@ function refreshCookieOptions(configService: ConfigService) {
     secure: isProd,
     sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
     path: '/api/v1/auth',
-    maxAge: SEVEN_DAYS_MS,
+    maxAge: refreshTtlMs(configService),
     ...(domain ? { domain } : {}),
   };
 }
@@ -59,7 +71,7 @@ function sessionCookieOptions(configService: ConfigService) {
     secure: isProd,
     sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
     path: '/',
-    maxAge: SEVEN_DAYS_MS,
+    maxAge: refreshTtlMs(configService),
     ...(domain ? { domain } : {}),
   };
 }

@@ -1,5 +1,5 @@
 const COOKIE_NAME = 'forge_access_token';
-const MAX_AGE = 60 * 60 * 24 * 7;
+const MAX_AGE = 60 * 60 * 24 * 30;
 
 /** Share session across apex + www on production. */
 function cookieDomain(): string {
@@ -13,10 +13,14 @@ function cookieDomain(): string {
 
 export function setAuthCookie(token: string) {
   if (typeof document === 'undefined') return;
-  document.cookie = `${COOKIE_NAME}=${encodeURIComponent(token)}; path=/; max-age=${MAX_AGE}; SameSite=Lax${cookieDomain()}`;
+  const secure =
+    typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${COOKIE_NAME}=${encodeURIComponent(token)}; path=/; max-age=${MAX_AGE}; SameSite=Lax${secure}${cookieDomain()}`;
 }
 
 export function clearAuthCookie() {
   if (typeof document === 'undefined') return;
-  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax${cookieDomain()}`;
+  const secure =
+    typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax${secure}${cookieDomain()}`;
 }

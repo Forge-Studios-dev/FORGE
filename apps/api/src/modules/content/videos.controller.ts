@@ -233,6 +233,15 @@ export class VideosController {
     return this.videosService.getVideoForViewer(id, user?.sub, user?.role);
   }
 
+  @Post(':id([0-9a-fA-F-]{36})/retry-transcode')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Retry Mux transcode after failure' })
+  retryTranscode(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.videosService.retryTranscode(user.sub, id);
+  }
+
   @Delete(':id([0-9a-fA-F-]{36})')
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.UPLOAD_VIDEO)

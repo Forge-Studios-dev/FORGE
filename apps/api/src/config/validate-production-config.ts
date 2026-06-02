@@ -17,10 +17,28 @@ export function validateProductionConfig(config: ConfigService): void {
   }
 
   const muxTokenId = config.get<string>('mux.tokenId') || '';
+  const muxTokenSecret = config.get<string>('mux.tokenSecret') || '';
   const muxWebhookSecret = config.get<string>('mux.webhookSecret') || '';
   if (muxTokenId.trim() && !muxWebhookSecret.trim()) {
     throw new Error(
-      'MUX_WEBHOOK_SECRET is required when MUX_TOKEN_ID is set (Mux live webhooks).',
+      'MUX_WEBHOOK_SECRET is required when MUX_TOKEN_ID is set (Mux webhooks).',
+    );
+  }
+
+  const transcodeProvider = (config.get<string>('video.transcodeProvider') || 'mux').toLowerCase();
+  if (transcodeProvider !== 'mux') {
+    throw new Error(
+      'Production requires VIDEO_TRANSCODE_PROVIDER=mux (FFmpeg transcode is for local dev only).',
+    );
+  }
+  if (!muxTokenId.trim() || !muxTokenSecret.trim()) {
+    throw new Error(
+      'Production requires MUX_TOKEN_ID and MUX_TOKEN_SECRET on Fly secrets.',
+    );
+  }
+  if (!muxWebhookSecret.trim()) {
+    throw new Error(
+      'Production requires MUX_WEBHOOK_SECRET for video.asset.ready / errored webhooks.',
     );
   }
 }

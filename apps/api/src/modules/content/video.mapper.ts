@@ -1,5 +1,6 @@
-import { Video, ModerationStatus } from './entities/video.entity';
+import { Video, ModerationStatus, VideoStatus } from './entities/video.entity';
 import { toPublicUser, PublicUser } from '../users/user.mapper';
+import { sanitizeHlsUrl, sanitizeThumbnailUrl } from '../../common/media/playback-url.util';
 
 /** Coerce Postgres bigint / JS BigInt to a JSON-safe number (or null). */
 export function jsonSafeIntField(value: unknown): number | null {
@@ -38,8 +39,22 @@ export type PublicVideoMapperOpts = {
   rewriteMediaUrl?: (url: string | null | undefined) => string | null;
 };
 
+function publicPlaybackUrls(video: Video): {
+  hlsUrl: string | null;
+  thumbnailUrl: string | null;
+} {
+  if (video.status !== VideoStatus.READY) {
+    return { hlsUrl: null, thumbnailUrl: null };
+  }
+  return {
+    hlsUrl: sanitizeHlsUrl(video.hlsUrl),
+    thumbnailUrl: sanitizeThumbnailUrl(video.thumbnailUrl),
+  };
+}
+
 export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): PublicVideo {
   const rewrite = opts?.rewriteMediaUrl ?? ((u: string | null | undefined) => u ?? null);
+  const playback = publicPlaybackUrls(video);
   return {
     id: video.id,
     userId: video.userId,
@@ -48,8 +63,8 @@ export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): Publi
     description: video.description,
     status: video.status,
     visibility: video.visibility,
-    hlsUrl: rewrite(video.hlsUrl),
-    thumbnailUrl: rewrite(video.thumbnailUrl),
+    hlsUrl: rewrite(playback.hlsUrl),
+    thumbnailUrl: rewrite(playback.thumbnailUrl),
     durationSeconds: video.durationSeconds,
     viewCount: video.viewCount,
     likeCount: video.likeCount,

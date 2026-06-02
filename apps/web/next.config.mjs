@@ -4,16 +4,6 @@ import { withSentryConfig } from '@sentry/nextjs';
 const nextConfig = {
   output: 'standalone',
   transpilePackages: ['@forge/design-system'],
-  async redirects() {
-    return [
-      {
-        source: '/:path*',
-        has: [{ type: 'host', value: 'www.forgestudios.net' }],
-        destination: 'https://forgestudios.net/:path*',
-        permanent: true,
-      },
-    ];
-  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.amazonaws.com' },
