@@ -6,7 +6,10 @@ function config(overrides: Record<string, string | undefined>): ConfigService {
     nodeEnv: 'development',
     'jwt.secret': 'custom-jwt-secret-min-32-chars-long',
     'jwt.refreshSecret': 'custom-refresh-secret-min-32-chars',
+    'mux.tokenId': 'mux-token-id',
+    'mux.tokenSecret': 'mux-token-secret',
     'mux.webhookSecret': 'mux-webhook-secret',
+    'video.transcodeProvider': 'mux',
     ...Object.fromEntries(
       Object.entries(overrides).filter(([, v]) => v !== undefined) as [string, string][],
     ),
@@ -39,16 +42,17 @@ describe('validateProductionConfig', () => {
     ).toThrow(/JWT_SECRET/);
   });
 
-  it('allows missing MUX_WEBHOOK_SECRET when Mux is not configured', () => {
+  it('requires MUX credentials in production', () => {
     expect(() =>
       validateProductionConfig(
         config({
           nodeEnv: 'production',
           'mux.tokenId': '',
+          'mux.tokenSecret': '',
           'mux.webhookSecret': '',
         }),
       ),
-    ).not.toThrow();
+    ).toThrow(/MUX_TOKEN_ID and MUX_TOKEN_SECRET/);
   });
 
   it('requires MUX_WEBHOOK_SECRET when MUX_TOKEN_ID is set', () => {
@@ -61,6 +65,17 @@ describe('validateProductionConfig', () => {
         }),
       ),
     ).toThrow(/MUX_WEBHOOK_SECRET/);
+  });
+
+  it('rejects non-mux transcode provider in production', () => {
+    expect(() =>
+      validateProductionConfig(
+        config({
+          nodeEnv: 'production',
+          'video.transcodeProvider': 'ffmpeg',
+        }),
+      ),
+    ).toThrow(/VIDEO_TRANSCODE_PROVIDER=mux/);
   });
 
   it('passes with strong secrets in production', () => {

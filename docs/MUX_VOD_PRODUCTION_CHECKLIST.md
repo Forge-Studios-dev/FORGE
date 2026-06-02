@@ -42,9 +42,8 @@ bash scripts/verify-video-pipeline.sh
 
 Upload on https://forgestudios.net → Network tab must show `stream.mux.com/*.m3u8`, never `original.mp4`.
 
-## 5. Ship code to git (required — Fly was deployed from local workspace)
+## 5. Ship code to git
 
-```bash
-git checkout feat/mux-vod-production   # branch already created locally
-# commit + push + PR → merge once (do not push directly to main)
-```
+- PR: https://github.com/Forge-Studios-dev/FORGE/pull/47 (`feat/mux-vod-production`)
+- Merge once CI passes → triggers Vercel web deploy (HLS preload, ABR, session fixes)
+- Fly API/worker were deployed ahead of merge; no extra Fly deploy needed unless API code changes after merge
