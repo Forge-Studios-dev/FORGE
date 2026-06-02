@@ -77,7 +77,14 @@ export function VideoPlayer({ videoId, hlsUrl, thumbnailUrl, title, lowLatency }
     }
 
     if (Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: !!lowLatency });
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: !!lowLatency,
+        startLevel: -1,
+        capLevelToPlayerSize: true,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+      });
       hlsRef.current = hls;
       hls.loadSource(hlsUrl);
       hls.attachMedia(video);

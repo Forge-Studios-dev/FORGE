@@ -38,7 +38,10 @@ Server state: **Redis** hot cache (24h) plus **Postgres** backup (`video_multipa
 
 ## After upload
 
-FFmpeg runs on the **worker** process (`WORKER_ONLY=true` or `docker compose up worker`). API machines must not run video transcode in production.
+Transcoding runs on the **worker** process (`WORKER_ONLY=true` or `docker compose up worker`). API machines must not run video transcode in production.
+
+- Default: **FFmpeg → HLS** on S3/CloudFront.
+- Optional: **Mux Video (VOD)** when `VIDEO_TRANSCODE_PROVIDER=mux` (S3 upload is still used for ingest; playback is Mux HLS/ABR).
 
 ## Clients
 

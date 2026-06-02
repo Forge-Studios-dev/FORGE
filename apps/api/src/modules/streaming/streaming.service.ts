@@ -7,6 +7,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Stream, StreamStatus } from './entities/stream.entity';
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.entity';
+import { MuxVodService } from '../content/mux-vod.service';
 
 @Injectable()
 export class StreamingService {
@@ -20,6 +21,7 @@ export class StreamingService {
     private readonly videoRepository: Repository<Video>,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly muxVodService: MuxVodService,
   ) {
     this.mux = new Mux({
       tokenId: configService.get<string>('mux.tokenId') || 'placeholder',
@@ -149,7 +151,10 @@ export class StreamingService {
         this.eventEmitter.emit('stream.ended', { streamId: stream.id, userId: stream.userId, title: stream.title });
       }
     } else if (eventType === 'video.asset.ready') {
-      // Optional MVP+: convert saved live recording asset into VOD video.
+      const handledVod = await this.muxVodService.handleAssetReady(payload);
+      if (handledVod) return;
+
+      // Live recording → new VOD row when stream has mux_asset_id (no passthrough).
       const assetId = data.id as string;
       const playbackIds = (data.playback_ids as Array<{ id: string; policy: string }> | undefined) || [];
       const playbackId = playbackIds[0]?.id;
@@ -167,7 +172,9 @@ export class StreamingService {
           status: VideoStatus.READY,
           visibility: VideoVisibility.PUBLIC,
           hlsUrl,
-          thumbnailUrl: null,
+          thumbnailUrl: `https://image.mux.com/${playbackId}/thumbnail.jpg`,
+          muxAssetId: assetId,
+          muxPlaybackId: playbackId,
           s3Key: null,
           uploadContentType: null,
           uploadFileSizeBytes: null,
@@ -175,6 +182,8 @@ export class StreamingService {
           failureReason: null,
         }),
       );
+    } else if (eventType === 'video.asset.errored') {
+      await this.muxVodService.handleAssetErrored(payload);
     }
   }
 }

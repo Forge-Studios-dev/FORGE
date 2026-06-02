@@ -1,12 +1,18 @@
 import { Test } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { getQueueToken } from '@nestjs/bullmq';
 import { HealthController } from './health.controller';
 import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
+import { MUX_VOD_INGEST_QUEUE } from './modules/content/mux-vod.constants';
 
 const mockVideoQueue = {
   getJobCounts: jest.fn().mockResolvedValue({ waiting: 0, active: 0, delayed: 0, failed: 0 }),
+};
+
+const mockConfig = {
+  get: (key: string) => (key === 'video.transcodeProvider' ? 'mux' : undefined),
 };
 
 describe('HealthController', () => {
@@ -16,7 +22,9 @@ describe('HealthController', () => {
       providers: [
         { provide: DataSource, useValue: { query: jest.fn().mockResolvedValue([{ '?column?': 1 }]) } },
         { provide: getRedisConnectionToken(), useValue: { ping: jest.fn().mockResolvedValue('PONG') } },
+        { provide: ConfigService, useValue: mockConfig },
         { provide: getQueueToken(VIDEO_PROCESSING_QUEUE), useValue: mockVideoQueue },
+        { provide: getQueueToken(MUX_VOD_INGEST_QUEUE), useValue: mockVideoQueue },
       ],
     }).compile();
 
@@ -36,7 +44,9 @@ describe('HealthController', () => {
       providers: [
         { provide: DataSource, useValue: { query: jest.fn().mockRejectedValue(new Error('db down')) } },
         { provide: getRedisConnectionToken(), useValue: { ping: jest.fn().mockResolvedValue('PONG') } },
+        { provide: ConfigService, useValue: mockConfig },
         { provide: getQueueToken(VIDEO_PROCESSING_QUEUE), useValue: mockVideoQueue },
+        { provide: getQueueToken(MUX_VOD_INGEST_QUEUE), useValue: mockVideoQueue },
       ],
     }).compile();
 

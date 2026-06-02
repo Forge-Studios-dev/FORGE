@@ -73,23 +73,33 @@ export class StreamingController {
   @Post('webhooks/mux')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mux webhook handler' })
-  handleMuxWebhook(@Req() req: { headers: Record<string, unknown>; rawBody?: Buffer }, @Body() payload: Record<string, unknown>) {
+  handleMuxWebhook(
+    @Req() req: { headers: Record<string, string | string[] | undefined>; rawBody?: Buffer },
+    @Body() payload: Record<string, unknown>,
+  ) {
     const secret = this.configService.get<string>('mux.webhookSecret');
     const nodeEnv = this.configService.get<string>('nodeEnv');
-    if (nodeEnv === 'production' && !secret?.trim()) {
+
+    let event = payload;
+    if (secret?.trim()) {
+      const raw = req.rawBody?.toString('utf-8');
+      if (!raw) {
+        throw new ForbiddenException('Invalid webhook signature');
+      }
+      const mux = new Mux({
+        tokenId: this.configService.get<string>('mux.tokenId') || 'placeholder',
+        tokenSecret: this.configService.get<string>('mux.tokenSecret') || 'placeholder',
+      });
+      try {
+        mux.webhooks.verifySignature(raw, req.headers as Record<string, string>, secret);
+        event = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        throw new ForbiddenException('Invalid webhook signature');
+      }
+    } else if (nodeEnv === 'production') {
       throw new ForbiddenException('Mux webhook verification is not configured');
     }
-    if (!secret?.trim()) {
-      return this.streamingService.handleMuxWebhook(payload);
-    }
-    const signature = (req.headers['mux-signature'] as string | undefined) || '';
-    try {
-      const raw = req.rawBody ? req.rawBody.toString('utf-8') : JSON.stringify(payload);
-      (Mux as unknown as { Webhooks: { verifyHeader: (body: string, sig: string, secret: string) => boolean } })
-        .Webhooks.verifyHeader(raw, signature, secret);
-    } catch {
-      throw new ForbiddenException('Invalid webhook signature');
-    }
-    return this.streamingService.handleMuxWebhook(payload);
+
+    return this.streamingService.handleMuxWebhook(event);
   }
 }

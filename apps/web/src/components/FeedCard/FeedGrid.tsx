@@ -11,6 +11,7 @@ import { chunkFeedRows, useFeedColumns } from '@/lib/use-feed-columns';
 import { PaginatedResponse, Video } from '@/types';
 import { FeedCard } from './FeedCard';
 import { EmptyState } from '@/components/EmptyState';
+import { preloadHlsManifests } from '@/lib/hls-preload';
 
 /** With row virtualization, allow more cached pages; DOM stays bounded. */
 const MAX_FEED_PAGES = 10;
@@ -88,6 +89,13 @@ export function FeedGrid({
 
   const videos = data?.pages.flatMap((p) => p.data) ?? [];
   const rows = chunkFeedRows(videos, columnCount);
+
+  useEffect(() => {
+    preloadHlsManifests(
+      videos.filter((v) => v.status === 'ready').map((v) => v.hlsUrl),
+      3,
+    );
+  }, [videos]);
 
   useLayoutEffect(() => {
     const update = () => {

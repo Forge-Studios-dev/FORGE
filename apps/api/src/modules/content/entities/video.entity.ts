@@ -42,6 +42,11 @@ export enum PublishStatus {
   PUBLISHED = 'published',
 }
 
+export enum TranscodeProvider {
+  FFMPEG = 'ffmpeg',
+  MUX = 'mux',
+}
+
 @Entity('videos')
 @Index(['userId'])
 @Index(['status'])
@@ -97,6 +102,20 @@ export class Video {
 
   @Column({ name: 's3_key', type: 'varchar', nullable: true })
   s3Key: string | null;
+
+  @Column({ name: 'mux_asset_id', type: 'varchar', nullable: true })
+  muxAssetId: string | null;
+
+  @Column({ name: 'mux_playback_id', type: 'varchar', nullable: true })
+  muxPlaybackId: string | null;
+
+  @Column({
+    name: 'transcode_provider',
+    type: 'enum',
+    enum: TranscodeProvider,
+    nullable: true,
+  })
+  transcodeProvider: TranscodeProvider | null;
 
   @Column({ name: 'hls_url', type: 'varchar', nullable: true })
   hlsUrl: string | null;

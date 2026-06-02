@@ -62,19 +62,21 @@ export function middleware(request: NextRequest) {
   }
 
   const token = request.cookies.get('forge_access_token')?.value;
+  const tokenValid = isValidConsumerAccessToken(token);
   const payload = token ? decodeJwtPayload(token) : null;
+  const hasSession = hasSessionMarker(request);
 
-  if (token && payload?.role === 'admin') {
+  if (tokenValid && payload?.role === 'admin') {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('error', 'platform_admin');
     return clearConsumerSession(NextResponse.redirect(loginUrl));
   }
 
-  const sessionValid =
-    isValidConsumerAccessToken(token) &&
-    (!request.cookies.has(SESSION_COOKIE) || hasSessionMarker(request));
+  // Treat the HttpOnly session marker as the source of truth for "this browser has a live session".
+  // Access JWTs are short-lived and are expected to be silently refreshed via HttpOnly refresh cookie.
+  const sessionPresent = hasSession || tokenValid;
 
-  if (token && !sessionValid) {
+  if (token && !tokenValid && !hasSession) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', buildReturnPath(request));
     return clearConsumerSession(NextResponse.redirect(loginUrl));
@@ -84,22 +86,21 @@ export function middleware(request: NextRequest) {
     PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
     PLAYLIST_PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
-  if (isProtected && (!token || !sessionValid)) {
+  if (isProtected && !sessionPresent) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', buildReturnPath(request));
     return NextResponse.redirect(loginUrl);
   }
 
-  if (requiresCreatorRole(pathname) && token && sessionValid && !accessTokenAllowsCreatorUpload(token)) {
+  if (requiresCreatorRole(pathname) && tokenValid && !accessTokenAllowsCreatorUpload(token!)) {
     return NextResponse.redirect(new URL('/upload/become-creator', request.url));
   }
 
   if (
     requiresCreatorRole(pathname) &&
-    token &&
-    sessionValid &&
-    accessTokenAllowsCreatorUpload(token) &&
-    !accessTokenIsEmailVerified(token)
+    tokenValid &&
+    accessTokenAllowsCreatorUpload(token!) &&
+    !accessTokenIsEmailVerified(token!)
   ) {
     return NextResponse.redirect(new URL('/verify-email', request.url));
   }

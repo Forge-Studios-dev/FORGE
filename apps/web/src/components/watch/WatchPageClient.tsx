@@ -8,6 +8,7 @@ import { getAccessToken } from '@/lib/auth-storage';
 import { VIDEO_READY_EVENT, dispatchVideoReady, type VideoReadyDetail } from '@/lib/video-events';
 import { Video } from '@/types';
 import { WatchExperience } from '@/components/watch/WatchExperience';
+import { preloadHlsManifests } from '@/lib/hls-preload';
 
 export function WatchPageClient({
   video: initial,
@@ -47,6 +48,10 @@ export function WatchPageClient({
     }
     return undefined;
   }, [initial.id]);
+
+  useEffect(() => {
+    preloadHlsManifests([video.hlsUrl], 1);
+  }, [video.hlsUrl]);
 
   useEffect(() => {
     const handler = (e: Event) => {

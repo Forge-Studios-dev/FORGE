@@ -32,7 +32,11 @@ import {
   VideoVisibility,
   ModerationStatus,
   PublishStatus,
+  TranscodeProvider,
 } from './entities/video.entity';
+import { MUX_VOD_INGEST_QUEUE } from './mux-vod.constants';
+import { MuxVodService } from './mux-vod.service';
+import { sanitizeHlsUrl } from '../../common/media/playback-url.util';
 import { SkillTag } from '../categories/entities/skill-tag.entity';
 import { Category } from '../categories/entities/category.entity';
 import { UserRole } from '../users/entities/user.entity';
@@ -106,11 +110,14 @@ export class VideosService {
     private readonly playlistVideoRepository: Repository<PlaylistVideo>,
     @InjectQueue(VIDEO_PROCESSING_QUEUE)
     private readonly videoQueue: Queue,
+    @InjectQueue(MUX_VOD_INGEST_QUEUE)
+    private readonly muxVodQueue: Queue,
     @InjectRedis()
     private readonly redis: Redis,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly videoMultipart: VideoMultipartService,
+    private readonly muxVodService: MuxVodService,
   ) {
     const awsCreds = {
       region: configService.get<string>('aws.region') || 'ap-south-1',
@@ -172,9 +179,17 @@ export class VideosService {
   }
 
   rewritePlaybackUrl(url: string | null | undefined): string | null {
-    if (!url) return null;
-    if (this.cdnDomain) return rewriteMediaUrlToCdn(url, this.cdnDomain);
-    return url;
+    const safe = sanitizeHlsUrl(url);
+    if (!safe) return null;
+    if (safe.includes('stream.mux.com') || safe.includes('image.mux.com')) {
+      return safe;
+    }
+    if (this.cdnDomain) return rewriteMediaUrlToCdn(safe, this.cdnDomain);
+    return safe;
+  }
+
+  private usesMuxTranscode(): boolean {
+    return this.configService.get<string>('video.transcodeProvider') === 'mux';
   }
 
   /** @deprecated use rewritePlaybackUrl */
@@ -215,6 +230,9 @@ export class VideosService {
   }
 
   private async deleteVideoAssets(video: Video): Promise<void> {
+    if (video.muxAssetId) {
+      await this.muxVodService.deleteAsset(video.muxAssetId);
+    }
     if (video.s3Key) {
       await this.s3
         .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: video.s3Key }))
@@ -293,6 +311,19 @@ export class VideosService {
           `could not remove process job ${jobId}: ${err instanceof Error ? err.message : err}`,
         );
       }
+      const muxJobId = `mux-ingest-${videoId}`;
+      try {
+        const muxJob = await this.muxVodQueue.getJob(muxJobId);
+        if (muxJob) await muxJob.remove().catch(() => undefined);
+      } catch (err) {
+        this.logger.warn(
+          `could not remove mux ingest job ${muxJobId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
+    if (video.muxAssetId) {
+      await this.muxVodService.deleteAsset(video.muxAssetId);
     }
 
     await this.videoMultipart.abortIfAny(this.s3, this.bucket, videoId, video.s3Key);
@@ -508,7 +539,7 @@ export class VideosService {
     });
     const saved = await this.videoRepository.save(video);
 
-    await this.enqueueProcessJobOrThrow(saved.id, dto.s3Key, userId);
+    await this.enqueueTranscodeOrThrow(saved.id, dto.s3Key, userId);
 
     return this.mapToPublicVideo(saved);
   }
@@ -614,7 +645,7 @@ export class VideosService {
       await this.addVideoToPlaylists(userId, saved.id, dto.playlistIds);
     }
 
-    await this.enqueueProcessJobOrThrow(saved.id, saved.s3Key!, userId);
+    await this.enqueueTranscodeOrThrow(saved.id, saved.s3Key!, userId);
 
     return this.mapToPublicVideo(saved);
   }
@@ -685,6 +716,37 @@ export class VideosService {
       return { ...mapped, viewCount: mapped.viewCount + pending };
     }
     return mapped;
+  }
+
+  /** Re-queue Mux ingest after a failed transcode (creator-owned, source still in S3). */
+  async retryTranscode(userId: string, videoId: string): Promise<{ ok: true }> {
+    if (!this.usesMuxTranscode()) {
+      throw new BadRequestException('Transcode retry is only available with Mux VOD');
+    }
+    const video = await this.findById(videoId, { skipCache: true });
+    if (video.userId !== userId) throw new ForbiddenException();
+    if (video.status !== VideoStatus.FAILED) {
+      throw new BadRequestException('Only failed videos can be retried');
+    }
+    if (!video.s3Key) {
+      throw new BadRequestException('Missing source upload in storage');
+    }
+
+    if (video.muxAssetId) {
+      await this.muxVodService.deleteAsset(video.muxAssetId);
+    }
+
+    await this.videoRepository.update(videoId, {
+      status: VideoStatus.PROCESSING,
+      failureReason: null,
+      muxAssetId: null,
+      muxPlaybackId: null,
+      hlsUrl: null,
+      thumbnailUrl: null,
+    });
+    await this.bustVideoDetailCache(videoId);
+    await this.enqueueMuxIngestOrThrow(videoId, video.s3Key, userId);
+    return { ok: true };
   }
 
   async delete(requesterId: string, videoId: string): Promise<void> {
@@ -819,12 +881,66 @@ export class VideosService {
     return this.mapToPublicVideo(saved);
   }
 
+  private async enqueueTranscodeOrThrow(
+    videoId: string,
+    s3Key: string,
+    userId: string,
+  ): Promise<void> {
+    if (this.usesMuxTranscode()) {
+      await this.enqueueMuxIngestOrThrow(videoId, s3Key, userId);
+      return;
+    }
+    await this.enqueueProcessJobOrThrow(videoId, s3Key, userId);
+  }
+
+  private async enqueueMuxIngestOrThrow(
+    videoId: string,
+    s3Key: string,
+    userId: string,
+  ): Promise<void> {
+    try {
+      await this.videoRepository.update(videoId, {
+        transcodeProvider: TranscodeProvider.MUX,
+      });
+      await this.muxVodQueue.add(
+        'mux-vod-ingest',
+        { videoId, s3Key, userId },
+        {
+          jobId: `mux-ingest-${videoId}`,
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnFail: { age: 7 * 24 * 3600 },
+          removeOnComplete: { age: 24 * 3600, count: 500 },
+        },
+      );
+    } catch (err) {
+      const quota = isRedisQuotaError(err);
+      this.logger.error(
+        `enqueue mux-vod-ingest failed for ${videoId}: ${err instanceof Error ? err.message : err}`,
+      );
+      await this.videoRepository.update(videoId, {
+        status: VideoStatus.FAILED,
+        failureReason: quota
+          ? 'Processing queue is temporarily unavailable (Redis quota). Try again later or contact support.'
+          : 'Failed to start Mux transcoding. Try again shortly.',
+      });
+      throw new ServiceUnavailableException(
+        quota
+          ? 'Upload saved but processing could not start — platform cache/queue limit reached. Try again in a few minutes.'
+          : 'Upload saved but processing could not start. Try again shortly.',
+      );
+    }
+  }
+
   private async enqueueProcessJobOrThrow(
     videoId: string,
     s3Key: string,
     userId: string,
   ): Promise<void> {
     try {
+      await this.videoRepository.update(videoId, {
+        transcodeProvider: TranscodeProvider.FFMPEG,
+      });
       await this.videoQueue.add(
         'process-video',
         { videoId, s3Key, userId },

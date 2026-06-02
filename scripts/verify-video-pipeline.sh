@@ -22,13 +22,26 @@ fi
 echo "OK: logged in as ${EMAIL}"
 
 presign_once() {
+  local size_bytes="${1:?size required}"
   curl -sS -X POST "${API_BASE}/videos/presigned-url" \
     -H "Authorization: Bearer ${TOKEN}" \
     -H 'Content-Type: application/json' \
-    -d '{"contentType":"video/mp4","fileSizeBytes":2048}'
+    -d "{\"contentType\":\"video/mp4\",\"fileSizeBytes\":${size_bytes}}"
 }
 
-PRESIGN=$(presign_once)
+SAMPLE_MP4="${FORGE_PIPELINE_SAMPLE_MP4:-}"
+if [[ -z "${SAMPLE_MP4}" && -f /tmp/forge-smoke.mp4 ]]; then
+  SAMPLE_MP4="/tmp/forge-smoke.mp4"
+fi
+
+if [[ "${FORGE_PIPELINE_PUT:-0}" == "1" && -n "${SAMPLE_MP4}" && -f "${SAMPLE_MP4}" ]]; then
+  FILE_SIZE=$(wc -c < "${SAMPLE_MP4}" | tr -d ' ')
+  echo "OK: using sample MP4 (${FILE_SIZE} bytes): ${SAMPLE_MP4}"
+  PRESIGN=$(presign_once "${FILE_SIZE}")
+else
+  FILE_SIZE=2048
+  PRESIGN=$(presign_once "${FILE_SIZE}")
+fi
 VIDEO_ID=$(echo "$PRESIGN" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);process.stdout.write(j.data?.videoId||'')})")
 
 if [[ -z "${VIDEO_ID}" ]]; then
@@ -52,10 +65,16 @@ echo "OK: presigned video ${VIDEO_ID}"
 if [[ "${FORGE_PIPELINE_PUT:-0}" == "1" ]]; then
   UPLOAD_URL=$(echo "$PRESIGN" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);process.stdout.write(j.data?.uploadUrl||'')})")
   if [[ -n "${UPLOAD_URL}" ]]; then
-    # Body must match presigned ContentLength (2048 bytes) or S3 rejects the PUT.
-    dd if=/dev/zero bs=2048 count=1 2>/dev/null | curl -sf -X PUT "${UPLOAD_URL}" \
-      -H 'Content-Type: video/mp4' --data-binary @- >/dev/null
-    echo "OK: PUT to S3 (2048 bytes)"
+    if [[ -n "${SAMPLE_MP4}" && -f "${SAMPLE_MP4}" ]]; then
+      curl -sf -X PUT "${UPLOAD_URL}" \
+        -H 'Content-Type: video/mp4' --data-binary "@${SAMPLE_MP4}" >/dev/null
+      echo "OK: PUT to S3 (${FILE_SIZE} bytes from ${SAMPLE_MP4})"
+    else
+      # Legacy dummy payload — Mux will reject invalid video; use FORGE_PIPELINE_SAMPLE_MP4 for full smoke.
+      dd if=/dev/zero bs=2048 count=1 2>/dev/null | curl -sf -X PUT "${UPLOAD_URL}" \
+        -H 'Content-Type: video/mp4' --data-binary @- >/dev/null
+      echo "WARN: PUT to S3 (2048 zero bytes — not valid video for Mux; set FORGE_PIPELINE_SAMPLE_MP4)"
+    fi
   fi
 fi
 
@@ -107,6 +126,13 @@ done
 if [[ -z "${HLS_URL}" ]]; then
   echo "FAIL: timed out waiting for ready+hlsUrl (${POLL_SEC}s)"
   exit 1
+fi
+
+if [[ "${VIDEO_TRANSCODE_PROVIDER:-}" == "mux" ]]; then
+  if [[ "${HLS_URL}" != *"stream.mux.com"* ]]; then
+    echo "FAIL: expected Mux HLS URL, got: ${HLS_URL}"
+    exit 1
+  fi
 fi
 
 HTTP=$(curl -s -o /dev/null -w '%{http_code}' -I "${HLS_URL}" || echo '000')

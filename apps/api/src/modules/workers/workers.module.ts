@@ -7,6 +7,9 @@ import { AnalyticsIngestWorker } from './analytics-ingest/analytics-ingest.worke
 import { Video } from '../content/entities/video.entity';
 import { AnalyticsEvent } from '../analytics/entities/analytics-event.entity';
 import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../content/videos.service';
+import { MuxVodIngestWorker } from './mux-vod-ingest/mux-vod-ingest.worker';
+import { MUX_VOD_INGEST_QUEUE } from '../content/mux-vod.constants';
+import { ContentModule } from '../content/content.module';
 import { ANALYTICS_INGEST_QUEUE } from '../analytics/analytics-ingest.constants';
 import { PUSH_DISPATCH_QUEUE } from '../notifications/push-dispatch.constants';
 import { PushDispatchWorker } from './push-dispatch/push-dispatch.worker';
@@ -19,9 +22,20 @@ function isDedicatedWorkerProcess(): boolean {
   );
 }
 
+function transcodeProvider(): string {
+  return (process.env.VIDEO_TRANSCODE_PROVIDER || 'ffmpeg').toLowerCase();
+}
+
 /** FFmpeg must not run on API replicas unless explicitly enabled (local dev). */
 function shouldRegisterVideoProcessor(): boolean {
-  return isDedicatedWorkerProcess();
+  if (!isDedicatedWorkerProcess()) return false;
+  return transcodeProvider() !== 'mux';
+}
+
+function shouldRegisterMuxVodIngest(): boolean {
+  if (transcodeProvider() !== 'mux') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
 }
 
 /** In production, only the Fly worker app consumes BullMQ jobs; API enqueues only. */
@@ -37,10 +51,20 @@ function shouldRegisterPushDispatch(): boolean {
 
 @Module({
   imports: [
+    ContentModule,
     FirebaseModule,
     TypeOrmModule.forFeature([Video, AnalyticsEvent, DeviceToken]),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
+      defaultJobOptions: {
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnFail: { age: 7 * 24 * 3600 },
+        removeOnComplete: { age: 24 * 3600, count: 500 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: MUX_VOD_INGEST_QUEUE,
       defaultJobOptions: {
         attempts: 5,
         backoff: { type: 'exponential', delay: 5000 },
@@ -78,6 +102,7 @@ function shouldRegisterPushDispatch(): boolean {
   providers: [
     ...(shouldRegisterAnalyticsIngest() ? [AnalyticsIngestWorker] : []),
     ...(shouldRegisterVideoProcessor() ? [VideoProcessorWorker] : []),
+    ...(shouldRegisterMuxVodIngest() ? [MuxVodIngestWorker] : []),
     ...(shouldRegisterPushDispatch() ? [PushDispatchWorker] : []),
   ],
 })
