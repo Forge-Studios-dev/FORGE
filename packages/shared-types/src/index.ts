@@ -35,6 +35,12 @@ export const SocketEvents = {
   STREAM_ENDED: 'stream:ended',
   VIDEO_READY: 'video:ready',
   COMMENT_NEW: 'comment:new',
+  STREAM_CHAT_MESSAGE: 'stream:chat:message',
+  STREAM_CHAT_DELETE: 'stream:chat:delete',
+  STREAM_CHAT_SLOW_MODE: 'stream:chat:slow-mode',
+  CHANNEL_MESSAGE: 'channel:message',
+  CHANNEL_MESSAGE_DELETE: 'channel:message:delete',
+  STREAM_VIEWER_COUNT: 'stream:viewer-count',
 } as const;
 
 export type SocketEventName = (typeof SocketEvents)[keyof typeof SocketEvents];
@@ -47,3 +53,5 @@ export * from './safe-return-path';
 export * from './feature-flags';
 export * from './platform-public-config';
 export * from './analytics';
+export * from './content-visibility';
+export * from './entitlements';

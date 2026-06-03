@@ -52,6 +52,8 @@ type AuthContextValue = {
   /** Signed-in personalized feed (YouTube For You). */
   canViewPersonalizedFeed: boolean;
   role: User['role'] | null;
+  /** JWT for Socket.IO and other client-only realtime (null when guest). */
+  accessToken: string | null;
   refresh: () => void;
   logout: (options?: { allDevices?: boolean }) => void;
 };
@@ -165,11 +167,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isPlatformAdmin: false,
         canViewPersonalizedFeed: false,
         role: null,
+        accessToken: null,
         refresh,
         logout,
       };
     }
-    const hasToken = !!getAccessToken();
+    const token = getAccessToken();
+    const hasToken = !!token;
     const isGuest = !hasToken || (!isLoading && !user);
     const accessTier = getTier(user, hasToken && !!user);
     const isCreator = isApprovedCreator(accessTier);
@@ -193,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isPlatformAdmin: platformAdmin,
       canViewPersonalizedFeed: canViewPersonalizedFeed(accessTier),
       role: user?.role ?? null,
+      accessToken: token,
       refresh,
       logout,
     };

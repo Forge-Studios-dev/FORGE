@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { serverApi } from '@/lib/api';
 import { User, PaginatedResponse, Video } from '@/types';
 import { ProfileHeader } from '@/components/ProfileHeader/ProfileHeader';
+import { MembershipPanel } from '@/components/Membership/MembershipPanel';
 import { FeedGrid } from '@/components/FeedCard/FeedGrid';
 
 interface Props {
@@ -54,7 +55,11 @@ export default async function ProfilePage({ params }: Props) {
     <main className="min-h-screen">
       <ProfileHeader user={user} />
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <MembershipPanel creatorId={user.id} />
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
         <h2 className="text-xl font-bold mb-6">Videos</h2>
         {videos.data.length > 0 ? (
           <FeedGrid initialData={videos} />

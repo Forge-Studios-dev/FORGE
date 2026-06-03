@@ -9,11 +9,22 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { Category } from '../../categories/entities/category.entity';
+import { SubscriptionTier } from '../../entitlements/entities/subscription-tier.entity';
 
 export enum StreamStatus {
   IDLE = 'idle',
   LIVE = 'live',
   ENDED = 'ended',
+}
+
+export enum StreamVisibility {
+  PUBLIC = 'public',
+  FOLLOWERS = 'followers',
+  SUBSCRIBERS = 'subscribers',
+  TIER = 'tier',
+  PRIVATE = 'private',
+  PAID_EVENT = 'paid_event',
 }
 
 @Entity('streams')
@@ -63,6 +74,45 @@ export class Stream {
     default: StreamStatus.IDLE,
   })
   status: StreamStatus;
+
+  @Column({
+    type: 'enum',
+    enum: StreamVisibility,
+    default: StreamVisibility.PUBLIC,
+  })
+  visibility: StreamVisibility;
+
+  @Column({ name: 'category_id', type: 'uuid', nullable: true })
+  categoryId: string | null;
+
+  @ManyToOne(() => Category, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'category_id' })
+  category: Category | null;
+
+  @Column({ name: 'chat_enabled', default: true })
+  chatEnabled: boolean;
+
+  @Column({ name: 'record_enabled', default: true })
+  recordEnabled: boolean;
+
+  @Column({ name: 'age_restricted', default: false })
+  ageRestricted: boolean;
+
+  @Column({ name: 'required_tier_id', type: 'uuid', nullable: true })
+  requiredTierId: string | null;
+
+  @ManyToOne(() => SubscriptionTier, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'required_tier_id' })
+  requiredTier: SubscriptionTier | null;
+
+  @Column({ name: 'slow_mode_seconds', type: 'int', default: 0 })
+  slowModeSeconds: number;
+
+  @Column({ name: 'scheduled_at', type: 'timestamptz', nullable: true })
+  scheduledAt: Date | null;
+
+  @Column({ name: 'ticket_price_cents', type: 'int', nullable: true })
+  ticketPriceCents: number | null;
 
   @Column({ name: 'viewer_count', default: 0 })
   viewerCount: number;

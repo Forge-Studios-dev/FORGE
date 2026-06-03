@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../../shared/models/video.dart';
+import 'membership_panel.dart';
 
 final userVideosProvider = FutureProvider.autoDispose.family<List<VideoModel>, String>((ref, userId) async {
   final client = ref.read(apiClientProvider);
@@ -39,6 +40,8 @@ class ProfileScreen extends ConsumerWidget {
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(child: _ProfileHeader(user: user, profileUsername: username)),
+              if (username != 'me')
+                SliverToBoxAdapter(child: MembershipPanel(creatorId: user.id)),
               videosAsync.when(
                 loading: () => const SliverToBoxAdapter(
                   child: Padding(
@@ -171,6 +174,17 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
           const SizedBox(height: 12),
           Text(user.displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           Text('@${user.username}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          if (profileUsername != 'me') ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => context.push('/community/${user.id}'),
+              icon: const Icon(Icons.forum_outlined, size: 18),
+              label: const Text('Community'),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.white24),
+              ),
+            ),
+          ],
           if (profileUsername == 'me') ...[
             const SizedBox(height: 8),
             ListTile(

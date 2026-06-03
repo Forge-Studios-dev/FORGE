@@ -6,11 +6,24 @@ import { useQuery } from '@tanstack/react-query';
 import { Icon, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { Stream } from '@/types';
+import { Stream, Category } from '@/types';
+
+const VISIBILITY_OPTIONS = [
+  { value: 'public', label: 'Public' },
+  { value: 'followers', label: 'Followers only' },
+  { value: 'subscribers', label: 'Members only' },
+  { value: 'tier', label: 'Tier members' },
+] as const;
 
 export default function StudioLivePage() {
   const { isCreator } = useAuth();
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [visibility, setVisibility] = useState<string>('public');
+  const [categoryId, setCategoryId] = useState('');
+  const [chatEnabled, setChatEnabled] = useState(true);
+  const [recordEnabled, setRecordEnabled] = useState(true);
+  const [ageRestricted, setAgeRestricted] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
@@ -23,13 +36,29 @@ export default function StudioLivePage() {
     refetchInterval: 15_000,
   });
 
+  const { data: categories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: Category[] }>('/categories');
+      return data.data;
+    },
+  });
+
   async function startStream() {
     const t = title.trim();
     if (!t) return;
     setError('');
     setCreating(true);
     try {
-      const { data } = await api.post<{ data: Stream }>('/streams/start', { title: t });
+      const { data } = await api.post<{ data: Stream }>('/streams/start', {
+        title: t,
+        description: description.trim() || undefined,
+        visibility,
+        categoryId: categoryId || undefined,
+        chatEnabled,
+        recordEnabled,
+        ageRestricted,
+      });
       setTitle('');
       await refetch();
       window.location.href = `/live/${data.data.id}`;
@@ -52,9 +81,65 @@ export default function StudioLivePage() {
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Session title, e.g. Live pottery wheel basics"
+            placeholder="Session title"
             className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-4 py-2.5 outline-none focus:border-primary"
           />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Description (optional)"
+            rows={2}
+            className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-4 py-2.5 outline-none focus:border-primary"
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="text-on-surface-variant">Visibility</span>
+              <select
+                value={visibility}
+                onChange={(e) => setVisibility(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
+              >
+                {VISIBILITY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="text-on-surface-variant">Category</span>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
+              >
+                <option value="">None</option>
+                {(categories ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={chatEnabled} onChange={(e) => setChatEnabled(e.target.checked)} />
+              Chat enabled
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={recordEnabled} onChange={(e) => setRecordEnabled(e.target.checked)} />
+              Record VOD
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={ageRestricted}
+                onChange={(e) => setAgeRestricted(e.target.checked)}
+              />
+              Age restricted
+            </label>
+          </div>
           <button
             type="button"
             disabled={creating || title.trim().length < 3}
@@ -64,13 +149,10 @@ export default function StudioLivePage() {
             <Icon name="sensors" />
             {creating ? 'Starting…' : 'Go live'}
           </button>
-          <p className="text-xs text-on-surface-variant">
-            After starting, open your stream page for RTMP URL and stream key (use in OBS).
-          </p>
         </section>
       ) : (
         <p className="mb-8 text-sm text-on-surface-variant">
-          Creator approval required to broadcast.{' '}
+          Creator approval required.{' '}
           <Link href="/upload/become-creator" className="text-primary hover:underline">
             Apply to become a creator
           </Link>

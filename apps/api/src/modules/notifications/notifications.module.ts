@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { Notification } from './entities/notification.entity';
@@ -7,12 +7,18 @@ import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsListener } from './notifications.listener';
 import { PushDispatchService } from './push-dispatch.service';
+import { SubscriptionMaintenanceService } from './subscription-maintenance.service';
 import { User } from '../users/entities/user.entity';
+import { Follow } from '../engagement/entities/follow.entity';
 import { PUSH_DISPATCH_QUEUE } from './push-dispatch.constants';
+import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './subscription-maintenance.constants';
+import { SubscriptionMaintenanceScheduler } from './subscription-maintenance.scheduler';
+import { EntitlementsModule } from '../entitlements/entitlements.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, DeviceToken, User]),
+    TypeOrmModule.forFeature([Notification, DeviceToken, User, Follow]),
+    forwardRef(() => EntitlementsModule),
     BullModule.registerQueue({
       name: PUSH_DISPATCH_QUEUE,
       defaultJobOptions: {
@@ -22,10 +28,24 @@ import { PUSH_DISPATCH_QUEUE } from './push-dispatch.constants';
         removeOnFail: { age: 86400, count: 5000 },
       },
     }),
+    BullModule.registerQueue({
+      name: SUBSCRIPTION_MAINTENANCE_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 10_000 },
+        removeOnComplete: { age: 86400, count: 48 },
+        removeOnFail: { age: 7 * 86400, count: 100 },
+      },
+    }),
   ],
-  providers: [NotificationsService, NotificationsListener, PushDispatchService],
+  providers: [
+    NotificationsService,
+    NotificationsListener,
+    PushDispatchService,
+    SubscriptionMaintenanceService,
+    SubscriptionMaintenanceScheduler,
+  ],
   controllers: [NotificationsController],
-  exports: [NotificationsService, PushDispatchService],
+  exports: [NotificationsService, PushDispatchService, SubscriptionMaintenanceService],
 })
 export class NotificationsModule {}
-

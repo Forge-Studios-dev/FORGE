@@ -24,7 +24,7 @@ export interface Video {
   title: string;
   description?: string;
   status: 'uploading' | 'pending' | 'processing' | 'ready' | 'failed';
-  visibility: 'public' | 'private' | 'unlisted';
+  visibility: 'public' | 'private' | 'unlisted' | 'followers' | 'subscribers' | 'tier' | 'paid_event';
   hlsUrl?: string;
   thumbnailUrl?: string;
   durationSeconds?: number;
@@ -34,6 +34,8 @@ export interface Video {
   skillTags: SkillTag[];
   categoryId?: string | null;
   createdAt: string;
+  requiredTierId?: string | null;
+  sourceStreamId?: string | null;
   publishedAt?: string | null;
   scheduledPublishAt?: string | null;
 }
@@ -49,9 +51,30 @@ export interface Stream {
   streamKey?: string;
   rtmpUrl?: string;
   status: 'idle' | 'live' | 'ended';
+  visibility?: 'public' | 'followers' | 'subscribers' | 'tier' | 'private' | 'paid_event';
+  categoryId?: string | null;
+  chatEnabled?: boolean;
+  recordEnabled?: boolean;
+  ageRestricted?: boolean;
+  requiredTierId?: string | null;
+  accessDenied?: boolean;
+  accessReason?: string;
+  slowModeSeconds?: number;
   viewerCount: number;
   startedAt?: string;
   createdAt: string;
+}
+
+export interface SubscriptionTier {
+  id: string;
+  creatorId: string;
+  name: string;
+  slug: string;
+  priceCents: number;
+  currency: string;
+  benefits: string[];
+  sortOrder: number;
+  isActive: boolean;
 }
 
 export interface Category {

@@ -12,7 +12,10 @@ import { MUX_VOD_INGEST_QUEUE } from '../content/mux-vod.constants';
 import { ContentModule } from '../content/content.module';
 import { ANALYTICS_INGEST_QUEUE } from '../analytics/analytics-ingest.constants';
 import { PUSH_DISPATCH_QUEUE } from '../notifications/push-dispatch.constants';
+import { SUBSCRIPTION_MAINTENANCE_QUEUE } from '../notifications/subscription-maintenance.constants';
 import { PushDispatchWorker } from './push-dispatch/push-dispatch.worker';
+import { SubscriptionMaintenanceWorker } from './subscription-maintenance/subscription-maintenance.worker';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { DeviceToken } from '../notifications/entities/device-token.entity';
 import { FirebaseModule } from '../firebase/firebase.module';
 
@@ -49,8 +52,14 @@ function shouldRegisterPushDispatch(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+function shouldRegisterSubscriptionMaintenance(): boolean {
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
 @Module({
   imports: [
+    NotificationsModule,
     ContentModule,
     FirebaseModule,
     TypeOrmModule.forFeature([Video, AnalyticsEvent, DeviceToken]),
@@ -97,6 +106,15 @@ function shouldRegisterPushDispatch(): boolean {
         removeOnFail: { age: 86400, count: 5000 },
       },
     }),
+    BullModule.registerQueue({
+      name: SUBSCRIPTION_MAINTENANCE_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 10_000 },
+        removeOnComplete: { age: 86400, count: 48 },
+        removeOnFail: { age: 7 * 86400, count: 100 },
+      },
+    }),
     EventEmitterModule,
   ],
   providers: [
@@ -104,6 +122,7 @@ function shouldRegisterPushDispatch(): boolean {
     ...(shouldRegisterVideoProcessor() ? [VideoProcessorWorker] : []),
     ...(shouldRegisterMuxVodIngest() ? [MuxVodIngestWorker] : []),
     ...(shouldRegisterPushDispatch() ? [PushDispatchWorker] : []),
+    ...(shouldRegisterSubscriptionMaintenance() ? [SubscriptionMaintenanceWorker] : []),
   ],
 })
 export class WorkersModule {}

@@ -33,6 +33,8 @@ export type PublicVideo = {
   createdAt: Date;
   publishedAt: Date | null;
   scheduledPublishAt: Date | null;
+  requiredTierId: string | null;
+  sourceStreamId: string | null;
 };
 
 export type PublicVideoMapperOpts = {
@@ -74,6 +76,8 @@ export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): Publi
     createdAt: video.createdAt,
     publishedAt: video.publishedAt,
     scheduledPublishAt: video.scheduledPublishAt ?? null,
+    requiredTierId: video.requiredTierId ?? null,
+    sourceStreamId: video.sourceStreamId ?? null,
   };
 }
 

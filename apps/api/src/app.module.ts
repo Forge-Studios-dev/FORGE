@@ -27,6 +27,10 @@ import { SearchModule } from './modules/search/search.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PlatformModule } from './modules/platform/platform.module';
+import { EntitlementsModule } from './modules/entitlements/entitlements.module';
+import { StreamChatModule } from './modules/stream-chat/stream-chat.module';
+import { CommunitiesModule } from './modules/communities/communities.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { forgeClsSetup } from './common/cls/forge-cls.setup';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -44,6 +48,7 @@ import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
 import { MUX_VOD_INGEST_QUEUE } from './modules/content/mux-vod.constants';
 import { ANALYTICS_INGEST_QUEUE } from './modules/analytics/analytics-ingest.constants';
 import { PUSH_DISPATCH_QUEUE } from './modules/notifications/push-dispatch.constants';
+import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './modules/notifications/subscription-maintenance.constants';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 
 @Module({
@@ -149,6 +154,15 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
       },
     }),
     BullModule.registerQueue({ name: PUSH_DISPATCH_QUEUE }),
+    BullModule.registerQueue({
+      name: SUBSCRIPTION_MAINTENANCE_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 10_000 },
+        removeOnComplete: { age: 86400, count: 48 },
+        removeOnFail: { age: 7 * 86400, count: 100 },
+      },
+    }),
 
     EventEmitterModule.forRoot(),
 
@@ -162,6 +176,10 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
     EngagementModule,
     FeedModule,
     StreamingModule,
+    EntitlementsModule,
+    BillingModule,
+    StreamChatModule,
+    CommunitiesModule,
     WorkersModule,
     AdminModule,
     PlaylistsModule,

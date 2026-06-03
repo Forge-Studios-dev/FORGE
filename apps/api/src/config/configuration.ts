@@ -109,4 +109,10 @@ export default () => ({
 
   /** Comma-separated: e.g. multipart_upload,blueprints_public */
   featureFlags: process.env.FEATURE_FLAGS || '',
+
+  entitlements: {
+    mockSubscriptionsEnabled:
+      process.env.MOCK_SUBSCRIPTIONS_ENABLED === 'true' ||
+      (process.env.NODE_ENV || 'development') !== 'production',
+  },
 });

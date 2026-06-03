@@ -5,6 +5,9 @@ export enum NotificationType {
   CREATOR_REJECTED = 'creator_rejected',
   VIDEO_READY = 'video_ready',
   STREAM_STARTED = 'stream_started',
+  STREAM_STARTED_FOLLOWED = 'stream_started_followed',
+  PREMIUM_CONTENT_NEW = 'premium_content_new',
+  SUBSCRIPTION_EXPIRING = 'subscription_expiring',
 }
 
 @Entity('notifications')

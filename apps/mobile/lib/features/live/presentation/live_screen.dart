@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/network/api_client.dart';
 
@@ -83,14 +84,17 @@ class _StreamCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = stream['user'] as Map<String, dynamic>?;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
+    final streamId = stream['id'] as String?;
+    return GestureDetector(
+      onTap: streamId != null ? () => context.push('/live/$streamId') : null,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
         color: const Color(0xFF1A1A24),
         borderRadius: BorderRadius.circular(16),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AspectRatio(
@@ -134,6 +138,7 @@ class _StreamCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
