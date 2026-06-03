@@ -68,6 +68,7 @@ import { VideoMultipartService } from './video-multipart.service';
 import { MultipartPartUrlsDto } from './dto/multipart-part-urls.dto';
 import { MultipartCompletePartsDto } from './dto/multipart-complete-parts.dto';
 import { MultipartCheckpointDto } from './dto/multipart-checkpoint.dto';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 
 export const VIDEO_PROCESSING_QUEUE = 'video-processing';
 export const VIDEO_PROCESSING_DLQ_QUEUE = 'video-processing-dlq';
@@ -118,6 +119,7 @@ export class VideosService {
     private readonly eventEmitter: EventEmitter2,
     private readonly videoMultipart: VideoMultipartService,
     private readonly muxVodService: MuxVodService,
+    private readonly entitlementsService: EntitlementsService,
   ) {
     const awsCreds = {
       region: configService.get<string>('aws.region') || 'ap-south-1',
@@ -137,11 +139,11 @@ export class VideosService {
   /** S3 object present but /complete never called (smoke tests, failed publish). */
   private static readonly STUCK_INCOMPLETE_MS = 2 * 60 * 1000;
 
-  assertCanWatchVideo(
+  async assertCanWatchVideo(
     video: Video,
     viewerId?: string | null,
     viewerRole?: UserRole | null,
-  ): void {
+  ): Promise<void> {
     const isOwner = !!viewerId && viewerId === video.userId;
     const isAdmin = viewerRole === UserRole.ADMIN;
 
@@ -154,6 +156,27 @@ export class VideosService {
     if (video.visibility === VideoVisibility.PRIVATE && !isOwner && !isAdmin) {
       throw new ForbiddenException('This video is private');
     }
+
+    if (
+      !isOwner &&
+      !isAdmin &&
+      [
+        VideoVisibility.FOLLOWERS,
+        VideoVisibility.SUBSCRIBERS,
+        VideoVisibility.TIER,
+        VideoVisibility.PAID_EVENT,
+      ].includes(video.visibility)
+    ) {
+      await this.entitlementsService.assertAccessAsync({
+        creatorId: video.userId,
+        visibility: video.visibility,
+        requiredTierId: video.requiredTierId,
+        viewerId,
+        isOwner,
+        isAdmin,
+      });
+    }
+
     if (!isOwner && !isAdmin) {
       if (video.status !== VideoStatus.READY) {
         throw new ForbiddenException('This video is not available yet');
@@ -709,7 +732,7 @@ export class VideosService {
     viewerRole?: UserRole | null,
   ): Promise<PublicVideo> {
     const video = await this.findById(id);
-    this.assertCanWatchVideo(video, viewerId, viewerRole);
+    await this.assertCanWatchVideo(video, viewerId, viewerRole);
     const mapped = this.mapToPublicVideo(video);
     const pending = await this.getPendingViewCount(id);
     if (pending > 0) {
@@ -783,7 +806,7 @@ export class VideosService {
     viewerUserId?: string,
   ): Promise<{ counted: boolean; reason?: string }> {
     const video = await this.findById(videoId);
-    this.assertCanWatchVideo(video, viewerUserId ?? null);
+    await this.assertCanWatchVideo(video, viewerUserId ?? null);
     if (video.status !== VideoStatus.READY) {
       return { counted: false, reason: 'not_ready' };
     }
@@ -826,7 +849,7 @@ export class VideosService {
 
   async recordWatch(userId: string, videoId: string, dto: RecordWatchDto) {
     const video = await this.findById(videoId);
-    this.assertCanWatchVideo(video, userId);
+    await this.assertCanWatchVideo(video, userId);
     if (video.status !== VideoStatus.READY) {
       throw new BadRequestException('Video is not available');
     }

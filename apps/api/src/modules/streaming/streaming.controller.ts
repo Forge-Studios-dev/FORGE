@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -14,6 +15,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { StreamingService } from './streaming.service';
 import { toPublicStream } from './stream.mapper';
 import { CreateStreamDto } from './dto/create-stream.dto';
+import { SetSlowModeDto } from './dto/set-slow-mode.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
@@ -40,13 +42,12 @@ export class StreamingController {
     const stream = await this.streamingService.createStream(user.sub, dto);
     return toPublicStream(stream, true);
   }
-
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('live')
   @ApiOperation({ summary: 'Get currently live streams' })
-  async getLiveStreams() {
-    const streams = await this.streamingService.getLiveStreams();
-    return streams.map((s) => toPublicStream(s, false));
+  async getLiveStreams(@CurrentUser() user?: JwtPayload) {
+    return this.streamingService.getLiveStreams(user?.sub, user?.role);
   }
 
   @Public()
@@ -54,10 +55,7 @@ export class StreamingController {
   @Get(':id')
   @ApiOperation({ summary: 'Get stream by ID' })
   findOne(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
-    return this.streamingService.findById(id).then((stream) => {
-      const includeIngest = !!user && user.sub === stream.userId;
-      return toPublicStream(stream, includeIngest);
-    });
+    return this.streamingService.getStreamForViewer(id, user?.sub, user?.role);
   }
 
   @Post(':id/end')
@@ -67,6 +65,18 @@ export class StreamingController {
   @ApiOperation({ summary: 'End a live stream' })
   endStream(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.streamingService.endStream(user.sub, id);
+  }
+
+  @Patch(':id/slow-mode')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.START_STREAM)
+  @ApiOperation({ summary: 'Set chat slow mode for a live stream' })
+  setSlowMode(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: SetSlowModeDto,
+  ) {
+    return this.streamingService.setSlowMode(user.sub, id, dto.slowModeSeconds);
   }
 
   @Public()

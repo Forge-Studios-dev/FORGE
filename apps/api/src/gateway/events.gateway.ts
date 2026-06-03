@@ -17,6 +17,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient, type RedisClientOptions } from 'redis';
 import { redisTlsOptions } from '../common/redis/redis-tls.util';
 import { socketIoCorsOptions } from './socket-cors.util';
+import { StreamViewerService } from '../modules/streaming/stream-viewer.service';
 
 @WebSocketGateway({
   cors: socketIoCorsOptions(),
@@ -34,6 +35,7 @@ export class EventsGateway
   constructor(
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly streamViewerService: StreamViewerService,
   ) {}
 
   async afterInit() {
@@ -84,8 +86,16 @@ export class EventsGateway
 
   handleDisconnect(client: Socket) {
     const userId = (client.data as { userId?: string }).userId;
+    const watchingStreamId = (client.data as { watchingStreamId?: string }).watchingStreamId;
     if (userId) {
       this.userSockets.get(userId)?.delete(client.id);
+    }
+    if (watchingStreamId) {
+      void this.streamViewerService.leave(watchingStreamId, client.id).then((count) => {
+        this.server
+          .to(`stream:${watchingStreamId}`)
+          .emit('stream:viewer-count', { streamId: watchingStreamId, viewerCount: count });
+      });
     }
     this.logger.log(`Client disconnected: ${client.id}`);
   }
@@ -123,9 +133,17 @@ export class EventsGateway
   }
 
   @SubscribeMessage('join-stream')
-  handleJoinStream(@MessageBody() data: { streamId: string }, @ConnectedSocket() client: Socket) {
+  async handleJoinStream(
+    @MessageBody() data: { streamId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
     client.join(`stream:${data.streamId}`);
-    return { event: 'joined-stream', data: { streamId: data.streamId } };
+    (client.data as { watchingStreamId?: string }).watchingStreamId = data.streamId;
+    const count = await this.streamViewerService.join(data.streamId, client.id);
+    this.server
+      .to(`stream:${data.streamId}`)
+      .emit('stream:viewer-count', { streamId: data.streamId, viewerCount: count });
+    return { event: 'joined-stream', data: { streamId: data.streamId, viewerCount: count } };
   }
 
   @SubscribeMessage('join-video')
@@ -135,8 +153,18 @@ export class EventsGateway
   }
 
   @SubscribeMessage('leave-stream')
-  handleLeaveStream(@MessageBody() data: { streamId: string }, @ConnectedSocket() client: Socket) {
+  async handleLeaveStream(
+    @MessageBody() data: { streamId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
     client.leave(`stream:${data.streamId}`);
+    if ((client.data as { watchingStreamId?: string }).watchingStreamId === data.streamId) {
+      delete (client.data as { watchingStreamId?: string }).watchingStreamId;
+    }
+    const count = await this.streamViewerService.leave(data.streamId, client.id);
+    this.server
+      .to(`stream:${data.streamId}`)
+      .emit('stream:viewer-count', { streamId: data.streamId, viewerCount: count });
   }
 
   @SubscribeMessage('leave-video')
@@ -180,6 +208,48 @@ export class EventsGateway
   @OnEvent('comment.created')
   handleCommentCreated(payload: { videoId: string; comment: unknown }) {
     this.server.to(`video:${payload.videoId}`).emit('comment:new', payload.comment);
+  }
+
+  @OnEvent('stream.chat.message')
+  handleStreamChatMessage(payload: { streamId: string; message: unknown }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:chat:message', payload.message);
+  }
+
+  @OnEvent('stream.chat.delete')
+  handleStreamChatDelete(payload: { streamId: string; messageId: string }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:chat:delete', payload);
+  }
+
+  @OnEvent('stream.slow-mode')
+  handleStreamSlowMode(payload: { streamId: string; slowModeSeconds: number }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:chat:slow-mode', payload);
+  }
+
+  @OnEvent('channel.message')
+  handleChannelMessage(payload: { channelId: string; message: unknown }) {
+    this.server.to(`channel:${payload.channelId}`).emit('channel:message', payload.message);
+  }
+
+  @SubscribeMessage('join-stream-chat')
+  handleJoinStreamChat(@MessageBody() data: { streamId: string }, @ConnectedSocket() client: Socket) {
+    client.join(`stream:${data.streamId}`);
+    return { event: 'joined-stream-chat', data: { streamId: data.streamId } };
+  }
+
+  @SubscribeMessage('leave-stream-chat')
+  handleLeaveStreamChat(@MessageBody() data: { streamId: string }, @ConnectedSocket() client: Socket) {
+    client.leave(`stream:${data.streamId}`);
+  }
+
+  @SubscribeMessage('join-channel')
+  handleJoinChannel(@MessageBody() data: { channelId: string }, @ConnectedSocket() client: Socket) {
+    client.join(`channel:${data.channelId}`);
+    return { event: 'joined-channel', data: { channelId: data.channelId } };
+  }
+
+  @SubscribeMessage('leave-channel')
+  handleLeaveChannel(@MessageBody() data: { channelId: string }, @ConnectedSocket() client: Socket) {
+    client.leave(`channel:${data.channelId}`);
   }
 
   emitToRoom(room: string, event: string, data: unknown) {

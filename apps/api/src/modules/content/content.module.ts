@@ -16,6 +16,7 @@ import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { ViewCountFlushService } from './view-count-flush.service';
 import { VideoMultipartService } from './video-multipart.service';
+import { EntitlementsModule } from '../entitlements/entitlements.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { VideoMultipartService } from './video-multipart.service';
       PlaylistVideo,
     ]),
     forwardRef(() => UsersModule),
+    EntitlementsModule,
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
       defaultJobOptions: {

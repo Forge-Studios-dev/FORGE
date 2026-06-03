@@ -29,6 +29,10 @@ export enum VideoVisibility {
   PUBLIC = 'public',
   PRIVATE = 'private',
   UNLISTED = 'unlisted',
+  FOLLOWERS = 'followers',
+  SUBSCRIBERS = 'subscribers',
+  TIER = 'tier',
+  PAID_EVENT = 'paid_event',
 }
 
 export enum ModerationStatus {
@@ -196,6 +200,12 @@ export class Video {
 
   @OneToMany(() => Comment, (comment) => comment.video)
   comments: Comment[];
+
+  @Column({ name: 'required_tier_id', type: 'uuid', nullable: true })
+  requiredTierId: string | null;
+
+  @Column({ name: 'source_stream_id', type: 'uuid', nullable: true })
+  sourceStreamId: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

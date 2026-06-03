@@ -4,10 +4,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Mux from '@mux/mux-node';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Stream, StreamStatus } from './entities/stream.entity';
+import { Stream, StreamStatus, StreamVisibility } from './entities/stream.entity';
 import { CreateStreamDto } from './dto/create-stream.dto';
-import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.entity';
+import { Video, VideoStatus, VideoVisibility, PublishStatus } from '../content/entities/video.entity';
 import { MuxVodService } from '../content/mux-vod.service';
+import { EntitlementsService } from '../entitlements/entitlements.service';
+import { UserRole } from '../users/entities/user.entity';
+import { toPublicStream } from './stream.mapper';
 
 @Injectable()
 export class StreamingService {
@@ -22,6 +25,7 @@ export class StreamingService {
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly muxVodService: MuxVodService,
+    private readonly entitlementsService: EntitlementsService,
   ) {
     this.mux = new Mux({
       tokenId: configService.get<string>('mux.tokenId') || 'placeholder',
@@ -44,10 +48,14 @@ export class StreamingService {
     let streamKey = 'mock-stream-key';
     let playbackUrl: string | undefined;
 
+    const recordEnabled = dto.recordEnabled !== false;
+
     try {
       const response = await this.mux.video.liveStreams.create({
         playback_policy: ['public'],
-        new_asset_settings: { playback_policy: ['public'] },
+        new_asset_settings: recordEnabled
+          ? { playback_policy: ['public'] }
+          : undefined,
         reduced_latency: true,
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -70,6 +78,13 @@ export class StreamingService {
       rtmpUrl: 'rtmps://global-live.mux.com:443/app',
       playbackUrl,
       status: StreamStatus.IDLE,
+      visibility: dto.visibility ?? StreamVisibility.PUBLIC,
+      categoryId: dto.categoryId ?? null,
+      thumbnailUrl: dto.thumbnailUrl ?? undefined,
+      chatEnabled: dto.chatEnabled !== false,
+      recordEnabled,
+      ageRestricted: dto.ageRestricted === true,
+      requiredTierId: dto.requiredTierId ?? null,
     });
 
     return this.streamRepository.save(stream);
@@ -84,12 +99,60 @@ export class StreamingService {
     return stream;
   }
 
-  async getLiveStreams(): Promise<Stream[]> {
-    return this.streamRepository.find({
+  async getStreamForViewer(
+    id: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ) {
+    const stream = await this.findById(id);
+    const isOwner = !!viewerId && viewerId === stream.userId;
+    const isAdmin = viewerRole === UserRole.ADMIN;
+
+    const access = await this.entitlementsService.checkAccess({
+      creatorId: stream.userId,
+      visibility: stream.visibility,
+      requiredTierId: stream.requiredTierId,
+      viewerId,
+      isOwner,
+      isAdmin,
+    });
+
+    return toPublicStream(stream, isOwner, {
+      hidePlayback: !access.allowed,
+      accessReason: access.reason,
+    });
+  }
+
+  async getLiveStreams(viewerId?: string | null, viewerRole?: UserRole | null) {
+    const streams = await this.streamRepository.find({
       where: { status: StreamStatus.LIVE },
       relations: ['user'],
       order: { startedAt: 'DESC' },
     });
+
+    const results = await Promise.all(
+      streams.map(async (stream) => {
+        const isOwner = !!viewerId && viewerId === stream.userId;
+        const isAdmin = viewerRole === UserRole.ADMIN;
+        const access = await this.entitlementsService.checkAccess({
+          creatorId: stream.userId,
+          visibility: stream.visibility,
+          requiredTierId: stream.requiredTierId,
+          viewerId,
+          isOwner,
+          isAdmin,
+        });
+        if (!access.allowed && stream.visibility !== StreamVisibility.PUBLIC) {
+          return toPublicStream(stream, false, {
+            hidePlayback: true,
+            accessReason: access.reason,
+          });
+        }
+        return toPublicStream(stream, false, { hidePlayback: !access.allowed, accessReason: access.reason });
+      }),
+    );
+
+    return results.filter((s) => s.visibility === StreamVisibility.PUBLIC || !s.accessDenied);
   }
 
   async endStream(userId: string, streamId: string): Promise<Stream> {
@@ -112,6 +175,34 @@ export class StreamingService {
     return this.streamRepository.save(stream);
   }
 
+  async setSlowMode(userId: string, streamId: string, slowModeSeconds: number): Promise<Stream> {
+    const stream = await this.findById(streamId);
+    if (stream.userId !== userId) {
+      throw new NotFoundException('Stream not found');
+    }
+    stream.slowModeSeconds = slowModeSeconds;
+    const saved = await this.streamRepository.save(stream);
+    this.eventEmitter.emit('stream.slow-mode', { streamId, slowModeSeconds });
+    return saved;
+  }
+
+  private mapStreamVisibilityToVideo(visibility: StreamVisibility): VideoVisibility {
+    switch (visibility) {
+      case StreamVisibility.FOLLOWERS:
+        return VideoVisibility.FOLLOWERS;
+      case StreamVisibility.SUBSCRIBERS:
+        return VideoVisibility.SUBSCRIBERS;
+      case StreamVisibility.TIER:
+        return VideoVisibility.TIER;
+      case StreamVisibility.PRIVATE:
+        return VideoVisibility.PRIVATE;
+      case StreamVisibility.PAID_EVENT:
+        return VideoVisibility.PAID_EVENT;
+      default:
+        return VideoVisibility.PUBLIC;
+    }
+  }
+
   async handleMuxWebhook(payload: Record<string, unknown>) {
     const eventType = payload.type as string;
     const data = payload.data as Record<string, unknown>;
@@ -131,14 +222,10 @@ export class StreamingService {
         });
       }
     } else if (eventType === 'video.live_stream.recording') {
-      // Recording started; active_asset_id can be used to map live -> VOD asset later.
       const muxLiveStreamId = data.id as string;
       const activeAssetId = data.active_asset_id as string | undefined;
       if (activeAssetId) {
-        await this.streamRepository.update(
-          { muxLiveStreamId },
-          { muxAssetId: activeAssetId },
-        );
+        await this.streamRepository.update({ muxLiveStreamId }, { muxAssetId: activeAssetId });
       }
     } else if (eventType === 'video.live_stream.idle') {
       await this.streamRepository.update(
@@ -154,7 +241,6 @@ export class StreamingService {
       const handledVod = await this.muxVodService.handleAssetReady(payload);
       if (handledVod) return;
 
-      // Live recording → new VOD row when stream has mux_asset_id (no passthrough).
       const assetId = data.id as string;
       const playbackIds = (data.playback_ids as Array<{ id: string; policy: string }> | undefined) || [];
       const playbackId = playbackIds[0]?.id;
@@ -164,15 +250,19 @@ export class StreamingService {
       if (!stream) return;
 
       const hlsUrl = `https://stream.mux.com/${playbackId}.m3u8`;
-      await this.videoRepository.save(
+      const videoVisibility = this.mapStreamVisibilityToVideo(stream.visibility);
+
+      const video = await this.videoRepository.save(
         this.videoRepository.create({
           userId: stream.userId,
           title: stream.title || 'Live session',
           description: stream.description || null,
           status: VideoStatus.READY,
-          visibility: VideoVisibility.PUBLIC,
+          visibility: videoVisibility,
+          requiredTierId: stream.requiredTierId,
+          sourceStreamId: stream.id,
           hlsUrl,
-          thumbnailUrl: `https://image.mux.com/${playbackId}/thumbnail.jpg`,
+          thumbnailUrl: stream.thumbnailUrl || `https://image.mux.com/${playbackId}/thumbnail.jpg`,
           muxAssetId: assetId,
           muxPlaybackId: playbackId,
           s3Key: null,
@@ -180,8 +270,17 @@ export class StreamingService {
           uploadFileSizeBytes: null,
           uploadCompletedAt: null,
           failureReason: null,
+          publishStatus: PublishStatus.PUBLISHED,
+          publishedAt: new Date(),
         }),
       );
+
+      this.eventEmitter.emit('premium.content.new', {
+        videoId: video.id,
+        creatorId: stream.userId,
+        visibility: videoVisibility,
+        title: video.title,
+      });
     } else if (eventType === 'video.asset.errored') {
       await this.muxVodService.handleAssetErrored(payload);
     }

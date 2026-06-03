@@ -85,6 +85,12 @@ export function ProfileHeader({ user }: Props) {
               )}
             </div>
             <p className="text-sm text-on-surface-variant">@{user.username}</p>
+            <Link
+              href={`/${user.username}/community`}
+              className="mt-1 inline-block text-sm text-primary hover:underline"
+            >
+              Community
+            </Link>
           </div>
 
           {isOwnProfile ? (

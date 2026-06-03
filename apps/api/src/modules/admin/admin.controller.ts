@@ -27,6 +27,8 @@ import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { AdminService } from './admin.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
+import { AdminGrantSubscriptionDto } from '../entitlements/dto/tier.dto';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -42,6 +44,7 @@ export class AdminController {
     private readonly analyticsService: AnalyticsService,
     private readonly categoriesService: CategoriesService,
     private readonly adminService: AdminService,
+    private readonly entitlementsService: EntitlementsService,
   ) {}
 
   @Get('users')
@@ -284,5 +287,11 @@ export class AdminController {
       this.videoRepository.count({ where: { status: VideoStatus.READY } }),
     ]);
     return { userCount, videoCount, readyVideoCount };
+  }
+
+  @Post('subscriptions/grant')
+  @ApiOperation({ summary: 'Grant membership to a user (admin)' })
+  grantSubscription(@Body() dto: AdminGrantSubscriptionDto) {
+    return this.entitlementsService.adminGrantSubscription(dto);
   }
 }

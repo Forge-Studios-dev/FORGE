@@ -12,11 +12,13 @@ import { UsersModule } from '../users/users.module';
 import { PlaylistsModule } from '../playlists/playlists.module';
 import { AuthModule } from '../auth/auth.module';
 import { ContentModule } from '../content/content.module';
+import { EntitlementsModule } from '../entitlements/entitlements.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Video, Report]),
     ContentModule,
+    EntitlementsModule,
     ReportsModule,
     AnalyticsModule,
     CategoriesModule,

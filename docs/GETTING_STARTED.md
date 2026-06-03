@@ -55,6 +55,7 @@ For **video transcoding** locally, either run `docker compose up worker -d` or s
 
 Reset roles: `bash scripts/reset-demo-users.sh`  
 API smoke test: `npm run smoke:api`  
+Memberships / live / community smoke: `npm run smoke:memberships` (see [MEMBERSHIPS.md](./MEMBERSHIPS.md))  
 Web E2E: `cd apps/web && npm run test:e2e`  
 Auth architecture (sessions, cookies, middleware): [AUTH_SESSION.md](./AUTH_SESSION.md)  
 Firebase (FCM, App Check, OAuth — optional): [firebase/README.md](./firebase/README.md)

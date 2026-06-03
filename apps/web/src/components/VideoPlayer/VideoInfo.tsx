@@ -70,6 +70,16 @@ export function VideoInfo({ video, onGuestAction }: Props) {
     <div className="space-y-4">
       <h1 className="font-display-forge text-2xl font-bold tracking-tight md:text-3xl">{video.title}</h1>
 
+      {video.sourceStreamId ? (
+        <Link
+          href={`/live/${video.sourceStreamId}`}
+          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+        >
+          <Icon name="live_tv" className="text-base" />
+          Recorded from a live stream
+        </Link>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-outline-variant/20 pb-6">
         <div className="flex flex-wrap items-center gap-4">
           <Link href={`/${creatorUsername}`} className="flex items-center gap-3 transition hover:opacity-90">

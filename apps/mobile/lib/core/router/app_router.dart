@@ -14,6 +14,8 @@ import '../../features/feed/presentation/feed_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/live/presentation/live_screen.dart';
+import '../../features/live/presentation/live_watch_screen.dart';
+import '../../features/community/presentation/community_screen.dart';
 import '../../features/watch/presentation/watch_screen.dart';
 import '../../features/explore/presentation/explore_screen.dart';
 import '../../features/studio/presentation/studio_screen.dart';
@@ -91,6 +93,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (_, state) => ProfileScreen(username: state.pathParameters['username']!),
           ),
           GoRoute(path: '/live', builder: (_, __) => const LiveScreen()),
+          GoRoute(
+            path: '/live/:id',
+            builder: (_, state) => LiveWatchScreen(streamId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: '/community/:creatorId',
+            builder: (_, state) => CommunityScreen(creatorId: state.pathParameters['creatorId']!),
+          ),
           GoRoute(path: '/explore', builder: (_, __) => const ExploreScreen()),
           GoRoute(
             path: '/watch/:id',
