@@ -3,6 +3,9 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class LiveSubsCommunity1750000000000 implements MigrationInterface {
   name = 'LiveSubsCommunity1750000000000';
 
+  /** Enum ADD VALUE and large DDL must not run inside a single PG transaction. */
+  transaction = false;
+
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "subscription_tiers" (
