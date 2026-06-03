@@ -48,7 +48,12 @@ Loaded from `apps/api/src/instrument.ts` before Nest boots. Production:
 SENTRY_DSN='https://...' bash scripts/set-sentry-secrets-fly.sh
 ```
 
-Web/admin: set `NEXT_PUBLIC_SENTRY_DSN` (same DSN) on Vercel.
+Web/admin: set `NEXT_PUBLIC_SENTRY_DSN` (same DSN) on Vercel:
+
+```bash
+SENTRY_DSN='https://...' bash scripts/set-sentry-vercel-env.sh
+bash scripts/vercel-setup.sh   # redeploy to pick up env
+```
 
 ## Distributed tracing (OpenTelemetry)
 
