@@ -51,6 +51,11 @@ import { PUSH_DISPATCH_QUEUE } from './modules/notifications/push-dispatch.const
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './modules/notifications/subscription-maintenance.constants';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 
+/** BullMQ consumers run on the Fly worker app only in production. */
+function shouldLoadWorkersModule(): boolean {
+  return process.env.WORKER_ONLY === 'true' || process.env.NODE_ENV !== 'production';
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -180,7 +185,7 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
     BillingModule,
     StreamChatModule,
     CommunitiesModule,
-    WorkersModule,
+    ...(shouldLoadWorkersModule() ? [WorkersModule] : []),
     AdminModule,
     PlaylistsModule,
     NotificationsModule,
