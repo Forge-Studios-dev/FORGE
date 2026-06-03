@@ -42,8 +42,8 @@ Test memberships show a **Test membership** badge in the web UI.
 - **Subscription maintenance** (BullMQ queue `subscription-maintenance`, hourly):
   - Notify users whose membership expires within 3 days (Redis dedupe per subscription).
   - Mark expired subscriptions inactive and bust entitlement cache.
-- API registers the repeatable scheduler; the Fly **worker** app (`WORKER_ONLY=true`) processes jobs in production.
-- Local/dev: worker module also registers the consumer when `NODE_ENV !== 'production'`.
+- In **production**, the Fly **worker** app (`WORKER_ONLY=true`) registers the repeatable scheduler and consumes jobs. The API process skips scheduler registration so HTTP boot is not blocked on BullMQ I/O.
+- Local/dev: combined API process registers the scheduler when `NODE_ENV !== 'production'`.
 - Disable with `DISABLE_SUBSCRIPTION_MAINTENANCE=true`.
 
 ## Caching
