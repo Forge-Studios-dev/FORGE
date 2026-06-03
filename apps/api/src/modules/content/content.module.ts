@@ -30,7 +30,7 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
       PlaylistVideo,
     ]),
     forwardRef(() => UsersModule),
-    EntitlementsModule,
+    forwardRef(() => EntitlementsModule),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
       defaultJobOptions: {
