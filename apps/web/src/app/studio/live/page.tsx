@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Icon, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { Stream, Category } from '@/types';
+import { Stream, Category, SubscriptionTier } from '@/types';
 
 const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Public' },
@@ -20,6 +20,7 @@ export default function StudioLivePage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<string>('public');
+  const [requiredTierId, setRequiredTierId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [chatEnabled, setChatEnabled] = useState(true);
   const [recordEnabled, setRecordEnabled] = useState(true);
@@ -44,9 +45,22 @@ export default function StudioLivePage() {
     },
   });
 
+  const { data: myTiers } = useQuery({
+    queryKey: ['studio-tiers'],
+    enabled: isCreator,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: SubscriptionTier[] }>('/creators/me/tiers');
+      return data.data;
+    },
+  });
+
   async function startStream() {
     const t = title.trim();
     if (!t) return;
+    if (visibility === 'tier' && !requiredTierId) {
+      setError('Select a membership tier for tier-only streams.');
+      return;
+    }
     setError('');
     setCreating(true);
     try {
@@ -54,6 +68,7 @@ export default function StudioLivePage() {
         title: t,
         description: description.trim() || undefined,
         visibility,
+        requiredTierId: visibility === 'tier' ? requiredTierId : undefined,
         categoryId: categoryId || undefined,
         chatEnabled,
         recordEnabled,
@@ -96,7 +111,10 @@ export default function StudioLivePage() {
               <span className="text-on-surface-variant">Visibility</span>
               <select
                 value={visibility}
-                onChange={(e) => setVisibility(e.target.value)}
+                onChange={(e) => {
+                  setVisibility(e.target.value);
+                  if (e.target.value !== 'tier') setRequiredTierId('');
+                }}
                 className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
               >
                 {VISIBILITY_OPTIONS.map((o) => (
@@ -106,6 +124,23 @@ export default function StudioLivePage() {
                 ))}
               </select>
             </label>
+            {visibility === 'tier' ? (
+              <label className="block text-sm">
+                <span className="text-on-surface-variant">Required tier</span>
+                <select
+                  value={requiredTierId}
+                  onChange={(e) => setRequiredTierId(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
+                >
+                  <option value="">Select tier</option>
+                  {(myTiers ?? []).map((tier) => (
+                    <option key={tier.id} value={tier.id}>
+                      {tier.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="block text-sm">
               <span className="text-on-surface-variant">Category</span>
               <select

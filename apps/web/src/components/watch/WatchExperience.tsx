@@ -14,7 +14,17 @@ import {
 } from '@/lib/engage-access';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
+import { MembershipPanel } from '@/components/Membership/MembershipPanel';
 import { useAuth } from '@/lib/auth';
+
+const ACCESS_MESSAGES: Record<string, string> = {
+  login_required: 'Sign in to watch this lesson.',
+  follow_required: 'Follow this creator to watch.',
+  subscription_required: 'An active membership is required.',
+  tier_required: 'A higher membership tier is required.',
+  paid_event: 'Paid event access is coming soon.',
+  private: 'This lesson is private.',
+};
 
 export function WatchExperience({
   video,
@@ -42,6 +52,21 @@ export function WatchExperience({
               : 'You do not have permission to watch this private lesson.'
           }
         />
+      </main>
+    );
+  }
+
+  if (video.accessDenied) {
+    return (
+      <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
+        <div className="glass-panel mb-6 flex aspect-video flex-col items-center justify-center gap-3 px-6 text-center">
+          <p className="font-medium">Lesson access restricted</p>
+          <p className="text-sm text-on-surface-variant">
+            {ACCESS_MESSAGES[video.accessReason ?? ''] ?? 'You cannot watch this lesson.'}
+          </p>
+        </div>
+        <h1 className="font-display-forge mb-4 text-2xl font-bold">{video.title}</h1>
+        <MembershipPanel creatorId={video.userId} />
       </main>
     );
   }
