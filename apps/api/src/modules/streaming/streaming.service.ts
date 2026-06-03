@@ -219,6 +219,8 @@ export class StreamingService {
           streamId: stream.id,
           userId: stream.userId,
           title: stream.title,
+          visibility: stream.visibility,
+          requiredTierId: stream.requiredTierId,
         });
       }
     } else if (eventType === 'video.live_stream.recording') {
@@ -279,6 +281,7 @@ export class StreamingService {
         videoId: video.id,
         creatorId: stream.userId,
         visibility: videoVisibility,
+        requiredTierId: stream.requiredTierId,
         title: video.title,
       });
     } else if (eventType === 'video.asset.errored') {

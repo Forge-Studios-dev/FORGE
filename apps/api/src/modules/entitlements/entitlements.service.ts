@@ -191,6 +191,11 @@ export class EntitlementsService {
     return sub.tier.sortOrder >= requiredTier.sortOrder;
   }
 
+  /** Alias for checkAccess — single entry point for entitlement checks. */
+  hasAccess(input: AccessCheckInput): Promise<AccessCheckResult> {
+    return this.checkAccess(input);
+  }
+
   async checkAccess(input: AccessCheckInput): Promise<AccessCheckResult> {
     const { creatorId, visibility, requiredTierId, viewerId, isOwner, isAdmin } = input;
 
@@ -353,6 +358,32 @@ export class EntitlementsService {
       relations: ['tier'],
     });
     return toPublicSubscription(full!);
+  }
+
+  async listActiveSubscriberUserIds(
+    creatorId: string,
+    requiredTierId?: string | null,
+  ): Promise<string[]> {
+    const now = new Date();
+    const subs = await this.subscriptionRepository
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.tier', 'tier')
+      .where('s.creator_id = :creatorId', { creatorId })
+      .andWhere('s.status = :status', { status: MemberSubscriptionStatus.ACTIVE })
+      .andWhere('s.starts_at <= :now', { now })
+      .andWhere('(s.expires_at IS NULL OR s.expires_at > :now)', { now })
+      .getMany();
+
+    if (!requiredTierId) {
+      return subs.map((s) => s.userId);
+    }
+
+    const requiredTier = await this.getTierById(requiredTierId);
+    if (requiredTier.creatorId !== creatorId) return [];
+
+    return subs
+      .filter((s) => s.tier && s.tier.sortOrder >= requiredTier.sortOrder)
+      .map((s) => s.userId);
   }
 
   async mockSubscribe(requesterId: string, dto: MockSubscriptionDto) {

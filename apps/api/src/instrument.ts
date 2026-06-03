@@ -7,8 +7,12 @@ import { bootstrapOpenTelemetry } from './otel-bootstrap';
 if (process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || 'development',
-    tracesSampleRate: Math.min(1, Math.max(0, parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0'))),
+    environment: process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development',
+    tracesSampleRate: Math.min(
+      1,
+      Math.max(0, parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1')),
+    ),
+    sendDefaultPii: process.env.SENTRY_SEND_DEFAULT_PII !== 'false',
   });
 }
 

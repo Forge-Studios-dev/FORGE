@@ -29,8 +29,15 @@ export class StreamChatController {
     @Param('streamId') streamId: string,
     @Query('limit') limit = 50,
     @Query('cursor') cursor?: string,
+    @CurrentUser() user?: JwtPayload,
   ) {
-    return this.streamChatService.getMessages(streamId, Number(limit) || 50, cursor);
+    return this.streamChatService.getMessages(
+      streamId,
+      Number(limit) || 50,
+      cursor,
+      user?.sub,
+      user?.role,
+    );
   }
 
   @Post()

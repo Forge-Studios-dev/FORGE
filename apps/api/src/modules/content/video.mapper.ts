@@ -35,6 +35,8 @@ export type PublicVideo = {
   scheduledPublishAt: Date | null;
   requiredTierId: string | null;
   sourceStreamId: string | null;
+  accessDenied?: boolean;
+  accessReason?: string;
 };
 
 export type PublicVideoMapperOpts = {

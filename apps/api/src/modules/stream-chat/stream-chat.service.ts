@@ -34,7 +34,30 @@ export class StreamChatService {
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
-  async getMessages(streamId: string, limit = 50, cursor?: string) {
+  async getMessages(
+    streamId: string,
+    limit = 50,
+    cursor?: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ) {
+    const stream = await this.streamingService.findById(streamId);
+    const isOwner = !!viewerId && viewerId === stream.userId;
+    const isAdmin = viewerRole === UserRole.ADMIN;
+
+    if (!stream.chatEnabled) {
+      throw new ForbiddenException('Chat is disabled for this stream');
+    }
+
+    if (!isOwner && !isAdmin) {
+      await this.entitlementsService.assertAccessAsync({
+        creatorId: stream.userId,
+        visibility: stream.visibility,
+        requiredTierId: stream.requiredTierId,
+        viewerId,
+      });
+    }
+
     if (!cursor) {
       const cacheKey = `stream:chat:page:${streamId}`;
       const cached = await this.redis.get(cacheKey);

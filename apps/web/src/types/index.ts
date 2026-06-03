@@ -38,6 +38,8 @@ export interface Video {
   sourceStreamId?: string | null;
   publishedAt?: string | null;
   scheduledPublishAt?: string | null;
+  accessDenied?: boolean;
+  accessReason?: string;
 }
 
 export interface Stream {

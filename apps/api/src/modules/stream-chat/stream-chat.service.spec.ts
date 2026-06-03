@@ -126,4 +126,22 @@ describe('StreamChatService', () => {
 
     expect(entitlementsService.assertAccessAsync).not.toHaveBeenCalled();
   });
+
+  it('gates chat history for non-entitled viewers', async () => {
+    streamingService.findById.mockResolvedValue({
+      id: 's1',
+      userId: 'c1',
+      chatEnabled: true,
+      visibility: StreamVisibility.SUBSCRIBERS,
+      requiredTierId: null,
+    } as Stream);
+
+    entitlementsService.assertAccessAsync.mockRejectedValue(
+      new ForbiddenException('An active membership is required'),
+    );
+
+    await expect(service.getMessages('s1', 50, undefined, 'viewer-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
 });

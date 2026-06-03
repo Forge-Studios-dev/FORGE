@@ -732,13 +732,59 @@ export class VideosService {
     viewerRole?: UserRole | null,
   ): Promise<PublicVideo> {
     const video = await this.findById(id);
-    await this.assertCanWatchVideo(video, viewerId, viewerRole);
+    const isOwner = !!viewerId && viewerId === video.userId;
+    const isAdmin = viewerRole === UserRole.ADMIN;
+
+    if (video.moderationStatus === ModerationStatus.BLOCKED && !isOwner && !isAdmin) {
+      throw new ForbiddenException('This video is not available');
+    }
+    if (video.moderationStatus === ModerationStatus.HELD && !isOwner && !isAdmin) {
+      throw new ForbiddenException('This video is not available');
+    }
+    if (video.visibility === VideoVisibility.PRIVATE && !isOwner && !isAdmin) {
+      throw new ForbiddenException('This video is private');
+    }
+
+    if (!isOwner && !isAdmin) {
+      if (video.status !== VideoStatus.READY) {
+        throw new ForbiddenException('This video is not available yet');
+      }
+      if (video.publishStatus !== PublishStatus.PUBLISHED) {
+        throw new ForbiddenException('This video is not published yet');
+      }
+      const now = new Date();
+      if (video.scheduledPublishAt && video.scheduledPublishAt > now) {
+        throw new ForbiddenException('This video is not published yet');
+      }
+      if (video.publishedAt && video.publishedAt > now) {
+        throw new ForbiddenException('This video is not published yet');
+      }
+    }
+
+    const access = await this.entitlementsService.checkAccess({
+      creatorId: video.userId,
+      visibility: video.visibility,
+      requiredTierId: video.requiredTierId,
+      viewerId,
+      isOwner,
+      isAdmin,
+    });
+
     const mapped = this.mapToPublicVideo(video);
     const pending = await this.getPendingViewCount(id);
-    if (pending > 0) {
-      return { ...mapped, viewCount: mapped.viewCount + pending };
+    const withViews =
+      pending > 0 ? { ...mapped, viewCount: mapped.viewCount + pending } : mapped;
+
+    if (!access.allowed && !isOwner && !isAdmin) {
+      return {
+        ...withViews,
+        hlsUrl: null,
+        accessDenied: true,
+        accessReason: access.reason,
+      };
     }
-    return mapped;
+
+    return withViews;
   }
 
   /** Re-queue Mux ingest after a failed transcode (creator-owned, source still in S3). */
