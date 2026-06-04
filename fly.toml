@@ -1,5 +1,5 @@
 # Fly.io — FORGE API (NestJS)
-# Docs: docs/MVP_GO_LIVE.md
+# Docs: docs/DEPLOY.md
 # Create app once: fly apps create forge-studios-api --org personal
 
 app = 'forge-studios-api'

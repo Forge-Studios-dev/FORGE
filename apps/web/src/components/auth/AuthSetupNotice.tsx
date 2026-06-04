@@ -24,7 +24,7 @@ export function AuthSetupNotice({ config }: { config: PlatformPublicConfig }) {
     >
       Verification emails are not configured on this API (SMTP missing). Sign-up may succeed without an
       inbox message — check API logs for the link, or configure SMTP (
-      <code className="text-xs">docs/auth-enterprise/ENABLEMENT_GUIDE.md</code>).
+      <code className="text-xs">docs/AUTH.md</code>).
     </p>
   );
 }

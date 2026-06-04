@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Enable Google OAuth, SMTP, and Firebase complement on production.
-# See docs/auth-enterprise/ENABLEMENT_GUIDE.md
+# See docs/AUTH.md
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

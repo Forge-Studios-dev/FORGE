@@ -32,7 +32,7 @@ else
     echo "  OK: server-side OAuth uses API callback (Web application client)"
   else
     echo "  WARN: redirect_uri is not $EXPECTED_CALLBACK"
-    echo "        Fix GOOGLE_CALLBACK_URL / OAuth Web client: docs/auth-enterprise/PRODUCTION_AUTH_AUDIT.md"
+    echo "        Fix GOOGLE_CALLBACK_URL / OAuth Web client: docs/AUTH.md"
   fi
 fi
 
@@ -48,4 +48,4 @@ for text in "Sign in" "Continue with Google" "Create account"; do
 done
 
 echo ""
-echo "Audit doc: docs/auth-enterprise/PRODUCTION_AUTH_AUDIT.md"
+echo "Audit doc: docs/AUTH.md"

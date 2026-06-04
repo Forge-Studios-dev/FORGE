@@ -77,7 +77,7 @@ echo "  2. Fill values from Google Cloud, SMTP provider, Firebase Console"
 echo "  3. bash scripts/deploy-auth-secrets.sh"
 echo "  4. bash scripts/verify-production-auth.sh"
 echo ""
-echo "Guide: docs/auth-enterprise/ENABLEMENT_GUIDE.md"
+echo "Guide: docs/AUTH.md"
 
 if [[ "$fail" -gt 0 ]]; then
   exit 1

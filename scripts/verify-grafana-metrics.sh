@@ -56,6 +56,6 @@ if [[ "$count" -gt 0 ]]; then
 fi
 
 echo "FAIL: no forge_http_requests_total in Grafana (last 15m)" >&2
-echo "  Save scrape job: docs/GRAFANA_SETUP.md" >&2
+echo "  Save scrape job: docs/OBSERVABILITY.md" >&2
 echo "  API side: npm run verify:metrics-scrape" >&2
 exit 1

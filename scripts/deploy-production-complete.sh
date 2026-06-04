@@ -31,7 +31,7 @@ if ! fly certs list --app forge-studios-api 2>/dev/null | grep -q api.forgestudi
   echo "  Adding TLS cert for api.forgestudios.net..."
   fly certs add api.forgestudios.net --app forge-studios-api || true
 fi
-echo "  DNS — see: docs/DOMAIN_FORGESTUDIOS.md (Part 3)"
+echo "  DNS — see: docs/DEPLOY.md (Part 3)"
 fly certs setup api.forgestudios.net --app forge-studios-api 2>/dev/null | head -20 || true
 
 # --- Vercel ---
@@ -47,7 +47,7 @@ bash "$ROOT/scripts/vercel-setup.sh"
 # --- Domain hints ---
 echo ""
 echo "[3/4] Custom domains (manual in Squarespace + Vercel UI)"
-echo "  DNS (Squarespace): docs/DOMAIN_FORGESTUDIOS.md"
+echo "  DNS (Squarespace): docs/DEPLOY.md"
 echo "  Vercel: add forgestudios.net → web, admin.forgestudios.net → admin"
 echo ""
 echo "  Current DNS apex (should become 76.76.21.21):"
@@ -70,5 +70,5 @@ echo "  API:   $API_URL"
 echo "  Web:   $WEB_URL"
 echo "  Admin: $ADMIN_URL"
 echo ""
-echo "  DNS: docs/DOMAIN_FORGESTUDIOS.md"
+echo "  DNS: docs/DEPLOY.md"
 echo "=============================================="

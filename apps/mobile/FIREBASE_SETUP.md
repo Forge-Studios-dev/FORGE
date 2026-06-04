@@ -25,4 +25,4 @@ Commit the generated `lib/firebase_options.dart` (or generate in CI with secrets
 
 After login, API should receive `POST /notifications/devices/register` with a valid FCM token when `DefaultFirebaseOptions` is not stubbed.
 
-See [docs/firebase/FCM_NOTIFICATIONS.md](../../docs/firebase/FCM_NOTIFICATIONS.md).
+See [docs/FIREBASE.md](../../docs/FIREBASE.md).

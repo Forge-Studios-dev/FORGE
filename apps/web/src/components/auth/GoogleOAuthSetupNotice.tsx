@@ -25,7 +25,7 @@ export function GoogleOAuthSetupNotice({ config }: { config: PlatformPublicConfi
   return (
     <p className="rounded-lg bg-secondary/10 px-4 py-2 text-xs text-on-surface-variant" role="status">
       Local dev: enable Google OAuth on the API (<code>GOOGLE_OAUTH_ENABLED</code> and client credentials
-      in <code>apps/api/.env</code>). See <code className="text-xs">docs/auth-enterprise/ENABLEMENT_GUIDE.md</code>.
+      in <code>apps/api/.env</code>). See <code className="text-xs">docs/AUTH.md</code>.
     </p>
   );
 }
