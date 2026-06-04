@@ -52,7 +52,17 @@
 | F-903 | BullMQ Prometheus gauges + alerts | **Done** — `bullmq-metrics.ts`, [prometheus-alerts.yml](../../infra/observability/prometheus-alerts.yml) |
 | F-902 | Staging bootstrap | **Done** — [STAGING.md](../operations/STAGING.md), [deploy-staging.yml](../../.github/workflows/deploy-staging.yml) |
 
-**Remaining top fixes** (backlog): F-302 mobile Socket.IO, F-504 analytics retention, F-802 CSRF, F-1101 Stripe, F-1201 coverage gate, CodeQL.
+## Wave 3 — PR `fix/audit-wave-3`
+
+| ID | Fix | Status |
+|----|-----|--------|
+| F-504 | Analytics retention job | **Done** — `analytics-retention` BullMQ daily on worker |
+| F-802 | CSRF for cookie refresh | **Done** — `forge_csrf` + `X-Forge-CSRF` (production); web client updated |
+| F-302 | Mobile Socket.IO client v3 | **Done** — `socket_io_client: ^3.0.2` (server 4.7.x) |
+| F-801 | CodeQL | **Done** — `.github/workflows/codeql.yml` |
+| F-1201 | API coverage in CI | **Done** — non-blocking `test:cov` + artifact (threshold gate next) |
+
+**Remaining top fixes** (backlog): F-1101 Stripe Phase 2, F-503 community N+1, F-505 tier cache, F-1201 enforce 60% gate, F-1202 mobile tests.
 
 ---
 

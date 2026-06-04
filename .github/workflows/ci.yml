@@ -132,6 +132,22 @@ jobs:
           JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
           JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
           NODE_ENV: test
+      - name: API coverage report (F-1201, non-blocking)
+        run: npm run test:cov --workspace=@forge/api
+        continue-on-error: true
+        env:
+          DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
+          NODE_ENV: test
+      - name: Upload API coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-coverage
+          path: apps/api/coverage/lcov.info
+          if-no-files-found: ignore
 
   web:
     name: Web — lint & build

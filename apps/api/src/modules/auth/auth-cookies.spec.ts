@@ -1,8 +1,11 @@
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import {
+  CSRF_COOKIE_NAME,
+  CSRF_HEADER_NAME,
   REFRESH_COOKIE_NAME,
   SESSION_COOKIE_NAME,
+  assertCookieRefreshCsrf,
   readRefreshTokenFromRequest,
   setRefreshTokenCookie,
   clearRefreshTokenCookie,
@@ -20,7 +23,15 @@ describe('auth-cookies', () => {
     },
   } as unknown as ConfigService;
 
-  it('setRefreshTokenCookie sets httpOnly forge_refresh', () => {
+  const prodConfig = {
+    get: (key: string) => {
+      if (key === 'nodeEnv') return 'production';
+      if (key === 'auth.refreshCookieDomain') return '.forgestudios.net';
+      return undefined;
+    },
+  } as unknown as ConfigService;
+
+  it('setRefreshTokenCookie sets httpOnly forge_refresh and forge_csrf', () => {
     const cookies: Record<string, unknown> = {};
     const res = {
       cookie: jest.fn((name: string, value: string, opts: Record<string, unknown>) => {
@@ -35,6 +46,34 @@ describe('auth-cookies', () => {
       'raw-token',
       expect.objectContaining({ httpOnly: true, path: '/api/v1/auth' }),
     );
+    expect(res.cookie).toHaveBeenCalledWith(
+      CSRF_COOKIE_NAME,
+      expect.any(String),
+      expect.objectContaining({ httpOnly: false, path: '/' }),
+    );
+  });
+
+  it('assertCookieRefreshCsrf skips in development', () => {
+    const req = {
+      cookies: { [REFRESH_COOKIE_NAME]: 'r' },
+      headers: {},
+    } as unknown as import('express').Request;
+    expect(() => assertCookieRefreshCsrf(req, config)).not.toThrow();
+  });
+
+  it('assertCookieRefreshCsrf requires matching header in production', () => {
+    const token = 'a'.repeat(64);
+    const req = {
+      cookies: { [REFRESH_COOKIE_NAME]: 'r', [CSRF_COOKIE_NAME]: token },
+      headers: { [CSRF_HEADER_NAME]: 'b'.repeat(64) },
+    } as unknown as import('express').Request;
+    expect(() => assertCookieRefreshCsrf(req, prodConfig)).toThrow('Invalid CSRF token');
+    const matchingReq = {
+      cookies: { [REFRESH_COOKIE_NAME]: 'r', [CSRF_COOKIE_NAME]: token },
+      headers: { [CSRF_HEADER_NAME]: token },
+    } as unknown as import('express').Request;
+    expect(() => assertCookieRefreshCsrf(matchingReq, prodConfig)).not.toThrow();
+    expect(() => assertCookieRefreshCsrf(req, prodConfig, 'body-token')).not.toThrow();
   });
 
   it('readRefreshTokenFromRequest prefers body over cookie', () => {

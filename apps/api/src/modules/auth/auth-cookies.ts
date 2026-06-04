@@ -1,7 +1,11 @@
+import { timingSafeEqual, randomBytes } from 'crypto';
 import { Response, Request } from 'express';
+import { ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 export const REFRESH_COOKIE_NAME = 'forge_refresh';
+export const CSRF_COOKIE_NAME = 'forge_csrf';
+export const CSRF_HEADER_NAME = 'x-forge-csrf';
 /** HttpOnly session marker for middleware (not a JWT). */
 export const SESSION_COOKIE_NAME = 'forge_session';
 
@@ -43,16 +47,77 @@ function refreshCookieOptions(configService: ConfigService) {
   };
 }
 
+function csrfCookieOptions(configService: ConfigService) {
+  const nodeEnv = configService.get<string>('nodeEnv');
+  const isProd = nodeEnv === 'production';
+  const domain = sessionCookieDomain(configService);
+  return {
+    httpOnly: false,
+    secure: isProd,
+    sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+    path: '/',
+    maxAge: refreshTtlMs(configService),
+    ...(domain ? { domain } : {}),
+  };
+}
+
+function newCsrfToken(): string {
+  return randomBytes(32).toString('hex');
+}
+
+export function setCsrfCookie(res: Response, configService: ConfigService, token?: string): void {
+  res.cookie(CSRF_COOKIE_NAME, token ?? newCsrfToken(), csrfCookieOptions(configService));
+}
+
+export function clearCsrfCookie(res: Response, configService: ConfigService): void {
+  res.clearCookie(CSRF_COOKIE_NAME, csrfCookieOptions(configService));
+}
+
 export function setRefreshTokenCookie(
   res: Response,
   refreshToken: string,
   configService: ConfigService,
 ): void {
   res.cookie(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions(configService));
+  setCsrfCookie(res, configService);
 }
 
 export function clearRefreshTokenCookie(res: Response, configService: ConfigService): void {
   res.clearCookie(REFRESH_COOKIE_NAME, refreshCookieOptions(configService));
+  clearCsrfCookie(res, configService);
+}
+
+/** F-802: double-submit CSRF when refresh uses HttpOnly cookie (production cross-site SPA). */
+export function assertCookieRefreshCsrf(
+  req: Request,
+  configService: ConfigService,
+  bodyToken?: string,
+): void {
+  if (bodyToken?.trim()) return;
+  const nodeEnv = configService.get<string>('nodeEnv');
+  if (nodeEnv !== 'production') return;
+
+  const refresh = req.cookies?.[REFRESH_COOKIE_NAME];
+  if (typeof refresh !== 'string' || refresh.length === 0) return;
+
+  const cookieToken = req.cookies?.[CSRF_COOKIE_NAME];
+  const headerRaw = req.headers[CSRF_HEADER_NAME];
+  const headerToken = typeof headerRaw === 'string' ? headerRaw.trim() : '';
+
+  if (
+    typeof cookieToken !== 'string' ||
+    cookieToken.length === 0 ||
+    headerToken.length === 0 ||
+    cookieToken.length !== headerToken.length
+  ) {
+    throw new ForbiddenException('CSRF token required for cookie-based refresh');
+  }
+
+  const a = Buffer.from(cookieToken);
+  const b = Buffer.from(headerToken);
+  if (!timingSafeEqual(a, b)) {
+    throw new ForbiddenException('Invalid CSRF token');
+  }
 }
 
 export function readRefreshTokenFromRequest(req: Request, bodyToken?: string): string | null {

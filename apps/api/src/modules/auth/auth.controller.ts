@@ -20,6 +20,7 @@ import { AuthService, ClientSessionMeta } from './auth.service';
 import {
   clearRefreshTokenCookie,
   clearSessionCookie,
+  assertCookieRefreshCsrf,
   readRefreshTokenFromRequest,
   setRefreshTokenCookie,
   setSessionCookie,
@@ -146,6 +147,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    assertCookieRefreshCsrf(req, this.configService, dto.refreshToken);
     const raw = readRefreshTokenFromRequest(req, dto.refreshToken);
     if (!raw) {
       throw new UnauthorizedException('Refresh token required');
@@ -168,6 +170,7 @@ export class AuthController {
       await this.authService.logoutAll(user.sub);
       await this.notificationsService.revokeDevice(user.sub);
     } else {
+      assertCookieRefreshCsrf(req, this.configService);
       const raw = readRefreshTokenFromRequest(req);
       await this.authService.logoutCurrent(user.sub, raw);
     }
