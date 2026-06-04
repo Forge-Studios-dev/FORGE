@@ -6,6 +6,7 @@ import {
   syncAuthCookieFromStorage,
 } from '@/lib/auth-storage';
 import { currentReturnPath } from '@/lib/safe-return-path';
+import { csrfRequestHeaders } from '@/lib/csrf';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -36,7 +37,10 @@ uploadApi.interceptors.response.use(
     if (error.response?.status === 401 && original && !original._retry) {
       original._retry = true;
       try {
-        const { data } = await axios.post(`${API_URL}/auth/refresh`, {}, { withCredentials: true });
+        const { data } = await axios.post(`${API_URL}/auth/refresh`, {}, {
+          withCredentials: true,
+          headers: csrfRequestHeaders(),
+        });
         const accessToken = data.data.accessToken as string;
         persistAuthSession(
           accessToken,

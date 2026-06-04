@@ -7,6 +7,7 @@ import {
 } from '@/lib/auth-storage';
 import { currentReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
+import { csrfRequestHeaders } from '@/lib/csrf';
 
 const APP_CHECK_ROUTES = ['/auth/login', '/auth/signup', '/analytics/events'];
 
@@ -45,7 +46,7 @@ api.interceptors.response.use(
         const { data } = await axios.post(
           `${API_URL}/auth/refresh`,
           {},
-          { withCredentials: true },
+          { withCredentials: true, headers: csrfRequestHeaders() },
         );
         const accessToken = data.data.accessToken as string;
         const newRefresh = data.data.refreshToken as string | undefined;

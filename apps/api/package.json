@@ -103,6 +103,20 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "coverageDirectory": "../coverage",
+    "collectCoverageFrom": [
+      "modules/auth/**/*.ts",
+      "modules/entitlements/**/*.ts",
+      "modules/content/**/*.ts",
+      "modules/streaming/**/*.ts",
+      "!**/*.spec.ts",
+      "!**/entities/**",
+      "!**/dto/**"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "\\.module\\.ts$",
+      "\\.controller\\.ts$"
+    ],
     "testEnvironment": "node"
   }
 }

@@ -49,6 +49,7 @@ import { redisTlsOptions } from './common/redis/redis-tls.util';
 import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
 import { MUX_VOD_INGEST_QUEUE } from './modules/content/mux-vod.constants';
 import { ANALYTICS_INGEST_QUEUE } from './modules/analytics/analytics-ingest.constants';
+import { ANALYTICS_RETENTION_QUEUE } from './modules/analytics/analytics-retention.constants';
 import { PUSH_DISPATCH_QUEUE } from './modules/notifications/push-dispatch.constants';
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './modules/notifications/subscription-maintenance.constants';
 import { FirebaseModule } from './modules/firebase/firebase.module';
@@ -180,6 +181,15 @@ function sentryFilterProviders() {
         backoff: { type: 'exponential', delay: 10_000 },
         removeOnComplete: { age: 86400, count: 48 },
         removeOnFail: { age: 7 * 86400, count: 100 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: ANALYTICS_RETENTION_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        backoff: { type: 'exponential', delay: 60_000 },
+        removeOnComplete: { age: 7 * 86400, count: 14 },
+        removeOnFail: { age: 7 * 86400, count: 50 },
       },
     }),
 

@@ -13,8 +13,11 @@ import { ContentModule } from '../content/content.module';
 import { ANALYTICS_INGEST_QUEUE } from '../analytics/analytics-ingest.constants';
 import { PUSH_DISPATCH_QUEUE } from '../notifications/push-dispatch.constants';
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from '../notifications/subscription-maintenance.constants';
+import { ANALYTICS_RETENTION_QUEUE } from '../analytics/analytics-retention.constants';
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { PushDispatchWorker } from './push-dispatch/push-dispatch.worker';
 import { SubscriptionMaintenanceWorker } from './subscription-maintenance/subscription-maintenance.worker';
+import { AnalyticsRetentionWorker } from './analytics-retention/analytics-retention.worker';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DeviceToken } from '../notifications/entities/device-token.entity';
 import { FirebaseModule } from '../firebase/firebase.module';
@@ -57,8 +60,15 @@ function shouldRegisterSubscriptionMaintenance(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+function shouldRegisterAnalyticsRetention(): boolean {
+  if (process.env.DISABLE_ANALYTICS_RETENTION === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
 @Module({
   imports: [
+    AnalyticsModule,
     NotificationsModule,
     ContentModule,
     FirebaseModule,
@@ -115,6 +125,15 @@ function shouldRegisterSubscriptionMaintenance(): boolean {
         removeOnFail: { age: 7 * 86400, count: 100 },
       },
     }),
+    BullModule.registerQueue({
+      name: ANALYTICS_RETENTION_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        backoff: { type: 'exponential', delay: 60_000 },
+        removeOnComplete: { age: 7 * 86400, count: 14 },
+        removeOnFail: { age: 7 * 86400, count: 50 },
+      },
+    }),
     EventEmitterModule,
   ],
   providers: [
@@ -123,6 +142,7 @@ function shouldRegisterSubscriptionMaintenance(): boolean {
     ...(shouldRegisterMuxVodIngest() ? [MuxVodIngestWorker] : []),
     ...(shouldRegisterPushDispatch() ? [PushDispatchWorker] : []),
     ...(shouldRegisterSubscriptionMaintenance() ? [SubscriptionMaintenanceWorker] : []),
+    ...(shouldRegisterAnalyticsRetention() ? [AnalyticsRetentionWorker] : []),
   ],
 })
 export class WorkersModule {}

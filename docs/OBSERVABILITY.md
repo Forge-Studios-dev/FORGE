@@ -34,7 +34,11 @@ When set, scrapers must send `Authorization: Bearer <token>`. Leave unset for op
 | `forge_bullmq_jobs_failed` | Gauge by queue name |
 | Default Node/process metrics | via `prom-client` collectDefaultMetrics |
 
-Queues exported when registered: `mux-vod-ingest`, `analytics-ingest`, `push-dispatch`, `subscription-maintenance`, and `video-processing` when present.
+Queues exported when registered: `mux-vod-ingest`, `analytics-ingest`, `analytics-retention`, `push-dispatch`, `subscription-maintenance`, and `video-processing` when present.
+
+### Analytics retention (F-504)
+
+Daily job on the Fly worker deletes `analytics_events` older than `ANALYTICS_RETENTION_DAYS` (default **90**). Set `ANALYTICS_RETENTION_DAYS=0` or `DISABLE_ANALYTICS_RETENTION=true` to disable.
 
 ### BullMQ alerts (F-903)
 
