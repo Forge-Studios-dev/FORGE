@@ -1,0 +1,51 @@
+# Manual staging deploy — does NOT run on push to main.
+# Requires GitHub environment "staging" with Fly/DB secrets.
+# See docs/operations/STAGING.md
+
+name: Deploy (staging)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy-api-staging:
+    name: Deploy API staging (Fly.io)
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require Fly secret
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::Missing FLY_API_TOKEN in staging environment"
+            exit 1
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to staging Fly app
+        run: flyctl deploy --remote-only --ha=false --app forge-studios-api-staging
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Smoke staging health
+        run: |
+          URL="${STAGING_API_URL:-https://forge-studios-api-staging.fly.dev/api/v1/health/live}"
+          for i in 1 2 3 4 5; do
+            if curl -sf --max-time 15 "$URL"; then
+              echo "OK: $URL"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Staging health check failed"
+          exit 1
+        env:
+          STAGING_API_URL: ${{ vars.STAGING_API_URL }}

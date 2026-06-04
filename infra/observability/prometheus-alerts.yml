@@ -36,3 +36,21 @@ groups:
         annotations:
           summary: No forge_http_requests_total samples
           description: Metrics scrape may be down or METRICS_ENABLED is false on the API.
+
+      - alert: ForgeMuxVodQueueBacklog
+        expr: forge_bullmq_jobs_waiting{queue="mux-vod-ingest"} > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: mux-vod-ingest queue backlog
+          description: More than 100 waiting jobs for 10 minutes — check worker and Mux webhooks.
+
+      - alert: ForgeAnalyticsIngestQueueBacklog
+        expr: forge_bullmq_jobs_waiting{queue="analytics-ingest"} > 5000
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: analytics-ingest queue backlog
+          description: Analytics ingest falling behind — scale worker or add retention.

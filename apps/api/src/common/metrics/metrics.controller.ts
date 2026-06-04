@@ -10,6 +10,7 @@ import { Request, Response } from 'express';
 import { collectDefaultMetrics } from 'prom-client';
 import { Public } from '../decorators/public.decorator';
 import { forgeMetricsEnabled, getForgeMetricsRegistry } from './forge-metrics';
+import { BullmqMetricsService } from './bullmq-metrics.service';
 
 function metricsScrapeToken(): string | undefined {
   const token = process.env.METRICS_SCRAPE_TOKEN?.trim();
@@ -30,6 +31,8 @@ function assertMetricsScrapeAuthorized(req: Request): void {
 export class MetricsController {
   private defaultsRegistered = false;
 
+  constructor(private readonly bullmqMetrics: BullmqMetricsService) {}
+
   @Public()
   @Get()
   async metrics(@Req() req: Request, @Res() res: Response): Promise<void> {
@@ -42,6 +45,7 @@ export class MetricsController {
       collectDefaultMetrics({ register });
       this.defaultsRegistered = true;
     }
+    await this.bullmqMetrics.refresh();
     const body = await register.metrics();
     res.setHeader('Content-Type', register.contentType);
     res.send(body);

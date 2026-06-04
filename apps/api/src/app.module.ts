@@ -43,6 +43,7 @@ import { ConsumerOnlyGuard } from './common/guards/consumer-only.guard';
 import { EmailVerifiedGuard } from './common/guards/email-verified.guard';
 import { HealthController } from './health.controller';
 import { MetricsController } from './common/metrics/metrics.controller';
+import { BullmqMetricsService } from './common/metrics/bullmq-metrics.service';
 import { bullMqConnectionFromConfig } from './config/bull-redis.util';
 import { redisTlsOptions } from './common/redis/redis-tls.util';
 import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
@@ -211,6 +212,7 @@ function sentryFilterProviders() {
 
   controllers: [HealthController, MetricsController],
   providers: [
+    BullmqMetricsService,
     ...sentryFilterProviders(),
     EmailVerifiedGuard,
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

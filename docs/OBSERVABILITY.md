@@ -28,7 +28,24 @@ When set, scrapers must send `Authorization: Bearer <token>`. Leave unset for op
 |--------|-------------|
 | `forge_http_requests_total` | Counter by method + status |
 | `forge_http_request_duration_seconds` | Histogram by method + status |
+| `forge_bullmq_jobs_waiting` | Gauge by queue name (refreshed on each `/metrics` scrape) |
+| `forge_bullmq_jobs_active` | Gauge by queue name |
+| `forge_bullmq_jobs_delayed` | Gauge by queue name |
+| `forge_bullmq_jobs_failed` | Gauge by queue name |
 | Default Node/process metrics | via `prom-client` collectDefaultMetrics |
+
+Queues exported when registered: `mux-vod-ingest`, `analytics-ingest`, `push-dispatch`, `subscription-maintenance`, and `video-processing` when present.
+
+### BullMQ alerts (F-903)
+
+Import rules from [infra/observability/prometheus-alerts.yml](../infra/observability/prometheus-alerts.yml):
+
+- `ForgeMuxVodQueueBacklog` — `forge_bullmq_jobs_waiting{queue="mux-vod-ingest"} > 100` for 10m
+- `ForgeAnalyticsIngestQueueBacklog` — `analytics-ingest` waiting > 5000 for 15m
+
+```bash
+bash scripts/import-grafana-alerts.sh   # after updating grafana-alert-rules.json if needed
+```
 
 ## Client error tracking (Sentry)
 

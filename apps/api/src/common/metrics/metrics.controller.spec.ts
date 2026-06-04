@@ -2,7 +2,8 @@ import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { MetricsController } from './metrics.controller';
 
 describe('MetricsController', () => {
-  const controller = new MetricsController();
+  const bullmqMetrics = { refresh: jest.fn().mockResolvedValue(undefined) };
+  const controller = new MetricsController(bullmqMetrics as never);
   const res = {
     setHeader: jest.fn(),
     send: jest.fn(),

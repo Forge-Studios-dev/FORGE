@@ -34,6 +34,10 @@ Production enforces `VIDEO_TRANSCODE_PROVIDER=mux` only (`validate-production-co
 - Do not set `ENABLE_VIDEO_WORKER` on the API machine in production.
 - Entitlements hide playback URLs when access denied (reduces wasted delivery only for gated UI paths).
 
+## Webhook idempotency
+
+VOD ingest jobs use deterministic BullMQ `jobId`: `mux-ingest-${videoId}` in [videos.service.ts](../../apps/api/src/modules/content/videos.service.ts). Retried Mux webhooks should not create duplicate ingest jobs for the same video. Monitor `forge_bullmq_jobs_waiting{queue="mux-vod-ingest"}` after deploys.
+
 ---
 
 ## When to escalate
