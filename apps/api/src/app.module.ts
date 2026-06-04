@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { SentryModule, SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { BullModule } from '@nestjs/bullmq';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RedisModule } from '@nestjs-modules/ioredis';
@@ -56,8 +57,20 @@ function shouldLoadWorkersModule(): boolean {
   return process.env.WORKER_ONLY === 'true' || process.env.NODE_ENV !== 'production';
 }
 
+/** Sentry is initialized in instrument.ts when SENTRY_DSN is set. */
+function sentryModuleImports() {
+  return process.env.SENTRY_DSN ? [SentryModule.forRoot()] : [];
+}
+
+function sentryFilterProviders() {
+  return process.env.SENTRY_DSN
+    ? [{ provide: APP_FILTER, useClass: SentryGlobalFilter }]
+    : [];
+}
+
 @Module({
   imports: [
+    ...sentryModuleImports(),
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
@@ -198,6 +211,7 @@ function shouldLoadWorkersModule(): boolean {
 
   controllers: [HealthController, MetricsController],
   providers: [
+    ...sentryFilterProviders(),
     EmailVerifiedGuard,
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ClsUserInterceptor },

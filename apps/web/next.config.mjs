@@ -10,6 +10,8 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.cloudfront.net' },
       { protocol: 'https', hostname: 'cdn.forge.app' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: 'image.mux.com' },
+      { protocol: 'https', hostname: 'stream.mux.com' },
     ],
   },
   async headers() {
@@ -26,6 +28,17 @@ const nextConfig = {
   },
 };
 
+const sentryWebpackPluginOptions = {
+  silent: true,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT_WEB || process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: true,
+  hideSourceMaps: true,
+  disableLogger: true,
+  automaticVercelMonitors: true,
+};
+
 export default process.env.NEXT_PUBLIC_SENTRY_DSN
-  ? withSentryConfig(nextConfig, { silent: true })
+  ? withSentryConfig(nextConfig, sentryWebpackPluginOptions)
   : nextConfig;

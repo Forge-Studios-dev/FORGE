@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { Stream, User } from '@/types';
+import { resolveStreamPoster } from '@/lib/stream-poster';
 import { useAuth } from '@/lib/auth';
 import { EmptyState } from '@/components/EmptyState';
 import { FeedGridSkeleton } from '@/components/LoadingSkeleton';
@@ -109,19 +110,21 @@ export default function LiveDirectoryPage() {
         />
       ) : (
         <ul className="forge-stagger grid gap-4 sm:grid-cols-2">
-          {streams.map((s) => (
+          {streams.map((s) => {
+            const poster = resolveStreamPoster(s);
+            return (
             <li key={s.id}>
               <Link
                 href={`/live/${s.id}`}
                 className="forge-card-hover glass-panel block overflow-hidden rounded-xl transition hover:border-primary/30"
               >
                 <div className="relative aspect-video bg-surface-container-lowest">
-                  {s.thumbnailUrl ? (
+                  {poster ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={s.thumbnailUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                    <img src={poster} alt="" className="absolute inset-0 h-full w-full object-cover" />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-sm text-outline">
-                      No thumbnail
+                      Live
                     </div>
                   )}
                   <span className="font-label-caps absolute left-3 top-3 text-live">● LIVE</span>
@@ -134,7 +137,8 @@ export default function LiveDirectoryPage() {
                 </div>
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </main>

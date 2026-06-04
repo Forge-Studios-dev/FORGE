@@ -1,5 +1,6 @@
 import { Stream, StreamVisibility } from './entities/stream.entity';
 import { toPublicUser, PublicUser } from '../users/user.mapper';
+import { resolveStreamThumbnailUrl } from '../../common/media/mux-playback.util';
 
 export type PublicStream = {
   id: string;
@@ -40,7 +41,7 @@ export function toPublicStream(
     title: stream.title,
     description: stream.description ?? null,
     playbackUrl: hidePlayback ? null : (stream.playbackUrl ?? null),
-    thumbnailUrl: stream.thumbnailUrl ?? null,
+    thumbnailUrl: resolveStreamThumbnailUrl(stream),
     status: stream.status,
     visibility: stream.visibility ?? StreamVisibility.PUBLIC,
     categoryId: stream.categoryId ?? null,

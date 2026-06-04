@@ -10,6 +10,11 @@ import { Video, VideoStatus, VideoVisibility, PublishStatus } from '../content/e
 import { MuxVodService } from '../content/mux-vod.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { UserRole } from '../users/entities/user.entity';
+import {
+  muxHlsPlaybackUrl,
+  muxPlaybackIdFromHlsUrl,
+  muxThumbnailUrl,
+} from '../../common/media/mux-playback.util';
 import { toPublicStream } from './stream.mapper';
 
 @Injectable()
@@ -47,6 +52,7 @@ export class StreamingService {
     let muxLiveStreamId = 'mock-stream-id';
     let streamKey = 'mock-stream-key';
     let playbackUrl: string | undefined;
+    let thumbnailUrl: string | undefined = dto.thumbnailUrl?.trim() || undefined;
 
     const recordEnabled = dto.recordEnabled !== false;
 
@@ -62,8 +68,12 @@ export class StreamingService {
       const raw = response as any;
       muxLiveStreamId = raw.id ?? muxLiveStreamId;
       streamKey = raw.stream_key ?? streamKey;
-      if (raw.playback_ids?.[0]?.id) {
-        playbackUrl = `https://stream.mux.com/${raw.playback_ids[0].id}.m3u8`;
+      const playbackId = raw.playback_ids?.[0]?.id as string | undefined;
+      if (playbackId) {
+        playbackUrl = muxHlsPlaybackUrl(playbackId);
+        if (!thumbnailUrl) {
+          thumbnailUrl = muxThumbnailUrl(playbackId);
+        }
       }
     } catch (err) {
       this.logger.warn('Mux API unavailable, using mock stream data', err);
@@ -80,7 +90,7 @@ export class StreamingService {
       status: StreamStatus.IDLE,
       visibility: dto.visibility ?? StreamVisibility.PUBLIC,
       categoryId: dto.categoryId ?? null,
-      thumbnailUrl: dto.thumbnailUrl ?? undefined,
+      thumbnailUrl,
       chatEnabled: dto.chatEnabled !== false,
       recordEnabled,
       ageRestricted: dto.ageRestricted === true,
@@ -208,19 +218,33 @@ export class StreamingService {
     const data = payload.data as Record<string, unknown>;
 
     if (eventType === 'video.live_stream.active') {
+      const muxLiveStreamId = data.id as string;
+      const stream = await this.streamRepository.findOne({ where: { muxLiveStreamId } });
+      const thumbnailPatch =
+        stream && !stream.thumbnailUrl && stream.playbackUrl
+          ? (() => {
+              const pb = muxPlaybackIdFromHlsUrl(stream.playbackUrl);
+              return pb ? muxThumbnailUrl(pb) : undefined;
+            })()
+          : undefined;
+
       await this.streamRepository.update(
-        { muxLiveStreamId: data.id as string },
-        { status: StreamStatus.LIVE, startedAt: new Date() },
+        { muxLiveStreamId },
+        {
+          status: StreamStatus.LIVE,
+          startedAt: new Date(),
+          ...(thumbnailPatch ? { thumbnailUrl: thumbnailPatch } : {}),
+        },
       );
 
-      const stream = await this.streamRepository.findOne({ where: { muxLiveStreamId: data.id as string } });
-      if (stream) {
+      const updated = stream ?? (await this.streamRepository.findOne({ where: { muxLiveStreamId } }));
+      if (updated) {
         this.eventEmitter.emit('stream.started', {
-          streamId: stream.id,
-          userId: stream.userId,
-          title: stream.title,
-          visibility: stream.visibility,
-          requiredTierId: stream.requiredTierId,
+          streamId: updated.id,
+          userId: updated.userId,
+          title: updated.title,
+          visibility: updated.visibility,
+          requiredTierId: updated.requiredTierId,
         });
       }
     } else if (eventType === 'video.live_stream.recording') {
