@@ -112,6 +112,7 @@ describe('AuthService', () => {
         username: 'ab',
         displayName: 'AB',
         password: 'Abcd1234',
+        acceptedTerms: true,
       } as never,
       {},
     );

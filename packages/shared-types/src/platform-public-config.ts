@@ -20,11 +20,20 @@ export type PlatformFirebaseConfig = {
   usesFirebaseAuth: boolean;
 };
 
+export type PlatformLegalConfig = {
+  termsUrl: string;
+  privacyUrl: string;
+  contactEmail: string;
+  privacyEmail: string;
+  lastUpdated: string;
+};
+
 export type PlatformPublicConfig = {
   featureFlags: string[];
   apiVersion: string;
   auth?: PlatformAuthConfig;
   firebase?: PlatformFirebaseConfig;
+  legal?: PlatformLegalConfig;
 };
 
 /** True when API reports custom JWT identity (not Firebase Auth). */

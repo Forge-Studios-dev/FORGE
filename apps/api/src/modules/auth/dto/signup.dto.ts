@@ -1,9 +1,11 @@
 import {
+  IsBoolean,
   IsEmail,
   IsString,
   Matches,
   MaxLength,
   MinLength,
+  Equals,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -33,4 +35,9 @@ export class SignupDto {
     message: 'Password must contain at least one uppercase letter, one lowercase letter and one number',
   })
   password: string;
+
+  @ApiProperty({ description: 'Must be true — user accepted Terms and Privacy Policy' })
+  @IsBoolean()
+  @Equals(true, { message: 'You must accept the Terms of Service and Privacy Policy' })
+  acceptedTerms: boolean;
 }

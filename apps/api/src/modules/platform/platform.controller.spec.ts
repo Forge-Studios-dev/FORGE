@@ -19,6 +19,7 @@ describe('PlatformController', () => {
           'firebase.privateKey': 'key',
           'firebase.fcmEnabled': false,
           'firebase.appCheckEnabled': false,
+          webUrl: 'https://forgestudios.net',
         };
         return map[key];
       }),
@@ -41,5 +42,7 @@ describe('PlatformController', () => {
     expect(result.auth.otpVerification).toBe(false);
     expect(result.firebase.usesFirebaseAuth).toBe(false);
     expect(result.firebase.adminConfigured).toBe(true);
+    expect(result.legal?.termsUrl).toContain('/terms');
+    expect(result.legal?.privacyUrl).toContain('/privacy');
   });
 });
