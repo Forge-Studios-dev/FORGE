@@ -1,5 +1,5 @@
 import { AuthUserCacheService } from './auth-user-cache.service';
-import { UserRole, CreatorStatus } from '../users/entities/user.entity';
+import { UserRole } from '../users/entities/user.entity';
 
 describe('AuthUserCacheService', () => {
   const redis = {
