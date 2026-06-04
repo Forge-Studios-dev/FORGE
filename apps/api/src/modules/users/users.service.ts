@@ -13,7 +13,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { CreatorStatus, User, UserRole } from './entities/user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Video, VideoStatus } from '../content/entities/video.entity';
-import { toPublicVideo } from '../content/video.mapper';
 import { VideosService } from '../content/videos.service';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { ModerationStatus } from '../content/entities/video.entity';
@@ -149,11 +148,11 @@ export class UsersService {
     const rows = await qb.getMany();
     const ready = rows.filter((r) => r.video && r.video.status === VideoStatus.READY);
     if (incompleteOnly) {
-      const videos = ready.map((r) => toPublicVideo(r.video as Video));
+      const videos = ready.map((r) => this.videosService.mapToPublicVideo(r.video as Video));
       return { data: videos, meta: { limit: take, incompleteOnly } };
     }
     const data = ready.map((r) => ({
-      video: toPublicVideo(r.video as Video),
+      video: this.videosService.mapToPublicVideo(r.video as Video),
       progressSeconds: r.progressSeconds,
       watchedAt: r.watchedAt,
     }));

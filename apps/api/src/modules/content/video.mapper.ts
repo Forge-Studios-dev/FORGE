@@ -37,6 +37,8 @@ export type PublicVideo = {
   sourceStreamId: string | null;
   accessDenied?: boolean;
   accessReason?: string;
+  viewerLiked?: boolean;
+  viewerFollowingCreator?: boolean;
 };
 
 export type PublicVideoMapperOpts = {

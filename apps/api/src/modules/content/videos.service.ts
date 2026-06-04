@@ -36,7 +36,14 @@ import {
 } from './entities/video.entity';
 import { MUX_VOD_INGEST_QUEUE } from './mux-vod.constants';
 import { MuxVodService } from './mux-vod.service';
-import { sanitizeHlsUrl } from '../../common/media/playback-url.util';
+import {
+  sanitizeHlsUrl,
+  sanitizeThumbnailUrl,
+} from '../../common/media/playback-url.util';
+import {
+  muxPlaybackIdFromHlsUrl,
+  muxThumbnailUrl,
+} from '../../common/media/mux-playback.util';
 import { SkillTag } from '../categories/entities/skill-tag.entity';
 import { Category } from '../categories/entities/category.entity';
 import { UserRole } from '../users/entities/user.entity';
@@ -69,6 +76,7 @@ import { MultipartPartUrlsDto } from './dto/multipart-part-urls.dto';
 import { MultipartCompletePartsDto } from './dto/multipart-complete-parts.dto';
 import { MultipartCheckpointDto } from './dto/multipart-checkpoint.dto';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 
 export const VIDEO_PROCESSING_QUEUE = 'video-processing';
 export const VIDEO_PROCESSING_DLQ_QUEUE = 'video-processing-dlq';
@@ -120,6 +128,7 @@ export class VideosService {
     private readonly videoMultipart: VideoMultipartService,
     private readonly muxVodService: MuxVodService,
     private readonly entitlementsService: EntitlementsService,
+    private readonly engagementService: EngagementService,
   ) {
     const awsCreds = {
       region: configService.get<string>('aws.region') || 'ap-south-1',
@@ -196,13 +205,19 @@ export class VideosService {
   }
 
   mapToPublicVideo(video: Video): PublicVideo {
-    return toPublicVideo(video, {
+    const mapped = toPublicVideo(video, {
       rewriteMediaUrl: (url) => this.rewritePlaybackUrl(url),
     });
+    if (mapped.thumbnailUrl) return mapped;
+    const playbackId = muxPlaybackIdFromHlsUrl(mapped.hlsUrl ?? video.hlsUrl);
+    if (playbackId) {
+      return { ...mapped, thumbnailUrl: muxThumbnailUrl(playbackId) };
+    }
+    return mapped;
   }
 
   rewritePlaybackUrl(url: string | null | undefined): string | null {
-    const safe = sanitizeHlsUrl(url);
+    const safe = sanitizeHlsUrl(url) ?? sanitizeThumbnailUrl(url);
     if (!safe) return null;
     if (safe.includes('stream.mux.com') || safe.includes('image.mux.com')) {
       return safe;
@@ -782,6 +797,14 @@ export class VideosService {
         accessDenied: true,
         accessReason: access.reason,
       };
+    }
+
+    if (viewerId && !isOwner) {
+      const [viewerLiked, viewerFollowingCreator] = await Promise.all([
+        this.engagementService.isLiked(viewerId, id),
+        this.engagementService.isFollowing(viewerId, video.userId),
+      ]);
+      return { ...withViews, viewerLiked, viewerFollowingCreator };
     }
 
     return withViews;

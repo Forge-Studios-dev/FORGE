@@ -3,12 +3,20 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@forge/design-system';
 import { Video } from '@/types';
-import { api } from '@/lib/api';
 import { formatCount, timeAgo } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
+import { AuthGateModal } from '@/components/gates/AuthGateModal';
+import { VerifyEmailGateModal } from '@/components/gates/VerifyEmailGateModal';
+import {
+  engageBlockedMessage,
+  getEngageBlockReason,
+  type EngageBlockReason,
+} from '@/lib/engage-access';
+import { engageErrorReason, toggleFollow, toggleVideoLike } from '@/lib/engage-mutations';
 
 interface Props {
   video: Video;
@@ -18,17 +26,56 @@ interface Props {
 export function VideoInfo({ video, onGuestAction }: Props) {
   const qc = useQueryClient();
   const router = useRouter();
+  const { user: me, isGuest } = useAuth();
   const [descExpanded, setDescExpanded] = useState(false);
-  const [following, setFollowing] = useState(false);
+  const [liked, setLiked] = useState(!!video.viewerLiked);
+  const [following, setFollowing] = useState(!!video.viewerFollowingCreator);
+  const [likeCount, setLikeCount] = useState(video.likeCount);
+  const [engageBlock, setEngageBlock] = useState<EngageBlockReason | null>(null);
+  const [engageError, setEngageError] = useState<string | null>(null);
+  const blockReason = onGuestAction ? null : getEngageBlockReason(me, isGuest);
+
+  useEffect(() => {
+    setLiked(!!video.viewerLiked);
+    setFollowing(!!video.viewerFollowingCreator);
+    setLikeCount(video.likeCount);
+  }, [video.viewerLiked, video.viewerFollowingCreator, video.likeCount]);
 
   const likeMutation = useMutation({
-    mutationFn: () => api.post(`/videos/${video.id}/like`),
+    mutationFn: (nextLiked: boolean) => toggleVideoLike(video.id, !nextLiked),
+    onMutate: (nextLiked) => {
+      setEngageError(null);
+      setLiked(nextLiked);
+      setLikeCount((c) => (nextLiked ? c + 1 : Math.max(0, c - 1)));
+    },
+    onError: (err, nextLiked) => {
+      setLiked(!nextLiked);
+      setLikeCount(video.likeCount);
+      const reason = engageErrorReason(err);
+      if (reason === 'guest' || reason === 'unverified') {
+        setEngageBlock(reason);
+      } else {
+        setEngageError('Could not update like. Try again.');
+      }
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['video', video.id] }),
   });
 
   const followMutation = useMutation({
-    mutationFn: () => api.post(`/follow/${video.userId}`),
-    onSuccess: () => setFollowing(true),
+    mutationFn: (nextFollowing: boolean) => toggleFollow(video.userId, !nextFollowing),
+    onMutate: (nextFollowing) => {
+      setEngageError(null);
+      setFollowing(nextFollowing);
+    },
+    onError: (err, nextFollowing) => {
+      setFollowing(!nextFollowing);
+      const reason = engageErrorReason(err);
+      if (reason === 'guest' || reason === 'unverified') {
+        setEngageBlock(reason);
+      } else {
+        setEngageError('Could not update follow. Try again.');
+      }
+    },
   });
 
   const saveToPlaylist = useMutation({
@@ -40,6 +87,10 @@ export function VideoInfo({ video, onGuestAction }: Props) {
   const gated = (action: () => void) => {
     if (onGuestAction) {
       onGuestAction();
+      return;
+    }
+    if (blockReason) {
+      setEngageBlock(blockReason);
       return;
     }
     action();
@@ -65,6 +116,7 @@ export function VideoInfo({ video, onGuestAction }: Props) {
   const description = video.description?.trim() ?? '';
   const descLong = description.length > 280;
   const descPreview = descLong && !descExpanded ? `${description.slice(0, 280)}…` : description;
+  const isOwnVideo = !!me?.id && me.id === video.userId;
 
   return (
     <div className="space-y-4">
@@ -103,17 +155,17 @@ export function VideoInfo({ video, onGuestAction }: Props) {
               </p>
             </div>
           </Link>
-          {!onGuestAction && (
+          {!onGuestAction && !isOwnVideo && (
             <button
               type="button"
-              disabled={followMutation.isPending || following}
-              onClick={() => gated(() => followMutation.mutate())}
+              disabled={followMutation.isPending}
+              onClick={() => gated(() => followMutation.mutate(following))}
               className="primary-button ml-2 rounded-full px-6 py-2 text-sm font-semibold text-on-primary disabled:opacity-60"
             >
               {following ? 'Following' : 'Follow'}
             </button>
           )}
-          {onGuestAction && (
+          {onGuestAction && !isOwnVideo && (
             <button
               type="button"
               onClick={onGuestAction}
@@ -127,11 +179,17 @@ export function VideoInfo({ video, onGuestAction }: Props) {
         <div className="flex items-center gap-1 rounded-full border border-outline-variant/20 bg-surface-container-low p-1">
           <button
             type="button"
-            onClick={() => gated(() => likeMutation.mutate())}
-            className="group flex items-center gap-2 rounded-full px-4 py-2 text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface"
+            disabled={likeMutation.isPending}
+            onClick={() => gated(() => likeMutation.mutate(!liked))}
+            className={`group flex items-center gap-2 rounded-full px-4 py-2 transition hover:bg-surface-container-high ${
+              liked ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface'
+            }`}
           >
-            <Icon name="thumb_up" className="text-base group-hover:text-primary" />
-            <span className="font-label-caps">{formatCount(video.likeCount)}</span>
+            <Icon
+              name="thumb_up"
+              className={`text-base ${liked ? 'text-primary' : 'group-hover:text-primary'}`}
+            />
+            <span className="font-label-caps">{formatCount(likeCount)}</span>
           </button>
           <div className="h-6 w-px bg-outline-variant/30" />
           <button
@@ -151,6 +209,12 @@ export function VideoInfo({ video, onGuestAction }: Props) {
           </button>
         </div>
       </div>
+
+      {engageError ? (
+        <p className="text-sm text-error" role="alert">
+          {engageError}
+        </p>
+      ) : null}
 
       {(description || (video.skillTags?.length ?? 0) > 0) && (
         <div className="glass-panel space-y-4 rounded-xl p-6">
@@ -201,6 +265,17 @@ export function VideoInfo({ video, onGuestAction }: Props) {
         </span>
         <span>{timeAgo(video.createdAt)}</span>
       </div>
+
+      <AuthGateModal
+        open={engageBlock === 'guest'}
+        onClose={() => setEngageBlock(null)}
+        message={engageBlockedMessage('guest')}
+      />
+      <VerifyEmailGateModal
+        open={engageBlock === 'unverified'}
+        onClose={() => setEngageBlock(null)}
+        message={engageBlockedMessage('unverified')}
+      />
     </div>
   );
 }

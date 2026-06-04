@@ -15,6 +15,7 @@ export interface User {
   followingCount: number;
   videoCount: number;
   createdAt: string;
+  viewerFollowing?: boolean;
 }
 
 export interface Video {
@@ -40,6 +41,8 @@ export interface Video {
   scheduledPublishAt?: string | null;
   accessDenied?: boolean;
   accessReason?: string;
+  viewerLiked?: boolean;
+  viewerFollowingCreator?: boolean;
 }
 
 export interface Stream {

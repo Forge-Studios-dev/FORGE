@@ -4,12 +4,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { User } from '@/types';
 import { formatCount } from '@/lib/utils';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getAccessToken, persistAuthSession } from '@/lib/auth-storage';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthGateModal } from '@/components/gates/AuthGateModal';
 import { VerifyEmailGateModal } from '@/components/gates/VerifyEmailGateModal';
 import {
@@ -17,6 +17,7 @@ import {
   getEngageBlockReason,
   type EngageBlockReason,
 } from '@/lib/engage-access';
+import { engageErrorReason, toggleFollow } from '@/lib/engage-mutations';
 
 interface Props {
   user: User;
@@ -26,9 +27,41 @@ export function ProfileHeader({ user }: Props) {
   const router = useRouter();
   const { user: me, isGuest, canApplyForCreator, refresh } = useAuth();
   const [engageBlock, setEngageBlock] = useState<EngageBlockReason | null>(null);
+  const [engageError, setEngageError] = useState<string | null>(null);
   const blockReason = getEngageBlockReason(me, isGuest);
+  const isOwnProfile = !!me?.id && me.id === user.id;
+
+  const { data: following = user.viewerFollowing ?? false } = useQuery({
+    queryKey: ['profile-follow', user.id, me?.id],
+    enabled: !isGuest && !!me && !isOwnProfile,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: User }>(`/users/by-username/${user.username}`);
+      return !!data.data.viewerFollowing;
+    },
+    initialData: user.viewerFollowing,
+  });
+
+  const [followingState, setFollowingState] = useState(following);
+
+  useEffect(() => {
+    setFollowingState(following);
+  }, [following]);
+
   const followMutation = useMutation({
-    mutationFn: () => api.post(`/follow/${user.id}`),
+    mutationFn: (nextFollowing: boolean) => toggleFollow(user.id, !nextFollowing),
+    onMutate: (nextFollowing) => {
+      setEngageError(null);
+      setFollowingState(nextFollowing);
+    },
+    onError: (err, nextFollowing) => {
+      setFollowingState(!nextFollowing);
+      const reason = engageErrorReason(err);
+      if (reason === 'guest' || reason === 'unverified') {
+        setEngageBlock(reason);
+      } else {
+        setEngageError('Could not update follow. Try again.');
+      }
+    },
   });
 
   const requestCreatorMutation = useMutation({
@@ -45,8 +78,6 @@ export function ProfileHeader({ user }: Props) {
       router.push('/waiting-approval');
     },
   });
-
-  const isOwnProfile = !!me?.id && me.id === user.id;
 
   return (
     <div className="relative">
@@ -107,15 +138,21 @@ export function ProfileHeader({ user }: Props) {
                   setEngageBlock(blockReason);
                   return;
                 }
-                followMutation.mutate();
+                followMutation.mutate(followingState);
               }}
               disabled={followMutation.isPending}
               className="primary-button shrink-0 rounded-xl px-6 py-2 font-semibold text-on-primary disabled:opacity-60"
             >
-              Follow
+              {followingState ? 'Following' : 'Follow'}
             </button>
           )}
         </div>
+
+        {engageError ? (
+          <p className="mt-2 text-sm text-error" role="alert">
+            {engageError}
+          </p>
+        ) : null}
 
         {isOwnProfile && canApplyForCreator && (
           <div className="mt-4">
