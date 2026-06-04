@@ -44,7 +44,15 @@
 | F-901 | DR runbook | **Done** | `docs/operations/DISASTER_RECOVERY.md` |
 | Auth cache bust on admin user/creator updates | **Done** | `admin.service.ts`, `admin.controller.ts` |
 
-**Remaining top fixes** (backlog): F-1002 Fly SLO, F-302 mobile Socket.IO, F-504 analytics retention, F-802 CSRF, F-902 staging env.
+## Wave 2 (Week 3–4) — PR `fix/audit-wave-2`
+
+| ID | Fix | Status |
+|----|-----|--------|
+| F-1002 | Fly SLO doc + `min_machines_running = 1` | **Done** — [FLY_SLO.md](../operations/FLY_SLO.md), [fly.toml](../../fly.toml) |
+| F-903 | BullMQ Prometheus gauges + alerts | **Done** — `bullmq-metrics.ts`, [prometheus-alerts.yml](../../infra/observability/prometheus-alerts.yml) |
+| F-902 | Staging bootstrap | **Done** — [STAGING.md](../operations/STAGING.md), [deploy-staging.yml](../../.github/workflows/deploy-staging.yml) |
+
+**Remaining top fixes** (backlog): F-302 mobile Socket.IO, F-504 analytics retention, F-802 CSRF, F-1101 Stripe, F-1201 coverage gate, CodeQL.
 
 ---
 
