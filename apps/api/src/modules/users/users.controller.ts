@@ -20,6 +20,7 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { PlaylistsService } from '../playlists/playlists.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
+import { EngagementService } from '../engagement/engagement.service';
 
 @ApiTags('Users')
 @Controller('users')
@@ -27,6 +28,7 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly playlistsService: PlaylistsService,
+    private readonly engagementService: EngagementService,
   ) {}
 
   @Get('me')
@@ -60,11 +62,23 @@ export class UsersController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('by-username/:username')
   @ApiOperation({ summary: 'Get user profile by username' })
-  async findByUsername(@Param('username') username: string) {
+  async findByUsername(
+    @Param('username') username: string,
+    @CurrentUser() viewer?: JwtPayload,
+  ) {
     const profile = await this.usersService.findByUsername(username);
-    return toPublicUser(profile);
+    const publicUser = toPublicUser(profile);
+    if (viewer?.sub && viewer.sub !== profile.id) {
+      const viewerFollowing = await this.engagementService.isFollowing(
+        viewer.sub,
+        profile.id,
+      );
+      return { ...publicUser, viewerFollowing };
+    }
+    return publicUser;
   }
 
   @Public()

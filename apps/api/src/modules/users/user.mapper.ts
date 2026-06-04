@@ -19,6 +19,7 @@ export type PublicUser = {
   createdAt: Date;
   updatedAt: Date;
   permissions: ReturnType<typeof permissionsForUser>;
+  viewerFollowing?: boolean;
 };
 
 export function toPublicUser(user: User): PublicUser {
