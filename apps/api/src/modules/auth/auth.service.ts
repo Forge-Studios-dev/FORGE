@@ -25,6 +25,7 @@ import { MailService } from '../mail/mail.service';
 import { toPublicUser } from '../users/user.mapper';
 import { AuthAccountLockoutService } from './auth-account-lockout.service';
 import { AuthEmailOtpService } from './auth-email-otp.service';
+import { AuthUserCacheService } from './auth-user-cache.service';
 import { isDisposableEmail } from './utils/disposable-email.util';
 
 export type ClientSessionMeta = {
@@ -52,6 +53,7 @@ export class AuthService {
     private readonly analyticsService: AnalyticsService,
     private readonly lockoutService: AuthAccountLockoutService,
     private readonly emailOtpService: AuthEmailOtpService,
+    private readonly authUserCache: AuthUserCacheService,
   ) {}
 
   async signup(dto: SignupDto, meta?: ClientSessionMeta) {
@@ -308,6 +310,7 @@ export class AuthService {
       { userId, revoked: false },
       { revoked: true },
     );
+    await this.authUserCache.bust(userId);
   }
 
   async listSessions(userId: string) {

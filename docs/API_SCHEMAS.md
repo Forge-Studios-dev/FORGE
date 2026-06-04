@@ -30,6 +30,13 @@ No auth. See `PlatformPublicConfig` in `@forge/shared-types`.
 | `firebase.fcmEnabled` | `boolean` | |
 | `firebase.appCheckEnabled` | `boolean` | |
 | `firebase.usesFirebaseAuth` | `false` | Always false today |
+| `legal.termsUrl` | string | e.g. `https://forgestudios.net/terms` |
+| `legal.privacyUrl` | string | |
+| `legal.contactEmail` | string | |
+| `legal.privacyEmail` | string | |
+| `legal.lastUpdated` | string | ISO date |
+
+See [LEGAL.md](./LEGAL.md).
 
 ---
 

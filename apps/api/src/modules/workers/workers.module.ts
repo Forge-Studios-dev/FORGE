@@ -26,7 +26,7 @@ function isDedicatedWorkerProcess(): boolean {
 }
 
 function transcodeProvider(): string {
-  return (process.env.VIDEO_TRANSCODE_PROVIDER || 'ffmpeg').toLowerCase();
+  return (process.env.VIDEO_TRANSCODE_PROVIDER || 'mux').toLowerCase();
 }
 
 /** FFmpeg must not run on API replicas unless explicitly enabled (local dev). */

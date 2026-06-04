@@ -2,49 +2,61 @@
 
 **Repo:** [Forge-Studios-dev/FORGE](https://github.com/Forge-Studios-dev/FORGE)
 
-**13 docs** — everything else was consolidated here (2026-06-04).
+**Single source of truth for the whole product:** [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) — every API module, route (§20), worker queue, web/admin/mobile route, design system, Stitch blueprints, feature flags, entities, and status matrix.
 
 ---
 
-## Start here
+## Enterprise audit (2026-06-04)
+
+Full 14-phase technical audit (cost + scale lens): **[audits/README.md](./audits/README.md)** · Executive summary: [audits/14_EXECUTIVE_SUMMARY.md](./audits/14_EXECUTIVE_SUMMARY.md)
+
+---
+
+## Canonical docs (14 + blueprints folder)
 
 | Doc | Use |
 |-----|-----|
-| [GETTING_STARTED.md](./GETTING_STARTED.md) | Local setup, demo logins |
-| [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) | Architecture, modules, status |
-| [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) | Stakeholder summary |
-| [API_SCHEMAS.md](./API_SCHEMAS.md) | Public API types & forms |
+| [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) | **Mandatory reference** — modules, routes, blueprints, architecture |
+| [GETTING_STARTED.md](./GETTING_STARTED.md) | Local setup |
+| [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) | Stakeholders |
+| [API_SCHEMAS.md](./API_SCHEMAS.md) | Public JSON / forms |
+| [DEPLOY.md](./DEPLOY.md) | Production deploy |
+| [CI_CD.md](./CI_CD.md) | GitHub Actions |
+| [MEDIA.md](./MEDIA.md) | S3 + Mux |
+| [AUTH.md](./AUTH.md) | Sessions & OAuth |
+| [FIREBASE.md](./FIREBASE.md) | FCM push |
+| [OBSERVABILITY.md](./OBSERVABILITY.md) | Metrics & Sentry |
+| [MEMBERSHIPS.md](./MEMBERSHIPS.md) | Mock tiers |
+| [LEGAL.md](./LEGAL.md) | Terms & privacy |
+| [QA.md](./QA.md) | Test matrix |
+| [operations/README.md](./operations/README.md) | Mux cost ops, disaster recovery |
+| [design/blueprints/README.md](./design/blueprints/README.md) | Stitch HTML exports |
+
+**Env:** `apps/api/.env.example` · **Scripts:** [scripts/README.md](../scripts/README.md)
 
 ---
 
-## Operations
+## Quick lookup
 
-| Doc | Use |
-|-----|-----|
-| [DEPLOY.md](./DEPLOY.md) | Go-live, Fly/Vercel/Neon, domain, Redis, upgrades |
-| [CI_CD.md](./CI_CD.md) | GitHub Actions, secrets, pre-merge checks |
-| [MEDIA.md](./MEDIA.md) | S3 upload, Mux live/VOD, worker |
-| [AUTH.md](./AUTH.md) | Sessions, Google OAuth, SMTP enablement |
-| [FIREBASE.md](./FIREBASE.md) | FCM push, FlutterFire (not Firebase Auth) |
-| [OBSERVABILITY.md](./OBSERVABILITY.md) | Logs, metrics, Sentry, Grafana |
-| [MEMBERSHIPS.md](./MEMBERSHIPS.md) | Mock tiers & gated content |
-| [QA.md](./QA.md) | Role × flow test matrix |
-
----
-
-## Env templates (not duplicated in markdown)
-
-`apps/api/.env.example` · `apps/api/.env.neon.example` · `apps/api/.env.redis-cloud.example` · `apps/web/.env.example` · `apps/admin/.env.example`
-
-**Scripts:** [scripts/README.md](../scripts/README.md)
+| Need | Section |
+|------|---------|
+| All API modules | [FORGE_PROJECT_MASTER §4](./FORGE_PROJECT_MASTER.md#4-api-modules-mandatory-reference) |
+| Every HTTP route | [FORGE_PROJECT_MASTER §20](./FORGE_PROJECT_MASTER.md#20-api-route-catalog) |
+| BullMQ workers | [FORGE_PROJECT_MASTER §5](./FORGE_PROJECT_MASTER.md#5-background-workers-bullmq) |
+| Web routes | [FORGE_PROJECT_MASTER §9](./FORGE_PROJECT_MASTER.md#9-web-app-routes-appsweb) |
+| Admin routes | [FORGE_PROJECT_MASTER §10](./FORGE_PROJECT_MASTER.md#10-admin-app-routes-appsadmin) |
+| Mobile | [FORGE_PROJECT_MASTER §11](./FORGE_PROJECT_MASTER.md#11-mobile-app-appsmobile) |
+| Design system + `/blueprints` | [FORGE_PROJECT_MASTER §8](./FORGE_PROJECT_MASTER.md#8-design-system--blueprints) |
+| Entities / DB | [FORGE_PROJECT_MASTER §12](./FORGE_PROJECT_MASTER.md#12-data-model-entities) |
 
 ---
 
-## When you change…
+## Maintenance
 
 | Change | Update |
 |--------|--------|
-| Architecture / features | `FORGE_PROJECT_MASTER.md` + `CLIENT_OVERVIEW.md` §4 |
-| Public API shapes | `API_SCHEMAS.md` + `@forge/shared-types` |
-| Deploy / infra | `DEPLOY.md` |
-| Env vars | `apps/api/.env.example` |
+| New module or route | `FORGE_PROJECT_MASTER.md` §4 + §20 |
+| Public response shape | `API_SCHEMAS.md` + `@forge/shared-types` |
+| Feature status | §16 + `CLIENT_OVERVIEW.md` |
+
+*Do not add new top-level doc files without merging into the master or README index.*

@@ -5,6 +5,8 @@ describe('AuthService logout', () => {
     update: jest.fn().mockResolvedValue({ affected: 1 }),
   };
 
+  const authUserCache = { bust: jest.fn().mockResolvedValue(undefined) };
+
   const service = new AuthService(
     {} as never,
     refreshTokenRepository as never,
@@ -20,6 +22,7 @@ describe('AuthService logout', () => {
       clearFailures: jest.fn(),
     } as never,
     { isEnabled: jest.fn(), issueOtp: jest.fn(), verifyOtp: jest.fn() } as never,
+    authUserCache as never,
   );
 
   beforeEach(() => {
@@ -43,6 +46,7 @@ describe('AuthService logout', () => {
       { userId: 'user-1', revoked: false },
       { revoked: true },
     );
+    expect(authUserCache.bust).toHaveBeenCalledWith('user-1');
   });
 
   it('logoutCurrent without token falls back to logoutAll', async () => {

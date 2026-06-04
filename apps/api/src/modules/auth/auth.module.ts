@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthAccountLockoutService } from './auth-account-lockout.service';
 import { AuthEmailOtpService } from './auth-email-otp.service';
+import { AuthUserCacheService } from './auth-user-cache.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
@@ -26,7 +27,14 @@ import { NotificationsModule } from '../notifications/notifications.module';
     TypeOrmModule.forFeature([User, RefreshToken, PasswordResetToken, OAuthAccount]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthAccountLockoutService, AuthEmailOtpService, JwtStrategy, GoogleStrategy],
-  exports: [AuthService],
+  providers: [
+    AuthService,
+    AuthAccountLockoutService,
+    AuthEmailOtpService,
+    AuthUserCacheService,
+    JwtStrategy,
+    GoogleStrategy,
+  ],
+  exports: [AuthService, AuthUserCacheService],
 })
 export class AuthModule {}

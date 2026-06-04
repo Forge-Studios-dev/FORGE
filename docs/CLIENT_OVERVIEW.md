@@ -13,9 +13,11 @@ Skill-first platform: tutorial video, live teaching, expertise-based audiences. 
 | Discovery | Categories, tags, search, feeds |
 | Trusted creators | Admin approval before publish/live |
 | Video | S3 upload → Mux HLS (default) |
-| Live | Mux |
+| Live | Mux + stream chat |
 | Engagement | Likes, comments, follows, playlists |
+| Community | Creator channels (tier-gated) |
 | Monetization (phase 1) | Mock memberships — no live payments |
+| Design | `@forge/design-system` + optional Stitch blueprints (`/blueprints`) |
 | Operations | Admin moderation & analytics summary |
 
 ## Roles
@@ -31,7 +33,7 @@ Guest → user → creator (approved) · admin on separate admin app.
 | VOD / live | ✅ | ⚠️ | ⚠️ | — |
 | Memberships | ✅ | ✅ | — | — |
 
-Detail: [FORGE_PROJECT_MASTER.md §13](./FORGE_PROJECT_MASTER.md#13-status-matrix)
+Modules & routes: [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) · Status: [§16](./FORGE_PROJECT_MASTER.md#16-feature-status-matrix)
 
 ## Stack
 

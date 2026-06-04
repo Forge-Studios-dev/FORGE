@@ -70,7 +70,9 @@ Auth, feed, search, admin, engagement work. Upload/live need S3 + Mux — [MEDIA
 
 | Goal | Doc |
 |------|-----|
+| All modules & routes | [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) |
 | API schemas | [API_SCHEMAS.md](./API_SCHEMAS.md) |
+| UI blueprints | [design/blueprints/README.md](./design/blueprints/README.md) |
 | Auth | [AUTH.md](./AUTH.md) |
 | Deploy | [DEPLOY.md](./DEPLOY.md) |
-| All docs | [README.md](./README.md) |
+| Index | [README.md](./README.md) |

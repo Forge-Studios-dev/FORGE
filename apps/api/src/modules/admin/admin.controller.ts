@@ -29,6 +29,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { AdminGrantSubscriptionDto } from '../entitlements/dto/tier.dto';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { AuthUserCacheService } from '../auth/auth-user-cache.service';
+import { clampLimit, clampPage } from '../../common/utils/pagination.util';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -45,6 +47,7 @@ export class AdminController {
     private readonly categoriesService: CategoriesService,
     private readonly adminService: AdminService,
     private readonly entitlementsService: EntitlementsService,
+    private readonly authUserCache: AuthUserCacheService,
   ) {}
 
   @Get('users')
@@ -60,8 +63,8 @@ export class AdminController {
     @Query('hasPendingReports') hasPendingReports?: string,
   ) {
     return this.adminService.listUsers({
-      page: Number(page) || 1,
-      limit: Number(limit) || 20,
+      page: clampPage(page),
+      limit: clampLimit(limit),
       search,
       role,
       creatorStatus,
@@ -86,7 +89,7 @@ export class AdminController {
     @Query('limit') limit = 20,
     @Query('status') status?: VideoStatus,
   ) {
-    return this.adminService.getUserVideos(id, Number(page) || 1, Number(limit) || 20, status);
+    return this.adminService.getUserVideos(id, clampPage(page), clampLimit(limit), status);
   }
 
   @Get('users/:id/reports')
@@ -96,13 +99,13 @@ export class AdminController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.adminService.getUserReports(id, Number(page) || 1, Number(limit) || 20);
+    return this.adminService.getUserReports(id, clampPage(page), clampLimit(limit));
   }
 
   @Get('users/:id/watch-history')
   @ApiOperation({ summary: 'Watch history for a user (admin)' })
   getUserWatchHistory(@Param('id') id: string, @Query('limit') limit = 20) {
-    return this.adminService.getUserWatchHistory(id, Number(limit) || 20);
+    return this.adminService.getUserWatchHistory(id, clampLimit(limit));
   }
 
   @Get('users/:id/playlists')
@@ -158,13 +161,18 @@ export class AdminController {
       query.andWhere('u.email ILIKE :search OR u.username ILIKE :search', { search: `%${search}%` });
     }
 
+    const safePage = clampPage(page);
+    const safeLimit = clampLimit(limit);
     const [rows, total] = await query
-      .skip((page - 1) * limit)
-      .take(limit)
+      .skip((safePage - 1) * safeLimit)
+      .take(safeLimit)
       .getManyAndCount();
 
     const data = rows.map((u) => this.adminService.toAdminUserDetail(u));
-    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data,
+      meta: { total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) },
+    };
   }
 
   @Post('creators/:id/approve')
@@ -178,6 +186,7 @@ export class AdminController {
       /** MVP: approved creators can upload without a separate email-verify step */
       isVerified: true,
     });
+    await this.authUserCache.bust(id);
     this.eventEmitter.emit('creator.approved', { userId: id });
     return { ok: true };
   }
@@ -191,6 +200,7 @@ export class AdminController {
       creatorReviewedAt: new Date(),
       creatorReviewNote: dto.note ?? null,
     });
+    await this.authUserCache.bust(id);
     this.eventEmitter.emit('creator.rejected', { userId: id, note: dto.note ?? null });
     return { ok: true };
   }
@@ -211,13 +221,20 @@ export class AdminController {
     if (status) query.andWhere('v.status = :status', { status });
     if (userId) query.andWhere('v.userId = :userId', { userId });
     if (moderationStatus) query.andWhere('v.moderationStatus = :moderationStatus', { moderationStatus });
+    const safePage = clampPage(page);
+    const safeLimit = clampLimit(limit);
     const [rows, total] = await query
-      .skip((page - 1) * limit)
-      .take(limit)
+      .skip((safePage - 1) * safeLimit)
+      .take(safeLimit)
       .getManyAndCount();
     return {
       data: toAdminVideos(rows),
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      meta: {
+        total,
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.ceil(total / safeLimit),
+      },
     };
   }
 
@@ -238,7 +255,7 @@ export class AdminController {
     @Query('limit') limit = 20,
     @Query('status') status?: ReportStatus,
   ) {
-    return this.reportsService.listForAdmin(page, limit, status);
+    return this.reportsService.listForAdmin(clampPage(page), clampLimit(limit), status);
   }
 
   @Get('reports/:id')

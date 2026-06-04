@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Like } from './entities/like.entity';
 import { Comment } from './entities/comment.entity';
 import { Follow } from './entities/follow.entity';
@@ -148,5 +148,16 @@ export class EngagementService {
   async isFollowing(followerId: string, followingId: string): Promise<boolean> {
     const follow = await this.followRepository.findOne({ where: { followerId, followingId } });
     return !!follow;
+  }
+
+  /** Batch follow lookup for entitlement checks (F-502). */
+  async getFollowingIdsAmong(followerId: string, creatorIds: string[]): Promise<Set<string>> {
+    const unique = [...new Set(creatorIds.filter(Boolean))];
+    if (unique.length === 0) return new Set();
+    const rows = await this.followRepository.find({
+      where: { followerId, followingId: In(unique) },
+      select: ['followingId'],
+    });
+    return new Set(rows.map((r) => r.followingId));
   }
 }

@@ -49,6 +49,20 @@ jobs:
             packages:
               - 'packages/**'
 
+  security-audit:
+    name: Dependency audit (npm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
   build-packages:
     name: Build shared packages
     runs-on: ubuntu-latest

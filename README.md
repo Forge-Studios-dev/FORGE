@@ -4,24 +4,17 @@ Skill-first platform for learning journeys, tutorial videos, live teaching, and 
 
 **Repository:** [github.com/Forge-Studios-dev/FORGE](https://github.com/Forge-Studios-dev/FORGE)
 
-## Documentation (13 files)
+## Documentation
 
-All docs live in [`docs/`](docs/README.md):
+All docs: [`docs/README.md`](docs/README.md) — start with **[FORGE_PROJECT_MASTER](docs/FORGE_PROJECT_MASTER.md)** for every API module, route, worker, blueprint, and feature flag.
 
 | Doc | Purpose |
 |-----|---------|
+| [FORGE_PROJECT_MASTER](docs/FORGE_PROJECT_MASTER.md) | Modules, routes, design system, blueprints, status |
 | [GETTING_STARTED](docs/GETTING_STARTED.md) | Local dev |
-| [FORGE_PROJECT_MASTER](docs/FORGE_PROJECT_MASTER.md) | Architecture & status |
-| [CLIENT_OVERVIEW](docs/CLIENT_OVERVIEW.md) | Stakeholder summary |
 | [API_SCHEMAS](docs/API_SCHEMAS.md) | Public API contracts |
-| [DEPLOY](docs/DEPLOY.md) | Production deploy |
-| [CI_CD](docs/CI_CD.md) | GitHub Actions |
-| [AUTH](docs/AUTH.md) | Sessions & OAuth |
-| [MEDIA](docs/MEDIA.md) | S3 & Mux |
-| [FIREBASE](docs/FIREBASE.md) | FCM push |
-| [OBSERVABILITY](docs/OBSERVABILITY.md) | Metrics & Sentry |
-| [MEMBERSHIPS](docs/MEMBERSHIPS.md) | Mock tiers |
-| [QA](docs/QA.md) | Test matrix |
+| [DEPLOY](docs/DEPLOY.md) · [CI_CD](docs/CI_CD.md) | Ops |
+| [LEGAL](docs/LEGAL.md) | Terms & privacy |
 
 ```bash
 git clone https://github.com/Forge-Studios-dev/FORGE.git && cd FORGE

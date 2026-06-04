@@ -9,10 +9,13 @@ import { ContentVisibility } from './content-access.types';
 
 describe('EntitlementsService', () => {
   let service: EntitlementsService;
-  let engagementService: { isFollowing: jest.Mock };
+  let engagementService: { isFollowing: jest.Mock; getFollowingIdsAmong: jest.Mock };
 
   beforeEach(async () => {
-    engagementService = { isFollowing: jest.fn() };
+    engagementService = {
+      isFollowing: jest.fn(),
+      getFollowingIdsAmong: jest.fn().mockResolvedValue(new Set()),
+    };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EntitlementsService,
@@ -155,5 +158,20 @@ describe('EntitlementsService', () => {
     });
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe('paid_event');
+  });
+
+  it('checkAccessMany batches follow lookup for multiple creators', async () => {
+    engagementService.getFollowingIdsAmong.mockResolvedValue(new Set(['c1']));
+
+    const results = await service.checkAccessMany('u1', null, [
+      { creatorId: 'c1', visibility: ContentVisibility.FOLLOWERS },
+      { creatorId: 'c2', visibility: ContentVisibility.FOLLOWERS },
+    ]);
+
+    expect(engagementService.getFollowingIdsAmong).toHaveBeenCalledWith('u1', ['c1', 'c2']);
+    expect(engagementService.isFollowing).not.toHaveBeenCalled();
+    expect(results[0].allowed).toBe(true);
+    expect(results[1].allowed).toBe(false);
+    expect(results[1].reason).toBe('follow_required');
   });
 });
