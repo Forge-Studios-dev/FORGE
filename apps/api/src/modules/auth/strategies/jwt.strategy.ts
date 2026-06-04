@@ -71,7 +71,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       creatorStatus: user.creatorStatus,
       isVerified: user.isVerified,
       isActive: user.isActive,
-      deletedAt: user.deletedAt ? user.deletedAt.toISOString() : null,
+      deletedAt: null,
     });
     this.applyClsSnapshot(user);
     return {
