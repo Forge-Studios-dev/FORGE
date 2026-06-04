@@ -9,7 +9,7 @@ ENV_FILE="${FORGE_AUTH_DEPLOY_ENV:-${ROOT}/secrets/auth-deploy.env}"
 
 if [[ -z "$JSON_PATH" || ! -f "$JSON_PATH" ]]; then
   echo "Usage: $0 /path/to/firebase-adminsdk-XXXX.json" >&2
-  echo "If Console says 'Key creation is not allowed' — see docs/auth-enterprise/FIREBASE_ORG_POLICY_WORKAROUND.md" >&2
+  echo "If Console says 'Key creation is not allowed' — see docs/AUTH.md" >&2
   echo "An org admin must provide the JSON file, or use Workload Identity Federation." >&2
   exit 1
 fi

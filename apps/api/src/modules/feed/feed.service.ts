@@ -3,6 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
+import type { FeedSort } from '@forge/shared-types';
+
+export type { FeedSort };
 import { Video } from '../content/entities/video.entity';
 import { applyDiscoverableVideoFilters } from './feed-query.util';
 import { VideosService } from '../content/videos.service';
@@ -25,8 +28,6 @@ export const POPULAR_SCORE_SQL = `(v.view_count * 0.6 + v.like_count * 0.3 + (EX
 
 /** Sort key for latest/popular/forYou tie-break (use addSelect alias — not raw orderBy). */
 export const SORT_TIME_SQL = 'COALESCE(v.published_at, v.created_at)';
-
-export type FeedSort = 'latest' | 'popular' | 'forYou';
 
 type PopularCursor = { sort: 'popular'; s: number; ca: string; id: string };
 type LatestCursor = { sort: 'latest'; ca: string; id: string };

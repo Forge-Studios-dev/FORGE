@@ -69,7 +69,7 @@ fi
 
 echo ""
 if [[ "$FAIL" -eq 0 ]]; then
-  echo "Production readiness checks passed (see docs/MVP_GO_LIVE.md for deploy steps)."
+  echo "Production readiness checks passed (see docs/DEPLOY.md for deploy steps)."
 else
   echo "Fix failures before promoting to production." >&2
   exit 1

@@ -35,4 +35,4 @@ Run from **repository root** unless noted.
 
 **CI/CD details:** [docs/CI_CD.md](../docs/CI_CD.md)
 
-**Go-live:** [docs/MVP_GO_LIVE.md](../docs/MVP_GO_LIVE.md)
+**Go-live:** [docs/DEPLOY.md](../docs/DEPLOY.md)

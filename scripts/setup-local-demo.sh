@@ -71,13 +71,13 @@ URLs:
   API    http://localhost:3001/api/v1
   Swagger http://localhost:3001/api/docs
 
-Demo logins (see docs/mvp-test-matrix.md):
+Demo logins (see docs/QA.md):
   viewer@forge.local / ForgeDemo123!   → web & mobile
   admin@forge.local  / ForgeAdmin123!  → admin panel only
 
 Optional: bash scripts/reset-demo-users.sh  (fix roles in DB)
 Optional: bash scripts/smoke-api.sh         (after API is up)
 
-For hosting a remote client demo, read docs/DEPLOYMENT_DEMO.md
+For hosting a remote client demo, read docs/DEPLOY.md (ngrok section)
 
 EOF

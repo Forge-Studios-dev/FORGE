@@ -8,7 +8,7 @@ APP="${FLY_APP:-forge-studios-api}"
 
 if [[ -z "$JSON_PATH" || ! -f "$JSON_PATH" ]]; then
   echo "Usage: $0 /path/to/firebase-adminsdk-*.json" >&2
-  echo "See docs/auth-enterprise/FIREBASE_ORG_POLICY_WORKAROUND.md" >&2
+  echo "See docs/AUTH.md (Firebase / org policy)" >&2
   exit 1
 fi
 

@@ -2,7 +2,7 @@ import * as bcrypt from 'bcrypt';
 import { DataSource } from 'typeorm';
 import { CreatorStatus, User, UserRole } from '../../modules/users/entities/user.entity';
 
-/** Local demo accounts documented in docs/mvp-test-matrix.md */
+/** Local demo accounts documented in docs/QA.md */
 const DEMO_USERS: Array<{
   email: string;
   password: string;

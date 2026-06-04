@@ -160,11 +160,32 @@ npm run build --workspace=@forge/admin
 
 Requires local Postgres + Redis for API tests (see [GETTING_STARTED.md](./GETTING_STARTED.md)).
 
-**Deploy locally:** `npm run deploy:production` — see [MVP_GO_LIVE.md](./MVP_GO_LIVE.md).
+**Deploy:** [DEPLOY.md](./DEPLOY.md) · `npm run deploy:production`
 
 ---
 
-## Checklist
+## Pre-merge checklist
+
+```bash
+npm run ci
+npm run verify:production   # with prod-like apps/api/.env
+npm run smoke:api
+cd apps/web && npm run test:e2e
+```
+
+After merge to `main`: CI → release deploys API → sync worker secrets → worker → Vercel.
+
+| Rule | Detail |
+|------|--------|
+| Worker | `WORKER_ONLY=true` on worker app only |
+| API | No `ENABLE_VIDEO_WORKER` in production |
+| Secrets | Strong `JWT_*`, `MUX_WEBHOOK_SECRET` on Fly |
+
+Smoke prod: `npm run check:production`
+
+---
+
+## GitHub secrets
 
 - [ ] `FLY_API_TOKEN`
 - [ ] `VERCEL_TOKEN`
@@ -172,4 +193,4 @@ Requires local Postgres + Redis for API tests (see [GETTING_STARTED.md](./GETTIN
 - [ ] `VERCEL_PROJECT_ID_WEB`
 - [ ] `VERCEL_PROJECT_ID_ADMIN`
 
-*Last updated: 2026-05-21*
+*Last updated: 2026-06-04*

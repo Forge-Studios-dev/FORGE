@@ -32,7 +32,7 @@ When set, scrapers must send `Authorization: Bearer <token>`. Leave unset for op
 
 ## Client error tracking (Sentry)
 
-Web and admin use `@sentry/nextjs` when `NEXT_PUBLIC_SENTRY_DSN` is set. See [firebase/MONITORING.md](./firebase/MONITORING.md).
+Web and admin use `@sentry/nextjs` when `NEXT_PUBLIC_SENTRY_DSN` is set.
 
 ## Error tracking (Sentry) — API
 
@@ -101,7 +101,13 @@ Starter assets in [`infra/observability/`](../infra/observability/):
 
 Requires `METRICS_ENABLED=true` on the API (enabled on production Fly API).
 
-**Grafana Cloud:** [infra/observability/grafana-cloud.md](../infra/observability/grafana-cloud.md) · checklist [GRAFANA_SETUP.md](./GRAFANA_SETUP.md).
+**Grafana Cloud:** [infra/observability/grafana-cloud.md](../infra/observability/grafana-cloud.md)
+
+### Grafana quick setup
+
+1. `METRICS_ENABLED=true` + `npm run setup:fly:metrics-token` on Fly API
+2. Connections → **Metrics Endpoint** → scrape `https://api.forgestudios.net/metrics` (60s, Bearer token)
+3. `npm run import:grafana-dashboard` · `npm run verify:grafana-metrics`
 
 ## Feature flags (large uploads)
 

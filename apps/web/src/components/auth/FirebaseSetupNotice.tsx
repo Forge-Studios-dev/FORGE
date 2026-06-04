@@ -15,7 +15,7 @@ export function FirebaseSetupNotice({ config }: { config: PlatformPublicConfig }
     >
       Firebase is not connected to this API yet (no Admin SDK on the server). Push notifications and
       App Check are off until <code className="text-xs">FIREBASE_*</code> secrets are set on Fly.
-      See <code className="text-xs">docs/auth-enterprise/FIREBASE_CONNECTION_BLOCKER.md</code>.
+      See <code className="text-xs">docs/FIREBASE.md</code>.
     </p>
   );
 }

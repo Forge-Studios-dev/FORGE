@@ -68,4 +68,4 @@ deploy_admin
 
 echo ""
 echo "==> Done. Production URLs in Vercel dashboard."
-echo "Custom domains: docs/DOMAIN_FORGESTUDIOS.md"
+echo "Custom domains: docs/DEPLOY.md"

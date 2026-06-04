@@ -17,7 +17,7 @@ export interface ApiEnvelope<T> {
   message?: string;
 }
 
-export type FeedSort = 'latest' | 'popular';
+export type FeedSort = 'latest' | 'popular' | 'forYou';
 
 export interface FeedMeta {
   cursor: string | null;

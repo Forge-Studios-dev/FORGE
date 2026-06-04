@@ -4,112 +4,59 @@ Skill-first platform for learning journeys, tutorial videos, live teaching, and 
 
 **Repository:** [github.com/Forge-Studios-dev/FORGE](https://github.com/Forge-Studios-dev/FORGE)
 
----
+## Documentation (13 files)
 
-## Start here
+All docs live in [`docs/`](docs/README.md):
 
-| I want to… | Read |
-|------------|------|
-| **Run locally** | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) |
-| **Deploy MVP (free)** | [docs/MVP_GO_LIVE.md](docs/MVP_GO_LIVE.md) |
-| **Domain forgestudios.net** | [docs/DOMAIN_FORGESTUDIOS.md](docs/DOMAIN_FORGESTUDIOS.md) |
-| **Test after deploy** | [docs/mvp-test-matrix.md](docs/mvp-test-matrix.md) |
-| **Show a client** | [docs/CLIENT_OVERVIEW.md](docs/CLIENT_OVERVIEW.md) |
-| **Full specification** | [docs/FORGE_PROJECT_MASTER.md](docs/FORGE_PROJECT_MASTER.md) |
-| **CI/CD & secrets** | [docs/CI_CD.md](docs/CI_CD.md) |
-| **Production hardening log** | [docs/PLATFORM_AUDIT_REMEDIATION.md](docs/PLATFORM_AUDIT_REMEDIATION.md) |
-| **Pre-merge checklist** | [docs/MERGE_CHECKLIST.md](docs/MERGE_CHECKLIST.md) |
-| **Video upload / multipart** | [docs/VIDEO_UPLOAD.md](docs/VIDEO_UPLOAD.md) |
-| **All docs** | [docs/README.md](docs/README.md) |
+| Doc | Purpose |
+|-----|---------|
+| [GETTING_STARTED](docs/GETTING_STARTED.md) | Local dev |
+| [FORGE_PROJECT_MASTER](docs/FORGE_PROJECT_MASTER.md) | Architecture & status |
+| [CLIENT_OVERVIEW](docs/CLIENT_OVERVIEW.md) | Stakeholder summary |
+| [API_SCHEMAS](docs/API_SCHEMAS.md) | Public API contracts |
+| [DEPLOY](docs/DEPLOY.md) | Production deploy |
+| [CI_CD](docs/CI_CD.md) | GitHub Actions |
+| [AUTH](docs/AUTH.md) | Sessions & OAuth |
+| [MEDIA](docs/MEDIA.md) | S3 & Mux |
+| [FIREBASE](docs/FIREBASE.md) | FCM push |
+| [OBSERVABILITY](docs/OBSERVABILITY.md) | Metrics & Sentry |
+| [MEMBERSHIPS](docs/MEMBERSHIPS.md) | Mock tiers |
+| [QA](docs/QA.md) | Test matrix |
 
 ```bash
 git clone https://github.com/Forge-Studios-dev/FORGE.git && cd FORGE
 npm install && bash scripts/setup-local-demo.sh
-npm run dev:api   # + dev:web, dev:admin in other terminals
+npm run dev:api   # + dev:web, dev:admin
 ```
-
----
 
 ## Apps
 
-| App | Stack | Port / host |
-|-----|--------|-------------|
-| **API** | NestJS, TypeORM, BullMQ, Socket.IO | `:3001` / Fly.io |
-| **Web** | Next.js 14 | `:3000` / Vercel |
-| **Admin** | Next.js 14 | `:3002` / Vercel |
-| **Mobile** | Flutter | iOS / Android |
+| App | Stack | Port |
+|-----|--------|------|
+| API | NestJS, BullMQ, Socket.IO | 3001 |
+| Web | Next.js 14 | 3000 |
+| Admin | Next.js 14 | 3002 |
+| Mobile | Flutter | — |
 
----
+## Stack
 
-## Tech stack
+PostgreSQL · Redis · AWS S3 · Mux · FFmpeg · Fly.io · Vercel
 
-PostgreSQL · Redis · AWS S3 · Mux · FFmpeg · Docker · GitHub Actions
-
-Recommended cloud stack: **Neon** (DB) + **Redis Cloud** (Redis) + **Fly.io** (API) + **Vercel** (web/admin).
-
----
-
-## Repository layout
+## Layout
 
 ```
-FORGE/
-├── apps/api/              # NestJS backend
-├── apps/web/              # Next.js user app
-├── apps/admin/            # Next.js admin
-├── apps/mobile/           # Flutter
-├── packages/
-│   ├── shared-types/
-│   └── design-system/
-├── docs/                  # Documentation (see docs/README.md)
-├── scripts/               # setup, deploy, CI — see scripts/README.md
-├── .github/workflows/     # CI + Fly/Vercel deploy
-├── fly.toml               # Fly.io API deploy
-└── docker-compose.yml     # Local Postgres + Redis
+apps/api/  apps/web/  apps/admin/  apps/mobile/
+packages/  docs/  scripts/  .github/workflows/
 ```
 
----
+## API
 
-## API quick reference
+`http://localhost:3001/api/v1` · Swagger `/api/docs`
 
-Base URL: `http://localhost:3001/api/v1` · Swagger: `/api/docs`
+## Scripts
 
-| Area | Examples |
-|------|----------|
-| Auth | `POST /auth/signup`, `/login`, `/refresh` |
-| Videos | `GET /videos/feed`, `POST /videos/presigned-url` |
-| Engagement | `POST /videos/:id/like`, `/comments`, `/follow/:userId` |
-| Streams | `POST /streams/start`, `GET /streams/live` |
-| Admin | `GET /admin/stats`, `PATCH /admin/users/:id` |
-
-WebSocket: `ws://localhost:3001/events` — `video:ready`, `stream:started`, `comment:new`
-
-More detail: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) · [docs/FORGE_PROJECT_MASTER.md](docs/FORGE_PROJECT_MASTER.md)
+`npm run dev:api` · `npm run ci` · `npm run smoke:api` · `npm run deploy:production`
 
 ---
-
-## NPM scripts
-
-```bash
-npm run dev:api | dev:web | dev:admin
-npm run build:all
-npm run ci
-npm run smoke:api
-npm run gh:secrets
-npm run db:neon:setup
-npm run redis:test
-npm run deploy:production
-```
-
----
-
-## Development notes
-
-- Schema changes only via migrations (`apps/api/src/database/migrations/`), applied on API startup
-- Demo seed: `npm run db:neon:setup` or `npm run seed --workspace=apps/api`
-- Prefer `npm run dev:api` over Docker `api` service during active development (image can be stale)
-
----
-
-## License
 
 Private — Forge Studios.
