@@ -93,6 +93,7 @@ describe('StreamingService access gating', () => {
 
       expect(result.playbackUrl).toBe(stream.playbackUrl);
       expect(result.accessDenied).toBeFalsy();
+      expect(result.thumbnailUrl).toContain('image.mux.com/test');
     });
 
     it('hides playback and sets accessDenied when not entitled', async () => {

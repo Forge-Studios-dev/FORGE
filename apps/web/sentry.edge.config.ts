@@ -1,8 +1,4 @@
 import * as Sentry from '@sentry/nextjs';
+import { buildSentryOptions } from './src/lib/sentry-init-options';
 
-Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  enabled: !!process.env.NEXT_PUBLIC_SENTRY_DSN,
-  tracesSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE || '0.1'),
-  sendDefaultPii: process.env.NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII !== 'false',
-});
+Sentry.init(buildSentryOptions());

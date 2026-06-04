@@ -13,6 +13,7 @@ import { getSocket } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
 import { EmptyState } from '@/components/EmptyState';
 import { SkeletonBlock } from '@/components/LoadingSkeleton';
+import { resolveStreamPoster } from '@/lib/stream-poster';
 
 const ACCESS_MESSAGES: Record<string, string> = {
   login_required: 'Sign in to watch this stream.',
@@ -71,6 +72,7 @@ export default function LiveWatchPage() {
   }, [accessToken, id]);
 
   const displayViewers = viewerCount ?? stream?.viewerCount ?? 0;
+  const posterUrl = stream ? resolveStreamPoster(stream) : null;
 
   return (
     <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
@@ -113,7 +115,7 @@ export default function LiveWatchPage() {
             ) : stream.playbackUrl ? (
               <VideoPlayer
                 hlsUrl={stream.playbackUrl}
-                thumbnailUrl={stream.thumbnailUrl}
+                thumbnailUrl={posterUrl ?? undefined}
                 title={stream.title}
                 lowLatency
               />
