@@ -12,6 +12,7 @@ import { safeReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
 import { AuthSetupNotice } from '@/components/auth/AuthSetupNotice';
 import { FirebaseSetupNotice } from '@/components/auth/FirebaseSetupNotice';
+import { LegalLinks } from '@/components/legal/LegalLinks';
 import { isGoogleOAuthEnabled, loadPlatformConfig } from '@/lib/platform-config';
 import type { PlatformPublicConfig } from '@forge/shared-types';
 
@@ -38,6 +39,7 @@ export function SignupForm({
   const [form, setForm] = useState({ email: '', username: '', displayName: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showGoogle, setShowGoogle] = useState(
     showGoogleInitially ??
       process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === 'true',
@@ -72,6 +74,7 @@ export function SignupForm({
           email: form.email.trim().toLowerCase(),
           username: form.username.trim(),
           displayName: form.displayName.trim(),
+          acceptedTerms: true,
         },
         { headers },
       );
@@ -126,9 +129,21 @@ export function SignupForm({
             className={authFieldClass}
           />
         ))}
+        <label className="flex cursor-pointer items-start gap-3 text-sm text-on-surface-variant">
+          <input
+            type="checkbox"
+            required
+            checked={acceptedTerms}
+            onChange={(e) => setAcceptedTerms(e.target.checked)}
+            className="mt-1 h-4 w-4 rounded border-outline-variant accent-primary"
+          />
+          <span>
+            I agree to the <LegalLinks />.
+          </span>
+        </label>
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !acceptedTerms}
           className="primary-button w-full rounded-full py-4 font-semibold text-on-primary disabled:opacity-60"
         >
           {loading ? 'Creating account…' : 'Create account'}
@@ -149,7 +164,8 @@ export function SignupForm({
         </Link>
       </p>
       <p className="mt-4 text-center text-xs text-outline">
-        We send a verification link after sign up. Verify your email to unlock creator tools once approved.
+        We send a verification link after sign up. Verify your email to unlock creator tools once approved.{' '}
+        <LegalLinks />
       </p>
     </AuthScreen>
   );

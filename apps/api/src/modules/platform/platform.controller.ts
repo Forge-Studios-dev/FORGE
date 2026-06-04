@@ -46,6 +46,13 @@ export class PlatformController {
         /** FCM + App Check only — Firebase Auth is not used for login. */
         usesFirebaseAuth: false,
       },
+      legal: {
+        termsUrl: `${(this.configService.get<string>('webUrl') || 'https://forgestudios.net').replace(/\/$/, '')}/terms`,
+        privacyUrl: `${(this.configService.get<string>('webUrl') || 'https://forgestudios.net').replace(/\/$/, '')}/privacy`,
+        contactEmail: 'legal@forgestudios.net',
+        privacyEmail: 'privacy@forgestudios.net',
+        lastUpdated: '2026-06-03',
+      },
     };
   }
 }

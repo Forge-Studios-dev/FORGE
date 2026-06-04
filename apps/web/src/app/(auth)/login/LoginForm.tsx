@@ -13,6 +13,7 @@ import { getAppCheckToken } from '@/lib/app-check';
 import { GoogleOAuthSetupNotice } from '@/components/auth/GoogleOAuthSetupNotice';
 import { isGoogleOAuthEnabled, loadPlatformConfig } from '@/lib/platform-config';
 import type { PlatformPublicConfig } from '@forge/shared-types';
+import { LegalLinks } from '@/components/legal/LegalLinks';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -182,6 +183,9 @@ export function LoginForm({
         <Link href={signupHref} className="text-primary hover:underline">
           Create account
         </Link>
+      </p>
+      <p className="mt-4 text-center text-xs text-outline">
+        <LegalLinks />
       </p>
     </AuthScreen>
   );

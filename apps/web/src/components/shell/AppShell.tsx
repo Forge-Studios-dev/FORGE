@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { TopBar } from './TopBar';
 import { SideNav } from './SideNav';
 import { MobileNav } from './MobileNav';
+import { SiteFooter } from './SiteFooter';
 
 const MINIMAL_PREFIXES = [
   '/login',
@@ -37,11 +38,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <TopBar />
       {!watchLayout && <SideNav />}
       <div
-        className={`forge-page-enter min-h-screen pb-24 pt-16 md:pb-12 ${
+        className={`forge-page-enter flex min-h-screen flex-col pb-24 pt-16 md:pb-12 ${
           watchLayout ? '' : 'md:pl-64'
         }`}
       >
-        {children}
+        <div className="flex-1">{children}</div>
+        <SiteFooter />
       </div>
       <MobileNav />
     </>
