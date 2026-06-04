@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { EngagementService } from './engagement.service';
+import { clampLimit } from '../../common/utils/pagination.util';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
@@ -58,7 +59,7 @@ export class EngagementController {
     @Query('limit') limit: number,
     @Query('cursor') cursor: string,
   ) {
-    return this.engagementService.getComments(videoId, limit || 20, cursor);
+    return this.engagementService.getComments(videoId, clampLimit(limit), cursor);
   }
 
   @Post('follow/:userId')

@@ -8,7 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { Repository, LessThanOrEqual } from 'typeorm';
+import { Repository, LessThanOrEqual, In } from 'typeorm';
+import { UserRole } from '../users/entities/user.entity';
 import { SubscriptionTier } from './entities/subscription-tier.entity';
 import {
   MemberSubscription,
@@ -28,6 +29,14 @@ export type AccessCheckInput = {
   viewerId?: string | null;
   isOwner?: boolean;
   isAdmin?: boolean;
+};
+
+export type AccessCheckItem = AccessCheckInput;
+
+export type ViewerAccessContext = {
+  followingCreatorIds: Set<string>;
+  subscriptionsByCreatorId: Map<string, MemberSubscription>;
+  tierSortOrderByTierId: Map<string, number>;
 };
 
 export type AccessCheckResult = {
@@ -194,6 +203,171 @@ export class EntitlementsService {
   /** Alias for checkAccess — single entry point for entitlement checks. */
   hasAccess(input: AccessCheckInput): Promise<AccessCheckResult> {
     return this.checkAccess(input);
+  }
+
+  /**
+   * Batch entitlement resolution for list endpoints (e.g. live streams — F-502).
+   * Uses one follow query + one subscription query per unique creator set.
+   */
+  async checkAccessMany(
+    viewerId: string | null | undefined,
+    viewerRole: UserRole | null | undefined,
+    items: AccessCheckItem[],
+  ): Promise<AccessCheckResult[]> {
+    if (items.length === 0) return [];
+    const isGlobalAdmin = viewerRole === UserRole.ADMIN;
+    const needsContext = items.some(
+      (item) =>
+        !item.isOwner &&
+        !isGlobalAdmin &&
+        !item.isAdmin &&
+        item.visibility !== ContentVisibility.PUBLIC &&
+        item.visibility !== ContentVisibility.UNLISTED,
+    );
+
+    let ctx: ViewerAccessContext | null = null;
+    if (needsContext && viewerId) {
+      const creatorIds = [...new Set(items.map((i) => i.creatorId))];
+      const tierIds = items
+        .map((i) =>
+          i.visibility === ContentVisibility.TIER || i.visibility === StreamVisibility.TIER
+            ? i.requiredTierId
+            : null,
+        )
+        .filter((id): id is string => !!id);
+      ctx = await this.buildViewerAccessContext(viewerId, creatorIds, tierIds);
+    }
+
+    return items.map((item) => {
+      const input: AccessCheckInput = {
+        ...item,
+        viewerId: item.viewerId ?? viewerId,
+        isAdmin: item.isAdmin ?? isGlobalAdmin,
+      };
+      if (ctx && input.viewerId) {
+        return this.evaluateAccessWithContext(input, ctx);
+      }
+      return this.evaluateAccessQuick(input);
+    });
+  }
+
+  private evaluateAccessQuick(input: AccessCheckInput): AccessCheckResult {
+    const { visibility, viewerId, isOwner, isAdmin } = input;
+    if (isOwner || isAdmin) return { allowed: true };
+    if (visibility === ContentVisibility.PUBLIC || visibility === ContentVisibility.UNLISTED) {
+      return { allowed: true };
+    }
+    if (!viewerId) return { allowed: false, reason: 'login_required' };
+    return { allowed: false, reason: 'not_available' };
+  }
+
+  private async buildViewerAccessContext(
+    viewerId: string,
+    creatorIds: string[],
+    requiredTierIds: string[],
+  ): Promise<ViewerAccessContext> {
+    const [followingCreatorIds, subscriptionsByCreatorId, tierSortOrderByTierId] = await Promise.all([
+      this.engagementService.getFollowingIdsAmong(viewerId, creatorIds),
+      this.loadActiveSubscriptionsForCreators(viewerId, creatorIds),
+      this.loadTierSortOrders(requiredTierIds),
+    ]);
+    return { followingCreatorIds, subscriptionsByCreatorId, tierSortOrderByTierId };
+  }
+
+  private async loadActiveSubscriptionsForCreators(
+    userId: string,
+    creatorIds: string[],
+  ): Promise<Map<string, MemberSubscription>> {
+    const unique = [...new Set(creatorIds.filter(Boolean))];
+    const map = new Map<string, MemberSubscription>();
+    if (unique.length === 0) return map;
+
+    const now = new Date();
+    const subs = await this.subscriptionRepository
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.tier', 'tier')
+      .where('s.user_id = :userId', { userId })
+      .andWhere('s.creator_id IN (:...creatorIds)', { creatorIds: unique })
+      .andWhere('s.status = :status', { status: MemberSubscriptionStatus.ACTIVE })
+      .andWhere('s.starts_at <= :now', { now })
+      .andWhere('(s.expires_at IS NULL OR s.expires_at > :now)', { now })
+      .orderBy('s.created_at', 'DESC')
+      .getMany();
+
+    for (const sub of subs) {
+      if (!map.has(sub.creatorId)) {
+        map.set(sub.creatorId, sub);
+        await this.redis.setex(this.subscriptionCacheKey(userId, sub.creatorId), 60, JSON.stringify(sub));
+      }
+    }
+    for (const creatorId of unique) {
+      if (!map.has(creatorId)) {
+        await this.redis.setex(this.subscriptionCacheKey(userId, creatorId), 60, 'none');
+      }
+    }
+    return map;
+  }
+
+  private async loadTierSortOrders(tierIds: string[]): Promise<Map<string, number>> {
+    const unique = [...new Set(tierIds.filter(Boolean))];
+    const map = new Map<string, number>();
+    if (unique.length === 0) return map;
+    const tiers = await this.tierRepository.find({ where: { id: In(unique) } });
+    for (const tier of tiers) {
+      map.set(tier.id, tier.sortOrder);
+    }
+    return map;
+  }
+
+  private evaluateAccessWithContext(
+    input: AccessCheckInput,
+    ctx: ViewerAccessContext,
+  ): AccessCheckResult {
+    const { creatorId, visibility, requiredTierId, viewerId, isOwner, isAdmin } = input;
+
+    if (isOwner || isAdmin) return { allowed: true };
+
+    if (visibility === ContentVisibility.PUBLIC || visibility === ContentVisibility.UNLISTED) {
+      return { allowed: true };
+    }
+
+    if (!viewerId) return { allowed: false, reason: 'login_required' };
+
+    if (visibility === ContentVisibility.PRIVATE) {
+      return { allowed: false, reason: 'private' };
+    }
+
+    if (visibility === ContentVisibility.PAID_EVENT) {
+      return { allowed: false, reason: 'paid_event' };
+    }
+
+    if (visibility === ContentVisibility.FOLLOWERS || visibility === StreamVisibility.FOLLOWERS) {
+      return ctx.followingCreatorIds.has(creatorId)
+        ? { allowed: true }
+        : { allowed: false, reason: 'follow_required' };
+    }
+
+    if (visibility === ContentVisibility.SUBSCRIBERS || visibility === StreamVisibility.SUBSCRIBERS) {
+      return ctx.subscriptionsByCreatorId.has(creatorId)
+        ? { allowed: true }
+        : { allowed: false, reason: 'subscription_required' };
+    }
+
+    if (visibility === ContentVisibility.TIER || visibility === StreamVisibility.TIER) {
+      const sub = ctx.subscriptionsByCreatorId.get(creatorId);
+      if (!requiredTierId) {
+        return sub ? { allowed: true } : { allowed: false, reason: 'tier_required' };
+      }
+      const requiredOrder = ctx.tierSortOrderByTierId.get(requiredTierId);
+      if (requiredOrder === undefined || !sub?.tier) {
+        return { allowed: false, reason: 'tier_required' };
+      }
+      return sub.tier.sortOrder >= requiredOrder
+        ? { allowed: true }
+        : { allowed: false, reason: 'tier_required' };
+    }
+
+    return { allowed: false, reason: 'not_available' };
   }
 
   async checkAccess(input: AccessCheckInput): Promise<AccessCheckResult> {

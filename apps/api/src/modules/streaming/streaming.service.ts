@@ -140,27 +140,28 @@ export class StreamingService {
       order: { startedAt: 'DESC' },
     });
 
-    const results = await Promise.all(
-      streams.map(async (stream) => {
-        const isOwner = !!viewerId && viewerId === stream.userId;
-        const isAdmin = viewerRole === UserRole.ADMIN;
-        const access = await this.entitlementsService.checkAccess({
-          creatorId: stream.userId,
-          visibility: stream.visibility,
-          requiredTierId: stream.requiredTierId,
-          viewerId,
-          isOwner,
-          isAdmin,
-        });
-        if (!access.allowed && stream.visibility !== StreamVisibility.PUBLIC) {
-          return toPublicStream(stream, false, {
-            hidePlayback: true,
-            accessReason: access.reason,
-          });
-        }
-        return toPublicStream(stream, false, { hidePlayback: !access.allowed, accessReason: access.reason });
-      }),
+    const accessList = await this.entitlementsService.checkAccessMany(
+      viewerId,
+      viewerRole,
+      streams.map((stream) => ({
+        creatorId: stream.userId,
+        visibility: stream.visibility,
+        requiredTierId: stream.requiredTierId,
+        viewerId,
+        isOwner: !!viewerId && viewerId === stream.userId,
+      })),
     );
+
+    const results = streams.map((stream, index) => {
+      const access = accessList[index];
+      if (!access.allowed && stream.visibility !== StreamVisibility.PUBLIC) {
+        return toPublicStream(stream, false, {
+          hidePlayback: true,
+          accessReason: access.reason,
+        });
+      }
+      return toPublicStream(stream, false, { hidePlayback: !access.allowed, accessReason: access.reason });
+    });
 
     return results.filter((s) => s.visibility === StreamVisibility.PUBLIC || !s.accessDenied);
   }

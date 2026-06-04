@@ -5,6 +5,7 @@ import { Report, ReportStatus, ReportTargetType } from './entities/report.entity
 import { CreateReportDto } from './dto/create-report.dto';
 import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
+import { clampLimit, clampPage } from '../../common/utils/pagination.util';
 
 @Injectable()
 export class ReportsService {
@@ -43,6 +44,8 @@ export class ReportsService {
   }
 
   async listForAdmin(page = 1, limit = 20, status?: ReportStatus) {
+    page = clampPage(page);
+    limit = clampLimit(limit);
     const qb = this.reportRepository
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.reporter', 'reporter')

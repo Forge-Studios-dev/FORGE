@@ -19,6 +19,8 @@ import { AdminVideo, toAdminVideo, toAdminVideos } from '../content/video.mapper
 import { permissionsForUser } from '../../common/auth/permissions';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdateAdminVideoDto } from './dto/update-admin-video.dto';
+import { AuthUserCacheService } from '../auth/auth-user-cache.service';
+import { clampLimit, clampPage } from '../../common/utils/pagination.util';
 
 export type AdminUserDetail = {
   id: string;
@@ -57,6 +59,7 @@ export class AdminService {
     private readonly usersService: UsersService,
     private readonly playlistsService: PlaylistsService,
     private readonly authService: AuthService,
+    private readonly authUserCache: AuthUserCacheService,
     private readonly analyticsService: AnalyticsService,
     private readonly videosService: VideosService,
     private readonly eventEmitter: EventEmitter2,
@@ -91,6 +94,7 @@ export class AdminService {
 
   async updateUser(id: string, dto: UpdateAdminUserDto) {
     await this.userRepository.update(id, dto);
+    await this.authUserCache.bust(id);
     if (dto.isActive === false) {
       await this.authService.logoutAll(id);
     }
@@ -176,8 +180,9 @@ export class AdminService {
     emailVerified?: boolean;
     hasPendingReports?: boolean;
   }) {
-    const { page, limit, search, role, creatorStatus, isActive, emailVerified, hasPendingReports } =
-      options;
+    const page = clampPage(options.page);
+    const limit = clampLimit(options.limit);
+    const { search, role, creatorStatus, isActive, emailVerified, hasPendingReports } = options;
     const query = this.userRepository
       .createQueryBuilder('u')
       .where('u.deleted_at IS NULL')
@@ -225,6 +230,8 @@ export class AdminService {
     limit = 20,
     status?: VideoStatus,
   ) {
+    page = clampPage(page);
+    limit = clampLimit(limit);
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
@@ -247,6 +254,8 @@ export class AdminService {
   }
 
   async getUserReports(userId: string, page = 1, limit = 20) {
+    page = clampPage(page);
+    limit = clampLimit(limit);
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
@@ -271,7 +280,7 @@ export class AdminService {
 
   async getUserWatchHistory(userId: string, limit = 20) {
     await this.findUserById(userId);
-    return this.usersService.getWatchHistory(userId, limit, false);
+    return this.usersService.getWatchHistory(userId, clampLimit(limit), false);
   }
 
   async getUserPlaylists(userId: string) {

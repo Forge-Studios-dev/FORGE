@@ -41,7 +41,7 @@ function mockStream(overrides: Partial<Stream> = {}): Stream {
 
 describe('StreamingService access gating', () => {
   let service: StreamingService;
-  let entitlementsService: { checkAccess: jest.Mock };
+  let entitlementsService: { checkAccess: jest.Mock; checkAccessMany: jest.Mock };
 
   const streamRepository = {
     findOne: jest.fn(),
@@ -52,7 +52,10 @@ describe('StreamingService access gating', () => {
   };
 
   beforeEach(async () => {
-    entitlementsService = { checkAccess: jest.fn() };
+    entitlementsService = {
+      checkAccess: jest.fn(),
+      checkAccessMany: jest.fn(),
+    };
     streamRepository.findOne.mockReset();
     streamRepository.find.mockReset();
 
@@ -127,20 +130,20 @@ describe('StreamingService access gating', () => {
     it('omits non-public streams when viewer has no access', async () => {
       const gated = mockStream({ id: 'gated', visibility: StreamVisibility.TIER });
       streamRepository.find.mockResolvedValue([gated]);
-      entitlementsService.checkAccess.mockResolvedValue({
-        allowed: false,
-        reason: 'tier_required',
-      });
+      entitlementsService.checkAccessMany.mockResolvedValue([
+        { allowed: false, reason: 'tier_required' },
+      ]);
 
       const results = await service.getLiveStreams('viewer-1');
 
       expect(results).toHaveLength(0);
+      expect(entitlementsService.checkAccessMany).toHaveBeenCalled();
     });
 
     it('includes gated streams with accessDenied when viewer is entitled', async () => {
       const gated = mockStream({ id: 'gated', visibility: StreamVisibility.SUBSCRIBERS });
       streamRepository.find.mockResolvedValue([gated]);
-      entitlementsService.checkAccess.mockResolvedValue({ allowed: true });
+      entitlementsService.checkAccessMany.mockResolvedValue([{ allowed: true }]);
 
       const results = await service.getLiveStreams('viewer-1');
 

@@ -11,6 +11,7 @@ import { MailService } from '../mail/mail.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AuthAccountLockoutService } from './auth-account-lockout.service';
 import { AuthEmailOtpService } from './auth-email-otp.service';
+import { AuthUserCacheService } from './auth-user-cache.service';
 
 describe('AuthService', () => {
   const userRepoMock = {
@@ -77,6 +78,7 @@ describe('AuthService', () => {
         { provide: AnalyticsService, useValue: analyticsMock },
         { provide: AuthAccountLockoutService, useValue: lockoutMock },
         { provide: AuthEmailOtpService, useValue: emailOtpMock },
+        { provide: AuthUserCacheService, useValue: { get: jest.fn(), set: jest.fn(), bust: jest.fn() } },
       ],
     }).compile();
     return moduleRef.get(AuthService);
