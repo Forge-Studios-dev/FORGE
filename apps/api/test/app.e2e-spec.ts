@@ -1,61 +1,33 @@
 /** @jest-environment node */
-import { INestApplication, ValidationPipe, RequestMethod } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import { ClassSerializerInterceptor } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
+import { createMockHttpApp } from './http-test.harness';
 
-describe('API HTTP (e2e)', () => {
+describe('API HTTP (mocked e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    if (!process.env.DATABASE_URL) {
-      console.warn('Skipping e2e: DATABASE_URL not set');
-      return;
-    }
-
-    const moduleFixture = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication({ rawBody: true });
-    app.setGlobalPrefix('api/v1', {
-      exclude: [{ path: 'metrics', method: RequestMethod.ALL }],
-    });
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
-    app.enableShutdownHooks();
-    await app.init();
-  }, 180_000);
-
-  afterAll(async () => {
-    if (app) {
-      await app.close();
-    }
+    app = await createMockHttpApp();
   }, 30_000);
 
-  it('GET /api/v1/health/live returns ok', async () => {
-    if (!app) return;
+  afterAll(async () => {
+    if (app) await app.close();
+  });
+
+  it('GET /api/v1/health/live returns ok without external services', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/health/live');
     expect(res.status).toBe(200);
     expect(res.body.data?.status ?? res.body.status).toMatch(/ok|live/i);
   });
 
-  it('GET /api/v1/health/ready checks dependencies', async () => {
-    if (!app) return;
+  it('GET /api/v1/health/ready uses mocked dependencies', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/health/ready');
-    expect([200, 503]).toContain(res.status);
+    expect(res.status).toBe(200);
+    expect(res.body.data?.checks?.database).toBe('ok');
+    expect(res.body.data?.checks?.redis).toBe('ok');
   });
 
-  it('POST /api/v1/auth/signup validates input', async () => {
-    if (!app) return;
+  it('POST /api/v1/auth/signup validates input before hitting AuthService', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/auth/signup')
       .send({ email: 'not-an-email', password: 'short', username: 'x', displayName: 'X' });

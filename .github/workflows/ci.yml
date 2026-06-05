@@ -91,27 +91,6 @@ jobs:
       needs.changes.outputs.api == 'true' ||
       github.event_name == 'pull_request' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: forge_test
-          POSTGRES_USER: forge
-          POSTGRES_PASSWORD: forge_test_pass
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports: ['6379:6379']
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -125,31 +104,13 @@ jobs:
       - run: npm run build --workspace=@forge/api
       - run: npm run test --workspace=@forge/api
         env:
-          DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
-          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
           NODE_ENV: test
-      - name: Run API migrations (CI)
-        run: npm run migration:run --workspace=@forge/api
-        env:
-          DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
-          MIGRATIONS_RUN: 'true'
       - run: npm run test:e2e --workspace=@forge/api
         env:
-          DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
-          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
           NODE_ENV: test
-          MIGRATIONS_RUN: 'false'
       - name: API coverage report (F-1201)
         run: npm run test:cov --workspace=@forge/api
         env:
-          DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
-          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
           NODE_ENV: test
       - name: Upload API coverage artifact
         if: always()
