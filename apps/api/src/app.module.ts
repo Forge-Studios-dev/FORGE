@@ -53,6 +53,7 @@ import { ANALYTICS_RETENTION_QUEUE } from './modules/analytics/analytics-retenti
 import { PUSH_DISPATCH_QUEUE } from './modules/notifications/push-dispatch.constants';
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './modules/notifications/subscription-maintenance.constants';
 import { FirebaseModule } from './modules/firebase/firebase.module';
+import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 
 /** BullMQ consumers run on the Fly worker app only in production. */
 function shouldLoadWorkersModule(): boolean {
@@ -101,6 +102,17 @@ function sentryFilterProviders() {
         return {
           pinoHttp: {
             level: isProd ? 'info' : 'debug',
+            redact: {
+              paths: [
+                'req.headers.authorization',
+                'req.headers.cookie',
+                'password',
+                'refreshToken',
+                'body.password',
+                'body.refreshToken',
+              ],
+              remove: true,
+            },
             transport: isProd
               ? undefined
               : {
@@ -117,14 +129,15 @@ function sentryFilterProviders() {
     }),
 
     ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+      inject: [ConfigService, RedisThrottlerStorage],
+      useFactory: (config: ConfigService, storage: RedisThrottlerStorage) => ({
         throttlers: [
           {
             ttl: config.get<number>('rateLimit.ttl') || 60,
             limit: config.get<number>('rateLimit.limit') || 100,
           },
         ],
+        storage,
       }),
     }),
 
@@ -222,6 +235,7 @@ function sentryFilterProviders() {
 
   controllers: [HealthController, MetricsController],
   providers: [
+    RedisThrottlerStorage,
     BullmqMetricsService,
     ...sentryFilterProviders(),
     EmailVerifiedGuard,

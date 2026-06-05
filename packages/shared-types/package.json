@@ -31,6 +31,16 @@
       "types": "./dist/safe-return-path.d.ts",
       "require": "./dist/safe-return-path.js",
       "default": "./dist/safe-return-path.js"
+    },
+    "./security-headers": {
+      "types": "./dist/security-headers.d.ts",
+      "require": "./dist/security-headers.js",
+      "default": "./dist/security-headers.js"
+    },
+    "./cors-origins": {
+      "types": "./dist/cors-origins.d.ts",
+      "require": "./dist/cors-origins.js",
+      "default": "./dist/cors-origins.js"
     }
   },
   "scripts": {

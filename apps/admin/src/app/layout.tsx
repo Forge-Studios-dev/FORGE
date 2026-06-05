@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter, Space_Grotesk } from 'next/font/google';
+import '@/env';
 import './globals.css';
 import { AdminProviders } from './providers';
 import { AdminShell } from '@/components/AdminShell';

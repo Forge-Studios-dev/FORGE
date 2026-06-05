@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import type { Redis } from 'ioredis';
@@ -12,6 +12,16 @@ export class AuthAccountLockoutService {
     @InjectRedis() private readonly redis: Redis,
     private readonly configService: ConfigService,
   ) {}
+
+  private isProduction(): boolean {
+    return this.configService.get<string>('nodeEnv') === 'production';
+  }
+
+  private failClosed(): never {
+    throw new ServiceUnavailableException(
+      'Authentication temporarily unavailable. Please try again shortly.',
+    );
+  }
 
   private maxAttempts(): number {
     return this.configService.get<number>('auth.lockout.maxAttempts') ?? 10;
@@ -36,6 +46,9 @@ export class AuthAccountLockoutService {
 
   async assertNotLocked(email: string): Promise<void> {
     const locked = await safeRedisGet(this.redis, this.lockKey(email), this.logger);
+    if (locked === null && this.isProduction()) {
+      this.failClosed();
+    }
     if (locked === '1') {
       throw new UnauthorizedException({
         message: 'Too many failed attempts. Try again later or reset your password.',
@@ -47,10 +60,14 @@ export class AuthAccountLockoutService {
   async recordFailedLogin(email: string, ip: string | null): Promise<void> {
     const key = this.failKey(email, ip);
     const count = await safeRedisIncr(this.redis, key, this.logger);
+    if (count === null) {
+      if (this.isProduction()) this.failClosed();
+      return;
+    }
     if (count === 1) {
       await safeRedisSetex(this.redis, key, this.windowSec(), '1', this.logger);
     }
-    if (count !== null && count >= this.maxAttempts()) {
+    if (count >= this.maxAttempts()) {
       await safeRedisSetex(this.redis, this.lockKey(email), this.lockoutSec(), '1', this.logger);
       await safeRedisDel(this.redis, key, this.logger);
     }

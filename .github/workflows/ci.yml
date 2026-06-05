@@ -59,9 +59,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - name: npm audit (high+)
-        run: npm audit --audit-level=high
-        continue-on-error: true
+      - run: npm audit --audit-level=critical
 
   build-packages:
     name: Build shared packages
@@ -132,6 +130,14 @@ jobs:
           JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
           JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
           NODE_ENV: test
+      - run: npm run test:e2e --workspace=@forge/api
+        env:
+          DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
+          NODE_ENV: test
+          MIGRATIONS_RUN: 'true'
       - name: API coverage report (F-1201)
         run: npm run test:cov --workspace=@forge/api
         env:
@@ -186,6 +192,15 @@ jobs:
           E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
           E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
 
+      - name: E2E auth (web, when secrets set)
+        if: ${{ secrets.E2E_TEST_EMAIL != '' && secrets.E2E_TEST_PASSWORD != '' }}
+        run: npm run test:e2e --workspace=@forge/web -- e2e/auth.spec.ts
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+
   mobile:
     name: Mobile — Flutter analyze
     runs-on: ubuntu-latest
@@ -231,6 +246,18 @@ jobs:
           NEXT_PUBLIC_API_URL: https://api.forgestudios.net/api/v1
           NEXT_PUBLIC_WEB_URL: https://forgestudios.net
           NEXT_PUBLIC_ADMIN_URL: https://admin.forgestudios.net
+          SKIP_ENV_VALIDATION: 'true'
+
+      - name: Install Playwright Chromium (admin)
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/admin
+
+      - name: E2E smoke (admin)
+        run: npm run test:e2e --workspace=@forge/admin -- e2e/smoke.spec.ts
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://localhost:3002
+          SKIP_ENV_VALIDATION: 'true'
 
   ci-ok:
     name: CI passed

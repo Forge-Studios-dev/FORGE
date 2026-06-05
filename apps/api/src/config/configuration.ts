@@ -115,4 +115,10 @@ export default () => ({
       process.env.MOCK_SUBSCRIPTIONS_ENABLED === 'true' ||
       (process.env.NODE_ENV || 'development') !== 'production',
   },
+
+  billing: {
+    provider: process.env.BILLING_PROVIDER || 'stub',
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
+    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+  },
 });

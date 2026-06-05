@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EntitlementsService } from './entitlements.service';
 import { SubscriptionTier } from './entities/subscription-tier.entity';
@@ -61,6 +62,16 @@ describe('EntitlementsService', () => {
         {
           provide: 'default_IORedisModuleConnectionToken',
           useValue: redis,
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            transaction: jest.fn(async (work) => work({
+              update: jest.fn(),
+              save: jest.fn(),
+              create: jest.fn((_e, x) => x),
+            })),
+          },
         },
       ],
     }).compile();

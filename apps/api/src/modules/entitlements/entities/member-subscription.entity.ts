@@ -21,6 +21,7 @@ export enum MemberSubscriptionSource {
   MOCK = 'mock',
   ADMIN_GRANT = 'admin_grant',
   PAYMENT = 'payment',
+  STRIPE = 'stripe',
 }
 
 @Entity('member_subscriptions')

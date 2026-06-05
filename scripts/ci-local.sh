@@ -21,8 +21,10 @@ DATABASE_URL="${DATABASE_URL:-postgresql://forge:forge@localhost:5432/forge}"
 REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
 JWT_SECRET="${JWT_SECRET:-local-dev-jwt-secret-min-32-chars}"
 JWT_REFRESH_SECRET="${JWT_REFRESH_SECRET:-local-dev-refresh-secret-min-32-chars}"
-export DATABASE_URL REDIS_URL JWT_SECRET JWT_REFRESH_SECRET NODE_ENV=test
+export DATABASE_URL REDIS_URL JWT_SECRET JWT_REFRESH_SECRET NODE_ENV=test MIGRATIONS_RUN=true
 npm run test --workspace=@forge/api
+npm run test:e2e --workspace=@forge/api
+npm run test:cov --workspace=@forge/api
 
 echo "==> Web lint + build"
 export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-https://api.forgestudios.net/api/v1}"

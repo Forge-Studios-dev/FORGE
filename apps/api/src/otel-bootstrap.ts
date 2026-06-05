@@ -15,6 +15,15 @@ export async function bootstrapOpenTelemetry(): Promise<void> {
   const { HttpInstrumentation } = await import('@opentelemetry/instrumentation-http');
   const { NestInstrumentation } = await import('@opentelemetry/instrumentation-nestjs-core');
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const instrumentations: any[] = [new HttpInstrumentation(), new NestInstrumentation()];
+  try {
+    const { PgInstrumentation } = await import('@opentelemetry/instrumentation-pg');
+    instrumentations.push(new PgInstrumentation());
+  } catch {
+    /* optional dependency */
+  }
+
   const sdk = new NodeSDK({
     resource: new Resource({
       [ATTR_SERVICE_NAME]: serviceName,
@@ -22,7 +31,7 @@ export async function bootstrapOpenTelemetry(): Promise<void> {
     traceExporter: new OTLPTraceExporter({
       url: endpoint.endsWith('/v1/traces') ? endpoint : `${endpoint.replace(/\/$/, '')}/v1/traces`,
     }),
-    instrumentations: [new HttpInstrumentation(), new NestInstrumentation()],
+    instrumentations,
   });
 
   await sdk.start();

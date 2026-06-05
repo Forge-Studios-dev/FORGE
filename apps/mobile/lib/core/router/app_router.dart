@@ -35,7 +35,7 @@ import 'auth_redirect.dart';
 import 'navigation_key.dart';
 
 const _storage = FlutterSecureStorage();
-const _protected = ['/studio', '/upload', '/notifications', '/history', '/profile/settings'];
+const _protected = ['/studio', '/upload', '/notifications', '/history', '/profile/settings', '/library', '/profile'];
 
 Future<String?> _redirect(BuildContext context, GoRouterState state) async {
   final path = state.matchedLocation;

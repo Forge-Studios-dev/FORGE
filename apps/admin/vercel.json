@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "installCommand": "cd ../.. && npm ci --workspace=@forge/admin --workspace=@forge/design-system --include-workspace-root",
-  "buildCommand": "cd ../.. && npm run build --workspace=@forge/admin"
+  "installCommand": "npm ci --workspace=@forge/admin --workspace=@forge/shared-types --workspace=@forge/design-system --include-workspace-root",
+  "buildCommand": "npm run build --workspace=@forge/shared-types && npm run build --workspace=@forge/design-system && npm run build --workspace=@forge/admin"
 }

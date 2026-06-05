@@ -94,6 +94,12 @@ export class MockSubscriptionDto {
   @IsInt()
   @Min(1)
   expiresInDays?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  externalSubscriptionId?: string;
 }
 
 export class AdminGrantSubscriptionDto {
@@ -114,4 +120,10 @@ export class AdminGrantSubscriptionDto {
   @IsInt()
   @Min(1)
   expiresInDays?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  externalSubscriptionId?: string;
 }

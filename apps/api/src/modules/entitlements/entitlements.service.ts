@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { Repository, LessThanOrEqual } from 'typeorm';
+import { Repository, LessThanOrEqual, DataSource } from 'typeorm';
 import { UserRole } from '../users/entities/user.entity';
 import { SubscriptionTier } from './entities/subscription-tier.entity';
 import {
@@ -62,6 +62,7 @@ export class EntitlementsService {
     private readonly engagementService: EngagementService,
     private readonly configService: ConfigService,
     @InjectRedis() private readonly redis: Redis,
+    private readonly dataSource: DataSource,
   ) {}
 
   private subscriptionCacheKey(userId: string, creatorId: string): string {
@@ -662,21 +663,27 @@ export class EntitlementsService {
       expiresAt.setDate(expiresAt.getDate() + dto.expiresInDays);
     }
 
-    await this.subscriptionRepository.update(
-      { userId, creatorId, status: MemberSubscriptionStatus.ACTIVE },
-      { status: MemberSubscriptionStatus.CANCELED },
-    );
+    const saved = await this.dataSource.transaction(async (manager) => {
+      await manager.update(
+        MemberSubscription,
+        { userId, creatorId, status: MemberSubscriptionStatus.ACTIVE },
+        { status: MemberSubscriptionStatus.CANCELED },
+      );
 
-    const sub = this.subscriptionRepository.create({
-      userId,
-      creatorId,
-      tierId: dto.tierId,
-      status: MemberSubscriptionStatus.ACTIVE,
-      source,
-      startsAt: new Date(),
-      expiresAt,
+      return manager.save(
+        manager.create(MemberSubscription, {
+          userId,
+          creatorId,
+          tierId: dto.tierId,
+          status: MemberSubscriptionStatus.ACTIVE,
+          source,
+          startsAt: new Date(),
+          expiresAt,
+          externalRef: dto.externalSubscriptionId ?? null,
+        }),
+      );
     });
-    const saved = await this.subscriptionRepository.save(sub);
+
     await this.bustSubscriptionCache(userId, creatorId);
     const full = await this.subscriptionRepository.findOne({
       where: { id: saved.id },

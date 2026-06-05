@@ -19,7 +19,7 @@ export function buildTypeOrmPostgresOptions(env: NodeJS.ProcessEnv = process.env
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     migrations: [__dirname + '/migrations/*{.ts,.js}'],
     synchronize: false,
-    migrationsRun: true,
+    migrationsRun: (env.MIGRATIONS_RUN ?? (env.NODE_ENV === 'production' ? 'false' : 'true')) === 'true',
     logging,
     maxQueryExecutionTime: db.slowQueryMs,
     ssl: db.ssl,

@@ -6,24 +6,29 @@
     "dev": "npm run build --workspace=@forge/shared-types && next dev -p 3002",
     "build": "next build",
     "start": "next start -p 3002",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@forge/design-system": "*",
     "@forge/shared-types": "*",
     "@sentry/nextjs": "^9.47.1",
+    "@t3-oss/env-nextjs": "^0.13.11",
     "@tanstack/react-query": "^5.29.2",
     "@tanstack/react-table": "^8.16.0",
     "axios": "^1.6.8",
     "clsx": "^2.1.0",
+    "firebase": "^11.10.0",
     "lucide-react": "^0.368.0",
     "next": "^14.2.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^2.12.3",
-    "tailwind-merge": "^2.2.2"
+    "tailwind-merge": "^2.2.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4.1.4",
     "@types/node": "^20.12.5",
     "@types/react": "^18.2.79",

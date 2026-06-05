@@ -9,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { User, UserRole } from '../users/entities/user.entity';
@@ -54,6 +54,7 @@ export class AuthService {
     private readonly lockoutService: AuthAccountLockoutService,
     private readonly emailOtpService: AuthEmailOtpService,
     private readonly authUserCache: AuthUserCacheService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async signup(dto: SignupDto, meta?: ClientSessionMeta) {
@@ -167,18 +168,27 @@ export class AuthService {
     if (!user) {
       const username = await this.uniqueUsernameFromEmail(profile.email);
       const passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), this.BCRYPT_ROUNDS);
-      user = await this.userRepository.save(
-        this.userRepository.create({
-          email: profile.email,
-          username,
-          displayName: profile.displayName,
-          passwordHash,
-          isVerified: true,
-        }),
-      );
-    }
-
-    if (!oauth) {
+      user = await this.dataSource.transaction(async (manager) => {
+        const created = await manager.save(
+          manager.create(User, {
+            email: profile.email,
+            username,
+            displayName: profile.displayName,
+            passwordHash,
+            isVerified: true,
+          }),
+        );
+        await manager.save(
+          manager.create(OAuthAccount, {
+            userId: created.id,
+            provider,
+            providerId: profile.providerId,
+            email: profile.email,
+          }),
+        );
+        return created;
+      });
+    } else if (!oauth) {
       await this.oauthAccountRepository.save(
         this.oauthAccountRepository.create({
           userId: user.id,

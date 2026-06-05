@@ -1,4 +1,5 @@
 import { withSentryConfig } from '@sentry/nextjs';
+import { buildSecurityHeaders } from '@forge/shared-types/security-headers';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -15,14 +16,11 @@ const nextConfig = {
     ],
   },
   async headers() {
+    const isProduction = process.env.NODE_ENV === 'production';
     return [
       {
         source: '/(.*)',
-        headers: [
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-        ],
+        headers: buildSecurityHeaders(isProduction),
       },
     ];
   },
