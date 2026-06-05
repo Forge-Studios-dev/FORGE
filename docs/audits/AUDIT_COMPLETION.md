@@ -1,8 +1,8 @@
 # Audit completion checklist
 
-**Last updated:** 2026-06-04  
-**Waves 1–3:** Merged to `main` (PR #57 + follow-ups)  
-**Wave 4:** Complete on branch `fix/audit-wave-4`
+**Last updated:** 2026-06-05  
+**Waves 1–3:** Merged to `main` (PR #57–#59)  
+**Wave 4:** Merged to `main` — [PR #61](https://github.com/Forge-Studios-dev/FORGE/pull/61) · production release 2026-06-05
 
 ---
 
@@ -86,10 +86,11 @@
 
 | Check | Result |
 |-------|--------|
-| API Jest suite | Run `npm test --workspace=@forge/api` on branch |
-| API coverage gate | Run `npm run test:cov --workspace=@forge/api` |
-| Mobile tests | Run `flutter test` in `apps/mobile` |
-| Git workflow | Single PR `fix/audit-wave-4` → merge to `main` (no direct push) |
+| API Jest suite | **126 passed** (33 suites) — pre-merge |
+| API coverage gate | **Passes** global threshold on scoped modules |
+| Mobile tests | **2 passed** — `video_model_test.dart` |
+| CI on `main` | **Green** — run 27022411766 |
+| Production release | **Success** — run 27022626246 |
 
 ---
 
