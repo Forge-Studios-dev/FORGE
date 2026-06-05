@@ -80,6 +80,7 @@ export interface SubscriptionTier {
   benefits: string[];
   sortOrder: number;
   isActive: boolean;
+  hasStripePrice?: boolean;
 }
 
 export interface Category {

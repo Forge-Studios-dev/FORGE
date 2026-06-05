@@ -20,6 +20,8 @@ describe('PlatformController', () => {
           'firebase.fcmEnabled': false,
           'firebase.appCheckEnabled': false,
           webUrl: 'https://forgestudios.net',
+          'stripe.enabled': false,
+          'entitlements.mockSubscriptionsEnabled': true,
         };
         return map[key];
       }),
@@ -44,5 +46,7 @@ describe('PlatformController', () => {
     expect(result.firebase.adminConfigured).toBe(true);
     expect(result.legal?.termsUrl).toContain('/terms');
     expect(result.legal?.privacyUrl).toContain('/privacy');
+    expect(result.billing?.stripeEnabled).toBe(false);
+    expect(result.billing?.mockSubscriptionsEnabled).toBe(true);
   });
 });

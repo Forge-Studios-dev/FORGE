@@ -6,6 +6,7 @@ import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { MuxVodService } from './mux-vod.service';
 import { Video, VideoStatus, TranscodeProvider } from './entities/video.entity';
 import { muxHlsPlaybackUrl, muxThumbnailUrl } from './mux-vod.constants';
+import { MuxSigningService } from './mux-signing.service';
 
 const mockMuxCreate = jest.fn();
 const mockMuxDelete = jest.fn();
@@ -61,6 +62,10 @@ describe('MuxVodService', () => {
           },
         },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        {
+          provide: MuxSigningService,
+          useValue: { playbackPolicyForVisibility: jest.fn().mockReturnValue(['public']) },
+        },
         { provide: getRedisConnectionToken(), useValue: { del: jest.fn() } },
       ],
     }).compile();

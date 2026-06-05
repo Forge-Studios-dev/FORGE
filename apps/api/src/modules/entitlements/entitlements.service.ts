@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -59,6 +61,7 @@ export class EntitlementsService {
     private readonly tierRepository: Repository<SubscriptionTier>,
     @InjectRepository(MemberSubscription)
     private readonly subscriptionRepository: Repository<MemberSubscription>,
+    @Inject(forwardRef(() => EngagementService))
     private readonly engagementService: EngagementService,
     private readonly configService: ConfigService,
     @InjectRedis() private readonly redis: Redis,
@@ -68,8 +71,53 @@ export class EntitlementsService {
     return `ent:sub:${userId}:${creatorId}`;
   }
 
+  private tierCacheKey(tierId: string): string {
+    return `ent:tier:${tierId}`;
+  }
+
   private async bustSubscriptionCache(userId: string, creatorId: string): Promise<void> {
     await this.redis.del(this.subscriptionCacheKey(userId, creatorId));
+    await this.bumpAccessCacheVersion(userId, creatorId);
+  }
+
+  private async bustTierCache(tierId: string): Promise<void> {
+    await this.redis.del(this.tierCacheKey(tierId));
+  }
+
+  private accessCacheVersionKey(viewerId: string, creatorId: string): string {
+    return `ent:access:v:${viewerId}:${creatorId}`;
+  }
+
+  private async getAccessCacheVersion(viewerId: string, creatorId: string): Promise<number> {
+    const cached = await this.redis.get(this.accessCacheVersionKey(viewerId, creatorId));
+    if (!cached) return 0;
+    const parsed = parseInt(cached, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private async bumpAccessCacheVersion(viewerId: string, creatorId: string): Promise<void> {
+    await this.redis.incr(this.accessCacheVersionKey(viewerId, creatorId));
+  }
+
+  /** Public bust for follow/unfollow and other entitlement-affecting events. */
+  async bustAccessCacheForViewerCreator(viewerId: string, creatorId: string): Promise<void> {
+    await this.bumpAccessCacheVersion(viewerId, creatorId);
+  }
+
+  private accessCacheKey(
+    viewerId: string,
+    creatorId: string,
+    version: number,
+    visibility: string,
+    requiredTierId?: string | null,
+  ): string {
+    const requiredPart = requiredTierId ?? 'none';
+    return `ent:access:${viewerId}:${creatorId}:v${version}:${visibility}:${requiredPart}`;
+  }
+
+  /** Public cache bust for billing webhooks and admin updates. */
+  async bustSubscriptionCacheForUser(userId: string, creatorId: string): Promise<void> {
+    await this.bustSubscriptionCache(userId, creatorId);
   }
 
   async listTiersForCreator(creatorId: string, activeOnly = true) {
@@ -82,8 +130,21 @@ export class EntitlementsService {
   }
 
   async getTierById(tierId: string): Promise<SubscriptionTier> {
+    const cacheKey = this.tierCacheKey(tierId);
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as SubscriptionTier;
+        return parsed;
+      } catch {
+        await this.redis.del(cacheKey);
+      }
+    }
+
     const tier = await this.tierRepository.findOne({ where: { id: tierId } });
     if (!tier) throw new NotFoundException('Tier not found');
+
+    await this.redis.setex(cacheKey, 300, JSON.stringify(tier));
     return tier;
   }
 
@@ -109,6 +170,7 @@ export class EntitlementsService {
       currency: dto.currency ?? 'INR',
       benefits: dto.benefits ?? [],
       sortOrder: dto.sortOrder ?? (maxOrder?.max ? Number(maxOrder.max) + 1 : 0),
+      stripePriceId: dto.stripePriceId ?? null,
     });
     const saved = await this.tierRepository.save(tier);
     return toPublicTier(saved);
@@ -123,8 +185,15 @@ export class EntitlementsService {
     if (dto.benefits !== undefined) tier.benefits = dto.benefits;
     if (dto.sortOrder !== undefined) tier.sortOrder = dto.sortOrder;
     if (dto.isActive !== undefined) tier.isActive = dto.isActive;
+    if (dto.stripePriceId !== undefined) tier.stripePriceId = dto.stripePriceId;
 
     const saved = await this.tierRepository.save(tier);
+    await this.bustTierCache(tierId);
+
+    const subscriberIds = await this.listActiveSubscriberUserIds(creatorId);
+    await Promise.all(
+      subscriberIds.map((viewerId) => this.bustAccessCacheForViewerCreator(viewerId, creatorId)),
+    );
     return toPublicTier(saved);
   }
 
@@ -133,6 +202,12 @@ export class EntitlementsService {
     if (tier.creatorId !== creatorId) throw new ForbiddenException();
     tier.isActive = false;
     await this.tierRepository.save(tier);
+    await this.bustTierCache(tierId);
+
+    const subscriberIds = await this.listActiveSubscriberUserIds(creatorId);
+    await Promise.all(
+      subscriberIds.map((viewerId) => this.bustAccessCacheForViewerCreator(viewerId, creatorId)),
+    );
     return { ok: true };
   }
 
@@ -391,23 +466,75 @@ export class EntitlementsService {
       return { allowed: false, reason: 'paid_event' };
     }
 
+    const cacheable =
+      visibility === ContentVisibility.FOLLOWERS ||
+      visibility === StreamVisibility.FOLLOWERS ||
+      visibility === ContentVisibility.SUBSCRIBERS ||
+      visibility === StreamVisibility.SUBSCRIBERS ||
+      visibility === ContentVisibility.TIER ||
+      visibility === StreamVisibility.TIER;
+
+    let accessCacheKey: string | null = null;
+    if (cacheable && viewerId) {
+      const version = await this.getAccessCacheVersion(viewerId, creatorId);
+      accessCacheKey = this.accessCacheKey(
+        viewerId,
+        creatorId,
+        version,
+        visibility,
+        requiredTierId,
+      );
+      const cached = await this.redis.get(accessCacheKey);
+      if (cached) {
+        try {
+          return JSON.parse(cached) as AccessCheckResult;
+        } catch {
+          await this.redis.del(accessCacheKey);
+        }
+      }
+    }
+
     if (visibility === ContentVisibility.FOLLOWERS || visibility === StreamVisibility.FOLLOWERS) {
       const following = await this.engagementService.isFollowing(viewerId, creatorId);
-      return following ? { allowed: true } : { allowed: false, reason: 'follow_required' };
+      const result: AccessCheckResult = following
+        ? { allowed: true }
+        : { allowed: false, reason: 'follow_required' };
+      if (accessCacheKey) {
+        await this.redis.setex(accessCacheKey, 60, JSON.stringify(result));
+      }
+      return result;
     }
 
     if (visibility === ContentVisibility.SUBSCRIBERS || visibility === StreamVisibility.SUBSCRIBERS) {
       const hasSub = await this.hasActiveSubscription(viewerId, creatorId);
-      return hasSub ? { allowed: true } : { allowed: false, reason: 'subscription_required' };
+      const result: AccessCheckResult = hasSub
+        ? { allowed: true }
+        : { allowed: false, reason: 'subscription_required' };
+      if (accessCacheKey) {
+        await this.redis.setex(accessCacheKey, 60, JSON.stringify(result));
+      }
+      return result;
     }
 
     if (visibility === ContentVisibility.TIER || visibility === StreamVisibility.TIER) {
       if (!requiredTierId) {
         const hasSub = await this.hasActiveSubscription(viewerId, creatorId);
-        return hasSub ? { allowed: true } : { allowed: false, reason: 'tier_required' };
+        const result: AccessCheckResult = hasSub
+          ? { allowed: true }
+          : { allowed: false, reason: 'tier_required' };
+        if (accessCacheKey) {
+          await this.redis.setex(accessCacheKey, 60, JSON.stringify(result));
+        }
+        return result;
       }
       const meets = await this.meetsTierRequirement(viewerId, creatorId, requiredTierId);
-      return meets ? { allowed: true } : { allowed: false, reason: 'tier_required' };
+      const result: AccessCheckResult = meets
+        ? { allowed: true }
+        : { allowed: false, reason: 'tier_required' };
+      if (accessCacheKey) {
+        await this.redis.setex(accessCacheKey, 60, JSON.stringify(result));
+      }
+      return result;
     }
 
     return { allowed: false, reason: 'not_available' };

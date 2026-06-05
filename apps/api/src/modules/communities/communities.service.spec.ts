@@ -12,7 +12,7 @@ import { UserRole } from '../users/entities/user.entity';
 
 describe('CommunitiesService', () => {
   let service: CommunitiesService;
-  let entitlementsService: { checkChannelAccess: jest.Mock };
+  let entitlementsService: { checkChannelAccess: jest.Mock; checkAccessMany: jest.Mock };
 
   const communityRepository = {
     findOne: jest.fn(),
@@ -47,7 +47,7 @@ describe('CommunitiesService', () => {
   };
 
   beforeEach(async () => {
-    entitlementsService = { checkChannelAccess: jest.fn() };
+    entitlementsService = { checkChannelAccess: jest.fn(), checkAccessMany: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -93,9 +93,9 @@ describe('CommunitiesService', () => {
         requiredTierId: null,
       },
     ]);
-    entitlementsService.checkChannelAccess
-      .mockResolvedValueOnce({ allowed: true })
-      .mockResolvedValueOnce({ allowed: false, reason: 'subscription_required' });
+    entitlementsService.checkAccessMany.mockResolvedValue([
+      { allowed: false, reason: 'subscription_required' },
+    ]);
 
     const result = await service.getCommunityByCreator('creator-1', 'viewer-1', UserRole.USER);
 

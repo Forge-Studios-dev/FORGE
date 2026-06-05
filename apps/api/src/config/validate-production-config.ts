@@ -41,4 +41,22 @@ export function validateProductionConfig(config: ConfigService): void {
       'Production requires MUX_WEBHOOK_SECRET for video.asset.ready / errored webhooks.',
     );
   }
+
+  const signingKeyId = config.get<string>('mux.signingKeyId') || '';
+  const signingPrivateKey = config.get<string>('mux.signingPrivateKey') || '';
+  if (!signingKeyId.trim() || !signingPrivateKey.trim()) {
+    console.warn(
+      '[FORGE] MUX_SIGNING_KEY_ID / MUX_SIGNING_PRIVATE_KEY not set — gated playback URLs will be unsigned.',
+    );
+  }
+
+  if (config.get<boolean>('stripe.enabled') === true) {
+    const stripeSecret = config.get<string>('stripe.secretKey') || '';
+    const stripeWebhook = config.get<string>('stripe.webhookSecret') || '';
+    if (!stripeSecret.trim() || !stripeWebhook.trim()) {
+      throw new Error(
+        'STRIPE_ENABLED=true requires STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET on Fly secrets.',
+      );
+    }
+  }
 }

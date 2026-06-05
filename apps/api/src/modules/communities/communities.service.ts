@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -23,6 +23,7 @@ import {
 import { toPublicChannel, toPublicChannelMessage } from './community.mapper';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { ChannelType } from '../entitlements/entities/channel-type.enum';
+import { ContentVisibility } from '../entitlements/content-access.types';
 import { UserRole } from '../users/entities/user.entity';
 
 const DEFAULT_CHANNELS: Array<{ name: string; slug: string; type: ChannelType; sortOrder: number }> = [
@@ -87,30 +88,57 @@ export class CommunitiesService {
     const isOwner = viewerId === creatorId;
     const isAdmin = viewerRole === UserRole.ADMIN;
 
-    const visible = await Promise.all(
-      channels.map(async (channel) => {
-        const isMember =
-          channel.type === ChannelType.INVITE && viewerId
-            ? !!(await this.memberRepository.findOne({
-                where: { channelId: channel.id, userId: viewerId },
-              }))
-            : false;
+    if (isOwner || isAdmin) {
+      return {
+        community: { id: community.id, creatorId: community.creatorId, name: community.name },
+        channels: channels.map((c) => toPublicChannel(c)),
+      };
+    }
 
-        const access = await this.entitlementsService.checkChannelAccess(
-          viewerId,
-          {
-            type: channel.type,
-            requiredTierId: channel.requiredTierId,
-            creatorId,
-            isMember,
-          },
-          { isOwner, isAdmin },
-        );
+    const inviteChannelIds = channels
+      .filter((c) => c.type === ChannelType.INVITE)
+      .map((c) => c.id);
+    const memberChannelIds = new Set<string>();
+    if (viewerId && inviteChannelIds.length > 0) {
+      const memberships = await this.memberRepository.find({
+        where: { channelId: In(inviteChannelIds), userId: viewerId },
+        select: ['channelId'],
+      });
+      memberships.forEach((m) => memberChannelIds.add(m.channelId));
+    }
 
-        if (!access.allowed) return null;
-        return toPublicChannel(channel);
-      }),
+    const gatedChannels = channels.filter(
+      (c) => c.type === ChannelType.SUBSCRIBERS || c.type === ChannelType.TIER,
     );
+    const gatedAccess = await this.entitlementsService.checkAccessMany(
+      viewerId,
+      viewerRole,
+      gatedChannels.map((c) => ({
+        creatorId,
+        visibility:
+          c.type === ChannelType.SUBSCRIBERS
+            ? ContentVisibility.SUBSCRIBERS
+            : ContentVisibility.TIER,
+        requiredTierId: c.requiredTierId,
+        viewerId,
+        isOwner: false,
+      })),
+    );
+    const gatedAccessByChannelId = new Map(
+      gatedChannels.map((c, i) => [c.id, gatedAccess[i]]),
+    );
+
+    const visible = channels
+      .map((channel) => {
+        if (channel.type === ChannelType.PUBLIC) return toPublicChannel(channel);
+        if (!viewerId) return null;
+        if (channel.type === ChannelType.INVITE) {
+          return memberChannelIds.has(channel.id) ? toPublicChannel(channel) : null;
+        }
+        const access = gatedAccessByChannelId.get(channel.id);
+        return access?.allowed ? toPublicChannel(channel) : null;
+      })
+      .filter(Boolean);
 
     return {
       community: { id: community.id, creatorId: community.creatorId, name: community.name },

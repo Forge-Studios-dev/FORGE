@@ -46,6 +46,11 @@ export class PlatformController {
         /** FCM + App Check only — Firebase Auth is not used for login. */
         usesFirebaseAuth: false,
       },
+      billing: {
+        stripeEnabled: this.configService.get<boolean>('stripe.enabled') === true,
+        mockSubscriptionsEnabled:
+          this.configService.get<boolean>('entitlements.mockSubscriptionsEnabled') !== false,
+      },
       legal: {
         termsUrl: `${(this.configService.get<string>('webUrl') || 'https://forgestudios.net').replace(/\/$/, '')}/terms`,
         privacyUrl: `${(this.configService.get<string>('webUrl') || 'https://forgestudios.net').replace(/\/$/, '')}/privacy`,

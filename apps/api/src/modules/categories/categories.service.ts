@@ -57,7 +57,7 @@ export class CategoriesService {
       .getMany();
   }
 
-  /** Categories with nested skill tags for the upload flow. */
+  /** Categories with nested skill tags for the upload flow (single query — F-503). */
   async getUploadOptions(): Promise<
     Array<{
       id: string;
@@ -67,17 +67,34 @@ export class CategoriesService {
     }>
   > {
     const categories = await this.categoryRepository.find({ order: { sortOrder: 'ASC' } });
-    const result = [];
-    for (const cat of categories) {
-      const tags = await this.getSkillTagsForCategory(cat.id);
-      result.push({
-        id: cat.id,
-        name: cat.name,
-        slug: cat.slug,
-        skillTags: tags.map((t) => ({ id: t.id, name: t.name, slug: t.slug })),
-      });
+    if (categories.length === 0) return [];
+
+    const categoryIds = categories.map((c) => c.id);
+    const tags = await this.skillTagRepository
+      .createQueryBuilder('tag')
+      .innerJoinAndSelect('tag.subcategory', 'sub')
+      .where('sub.categoryId IN (:...categoryIds)', { categoryIds })
+      .orderBy('tag.name', 'ASC')
+      .getMany();
+
+    const tagsByCategory = new Map<string, SkillTag[]>();
+    for (const tag of tags) {
+      const catId = tag.subcategory.categoryId;
+      const list = tagsByCategory.get(catId) ?? [];
+      list.push(tag);
+      tagsByCategory.set(catId, list);
     }
-    return result;
+
+    return categories.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      slug: cat.slug,
+      skillTags: (tagsByCategory.get(cat.id) ?? []).map((t) => ({
+        id: t.id,
+        name: t.name,
+        slug: t.slug,
+      })),
+    }));
   }
 
   async create(dto: CreateCategoryDto): Promise<Category> {

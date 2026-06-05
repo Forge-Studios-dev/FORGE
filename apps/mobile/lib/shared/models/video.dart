@@ -6,6 +6,8 @@ class VideoModel {
   final String status;
   final String? hlsUrl;
   final String? thumbnailUrl;
+  final bool? accessDenied;
+  final String? accessReason;
   final double? durationSeconds;
   final int viewCount;
   final int likeCount;
@@ -21,6 +23,8 @@ class VideoModel {
     required this.status,
     this.hlsUrl,
     this.thumbnailUrl,
+    this.accessDenied,
+    this.accessReason,
     this.durationSeconds,
     required this.viewCount,
     required this.likeCount,
@@ -37,6 +41,8 @@ class VideoModel {
         status: json['status'] as String,
         hlsUrl: json['hlsUrl'] as String?,
         thumbnailUrl: json['thumbnailUrl'] as String?,
+        accessDenied: json['accessDenied'] as bool?,
+        accessReason: json['accessReason'] as String?,
         durationSeconds: (json['durationSeconds'] as num?)?.toDouble(),
         viewCount: (json['viewCount'] as num?)?.toInt() ?? 0,
         likeCount: (json['likeCount'] as num?)?.toInt() ?? 0,

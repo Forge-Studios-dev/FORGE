@@ -12,6 +12,14 @@ Canonical shapes returned to clients. **Source of truth:** `packages/shared-type
 
 ---
 
+## API versioning
+
+FORGE public HTTP APIs are versioned under `/api/v1/...`.
+
+Breaking changes must follow [`docs/API_VERSIONING.md`](./API_VERSIONING.md).
+
+---
+
 ## `GET /platform/config`
 
 No auth. See `PlatformPublicConfig` in `@forge/shared-types`.
@@ -30,6 +38,8 @@ No auth. See `PlatformPublicConfig` in `@forge/shared-types`.
 | `firebase.fcmEnabled` | `boolean` | |
 | `firebase.appCheckEnabled` | `boolean` | |
 | `firebase.usesFirebaseAuth` | `false` | Always false today |
+| `billing.stripeEnabled` | `boolean` | Stripe Checkout available |
+| `billing.mockSubscriptionsEnabled` | `boolean` | Test memberships without payment |
 | `legal.termsUrl` | string | e.g. `https://forgestudios.net/terms` |
 | `legal.privacyUrl` | string | |
 | `legal.contactEmail` | string | |
@@ -176,11 +186,19 @@ Response: `PaginatedFeedPayload<PublicVideo>` — `{ data, meta: { cursor, hasMo
 
 | Type | Key fields |
 |------|------------|
-| `SubscriptionTier` | `id`, `creatorId`, `name`, `slug`, `priceCents`, `currency`, `benefits[]`, `sortOrder`, `isActive` |
-| `MemberSubscription` | `id`, `userId`, `creatorId`, `tierId`, `status`, `source`, `startsAt`, `expiresAt` |
+| `SubscriptionTier` | `id`, `creatorId`, `name`, `slug`, `priceCents`, `currency`, `benefits[]`, `sortOrder`, `isActive`, `hasStripePrice` |
+| `MemberSubscription` | `id`, `userId`, `creatorId`, `tierId`, `status`, `source` (`mock` \| `admin_grant` \| `payment`), `startsAt`, `expiresAt` |
 | `ContentAccessResult` | `{ allowed, reason? }` |
 
-`POST /subscriptions/mock` body: `{ creatorId, tierId }` (non-prod / `MOCK_SUBSCRIPTIONS_ENABLED`).
+`POST /subscriptions/mock` body: `{ creatorId, tierId }` (when `MOCK_SUBSCRIPTIONS_ENABLED`).
+
+### Billing (Stripe)
+
+`POST /billing/checkout` — auth required. Body: `{ creatorId, tierId }`. Response: `{ provider, sessionId, checkoutUrl }`.
+
+`POST /billing/subscriptions/cancel` — auth required. Body: `{ creatorId }`. Response: `{ ok: true }`.
+
+`POST /billing/webhooks/stripe` — public; raw body; `stripe-signature` header. Response: `{ ok: true }`.
 
 ---
 

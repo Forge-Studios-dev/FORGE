@@ -21,6 +21,7 @@ export async function loadPlatformConfig(): Promise<PlatformPublicConfig> {
       apiVersion: json.data?.apiVersion ?? 'v1',
       auth: json.data?.auth,
       firebase: json.data?.firebase,
+      billing: json.data?.billing,
     };
     if (cfg.auth) cached = cfg;
     return cfg;
@@ -37,3 +38,8 @@ export function isGoogleOAuthEnabled(config: PlatformPublicConfig): boolean {
 export function isEmailOtpVerificationEnabled(config: PlatformPublicConfig): boolean {
   return config.auth?.otpVerification === true;
 }
+
+export {
+  isStripeBillingEnabled,
+  isMockSubscriptionsEnabled,
+} from '@forge/shared-types';

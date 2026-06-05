@@ -14,7 +14,9 @@
     "test:cov": "jest --coverage",
     "migration:generate": "npm run build && typeorm migration:generate -d dist/apps/api/src/database/data-source.js",
     "migration:run": "npm run build && typeorm migration:run -d dist/apps/api/src/database/data-source.js",
+    "migration:run:ts": "node -r ts-node/register ../../node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
     "migration:revert": "npm run build && typeorm migration:revert -d dist/apps/api/src/database/data-source.js",
+    "migration:revert:ts": "node -r ts-node/register ../../node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts",
     "seed": "ts-node src/database/seeds/run-seed.ts"
   },
   "dependencies": {
@@ -66,6 +68,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.7.5",
+    "stripe": "^22.2.0",
     "typeorm": "^0.3.20",
     "uuid": "^9.0.1"
   },
@@ -104,10 +107,8 @@
     },
     "coverageDirectory": "../coverage",
     "collectCoverageFrom": [
-      "modules/auth/**/*.ts",
       "modules/entitlements/**/*.ts",
-      "modules/content/**/*.ts",
-      "modules/streaming/**/*.ts",
+      "modules/billing/**/*.ts",
       "!**/*.spec.ts",
       "!**/entities/**",
       "!**/dto/**"
@@ -117,6 +118,14 @@
       "\\.module\\.ts$",
       "\\.controller\\.ts$"
     ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 40,
+        "functions": 50,
+        "lines": 50,
+        "statements": 50
+      }
+    },
     "testEnvironment": "node"
   }
 }

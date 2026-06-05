@@ -6,6 +6,7 @@ import { StreamingService } from './streaming.service';
 import { Stream, StreamStatus, StreamVisibility } from './entities/stream.entity';
 import { Video } from '../content/entities/video.entity';
 import { MuxVodService } from '../content/mux-vod.service';
+import { MuxSigningService } from '../content/mux-signing.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { UserRole } from '../users/entities/user.entity';
 
@@ -79,6 +80,13 @@ describe('StreamingService access gating', () => {
         },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: MuxVodService, useValue: { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn() } },
+        {
+          provide: MuxSigningService,
+          useValue: {
+            signPlaybackUrl: (url: string) => url,
+            playbackPolicyForVisibility: () => ['public'],
+          },
+        },
         { provide: EntitlementsService, useValue: entitlementsService },
       ],
     }).compile();

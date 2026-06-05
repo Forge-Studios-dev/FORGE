@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Playlist, PlaylistVisibility } from './entities/playlist.entity';
 import { PlaylistVideo } from './entities/playlist-video.entity';
 import { Video } from '../content/entities/video.entity';
+import { MAX_LIST_LIMIT } from '../../common/utils/pagination.util';
 
 @Injectable()
 export class PlaylistsService {
@@ -49,7 +50,7 @@ export class PlaylistsService {
     if (viewerId !== userId) {
       qb.andWhere('p.visibility = :vis', { vis: PlaylistVisibility.PUBLIC });
     }
-    return qb.getMany();
+    return qb.take(MAX_LIST_LIMIT).getMany();
   }
 
   async addVideo(requesterId: string, playlistId: string, videoId: string) {

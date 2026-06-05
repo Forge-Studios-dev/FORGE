@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   Min,
   MinLength,
@@ -47,6 +48,12 @@ export class CreateTierDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @ApiPropertyOptional({ description: 'Stripe Price ID (price_...) for paid checkout' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^price_/, { message: 'stripePriceId must be a Stripe Price ID (price_...)' })
+  stripePriceId?: string;
 }
 
 export class UpdateTierDto {
@@ -78,6 +85,12 @@ export class UpdateTierDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: 'Stripe Price ID (price_...) for paid checkout' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^price_/, { message: 'stripePriceId must be a Stripe Price ID (price_...)' })
+  stripePriceId?: string;
 }
 
 export class MockSubscriptionDto {

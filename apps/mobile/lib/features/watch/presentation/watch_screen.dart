@@ -10,6 +10,7 @@ import '../../../core/widgets/forge_card.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/widgets/forge_skeleton.dart';
 import '../../../shared/models/video.dart';
+import '../../../shared/widgets/gated_content_panel.dart';
 
 final videoDetailProvider = FutureProvider.family.autoDispose<VideoModel, String>((ref, id) async {
   final client = ref.read(apiClientProvider);
@@ -57,12 +58,24 @@ class WatchScreen extends ConsumerWidget {
           onAction: () => context.pop(),
         ),
         data: (video) {
-          final canPlay = video.status == 'ready' && video.hlsUrl != null && video.hlsUrl!.isNotEmpty;
+          final accessDenied = video.accessDenied == true;
+          final canPlay =
+              !accessDenied && video.status == 'ready' && video.hlsUrl != null && video.hlsUrl!.isNotEmpty;
 
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              if (canPlay)
+              if (accessDenied)
+                ForgeCard(
+                  child: SizedBox(
+                    height: 200,
+                    child: GatedContentPanel(
+                      creatorId: video.user.id,
+                      accessReason: video.accessReason,
+                    ),
+                  ),
+                )
+              else if (canPlay)
                 _HlsPlayerBlock(videoId: videoId, url: video.hlsUrl!)
               else
                 ForgeCard(

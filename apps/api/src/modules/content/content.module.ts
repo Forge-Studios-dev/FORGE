@@ -5,6 +5,7 @@ import { VideosController } from './videos.controller';
 import { VideosService, VIDEO_PROCESSING_QUEUE } from './videos.service';
 import { MUX_VOD_INGEST_QUEUE } from './mux-vod.constants';
 import { MuxVodService } from './mux-vod.service';
+import { MuxSigningService } from './mux-signing.service';
 import { Video } from './entities/video.entity';
 import { VideoMultipartSession } from './entities/video-multipart-session.entity';
 import { SkillTag } from '../categories/entities/skill-tag.entity';
@@ -56,10 +57,11 @@ import { EngagementModule } from '../engagement/engagement.module';
   providers: [
     VideosService,
     MuxVodService,
+    MuxSigningService,
     CreatorApprovedGuard,
     ViewCountFlushService,
     VideoMultipartService,
   ],
-  exports: [VideosService, MuxVodService],
+  exports: [VideosService, MuxVodService, MuxSigningService],
 })
 export class ContentModule {}

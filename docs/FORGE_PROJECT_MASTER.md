@@ -101,7 +101,7 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | **EngagementModule** | root | like, comments, follow | Social engagement |
 | **StreamingModule** | `streams` | start, live, end, slow-mode, `webhooks/mux` | Mux live + webhooks |
 | **EntitlementsModule** | root | `creators/:id/tiers`, `subscriptions/mock`, membership checks | Mock memberships, tier CRUD |
-| **BillingModule** | — | (no HTTP yet) | `PaymentProvider` scaffold for Stripe Phase 2 |
+| **BillingModule** | `billing` | checkout, webhooks/stripe, subscriptions/cancel | Stripe Phase 2 (`PaymentProvider` + stub fallback) |
 | **CommunitiesModule** | root | channels per creator, messages, invites | Creator community chat |
 | **StreamChatModule** | `streams/:id/chat` | messages, slow mode sync | Live stream chat |
 | **PlaylistsModule** | `playlists` | CRUD, `me`, add videos | User playlists |
@@ -284,6 +284,8 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 
 `GET /platform/config` returns: `featureFlags`, `apiVersion`, `auth`, `firebase`, `legal` (terms/privacy URLs, contact emails).
 
+API versioning policy: [`API_VERSIONING.md`](./API_VERSIONING.md).
+
 ---
 
 ## 15. Legal & compliance
@@ -311,7 +313,7 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 | Admin hub | ✅ | impersonate | ✅ | — | — |
 | FCM push | ⚠️ | — | — | ⚠️ | ✅ |
 | Analytics ingest | ✅ | partial | ✅ | — | ✅ |
-| Stripe billing | scaffold | — | — | — | — |
+| Stripe billing | ✅ | checkout + webhooks | — | — | — |
 | Blueprints gallery | flag | flag | — | — | — |
 
 ✅ MVP-ready · ⚠️ partial or config-dependent

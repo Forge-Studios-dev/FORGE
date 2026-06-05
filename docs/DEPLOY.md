@@ -141,8 +141,23 @@ Run locally, expose with [ngrok](https://ngrok.com): `ngrok http 3000` / `3001` 
 | 3 | S3 + Mux + worker — [MEDIA.md](./MEDIA.md) |
 | 4 | `METRICS_ENABLED`, Sentry — [OBSERVABILITY.md](./OBSERVABILITY.md) |
 | 5 | Google/SMTP/FCM — [AUTH.md](./AUTH.md) · [FIREBASE.md](./FIREBASE.md) |
+| 6 | Stripe billing + Mux signing — [MEMBERSHIPS.md](./MEMBERSHIPS.md) · [MEDIA.md](./MEDIA.md) |
 
-**Rotate leaked secrets:** Fly/Vercel dashboards + Mux/AWS consoles; never commit `.env`.
+**Stripe (when enabling paid memberships):**
+
+```bash
+fly secrets set \
+  STRIPE_ENABLED=true \
+  STRIPE_SECRET_KEY='sk_live_...' \
+  STRIPE_WEBHOOK_SECRET='whsec_...' \
+  --app forge-studios-api
+```
+
+Stripe Dashboard → Webhooks → `https://api.forgestudios.net/api/v1/billing/webhooks/stripe` — events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`.
+
+**Mux signing (gated playback):** see [MEDIA.md](./MEDIA.md#signed-playback-gated-content).
+
+**Rotate leaked secrets:** Fly/Vercel dashboards + Mux/AWS/Stripe consoles; never commit `.env`.
 
 **Rollback:** `fly releases rollback` · Vercel promote previous deployment.
 

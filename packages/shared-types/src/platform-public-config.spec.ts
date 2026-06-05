@@ -2,6 +2,8 @@ import {
   isCustomAuthProvider,
   isFirebaseComplementOnly,
   isMailConfigured,
+  isMockSubscriptionsEnabled,
+  isStripeBillingEnabled,
   type PlatformPublicConfig,
 } from './platform-public-config';
 
@@ -46,6 +48,21 @@ describe('platform-public-config', () => {
       isMailConfigured({
         ...base,
         auth: { ...base.auth!, mailConfigured: false },
+      }),
+    ).toBe(false);
+  });
+
+  it('detects Stripe billing enabled', () => {
+    expect(isStripeBillingEnabled({ ...base, billing: { stripeEnabled: true, mockSubscriptionsEnabled: true } })).toBe(true);
+    expect(isStripeBillingEnabled(base)).toBe(false);
+  });
+
+  it('detects mock subscriptions enabled by default', () => {
+    expect(isMockSubscriptionsEnabled(base)).toBe(true);
+    expect(
+      isMockSubscriptionsEnabled({
+        ...base,
+        billing: { stripeEnabled: false, mockSubscriptionsEnabled: false },
       }),
     ).toBe(false);
   });

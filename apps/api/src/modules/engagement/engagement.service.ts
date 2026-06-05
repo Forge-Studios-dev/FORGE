@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -14,6 +16,7 @@ import { User } from '../users/entities/user.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { toPublicComment } from './comment.mapper';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 
 @Injectable()
 export class EngagementService {
@@ -29,6 +32,8 @@ export class EngagementService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly eventEmitter: EventEmitter2,
+    @Inject(forwardRef(() => EntitlementsService))
+    private readonly entitlementsService: EntitlementsService,
   ) {}
 
   async likeVideo(userId: string, videoId: string) {
@@ -131,6 +136,8 @@ export class EngagementService {
     await this.userRepository.increment({ id: followerId }, 'followingCount', 1);
     await this.userRepository.increment({ id: followingId }, 'followerCount', 1);
 
+    await this.entitlementsService.bustAccessCacheForViewerCreator(followerId, followingId);
+
     return { following: true };
   }
 
@@ -141,6 +148,8 @@ export class EngagementService {
     await this.followRepository.remove(follow);
     await this.userRepository.decrement({ id: followerId }, 'followingCount', 1);
     await this.userRepository.decrement({ id: followingId }, 'followerCount', 1);
+
+    await this.entitlementsService.bustAccessCacheForViewerCreator(followerId, followingId);
 
     return { following: false };
   }

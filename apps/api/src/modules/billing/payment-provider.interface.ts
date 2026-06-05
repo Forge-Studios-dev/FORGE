@@ -6,6 +6,10 @@ export type CheckoutSessionInput = {
   tierId: string;
   successUrl: string;
   cancelUrl: string;
+  /** Stripe Price ID from subscription_tiers.stripe_price_id */
+  stripePriceId?: string;
+  stripeCustomerId?: string;
+  customerEmail?: string;
 };
 
 export type CheckoutSessionResult = {
@@ -16,8 +20,14 @@ export type CheckoutSessionResult = {
 
 export type ProviderWebhookResult = {
   handled: boolean;
-  subscriptionId?: string;
+  action?: 'activate' | 'cancel';
+  externalSubscriptionId?: string;
+  userId?: string;
+  creatorId?: string;
+  tierId?: string;
+  stripeCustomerId?: string;
   status?: 'active' | 'canceled' | 'expired';
+  currentPeriodEnd?: Date;
 };
 
 export interface PaymentProvider {

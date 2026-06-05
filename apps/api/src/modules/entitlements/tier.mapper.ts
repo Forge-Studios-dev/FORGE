@@ -12,6 +12,7 @@ export function toPublicTier(tier: SubscriptionTier) {
     benefits: tier.benefits ?? [],
     sortOrder: tier.sortOrder,
     isActive: tier.isActive,
+    hasStripePrice: Boolean(tier.stripePriceId),
     createdAt: tier.createdAt,
   };
 }

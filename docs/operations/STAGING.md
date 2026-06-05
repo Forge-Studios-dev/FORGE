@@ -24,7 +24,8 @@
 2. Copy **pooled** connection string → `DATABASE_URL` (with `sslmode=require`).
 3. Run migrations once:
    ```bash
-   DATABASE_URL='postgresql://...' npm run migration:run --workspace=@forge/api
+   DATABASE_URL='postgresql://...' npm run migration:run:ts --workspace=@forge/api
+   # or: npm run migration:run --workspace=@forge/api (requires Nest build)
    ```
 4. Do **not** point staging at production `main` branch URL.
 
@@ -79,7 +80,9 @@ Use `fly.staging.toml` if you fork config with `app = 'forge-studios-api-staging
 
 1. Repo → Settings → Environments → **staging**
 2. Add secrets: `FLY_API_TOKEN`, `DATABASE_URL`, `REDIS_URL`, staging `JWT_*`, `MUX_*` (test keys), `VERCEL_*` if using workflow deploy.
-3. Do not reuse production-only webhooks (Mux staging webhook URL → staging API).
+3. **Stripe (test mode):** `STRIPE_ENABLED=true`, `STRIPE_SECRET_KEY=sk_test_...`, `STRIPE_WEBHOOK_SECRET=whsec_...` — webhook URL must point at staging API (`/api/v1/billing/webhooks/stripe`), not production.
+4. **Mux signing (optional):** `MUX_SIGNING_KEY_ID`, `MUX_SIGNING_PRIVATE_KEY` for gated playback QA — see [MEDIA.md](../MEDIA.md).
+5. Do not reuse production-only webhooks (Mux/Stripe staging webhook URLs → staging API only).
 
 ---
 

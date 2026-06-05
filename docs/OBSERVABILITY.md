@@ -91,6 +91,8 @@ Uses OTLP HTTP (`/v1/traces`). Compatible with Grafana Tempo, Jaeger OTLP, Datad
 
 `GET /api/v1/health` — database, Redis, BullMQ `video-processing` job counts.
 
+Redis dual-client usage (ioredis vs BullMQ vs Socket.IO): [operations/REDIS.md](./operations/REDIS.md).
+
 ## Production smoke
 
 ```bash

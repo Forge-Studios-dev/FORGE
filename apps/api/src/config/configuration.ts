@@ -56,6 +56,15 @@ export default () => ({
     tokenId: process.env.MUX_TOKEN_ID || '',
     tokenSecret: process.env.MUX_TOKEN_SECRET || '',
     webhookSecret: process.env.MUX_WEBHOOK_SECRET || '',
+    signingKeyId: process.env.MUX_SIGNING_KEY_ID || '',
+    signingPrivateKey: process.env.MUX_SIGNING_PRIVATE_KEY || '',
+    signedPlaybackTtlSec: parseInt(process.env.MUX_SIGNED_PLAYBACK_TTL_SEC || '3600', 10),
+  },
+
+  stripe: {
+    enabled: process.env.STRIPE_ENABLED === 'true',
+    secretKey: process.env.STRIPE_SECRET_KEY || '',
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
   },
 
   video: {

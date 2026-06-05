@@ -173,7 +173,17 @@ Ranked by **cost + scale** weight, then security and velocity.
 | 6 | F-901 DR runbook | **Shipped** |
 | 15 | F-803 Sentry PII env default | **Shipped** (`.env.example`) |
 | — | F-805 Admin security headers | **Shipped** |
+| 5 | F-1101 Stripe Phase 2 | **Shipped** — `billing/*`, web checkout |
+| — | Redis throttler storage | **Shipped** — `redis-throttler.storage.ts` |
+| — | Mux signed playback | **Shipped** — `mux-signing.service.ts` |
+| 12 | F-1301 Entitlement access cache | **Shipped** — `entitlements.service.ts` |
+| — | F-505 Tier metadata cache | **Shipped** — `entitlements.service.ts` |
+| 17 | F-1201 API coverage gate | **Shipped** — `apps/api/package.json`, CI |
+| — | F-1202 Mobile baseline tests | **Shipped** — `apps/mobile/test/` |
+| 14 | F-1102 Mobile playback parity | **Shipped** — `gated_content_panel.dart` |
+| 20 | F-601 API versioning policy | **Shipped** — `docs/API_VERSIONING.md` |
+| 18 | F-303 Redis dual-client docs | **Shipped** — `docs/operations/REDIS.md` |
 
 See [AUDIT_COMPLETION.md](./AUDIT_COMPLETION.md).
 
-*Remaining items are documented for backlog; merge via feature branch per repo git policy.*
+*Deferred: F-1302 search sidecar, Stripe Connect — re-audit at 50K MAU or 90 days.*

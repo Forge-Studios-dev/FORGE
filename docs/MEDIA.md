@@ -64,6 +64,27 @@ Playback must use `stream.mux.com/*.m3u8`.
 
 **Without Mux in production:** live blocked; use `ffmpeg` for VOD only.
 
+### Signed playback (gated content)
+
+Non-`public` / non-`unlisted` VOD and live streams use Mux **signed** playback policy when signing keys are configured. The API appends RS256 JWT tokens to HLS and thumbnail URLs.
+
+**Mux dashboard:** Settings → Signing Keys → create key → copy Key ID + private key (PEM).
+
+**Fly secrets (API + worker):**
+
+```bash
+fly secrets set \
+  MUX_SIGNING_KEY_ID='...' \
+  MUX_SIGNING_PRIVATE_KEY='...' \
+  MUX_SIGNED_PLAYBACK_TTL_SEC='3600' \
+  --app forge-studios-api
+npm run sync:fly:worker-secrets
+```
+
+Store the private key as a single-line PEM or base64 in Fly secrets (same pattern as `FIREBASE_PRIVATE_KEY`). If keys are missing in production, the API logs a startup warning and gated URLs fall back to unsigned playback — configure keys before enabling paid/gated tiers at scale.
+
+**Local:** uncomment `MUX_SIGNING_*` in `apps/api/.env.example`.
+
 ---
 
 ## Thumbnails (live)

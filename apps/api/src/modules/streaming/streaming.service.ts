@@ -8,6 +8,7 @@ import { Stream, StreamStatus, StreamVisibility } from './entities/stream.entity
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { Video, VideoStatus, VideoVisibility, PublishStatus } from '../content/entities/video.entity';
 import { MuxVodService } from '../content/mux-vod.service';
+import { MuxSigningService } from '../content/mux-signing.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { UserRole } from '../users/entities/user.entity';
 import {
@@ -30,6 +31,7 @@ export class StreamingService {
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly muxVodService: MuxVodService,
+    private readonly muxSigning: MuxSigningService,
     private readonly entitlementsService: EntitlementsService,
   ) {
     this.mux = new Mux({
@@ -56,11 +58,14 @@ export class StreamingService {
 
     const recordEnabled = dto.recordEnabled !== false;
 
+    const visibility = dto.visibility ?? StreamVisibility.PUBLIC;
+    const playbackPolicy = this.muxSigning.playbackPolicyForVisibility(visibility);
+
     try {
       const response = await this.mux.video.liveStreams.create({
-        playback_policy: ['public'],
+        playback_policy: playbackPolicy,
         new_asset_settings: recordEnabled
-          ? { playback_policy: ['public'] }
+          ? { playback_policy: playbackPolicy }
           : undefined,
         reduced_latency: true,
       });
@@ -127,10 +132,26 @@ export class StreamingService {
       isAdmin,
     });
 
-    return toPublicStream(stream, isOwner, {
-      hidePlayback: !access.allowed,
-      accessReason: access.reason,
-    });
+    return this.toPublicStreamForViewer(stream, isOwner, access.allowed, access.reason);
+  }
+
+  private toPublicStreamForViewer(
+    stream: Stream,
+    includeIngest: boolean,
+    accessAllowed: boolean,
+    accessReason?: string,
+  ) {
+    const hidePlayback = !accessAllowed;
+    const signedPlayback =
+      !hidePlayback && stream.playbackUrl
+        ? this.muxSigning.signPlaybackUrl(stream.playbackUrl, stream.visibility) ??
+          stream.playbackUrl
+        : null;
+    return toPublicStream(
+      { ...stream, playbackUrl: signedPlayback ?? stream.playbackUrl },
+      includeIngest,
+      { hidePlayback, accessReason },
+    );
   }
 
   async getLiveStreams(viewerId?: string | null, viewerRole?: UserRole | null) {
@@ -155,12 +176,9 @@ export class StreamingService {
     const results = streams.map((stream, index) => {
       const access = accessList[index];
       if (!access.allowed && stream.visibility !== StreamVisibility.PUBLIC) {
-        return toPublicStream(stream, false, {
-          hidePlayback: true,
-          accessReason: access.reason,
-        });
+        return this.toPublicStreamForViewer(stream, false, false, access.reason);
       }
-      return toPublicStream(stream, false, { hidePlayback: !access.allowed, accessReason: access.reason });
+      return this.toPublicStreamForViewer(stream, false, access.allowed, access.reason);
     });
 
     return results.filter((s) => s.visibility === StreamVisibility.PUBLIC || !s.accessDenied);

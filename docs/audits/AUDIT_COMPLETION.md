@@ -62,10 +62,46 @@
 | F-801 | CodeQL | **Done** — `.github/workflows/codeql.yml` |
 | F-1201 | API coverage in CI | **Done** — non-blocking `test:cov` + artifact (threshold gate next) |
 
-**Remaining top fixes** (backlog): F-1101 Stripe Phase 2, F-503 community N+1, F-505 tier cache, F-1201 enforce 60% gate, F-1202 mobile tests.
+## Wave 4 — PR `fix/audit-wave-4`
+
+| ID | Fix | Status |
+|----|-----|--------|
+| F-1101 | Stripe Phase 2 (checkout, webhooks, cancel) | **Done** — `billing/*`, web `MembershipPanel` |
+| — | Redis-backed `ThrottlerStorage` (cross-replica) | **Done** — `redis-throttler.storage.ts` |
+| — | Mux signed playback for gated content | **Done** — `mux-signing.service.ts` |
+| — | Audit migration (report indexes, Stripe columns) | **Done** — `1760000000000-audit-remediation.ts` |
+| F-503 | Community channel N+1 (batch membership) | **Done** — `communities.service.ts` |
+
+## Wave 5 — PR `fix/audit-wave-5`
+
+| ID | Fix | Status |
+|----|-----|--------|
+| F-505 | Redis cache for `getTierById` / `meetsTierRequirement` (TTL + bust on tier edits) | **Done** — `entitlements.service.ts` |
+| F-1301 | Redis cache for `checkAccess` results per viewer:creator (TTL + bust on follow/sub changes) | **Done** — `entitlements.service.ts`, `engagement.service.ts` |
+
+## Wave 6 — PR `fix/audit-wave-6`
+
+| ID | Fix | Status |
+|----|-----|--------|
+| F-1201 | Jest coverage gate (conservative first thresholds) | **Done** — `apps/api/package.json` |
+| F-1202 | Baseline Flutter tests for Video JSON parse + `accessDenied` contract | **Done** — `apps/mobile/test/video_model_test.dart` |
+
+## Wave 7 — PR `fix/audit-wave-7`
+
+| ID | Fix | Status |
+|----|-----|--------|
+| F-1102 | Mobile access denied UX + signed playback passthrough | **Done** — `watch_screen.dart`, `live_watch_screen.dart`, `video.dart` |
+
+## Wave 8 — PR `fix/audit-wave-8`
+
+| ID | Fix | Status |
+|----|-----|--------|
+| F-601 | API versioning policy docs | **Done** — `docs/API_VERSIONING.md` |
+| F-303 | Redis dual-client operations docs | **Done** — `docs/operations/REDIS.md` |
 
 ---
 
 ## Finding cross-reference
 
 Executive [14_EXECUTIVE_SUMMARY.md](./14_EXECUTIVE_SUMMARY.md) ranks top 20; phase files use matching `F-XXX` IDs.
+

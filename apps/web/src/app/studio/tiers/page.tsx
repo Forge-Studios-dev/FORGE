@@ -6,14 +6,63 @@ import Link from 'next/link';
 import { PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { isStripeBillingEnabled, loadPlatformConfig } from '@/lib/platform-config';
 import { SubscriptionTier } from '@/types';
+
+function TierStripePriceEditor({ tier }: { tier: SubscriptionTier }) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [priceId, setPriceId] = useState('');
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/creators/me/tiers/${tier.id}`, {
+        stripePriceId: priceId.trim(),
+      });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['my-tiers', user?.id] });
+      setPriceId('');
+    },
+  });
+
+  return (
+    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+      <input
+        value={priceId}
+        onChange={(e) => setPriceId(e.target.value)}
+        placeholder="Stripe Price ID (price_...)"
+        className="flex-1 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+      />
+      <button
+        type="button"
+        disabled={!priceId.trim().startsWith('price_') || updateMutation.isPending}
+        onClick={() => updateMutation.mutate()}
+        className="rounded-lg border border-outline-variant px-3 py-2 text-xs font-medium disabled:opacity-40"
+      >
+        {updateMutation.isPending ? 'Saving…' : tier.hasStripePrice ? 'Update Stripe price' : 'Link Stripe price'}
+      </button>
+      {tier.hasStripePrice ? (
+        <span className="text-xs text-primary">Stripe linked</span>
+      ) : null}
+    </div>
+  );
+}
 
 export default function StudioTiersPage() {
   const { user, isCreator } = useAuth();
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [priceCents, setPriceCents] = useState('9900');
+  const [stripePriceId, setStripePriceId] = useState('');
   const [benefits, setBenefits] = useState('');
+
+  const { data: platformConfig } = useQuery({
+    queryKey: ['platform-config'],
+    queryFn: loadPlatformConfig,
+    staleTime: 5 * 60_000,
+  });
+  const stripeEnabled = platformConfig ? isStripeBillingEnabled(platformConfig) : false;
 
   const { data: tiers } = useQuery({
     queryKey: ['my-tiers', user?.id],
@@ -33,11 +82,15 @@ export default function StudioTiersPage() {
           .split('\n')
           .map((b) => b.trim())
           .filter(Boolean),
+        ...(stripePriceId.trim().startsWith('price_')
+          ? { stripePriceId: stripePriceId.trim() }
+          : {}),
       });
     },
     onSuccess: () => {
       setName('');
       setBenefits('');
+      setStripePriceId('');
       void qc.invalidateQueries({ queryKey: ['my-tiers', user?.id] });
     },
   });
@@ -54,7 +107,11 @@ export default function StudioTiersPage() {
     <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
       <PageHeader
         title="Membership tiers"
-        subtitle="Configure member levels (mock billing until payments launch)"
+        subtitle={
+          stripeEnabled
+            ? 'Configure tiers and link Stripe Price IDs for paid checkout'
+            : 'Configure member levels (mock billing until Stripe is enabled on the API)'
+        }
       />
 
       <section className="glass-panel mb-8 space-y-4 rounded-xl p-6">
@@ -71,6 +128,14 @@ export default function StudioTiersPage() {
           placeholder="Price in cents (e.g. 99900 = ₹999)"
           className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-4 py-2.5"
         />
+        {stripeEnabled ? (
+          <input
+            value={stripePriceId}
+            onChange={(e) => setStripePriceId(e.target.value)}
+            placeholder="Stripe Price ID (price_...) — optional"
+            className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-4 py-2.5"
+          />
+        ) : null}
         <textarea
           value={benefits}
           onChange={(e) => setBenefits(e.target.value)}
@@ -105,6 +170,7 @@ export default function StudioTiersPage() {
                 ))}
               </ul>
             ) : null}
+            {stripeEnabled && t.priceCents > 0 ? <TierStripePriceEditor tier={t} /> : null}
           </li>
         ))}
       </ul>

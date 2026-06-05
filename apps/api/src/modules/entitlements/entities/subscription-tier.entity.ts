@@ -46,6 +46,9 @@ export class SubscriptionTier {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
+  @Column({ name: 'stripe_price_id', type: 'varchar', length: 255, nullable: true })
+  stripePriceId: string | null;
+
   @OneToMany(() => MemberSubscription, (sub) => sub.tier)
   subscriptions: MemberSubscription[];
 

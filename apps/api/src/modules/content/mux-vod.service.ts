@@ -22,6 +22,8 @@ import { createS3Client } from '../../common/create-s3-client';
 import { indexedAtOnReady, publishStatusOnReady } from './video-publish.util';
 import { videoDetailCacheKey } from './video-cache';
 import { muxHlsPlaybackUrl, muxThumbnailUrl } from './mux-vod.constants';
+import { MuxSigningService } from './mux-signing.service';
+import { VideoVisibility } from './entities/video.entity';
 
 export interface MuxVodIngestJob {
   videoId: string;
@@ -41,6 +43,7 @@ export class MuxVodService {
     private readonly videoRepository: Repository<Video>,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly muxSigning: MuxSigningService,
     @InjectRedis()
     private readonly redis: Redis,
   ) {
@@ -89,10 +92,14 @@ export class MuxVodService {
 
     this.logger.log(JSON.stringify({ msg: 'mux_vod_ingest_start', videoId, s3Key }));
 
+    const playbackPolicy = this.muxSigning.playbackPolicyForVisibility(
+      video.visibility ?? VideoVisibility.PUBLIC,
+    );
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await this.mux.video.assets.create({
       inputs: [{ url: signedUrl }],
-      playback_policy: ['public'],
+      playback_policy: playbackPolicy,
       passthrough: videoId,
       max_resolution_tier: '1080p',
       encoding_tier: 'smart',

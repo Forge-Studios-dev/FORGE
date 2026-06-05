@@ -36,6 +36,7 @@ import {
 } from './entities/video.entity';
 import { MUX_VOD_INGEST_QUEUE } from './mux-vod.constants';
 import { MuxVodService } from './mux-vod.service';
+import { MuxSigningService } from './mux-signing.service';
 import {
   sanitizeHlsUrl,
   sanitizeThumbnailUrl,
@@ -127,6 +128,7 @@ export class VideosService {
     private readonly eventEmitter: EventEmitter2,
     private readonly videoMultipart: VideoMultipartService,
     private readonly muxVodService: MuxVodService,
+    private readonly muxSigning: MuxSigningService,
     private readonly entitlementsService: EntitlementsService,
     private readonly engagementService: EngagementService,
   ) {
@@ -204,16 +206,26 @@ export class VideosService {
     }
   }
 
-  mapToPublicVideo(video: Video): PublicVideo {
+  mapToPublicVideo(video: Video, options?: { signPlayback?: boolean }): PublicVideo {
+    const signPlayback = options?.signPlayback !== false;
     const mapped = toPublicVideo(video, {
       rewriteMediaUrl: (url) => this.rewritePlaybackUrl(url),
     });
-    if (mapped.thumbnailUrl) return mapped;
-    const playbackId = muxPlaybackIdFromHlsUrl(mapped.hlsUrl ?? video.hlsUrl);
-    if (playbackId) {
-      return { ...mapped, thumbnailUrl: muxThumbnailUrl(playbackId) };
+    let result = mapped;
+    if (!mapped.thumbnailUrl) {
+      const playbackId = muxPlaybackIdFromHlsUrl(mapped.hlsUrl ?? video.hlsUrl);
+      if (playbackId) {
+        result = { ...mapped, thumbnailUrl: muxThumbnailUrl(playbackId) };
+      }
     }
-    return mapped;
+    if (signPlayback) {
+      result = {
+        ...result,
+        hlsUrl: this.muxSigning.signPlaybackUrl(result.hlsUrl, video.visibility),
+        thumbnailUrl: this.muxSigning.signThumbnailUrl(result.thumbnailUrl, video.visibility),
+      };
+    }
+    return result;
   }
 
   rewritePlaybackUrl(url: string | null | undefined): string | null {

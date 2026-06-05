@@ -95,6 +95,9 @@ export class User {
   @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
   deletedAt: Date | null;
 
+  @Column({ name: 'stripe_customer_id', type: 'varchar', length: 255, nullable: true })
+  stripeCustomerId: string | null;
+
   @Column({ name: 'email_verification_token_hash', type: 'varchar', nullable: true })
   @Exclude()
   emailVerificationTokenHash: string | null;

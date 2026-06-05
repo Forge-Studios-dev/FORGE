@@ -28,11 +28,17 @@ export type PlatformLegalConfig = {
   lastUpdated: string;
 };
 
+export type PlatformBillingConfig = {
+  stripeEnabled: boolean;
+  mockSubscriptionsEnabled: boolean;
+};
+
 export type PlatformPublicConfig = {
   featureFlags: string[];
   apiVersion: string;
   auth?: PlatformAuthConfig;
   firebase?: PlatformFirebaseConfig;
+  billing?: PlatformBillingConfig;
   legal?: PlatformLegalConfig;
 };
 
@@ -48,4 +54,12 @@ export function isFirebaseComplementOnly(config: PlatformPublicConfig): boolean 
 
 export function isMailConfigured(config: PlatformPublicConfig): boolean {
   return config.auth?.mailConfigured === true;
+}
+
+export function isStripeBillingEnabled(config: PlatformPublicConfig): boolean {
+  return config.billing?.stripeEnabled === true;
+}
+
+export function isMockSubscriptionsEnabled(config: PlatformPublicConfig): boolean {
+  return config.billing?.mockSubscriptionsEnabled !== false;
 }

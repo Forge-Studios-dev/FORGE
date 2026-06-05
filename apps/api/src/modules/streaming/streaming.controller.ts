@@ -11,6 +11,7 @@ import {
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { StreamingService } from './streaming.service';
 import { toPublicStream } from './stream.mapper';
@@ -81,6 +82,7 @@ export class StreamingController {
 
   @Public()
   @Post('webhooks/mux')
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mux webhook handler' })
   handleMuxWebhook(

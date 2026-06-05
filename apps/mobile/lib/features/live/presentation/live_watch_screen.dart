@@ -5,6 +5,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/socket/forge_socket.dart';
 import 'stream_chat_panel.dart';
+import '../../../shared/widgets/gated_content_panel.dart';
 
 class LiveWatchScreen extends ConsumerStatefulWidget {
   final String streamId;
@@ -97,44 +98,27 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
           AspectRatio(
             aspectRatio: 16 / 9,
             child: accessDenied
-                ? Container(
-                    color: Colors.black87,
-                    child: Center(
-                      child: Text(
-                        _accessMessage(_stream!['accessReason'] as String?),
-                        style: const TextStyle(color: Colors.white70),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                ? GatedContentPanel(
+                    creatorId: _stream!['userId'] as String,
+                    accessReason: _stream!['accessReason'] as String?,
                   )
                 : _chewieController != null
                     ? Chewie(controller: _chewieController!)
                     : Container(
                         color: Colors.black87,
                         child: const Center(
-                          child: Text('Waiting for broadcast…', style: TextStyle(color: Colors.white70)),
+                          child: Text(
+                            'Waiting for broadcast…',
+                            style: TextStyle(color: Colors.white70),
+                          ),
                         ),
                       ),
           ),
-          if (_stream!['chatEnabled'] != false)
+          if (!accessDenied && _stream!['chatEnabled'] != false)
             Expanded(child: StreamChatPanel(streamId: widget.streamId)),
         ],
       ),
     );
   }
 
-  String _accessMessage(String? reason) {
-    switch (reason) {
-      case 'login_required':
-        return 'Sign in to watch this stream.';
-      case 'follow_required':
-        return 'Follow this creator to watch.';
-      case 'subscription_required':
-        return 'Membership required.';
-      case 'tier_required':
-        return 'Higher tier membership required.';
-      default:
-        return 'You cannot watch this stream.';
-    }
-  }
 }
