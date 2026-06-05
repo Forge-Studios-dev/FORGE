@@ -4,6 +4,8 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, Input, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { persistAdminSession } from '@/lib/auth-storage';
+import { getAppCheckToken } from '@/lib/app-check';
 
 function AdminLoginForm() {
   const router = useRouter();
@@ -25,15 +27,18 @@ function AdminLoginForm() {
     }
     setLoading(true);
     try {
+      const appCheck = await getAppCheckToken();
+      const headers: Record<string, string> = {};
+      if (appCheck) headers['X-Firebase-AppCheck'] = appCheck;
+
       const { data } = await api.post<{
         data: { accessToken: string; refreshToken: string; user: { role: string } };
-      }>('/auth/login', form);
+      }>('/auth/login', form, { headers });
       if (data.data.user.role !== 'admin') {
         router.push('/unauthorized');
         return;
       }
-      localStorage.setItem('forge_admin_token', data.data.accessToken);
-      document.cookie = `forge_admin_token=${encodeURIComponent(data.data.accessToken)}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+      persistAdminSession(data.data.accessToken);
       const next = searchParams.get('next');
       router.push(next && next.startsWith('/') ? next : '/dashboard');
     } catch {

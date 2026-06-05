@@ -12,7 +12,7 @@ if (process.env.SENTRY_DSN) {
       1,
       Math.max(0, parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1')),
     ),
-    sendDefaultPii: process.env.SENTRY_SEND_DEFAULT_PII !== 'false',
+    sendDefaultPii: process.env.SENTRY_SEND_DEFAULT_PII === 'true',
     integrations: [Sentry.httpIntegration(), Sentry.nativeNodeFetchIntegration()],
   });
 }

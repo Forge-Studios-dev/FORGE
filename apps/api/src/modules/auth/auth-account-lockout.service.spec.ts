@@ -12,6 +12,7 @@ describe('AuthAccountLockoutService', () => {
 
   const config = {
     get: jest.fn((key: string) => {
+      if (key === 'nodeEnv') return 'development';
       if (key === 'auth.lockout.maxAttempts') return 3;
       if (key === 'auth.lockout.windowSec') return 900;
       if (key === 'auth.lockout.lockoutSec') return 60;

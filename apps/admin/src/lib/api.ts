@@ -1,6 +1,14 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { env } from '@/env';
+import { csrfRequestHeaders } from '@/lib/csrf';
+import {
+  clearAdminSession,
+  getAdminAccessToken,
+  persistAdminSession,
+  setAdminAccessCookie,
+} from '@/lib/auth-storage';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const API_URL = env.NEXT_PUBLIC_API_URL;
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -9,17 +17,9 @@ export const api = axios.create({
   withCredentials: true,
 });
 
-function setAdminAccessCookie(token: string) {
-  document.cookie = `forge_admin_token=${encodeURIComponent(token)}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
-}
-
-function clearAdminCookies() {
-  document.cookie = 'forge_admin_token=; path=/; max-age=0; SameSite=Lax';
-}
-
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('forge_admin_token');
+    const token = getAdminAccessToken();
     if (token && config.headers) config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -32,16 +32,17 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && original && !original._retry) {
       original._retry = true;
       try {
-        const { data } = await axios.post(`${API_URL}/auth/refresh`, {}, { withCredentials: true });
+        const { data } = await axios.post(
+          `${API_URL}/auth/refresh`,
+          {},
+          { withCredentials: true, headers: csrfRequestHeaders() },
+        );
         const accessToken = data.data.accessToken as string;
-        localStorage.setItem('forge_admin_token', accessToken);
-        setAdminAccessCookie(accessToken);
+        persistAdminSession(accessToken);
         original.headers.Authorization = `Bearer ${accessToken}`;
         return api(original);
       } catch {
-        localStorage.removeItem('forge_admin_token');
-        localStorage.removeItem('forge_admin_refresh_token');
-        clearAdminCookies();
+        clearAdminSession();
         window.location.href = '/login';
       }
     }
@@ -55,7 +56,8 @@ export async function adminLogout(options?: { allDevices?: boolean }) {
   } catch {
     /* still clear local session */
   }
-  localStorage.removeItem('forge_admin_token');
-  localStorage.removeItem('forge_admin_refresh_token');
-  clearAdminCookies();
+  clearAdminSession();
 }
+
+/** @deprecated use persistAdminSession */
+export { setAdminAccessCookie };

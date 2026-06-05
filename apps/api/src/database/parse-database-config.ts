@@ -9,7 +9,7 @@ export type DatabaseConnectionOptions = {
   username?: string;
   password?: string;
   database?: string;
-  ssl: false | { rejectUnauthorized: boolean };
+  ssl: false | { rejectUnauthorized: boolean; ca?: string };
   poolMax: number;
   connectTimeoutMs: number;
   slowQueryMs: number;
@@ -37,6 +37,25 @@ export function databaseRequiresSsl(url: string | undefined, nodeEnv?: string): 
   return url.includes('sslmode=require') || url.includes('sslmode=verify-full');
 }
 
+function buildSslConfig(
+  env: NodeJS.ProcessEnv,
+  url: string | undefined,
+  nodeEnv: string,
+): false | { rejectUnauthorized: boolean; ca?: string } {
+  if (!databaseRequiresSsl(url, nodeEnv)) return false;
+
+  const rejectUnauthorized =
+    nodeEnv === 'production'
+      ? env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false'
+      : env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'true';
+
+  const ca = env.DATABASE_SSL_CA?.trim();
+  return {
+    rejectUnauthorized,
+    ...(ca ? { ca } : {}),
+  };
+}
+
 export function parseDatabaseConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): DatabaseConnectionOptions {
@@ -45,7 +64,7 @@ export function parseDatabaseConfig(
   const poolMax = readInt(env.DB_POOL_MAX, isNeonDatabaseUrl(url) ? 10 : 20);
   const connectTimeoutMs = readInt(env.DB_CONNECT_TIMEOUT_MS, 10_000);
   const slowQueryMs = readInt(env.DB_SLOW_QUERY_MS, 2000);
-  const ssl = databaseRequiresSsl(url, nodeEnv) ? { rejectUnauthorized: false } : false;
+  const ssl = buildSslConfig(env, url, nodeEnv);
 
   if (url) {
     return { url, ssl, poolMax, connectTimeoutMs, slowQueryMs };

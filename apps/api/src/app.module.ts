@@ -53,9 +53,12 @@ import { ANALYTICS_RETENTION_QUEUE } from './modules/analytics/analytics-retenti
 import { PUSH_DISPATCH_QUEUE } from './modules/notifications/push-dispatch.constants';
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './modules/notifications/subscription-maintenance.constants';
 import { FirebaseModule } from './modules/firebase/firebase.module';
+import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
+import { RedisThrottlerModule } from './common/throttler/redis-throttler.module';
 
-/** BullMQ consumers run on the Fly worker app only in production. */
+/** BullMQ consumers run on the Fly worker app only in production (not in Jest). */
 function shouldLoadWorkersModule(): boolean {
+  if (process.env.NODE_ENV === 'test') return false;
   return process.env.WORKER_ONLY === 'true' || process.env.NODE_ENV !== 'production';
 }
 
@@ -101,6 +104,17 @@ function sentryFilterProviders() {
         return {
           pinoHttp: {
             level: isProd ? 'info' : 'debug',
+            redact: {
+              paths: [
+                'req.headers.authorization',
+                'req.headers.cookie',
+                'password',
+                'refreshToken',
+                'body.password',
+                'body.refreshToken',
+              ],
+              remove: true,
+            },
             transport: isProd
               ? undefined
               : {
@@ -117,14 +131,16 @@ function sentryFilterProviders() {
     }),
 
     ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+      imports: [RedisThrottlerModule],
+      inject: [ConfigService, RedisThrottlerStorage],
+      useFactory: (config: ConfigService, storage: RedisThrottlerStorage) => ({
         throttlers: [
           {
             ttl: config.get<number>('rateLimit.ttl') || 60,
             limit: config.get<number>('rateLimit.limit') || 100,
           },
         ],
+        storage,
       }),
     }),
 
@@ -196,6 +212,7 @@ function sentryFilterProviders() {
     EventEmitterModule.forRoot(),
 
     FirebaseModule,
+    RedisThrottlerModule,
     DatabaseModule,
     MailModule,
     AuthModule,

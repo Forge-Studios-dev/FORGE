@@ -1,11 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import type { Redis } from 'ioredis';
+import { createHash } from 'crypto';
 import { Video } from '../content/entities/video.entity';
 import { applyDiscoverableVideoFilters } from '../feed/feed-query.util';
 import { VideosService } from '../content/videos.service';
 import { User } from '../users/entities/user.entity';
 import { toPublicUser } from '../users/user.mapper';
+import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
+
+const SEARCH_CACHE_TTL_SEC = 120;
 
 @Injectable()
 export class SearchService {
@@ -17,9 +23,34 @@ export class SearchService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly videosService: VideosService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
+  private searchCacheKey(q: string, limit: number): string {
+    const hash = createHash('sha256').update(`${q}:${limit}`).digest('hex').slice(0, 16);
+    return `search:v1:${hash}`;
+  }
+
   async search(q: string, limit = 20) {
+    const term = q.trim();
+    if (term.length >= 2) {
+      const cacheKey = this.searchCacheKey(term, limit);
+      const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          /* corrupt */
+        }
+      }
+      const result = await this.searchUncached(term, limit);
+      await safeRedisSetex(this.redis, cacheKey, SEARCH_CACHE_TTL_SEC, JSON.stringify(result), this.logger);
+      return result;
+    }
+    return { videos: [], users: [], meta: { q: term } };
+  }
+
+  private async searchUncached(q: string, limit: number) {
     try {
       return await this.searchFts(q, limit);
     } catch (err) {

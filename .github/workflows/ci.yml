@@ -59,9 +59,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - name: npm audit (high+)
-        run: npm audit --audit-level=high
-        continue-on-error: true
+      - run: npm audit --audit-level=critical
 
   build-packages:
     name: Build shared packages
@@ -93,27 +91,6 @@ jobs:
       needs.changes.outputs.api == 'true' ||
       github.event_name == 'pull_request' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: forge_test
-          POSTGRES_USER: forge
-          POSTGRES_PASSWORD: forge_test_pass
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports: ['6379:6379']
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -127,18 +104,13 @@ jobs:
       - run: npm run build --workspace=@forge/api
       - run: npm run test --workspace=@forge/api
         env:
-          DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
-          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
+          NODE_ENV: test
+      - run: npm run test:e2e --workspace=@forge/api
+        env:
           NODE_ENV: test
       - name: API coverage report (F-1201)
         run: npm run test:cov --workspace=@forge/api
         env:
-          DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
-          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
           NODE_ENV: test
       - name: Upload API coverage artifact
         if: always()
@@ -180,6 +152,19 @@ jobs:
 
       - name: E2E smoke (web)
         run: npm run test:e2e --workspace=@forge/web -- e2e/smoke.spec.ts e2e/auth-nav.spec.ts
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+
+      - name: E2E auth (web, when secrets set)
+        run: |
+          if [ -n "$E2E_TEST_EMAIL" ] && [ -n "$E2E_TEST_PASSWORD" ]; then
+            npm run test:e2e --workspace=@forge/web -- e2e/auth.spec.ts
+          else
+            echo "Skipping auth e2e — E2E_TEST_EMAIL / E2E_TEST_PASSWORD not configured"
+          fi
         env:
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:3000
@@ -231,6 +216,18 @@ jobs:
           NEXT_PUBLIC_API_URL: https://api.forgestudios.net/api/v1
           NEXT_PUBLIC_WEB_URL: https://forgestudios.net
           NEXT_PUBLIC_ADMIN_URL: https://admin.forgestudios.net
+          SKIP_ENV_VALIDATION: 'true'
+
+      - name: Install Playwright Chromium (admin)
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/admin
+
+      - name: E2E smoke (admin)
+        run: npm run test:e2e --workspace=@forge/admin -- e2e/smoke.spec.ts
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://localhost:3002
+          SKIP_ENV_VALIDATION: 'true'
 
   ci-ok:
     name: CI passed

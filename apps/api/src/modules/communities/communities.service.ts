@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -46,6 +46,7 @@ export class CommunitiesService {
     private readonly entitlementsService: EntitlementsService,
     private readonly eventEmitter: EventEmitter2,
     @InjectRedis() private readonly redis: Redis,
+    private readonly dataSource: DataSource,
   ) {}
 
   @OnEvent('creator.approved')
@@ -54,23 +55,28 @@ export class CommunitiesService {
   }
 
   async ensureCommunity(creatorId: string): Promise<Community> {
-    let community = await this.communityRepository.findOne({ where: { creatorId } });
-    if (community) return community;
+    const existing = await this.communityRepository.findOne({ where: { creatorId } });
+    if (existing) return existing;
 
-    community = await this.communityRepository.save(
-      this.communityRepository.create({ creatorId, name: 'Community' }),
-    );
+    return this.dataSource.transaction(async (manager) => {
+      const found = await manager.findOne(Community, { where: { creatorId } });
+      if (found) return found;
 
-    for (const def of DEFAULT_CHANNELS) {
-      await this.channelRepository.save(
-        this.channelRepository.create({
-          communityId: community.id,
-          ...def,
-        }),
+      const community = await manager.save(
+        manager.create(Community, { creatorId, name: 'Community' }),
       );
-    }
 
-    return community;
+      for (const def of DEFAULT_CHANNELS) {
+        await manager.save(
+          manager.create(Channel, {
+            communityId: community.id,
+            ...def,
+          }),
+        );
+      }
+
+      return community;
+    });
   }
 
   async getCommunityByCreator(creatorId: string, viewerId?: string | null, viewerRole?: UserRole | null) {

@@ -23,6 +23,7 @@ describe('AuthService logout', () => {
     } as never,
     { isEnabled: jest.fn(), issueOtp: jest.fn(), verifyOtp: jest.fn() } as never,
     authUserCache as never,
+    {} as never,
   );
 
   beforeEach(() => {

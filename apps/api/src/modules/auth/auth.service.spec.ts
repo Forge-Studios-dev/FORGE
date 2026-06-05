@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
@@ -79,6 +80,15 @@ describe('AuthService', () => {
         { provide: AuthAccountLockoutService, useValue: lockoutMock },
         { provide: AuthEmailOtpService, useValue: emailOtpMock },
         { provide: AuthUserCacheService, useValue: { get: jest.fn(), set: jest.fn(), bust: jest.fn() } },
+        {
+          provide: DataSource,
+          useValue: {
+            transaction: jest.fn(async (work) => work({
+              save: jest.fn(async (x) => x),
+              create: jest.fn((_e, x) => x),
+            })),
+          },
+        },
       ],
     }).compile();
     return moduleRef.get(AuthService);

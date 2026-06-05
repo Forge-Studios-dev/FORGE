@@ -8,9 +8,11 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { validateProductionConfig } from './config/validate-production-config';
 import { httpMetricsMiddleware } from './common/metrics/http-metrics.middleware';
+import { productionCorsOrigins } from './config/cors-origins';
 
 async function bootstrapWorker() {
   const app = await NestFactory.createApplicationContext(AppModule, {
@@ -43,26 +45,23 @@ async function bootstrap() {
   const nodeEnv = configService.get<string>('nodeEnv');
   const logger = app.get(Logger);
 
+  app.enableShutdownHooks();
+  const http = app.getHttpAdapter().getInstance();
+  http.set('trust proxy', 1);
+
   app.setGlobalPrefix('api/v1', {
     exclude: [{ path: 'metrics', method: RequestMethod.ALL }],
   });
 
   app.use(cookieParser());
+  app.use(json({ limit: '1mb' }));
+  app.use(urlencoded({ extended: true, limit: '1mb' }));
   app.use(helmet());
   app.use(httpMetricsMiddleware);
 
-  const prodOrigins = [
-    process.env.WEB_URL,
-    process.env.ADMIN_URL,
-    'https://forgestudios.net',
-    'https://www.forgestudios.net',
-    'https://admin.forgestudios.net',
-  ]
-    .map((o) => (typeof o === 'string' ? o.trim() : ''))
-    .filter((o) => o.length > 0)
-    .filter((o, i, arr) => arr.indexOf(o) === i);
+  const prodOrigins = productionCorsOrigins();
   if (nodeEnv === 'production' && prodOrigins.length === 0) {
-    logger.warn('WEB_URL / ADMIN_URL unset — set both for browser CORS in production.');
+    throw new Error('Production requires WEB_URL and/or ADMIN_URL for browser CORS.');
   }
 
   app.enableCors({

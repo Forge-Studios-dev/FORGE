@@ -1,0 +1,43 @@
+---
+description: FORGE testing standards — minimize external I/O in tests
+globs:
+  - "**/*.spec.ts"
+  - "**/*.test.ts"
+  - "**/test/**"
+  - "**/e2e/**"
+  - "**/*_test.dart"
+alwaysApply: false
+---
+
+# FORGE — Testing Standards
+
+## Minimize external calls
+
+Tests must **not** hit production or shared staging services (API, Postgres, Redis, S3, Mux, etc.) unless explicitly marked as a manual/integration suite.
+
+Prefer, in order:
+
+1. **Unit tests** with mocked dependencies (`jest.fn()`, Nest `Test.createTestingModule` provider overrides)
+2. **HTTP tests** via Supertest against a **slim module** with mocked DataSource/Redis/queues (see `apps/api/test/http-test.harness.ts`)
+3. **Fixtures** for DTOs, entities, and API responses
+4. **Dedicated integration jobs** (optional, scheduled) — never in default PR CI
+
+## API
+
+- Default `npm run test` and `npm run test:e2e` must pass **without** `DATABASE_URL` or `REDIS_URL`
+- Do not import full `AppModule` in e2e tests; compose only the controllers under test
+- Migrations run in **release/deploy** only, not in CI unit/e2e gates
+
+## Frontend
+
+- Playwright: mock network or use static pages where possible; avoid live API unless secrets are configured
+- Prefer unit tests for auth-storage, CSRF, middleware helpers
+
+## Mobile
+
+- Use `flutter test` with mocked repositories; no live API in unit/widget tests
+
+## CI
+
+- PR CI should not start Postgres/Redis service containers for API tests
+- Blocking npm audit is fine; do not add steps that multiply deploy-time load

@@ -1,12 +1,17 @@
 import type { ConfigService } from '@nestjs/config';
+import { validateProductionEnv } from './env-production.schema';
 
 const INSECURE_JWT_SECRETS = new Set([
   'jwt-secret-change-in-production',
   'jwt-refresh-secret-change-in-production',
 ]);
 
+/** Validates production config at boot — uses Zod schema + legacy ConfigService checks. */
 export function validateProductionConfig(config: ConfigService): void {
-  if (config.get<string>('nodeEnv') !== 'production') return;
+  const nodeEnv = config.get<string>('nodeEnv') || process.env.NODE_ENV || 'development';
+  validateProductionEnv({ ...process.env, NODE_ENV: nodeEnv });
+
+  if (nodeEnv !== 'production') return;
 
   const jwtSecret = config.get<string>('jwt.secret') || '';
   const refreshSecret = config.get<string>('jwt.refreshSecret') || '';

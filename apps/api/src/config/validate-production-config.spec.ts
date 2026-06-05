@@ -1,6 +1,22 @@
 import type { ConfigService } from '@nestjs/config';
 import { validateProductionConfig } from './validate-production-config';
 
+const PROD_ENV_BASE: NodeJS.ProcessEnv = {
+  DATABASE_URL: 'postgresql://user:pass@host/db',
+  REDIS_URL: 'redis://localhost:6379',
+  JWT_SECRET: 'custom-jwt-secret-min-32-chars-long',
+  JWT_REFRESH_SECRET: 'custom-refresh-secret-min-32-chars',
+  WEB_URL: 'https://forgestudios.net',
+  ADMIN_URL: 'https://admin.forgestudios.net',
+  MUX_TOKEN_ID: 'mux-token-id',
+  MUX_TOKEN_SECRET: 'mux-token-secret',
+  MUX_WEBHOOK_SECRET: 'mux-webhook-secret',
+  VIDEO_TRANSCODE_PROVIDER: 'mux',
+  AWS_ACCESS_KEY_ID: 'AKIA',
+  AWS_SECRET_ACCESS_KEY: 'secret',
+  S3_BUCKET_NAME: 'forge-media',
+};
+
 function config(overrides: Record<string, string | undefined>): ConfigService {
   const values: Record<string, string> = {
     nodeEnv: 'development',
@@ -20,6 +36,12 @@ function config(overrides: Record<string, string | undefined>): ConfigService {
 }
 
 describe('validateProductionConfig', () => {
+  const savedEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...savedEnv };
+  });
+
   it('skips validation outside production', () => {
     expect(() =>
       validateProductionConfig(
@@ -32,6 +54,7 @@ describe('validateProductionConfig', () => {
   });
 
   it('rejects default JWT secrets in production', () => {
+    process.env = { ...PROD_ENV_BASE, NODE_ENV: 'production' };
     expect(() =>
       validateProductionConfig(
         config({
@@ -43,6 +66,7 @@ describe('validateProductionConfig', () => {
   });
 
   it('requires MUX credentials in production', () => {
+    process.env = { ...PROD_ENV_BASE, NODE_ENV: 'production' };
     expect(() =>
       validateProductionConfig(
         config({
@@ -56,6 +80,7 @@ describe('validateProductionConfig', () => {
   });
 
   it('requires MUX_WEBHOOK_SECRET when MUX_TOKEN_ID is set', () => {
+    process.env = { ...PROD_ENV_BASE, NODE_ENV: 'production' };
     expect(() =>
       validateProductionConfig(
         config({
@@ -68,6 +93,7 @@ describe('validateProductionConfig', () => {
   });
 
   it('rejects non-mux transcode provider in production', () => {
+    process.env = { ...PROD_ENV_BASE, NODE_ENV: 'production' };
     expect(() =>
       validateProductionConfig(
         config({
@@ -79,6 +105,7 @@ describe('validateProductionConfig', () => {
   });
 
   it('passes with strong secrets in production', () => {
+    process.env = { ...PROD_ENV_BASE, NODE_ENV: 'production' };
     expect(() =>
       validateProductionConfig(
         config({

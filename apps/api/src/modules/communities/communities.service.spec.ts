@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CommunitiesService } from './communities.service';
 import { Community } from './entities/community.entity';
@@ -47,6 +48,25 @@ describe('CommunitiesService', () => {
     del: jest.fn(),
   };
 
+  const dataSource = {
+    transaction: jest.fn(async (work: (manager: unknown) => Promise<unknown>) => {
+      const save = jest.fn(async (x) => {
+        if (x?.name === 'Community') {
+          return { id: 'comm-1', creatorId: 'creator-1', ...x };
+        }
+        return x;
+      });
+      const manager = {
+        findOne: jest.fn().mockResolvedValue(null),
+        save,
+        create: jest.fn((_entity, x) => x),
+      };
+      const result = await work(manager);
+      (dataSource as { lastSave?: jest.Mock }).lastSave = save;
+      return result;
+    }),
+  } as { transaction: jest.Mock; lastSave?: jest.Mock };
+
   beforeEach(async () => {
     entitlementsService = {
       checkChannelAccess: jest.fn(),
@@ -63,6 +83,7 @@ describe('CommunitiesService', () => {
         { provide: EntitlementsService, useValue: entitlementsService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
 
@@ -72,13 +93,12 @@ describe('CommunitiesService', () => {
 
   it('seeds default channels when community is created', async () => {
     communityRepository.findOne.mockResolvedValue(null);
-    communityRepository.save.mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1' });
-    channelRepository.save.mockImplementation(async (x) => x);
 
     await service.ensureCommunity('creator-1');
 
-    expect(channelRepository.save).toHaveBeenCalledTimes(4);
-    expect(channelRepository.save).toHaveBeenCalledWith(
+    expect(dataSource.transaction).toHaveBeenCalled();
+    expect(dataSource.lastSave).toHaveBeenCalledTimes(5);
+    expect(dataSource.lastSave).toHaveBeenCalledWith(
       expect.objectContaining({ slug: 'premium-content', type: ChannelType.SUBSCRIBERS }),
     );
   });

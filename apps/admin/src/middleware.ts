@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { decodeJwtPayload, isJwtExpired } from '@forge/shared-types/jwt';
 
 const PUBLIC_PATHS = ['/login', '/unauthorized'];
+const SESSION_MARKER = 'forge_admin_session';
 
 function isValidAdminToken(token: string): boolean {
   const payload = decodeJwtPayload(token);
@@ -12,6 +13,7 @@ function isValidAdminToken(token: string): boolean {
 
 function clearAdminSession(response: NextResponse) {
   response.cookies.set('forge_admin_token', '', { path: '/', maxAge: 0 });
+  response.cookies.set(SESSION_MARKER, '', { path: '/', maxAge: 0 });
   return response;
 }
 
@@ -23,8 +25,16 @@ export function middleware(request: NextRequest) {
   }
 
   const token = request.cookies.get('forge_admin_token')?.value;
+  const hasSessionMarker = request.cookies.get(SESSION_MARKER)?.value === '1';
+
   if (token && isValidAdminToken(token)) {
     return NextResponse.next();
+  }
+
+  if (hasSessionMarker && token) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   if (token) {

@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { Icon } from '@forge/design-system';
@@ -12,7 +13,7 @@ export default function StudioError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error(error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

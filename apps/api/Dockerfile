@@ -21,7 +21,9 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-RUN apk add --no-cache ffmpeg curl
+ARG INCLUDE_FFMPEG=false
+RUN if [ "$INCLUDE_FFMPEG" = "true" ]; then apk add --no-cache ffmpeg; fi
+RUN apk add --no-cache curl
 
 ENV NODE_ENV=production
 
