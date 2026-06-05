@@ -70,13 +70,13 @@
 | **Resolution** | `forge_csrf` cookie + `X-Forge-CSRF` header (production); web client updated |
 | **Expected impact** | Reduced session theft via malicious sites |
 
-#### F-803: Sentry default PII
+#### F-803: Sentry default PII — **Resolved (Wave 5)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | Medium |
 | **Evidence** | `instrument.ts` — `sendDefaultPii` unless `SENTRY_SEND_DEFAULT_PII=false` |
-| **Recommendation** | Set false in production Fly/Vercel secrets |
+| **Resolution** | Ops scripts default `false`; Fly API/worker + Vercel web/admin production env updated 2026-06-05 |
 | **Expected impact** | Compliance + lower data exposure |
 
 #### F-804: Dev CORS wildcard with credentials

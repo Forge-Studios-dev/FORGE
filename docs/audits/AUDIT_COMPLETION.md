@@ -101,11 +101,12 @@ See [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md):
 
 | Check | Result |
 |-------|--------|
-| API Jest suite | `npm test --workspace=@forge/api` |
-| API coverage gate | `npm run test:cov --workspace=@forge/api` |
-| Mobile tests | `flutter test` in `apps/mobile` |
-| Stale audit grep | No `min_machines_running = 0` or `socket_io_client ^2` in reconciled phase files |
-| Git workflow | Single PR `fix/audit-closure` → merge to `main` |
+| API Jest suite | **127 passed** (incl. `mux-vod.constants.spec.ts`) |
+| Mobile tests | **2 passed** (`flutter test`) |
+| Stale audit grep | Clean — only historical “was” references in Resolution blocks |
+| PR #63 | **Merged** 2026-06-05 — CI run 27023321035 green |
+| Release | **Success** — run 27024015719 (`4502ca8`) |
+| F-803 prod ops | Fly `SENTRY_SEND_DEFAULT_PII=false` (API + worker); Vercel `NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII=false` (web + admin) — 2026-06-05 |
 
 ---
 

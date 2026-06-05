@@ -1,17 +1,35 @@
 ---
-description: Branch-first git workflow — never push to main; avoid repeated prod deploys
+description: Branch-first git workflow — merge to main only for major/batched work; avoid repeated prod deploys
 alwaysApply: true
 ---
 
 # FORGE — Git Branching & Production Deploy Guard
 
-`main` is protected by CI/CD. **Every push to `main` runs CI and can trigger production release** (Fly API + Vercel web/admin), causing repeated server restarts.
+`main` is protected by CI/CD. **Every merge to `main` runs CI and can trigger production release** (Fly API + Vercel web/admin), causing server restarts and deploy cost.
+
+## When to push, PR, and merge (production gate)
+
+**Only push the branch, open a PR, and merge to `main` for bigger or major changes** — work that is ready to ship and worth a full CI/CD + production deploy cycle.
+
+Examples of **merge-worthy** work:
+- New features or substantial enhancements
+- Significant bug fixes, refactors, or security/performance work
+- Batched related changes that form a coherent, tested release unit
+- User explicitly asks to ship, merge, release, or deploy
+
+**Do not** push/PR/merge for:
+- Small tweaks, WIP, or mid-iteration fixes
+- Single-line or cosmetic changes unless the user explicitly wants them in production now
+- “Fix forward” after a partial merge — finish and batch on the branch first
+
+Keep incremental work **local or on a feature branch** until it adds up to a meaningful release. Prefer **one consolidated merge** over many small production deploys.
 
 ## Never do this
 
 - `git push origin main` (or any direct commit/push to `main`)
 - `fly deploy`, `gh workflow run release.yml`, or production smoke against live infra **while still iterating** on the same change
-- Multiple small pushes to `main` to “fix forward” — batch fixes on a branch first
+- Multiple small pushes/merges to `main` to “fix forward” — batch fixes on a branch first
+- Opening a PR or suggesting merge before the change set is complete and worth a deploy
 
 ## Required workflow
 
@@ -21,12 +39,12 @@ alwaysApply: true
    git checkout -b fix/short-description origin/main
    ```
 2. **Commit on the branch** — only when the user asks to commit.
-3. **Push the branch** — not `main`:
+3. **Push the branch** — when work is substantial enough to share or back up remotely; not required for every tiny local edit:
    ```bash
    git push -u origin HEAD
    ```
 4. **Verify on the branch** — run tests/CI locally (`npm run ci:local` or targeted tests) before merge.
-5. **Merge to `main` only when done** — when the user explicitly says merge/ship/release **and** checks pass:
+5. **Merge to `main` only for major/batched work** — when the change is complete, meaningful, and the user explicitly says merge/ship/release **and** checks pass:
    - Prefer **one PR** → merge (squash or merge commit per repo convention)
    - Use `gh pr create` when the user asks for a PR
    - **One merge to `main`** = one production deploy cycle (not many)

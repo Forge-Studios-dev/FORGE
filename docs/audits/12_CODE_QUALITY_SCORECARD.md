@@ -42,7 +42,7 @@
 
 | Item | Severity | Path / note |
 |------|----------|-------------|
-| `express-rate-limit` unused | Low | `apps/api/package.json` |
+| ~~`express-rate-limit` unused~~ | Resolved | F-301 — removed from `@forge/api` |
 | ~~Socket.IO v2 mobile vs v4 API~~ | Resolved | F-302 — `socket_io_client: ^3.0.2` |
 | Sentry SDK major skew | Low | API v10, Next v9 |
 | ~~No coverage threshold in CI~~ | Resolved | F-1201 — `coverageThreshold` in `apps/api/package.json` |

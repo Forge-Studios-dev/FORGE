@@ -1,6 +1,6 @@
 # Phase 1 — Project Inventory
 
-**Audit date:** 2026-06-04
+**Audit date:** 2026-06-04 · **Reconciled:** 2026-06-05 (Wave 5 closure)
 
 ---
 
@@ -23,7 +23,7 @@
 | **Worker** | Same codebase + `fly.worker.toml` | BullMQ: Mux ingest, analytics, FCM, subscriptions | Same as API minus HTTP | Async jobs | **P0** | Platform/API | Hard — video + analytics |
 | **Web** | `apps/web` | Consumer Next.js 14 | API, `@forge/design-system`, Firebase client, HLS | Primary UX | **P0** | Web | Medium (any React SPA) |
 | **Admin** | `apps/admin` | Operator Next.js 14 | API, design-system | Low traffic | **P1** | Web/Ops | High — could merge into web |
-| **Mobile** | `apps/mobile` | Flutter iOS/Android | API, Firebase, socket_io_client v2 | Growing | **P1** | Mobile | Medium |
+| **Mobile** | `apps/mobile` | Flutter iOS/Android | API, Firebase, `socket_io_client ^3.0.2` (F-302) | Growing | **P1** | Mobile | Medium |
 | **shared-types** | `packages/shared-types` | DTOs, flags, JWT helpers, socket events | None runtime | All TS apps | **P0** | Platform | Low risk |
 | **design-system** | `packages/design-system` | Tokens, Tailwind, React primitives | React | Web + Admin | **P2** | Design/Web | Medium |
 
