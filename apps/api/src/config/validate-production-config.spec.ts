@@ -1,11 +1,6 @@
 import type { ConfigService } from '@nestjs/config';
 import { validateProductionConfig } from './validate-production-config';
 
-const INSECURE_JWT_SECRETS = new Set([
-  'jwt-secret-change-in-production',
-  'jwt-refresh-secret-change-in-production',
-]);
-
 const PROD_ENV_BASE: NodeJS.ProcessEnv = {
   DATABASE_URL: 'postgresql://user:pass@host/db',
   REDIS_URL: 'redis://localhost:6379',

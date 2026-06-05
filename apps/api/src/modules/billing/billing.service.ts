@@ -1,11 +1,10 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CheckoutSessionInput,
   PAYMENT_PROVIDER,
   PaymentProvider,
-  ProviderWebhookResult,
 } from './payment-provider.interface';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { MemberSubscriptionSource } from '../entitlements/entities/member-subscription.entity';

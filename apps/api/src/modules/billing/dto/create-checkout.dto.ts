@@ -1,4 +1,4 @@
-import { IsString, IsUrl, IsUUID } from 'class-validator';
+import { IsUrl, IsUUID } from 'class-validator';
 
 export class CreateCheckoutDto {
   @IsUUID()
