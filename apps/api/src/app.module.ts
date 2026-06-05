@@ -54,6 +54,7 @@ import { PUSH_DISPATCH_QUEUE } from './modules/notifications/push-dispatch.const
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './modules/notifications/subscription-maintenance.constants';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
+import { RedisThrottlerModule } from './common/throttler/redis-throttler.module';
 
 /** BullMQ consumers run on the Fly worker app only in production (not in Jest). */
 function shouldLoadWorkersModule(): boolean {
@@ -130,6 +131,7 @@ function sentryFilterProviders() {
     }),
 
     ThrottlerModule.forRootAsync({
+      imports: [RedisThrottlerModule],
       inject: [ConfigService, RedisThrottlerStorage],
       useFactory: (config: ConfigService, storage: RedisThrottlerStorage) => ({
         throttlers: [
@@ -210,6 +212,7 @@ function sentryFilterProviders() {
     EventEmitterModule.forRoot(),
 
     FirebaseModule,
+    RedisThrottlerModule,
     DatabaseModule,
     MailModule,
     AuthModule,
@@ -236,7 +239,6 @@ function sentryFilterProviders() {
 
   controllers: [HealthController, MetricsController],
   providers: [
-    RedisThrottlerStorage,
     BullmqMetricsService,
     ...sentryFilterProviders(),
     EmailVerifiedGuard,
