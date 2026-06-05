@@ -10,18 +10,31 @@ import { ContentVisibility } from './content-access.types';
 describe('EntitlementsService', () => {
   let service: EntitlementsService;
   let engagementService: { isFollowing: jest.Mock; getFollowingIdsAmong: jest.Mock };
+  let tierRepository: { find: jest.Mock; findOne: jest.Mock; create: jest.Mock; save: jest.Mock };
+  let redis: { get: jest.Mock; setex: jest.Mock; del: jest.Mock };
 
   beforeEach(async () => {
     engagementService = {
       isFollowing: jest.fn(),
       getFollowingIdsAmong: jest.fn().mockResolvedValue(new Set()),
     };
+    tierRepository = {
+      find: jest.fn(),
+      findOne: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
+    };
+    redis = {
+      get: jest.fn().mockResolvedValue(null),
+      setex: jest.fn().mockResolvedValue('OK'),
+      del: jest.fn().mockResolvedValue(1),
+    };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EntitlementsService,
         {
           provide: getRepositoryToken(SubscriptionTier),
-          useValue: { find: jest.fn(), findOne: jest.fn(), create: jest.fn(), save: jest.fn() },
+          useValue: tierRepository,
         },
         {
           provide: getRepositoryToken(MemberSubscription),
@@ -47,11 +60,7 @@ describe('EntitlementsService', () => {
         },
         {
           provide: 'default_IORedisModuleConnectionToken',
-          useValue: {
-            get: jest.fn().mockResolvedValue(null),
-            setex: jest.fn().mockResolvedValue('OK'),
-            del: jest.fn().mockResolvedValue(1),
-          },
+          useValue: redis,
         },
       ],
     }).compile();
@@ -158,6 +167,46 @@ describe('EntitlementsService', () => {
     });
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe('paid_event');
+  });
+
+  it('getTierById returns cached tier without DB lookup', async () => {
+    const tier = {
+      id: 'tier-gold',
+      creatorId: 'c1',
+      sortOrder: 2,
+      slug: 'gold',
+      name: 'Gold',
+      priceCents: 999,
+      currency: 'INR',
+      benefits: [],
+      isActive: true,
+    };
+    redis.get.mockResolvedValueOnce(JSON.stringify(tier));
+
+    const result = await service.getTierById('tier-gold');
+
+    expect(result.sortOrder).toBe(2);
+    expect(tierRepository.findOne).not.toHaveBeenCalled();
+  });
+
+  it('getTierById loads tier from DB and caches for 300s', async () => {
+    const tier = {
+      id: 'tier-gold',
+      creatorId: 'c1',
+      sortOrder: 3,
+      slug: 'gold',
+      name: 'Gold',
+      priceCents: 999,
+      currency: 'INR',
+      benefits: [],
+      isActive: true,
+    };
+    tierRepository.findOne.mockResolvedValue(tier);
+
+    const result = await service.getTierById('tier-gold');
+
+    expect(result.sortOrder).toBe(3);
+    expect(redis.setex).toHaveBeenCalledWith('ent:tier:tier-gold', 300, expect.any(String));
   });
 
   it('checkAccessMany batches follow lookup for multiple creators', async () => {

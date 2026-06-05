@@ -11,10 +11,10 @@
 | **CI/CD** | 8 | Path-filtered `ci.yml`; `release.yml` orchestrates Fly + Vercel; manual deploy workflows |
 | **Observability** | 7 | API metrics, Grafana assets, Sentry; worker/mobile/front gaps |
 | **Secrets management** | 7 | Fly/Vercel/GH secrets; sync scripts; no secrets in git |
-| **Disaster recovery** | 3 | Rollback documented; no Neon PITR / backup runbook |
-| **Environments** | 4 | Local + production; no staging |
+| **Disaster recovery** | 5 | DR runbook added; Neon PITR drill still recommended |
+| **Environments** | 6 | Staging bootstrap documented + `deploy-staging.yml` |
 
-**Overall infra maturity:** 6/10 — strong deploy pipeline, weak DR and environment isolation.
+**Overall infra maturity:** 7/10 — deploy pipeline + staging; DR drill remains.
 
 ---
 
@@ -34,10 +34,9 @@
 - Production environment in GitHub for secret override
 
 **Gaps:**
-- No staging/preview pipeline
 - Worker not in metrics verification
 - E2E auth tests need optional GH secrets
-- No `npm audit` / SAST in pipeline (F-801)
+- Staging not fully automated end-to-end
 
 ---
 
@@ -52,7 +51,7 @@
 | DB | Neon | Pooled `DATABASE_URL` |
 | Redis | Redis Cloud | `REDIS_URL` |
 
-**Fly API scaling:** `min_machines_running = 0`, `auto_stop_machines = true` — cost savings, cold-start risk.
+**Fly API scaling:** `min_machines_running = 1` (F-1002) — see [FLY_SLO.md](../operations/FLY_SLO.md).
 
 ---
 

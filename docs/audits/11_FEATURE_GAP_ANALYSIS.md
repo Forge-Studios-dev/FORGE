@@ -112,11 +112,11 @@
 | **Recommendation** | Implement Stripe before scaling marketing spend |
 | **Expected impact** | Revenue offsets Mux/infra COGS |
 
-### F-1102: Mobile playback gap increases cost without engagement
+### F-1102: Mobile playback gap increases cost without engagement — **Resolved (Wave 4)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | P1 |
-| **Evidence** | CLIENT_OVERVIEW — VOD/live ⚠️ mobile |
-| **Recommendation** | Parity on watch + live with web HLS/Mux URLs |
+| **Evidence** | Mobile watch lacked `accessDenied` handling |
+| **Resolution** | `VideoModel.accessDenied` + watch screen parity with web/live; see [CLIENT_OVERVIEW.md](../CLIENT_OVERVIEW.md) |
 | **Expected impact** | Better retention per Mux dollar |

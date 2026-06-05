@@ -49,7 +49,16 @@ Cross-reference IDs in [14_EXECUTIVE_SUMMARY.md](./14_EXECUTIVE_SUMMARY.md) (e.g
 
 ## Implementation status
 
-Week 1–2 code remediations from the executive summary are partially shipped — see [AUDIT_COMPLETION.md](./AUDIT_COMPLETION.md) (F-501, F-502, F-301).
+**Waves 1–4 remediations are complete** on `main` / `fix/audit-wave-4` — see [AUDIT_COMPLETION.md](./AUDIT_COMPLETION.md).
+
+| Wave | Focus | Status |
+|------|-------|--------|
+| 1 | JWT cache, live batch entitlements, pagination caps | Merged |
+| 2 | Fly SLO, BullMQ alerts, staging | Merged |
+| 3 | Analytics retention, CSRF, CodeQL, mobile Socket.IO v3 | Merged |
+| 4 | Community N+1, tier cache, Redis/API docs, coverage gate, mobile tests & playback | Complete |
+
+**Remaining:** F-1101 Stripe (deferred), load testing at scale, search sidecar eval.
 
 ---
 

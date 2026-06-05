@@ -68,8 +68,63 @@ export class EntitlementsService {
     return `ent:sub:${userId}:${creatorId}`;
   }
 
+  private tierCacheKey(tierId: string): string {
+    return `ent:tier:${tierId}`;
+  }
+
+  private viewerAccessCacheKey(userId: string, creatorId: string): string {
+    return `ent:access:${userId}:${creatorId}`;
+  }
+
+  private accessCacheField(visibility: string, requiredTierId?: string | null): string {
+    return `${visibility}:${requiredTierId ?? 'none'}`;
+  }
+
   private async bustSubscriptionCache(userId: string, creatorId: string): Promise<void> {
-    await this.redis.del(this.subscriptionCacheKey(userId, creatorId));
+    await Promise.all([
+      this.redis.del(this.subscriptionCacheKey(userId, creatorId)),
+      this.redis.del(this.viewerAccessCacheKey(userId, creatorId)),
+    ]);
+  }
+
+  private async bustTierCache(tierId: string): Promise<void> {
+    await this.redis.del(this.tierCacheKey(tierId));
+  }
+
+  private async readCachedAccess(
+    viewerId: string,
+    creatorId: string,
+    field: string,
+  ): Promise<AccessCheckResult | null> {
+    const cachedBlob = await this.redis.get(this.viewerAccessCacheKey(viewerId, creatorId));
+    if (!cachedBlob) return null;
+    try {
+      const map = JSON.parse(cachedBlob) as Record<string, AccessCheckResult>;
+      return map[field] ?? null;
+    } catch {
+      await this.redis.del(this.viewerAccessCacheKey(viewerId, creatorId));
+      return null;
+    }
+  }
+
+  private async writeCachedAccess(
+    viewerId: string,
+    creatorId: string,
+    field: string,
+    result: AccessCheckResult,
+  ): Promise<void> {
+    const cacheKey = this.viewerAccessCacheKey(viewerId, creatorId);
+    let map: Record<string, AccessCheckResult> = {};
+    const existing = await this.redis.get(cacheKey);
+    if (existing) {
+      try {
+        map = JSON.parse(existing) as Record<string, AccessCheckResult>;
+      } catch {
+        map = {};
+      }
+    }
+    map[field] = result;
+    await this.redis.setex(cacheKey, 60, JSON.stringify(map));
   }
 
   async listTiersForCreator(creatorId: string, activeOnly = true) {
@@ -82,8 +137,20 @@ export class EntitlementsService {
   }
 
   async getTierById(tierId: string): Promise<SubscriptionTier> {
+    const cacheKey = this.tierCacheKey(tierId);
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as SubscriptionTier;
+        return Object.assign(new SubscriptionTier(), parsed);
+      } catch {
+        await this.redis.del(cacheKey);
+      }
+    }
+
     const tier = await this.tierRepository.findOne({ where: { id: tierId } });
     if (!tier) throw new NotFoundException('Tier not found');
+    await this.redis.setex(cacheKey, 300, JSON.stringify(tier));
     return tier;
   }
 
@@ -125,6 +192,7 @@ export class EntitlementsService {
     if (dto.isActive !== undefined) tier.isActive = dto.isActive;
 
     const saved = await this.tierRepository.save(tier);
+    await this.bustTierCache(tierId);
     return toPublicTier(saved);
   }
 
@@ -133,6 +201,7 @@ export class EntitlementsService {
     if (tier.creatorId !== creatorId) throw new ForbiddenException();
     tier.isActive = false;
     await this.tierRepository.save(tier);
+    await this.bustTierCache(tierId);
     return { ok: true };
   }
 
@@ -312,10 +381,16 @@ export class EntitlementsService {
     const unique = [...new Set(tierIds.filter(Boolean))];
     const map = new Map<string, number>();
     if (unique.length === 0) return map;
-    const tiers = await this.tierRepository.find({ where: { id: In(unique) } });
-    for (const tier of tiers) {
-      map.set(tier.id, tier.sortOrder);
-    }
+    await Promise.all(
+      unique.map(async (tierId) => {
+        try {
+          const tier = await this.getTierById(tierId);
+          map.set(tierId, tier.sortOrder);
+        } catch {
+          /* missing tier — skip */
+        }
+      }),
+    );
     return map;
   }
 
@@ -391,26 +466,35 @@ export class EntitlementsService {
       return { allowed: false, reason: 'paid_event' };
     }
 
+    const cacheField = this.accessCacheField(visibility, requiredTierId);
+    const cached = await this.readCachedAccess(viewerId, creatorId, cacheField);
+    if (cached) return cached;
+
+    let result: AccessCheckResult;
+
     if (visibility === ContentVisibility.FOLLOWERS || visibility === StreamVisibility.FOLLOWERS) {
       const following = await this.engagementService.isFollowing(viewerId, creatorId);
-      return following ? { allowed: true } : { allowed: false, reason: 'follow_required' };
-    }
-
-    if (visibility === ContentVisibility.SUBSCRIBERS || visibility === StreamVisibility.SUBSCRIBERS) {
+      result = following ? { allowed: true } : { allowed: false, reason: 'follow_required' };
+    } else if (
+      visibility === ContentVisibility.SUBSCRIBERS ||
+      visibility === StreamVisibility.SUBSCRIBERS
+    ) {
       const hasSub = await this.hasActiveSubscription(viewerId, creatorId);
-      return hasSub ? { allowed: true } : { allowed: false, reason: 'subscription_required' };
-    }
-
-    if (visibility === ContentVisibility.TIER || visibility === StreamVisibility.TIER) {
+      result = hasSub ? { allowed: true } : { allowed: false, reason: 'subscription_required' };
+    } else if (visibility === ContentVisibility.TIER || visibility === StreamVisibility.TIER) {
       if (!requiredTierId) {
         const hasSub = await this.hasActiveSubscription(viewerId, creatorId);
-        return hasSub ? { allowed: true } : { allowed: false, reason: 'tier_required' };
+        result = hasSub ? { allowed: true } : { allowed: false, reason: 'tier_required' };
+      } else {
+        const meets = await this.meetsTierRequirement(viewerId, creatorId, requiredTierId);
+        result = meets ? { allowed: true } : { allowed: false, reason: 'tier_required' };
       }
-      const meets = await this.meetsTierRequirement(viewerId, creatorId, requiredTierId);
-      return meets ? { allowed: true } : { allowed: false, reason: 'tier_required' };
+    } else {
+      return { allowed: false, reason: 'not_available' };
     }
 
-    return { allowed: false, reason: 'not_available' };
+    await this.writeCachedAccess(viewerId, creatorId, cacheField, result);
+    return result;
   }
 
   assertAccess(input: AccessCheckInput): void {
@@ -492,6 +576,73 @@ export class EntitlementsService {
     }
 
     return { allowed: false, reason: 'not_available' };
+  }
+
+  /** Batch channel gates for community lists (F-503) — one checkAccessMany for tier/subscriber channels. */
+  async checkChannelAccessMany(
+    viewerId: string | null | undefined,
+    viewerRole: UserRole | null | undefined,
+    channels: Array<{
+      type: ChannelType;
+      requiredTierId?: string | null;
+      creatorId: string;
+      isMember?: boolean;
+    }>,
+    opts?: { isOwner?: boolean; isAdmin?: boolean },
+  ): Promise<AccessCheckResult[]> {
+    if (opts?.isOwner || opts?.isAdmin) {
+      return channels.map(() => ({ allowed: true }));
+    }
+
+    const results: (AccessCheckResult | null)[] = channels.map(() => null);
+    const batchItems: AccessCheckItem[] = [];
+    const batchIndices: number[] = [];
+
+    for (let i = 0; i < channels.length; i++) {
+      const channel = channels[i];
+      if (channel.type === ChannelType.PUBLIC) {
+        results[i] = { allowed: true };
+        continue;
+      }
+      if (channel.type === ChannelType.INVITE) {
+        if (!viewerId) results[i] = { allowed: false, reason: 'login_required' };
+        else {
+          results[i] = channel.isMember
+            ? { allowed: true }
+            : { allowed: false, reason: 'invite_required' };
+        }
+        continue;
+      }
+      if (channel.type === ChannelType.SUBSCRIBERS) {
+        batchIndices.push(i);
+        batchItems.push({
+          creatorId: channel.creatorId,
+          visibility: ContentVisibility.SUBSCRIBERS,
+          viewerId,
+        });
+        continue;
+      }
+      if (channel.type === ChannelType.TIER) {
+        batchIndices.push(i);
+        batchItems.push({
+          creatorId: channel.creatorId,
+          visibility: ContentVisibility.TIER,
+          requiredTierId: channel.requiredTierId,
+          viewerId,
+        });
+        continue;
+      }
+      results[i] = { allowed: false, reason: 'not_available' };
+    }
+
+    if (batchItems.length > 0) {
+      const access = await this.checkAccessMany(viewerId, viewerRole, batchItems);
+      batchIndices.forEach((channelIdx, j) => {
+        results[channelIdx] = access[j];
+      });
+    }
+
+    return results as AccessCheckResult[];
   }
 
   async grantSubscription(

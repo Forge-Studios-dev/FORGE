@@ -112,14 +112,14 @@ gantt
 
 ## Findings
 
-### F-1301: 10K tier is config-only
+### F-1301: Entitlement Redis cache layer — **Resolved (Waves 1 & 4)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | High |
-| **Evidence** | JWT + Fly config per phases 5, 7, 10 |
-| **Recommendation** | Ship F-501, F-502, Fly SLO decision in 30 days |
-| **Expected impact** | Delays Neon tier jump |
+| **Evidence** | Hot-path DB reads on auth + entitlements |
+| **Resolution** | JWT user cache (F-501); subscription cache; tier cache `ent:tier:*` (F-505); viewer access `ent:access:*` (60s) |
+| **Expected impact** | Delays Neon tier jump; stable entitlement p95 |
 
 ### F-1302: 1M requires search extraction plan
 

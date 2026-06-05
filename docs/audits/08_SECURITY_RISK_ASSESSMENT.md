@@ -34,7 +34,7 @@
 | A03 Injection | **Mitigated** | TypeORM parameterized; ValidationPipe |
 | A04 Insecure Design | **Partial** | Mock subscriptions OK for MVP; Stripe Phase 2 |
 | A05 Security Misconfiguration | **Partial** | Prod config gate strong; dev CORS `*` |
-| A06 Vulnerable Components | **Gap** | No `npm audit` / CodeQL in CI |
+| A06 Vulnerable Components | **Mitigated** | `npm audit` job + CodeQL workflow (F-801) |
 | A07 Auth Failures | **Strong** | Refresh reuse revokes all sessions |
 | A08 Data Integrity | **Mitigated** | Mux webhook verification |
 | A09 Logging Failures | **Good** | Pino + correlation ID; Sentry optional |
@@ -50,24 +50,24 @@
 
 ### High
 
-#### F-801: No automated dependency scanning in CI
+#### F-801: No automated dependency scanning in CI — **Resolved (Waves 1 & 3)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | High |
-| **Evidence** | `.github/workflows/ci.yml` — no `npm audit`, CodeQL, or Trivy |
-| **Recommendation** | Add `npm audit --audit-level=high` (non-blocking initially) + CodeQL weekly |
+| **Evidence** | Was missing from CI |
+| **Resolution** | `security-audit` job (`npm audit`) + `.github/workflows/codeql.yml` |
 | **Expected impact** | Faster CVE remediation |
 
 ### Medium
 
-#### F-802: No CSRF protection for cookie-based refresh
+#### F-802: No CSRF protection for cookie-based refresh — **Resolved (Wave 3)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | Medium |
-| **Evidence** | `auth-cookies.ts` — HttpOnly refresh cookie; SPA cross-origin with `credentials: true` |
-| **Recommendation** | SameSite=strict where possible; CSRF token on refresh POST; or refresh body-only on mobile |
+| **Evidence** | HttpOnly refresh cookie on web |
+| **Resolution** | `forge_csrf` cookie + `X-Forge-CSRF` header (production); web client updated |
 | **Expected impact** | Reduced session theft via malicious sites |
 
 #### F-803: Sentry default PII
@@ -90,13 +90,13 @@
 
 ### Low
 
-#### F-805: Admin app security headers
+#### F-805: Admin app security headers — **Resolved (Wave 1)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | Low |
-| **Evidence** | `apps/web/next.config.mjs` has headers; admin may lack parity |
-| **Recommendation** | Copy security headers to `apps/admin/next.config.mjs` |
+| **Evidence** | Admin lacked parity with web |
+| **Resolution** | Security headers in `apps/admin/next.config.mjs` |
 | **Expected impact** | Defense in depth for operator UI |
 
 #### F-806: Swagger exposed if NODE_ENV wrong

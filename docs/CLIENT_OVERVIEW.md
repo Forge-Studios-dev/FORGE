@@ -30,8 +30,17 @@ Guest → user → creator (approved) · admin on separate admin app.
 |------|:---:|:---:|:------:|:-----:|
 | Auth | ✅ | ✅ | ✅ | ✅ |
 | Feed / search | ✅ | ✅ | ✅ | — |
-| VOD / live | ✅ | ⚠️ | ⚠️ | — |
+| VOD / live | ✅ | ✅ | ✅ | — |
 | Memberships | ✅ | ✅ | — | — |
+
+### Playback parity (VOD / live)
+
+| Capability | Web | Mobile |
+|------------|:---:|:------:|
+| Mux HLS URL playback | ✅ | ✅ |
+| `accessDenied` / `accessReason` UI | ✅ | ✅ |
+| Live chat (Socket.IO) | ✅ | ✅ |
+| Membership purchase (Stripe) | — | — |
 
 Modules & routes: [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) · Status: [§16](./FORGE_PROJECT_MASTER.md#16-feature-status-matrix)
 

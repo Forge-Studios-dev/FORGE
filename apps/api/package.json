@@ -117,6 +117,14 @@
       "\\.module\\.ts$",
       "\\.controller\\.ts$"
     ],
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "coverageThreshold": {
+      "global": {
+        "lines": 32,
+        "statements": 31,
+        "functions": 32,
+        "branches": 20
+      }
+    }
   }
 }

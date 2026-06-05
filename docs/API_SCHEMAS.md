@@ -219,4 +219,20 @@ Defined in `@forge/shared-types` `content-visibility.ts`.
 
 ---
 
+## API versioning & breaking changes (F-601)
+
+FORGE exposes a single REST prefix today: **`/api/v1`**. Policy:
+
+| Rule | Detail |
+|------|--------|
+| **Stability** | Public response shapes in `@forge/shared-types` (`PublicVideo`, `PublicStream`, auth payloads, etc.) are stable within **v1**. Additive fields are allowed; removing or renaming fields is a breaking change. |
+| **Breaking changes** | Require either (a) a new route prefix (`/api/v2/...`) with parallel v1 support, or (b) a **90-day deprecation** with `Deprecation: true` and `Sunset: <RFC 7231 date>` response headers on affected routes. |
+| **Clients** | Web, mobile, and admin must bump `@forge/shared-types` together in one release train when contracts change. |
+| **Sockets** | Socket.IO events follow the same additive-only rule; event renames require a versioned namespace or dual-emit period. |
+| **Config** | `GET /platform/config` returns `apiVersion: "v1"` for client guards. |
+
+Internal DB columns, admin-only DTOs, and worker payloads are **not** covered by this guarantee.
+
+---
+
 *Update this file when public mappers or DTOs change.*

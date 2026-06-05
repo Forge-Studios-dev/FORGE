@@ -98,11 +98,11 @@ React Native, GraphQL, MongoDB, DynamoDB, Auth0, Clerk, Cloudflare Stream, Razor
 | **Recommendation** | Upgrade to Socket.IO v4-compatible Dart client; regression-test live chat |
 | **Expected impact** | Fewer reconnect bugs; consistent realtime at scale |
 
-### F-303: Consolidate Redis clients (investigate)
+### F-303: Consolidate Redis clients (investigate) — **Documented (Wave 4)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | Medium |
 | **Evidence** | ioredis (BullMQ) + `redis` package (socket adapter) |
-| **Recommendation** | Document connection limits; monitor Redis `CLIENT LIST`; evaluate unified pool if adapter allows |
-| **Expected impact** | Lower Redis connection count on multi-instance Fly |
+| **Resolution** | [REDIS_CONNECTIONS.md](../operations/REDIS_CONNECTIONS.md) — dual-client rationale, connection budget, monitoring |
+| **Expected impact** | Ops clarity; connection budgeting per Fly machine |

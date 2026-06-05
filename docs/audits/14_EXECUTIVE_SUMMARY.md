@@ -11,7 +11,7 @@
 
 FORGE is a **production-viable modular monolith** with sensible separation of HTTP (Fly API) and async work (Fly worker), Mux-centric media, and strong auth/entitlements foundations. The architecture is appropriate for MVP through ~100K MAU **if** hot-path database load and media COGS are actively managed.
 
-Primary risks are **economic and scaling**, not fundamental design flaws: **Mux variable cost** without full monetization (Stripe Phase 2), **per-request JWT database lookups**, **N+1 entitlement checks on live streams**, **Fly scale-to-zero latency**, and **missing DR/staging**. Security baseline is solid; gaps are CI dependency scanning and CSRF hardening for cookie refresh.
+Primary risks are now **economic** (Mux COGS without Stripe Phase 2) and **scale validation** (load test at 50K+ MAU). Hot-path fixes shipped: JWT cache, batch entitlements, community N+1, tier/access Redis caches, Fly `min=1`, staging bootstrap, CSRF, CodeQL, coverage gate, and mobile playback parity. **Stripe (F-1101)** and Neon restore drill remain the top backlog items.
 
 ---
 
@@ -31,11 +31,9 @@ Primary risks are **economic and scaling**, not fundamental design flaws: **Mux 
 | Risk | Impact |
 |------|--------|
 | Mux COGS without Stripe revenue | Unit economics |
-| JWT → Postgres on every auth request | Neon cost + latency at scale |
-| Live streams `checkAccess` per row | Endpoint degrades with concurrent lives |
-| Fly `min_machines_running = 0` | Cold-start UX; retry storms |
-| No Neon DR runbook | Business continuity |
-| Mobile Socket.IO v2 vs API v4 | Realtime failures |
+| Mux COGS without Stripe revenue | Unit economics (F-1101 deferred) |
+| Neon restore drill not exercised | Business continuity |
+| Search at 500K+ videos | Postgres FTS limits (F-1302) |
 | Analytics table growth | Storage cost |
 
 ---
@@ -160,20 +158,17 @@ Ranked by **cost + scale** weight, then security and velocity.
 3. Schedule **Stripe Phase 2** product/engineering kickoff before paid marketing scale.
 4. Re-audit after 90 days or at 50K MAU — whichever comes first.
 
-## Post-audit implementation (2026-06-04)
+## Post-audit implementation (through Wave 4)
 
-| Rank | ID | Status |
-|------|-----|--------|
-| 1 | F-501 JWT Redis cache | **Shipped** — `auth-user-cache.service.ts` |
-| 2 | F-502 Batch live entitlements | **Shipped** — `checkAccessMany` |
-| 16 | F-301 Remove express-rate-limit | **Shipped** |
-| 11 | F-602 Pagination max limit 50 | **Shipped** |
-| 7 | F-801 CI npm audit job | **Shipped** (non-blocking) |
-| 3 | F-1001 Mux cost runbook | **Shipped** |
-| 6 | F-901 DR runbook | **Shipped** |
-| 15 | F-803 Sentry PII env default | **Shipped** (`.env.example`) |
-| — | F-805 Admin security headers | **Shipped** |
+| Wave | IDs shipped | Status |
+|------|-------------|--------|
+| 1 | F-501, F-502, F-301, F-602, F-805, F-801, F-1001, F-901, F-803 | **Merged** |
+| 2 | F-1002, F-903, F-902 | **Merged** |
+| 3 | F-504, F-802, F-302, CodeQL, F-1201 artifact | **Merged** |
+| 4 | F-503, F-505, F-1301, F-303, F-601, F-1201 gate, F-1202, F-1102 | **Complete** |
+
+**Deferred:** F-1101 Stripe Phase 2 · F-1302 search sidecar · 100K entitlement load test.
+
+**Re-audit:** Schedule at 50K MAU or 2026-09-04 (90 days), whichever is sooner.
 
 See [AUDIT_COMPLETION.md](./AUDIT_COMPLETION.md).
-
-*Remaining items are documented for backlog; merge via feature branch per repo git policy.*
