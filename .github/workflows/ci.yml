@@ -130,6 +130,11 @@ jobs:
           JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
           JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
           NODE_ENV: test
+      - name: Run API migrations (CI)
+        run: npm run migration:run --workspace=@forge/api
+        env:
+          DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
+          MIGRATIONS_RUN: 'true'
       - run: npm run test:e2e --workspace=@forge/api
         env:
           DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
@@ -137,7 +142,7 @@ jobs:
           JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
           JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
           NODE_ENV: test
-          MIGRATIONS_RUN: 'true'
+          MIGRATIONS_RUN: 'false'
       - name: API coverage report (F-1201)
         run: npm run test:cov --workspace=@forge/api
         env:
