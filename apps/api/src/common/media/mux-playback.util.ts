@@ -15,6 +15,24 @@ export function muxPlaybackIdFromHlsUrl(hlsUrl: string | null | undefined): stri
   return match?.[1] ?? null;
 }
 
+/** Strict host check — avoids substring bypass (e.g. evil-image.mux.com.attacker). */
+export function isMuxImageThumbnailHost(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && parsed.hostname === 'image.mux.com';
+  } catch {
+    return false;
+  }
+}
+
+export function muxPlaybackIdFromImageUrl(url: string | null | undefined): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!isMuxImageThumbnailHost(trimmed)) return null;
+  const parts = new URL(trimmed).pathname.split('/').filter(Boolean);
+  return parts[0] ?? null;
+}
+
 type StreamThumbnailSource = {
   thumbnailUrl?: string | null;
   playbackUrl?: string | null;

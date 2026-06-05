@@ -4,7 +4,12 @@ import {
   appendMuxToken,
   signMuxPlaybackToken,
 } from '../../common/media/mux-signing.util';
-import { muxHlsPlaybackUrl, muxPlaybackIdFromHlsUrl } from '../../common/media/mux-playback.util';
+import {
+  isMuxImageThumbnailHost,
+  muxHlsPlaybackUrl,
+  muxPlaybackIdFromHlsUrl,
+  muxPlaybackIdFromImageUrl,
+} from '../../common/media/mux-playback.util';
 import { sanitizeHlsUrl, sanitizeThumbnailUrl } from '../../common/media/playback-url.util';
 
 /** Whether content visibility requires signed playback (non-public catalog). */
@@ -52,9 +57,9 @@ export class MuxSigningService {
     const safe = sanitizeThumbnailUrl(thumbnailUrl);
     if (!safe) return null;
     if (!visibilityRequiresSignedPlayback(visibility)) return safe;
-    if (!this.isConfigured() || !safe.includes('image.mux.com')) return safe;
+    if (!this.isConfigured() || !isMuxImageThumbnailHost(safe)) return safe;
 
-    const playbackId = muxPlaybackIdFromHlsUrl(safe.replace('image.mux.com', 'stream.mux.com'));
+    const playbackId = muxPlaybackIdFromImageUrl(safe);
     if (!playbackId) return safe;
 
     const ttlSec = this.configService.get<number>('mux.signedPlaybackTtlSec') || 3600;

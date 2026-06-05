@@ -475,7 +475,7 @@ export class EntitlementsService {
       visibility === StreamVisibility.TIER;
 
     let accessCacheKey: string | null = null;
-    if (cacheable && viewerId) {
+    if (cacheable) {
       const version = await this.getAccessCacheVersion(viewerId, creatorId);
       accessCacheKey = this.accessCacheKey(
         viewerId,
