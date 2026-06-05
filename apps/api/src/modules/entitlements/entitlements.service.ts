@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { Repository, LessThanOrEqual, In } from 'typeorm';
+import { Repository, LessThanOrEqual } from 'typeorm';
 import { UserRole } from '../users/entities/user.entity';
 import { SubscriptionTier } from './entities/subscription-tier.entity';
 import {
