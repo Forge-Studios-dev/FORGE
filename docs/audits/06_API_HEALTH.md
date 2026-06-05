@@ -93,22 +93,22 @@ No GraphQL. Single version `v1` — no v2 deprecation policy documented.
 
 ## Findings
 
-### F-601: No API versioning policy
+### F-601: No API versioning policy — **Resolved (Wave 4)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | Medium (velocity) |
 | **Evidence** | Single global prefix `api/v1` |
-| **Recommendation** | Document breaking-change process in `API_SCHEMAS.md` |
+| **Resolution** | [API_SCHEMAS.md](../API_SCHEMAS.md) § API versioning — v1 stability, 90-day deprecation, shared-types lockstep |
 | **Expected impact** | Safer mobile/web parallel releases |
 
-### F-602: Pagination caps not centrally enforced
+### F-602: Pagination caps not centrally enforced — **Resolved (Wave 1)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | Medium (performance) |
-| **Evidence** | Various controllers — no shared `MaxLimit` pipe |
-| **Recommendation** | Global max `limit` validator (e.g. 50) |
+| **Evidence** | Various controllers — unbounded `limit` |
+| **Resolution** | `pagination.util.ts` `clampLimit` max 50 |
 | **Expected impact** | Prevents expensive list queries |
 
 ### F-603: Optional JWT on hot public routes

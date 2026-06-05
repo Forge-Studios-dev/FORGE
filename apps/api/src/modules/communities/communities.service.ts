@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -87,30 +87,29 @@ export class CommunitiesService {
     const isOwner = viewerId === creatorId;
     const isAdmin = viewerRole === UserRole.ADMIN;
 
-    const visible = await Promise.all(
-      channels.map(async (channel) => {
-        const isMember =
-          channel.type === ChannelType.INVITE && viewerId
-            ? !!(await this.memberRepository.findOne({
-                where: { channelId: channel.id, userId: viewerId },
-              }))
-            : false;
+    const inviteChannelIds = channels
+      .filter((c) => c.type === ChannelType.INVITE)
+      .map((c) => c.id);
+    const memberChannelIds =
+      viewerId && inviteChannelIds.length > 0
+        ? await this.loadInviteMemberChannelIds(viewerId, inviteChannelIds)
+        : new Set<string>();
 
-        const access = await this.entitlementsService.checkChannelAccess(
-          viewerId,
-          {
-            type: channel.type,
-            requiredTierId: channel.requiredTierId,
-            creatorId,
-            isMember,
-          },
-          { isOwner, isAdmin },
-        );
-
-        if (!access.allowed) return null;
-        return toPublicChannel(channel);
-      }),
+    const accessList = await this.entitlementsService.checkChannelAccessMany(
+      viewerId,
+      viewerRole,
+      channels.map((channel) => ({
+        type: channel.type,
+        requiredTierId: channel.requiredTierId,
+        creatorId,
+        isMember: memberChannelIds.has(channel.id),
+      })),
+      { isOwner, isAdmin },
     );
+
+    const visible = channels
+      .map((channel, index) => (accessList[index].allowed ? toPublicChannel(channel) : null))
+      .filter(Boolean);
 
     return {
       community: { id: community.id, creatorId: community.creatorId, name: community.name },
@@ -248,6 +247,19 @@ export class CommunitiesService {
       throw new ForbiddenException();
     }
     return channel;
+  }
+
+  private async loadInviteMemberChannelIds(
+    viewerId: string,
+    channelIds: string[],
+  ): Promise<Set<string>> {
+    const unique = [...new Set(channelIds.filter(Boolean))];
+    if (unique.length === 0) return new Set();
+    const rows = await this.memberRepository.find({
+      where: { userId: viewerId, channelId: In(unique) },
+      select: ['channelId'],
+    });
+    return new Set(rows.map((r) => r.channelId));
   }
 
   private async assertChannelAccess(

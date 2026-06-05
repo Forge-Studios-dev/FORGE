@@ -19,9 +19,9 @@
 
 | Issue | Evidence | Recommendation | Impact |
 |-------|----------|----------------|--------|
-| JWT DB lookup per request | `jwt.strategy.ts:36-39` | Cache user snapshot (F-501) | Neon QPS, API CPU |
-| Live streams N+1 entitlements | `streaming.service.ts:143-163` | Batch access (F-502) | p95 on `/streams/live` |
-| Fly API cold start | `fly.toml` `min_machines_running = 0` | min=1 or pre-warm (F-402) | First-request latency |
+| ~~JWT DB lookup per request~~ | **Resolved** F-501 | Redis user cache | Neon QPS reduced |
+| ~~Live streams N+1 entitlements~~ | **Resolved** F-502 | `checkAccessMany` | p95 stable on `/streams/live` |
+| ~~Fly API cold start~~ | **Resolved** F-1002 | `min_machines_running = 1` | Cold-start mitigated |
 | Unbounded admin/list limits | Various controllers | Max limit pipe (F-602) | DB + memory spikes |
 
 ---
@@ -32,7 +32,7 @@
 |-------|----------|----------------|--------|
 | Permissions guard extra user fetch | `permissions.guard.ts` when CLS missing | Ensure CLS always populated post-JWT | Duplicate user reads |
 | Playlist deep relations | `playlists.service.ts` wide `relations` | Pagination on items | Large payloads |
-| Analytics table growth | `analytics-event.entity` | Retention job (F-504) | Storage + query time |
+| ~~Analytics table growth~~ | **Resolved** F-504 | Daily retention worker | Storage controlled |
 | Redis memory | Multiple TTL caches + queues | Monitor memory; alert 80% | Redis tier upgrade cost |
 
 ---
@@ -53,6 +53,9 @@
 | Guest feed (non-forYou) | ~300s + jitter | `feed.service.ts` |
 | Video detail | 120s | `content/video-cache.ts` |
 | Active subscription | 60s | `entitlements.service.ts` |
+| Tier metadata | 300s | `entitlements.service.ts` `ent:tier:*` |
+| Viewer access (per creator) | 60s | `entitlements.service.ts` `ent:access:*` |
+| JWT user snapshot | 60s | `auth-user-cache.service.ts` |
 | View counts | Redis incr → flush | `videos.service.ts`, `ViewCountFlushService` |
 
 ---
@@ -84,9 +87,9 @@
 
 | Area | Assessment | Priority |
 |------|------------|----------|
-| VOD/live parity | Master §16 — partial | **High** — more Mux playback from mobile MAU |
-| Socket.IO v2 client | `pubspec.yaml` | **High** (F-302) |
-| No widget tests | 0 `*_test.dart` | Medium |
+| VOD/live parity | **Resolved** F-1102 | `accessDenied` UI + HLS on watch/live |
+| Socket.IO client | **Resolved** F-302 | `socket_io_client: ^3.0.2` |
+| Unit tests | **Resolved** F-1202 | `video_model_test.dart` + CI `flutter test` |
 
 ---
 

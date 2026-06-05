@@ -339,7 +339,8 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 | Enterprise audit (14 phases) | [audits/README.md](./audits/README.md) · [Executive summary](./audits/14_EXECUTIVE_SUMMARY.md) |
 | Operations runbooks | [operations/README.md](./operations/README.md) |
 | Local dev | [GETTING_STARTED.md](./GETTING_STARTED.md) |
-| API schemas | [API_SCHEMAS.md](./API_SCHEMAS.md) |
+| API schemas & versioning policy | [API_SCHEMAS.md](./API_SCHEMAS.md) § API versioning |
+| Redis dual-client ops | [operations/REDIS_CONNECTIONS.md](./operations/REDIS_CONNECTIONS.md) |
 | Deploy | [DEPLOY.md](./DEPLOY.md) |
 | Media | [MEDIA.md](./MEDIA.md) |
 | Auth | [AUTH.md](./AUTH.md) |

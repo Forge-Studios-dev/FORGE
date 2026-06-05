@@ -132,9 +132,8 @@ jobs:
           JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
           JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
           NODE_ENV: test
-      - name: API coverage report (F-1201, non-blocking)
+      - name: API coverage report (F-1201)
         run: npm run test:cov --workspace=@forge/api
-        continue-on-error: true
         env:
           DATABASE_URL: postgresql://forge:forge_test_pass@localhost:5432/forge_test
           REDIS_URL: redis://localhost:6379
@@ -204,6 +203,8 @@ jobs:
       - run: flutter pub get
         working-directory: apps/mobile
       - run: flutter analyze --no-fatal-infos
+
+      - run: flutter test
         working-directory: apps/mobile
 
   admin:

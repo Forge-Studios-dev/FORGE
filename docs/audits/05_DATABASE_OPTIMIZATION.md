@@ -44,31 +44,31 @@ Entity-level indexes on `video.entity.ts` (`userId`, `status`, `createdAt`, `cat
 
 ## Issues
 
-### F-501: JWT validate — DB read every authenticated request
+### F-501: JWT validate — DB read every authenticated request — **Resolved (Wave 1)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | **High** (scale) |
-| **Evidence** | `jwt.strategy.ts:36-39` — `userRepository.findOne` on every JWT request |
-| **Recommendation** | Short TTL Redis cache by `sub`; or embed `isActive`/`deletedAt` in JWT with revocation list for disables |
+| **Evidence** | `jwt.strategy.ts` — was `userRepository.findOne` per request |
+| **Resolution** | `auth-user-cache.service.ts` — Redis snapshot 60s; bust on `logoutAll` / admin user updates |
 | **Expected impact** | Major reduction in Neon QPS at 100K+ DAU |
 
-### F-502: Live streams list — N× checkAccess
+### F-502: Live streams list — N× checkAccess — **Resolved (Wave 1)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | **High** (scale) |
-| **Evidence** | `streaming.service.ts:143-163` — `Promise.all(streams.map(... checkAccess))` |
-| **Recommendation** | Batch entitlements: load viewer subscriptions/follows once; map in memory |
-| **Expected impact** | List endpoint latency scales with live count, not O(n) DB round-trips |
+| **Evidence** | `streaming.service.ts` — per-stream `checkAccess` |
+| **Resolution** | `checkAccessMany` batches follow + subscription lookups |
+| **Expected impact** | List endpoint latency stable as live count grows |
 
-### F-503: Community channel membership lookups
+### F-503: Community channel membership lookups — **Resolved (Wave 4)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | Medium |
-| **Evidence** | `communities.service.ts` — per-channel `memberRepository.findOne` in loops |
-| **Recommendation** | Single query for all channel IDs for viewer |
+| **Evidence** | `communities.service.ts` — per-channel `memberRepository.findOne` |
+| **Resolution** | Single `IN` query + `checkChannelAccessMany` |
 | **Expected impact** | Faster community page for creators with many channels |
 
 ### F-504: Analytics events unbounded growth
@@ -80,13 +80,13 @@ Entity-level indexes on `video.entity.ts` (`userId`, `status`, `createdAt`, `cat
 | **Recommendation** | Partition by month or archive to cold storage; TTL job |
 | **Expected impact** | Lower Neon storage bill; faster admin analytics queries |
 
-### F-505: Tier lookup in meetsTierRequirement
+### F-505: Tier lookup in meetsTierRequirement — **Resolved (Wave 4)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | Low–medium |
-| **Evidence** | `entitlements.service.ts` — extra `getTierById` per gated resource |
-| **Recommendation** | Cache tier metadata in Redis with creator scope |
+| **Evidence** | `entitlements.service.ts` — repeated `getTierById` |
+| **Resolution** | Redis cache `ent:tier:{tierId}` TTL 300s; bust on tier update/delete |
 | **Expected impact** | Fewer reads on tier-gated playback paths |
 
 ---

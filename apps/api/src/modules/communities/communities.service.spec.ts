@@ -12,7 +12,7 @@ import { UserRole } from '../users/entities/user.entity';
 
 describe('CommunitiesService', () => {
   let service: CommunitiesService;
-  let entitlementsService: { checkChannelAccess: jest.Mock };
+  let entitlementsService: { checkChannelAccess: jest.Mock; checkChannelAccessMany: jest.Mock };
 
   const communityRepository = {
     findOne: jest.fn(),
@@ -29,6 +29,7 @@ describe('CommunitiesService', () => {
 
   const memberRepository = {
     findOne: jest.fn(),
+    find: jest.fn().mockResolvedValue([]),
     save: jest.fn(),
     create: jest.fn((x) => x),
   };
@@ -47,7 +48,10 @@ describe('CommunitiesService', () => {
   };
 
   beforeEach(async () => {
-    entitlementsService = { checkChannelAccess: jest.fn() };
+    entitlementsService = {
+      checkChannelAccess: jest.fn(),
+      checkChannelAccessMany: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -93,13 +97,54 @@ describe('CommunitiesService', () => {
         requiredTierId: null,
       },
     ]);
-    entitlementsService.checkChannelAccess
-      .mockResolvedValueOnce({ allowed: true })
-      .mockResolvedValueOnce({ allowed: false, reason: 'subscription_required' });
+    entitlementsService.checkChannelAccessMany.mockResolvedValue([
+      { allowed: true },
+      { allowed: false, reason: 'subscription_required' },
+    ]);
 
     const result = await service.getCommunityByCreator('creator-1', 'viewer-1', UserRole.USER);
 
     expect(result.channels).toHaveLength(1);
     expect(result.channels[0]?.slug).toBe('general');
+    expect(entitlementsService.checkChannelAccessMany).toHaveBeenCalledTimes(1);
+    expect(memberRepository.findOne).not.toHaveBeenCalled();
+  });
+
+  it('batch-loads invite memberships with one query', async () => {
+    communityRepository.findOne.mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1', name: 'Community' });
+    channelRepository.find.mockResolvedValue([
+      {
+        id: 'ch-invite',
+        communityId: 'comm-1',
+        name: 'VIP',
+        slug: 'vip',
+        type: ChannelType.INVITE,
+        sortOrder: 0,
+        requiredTierId: null,
+      },
+      {
+        id: 'ch-pub',
+        communityId: 'comm-1',
+        name: 'General',
+        slug: 'general',
+        type: ChannelType.PUBLIC,
+        sortOrder: 1,
+        requiredTierId: null,
+      },
+    ]);
+    memberRepository.find.mockResolvedValue([{ channelId: 'ch-invite' }]);
+    entitlementsService.checkChannelAccessMany.mockResolvedValue([
+      { allowed: true },
+      { allowed: true },
+    ]);
+
+    await service.getCommunityByCreator('creator-1', 'viewer-1', UserRole.USER);
+
+    expect(memberRepository.find).toHaveBeenCalledTimes(1);
+    expect(memberRepository.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'viewer-1', channelId: expect.anything() },
+      }),
+    );
   });
 });

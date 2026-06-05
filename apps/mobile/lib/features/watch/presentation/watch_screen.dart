@@ -18,6 +18,23 @@ final videoDetailProvider = FutureProvider.family.autoDispose<VideoModel, String
   return VideoModel.fromJson(payload);
 });
 
+String _accessMessage(String? reason) {
+  switch (reason) {
+    case 'login_required':
+      return 'Sign in to watch this lesson.';
+    case 'follow_required':
+      return 'Follow this creator to watch.';
+    case 'subscription_required':
+      return 'An active membership is required.';
+    case 'tier_required':
+      return 'A higher membership tier is required.';
+    case 'private':
+      return 'This lesson is private.';
+    default:
+      return 'You cannot watch this lesson.';
+  }
+}
+
 class WatchScreen extends ConsumerWidget {
   final String videoId;
   const WatchScreen({super.key, required this.videoId});
@@ -57,7 +74,11 @@ class WatchScreen extends ConsumerWidget {
           onAction: () => context.pop(),
         ),
         data: (video) {
-          final canPlay = video.status == 'ready' && video.hlsUrl != null && video.hlsUrl!.isNotEmpty;
+          final canPlay =
+              !video.accessDenied &&
+              video.status == 'ready' &&
+              video.hlsUrl != null &&
+              video.hlsUrl!.isNotEmpty;
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -75,17 +96,21 @@ class WatchScreen extends ConsumerWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              video.status == 'processing'
-                                  ? Icons.hourglass_top
-                                  : Icons.videocam_off_outlined,
+                              video.accessDenied
+                                  ? Icons.lock_outline
+                                  : video.status == 'processing'
+                                      ? Icons.hourglass_top
+                                      : Icons.videocam_off_outlined,
                               size: 40,
                               color: ForgeTokens.outline,
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              video.status == 'processing'
-                                  ? 'Processing your lesson'
-                                  : 'Playback not available',
+                              video.accessDenied
+                                  ? 'Membership required'
+                                  : video.status == 'processing'
+                                      ? 'Processing your lesson'
+                                      : 'Playback not available',
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
@@ -94,11 +119,13 @@ class WatchScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              video.status == 'processing'
-                                  ? 'This video is being transcoded. Check back soon.'
-                                  : video.status == 'failed'
-                                      ? 'This upload could not be processed.'
-                                      : 'This lesson is not ready for playback yet.',
+                              video.accessDenied
+                                  ? _accessMessage(video.accessReason)
+                                  : video.status == 'processing'
+                                      ? 'This video is being transcoded. Check back soon.'
+                                      : video.status == 'failed'
+                                          ? 'This upload could not be processed.'
+                                          : 'This lesson is not ready for playback yet.',
                               textAlign: TextAlign.center,
                               style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
                             ),
