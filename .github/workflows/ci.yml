@@ -193,8 +193,12 @@ jobs:
           E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
 
       - name: E2E auth (web, when secrets set)
-        if: ${{ secrets.E2E_TEST_EMAIL != '' && secrets.E2E_TEST_PASSWORD != '' }}
-        run: npm run test:e2e --workspace=@forge/web -- e2e/auth.spec.ts
+        run: |
+          if [ -n "$E2E_TEST_EMAIL" ] && [ -n "$E2E_TEST_PASSWORD" ]; then
+            npm run test:e2e --workspace=@forge/web -- e2e/auth.spec.ts
+          else
+            echo "Skipping auth e2e — E2E_TEST_EMAIL / E2E_TEST_PASSWORD not configured"
+          fi
         env:
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:3000
