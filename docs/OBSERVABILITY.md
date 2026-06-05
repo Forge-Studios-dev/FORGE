@@ -60,7 +60,7 @@ Web and admin use `@sentry/nextjs` when `NEXT_PUBLIC_SENTRY_DSN` is set.
 ```bash
 SENTRY_DSN=https://...
 SENTRY_TRACES_SAMPLE_RATE=0.1
-SENTRY_SEND_DEFAULT_PII=true   # optional; default true when DSN set
+SENTRY_SEND_DEFAULT_PII=false  # production default (F-803); omit or false to avoid sending PII
 ```
 
 Loaded from `apps/api/src/instrument.ts` before Nest boots. Production:
@@ -69,7 +69,14 @@ Loaded from `apps/api/src/instrument.ts` before Nest boots. Production:
 SENTRY_DSN='https://...' bash scripts/set-sentry-secrets-fly.sh
 ```
 
-Web/admin: set `NEXT_PUBLIC_SENTRY_DSN` (same DSN) on Vercel:
+If production was previously configured with `SENTRY_SEND_DEFAULT_PII=true`, run a one-time update:
+
+```bash
+fly secrets set SENTRY_SEND_DEFAULT_PII=false --app forge-studios-api
+fly secrets set SENTRY_SEND_DEFAULT_PII=false --app forge-studios-worker
+```
+
+Web/admin: set `NEXT_PUBLIC_SENTRY_DSN` (same DSN) on Vercel (`NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII=false`):
 
 ```bash
 SENTRY_DSN='https://...' bash scripts/set-sentry-vercel-env.sh

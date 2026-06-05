@@ -71,14 +71,14 @@ Entity-level indexes on `video.entity.ts` (`userId`, `status`, `createdAt`, `cat
 | **Resolution** | Single `IN` query + `checkChannelAccessMany` |
 | **Expected impact** | Faster community page for creators with many channels |
 
-### F-504: Analytics events unbounded growth
+### F-504: Analytics events unbounded growth — **Resolved (Wave 3)**
 
 | Field | Value |
 |-------|-------|
 | **Severity** | Medium (cost) |
-| **Evidence** | `analytics-event.entity.ts` — ingest without documented retention |
-| **Recommendation** | Partition by month or archive to cold storage; TTL job |
-| **Expected impact** | Lower Neon storage bill; faster admin analytics queries |
+| **Evidence** | `analytics-event.entity.ts` |
+| **Resolution** | `analytics-retention` BullMQ queue + daily scheduler (`analytics-retention.scheduler.ts`) |
+| **Expected impact** | Bounded Neon storage; faster admin analytics queries |
 
 ### F-505: Tier lookup in meetsTierRequirement — **Resolved (Wave 4)**
 

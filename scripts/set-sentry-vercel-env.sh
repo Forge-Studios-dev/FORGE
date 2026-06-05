@@ -37,7 +37,7 @@ for app in apps/web apps/admin; do
   echo "==> $app"
   set_vercel_env "$app" NEXT_PUBLIC_SENTRY_DSN "$DSN"
   set_vercel_env "$app" NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE "$TRACES"
-  set_vercel_env "$app" NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII true
+  set_vercel_env "$app" NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII false
 done
 
 echo ""

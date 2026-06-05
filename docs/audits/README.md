@@ -1,6 +1,7 @@
 # FORGE — Enterprise Technical Audit
 
 **Date:** 2026-06-04  
+**Closed:** 2026-06-05 (Wave 5)  
 **Framework:** 14-phase enterprise audit (architecture, stack, security, cost, scale, feature gaps)  
 **Ranking lens:** Cost + scale (Mux, Fly, Neon, Redis, N+1, cold starts, growth breakpoints)  
 **Evidence base:** Monorepo source, `docs/FORGE_PROJECT_MASTER.md`, CI/Fly/Vercel configs — no live billing dashboards.
@@ -24,7 +25,18 @@
 | 11 | [11_FEATURE_GAP_ANALYSIS.md](./11_FEATURE_GAP_ANALYSIS.md) | vs YouTube / Patreon / Skillshare |
 | 12 | [12_CODE_QUALITY_SCORECARD.md](./12_CODE_QUALITY_SCORECARD.md) | Tests, debt, duplication |
 | 13 | [13_SCALABILITY_ROADMAP.md](./13_SCALABILITY_ROADMAP.md) | **Primary lens** — 10K → 10M |
-| 14 | [14_EXECUTIVE_SUMMARY.md](./14_EXECUTIVE_SUMMARY.md) | Top 20 fixes, 30/90-day roadmaps |
+| 14 | [14_EXECUTIVE_SUMMARY.md](./14_EXECUTIVE_SUMMARY.md) | Top 20 fixes, closure checklist |
+
+---
+
+## Closure & backlog
+
+| Document | Purpose |
+|----------|---------|
+| [AUDIT_COMPLETION.md](./AUDIT_COMPLETION.md) | Wave 1–5 checklist — **AUDIT CLOSED** |
+| [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md) | Stripe, search, load test, ops cadence — not blocking closure |
+
+**Re-audit:** 2026-09-04 or 50K MAU — whichever is sooner.
 
 ---
 
@@ -43,22 +55,23 @@ Each actionable finding uses:
 | **Expected impact** | Latency, cost ($), risk, or dev velocity |
 ```
 
-Cross-reference IDs in [14_EXECUTIVE_SUMMARY.md](./14_EXECUTIVE_SUMMARY.md) (e.g. F-001).
+Resolved findings add a **Resolution** row. Cross-reference IDs in [14_EXECUTIVE_SUMMARY.md](./14_EXECUTIVE_SUMMARY.md).
 
 ---
 
 ## Implementation status
 
-**Waves 1–4 remediations are complete** on `main` / `fix/audit-wave-4` — see [AUDIT_COMPLETION.md](./AUDIT_COMPLETION.md).
+**Waves 1–5 complete** on `main` / `fix/audit-closure` — see [AUDIT_COMPLETION.md](./AUDIT_COMPLETION.md).
 
 | Wave | Focus | Status |
 |------|-------|--------|
 | 1 | JWT cache, live batch entitlements, pagination caps | Merged |
 | 2 | Fly SLO, BullMQ alerts, staging | Merged |
 | 3 | Analytics retention, CSRF, CodeQL, mobile Socket.IO v3 | Merged |
-| 4 | Community N+1, tier cache, Redis/API docs, coverage gate, mobile tests & playback | Complete |
+| 4 | Community N+1, tier cache, Redis/API docs, coverage gate, mobile tests & playback | Merged |
+| 5 | Doc reconcile, Sentry PII ops, Mux idempotency, formal closure | Complete |
 
-**Remaining:** F-1101 Stripe (deferred), load testing at scale, search sidecar eval.
+**Deferred:** [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md)
 
 ---
 
@@ -67,5 +80,4 @@ Cross-reference IDs in [14_EXECUTIVE_SUMMARY.md](./14_EXECUTIVE_SUMMARY.md) (e.g
 - [FORGE_PROJECT_MASTER.md](../FORGE_PROJECT_MASTER.md)
 - [OBSERVABILITY.md](../OBSERVABILITY.md) · [DEPLOY.md](../DEPLOY.md) · [CI_CD.md](../CI_CD.md)
 - [MEDIA.md](../MEDIA.md) · [MEMBERSHIPS.md](../MEMBERSHIPS.md)
-
-*Implementation of fixes is out of scope for this audit — use feature branches per repo git policy.*
+- [operations/README.md](../operations/README.md)

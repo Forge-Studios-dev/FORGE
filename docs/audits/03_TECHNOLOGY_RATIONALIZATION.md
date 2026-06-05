@@ -14,7 +14,7 @@
 | **BullMQ 5** | KEEP | Video, analytics, push, subscriptions | Redis dependency (required anyway) |
 | **ioredis** | KEEP | BullMQ, cache, lockout, view counts | — |
 | **`redis` npm (node-redis)** | CONSOLIDATE | Only for `@socket.io/redis-adapter` in gateway | Two connection pools to same URL |
-| **Socket.IO 4.7** | KEEP | Gateway + web client v4 | Mobile on v2 client — see REPLACE |
+| **Socket.IO 4.7** | KEEP | Gateway + web client v4; mobile `socket_io_client ^3.0.2` (F-302) |
 | **Mux** | KEEP | Prod-enforced VOD/live (`validate-production-config.ts`) | Primary variable COGS |
 | **FFmpeg (fluent-ffmpeg)** | KEEP (dev only) | Local transcode; **REMOVE from prod worker images** if unused | Accidental prod enable = CPU + duplicate path |
 | **AWS SDK S3** | KEEP | Uploads, multipart, avatars | Egress costs |
@@ -22,7 +22,7 @@
 | **Passport JWT + bcrypt** | KEEP | Custom auth aligned with Postgres sessions | — |
 | **nodemailer** | KEEP | SMTP abstraction (Resend/Mailpit as transport) | — |
 | **@nestjs/throttler** | KEEP | Global + per-route limits | — |
-| **express-rate-limit** | REMOVE | In `package.json`; zero usage in `src/` | Dead dep, audit noise |
+| **express-rate-limit** | **Removed** (F-301) | Was unused; Throttler only | — |
 | **OpenTelemetry** | KEEP | Opt-in via `OTEL_EXPORTER_OTLP_ENDPOINT` | Cost if always-on without sampling |
 | **Sentry NestJS v10** | KEEP | Error tracking | Event volume / PII — tune in prod |
 | **prom-client** | KEEP | `/metrics` for Grafana | Scrape token rotation |
@@ -54,7 +54,7 @@
 | **Riverpod + go_router** | KEEP | State + deep links |
 | **dio** | KEEP | HTTP to API |
 | **video_player + chewie** | KEEP | Playback (needs Mux URL parity) |
-| **socket_io_client ^2.0.3** | **REPLACE** | API uses Socket.IO 4 — protocol/client mismatch risk |
+| **socket_io_client ^3.0.2** | **KEEP** | Upgraded F-302; compatible with API Socket.IO 4 |
 | **flutter_secure_storage** | KEEP | Token storage |
 
 ---
@@ -80,23 +80,18 @@ React Native, GraphQL, MongoDB, DynamoDB, Auth0, Clerk, Cloudflare Stream, Razor
 
 ## Findings
 
-### F-301: Remove express-rate-limit
+### F-301: Remove express-rate-limit — **Resolved (Wave 1)**
 
 | Field | Value |
 |-------|-------|
-| **Severity** | Low |
-| **Evidence** | `apps/api/package.json` line 53; no imports in `apps/api/src/` |
-| **Recommendation** | `npm uninstall express-rate-limit` in `@forge/api` |
-| **Expected impact** | Smaller install; less confusion vs Throttler |
+| **Resolution** | Removed from `@forge/api` dependencies |
 
-### F-302: Upgrade mobile Socket.IO client
+### F-302: Upgrade mobile Socket.IO client — **Resolved (Wave 3)**
 
 | Field | Value |
 |-------|-------|
-| **Severity** | High (scale/reliability) |
-| **Evidence** | `apps/mobile/pubspec.yaml` `socket_io_client: ^2.0.3+1` vs API `socket.io ^4.7.5` |
-| **Recommendation** | Upgrade to Socket.IO v4-compatible Dart client; regression-test live chat |
-| **Expected impact** | Fewer reconnect bugs; consistent realtime at scale |
+| **Resolution** | `apps/mobile/pubspec.yaml` — `socket_io_client: ^3.0.2` |
+| **Expected impact** | Consistent realtime with API Socket.IO 4 |
 
 ### F-303: Consolidate Redis clients (investigate) — **Documented (Wave 4)**
 

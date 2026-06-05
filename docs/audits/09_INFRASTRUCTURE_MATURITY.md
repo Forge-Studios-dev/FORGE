@@ -1,6 +1,6 @@
 # Phase 9 — Infrastructure Maturity Report
 
-**Audit date:** 2026-06-04
+**Audit date:** 2026-06-04 · **Reconciled:** 2026-06-05 (Wave 5 closure)
 
 ---
 
@@ -8,13 +8,13 @@
 
 | Area | Score | Notes |
 |------|-------|-------|
-| **CI/CD** | 8 | Path-filtered `ci.yml`; `release.yml` orchestrates Fly + Vercel; manual deploy workflows |
-| **Observability** | 7 | API metrics, Grafana assets, Sentry; worker/mobile/front gaps |
+| **CI/CD** | 8 | Path-filtered `ci.yml`; `release.yml`; CodeQL; coverage gate |
+| **Observability** | 8 | API metrics, Grafana + BullMQ gauges, Sentry PII=false ops default |
 | **Secrets management** | 7 | Fly/Vercel/GH secrets; sync scripts; no secrets in git |
-| **Disaster recovery** | 5 | DR runbook added; Neon PITR drill still recommended |
-| **Environments** | 6 | Staging bootstrap documented + `deploy-staging.yml` |
+| **Disaster recovery** | 7 | [DISASTER_RECOVERY.md](../operations/DISASTER_RECOVERY.md); annual drill in [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md) |
+| **Environments** | 8 | Staging bootstrap + `deploy-staging.yml` — [STAGING.md](../operations/STAGING.md) |
 
-**Overall infra maturity:** 7/10 — deploy pipeline + staging; DR drill remains.
+**Overall infra maturity:** 8/10 — deploy pipeline, staging, DR runbook; Neon restore drill on ops cadence.
 
 ---
 
@@ -33,10 +33,9 @@
 - Post-deploy smoke: `smoke-api.sh`, `verify-metrics-scrape.sh`
 - Production environment in GitHub for secret override
 
-**Gaps:**
-- Worker not in metrics verification
+**Remaining gaps:**
+- Worker not in release metrics verification (queue depth via Grafana instead)
 - E2E auth tests need optional GH secrets
-- Staging not fully automated end-to-end
 
 ---
 
@@ -74,11 +73,10 @@
 | OTel | Opt-in OTLP endpoint |
 | Health | `/health/live` (cheap), `/ready` (DB, Redis, queues) |
 
-**Gaps:**
+**Remaining gaps:**
 - Worker: no HTTP health — process-only monitoring
 - Mobile: no crash reporting wired in CI
 - Neon/Redis/S3: no vendor dashboards documented in-repo
-- Queue depth alerts not enforced in release
 
 ---
 
@@ -86,7 +84,7 @@
 
 | Asset | Documented backup | Gap |
 |-------|-------------------|-----|
-| Neon Postgres | Not in repo | **PITR / restore drill needed** |
+| Neon Postgres | [DISASTER_RECOVERY.md](../operations/DISASTER_RECOVERY.md) | **Annual restore drill** — [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md) |
 | Redis | Local compose AOF only | Redis Cloud backup policy not documented |
 | S3 media | Not in repo | Lifecycle rules not documented |
 | Mux assets | Vendor-managed | Deletion/archival policy not documented |
@@ -99,29 +97,23 @@
 
 ## Findings
 
-### F-901: No disaster recovery runbook
+### F-901: No disaster recovery runbook — **Resolved (Wave 1)**
 
 | Field | Value |
 |-------|-------|
-| **Severity** | High (reliability) |
-| **Evidence** | `docs/DEPLOY.md` has rollback, not DB restore |
-| **Recommendation** | Document Neon PITR steps, RPO/RTO targets, annual drill |
-| **Expected impact** | Business continuity |
+| **Resolution** | [DISASTER_RECOVERY.md](../operations/DISASTER_RECOVERY.md) — Neon PITR steps, RPO/RTO |
+| **Ops cadence** | Annual restore drill — [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md) |
 
-### F-902: No staging environment
+### F-902: No staging environment — **Resolved (Wave 2)**
 
 | Field | Value |
 |-------|-------|
-| **Severity** | Medium |
-| **Evidence** | Workflows target production URLs only |
-| **Recommendation** | Fly staging app + Neon branch + Vercel preview |
-| **Expected impact** | Fewer prod incidents; safer load tests |
+| **Resolution** | [STAGING.md](../operations/STAGING.md), `.github/workflows/deploy-staging.yml` |
+| **Expected impact** | Safer pre-prod validation |
 
-### F-903: Worker observability gap
+### F-903: Worker observability gap — **Resolved (Wave 2)**
 
 | Field | Value |
 |-------|-------|
-| **Severity** | Medium |
-| **Evidence** | `release.yml` smokes API metrics, not worker queues |
-| **Recommendation** | Grafana alerts on BullMQ depth; Sentry on worker |
+| **Resolution** | BullMQ Prometheus gauges + Grafana alert rules (`forge_bullmq_jobs_waiting`) |
 | **Expected impact** | Faster incident response on video backlog |

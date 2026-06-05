@@ -336,7 +336,7 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 
 | Topic | File |
 |-------|------|
-| Enterprise audit (14 phases) | [audits/README.md](./audits/README.md) · [Executive summary](./audits/14_EXECUTIVE_SUMMARY.md) |
+| Enterprise audit (14 phases) | [audits/README.md](./audits/README.md) · **Closed 2026-06** · [completion](./audits/AUDIT_COMPLETION.md) · [deferred backlog](./audits/DEFERRED_BACKLOG.md) · re-audit **2026-09-04** or 50K MAU |
 | Operations runbooks | [operations/README.md](./operations/README.md) |
 | Local dev | [GETTING_STARTED.md](./GETTING_STARTED.md) |
 | API schemas & versioning policy | [API_SCHEMAS.md](./API_SCHEMAS.md) § API versioning |

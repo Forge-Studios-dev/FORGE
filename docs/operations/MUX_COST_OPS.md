@@ -34,9 +34,24 @@ Production enforces `VIDEO_TRANSCODE_PROVIDER=mux` only (`validate-production-co
 - Do not set `ENABLE_VIDEO_WORKER` on the API machine in production.
 - Entitlements hide playback URLs when access denied (reduces wasted delivery only for gated UI paths).
 
-## Webhook idempotency
+## Webhook idempotency (F-1001)
 
-VOD ingest jobs use deterministic BullMQ `jobId`: `mux-ingest-${videoId}` in [videos.service.ts](../../apps/api/src/modules/content/videos.service.ts). Retried Mux webhooks should not create duplicate ingest jobs for the same video. Monitor `forge_bullmq_jobs_waiting{queue="mux-vod-ingest"}` after deploys.
+VOD ingest uses a **stable BullMQ `jobId`** per video via `muxVodIngestJobId(videoId)` in [mux-vod.constants.ts](../../apps/api/src/modules/content/mux-vod.constants.ts), enqueued from [videos.service.ts](../../apps/api/src/modules/content/videos.service.ts).
+
+| Behavior | Detail |
+|----------|--------|
+| Job ID format | `mux-ingest-${videoId}` |
+| Duplicate enqueue | BullMQ rejects a second job with the same `jobId` while the first is active/waiting |
+| Mux webhook retry | Safe — retried `video.asset.ready` events should not spawn parallel ingest |
+| Regression guard | Unit test in `mux-vod.constants.spec.ts` |
+
+**When to inspect DLQ / worker logs:**
+
+- `forge_bullmq_jobs_waiting{queue="mux-vod-ingest"}` spikes after a deploy or Mux incident
+- Studio shows upload stuck in `processing` while Mux console has a ready asset
+- Repeated webhook 5xx from `POST /streams/webhooks/mux` — check API logs, then worker ingest outcome
+
+Do not manually re-enqueue with a new `jobId` unless the prior job failed permanently and the video row is reset.
 
 ---
 
