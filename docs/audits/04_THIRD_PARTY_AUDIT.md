@@ -10,7 +10,7 @@
 | Service | Usage in FORGE | Env / config | Lock-in | Cost driver | Consolidation / alt |
 |---------|----------------|--------------|---------|-------------|---------------------|
 | **Mux** | VOD transcode, live streams, webhooks | `MUX_*`, `VIDEO_TRANSCODE_PROVIDER=mux` | High (playback IDs, live IDs) | Minutes stored + delivered; live hours | None at scale without rebuild; optimize ingest idempotency |
-| **Fly.io** | API `forge-studios-api`, worker `forge-studios-worker` | `fly.toml`, `fly.worker.toml` | Medium | Machine RAM/CPU hours; scale-to-zero | Alternative: AWS ECS/Railway — migration cost high |
+| **Fly.io** | API `forge-studios-api`, worker `forge-studios-worker` | `fly.toml`, `fly.worker.toml` | Medium | Machine RAM/CPU hours; `min_machines_running=1` (F-1002) | Alternative: AWS ECS/Railway — migration cost high |
 | **Neon** | Production Postgres | `DATABASE_URL` pooled | Medium | Storage + compute hours | Supabase PG, RDS — migration moderate |
 | **Redis Cloud** | BullMQ, cache, sockets, lockout, views | `REDIS_URL` | Medium | Memory tier + ops | Upstash not supported per docs; self-host Redis ops burden |
 | **AWS S3** | Uploads, multipart, thumbnails | `AWS_*`, `S3_BUCKET_NAME` | Low–medium | Storage + egress | R2 cheaper egress; migration effort |

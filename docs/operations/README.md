@@ -1,6 +1,6 @@
 # FORGE — Operations runbooks
 
-Operational guides referenced by the [enterprise audit](../audits/README.md).
+Operational guides referenced by the [enterprise audit](../audits/README.md) (**closed** 2026-06-05). Deferred items: [DEFERRED_BACKLOG.md](../audits/DEFERRED_BACKLOG.md).
 
 | Runbook | Purpose |
 |---------|---------|

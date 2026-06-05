@@ -52,7 +52,7 @@ No GraphQL. Single version `v1` — no v2 deprecation policy documented.
 | Analytics | 120/min (`analytics.controller.ts`) |
 | Stream chat | Redis slow-mode per user (`stream-chat.service.ts`) — not HTTP throttle |
 
-**Dead code:** `express-rate-limit` in package.json — unused (see F-301).
+**F-301:** `express-rate-limit` removed — Throttler only.
 
 ---
 

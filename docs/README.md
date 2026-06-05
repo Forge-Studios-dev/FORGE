@@ -6,9 +6,9 @@
 
 ---
 
-## Enterprise audit (2026-06-04)
+## Enterprise audit — **closed** 2026-06-05
 
-Full 14-phase technical audit (cost + scale lens): **[audits/README.md](./audits/README.md)** · Executive summary: [audits/14_EXECUTIVE_SUMMARY.md](./audits/14_EXECUTIVE_SUMMARY.md)
+Full 14-phase technical audit (cost + scale lens): **[audits/README.md](./audits/README.md)** · [Completion checklist](./audits/AUDIT_COMPLETION.md) · [Deferred backlog](./audits/DEFERRED_BACKLOG.md) · Re-audit **2026-09-04** or 50K MAU
 
 ---
 
