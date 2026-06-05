@@ -40,6 +40,21 @@ curl -s -X POST http://localhost:3001/api/v1/auth/login \
 
 **Flows:** sign up → watch → creator request → admin approve → upload (if S3/Mux) → admin reports.
 
+## Gated playback (VOD + live) — F-1102
+
+Requires Mux signing keys in API (`MUX_SIGNING_KEY_ID`, `MUX_SIGNING_PRIVATE_KEY`) for signed HLS on tier/subscriber content.
+
+| Case | Web | Mobile | Expected |
+|------|-----|--------|----------|
+| Public VOD | `/watch/[id]` | Watch screen | Plays without membership |
+| Tier-gated VOD (logged out) | `/watch/[id]` | Watch screen | `accessDenied` UI; membership CTA; no player |
+| Tier-gated VOD (member) | `/watch/[id]` | Watch screen | Signed `hlsUrl` plays |
+| Public live | `/live/[id]` | Live watch | Plays when `playbackUrl` present |
+| Gated live (no access) | `/live/[id]` | Live watch | `accessDenied` + membership CTA; chat hidden |
+| Stripe checkout (staging) | Creator profile → tier | — | Checkout redirect; webhook grants `source: payment` |
+
+Stripe staging: [operations/STAGING.md](./operations/STAGING.md). Billing: [MEMBERSHIPS.md](./MEMBERSHIPS.md).
+
 Full route matrix and negative cases: see git history of `mvp-test-matrix.md` or expand in PRs as features ship.
 
 ## Environment (local)
