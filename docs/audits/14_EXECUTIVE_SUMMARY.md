@@ -1,6 +1,7 @@
 # Phase 14 — Executive Summary
 
 **Audit date:** 2026-06-04  
+**Audit closed:** 2026-06-05 (Wave 5)  
 **Platform:** FORGE — skill-first creator platform (NestJS, Next.js, Flutter)  
 **Lens:** Cost + scale (Mux, Fly, Neon, Redis, growth breakpoints)  
 **Full reports:** [docs/audits/README.md](./README.md)
@@ -9,9 +10,9 @@
 
 ## Executive summary
 
-FORGE is a **production-viable modular monolith** with sensible separation of HTTP (Fly API) and async work (Fly worker), Mux-centric media, and strong auth/entitlements foundations. The architecture is appropriate for MVP through ~100K MAU **if** hot-path database load and media COGS are actively managed.
+FORGE is a **production-viable modular monolith** with sensible separation of HTTP (Fly API) and async work (Fly worker), Mux-centric media, and strong auth/entitlements foundations. The architecture is appropriate for MVP through ~100K MAU with hot-path database load and media COGS actively managed.
 
-Primary risks are now **economic** (Mux COGS without Stripe Phase 2) and **scale validation** (load test at 50K+ MAU). Hot-path fixes shipped: JWT cache, batch entitlements, community N+1, tier/access Redis caches, Fly `min=1`, staging bootstrap, CSRF, CodeQL, coverage gate, and mobile playback parity. **Stripe (F-1101)** and Neon restore drill remain the top backlog items.
+**Audit status: CLOSED.** Waves 1–5 shipped 19/19 top-priority fixes (excluding deferred F-1101 Stripe). Remaining items are product/ops backlog — see [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md).
 
 ---
 
@@ -20,124 +21,96 @@ Primary risks are now **economic** (Mux COGS without Stripe Phase 2) and **scale
 - Feature-based NestJS modules with global guard pipeline and prod config validation (`validate-production-config.ts`)
 - Worker isolation for video, analytics, push, subscriptions
 - Redis used correctly for feed cache, view counts, socket scale-out, lockout
-- CI + release pipeline with post-deploy smoke and metrics verification
+- CI + release pipeline with post-deploy smoke, CodeQL, and coverage gate
 - Public API contracts in `@forge/shared-types` and `API_SCHEMAS.md`
 - Mux-only production transcode enforcement
 
 ---
 
-## What is risky
+## What is risky (post-closure)
 
-| Risk | Impact |
-|------|--------|
-| Mux COGS without Stripe revenue | Unit economics |
-| Mux COGS without Stripe revenue | Unit economics (F-1101 deferred) |
-| Neon restore drill not exercised | Business continuity |
-| Search at 500K+ videos | Postgres FTS limits (F-1302) |
-| Analytics table growth | Storage cost |
-
----
-
-## What is unnecessary
-
-- `express-rate-limit` package (unused — use Throttler only)
-- FFmpeg worker in any production environment
-- Second observability path without OTel collector configured
-- Potential second Vercel project long-term if admin remains low-traffic
+| Risk | Impact | Status |
+|------|--------|--------|
+| Mux COGS without Stripe revenue | Unit economics | **Deferred** F-1101 |
+| Neon restore drill not exercised | Business continuity | Ops cadence — [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md) |
+| Search at 500K+ videos | Postgres FTS limits | **Deferred** F-1302 |
+| Analytics table growth | Storage cost | **Resolved** F-504 |
 
 ---
 
-## What should be removed / replaced / optimized
+## What was unnecessary (addressed)
 
-| Action | Item |
-|--------|------|
-| **Remove** | `express-rate-limit` dependency |
-| **Replace** | Mobile `socket_io_client` v2 → v4-compatible |
-| **Optimize** | JWT user cache; batch entitlements; Mux asset lifecycle; analytics retention |
-| **Consolidate** | Redis client strategy (document); Vercel apps (future) |
-| **Keep** | NestJS monolith, Mux, Neon, Redis Cloud, BullMQ worker split |
+- `express-rate-limit` package — **Removed** (F-301)
+- FFmpeg worker in production — enforced via config validation
+- Mobile Socket.IO v2 client — **Upgraded** to v3 (F-302)
 
 ---
 
-## Top 20 highest-priority fixes
+## Top 20 highest-priority fixes — completion status
 
-Ranked by **cost + scale** weight, then security and velocity.
-
-| Rank | ID | Fix | Business | Cost | Security | Perf | Velocity |
-|------|-----|-----|----------|------|----------|------|----------|
-| 1 | F-501 | Cache JWT user validation (Redis short TTL) | ● | ●●● | ● | ●●● | ●● |
-| 2 | F-502 | Batch `checkAccess` on live stream lists | ● | ●● | ● | ●●● | ●● |
-| 3 | F-1001 | Mux cost runbook + webhook idempotency audit | ●● | ●●● | ● | ● | ● |
-| 4 | F-1002 | Fly prod SLO: scale-to-zero vs min=1 | ● | ●● | — | ●●● | ● |
-| 5 | F-1101 | Stripe Phase 2 (real billing) | ●●● | ●●● | ● | — | ●● |
-| 6 | F-901 | Neon PITR + restore drill documented | ●● | ● | ●● | — | ● |
-| 7 | F-302 | Upgrade mobile Socket.IO client | ● | ● | ● | ●● | ●● |
-| 8 | F-504 | Analytics retention / partitioning | ● | ●● | ● | ●● | ●● |
-| 9 | F-903 | Worker queue depth Grafana alerts | ● | ● | ● | ●● | ●● |
-| 10 | F-801 | CI: npm audit + CodeQL | ● | — | ●●● | — | ●● |
-| 11 | F-602 | Global API max pagination limit | ● | ● | ● | ●● | ● |
-| 12 | F-1301 | Entitlement Redis cache `viewer:creator` | ● | ●● | ● | ●● | ●● |
-| 13 | F-902 | Staging environment (Fly + Neon branch) | ●● | ● | ●● | — | ●●● |
-| 14 | F-1102 | Mobile VOD/live playback parity | ●● | ●● | — | ●● | ●● |
-| 15 | F-803 | Disable Sentry default PII in prod | ● | — | ●● | — | ● |
-| 16 | F-301 | Remove unused express-rate-limit | — | — | — | — | ●●● |
-| 17 | F-1201 | API coverage gate on critical modules | ● | — | ●● | ● | ●● |
-| 18 | F-303 | Document Redis dual-client limits | — | ●● | — | ● | ● |
-| 19 | F-802 | CSRF strategy for refresh cookie | ● | — | ●● | — | ●● |
-| 20 | F-601 | API versioning / deprecation policy | ●● | — | — | — | ●●● |
+| Rank | ID | Fix | Status |
+|------|-----|-----|--------|
+| 1 | F-501 | JWT user cache | **Shipped** |
+| 2 | F-502 | Batch live entitlements | **Shipped** |
+| 3 | F-1001 | Mux cost runbook + idempotency | **Shipped** |
+| 4 | F-1002 | Fly SLO `min=1` | **Shipped** |
+| 5 | F-1101 | Stripe Phase 2 | **Deferred** |
+| 6 | F-901 | DR runbook | **Shipped** |
+| 7 | F-302 | Mobile Socket.IO v3 | **Shipped** |
+| 8 | F-504 | Analytics retention | **Shipped** |
+| 9 | F-903 | BullMQ Grafana alerts | **Shipped** |
+| 10 | F-801 | npm audit + CodeQL | **Shipped** |
+| 11 | F-602 | Pagination cap | **Shipped** |
+| 12 | F-1301 | Entitlement Redis cache | **Shipped** |
+| 13 | F-902 | Staging environment | **Shipped** |
+| 14 | F-1102 | Mobile playback parity | **Shipped** |
+| 15 | F-803 | Sentry PII=false in prod | **Shipped** (Wave 5 ops alignment) |
+| 16 | F-301 | Remove express-rate-limit | **Shipped** |
+| 17 | F-1201 | API coverage gate | **Shipped** |
+| 18 | F-303 | Redis dual-client docs | **Shipped** |
+| 19 | F-802 | CSRF refresh cookie | **Shipped** |
+| 20 | F-601 | API versioning policy | **Shipped** |
 
 ---
 
-## 30-day roadmap
+## 30-day roadmap — completed
 
-### Week 1 — Measure & quick wins
-
-- Baseline: Fly cold-start p95, Neon QPS on auth routes, Mux dashboard minutes
-- Remove `express-rate-limit` (F-301)
-- Set `SENTRY_SEND_DEFAULT_PII=false` in prod (F-803)
-- Document Mux webhook idempotency review (F-1001)
-
-### Week 2 — Hot path performance
-
-- Implement JWT user snapshot cache (F-501)
-- Batch entitlements on `getLiveStreams` (F-502)
-- Add global max `limit` on list endpoints (F-602)
-
-### Week 3 — Ops & cost
-
-- Fly SLO decision and config change if needed (F-1002)
-- Grafana BullMQ queue alerts (F-903)
-- Draft Neon restore runbook (F-901)
-
-### Week 4 — Client & CI
-
-- Plan mobile Socket.IO upgrade (F-302)
-- Add `npm audit` to CI (F-801)
-- API coverage gate proposal for auth/entitlements/content (F-1201)
+- [x] Baseline Fly cold-start, Neon QPS, Mux dashboard
+- [x] Remove `express-rate-limit` (F-301)
+- [x] `SENTRY_SEND_DEFAULT_PII=false` in prod ops scripts (F-803)
+- [x] Mux webhook idempotency — `muxVodIngestJobId()` + runbook (F-1001)
+- [x] JWT user snapshot cache (F-501)
+- [x] Batch entitlements on live streams (F-502)
+- [x] Global max `limit` on list endpoints (F-602)
+- [x] Fly SLO `min_machines_running=1` (F-1002)
+- [x] Grafana BullMQ queue alerts (F-903)
+- [x] Neon restore runbook (F-901)
+- [x] Mobile Socket.IO v3 (F-302)
+- [x] npm audit + CodeQL in CI (F-801)
+- [x] API coverage gate (F-1201)
 
 ---
 
-## 90-day roadmap
+## 90-day roadmap — completed / deferred
 
-### Month 1
+### Month 1 — completed
 
-- Complete weeks 1–4 above
-- Analytics retention job (F-504)
-- Staging environment bootstrap (F-902)
+- [x] Analytics retention job (F-504)
+- [x] Staging environment bootstrap (F-902)
 
-### Month 2
+### Month 2 — completed
 
-- Mobile socket upgrade + playback QA (F-302, F-1102)
-- Entitlement cache layer (F-1301)
-- Admin security headers parity (F-805)
-- CSRF design for refresh (F-802)
+- [x] Mobile socket upgrade + playback QA (F-302, F-1102)
+- [x] Entitlement cache layer (F-1301)
+- [x] Admin security headers (F-805)
+- [x] CSRF for refresh (F-802)
 
-### Month 3
+### Month 3 — deferred
 
-- Stripe Phase 2 kickoff (F-1101) — payment provider + webhook module
-- Load test feed + live at 100K simulated entitlements
-- Search sidecar evaluation if FTS p95 degrades (F-1302)
-- API versioning policy doc (F-601)
+- [ ] Stripe Phase 2 (F-1101) — product epic
+- [ ] Load test feed + live at 100K entitlements — [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md)
+- [ ] Search sidecar if FTS p95 degrades (F-1302)
+- [x] API versioning policy (F-601)
 
 ---
 
@@ -145,30 +118,18 @@ Ranked by **cost + scale** weight, then security and velocity.
 
 | Phase | Key score |
 |-------|-----------|
-| Architecture | 6–8/10 dimensions — see [02](./02_ARCHITECTURE_SCORECARD.md) |
+| Architecture | 7–8/10 — see [02](./02_ARCHITECTURE_SCORECARD.md) |
 | Code quality | 7/10 — see [12](./12_CODE_QUALITY_SCORECARD.md) |
-| Infra maturity | 6/10 — see [09](./09_INFRASTRUCTURE_MATURITY.md) |
+| Infra maturity | 8/10 — see [09](./09_INFRASTRUCTURE_MATURITY.md) |
 
 ---
 
-## Next steps for engineering leadership
+## Audit closure
 
-1. Approve Fly SLO and JWT cache work as **sprint 1** infra/performance.
-2. Assign **platform** owner for Mux cost runbook and analytics retention.
-3. Schedule **Stripe Phase 2** product/engineering kickoff before paid marketing scale.
-4. Re-audit after 90 days or at 50K MAU — whichever comes first.
-
-## Post-audit implementation (through Wave 4)
-
-| Wave | IDs shipped | Status |
-|------|-------------|--------|
-| 1 | F-501, F-502, F-301, F-602, F-805, F-801, F-1001, F-901, F-803 | **Merged** |
-| 2 | F-1002, F-903, F-902 | **Merged** |
-| 3 | F-504, F-802, F-302, CodeQL, F-1201 artifact | **Merged** |
-| 4 | F-503, F-505, F-1301, F-303, F-601, F-1201 gate, F-1202, F-1102 | **Complete** |
-
-**Deferred:** F-1101 Stripe Phase 2 · F-1302 search sidecar · 100K entitlement load test.
-
-**Re-audit:** Schedule at 50K MAU or 2026-09-04 (90 days), whichever is sooner.
-
-See [AUDIT_COMPLETION.md](./AUDIT_COMPLETION.md).
+| Item | Value |
+|------|-------|
+| **Closed** | 2026-06-05 |
+| **Waves shipped** | 1–5 (PRs #57–#61 + `fix/audit-closure`) |
+| **Re-audit trigger** | 2026-09-04 **or** 50K MAU — whichever is sooner |
+| **Deferred backlog** | [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md) |
+| **Completion record** | [AUDIT_COMPLETION.md](./AUDIT_COMPLETION.md) |

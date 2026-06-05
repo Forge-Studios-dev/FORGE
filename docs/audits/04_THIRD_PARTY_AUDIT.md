@@ -59,14 +59,20 @@
 | **Recommendation** | Webhook idempotency, asset lifecycle policy, monitor minutes delivered |
 | **Expected impact** | Largest controllable media cost — see [10_COST_OPTIMIZATION.md](./10_COST_OPTIMIZATION.md) |
 
-### F-402: Fly scale-to-zero tradeoff
+### F-402: Fly scale-to-zero tradeoff — **Resolved (Wave 2)**
 
 | Field | Value |
 |-------|-------|
-| **Severity** | High (scale/UX) |
-| **Evidence** | `fly.toml` `min_machines_running = 0`, `auto_stop_machines = true` |
-| **Recommendation** | Model p95 latency vs monthly machine cost; consider `min_machines_running = 1` for prod |
-| **Expected impact** | Lower cold-start complaints; higher baseline Fly bill |
+| **Severity** | Was High (scale/UX) |
+| **Evidence** | Was `fly.toml` `min_machines_running = 0` |
+| **Resolution** | `min_machines_running = 1` — [FLY_SLO.md](../operations/FLY_SLO.md) |
+| **Expected impact** | Stable API p95; modest baseline Fly cost |
+
+### F-902: Staging — **Resolved (Wave 2)**
+
+| Field | Value |
+|-------|-------|
+| **Resolution** | [STAGING.md](../operations/STAGING.md), `.github/workflows/deploy-staging.yml` |
 
 ### F-403: No third-party search/analytics product
 

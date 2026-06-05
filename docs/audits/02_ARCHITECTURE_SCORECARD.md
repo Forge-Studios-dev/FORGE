@@ -1,6 +1,6 @@
 # Phase 2 — Architecture Scorecard
 
-**Audit date:** 2026-06-04
+**Audit date:** 2026-06-04 · **Reconciled:** 2026-06-05 (Wave 5 closure)
 
 ---
 
@@ -36,26 +36,27 @@ flowchart TB
 
 | Dimension | Score | Rationale |
 |-----------|-------|-----------|
-| **Scalability** | 6 | Redis adapter + queues + worker split are solid; JWT DB hit per request and live-list N+1 cap horizontal scale; Fly scale-to-zero adds latency |
+| **Scalability** | 7 | JWT cache, batch entitlements, access/tier Redis caches; Fly `min_machines_running = 1` |
 | **Maintainability** | 8 | Feature modules, `@forge/shared-types`, single API version; docs in FORGE_PROJECT_MASTER |
-| **Reliability** | 6 | `/health/ready` checks DB/Redis/queues; no DR runbook; worker has no HTTP health in release smoke |
-| **Security** | 7 | Layered guards, prod config validation, refresh rotation; CSRF gap for cookie auth |
+| **Reliability** | 7 | `/health/ready`; DR runbook; staging bootstrap; BullMQ metrics |
+| **Security** | 8 | CSRF on refresh; layered guards; CodeQL; coverage gate |
 | **Extensibility** | 8 | Feature flags, `PaymentProvider` interface, entitlements layer |
-| **Developer Experience** | 8 | docker-compose, `ci-local`, Swagger (dev), path-filtered CI |
+| **Developer Experience** | 8 | docker-compose, `ci-local`, Swagger (dev), path-filtered CI + staging workflow |
 
-**Overall architecture:** Production-viable MVP monolith with clear scale-up path; cost/scale debt concentrated in auth hot path and media COGS.
+**Overall architecture:** Production-viable monolith through ~100K MAU with documented scale path in Phase 13.
 
 ---
 
-## Bottlenecks
+## Bottlenecks (resolved vs open)
 
-| Issue | Type | Evidence |
-|-------|------|----------|
-| Per-request user DB lookup | Performance / scale | `jwt.strategy.ts` `validate()` → `userRepository.findOne` |
-| Live streams entitlement N+1 | Performance / scale | `streaming.service.ts` `getLiveStreams()` — `checkAccess` per stream |
-| Entitlements in hot paths | Coupling | Feed, streaming, communities, video playback all call `EntitlementsService` |
-| Fly cold start | Latency / UX | `fly.toml` `min_machines_running = 0` |
-| Analytics table growth | Storage / cost | `analytics-event.entity.ts` — async ingest but retention not documented |
+| Issue | Type | Status |
+|-------|------|--------|
+| Per-request user DB lookup | Performance | **Resolved** F-501 — `auth-user-cache.service.ts` |
+| Live streams entitlement N+1 | Performance | **Resolved** F-502 — `checkAccessMany` |
+| Community channel N+1 | Performance | **Resolved** F-503 — `checkChannelAccessMany` |
+| Entitlements in hot paths | Coupling | **Mitigated** F-1301, F-505 — Redis caches |
+| Fly cold start | Latency | **Resolved** F-1002 — `min_machines_running = 1` |
+| Analytics table growth | Storage | **Resolved** F-504 — `analytics-retention` worker |
 
 ---
 
@@ -68,36 +69,25 @@ flowchart TB
 
 ---
 
-## Anti-patterns avoided
+## Missing patterns (updated)
 
-- Running FFmpeg transcode in production (blocked by `validate-production-config.ts`).
-- Client-supplied `userId` on sockets (JWT in handshake per `events.gateway.ts`).
-- `synchronize: true` on TypeORM (migrations only).
-
----
-
-## Missing patterns (gaps)
-
-| Pattern | Status | Recommendation |
-|---------|--------|----------------|
-| Staging environment | Missing | Fly/Vercel preview or dedicated staging Neon branch |
-| CQRS / read models | Partial (Redis caches) | Entitlement bitmap cache at scale |
-| Event sourcing | No | Not required at MVP; analytics queue sufficient |
-| API versioning policy | Single `v1` | Document deprecation process before breaking changes |
-| Disaster recovery | Undocumented | Neon PITR + S3 lifecycle runbook |
+| Pattern | Status | Notes |
+|---------|--------|-------|
+| Staging environment | **Resolved** F-902 | [STAGING.md](../operations/STAGING.md), `deploy-staging.yml` |
+| CQRS / read models | Partial | Redis caches + batch access checks |
+| API versioning policy | **Resolved** F-601 | `API_SCHEMAS.md` |
+| Disaster recovery | **Resolved** F-901 | [DISASTER_RECOVERY.md](../operations/DISASTER_RECOVERY.md); drill cadence in [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md) |
 
 ---
 
 ## Findings
 
-### F-201: Tight coupling — entitlements
+### F-201: Tight coupling — entitlements — **Mitigated (Waves 1–4)**
 
 | Field | Value |
 |-------|-------|
-| **Severity** | Medium |
-| **Evidence** | `EntitlementsService.checkAccess` invoked from streaming, content, communities |
-| **Recommendation** | Batch access checks; short-TTL Redis cache keyed `viewerId:creatorId` |
-| **Expected impact** | Lower DB/Redis churn at 100K+ MAU; fewer duplicate tier lookups |
+| **Resolution** | `checkAccessMany`, `checkChannelAccessMany`, `ent:access` + tier caches |
+| **Evidence** | `entitlements.service.ts`, `streaming.service.ts`, `communities.service.ts` |
 
 ### F-202: Dual VOD path (intentional)
 
@@ -105,14 +95,11 @@ flowchart TB
 |-------|-------|
 | **Severity** | Info |
 | **Evidence** | `VIDEO_TRANSCODE_PROVIDER`; prod must be `mux` |
-| **Recommendation** | Keep; ensure CI asserts prod config |
-| **Expected impact** | Avoids duplicate Mux + FFmpeg spend in prod |
+| **Recommendation** | Keep; CI asserts prod config |
 
 ### F-203: Monolith blast radius at 10M
 
 | Field | Value |
 |-------|-------|
 | **Severity** | Low (future) |
-| **Evidence** | Single Nest deployable for all domains |
-| **Recommendation** | See [13_SCALABILITY_ROADMAP.md](./13_SCALABILITY_ROADMAP.md) — extract search/billing when needed |
-| **Expected impact** | Long-term team velocity and fault isolation |
+| **Recommendation** | See [13_SCALABILITY_ROADMAP.md](./13_SCALABILITY_ROADMAP.md) |

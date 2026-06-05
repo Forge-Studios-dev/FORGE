@@ -17,14 +17,14 @@ echo "==> Setting Sentry on $API_APP"
 fly secrets set \
   SENTRY_DSN="${DSN}" \
   SENTRY_TRACES_SAMPLE_RATE="${TRACES}" \
-  SENTRY_SEND_DEFAULT_PII=true \
+  SENTRY_SEND_DEFAULT_PII=false \
   --app "$API_APP"
 
 echo "==> Setting Sentry on $WORKER_APP"
 fly secrets set \
   SENTRY_DSN="${DSN}" \
   SENTRY_TRACES_SAMPLE_RATE="${TRACES}" \
-  SENTRY_SEND_DEFAULT_PII=true \
+  SENTRY_SEND_DEFAULT_PII=false \
   --app "$WORKER_APP"
 
 echo ""

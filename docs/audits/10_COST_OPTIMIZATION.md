@@ -1,6 +1,6 @@
 # Phase 10 — Cost Optimization Plan
 
-**Audit date:** 2026-06-04  
+**Audit date:** 2026-06-04 · **Reconciled:** 2026-06-05 (Wave 5 closure)  
 **Primary audit lens**  
 **Note:** Estimates are qualitative ranges — validate against Mux, Fly, Neon, Redis Cloud, AWS, Vercel invoices.
 
@@ -38,9 +38,9 @@ flowchart LR
 | Service | Current driver | Optimization | Est. savings | Risk |
 |---------|----------------|--------------|--------------|------|
 | **Mux** | VOD minutes stored, delivered; live hours | Idempotent webhooks; delete errored assets; tier archival policy; avoid duplicate ingest | **High (20–40% media)** if waste exists | Broken playback if assets deleted early |
-| **Fly API** | 2GB × hours; scale-to-zero | Set `min_machines_running=1` only if SLO requires; else accept cold start | **Low–medium** (trade latency for $) | UX vs bill |
+| **Fly API** | 2GB × hours | `min_machines_running=1` shipped (F-1002) — see [FLY_SLO.md](../operations/FLY_SLO.md) | Baseline cost accepted for SLO | — |
 | **Fly Worker** | Always-on 2GB for queues | Right-size VM; scale count on queue depth only | **Medium** if over-provisioned | Transcode backlog |
-| **Neon** | Storage + compute; connection churn | JWT cache (F-501) reduces QPS; analytics retention (F-504); right-size pool | **Medium** at 100K+ | Stale cache if wrong |
+| **Neon** | Storage + compute; connection churn | JWT cache (F-501) + analytics retention worker (F-504) shipped; right-size pool | **Medium** at 100K+ | Stale cache if wrong |
 | **Redis** | Memory for cache + BullMQ + sockets | TTL audit; connection limits; avoid duplicate large payloads in cache | **Medium** | Cache miss latency |
 | **S3** | Storage + egress | Lifecycle for abandoned multipart; CDN only if egress high | **Low–medium** | — |
 | **Vercel** | 2 projects, builds, bandwidth | Merge admin into web app (long-term) | **Low** unless high build churn | Admin isolation |
@@ -56,10 +56,10 @@ flowchart LR
 | Leak | Severity | Action |
 |------|----------|--------|
 | FFmpeg worker in production | Critical | CI assert prod config; Fly secret audit |
-| Duplicate Mux ingest on webhook retry | High | Idempotency keys on `mux-vod-ingest` jobs |
-| Analytics table unbounded | Medium | Monthly partition + archive |
-| Fly cold start retries | Medium | Client retry storms → multiplied Mux/API calls |
-| Unused `express-rate-limit` dep | Low | Remove package (F-301) |
+| Duplicate Mux ingest on webhook retry | High | **Resolved** — `muxVodIngestJobId()` stable BullMQ job IDs |
+| Analytics table unbounded | Medium | **Resolved** F-504 — `analytics-retention` worker |
+| Fly cold start retries | Medium | **Resolved** F-1002 — `min_machines_running = 1` |
+| Unused `express-rate-limit` dep | Low | **Resolved** F-301 — removed |
 
 ---
 
@@ -67,7 +67,7 @@ flowchart LR
 
 | MAU | Dominant cost | First action |
 |-----|---------------|--------------|
-| &lt;10K | Fly + Neon baseline | Keep scale-to-zero; monitor Mux trial usage |
+| &lt;10K | Fly + Neon baseline | `min_machines_running=1`; monitor Mux trial usage |
 | 10K–100K | Mux delivery + Neon reads | F-501 JWT cache; F-502 batch entitlements |
 | 100K–1M | Mux + Redis memory tier | CDN review; analytics archive; worker autoscale |
 | 1M+ | Mux + multi-service ops | Dedicated search; read replicas; signed URL edge |
@@ -76,31 +76,25 @@ flowchart LR
 
 ## Findings
 
-### F-1001: Mux cost controls undocumented
+### F-1001: Mux cost controls undocumented — **Resolved (Wave 1 + 5)**
 
 | Field | Value |
 |-------|-------|
-| **Severity** | High |
-| **Evidence** | `docs/MEDIA.md` — technical flow, no finance ops |
-| **Recommendation** | Runbook: monthly Mux dashboard review, asset cleanup cron, alert on minutes spike |
+| **Resolution** | [MUX_COST_OPS.md](../operations/MUX_COST_OPS.md) — monthly checklist, webhook idempotency via `muxVodIngestJobId()` |
 | **Expected impact** | Primary COGS control |
 
-### F-1002: Fly scale-to-zero vs SLO
+### F-1002: Fly scale-to-zero vs SLO — **Resolved (Wave 2)**
 
 | Field | Value |
 |-------|-------|
-| **Severity** | High |
-| **Evidence** | `fly.toml:18-20` |
-| **Recommendation** | Measure cold-start p95; if &gt;2s, set `min_machines_running=1` |
-| **Expected impact** | Predictable UX; +~$15–40/mo per machine (order of magnitude, region-dependent) |
+| **Resolution** | `fly.toml` `min_machines_running = 1` — [FLY_SLO.md](../operations/FLY_SLO.md) |
+| **Expected impact** | Predictable UX; modest baseline Fly cost |
 
-### F-1003: Neon storage from analytics
+### F-1003: Neon storage from analytics — **Resolved (Wave 3)**
 
 | Field | Value |
 |-------|-------|
-| **Severity** | Medium |
-| **Evidence** | `analytics-event.entity.ts` |
-| **Recommendation** | 90-day retention + aggregate rollups for studio |
+| **Resolution** | `analytics-retention` BullMQ worker + daily scheduler (F-504) |
 | **Expected impact** | Storage growth linear → sublinear |
 
 ---

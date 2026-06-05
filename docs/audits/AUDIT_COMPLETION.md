@@ -1,8 +1,9 @@
 # Audit completion checklist
 
-**Last updated:** 2026-06-04  
-**Waves 1–3:** Merged to `main` (PR #57 + follow-ups)  
-**Wave 4:** Complete on branch `fix/audit-wave-4`
+**Status:** **AUDIT CLOSED**  
+**Closed:** 2026-06-05  
+**Waves 1–4:** Merged to `main` (PRs #57–#61)  
+**Wave 5:** Closure — doc reconcile, Sentry PII ops, Mux idempotency test/doc
 
 ---
 
@@ -11,7 +12,8 @@
 | Item | Status |
 |------|--------|
 | `docs/audits/README.md` index | Done |
-| Phases 01–14 reports | Done (15 files) |
+| Phases 01–14 reports | Done (reconciled Wave 5) |
+| `DEFERRED_BACKLOG.md` | Done |
 | `docs/README.md` link | Done |
 | `FORGE_PROJECT_MASTER.md` §19 link | Done |
 
@@ -54,7 +56,7 @@
 
 ---
 
-## Wave 4 — Remaining backlog (complete)
+## Wave 4 — Remaining backlog (merged)
 
 | ID | Fix | Status | Evidence |
 |----|-----|--------|----------|
@@ -67,29 +69,43 @@
 | F-1202 | Mobile unit tests + `flutter test` in CI | **Done** | `test/unit/video_model_test.dart` |
 | F-1102 | Mobile VOD playback parity (`accessDenied` UI) | **Done** | `video.dart`, `watch_screen.dart` |
 
-**Doc reconcile (Step 0):** Phase files updated to reflect Waves 1–4 shipped state.
+---
+
+## Wave 5 — Closure
+
+| ID | Fix | Status | Evidence |
+|----|-----|--------|----------|
+| — | Phase doc reconcile (02–04, 05 F-504, 09–10, 14) | **Done** | Resolution blocks; stale scale-to-zero / Socket.IO v2 removed |
+| F-803 | Sentry PII=false in prod ops scripts + docs | **Done** | `set-sentry-secrets-fly.sh`, `set-sentry-vercel-env.sh`, `OBSERVABILITY.md`, web/admin `.env.example` |
+| F-1001 | Mux ingest idempotency doc + unit test | **Done** | `muxVodIngestJobId()`, `mux-vod.constants.spec.ts`, `MUX_COST_OPS.md` |
+| — | Formal closure artifacts | **Done** | This file, `README.md`, `DEFERRED_BACKLOG.md`, `FORGE_PROJECT_MASTER.md` §19 |
 
 ---
 
-## Deferred / out of scope
+## Deferred (not blocking closure)
 
-| ID | Item | Notes |
-|----|------|-------|
-| F-1101 | Stripe Phase 2 | Deferred by product choice |
-| F-1302 | Search sidecar (Meilisearch) | Trigger when FTS SLO fails |
-| Load test | 100K entitlements simulation | Separate perf epic (Month 3) |
-| F-1001 code | Mux webhook idempotency code audit | Ops runbook sufficient for now |
+See [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md):
+
+| ID | Item |
+|----|------|
+| F-1101 | Stripe Phase 2 |
+| F-1302 | Search sidecar |
+| Load test | 100K entitlements simulation |
+| Ops | Neon annual restore drill |
+
+**Re-audit:** 2026-09-04 or 50K MAU — whichever is sooner.
 
 ---
 
-## Validation
+## Validation (Wave 5)
 
 | Check | Result |
 |-------|--------|
-| API Jest suite | Run `npm test --workspace=@forge/api` on branch |
-| API coverage gate | Run `npm run test:cov --workspace=@forge/api` |
-| Mobile tests | Run `flutter test` in `apps/mobile` |
-| Git workflow | Single PR `fix/audit-wave-4` → merge to `main` (no direct push) |
+| API Jest suite | `npm test --workspace=@forge/api` |
+| API coverage gate | `npm run test:cov --workspace=@forge/api` |
+| Mobile tests | `flutter test` in `apps/mobile` |
+| Stale audit grep | No `min_machines_running = 0` or `socket_io_client ^2` in reconciled phase files |
+| Git workflow | Single PR `fix/audit-closure` → merge to `main` |
 
 ---
 

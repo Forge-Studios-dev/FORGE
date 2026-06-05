@@ -34,7 +34,7 @@ import {
   PublishStatus,
   TranscodeProvider,
 } from './entities/video.entity';
-import { MUX_VOD_INGEST_QUEUE } from './mux-vod.constants';
+import { MUX_VOD_INGEST_QUEUE, muxVodIngestJobId } from './mux-vod.constants';
 import { MuxVodService } from './mux-vod.service';
 import {
   sanitizeHlsUrl,
@@ -349,7 +349,7 @@ export class VideosService {
           `could not remove process job ${jobId}: ${err instanceof Error ? err.message : err}`,
         );
       }
-      const muxJobId = `mux-ingest-${videoId}`;
+      const muxJobId = muxVodIngestJobId(videoId);
       try {
         const muxJob = await this.muxVodQueue.getJob(muxJobId);
         if (muxJob) await muxJob.remove().catch(() => undefined);
@@ -998,7 +998,7 @@ export class VideosService {
         'mux-vod-ingest',
         { videoId, s3Key, userId },
         {
-          jobId: `mux-ingest-${videoId}`,
+          jobId: muxVodIngestJobId(videoId),
           attempts: 5,
           backoff: { type: 'exponential', delay: 5000 },
           removeOnFail: { age: 7 * 24 * 3600 },
