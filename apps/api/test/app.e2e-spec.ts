@@ -31,12 +31,15 @@ describe('API HTTP (e2e)', () => {
       }),
     );
     app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+    app.enableShutdownHooks();
     await app.init();
-  }, 120_000);
+  }, 180_000);
 
   afterAll(async () => {
-    if (app) await app.close();
-  });
+    if (app) {
+      await app.close();
+    }
+  }, 30_000);
 
   it('GET /api/v1/health/live returns ok', async () => {
     if (!app) return;

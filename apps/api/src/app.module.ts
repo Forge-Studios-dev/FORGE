@@ -55,8 +55,9 @@ import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './modules/notifications/subscrip
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 
-/** BullMQ consumers run on the Fly worker app only in production. */
+/** BullMQ consumers run on the Fly worker app only in production (not in Jest). */
 function shouldLoadWorkersModule(): boolean {
+  if (process.env.NODE_ENV === 'test') return false;
   return process.env.WORKER_ONLY === 'true' || process.env.NODE_ENV !== 'production';
 }
 
