@@ -18,6 +18,7 @@ describe('StreamChatService', () => {
     create: jest.fn((x) => x),
     save: jest.fn(),
     findOne: jest.fn(),
+    find: jest.fn(),
     createQueryBuilder: jest.fn(),
   };
 
@@ -157,15 +158,7 @@ describe('StreamChatService', () => {
     redis.get.mockRejectedValue(new Error('ECONNREFUSED'));
     redis.setex.mockRejectedValue(new Error('ECONNREFUSED'));
 
-    const queryBuilder = {
-      leftJoinAndSelect: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      orderBy: jest.fn().mockReturnThis(),
-      take: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      getMany: jest.fn().mockResolvedValue([]),
-    };
-    messageRepository.createQueryBuilder.mockReturnValue(queryBuilder);
+    messageRepository.find.mockResolvedValue([]);
 
     const result = await service.getMessages('s1');
 

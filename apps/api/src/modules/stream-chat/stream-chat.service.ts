@@ -2,14 +2,12 @@ import {
   ForbiddenException,
   HttpException,
   HttpStatus,
-  Inject,
   Injectable,
   Logger,
   NotFoundException,
-  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, MoreThan, Repository } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -36,7 +34,6 @@ export class StreamChatService {
     private readonly messageRepository: Repository<StreamMessage>,
     @InjectRepository(StreamModerationAction)
     private readonly moderationRepository: Repository<StreamModerationAction>,
-    @Inject(forwardRef(() => StreamingService))
     private readonly streamingService: StreamingService,
     private readonly entitlementsService: EntitlementsService,
     private readonly eventEmitter: EventEmitter2,
@@ -82,19 +79,18 @@ export class StreamChatService {
       }
     }
 
-    const query = this.messageRepository
-      .createQueryBuilder('m')
-      .leftJoinAndSelect('m.user', 'user')
-      .where('m.stream_id = :streamId', { streamId })
-      .orderBy('m.created_at', 'DESC')
-      .take(limit + 1);
+    const cursorDate = cursor
+      ? new Date(Buffer.from(cursor, 'base64').toString('utf-8'))
+      : undefined;
 
-    if (cursor) {
-      const cursorDate = new Date(Buffer.from(cursor, 'base64').toString('utf-8'));
-      query.andWhere('m.created_at < :cursor', { cursor: cursorDate });
-    }
-
-    const messages = await query.getMany();
+    const messages = await this.messageRepository.find({
+      where: cursorDate
+        ? { streamId, createdAt: LessThan(cursorDate) }
+        : { streamId },
+      relations: ['user'],
+      order: { createdAt: 'DESC' },
+      take: limit + 1,
+    });
     const hasMore = messages.length > limit;
     const data = hasMore ? messages.slice(0, limit) : messages;
     const nextCursor = hasMore
@@ -208,14 +204,15 @@ export class StreamChatService {
 
   private async assertNotTimedOut(streamId: string, userId: string) {
     const now = new Date();
-    const active = await this.moderationRepository
-      .createQueryBuilder('m')
-      .where('m.stream_id = :streamId', { streamId })
-      .andWhere('m.target_user_id = :userId', { userId })
-      .andWhere('m.action = :action', { action: 'timeout' })
-      .andWhere('m.expires_at > :now', { now })
-      .orderBy('m.created_at', 'DESC')
-      .getOne();
+    const active = await this.moderationRepository.findOne({
+      where: {
+        streamId,
+        targetUserId: userId,
+        action: 'timeout',
+        expiresAt: MoreThan(now),
+      },
+      order: { createdAt: 'DESC' },
+    });
     if (active) {
       throw new ForbiddenException('You are timed out from this chat');
     }
