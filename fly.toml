@@ -8,6 +8,10 @@ primary_region = 'bom'
 [build]
   dockerfile = 'apps/api/Dockerfile'
 
+# Runs on each deploy before new machines receive traffic (uses Fly DATABASE_URL secret).
+[deploy]
+  release_command = "node node_modules/typeorm/cli.js migration:run -d apps/api/dist/apps/api/src/database/data-source.js"
+
 [env]
   NODE_ENV = 'production'
   PORT = '3001'
