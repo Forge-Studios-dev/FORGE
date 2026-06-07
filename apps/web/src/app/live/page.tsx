@@ -10,6 +10,7 @@ import { resolveStreamPoster } from '@/lib/stream-poster';
 import { useAuth } from '@/lib/auth';
 import { EmptyState } from '@/components/EmptyState';
 import { FeedGridSkeleton } from '@/components/LoadingSkeleton';
+import { getApiErrorMessage } from '@/lib/api-message';
 
 export default function LiveDirectoryPage() {
   const { isGuest, canGoLive, canApplyForCreator } = useAuth();
@@ -37,8 +38,12 @@ export default function LiveDirectoryPage() {
       await refetch();
       window.location.href = `/live/${data.data.id}`;
     } catch (e: unknown) {
-      const m = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setCreateErr(typeof m === 'string' ? m : 'Could not start stream. Check creator approval and email verification.');
+      setCreateErr(
+        getApiErrorMessage(
+          e,
+          'Could not start stream. Check creator approval, email verification, and try again.',
+        ),
+      );
     } finally {
       setCreating(false);
     }
@@ -58,12 +63,12 @@ export default function LiveDirectoryPage() {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Session title"
+              placeholder="Session title (min 3 characters)"
               className="flex-1 min-w-0 rounded-lg border border-outline-variant/40 bg-surface-container-low px-3 py-2 text-sm text-on-surface placeholder:text-outline focus:border-primary focus:outline-none"
             />
             <button
               type="button"
-              disabled={creating || title.trim().length < 2}
+              disabled={creating || title.trim().length < 3}
               onClick={() => void startStream()}
               className="primary-button shrink-0 rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
@@ -109,7 +114,7 @@ export default function LiveDirectoryPage() {
           description={canGoLive ? 'Create a stream above, then broadcast with OBS.' : 'Check back later for live lessons.'}
         />
       ) : (
-        <ul className="forge-stagger grid gap-4 sm:grid-cols-2">
+        <ul className="forge-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {streams.map((s) => {
             const poster = resolveStreamPoster(s);
             return (

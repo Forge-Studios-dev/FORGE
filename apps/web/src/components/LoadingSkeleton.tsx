@@ -1,5 +1,6 @@
 export {
   FeedGridSkeleton,
+  HorizontalCardSkeleton,
   ListSkeleton,
   SkeletonBlock,
   StatCardsSkeleton,

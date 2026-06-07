@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Icon, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { getApiErrorMessage } from '@/lib/api-message';
 import { Stream, Category, SubscriptionTier } from '@/types';
 
 const VISIBILITY_OPTIONS = [
@@ -16,7 +17,7 @@ const VISIBILITY_OPTIONS = [
 ] as const;
 
 export default function StudioLivePage() {
-  const { isCreator } = useAuth();
+  const { canGoLive } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<string>('public');
@@ -47,7 +48,7 @@ export default function StudioLivePage() {
 
   const { data: myTiers } = useQuery({
     queryKey: ['studio-tiers'],
-    enabled: isCreator,
+    enabled: canGoLive,
     queryFn: async () => {
       const { data } = await api.get<{ data: SubscriptionTier[] }>('/creators/me/tiers');
       return data.data;
@@ -78,8 +79,12 @@ export default function StudioLivePage() {
       await refetch();
       window.location.href = `/live/${data.data.id}`;
     } catch (e: unknown) {
-      const m = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(typeof m === 'string' ? m : 'Could not start stream. Verify creator approval and email.');
+      setError(
+        getApiErrorMessage(
+          e,
+          'Could not start stream. Verify creator approval, email verification, and Mux configuration.',
+        ),
+      );
     } finally {
       setCreating(false);
     }
@@ -89,14 +94,14 @@ export default function StudioLivePage() {
     <main className="mx-auto max-w-4xl px-5 py-8 md:px-12">
       <PageHeader title="Go live" subtitle="Teach skills in real time with OBS" />
 
-      {isCreator ? (
+      {canGoLive ? (
         <section className="glass-panel mb-8 space-y-4 rounded-xl p-6">
           <h2 className="font-label-caps text-outline">Start a session</h2>
           {error ? <p className="text-sm text-error">{error}</p> : null}
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Session title"
+            placeholder="Session title (min 3 characters)"
             className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-4 py-2.5 outline-none focus:border-primary"
           />
           <textarea

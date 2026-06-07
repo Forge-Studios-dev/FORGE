@@ -142,6 +142,11 @@ export default function LiveWatchPage() {
                   Stream key:{' '}
                   <code className="break-all text-on-surface">{stream.streamKey ?? '—'}</code>
                 </p>
+                {stream.streamKey?.startsWith('mock-') ? (
+                  <p className="text-xs text-error">
+                    This stream was created without a valid Mux connection. End it and create a new stream from Studio.
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   disabled={endMutation.isPending}

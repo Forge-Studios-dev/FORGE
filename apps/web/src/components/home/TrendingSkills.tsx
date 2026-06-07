@@ -20,7 +20,7 @@ export function TrendingSkills({ videos }: Props) {
       <h2 className="font-display-forge mb-6 text-2xl font-semibold md:text-3xl">Trending skills</h2>
       <div className="hide-scrollbar -mx-5 flex gap-6 overflow-x-auto px-5 md:mx-0 md:px-0">
         {videos.slice(0, 6).map((video) => (
-          <FeedCard key={video.id} video={video} compact />
+          <FeedCard key={video.id} video={video} layout="carousel" />
         ))}
       </div>
     </section>

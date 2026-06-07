@@ -1,12 +1,10 @@
+import { FeedGridSkeleton } from '@forge/design-system';
+
 export default function ExploreLoading() {
   return (
-    <div className="mx-auto max-w-7xl animate-pulse space-y-4 px-4 py-8">
-      <div className="h-8 w-48 rounded bg-surface-container" />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="aspect-video rounded-xl bg-surface-container" />
-        ))}
-      </div>
+    <div className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
+      <div className="mb-8 h-8 w-48 forge-shimmer rounded-lg bg-surface-container-high" />
+      <FeedGridSkeleton count={8} />
     </div>
   );
 }
