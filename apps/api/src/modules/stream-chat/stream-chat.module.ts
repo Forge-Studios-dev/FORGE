@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StreamMessage } from './entities/stream-message.entity';
 import { StreamModerationAction } from './entities/stream-moderation-action.entity';
@@ -10,7 +10,7 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([StreamMessage, StreamModerationAction]),
-    forwardRef(() => StreamingModule),
+    StreamingModule,
     EntitlementsModule,
   ],
   controllers: [StreamChatController],
