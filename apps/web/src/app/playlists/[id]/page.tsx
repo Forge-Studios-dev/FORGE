@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { serverApi } from '@/lib/api';
 import Link from 'next/link';
+import { Icon } from '@forge/design-system';
 import { Playlist } from '@/types';
 
 interface Props {
@@ -44,7 +45,7 @@ export default async function PlaylistPage({ params }: Props) {
               href={`/watch/${item.videoId}`}
               className="glass-panel flex items-center gap-4 rounded-xl p-4 transition hover:border-primary/30"
             >
-              <span className="material-symbols-outlined text-2xl text-primary">play_circle</span>
+              <Icon name="play_circle" className="text-2xl text-primary" />
               <span className="font-medium">{item.video?.title ?? 'Lesson'}</span>
             </Link>
           </li>

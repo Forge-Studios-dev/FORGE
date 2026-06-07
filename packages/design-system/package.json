@@ -32,5 +32,8 @@
   "devDependencies": {
     "@types/react": "^18.2.79",
     "typescript": "^5.4.4"
+  },
+  "dependencies": {
+    "@material-symbols/font-400": "^0.44.12"
   }
 }

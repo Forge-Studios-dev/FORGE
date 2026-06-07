@@ -1,5 +1,6 @@
 @import 'tailwindcss' source(none);
 @source '../**/*.{ts,tsx}';
+@source '../../../../packages/design-system/src/**/*.{ts,tsx}';
 @import '@forge/design-system/tailwind';
 
 @layer base {

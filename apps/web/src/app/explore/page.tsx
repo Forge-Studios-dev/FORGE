@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Metadata } from 'next';
 import { serverApi } from '@/lib/api';
-import { PageHeader } from '@forge/design-system';
+import { Icon, PageHeader } from '@forge/design-system';
 import { Category } from '@/types';
 
 export const metadata: Metadata = { title: 'Explore' };
@@ -37,7 +37,7 @@ export default async function ExplorePage() {
                 href={`/explore/${cat.slug}`}
                 className="forge-card-hover glass-panel group rounded-xl p-6 transition-colors hover:border-primary/40"
               >
-                <span className="material-symbols-outlined mb-3 text-3xl text-primary">category</span>
+                <Icon name="category" className="mb-3 text-3xl text-primary" />
                 <h3 className="font-display-forge text-lg font-semibold group-hover:text-primary">{cat.name}</h3>
               </Link>
             ))}
