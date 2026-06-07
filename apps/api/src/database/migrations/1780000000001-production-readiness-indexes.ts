@@ -7,7 +7,6 @@ export class ProductionReadinessIndexes1780000000001 implements MigrationInterfa
     await queryRunner.query(`
       CREATE INDEX IF NOT EXISTS "IDX_videos_creator_status_published"
       ON "videos" ("user_id", "status", "published_at" DESC NULLS LAST)
-      WHERE "deleted_at" IS NULL
     `);
     await queryRunner.query(`
       CREATE INDEX IF NOT EXISTS "IDX_watch_history_user_watched"
