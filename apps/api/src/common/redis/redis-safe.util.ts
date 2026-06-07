@@ -70,6 +70,22 @@ export async function safeRedisDel(redis: Redis, key: string, log?: Logger): Pro
   }
 }
 
+export async function safeRedisSetNx(
+  redis: Redis,
+  key: string,
+  value: string,
+  ttlSec: number,
+  log?: Logger,
+): Promise<boolean> {
+  try {
+    const result = await redis.set(key, value, 'EX', ttlSec, 'NX');
+    return result === 'OK';
+  } catch (err) {
+    log?.warn(`redis SET NX ${key} failed: ${err instanceof Error ? err.message : err}`);
+    return true;
+  }
+}
+
 export async function safeRedisIncr(redis: Redis, key: string, log?: Logger): Promise<number | null> {
   try {
     return await redis.incr(key);

@@ -124,6 +124,17 @@ describe('StreamingService access gating', () => {
       expect(result.streamKey).toBe('key');
       expect(result.rtmpUrl).toBe('rtmps://example/app');
     });
+
+    it('hides playback URL while stream is idle', async () => {
+      const stream = mockStream({ status: StreamStatus.IDLE });
+      streamRepository.findOne.mockResolvedValue(stream);
+      entitlementsService.checkAccess.mockResolvedValue({ allowed: true });
+
+      const result = await service.getStreamForViewer('stream-1', 'viewer-1');
+
+      expect(result.playbackUrl).toBeNull();
+      expect(result.status).toBe(StreamStatus.IDLE);
+    });
   });
 
   describe('getLiveStreams', () => {

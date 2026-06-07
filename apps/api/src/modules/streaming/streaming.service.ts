@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull, Not } from 'typeorm';
 import Mux from '@mux/mux-node';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Stream, StreamStatus, StreamVisibility } from './entities/stream.entity';
@@ -21,6 +21,7 @@ import { toPublicStream } from './stream.mapper';
 export class StreamingService {
   private readonly logger = new Logger(StreamingService.name);
   private readonly mux: Mux;
+  private static readonly MUX_SYNC_IDLE_LIMIT = 20;
 
   constructor(
     @InjectRepository(Stream)
@@ -121,7 +122,7 @@ export class StreamingService {
     viewerId?: string | null,
     viewerRole?: UserRole | null,
   ) {
-    const stream = await this.findById(id);
+    const stream = await this.syncMuxLiveStatus(await this.findById(id));
     const isOwner = !!viewerId && viewerId === stream.userId;
     const isAdmin = viewerRole === UserRole.ADMIN;
 
@@ -141,6 +142,8 @@ export class StreamingService {
   }
 
   async getLiveStreams(viewerId?: string | null, viewerRole?: UserRole | null) {
+    await this.syncRecentIdleStreams();
+
     const streams = await this.streamRepository.find({
       where: { status: StreamStatus.LIVE },
       relations: ['user'],
@@ -202,6 +205,89 @@ export class StreamingService {
     const saved = await this.streamRepository.save(stream);
     this.eventEmitter.emit('stream.slow-mode', { streamId, slowModeSeconds });
     return saved;
+  }
+
+  private muxConfigured(): boolean {
+    const muxTokenId = this.configService.get<string>('mux.tokenId');
+    const muxTokenSecret = this.configService.get<string>('mux.tokenSecret');
+    return !!(
+      muxTokenId &&
+      muxTokenSecret &&
+      muxTokenId !== 'placeholder' &&
+      muxTokenSecret !== 'placeholder'
+    );
+  }
+
+  /** Poll Mux when webhooks lag so status/playback stay accurate. */
+  async syncMuxLiveStatus(stream: Stream): Promise<Stream> {
+    if (
+      stream.status === StreamStatus.ENDED ||
+      !stream.muxLiveStreamId ||
+      stream.muxLiveStreamId === 'mock-stream-id' ||
+      !this.muxConfigured()
+    ) {
+      return stream;
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const muxStream = (await this.mux.video.liveStreams.retrieve(stream.muxLiveStreamId)) as any;
+      const muxStatus = muxStream.status as string | undefined;
+
+      if (muxStatus === 'active' && stream.status !== StreamStatus.LIVE) {
+        const thumbnailPatch =
+          !stream.thumbnailUrl && stream.playbackUrl
+            ? (() => {
+                const pb = muxPlaybackIdFromHlsUrl(stream.playbackUrl);
+                return pb ? muxThumbnailUrl(pb) : undefined;
+              })()
+            : undefined;
+
+        await this.streamRepository.update(stream.id, {
+          status: StreamStatus.LIVE,
+          startedAt: stream.startedAt ?? new Date(),
+          ...(thumbnailPatch ? { thumbnailUrl: thumbnailPatch } : {}),
+        });
+        stream.status = StreamStatus.LIVE;
+        stream.startedAt = stream.startedAt ?? new Date();
+        if (thumbnailPatch) stream.thumbnailUrl = thumbnailPatch;
+
+        this.eventEmitter.emit('stream.started', {
+          streamId: stream.id,
+          userId: stream.userId,
+          title: stream.title,
+          visibility: stream.visibility,
+          requiredTierId: stream.requiredTierId,
+        });
+      } else if (muxStatus === 'idle' && stream.status === StreamStatus.LIVE) {
+        await this.streamRepository.update(stream.id, { status: StreamStatus.IDLE });
+        stream.status = StreamStatus.IDLE;
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Mux live stream sync failed for ${stream.id}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+
+    return stream;
+  }
+
+  private async syncRecentIdleStreams(): Promise<void> {
+    const idleCandidates = await this.streamRepository.find({
+      where: {
+        status: StreamStatus.IDLE,
+        endedAt: IsNull(),
+        muxLiveStreamId: Not(IsNull()),
+      },
+      order: { createdAt: 'DESC' },
+      take: StreamingService.MUX_SYNC_IDLE_LIMIT,
+    });
+
+    const toSync = idleCandidates.filter(
+      (s) => s.muxLiveStreamId && s.muxLiveStreamId !== 'mock-stream-id',
+    );
+
+    await Promise.all(toSync.map((s) => this.syncMuxLiveStatus(s)));
   }
 
   private mapStreamVisibilityToVideo(visibility: StreamVisibility): VideoVisibility {

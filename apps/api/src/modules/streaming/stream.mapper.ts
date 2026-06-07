@@ -1,4 +1,4 @@
-import { Stream, StreamVisibility } from './entities/stream.entity';
+import { Stream, StreamStatus, StreamVisibility } from './entities/stream.entity';
 import { toPublicUser, PublicUser } from '../users/user.mapper';
 import { resolveStreamThumbnailUrl } from '../../common/media/mux-playback.util';
 
@@ -34,13 +34,14 @@ export function toPublicStream(
   opts?: { hidePlayback?: boolean; accessReason?: string },
 ): PublicStream {
   const hidePlayback = opts?.hidePlayback ?? false;
+  const canPlay = !hidePlayback && stream.status === StreamStatus.LIVE;
   return {
     id: stream.id,
     userId: stream.userId,
     user: stream.user ? toPublicUser(stream.user) : undefined,
     title: stream.title,
     description: stream.description ?? null,
-    playbackUrl: hidePlayback ? null : (stream.playbackUrl ?? null),
+    playbackUrl: canPlay ? (stream.playbackUrl ?? null) : null,
     thumbnailUrl: resolveStreamThumbnailUrl(stream),
     status: stream.status,
     visibility: stream.visibility ?? StreamVisibility.PUBLIC,

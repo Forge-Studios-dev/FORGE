@@ -36,7 +36,7 @@ export function StreamChatPanel({
   const bottomRef = useRef<HTMLDivElement>(null);
   const isMod = !!user && (user.id === streamOwnerId || user.role === 'admin');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['stream-chat', streamId],
     enabled: chatEnabled && streamId.length > 0,
     queryFn: async () => {
@@ -46,6 +46,7 @@ export function StreamChatPanel({
       return res.data.data;
     },
     refetchInterval: 30_000,
+    retry: 1,
   });
 
   const sendMutation = useMutation({
@@ -144,6 +145,10 @@ export function StreamChatPanel({
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
         {isLoading ? (
           <p className="text-sm text-on-surface-variant">Loading chat…</p>
+        ) : isError ? (
+          <p className="text-sm text-error">
+            Chat is temporarily unavailable. Messages may still appear in real time.
+          </p>
         ) : !data?.length ? (
           <p className="text-sm text-on-surface-variant">Be the first to say hello.</p>
         ) : (
