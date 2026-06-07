@@ -8,22 +8,21 @@
 
 | Setting | Value | File |
 |---------|-------|------|
-| `min_machines_running` | **1** | [fly.toml](../../fly.toml) |
+| `min_machines_running` | **2** (Wave 6 — rolling deploy / zero-downtime swap) | [fly.toml](../../fly.toml) |
 | `auto_stop_machines` | `true` | [fly.toml](../../fly.toml) |
 | Region | `bom` | [fly.toml](../../fly.toml) |
 | Worker | Separate app, no HTTP | [fly.worker.toml](../../fly.worker.toml) |
 
-With `min_machines_running = 1`, one API machine stays warm — avoids cold-start p95 spikes on first request after idle. Cost: baseline ~1× machine RAM/CPU vs scale-to-zero.
+With `min_machines_running = 2`, two API machines stay warm — Fly can swap machines during deploy without a brief outage. Cost: ~2× baseline API machine RAM/CPU vs `min = 1`. Previous F-1002 used `min = 1` for cost; Wave 6 raised this for HA during rolling deploys.
 
 ---
 
 ## When to use scale-to-zero (`min_machines_running = 0`)
 
-| Use scale-to-zero | Use min = 1 |
-|-------------------|-------------|
-| Dev / demo Fly apps | Production consumer API |
-| Cost is top priority and p95 cold start acceptable | Auth-heavy traffic (JWT cache still helps DB) |
-| Very low traffic preview apps | Live streams, uploads, realtime |
+| Use scale-to-zero | Use min = 1 | Use min = 2 |
+|-------------------|-------------|-------------|
+| Dev / demo Fly apps | Low-traffic preview | **Production consumer API** (current) |
+| Cost is top priority and p95 cold start acceptable | Cost-sensitive prod with brief deploy blips OK | Auth-heavy traffic, live streams, zero-downtime deploys |
 
 ---
 

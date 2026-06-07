@@ -7,6 +7,7 @@ import {
   ValidationPipe,
   RequestMethod,
   ClassSerializerInterceptor,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -16,6 +17,7 @@ import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { getQueueToken } from '@nestjs/bullmq';
 import { HealthController } from '../src/health.controller';
 import { AuthController } from '../src/modules/auth/auth.controller';
+import { AuthOAuthExchangeService } from '../src/modules/auth/auth-oauth-exchange.service';
 import { AuthService } from '../src/modules/auth/auth.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { AppCheckGuard } from '../src/modules/firebase/app-check.guard';
@@ -45,6 +47,15 @@ export async function createMockHttpApp(): Promise<INestApplication> {
     controllers: [HealthController, AuthController],
     providers: [
       { provide: AuthService, useValue: { signup: jest.fn(), login: jest.fn() } },
+      {
+        provide: AuthOAuthExchangeService,
+        useValue: {
+          createExchangeCode: jest.fn(),
+          consumeExchangeCode: jest
+            .fn()
+            .mockRejectedValue(new UnauthorizedException('Invalid or expired OAuth exchange code')),
+        },
+      },
       { provide: NotificationsService, useValue: {} },
       { provide: ConfigService, useValue: mockConfigService },
       { provide: DataSource, useValue: { query: jest.fn().mockResolvedValue([{ '?column?': 1 }]) } },

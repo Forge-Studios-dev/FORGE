@@ -36,7 +36,9 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto';
+import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
 import { ConsumeImpersonationDto } from './dto/consume-impersonation.dto';
+import { AuthOAuthExchangeService } from './auth-oauth-exchange.service';
 import { LogoutDto } from './dto/logout.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -64,6 +66,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
     private readonly notificationsService: NotificationsService,
+    private readonly oauthExchangeService: AuthOAuthExchangeService,
   ) {}
 
   private applyAuthCookies(res: Response, refreshToken: string) {
@@ -98,6 +101,7 @@ export class AuthController {
 
   @Public()
   @Get('google')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseGuards(GoogleOAuthGuard)
   @ApiOperation({ summary: 'Redirect to Google OAuth' })
   googleAuth() {
@@ -106,6 +110,7 @@ export class AuthController {
 
   @Public()
   @Get('google/callback')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseGuards(GoogleOAuthGuard)
   @ApiOperation({ summary: 'Google OAuth callback' })
   async googleCallback(
@@ -114,12 +119,26 @@ export class AuthController {
   ) {
     const tokens = await this.authService.loginWithGoogle(req.user, sessionMeta(req));
     this.applyAuthCookies(res, tokens.refreshToken);
+    const code = await this.oauthExchangeService.createExchangeCode(
+      this.oauthExchangeService.payloadFromTokens({
+        accessToken: tokens.accessToken,
+        sessionId: tokens.sessionId,
+        user: tokens.user,
+      }),
+    );
     const successUrl = this.configService.get<string>('oauth.google.webSuccessUrl')!;
     const url = new URL(successUrl);
-    url.searchParams.set('accessToken', tokens.accessToken);
-    url.searchParams.set('sessionId', tokens.sessionId);
-    url.searchParams.set('user', encodeURIComponent(JSON.stringify(tokens.user)));
+    url.searchParams.set('code', code);
     return res.redirect(url.toString());
+  }
+
+  @Public()
+  @Post('oauth/exchange')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Exchange one-time OAuth code for session tokens' })
+  async oauthExchange(@Body() dto: OAuthExchangeDto) {
+    return this.oauthExchangeService.consumeExchangeCode(dto.code);
   }
 
   @Public()

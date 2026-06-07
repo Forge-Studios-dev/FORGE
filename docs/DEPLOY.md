@@ -146,6 +146,8 @@ Run locally, expose with [ngrok](https://ngrok.com): `ngrok http 3000` / `3001` 
 
 **Rollback:** `fly releases rollback` · Vercel promote previous deployment.
 
+**Automatic rollback (Release workflow):** If post-deploy smoke or metrics verification fails, GitHub Actions runs `flyctl releases rollback` on the API (and worker if its deploy job fails). This reverts the **app image only** — not database migrations. Failed `release_command` migrations block deploy before traffic shifts; if smoke fails after a successful migration, assess whether schema rollback is needed separately (`npm run migration:revert` — see [DISASTER_RECOVERY.md](./operations/DISASTER_RECOVERY.md)).
+
 ---
 
 ## CI/CD

@@ -3,9 +3,17 @@ import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { EventsGateway } from './events.gateway';
 import { StreamingModule } from '../modules/streaming/streaming.module';
+import { ContentModule } from '../modules/content/content.module';
+import { CommunitiesModule } from '../modules/communities/communities.module';
 
 @Module({
-  imports: [ConfigModule, JwtModule.register({}), forwardRef(() => StreamingModule)],
+  imports: [
+    ConfigModule,
+    JwtModule.register({}),
+    forwardRef(() => StreamingModule),
+    forwardRef(() => ContentModule),
+    forwardRef(() => CommunitiesModule),
+  ],
   providers: [EventsGateway],
   exports: [EventsGateway],
 })

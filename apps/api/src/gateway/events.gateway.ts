@@ -7,8 +7,9 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
+  WsException,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { ForbiddenException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -18,6 +19,17 @@ import { createClient, type RedisClientOptions } from 'redis';
 import { redisTlsOptions } from '../common/redis/redis-tls.util';
 import { socketIoCorsOptions } from './socket-cors.util';
 import { StreamViewerService } from '../modules/streaming/stream-viewer.service';
+import { StreamingService } from '../modules/streaming/streaming.service';
+import { VideosService } from '../modules/content/videos.service';
+import { CommunitiesService } from '../modules/communities/communities.service';
+import { JwtPayload } from '../modules/auth/strategies/jwt.strategy';
+import { UserRole } from '../modules/users/entities/user.entity';
+
+type SocketAuthData = {
+  userId?: string;
+  role?: UserRole;
+  watchingStreamId?: string;
+};
 
 @WebSocketGateway({
   cors: socketIoCorsOptions(),
@@ -36,6 +48,9 @@ export class EventsGateway
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
     private readonly streamViewerService: StreamViewerService,
+    private readonly streamingService: StreamingService,
+    private readonly videosService: VideosService,
+    private readonly communitiesService: CommunitiesService,
   ) {}
 
   async afterInit() {
@@ -79,14 +94,17 @@ export class EventsGateway
       if (!this.userSockets.has(userId)) this.userSockets.set(userId, new Set());
       this.userSockets.get(userId)!.add(client.id);
       client.join(`user:${userId}`);
-      (client.data as { userId?: string }).userId = userId;
+      const data = client.data as SocketAuthData;
+      data.userId = userId;
+      data.role = this.resolveRole(client) ?? UserRole.USER;
     }
     this.logger.log(`Client connected: ${client.id}`);
   }
 
   handleDisconnect(client: Socket) {
-    const userId = (client.data as { userId?: string }).userId;
-    const watchingStreamId = (client.data as { watchingStreamId?: string }).watchingStreamId;
+    const data = client.data as SocketAuthData;
+    const userId = data.userId;
+    const watchingStreamId = data.watchingStreamId;
     if (userId) {
       this.userSockets.get(userId)?.delete(client.id);
     }
@@ -98,6 +116,74 @@ export class EventsGateway
       });
     }
     this.logger.log(`Client disconnected: ${client.id}`);
+  }
+
+  private resolveRole(client: Socket): UserRole | null {
+    const auth = client.handshake.auth as { token?: string };
+    const secret = this.configService.get<string>('jwt.secret');
+    if (!secret || !auth.token) return null;
+    try {
+      const payload = this.jwtService.verify<JwtPayload>(auth.token, { secret });
+      return payload.role;
+    } catch {
+      return null;
+    }
+  }
+
+  private requireAuth(client: Socket): { userId: string; role: UserRole } {
+    const data = client.data as SocketAuthData;
+    if (!data.userId) {
+      throw new WsException('Authentication required');
+    }
+    return { userId: data.userId, role: data.role ?? UserRole.USER };
+  }
+
+  private denyAccess(message = 'Access denied'): never {
+    throw new WsException(message);
+  }
+
+  private async assertStreamAccess(
+    streamId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<void> {
+    const stream = await this.streamingService.getStreamForViewer(streamId, userId, role);
+    if (stream.accessDenied) {
+      this.denyAccess();
+    }
+  }
+
+  private async assertVideoAccess(
+    videoId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<void> {
+    try {
+      const video = await this.videosService.getVideoForViewer(videoId, userId, role);
+      if (video.accessDenied) {
+        this.denyAccess();
+      }
+    } catch (err) {
+      if (err instanceof ForbiddenException) {
+        this.denyAccess();
+      }
+      throw err;
+    }
+  }
+
+  private async assertChannelAccess(
+    channelId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<void> {
+    try {
+      await this.communitiesService.verifyChannelAccess(channelId, userId, role);
+    } catch (err) {
+      if (err instanceof ForbiddenException) {
+        this.denyAccess();
+      }
+      throw err;
+    }
   }
 
   private resolveUserId(client: Socket): string | null {
@@ -123,6 +209,7 @@ export class EventsGateway
 
   @SubscribeMessage('join-live-feed')
   handleJoinLiveFeed(@ConnectedSocket() client: Socket) {
+    this.requireAuth(client);
     client.join('streams:live');
     return { event: 'joined-live-feed', data: { ok: true } };
   }
@@ -137,8 +224,10 @@ export class EventsGateway
     @MessageBody() data: { streamId: string },
     @ConnectedSocket() client: Socket,
   ) {
+    const { userId, role } = this.requireAuth(client);
+    await this.assertStreamAccess(data.streamId, userId, role);
     client.join(`stream:${data.streamId}`);
-    (client.data as { watchingStreamId?: string }).watchingStreamId = data.streamId;
+    (client.data as SocketAuthData).watchingStreamId = data.streamId;
     const count = await this.streamViewerService.join(data.streamId, client.id);
     this.server
       .to(`stream:${data.streamId}`)
@@ -147,7 +236,12 @@ export class EventsGateway
   }
 
   @SubscribeMessage('join-video')
-  handleJoinVideo(@MessageBody() data: { videoId: string }, @ConnectedSocket() client: Socket) {
+  async handleJoinVideo(
+    @MessageBody() data: { videoId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { userId, role } = this.requireAuth(client);
+    await this.assertVideoAccess(data.videoId, userId, role);
     client.join(`video:${data.videoId}`);
     return { event: 'joined-video', data: { videoId: data.videoId } };
   }
@@ -158,8 +252,9 @@ export class EventsGateway
     @ConnectedSocket() client: Socket,
   ) {
     client.leave(`stream:${data.streamId}`);
-    if ((client.data as { watchingStreamId?: string }).watchingStreamId === data.streamId) {
-      delete (client.data as { watchingStreamId?: string }).watchingStreamId;
+    const clientData = client.data as SocketAuthData;
+    if (clientData.watchingStreamId === data.streamId) {
+      delete clientData.watchingStreamId;
     }
     const count = await this.streamViewerService.leave(data.streamId, client.id);
     this.server
@@ -231,7 +326,12 @@ export class EventsGateway
   }
 
   @SubscribeMessage('join-stream-chat')
-  handleJoinStreamChat(@MessageBody() data: { streamId: string }, @ConnectedSocket() client: Socket) {
+  async handleJoinStreamChat(
+    @MessageBody() data: { streamId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { userId, role } = this.requireAuth(client);
+    await this.assertStreamAccess(data.streamId, userId, role);
     client.join(`stream:${data.streamId}`);
     return { event: 'joined-stream-chat', data: { streamId: data.streamId } };
   }
@@ -242,7 +342,12 @@ export class EventsGateway
   }
 
   @SubscribeMessage('join-channel')
-  handleJoinChannel(@MessageBody() data: { channelId: string }, @ConnectedSocket() client: Socket) {
+  async handleJoinChannel(
+    @MessageBody() data: { channelId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { userId, role } = this.requireAuth(client);
+    await this.assertChannelAccess(data.channelId, userId, role);
     client.join(`channel:${data.channelId}`);
     return { event: 'joined-channel', data: { channelId: data.channelId } };
   }
