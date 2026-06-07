@@ -268,6 +268,16 @@ export class CommunitiesService {
     return new Set(rows.map((r) => r.channelId));
   }
 
+  /** Used by Socket.IO gateway to gate channel room joins. */
+  async verifyChannelAccess(
+    channelId: string,
+    viewerId: string | null | undefined,
+    viewerRole?: UserRole | null,
+  ): Promise<void> {
+    const channel = await this.getChannelWithCommunity(channelId);
+    await this.assertChannelAccess(channel, viewerId, viewerRole);
+  }
+
   private async assertChannelAccess(
     channel: Channel & { community: Community },
     viewerId: string | null | undefined,

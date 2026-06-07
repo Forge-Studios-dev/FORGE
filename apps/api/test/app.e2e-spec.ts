@@ -33,4 +33,11 @@ describe('API HTTP (mocked e2e)', () => {
       .send({ email: 'not-an-email', password: 'short', username: 'x', displayName: 'X' });
     expect(res.status).toBe(400);
   });
+
+  it('POST /api/v1/auth/oauth/exchange rejects invalid code', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/auth/oauth/exchange')
+      .send({ code: 'a'.repeat(64) });
+    expect(res.status).toBe(401);
+  });
 });

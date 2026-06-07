@@ -1,9 +1,18 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import type { Redis } from 'ioredis';
 import { createHash, randomInt } from 'crypto';
-import { safeRedisDel, safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
+import {
+  safeRedisDel,
+  safeRedisGetResult,
+  safeRedisSetex,
+} from '../../common/redis/redis-safe.util';
 
 @Injectable()
 export class AuthEmailOtpService {
@@ -16,6 +25,16 @@ export class AuthEmailOtpService {
 
   isEnabled(): boolean {
     return this.configService.get<boolean>('auth.emailOtpEnabled') === true;
+  }
+
+  private isProduction(): boolean {
+    return this.configService.get<string>('nodeEnv') === 'production';
+  }
+
+  private failClosed(): never {
+    throw new ServiceUnavailableException(
+      'Verification temporarily unavailable. Please try again shortly.',
+    );
   }
 
   private key(email: string) {
@@ -36,24 +55,39 @@ export class AuthEmailOtpService {
 
   async verifyOtp(email: string, code: string): Promise<boolean> {
     const normalized = email.trim().toLowerCase();
-    const attempts = parseInt(
-      (await safeRedisGet(this.redis, this.attemptsKey(normalized), this.logger)) || '0',
-      10,
+    const attemptsResult = await safeRedisGetResult(
+      this.redis,
+      this.attemptsKey(normalized),
+      this.logger,
     );
+    if (!attemptsResult.ok) {
+      if (this.isProduction()) this.failClosed();
+      throw new BadRequestException('Too many attempts. Request a new code.');
+    }
+    const attempts = parseInt(attemptsResult.value || '0', 10);
     if (attempts >= 5) {
       throw new BadRequestException('Too many attempts. Request a new code.');
     }
-    const stored = await safeRedisGet(this.redis, this.key(normalized), this.logger);
-    if (!stored) {
+    const storedResult = await safeRedisGetResult(
+      this.redis,
+      this.key(normalized),
+      this.logger,
+    );
+    if (!storedResult.ok) {
+      if (this.isProduction()) this.failClosed();
+      throw new BadRequestException('Code expired or not found. Resend verification.');
+    }
+    if (!storedResult.value) {
       throw new BadRequestException('Code expired or not found. Resend verification.');
     }
     const hash = createHash('sha256').update(code.trim()).digest('hex');
-    if (hash !== stored) {
+    if (hash !== storedResult.value) {
+      const nextAttempts = attempts + 1;
       await safeRedisSetex(
         this.redis,
         this.attemptsKey(normalized),
         600,
-        String(attempts + 1),
+        String(nextAttempts),
         this.logger,
       );
       throw new BadRequestException('Invalid verification code');

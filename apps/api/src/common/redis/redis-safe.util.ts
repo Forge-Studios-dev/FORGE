@@ -7,18 +7,34 @@ export function isRedisQuotaError(err: unknown): boolean {
   return msg.includes('max requests limit exceeded');
 }
 
+export type SafeRedisGetResult =
+  | { ok: true; value: string | null }
+  | { ok: false };
+
 export async function safeRedisGet(
   redis: Redis,
   key: string,
   log?: Logger,
 ): Promise<string | null> {
+  const result = await safeRedisGetResult(redis, key, log);
+  return result.ok ? result.value : null;
+}
+
+export async function safeRedisGetResult(
+  redis: Redis,
+  key: string,
+  log?: Logger,
+): Promise<SafeRedisGetResult> {
   try {
-    return await redis.get(key);
+    const value = await redis.get(key);
+    return { ok: true, value };
   } catch (err) {
     log?.warn(`redis GET ${key} failed: ${err instanceof Error ? err.message : err}`);
-    return null;
+    return { ok: false };
   }
 }
+
+export type SafeRedisWriteResult = { ok: true } | { ok: false };
 
 export async function safeRedisSetex(
   redis: Redis,
@@ -27,10 +43,22 @@ export async function safeRedisSetex(
   value: string,
   log?: Logger,
 ): Promise<void> {
+  await safeRedisSetexResult(redis, key, ttlSec, value, log);
+}
+
+export async function safeRedisSetexResult(
+  redis: Redis,
+  key: string,
+  ttlSec: number,
+  value: string,
+  log?: Logger,
+): Promise<SafeRedisWriteResult> {
   try {
     await redis.setex(key, ttlSec, value);
+    return { ok: true };
   } catch (err) {
     log?.warn(`redis SETEX ${key} failed: ${err instanceof Error ? err.message : err}`);
+    return { ok: false };
   }
 }
 

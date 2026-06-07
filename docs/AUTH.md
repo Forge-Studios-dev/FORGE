@@ -9,6 +9,8 @@ Identity: **custom JWT + Postgres refresh sessions** — not Firebase Auth. Sche
 | Endpoint | Notes |
 |----------|--------|
 | `POST /auth/login` | `{ accessToken, refreshToken, sessionId, user }` + HttpOnly `forge_refresh` |
+| `POST /auth/oauth/exchange` | Exchange one-time Google OAuth `code` (60s TTL) for `{ accessToken, sessionId, user }`; refresh via HttpOnly cookie |
+| `GET /auth/google/callback` | Sets refresh cookie; redirects to web with `?code=` only (no tokens in URL) |
 | `POST /auth/refresh` | Body `{ refreshToken }` or cookie |
 | `POST /auth/logout` | `{ allDevices?: boolean }` — default: current device only |
 | `GET /auth/sessions` | List devices |

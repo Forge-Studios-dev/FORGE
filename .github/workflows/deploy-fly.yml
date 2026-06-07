@@ -32,7 +32,7 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy to Fly.io
-        run: flyctl deploy --remote-only --ha=false
+        run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -46,3 +46,9 @@ jobs:
           done
           echo "Health check failed after deploy"
           exit 1
+
+      - name: Rollback API on smoke failure
+        if: failure()
+        run: flyctl releases rollback -a forge-studios-api --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
