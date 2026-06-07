@@ -18,6 +18,22 @@ export function FeedGridSkeleton({ count = 8 }: { count?: number }) {
   );
 }
 
+export function HorizontalCardSkeleton({ count = 4 }: { count?: number }) {
+  return (
+    <div className="hide-scrollbar -mx-5 flex gap-6 overflow-x-auto px-5 md:mx-0 md:px-0">
+      {Array.from({ length: count }).map((_, i) => (
+        <article key={i} className="w-[280px] shrink-0 sm:w-[300px] md:w-[320px]">
+          <div className="aspect-video w-full forge-shimmer rounded-xl bg-surface-container-high" />
+          <div className="mt-3 space-y-2">
+            <div className="h-4 w-full forge-shimmer rounded bg-surface-container-high" />
+            <div className="h-3 w-2/3 forge-shimmer rounded bg-surface-container-high" />
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export function ListSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <ul className="space-y-3">

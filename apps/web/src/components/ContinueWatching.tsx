@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Video } from '@/types';
 import { FeedCard } from '@/components/FeedCard/FeedCard';
-import { FeedGridSkeleton } from '@/components/LoadingSkeleton';
+import { HorizontalCardSkeleton } from '@/components/LoadingSkeleton';
 
 export function ContinueWatching() {
   const { user, isGuest, isLoading: authLoading } = useAuth();
@@ -25,7 +25,7 @@ export function ContinueWatching() {
     return (
       <section className="mb-10">
         <h2 className="font-display-forge mb-6 text-2xl font-semibold md:text-3xl">Continue mastering</h2>
-        <FeedGridSkeleton count={4} />
+        <HorizontalCardSkeleton count={4} />
       </section>
     );
   }
@@ -41,7 +41,7 @@ export function ContinueWatching() {
       </div>
       <div className="hide-scrollbar -mx-5 flex gap-6 overflow-x-auto px-5 md:mx-0 md:px-0">
         {data.map((video) => (
-          <FeedCard key={video.id} video={video} compact />
+          <FeedCard key={video.id} video={video} layout="carousel" />
         ))}
       </div>
     </section>

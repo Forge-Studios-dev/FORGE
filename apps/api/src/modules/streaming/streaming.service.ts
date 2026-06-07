@@ -76,6 +76,13 @@ export class StreamingService {
         }
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (nodeEnv === 'production') {
+        this.logger.error(`Mux live stream create failed: ${message}`);
+        throw new ServiceUnavailableException(
+          'Live streaming is temporarily unavailable. Please try again shortly.',
+        );
+      }
       this.logger.warn('Mux API unavailable, using mock stream data', err);
     }
 

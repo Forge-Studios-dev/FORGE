@@ -7,4 +7,4 @@ export { Button } from './react/Button';
 export { Input } from './react/Input';
 export { LiveBadge } from './react/LiveBadge';
 export { EmptyState } from './react/EmptyState';
-export { FeedGridSkeleton, ListSkeleton, SkeletonBlock, StatCardsSkeleton } from './react/LoadingSkeleton';
+export { FeedGridSkeleton, HorizontalCardSkeleton, ListSkeleton, SkeletonBlock, StatCardsSkeleton } from './react/LoadingSkeleton';

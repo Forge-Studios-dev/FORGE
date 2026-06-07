@@ -152,3 +152,41 @@ describe('StreamingService access gating', () => {
     });
   });
 });
+
+describe('StreamingService createStream', () => {
+  const streamRepository = {
+    findOne: jest.fn(),
+    find: jest.fn(),
+    save: jest.fn(),
+    update: jest.fn(),
+    create: jest.fn((dto) => dto),
+  };
+
+  it('throws in production when Mux live stream creation fails', async () => {
+    const muxError = new Error('Mux API error');
+    const service = new StreamingService(
+      streamRepository as never,
+      { save: jest.fn(), create: jest.fn() } as never,
+      {
+        get: (key: string) => {
+          const map: Record<string, string> = {
+            nodeEnv: 'production',
+            'mux.tokenId': 'real-token',
+            'mux.tokenSecret': 'real-secret',
+          };
+          return map[key];
+        },
+      } as never,
+      { emit: jest.fn() } as never,
+      { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn() } as never,
+      { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
+    );
+
+    jest.spyOn(service['mux'].video.liveStreams, 'create').mockRejectedValue(muxError);
+
+    await expect(service.createStream('user-1', { title: 'Live session' })).rejects.toThrow(
+      'Live streaming is temporarily unavailable',
+    );
+    expect(streamRepository.save).not.toHaveBeenCalled();
+  });
+});

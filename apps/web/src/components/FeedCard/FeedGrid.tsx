@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useFeedScrollRestore } from '@/lib/use-feed-scroll-restore';
-import { chunkFeedRows, useFeedColumns } from '@/lib/use-feed-columns';
+import { chunkFeedRows, estimateFeedRowHeight, useFeedColumns } from '@/lib/use-feed-columns';
 import { PaginatedResponse, Video } from '@/types';
 import { FeedCard } from './FeedCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -15,8 +15,6 @@ import { preloadHlsManifests } from '@/lib/hls-preload';
 
 /** With row virtualization, allow more cached pages; DOM stays bounded. */
 const MAX_FEED_PAGES = 10;
-const FEED_ROW_ESTIMATE_PX = 300;
-
 interface Props {
   initialData: PaginatedResponse<Video>;
   categorySlug?: string;
@@ -110,10 +108,18 @@ export function FeedGrid({
 
   const virtualizer = useWindowVirtualizer({
     count: rows.length,
-    estimateSize: () => FEED_ROW_ESTIMATE_PX,
+    estimateSize: () => estimateFeedRowHeight(columnCount),
     overscan: 4,
     scrollMargin,
+    measureElement:
+      typeof window !== 'undefined'
+        ? (element) => element.getBoundingClientRect().height
+        : undefined,
   });
+
+  useEffect(() => {
+    virtualizer.measure();
+  }, [columnCount, rows.length, virtualizer]);
 
   if (isError && !videos.length) {
     return (
@@ -154,9 +160,10 @@ export function FeedGrid({
           return (
             <div
               key={virtualRow.key}
+              ref={virtualizer.measureElement}
+              data-index={virtualRow.index}
               className="absolute left-0 top-0 w-full px-0"
               style={{
-                height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start - scrollMargin}px)`,
               }}
             >

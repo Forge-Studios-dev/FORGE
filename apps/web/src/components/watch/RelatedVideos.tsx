@@ -32,7 +32,7 @@ export async function RelatedVideos({
   return (
     <div className="forge-stagger space-y-4">
       {videos.map((video) => (
-        <FeedCard key={video.id} video={video} compact />
+        <FeedCard key={video.id} video={video} layout="sidebar" />
       ))}
     </div>
   );

@@ -12,6 +12,7 @@ export function TopBar() {
     isLoading,
     logout,
     canUpload,
+    canGoLive,
     canEngage,
     canApplyForCreator,
   } = useAuth();
@@ -60,6 +61,16 @@ export function TopBar() {
                 className="font-label-caps hidden rounded-full border border-primary/40 px-4 py-2 text-xs text-primary hover:bg-primary/10 md:block"
               >
                 Become a Creator
+              </Link>
+            )}
+            {canGoLive && (
+              <Link
+                href="/studio/live"
+                className="hidden h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 md:flex"
+                title="Go live"
+                aria-label="Go live"
+              >
+                <Icon name="sensors" />
               </Link>
             )}
             {canUpload && (
