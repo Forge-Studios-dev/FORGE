@@ -1,0 +1,11 @@
+/* Self-hosted Material Symbols — CSP-safe (font-src 'self' only). */
+@import '@material-symbols/font-400/outlined.css';
+
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+  user-select: none;
+}
