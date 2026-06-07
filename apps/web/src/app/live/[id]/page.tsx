@@ -112,7 +112,7 @@ export default function LiveWatchPage() {
                   {ACCESS_MESSAGES[stream.accessReason ?? ''] ?? 'You cannot watch this stream.'}
                 </p>
               </div>
-            ) : stream.playbackUrl ? (
+            ) : stream.status === 'live' && stream.playbackUrl ? (
               <VideoPlayer
                 hlsUrl={stream.playbackUrl}
                 thumbnailUrl={posterUrl ?? undefined}
@@ -120,12 +120,23 @@ export default function LiveWatchPage() {
                 lowLatency
               />
             ) : (
-              <div className="glass-panel flex aspect-video flex-col items-center justify-center gap-2 px-6 text-center">
-                <p className="text-sm text-on-surface-variant">
-                  {stream.status === 'live'
-                    ? 'Playback is not available yet. Refresh in a moment once Mux activates the stream.'
-                    : 'This stream is not broadcasting yet. When the creator goes live in OBS, playback will appear here.'}
-                </p>
+              <div className="glass-panel relative aspect-video overflow-hidden">
+                {posterUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={posterUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" />
+                ) : null}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/50 px-6 text-center">
+                  <p className="text-sm font-medium text-on-surface">
+                    {stream.status === 'ended' ? 'Stream ended' : 'Waiting for broadcast'}
+                  </p>
+                  <p className="text-sm text-on-surface-variant">
+                    {stream.status === 'ended'
+                      ? 'This live session has ended.'
+                      : isOwner
+                        ? 'Start streaming in OBS using the RTMP credentials below. Playback will begin automatically once you are live.'
+                        : 'The creator has not started broadcasting yet. Check back in a moment.'}
+                  </p>
+                </div>
               </div>
             )}
 

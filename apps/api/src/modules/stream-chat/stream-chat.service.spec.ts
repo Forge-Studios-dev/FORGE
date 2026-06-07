@@ -144,4 +144,32 @@ describe('StreamChatService', () => {
       ForbiddenException,
     );
   });
+
+  it('returns chat history when redis is unavailable', async () => {
+    streamingService.findById.mockResolvedValue({
+      id: 's1',
+      userId: 'c1',
+      chatEnabled: true,
+      visibility: StreamVisibility.PUBLIC,
+      requiredTierId: null,
+    } as Stream);
+
+    redis.get.mockRejectedValue(new Error('ECONNREFUSED'));
+    redis.setex.mockRejectedValue(new Error('ECONNREFUSED'));
+
+    const queryBuilder = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    messageRepository.createQueryBuilder.mockReturnValue(queryBuilder);
+
+    const result = await service.getMessages('s1');
+
+    expect(result.data).toEqual([]);
+    expect(result.meta.hasMore).toBe(false);
+  });
 });

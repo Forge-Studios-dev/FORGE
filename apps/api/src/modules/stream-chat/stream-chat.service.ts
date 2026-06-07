@@ -4,6 +4,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -19,9 +20,17 @@ import { toPublicStreamMessage } from './stream-chat.mapper';
 import { StreamingService } from '../streaming/streaming.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { UserRole } from '../users/entities/user.entity';
+import {
+  safeRedisDel,
+  safeRedisGet,
+  safeRedisSetNx,
+  safeRedisSetex,
+} from '../../common/redis/redis-safe.util';
 
 @Injectable()
 export class StreamChatService {
+  private readonly logger = new Logger(StreamChatService.name);
+
   constructor(
     @InjectRepository(StreamMessage)
     private readonly messageRepository: Repository<StreamMessage>,
@@ -60,7 +69,7 @@ export class StreamChatService {
 
     if (!cursor) {
       const cacheKey = `stream:chat:page:${streamId}`;
-      const cached = await this.redis.get(cacheKey);
+      const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
       if (cached) {
         try {
           return JSON.parse(cached) as {
@@ -68,7 +77,7 @@ export class StreamChatService {
             meta: { cursor: string | null; hasMore: boolean };
           };
         } catch {
-          await this.redis.del(cacheKey);
+          await safeRedisDel(this.redis, cacheKey, this.logger);
         }
       }
     }
@@ -98,7 +107,7 @@ export class StreamChatService {
     };
 
     if (!cursor) {
-      await this.redis.setex(`stream:chat:page:${streamId}`, 5, JSON.stringify(result));
+      await safeRedisSetex(this.redis, `stream:chat:page:${streamId}`, 5, JSON.stringify(result), this.logger);
     }
 
     return result;
@@ -143,7 +152,7 @@ export class StreamChatService {
     });
 
     const publicMsg = toPublicStreamMessage(full!);
-    await this.redis.del(`stream:chat:page:${streamId}`);
+    await safeRedisDel(this.redis, `stream:chat:page:${streamId}`, this.logger);
     this.eventEmitter.emit('stream.chat.message', { streamId, message: publicMsg });
     return publicMsg;
   }
@@ -215,8 +224,8 @@ export class StreamChatService {
   private async assertRateLimit(streamId: string, userId: string, slowModeSeconds: number) {
     const minInterval = Math.max(slowModeSeconds, 2);
     const key = `stream:chat:rate:${streamId}:${userId}`;
-    const set = await this.redis.set(key, '1', 'EX', minInterval, 'NX');
-    if (set !== 'OK') {
+    const allowed = await safeRedisSetNx(this.redis, key, '1', minInterval, this.logger);
+    if (!allowed) {
       throw new HttpException('Slow down — wait before sending another message', HttpStatus.TOO_MANY_REQUESTS);
     }
   }
