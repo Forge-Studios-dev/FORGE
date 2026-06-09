@@ -12,7 +12,7 @@ export class WebhookEvent {
   @Column({ name: 'event_id', length: 255 })
   eventId: string;
 
-  @Column({ name: 'event_type', length: 128, nullable: true })
+  @Column({ name: 'event_type', type: 'varchar', length: 128, nullable: true })
   eventType: string | null;
 
   @Column({ name: 'processed_at', type: 'timestamptz' })
