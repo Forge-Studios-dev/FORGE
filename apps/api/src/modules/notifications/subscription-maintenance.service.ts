@@ -21,6 +21,14 @@ export class SubscriptionMaintenanceService {
   async runMaintenance() {
     try {
       const expiring = await this.entitlementsService.getExpiringSubscriptions(3);
+      const pending: Array<{
+        userId: string;
+        title: string;
+        body: string;
+        metadata: Record<string, unknown>;
+        pushData: Record<string, string>;
+      }> = [];
+
       for (const sub of expiring) {
         const dedupeKey = `sub:expiring:notified:${sub.id}`;
         const already = await this.redis.get(dedupeKey);
@@ -30,25 +38,42 @@ export class SubscriptionMaintenanceService {
         const daysLeft = sub.expiresAt
           ? Math.ceil((sub.expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000))
           : 3;
+        const title = `${tierName} expiring soon`;
+        const body = `Your membership expires in ${daysLeft} day(s).`;
 
-        await this.notificationsService.create({
+        pending.push({
           userId: sub.userId,
-          type: NotificationType.SUBSCRIPTION_EXPIRING,
-          title: `${tierName} expiring soon`,
-          body: `Your membership expires in ${daysLeft} day(s).`,
+          title,
+          body,
           metadata: {
             subscriptionId: sub.id,
             creatorId: sub.creatorId,
             tierId: sub.tierId,
             expiresAt: sub.expiresAt?.toISOString(),
           },
-        });
-        await this.pushDispatch.enqueueForUser(sub.userId, {
-          title: `${tierName} expiring soon`,
-          body: `Your membership expires in ${daysLeft} day(s).`,
-          data: { type: 'subscription_expiring', creatorId: sub.creatorId },
+          pushData: { type: 'subscription_expiring', creatorId: sub.creatorId },
         });
         await this.redis.setex(dedupeKey, 3 * 24 * 60 * 60, '1');
+      }
+
+      if (pending.length) {
+        await this.notificationsService.createMany(
+          pending.map((item) => ({
+            userId: item.userId,
+            type: NotificationType.SUBSCRIPTION_EXPIRING,
+            title: item.title,
+            body: item.body,
+            metadata: item.metadata,
+          })),
+        );
+        await this.pushDispatch.enqueueMany(
+          pending.map((item) => ({
+            userId: item.userId,
+            title: item.title,
+            body: item.body,
+            data: item.pushData,
+          })),
+        );
       }
 
       const expired = await this.entitlementsService.expireDueSubscriptions();

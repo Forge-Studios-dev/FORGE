@@ -4,6 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import crypto from 'crypto';
 import { StreamingController } from './streaming.controller';
 import { StreamingService } from './streaming.service';
+import { StreamLiveService } from './stream-live.service';
+import { BillingService } from '../billing/billing.service';
+import { UsersService } from '../users/users.service';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
@@ -24,6 +27,9 @@ describe('StreamingController Mux webhook', () => {
       controllers: [StreamingController],
       providers: [
         { provide: StreamingService, useValue: streamingService },
+        { provide: StreamLiveService, useValue: {} },
+        { provide: BillingService, useValue: { createEventCheckout: jest.fn() } },
+        { provide: UsersService, useValue: { resolveUserId: jest.fn() } },
         {
           provide: ConfigService,
           useValue: {

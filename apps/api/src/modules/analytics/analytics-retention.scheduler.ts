@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { shouldRegisterBullScheduler } from '../../common/bull/scheduler-role.util';
 import { ANALYTICS_RETENTION_QUEUE } from './analytics-retention.constants';
 
 const SCHEDULER_ID = 'analytics-retention-daily';
@@ -8,10 +9,7 @@ const DAILY_MS = 24 * 60 * 60 * 1000;
 const REGISTER_TIMEOUT_MS = 10_000;
 
 function shouldRegisterScheduler(): boolean {
-  if (process.env.DISABLE_ANALYTICS_RETENTION === 'true') return false;
-  if (process.env.WORKER_ONLY === 'true') return true;
-  if (process.env.NODE_ENV === 'production') return false;
-  return true;
+  return shouldRegisterBullScheduler('DISABLE_ANALYTICS_RETENTION');
 }
 
 @Injectable()

@@ -37,5 +37,5 @@ export interface ContentAccessRequest {
 
 export interface ContentAccessResult {
   allowed: boolean;
-  reason?: 'login_required' | 'follow_required' | 'subscription_required' | 'tier_required' | 'invite_required' | 'paid_event' | 'private' | 'not_available';
+  reason?: 'login_required' | 'follow_required' | 'subscription_required' | 'tier_required' | 'invite_required' | 'paid_event' | 'private' | 'not_available' | 'age_confirmation_required';
 }

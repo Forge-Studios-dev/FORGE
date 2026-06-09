@@ -1,0 +1,137 @@
+import { ForbiddenException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { StreamLiveService } from './stream-live.service';
+import { StreamModerator } from './entities/stream-moderator.entity';
+import { StreamRsvp } from './entities/stream-rsvp.entity';
+import { StreamPoll } from './entities/stream-poll.entity';
+import { StreamPollVote } from './entities/stream-poll-vote.entity';
+import { Stream, StreamVisibility } from './entities/stream.entity';
+import { StreamingService } from './streaming.service';
+import { EntitlementsService } from '../entitlements/entitlements.service';
+import { UsersService } from '../users/users.service';
+import { StreamClip } from './entities/stream-clip.entity';
+import { StreamCaption } from './entities/stream-caption.entity';
+import { ConfigService } from '@nestjs/config';
+
+describe('StreamLiveService votePoll', () => {
+  let service: StreamLiveService;
+  const pollRepository = { findOne: jest.fn(), save: jest.fn(), create: jest.fn(), update: jest.fn() };
+  const pollVoteRepository = {
+    findOne: jest.fn(),
+    save: jest.fn(),
+    create: jest.fn(),
+    find: jest.fn(),
+    createQueryBuilder: jest.fn(),
+  };
+  const streamingService = { findById: jest.fn() };
+  const entitlementsService = { assertAccessAsync: jest.fn() };
+  const usersService = { resolveUserId: jest.fn() };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        StreamLiveService,
+        { provide: getRepositoryToken(StreamModerator), useValue: {} },
+        { provide: getRepositoryToken(StreamRsvp), useValue: {} },
+        { provide: getRepositoryToken(StreamPoll), useValue: pollRepository },
+        { provide: getRepositoryToken(StreamPollVote), useValue: pollVoteRepository },
+        { provide: getRepositoryToken(Stream), useValue: {} },
+        { provide: getRepositoryToken(StreamClip), useValue: { save: jest.fn(), find: jest.fn(), create: jest.fn() } },
+        { provide: getRepositoryToken(StreamCaption), useValue: { find: jest.fn() } },
+        { provide: StreamingService, useValue: streamingService },
+        {
+          provide: ConfigService,
+          useValue: { get: (key: string) => (key === 'stream.defaultClipDurationMs' ? 30_000 : undefined) },
+        },
+        { provide: EntitlementsService, useValue: entitlementsService },
+        { provide: UsersService, useValue: usersService },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+      ],
+    }).compile();
+
+    service = module.get(StreamLiveService);
+  });
+
+  it('checks entitlements before recording a vote', async () => {
+    pollRepository.findOne.mockResolvedValue({
+      id: 'poll-1',
+      streamId: 'stream-1',
+      options: ['A', 'B'],
+      isActive: true,
+    });
+    streamingService.findById.mockResolvedValue({
+      id: 'stream-1',
+      userId: 'creator-1',
+      visibility: StreamVisibility.SUBSCRIBERS,
+      requiredTierId: null,
+    });
+    entitlementsService.assertAccessAsync.mockRejectedValue(new ForbiddenException());
+
+    await expect(service.votePoll('poll-1', 'viewer-1', 0)).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(entitlementsService.assertAccessAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        creatorId: 'creator-1',
+        viewerId: 'viewer-1',
+      }),
+    );
+  });
+});
+
+describe('StreamLiveService poll aggregation', () => {
+  let service: StreamLiveService;
+  const pollRepository = { findOne: jest.fn() };
+  const pollVoteRepository = { createQueryBuilder: jest.fn() };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        StreamLiveService,
+        { provide: getRepositoryToken(StreamModerator), useValue: {} },
+        { provide: getRepositoryToken(StreamRsvp), useValue: {} },
+        { provide: getRepositoryToken(StreamPoll), useValue: pollRepository },
+        { provide: getRepositoryToken(StreamPollVote), useValue: pollVoteRepository },
+        { provide: getRepositoryToken(Stream), useValue: {} },
+        { provide: getRepositoryToken(StreamClip), useValue: {} },
+        { provide: getRepositoryToken(StreamCaption), useValue: {} },
+        { provide: StreamingService, useValue: { findById: jest.fn() } },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: EntitlementsService, useValue: {} },
+        { provide: UsersService, useValue: {} },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(StreamLiveService);
+  });
+
+  it('aggregates vote counts via SQL GROUP BY', async () => {
+    pollRepository.findOne.mockResolvedValue({
+      id: 'poll-1',
+      streamId: 'stream-1',
+      question: 'Q?',
+      options: ['A', 'B', 'C'],
+      isActive: true,
+    });
+    const qb = {
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([
+        { optionIndex: 0, count: '3' },
+        { optionIndex: 2, count: '1' },
+      ]),
+    };
+    pollVoteRepository.createQueryBuilder.mockReturnValue(qb);
+
+    const result = await service.getActivePoll('stream-1');
+
+    expect(pollVoteRepository.createQueryBuilder).toHaveBeenCalled();
+    expect(result?.counts).toEqual([3, 0, 1]);
+    expect(result?.totalVotes).toBe(4);
+  });
+});

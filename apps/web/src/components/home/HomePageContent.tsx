@@ -6,6 +6,7 @@ import { FeedGrid } from '@/components/FeedCard/FeedGrid';
 import { FeedGridSkeleton } from '@/components/LoadingSkeleton';
 import { CategoryFilter } from '@/components/CategoryFilter';
 import { HomeFeedSections } from '@/components/home/HomeFeedSections';
+import { LiveNowRail } from '@/components/home/LiveNowRail';
 import { HomeHero } from '@/components/home/HomeHero';
 import { TrendingSkills } from '@/components/home/TrendingSkills';
 import { ContinueWatching } from '@/components/ContinueWatching';
@@ -40,6 +41,7 @@ export function HomePageContent({ feed, trending, categories }: Props) {
     >
       <HomeFeedSections />
       <HomeHero />
+      <LiveNowRail />
       <ContinueWatching />
       <TrendingSkills videos={trending.data.length > 0 ? trending.data : feed.data} />
 

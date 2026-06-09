@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -21,6 +21,10 @@ import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdateAdminVideoDto } from './dto/update-admin-video.dto';
 import { AuthUserCacheService } from '../auth/auth-user-cache.service';
 import { clampLimit, clampPage } from '../../common/utils/pagination.util';
+import { StreamingService } from '../streaming/streaming.service';
+import { StreamLiveService } from '../streaming/stream-live.service';
+import { Stream, StreamStatus } from '../streaming/entities/stream.entity';
+import { StreamChatService } from '../stream-chat/stream-chat.service';
 
 export type AdminUserDetail = {
   id: string;
@@ -56,6 +60,8 @@ export class AdminService {
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
+    @InjectRepository(Stream)
+    private readonly streamRepository: Repository<Stream>,
     private readonly usersService: UsersService,
     private readonly playlistsService: PlaylistsService,
     private readonly authService: AuthService,
@@ -63,6 +69,9 @@ export class AdminService {
     private readonly analyticsService: AnalyticsService,
     private readonly videosService: VideosService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly streamingService: StreamingService,
+    private readonly streamLiveService: StreamLiveService,
+    private readonly streamChatService: StreamChatService,
   ) {}
 
   async moderateVideo(
@@ -322,5 +331,75 @@ export class AdminService {
       pendingReports,
       playlistCount: playlists.length,
     };
+  }
+
+  async listStreams(opts: { status?: StreamStatus; page?: number; limit?: number }) {
+    const page = clampPage(opts.page ?? 1);
+    const limit = clampLimit(opts.limit ?? 20);
+    const qb = this.streamRepository
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.user', 'user')
+      .orderBy('s.created_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (opts.status) {
+      qb.andWhere('s.status = :status', { status: opts.status });
+    }
+
+    const [data, total] = await qb.getManyAndCount();
+    return {
+      data: data.map((s) => ({
+        id: s.id,
+        title: s.title,
+        status: s.status,
+        visibility: s.visibility,
+        userId: s.userId,
+        creatorName: s.user?.displayName,
+        viewerCount: s.viewerCount,
+        scheduledAt: s.scheduledAt,
+        startedAt: s.startedAt,
+        endedAt: s.endedAt,
+        createdAt: s.createdAt,
+      })),
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async forceEndStream(streamId: string, _adminId: string) {
+    const stream = await this.streamRepository.findOne({ where: { id: streamId } });
+    if (!stream) throw new NotFoundException('Stream not found');
+    return this.streamingService.endStream(stream.userId, streamId);
+  }
+
+  async grantStreamAccess(
+    adminId: string,
+    streamId: string,
+    dto: { userId?: string; username?: string; note?: string },
+  ) {
+    const userId = await this.usersService.resolveUserId(dto);
+    return this.streamingService.grantStreamEventAccess(adminId, streamId, userId, {
+      isAdmin: true,
+      note: dto.note,
+    });
+  }
+
+  async backfillMuxPlaybackIds() {
+    const updated = await this.streamLiveService.backfillMuxPlaybackIds();
+    return { updated };
+  }
+
+  async getStreamChat(streamId: string, adminId: string, role: UserRole, limit = 50) {
+    if (role !== UserRole.ADMIN) {
+      throw new ForbiddenException();
+    }
+    return this.streamChatService.getMessages(streamId, limit, undefined, adminId, role);
+  }
+
+  async deleteStreamChatMessage(streamId: string, messageId: string, adminId: string, role: UserRole) {
+    if (role !== UserRole.ADMIN) {
+      throw new ForbiddenException();
+    }
+    return this.streamChatService.deleteMessage(streamId, messageId, adminId, role);
   }
 }

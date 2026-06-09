@@ -1,7 +1,7 @@
 # Disaster recovery (F-901)
 
 **Audience:** Engineering / DevOps  
-**Related:** [DEPLOY.md](../DEPLOY.md) · [09_INFRASTRUCTURE_MATURITY.md](../audits/09_INFRASTRUCTURE_MATURITY.md)
+**Related:** [DEPLOY.md](../DEPLOY.md) · [audits/EXECUTIVE_SUMMARY.md](../audits/EXECUTIVE_SUMMARY.md)
 
 ---
 
@@ -60,5 +60,5 @@ Never run destructive scripts (`scripts/wipe-platform-data.sh`) against producti
 ## Post-incident
 
 1. Capture timeline (deploy, migration, vendor status).
-2. Update [AUDIT_COMPLETION.md](../audits/AUDIT_COMPLETION.md) or internal postmortem.
+2. Document in an internal postmortem or ops log.
 3. Add monitoring gap to Grafana alerts if missing.

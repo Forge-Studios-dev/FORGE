@@ -13,10 +13,16 @@ import { PlaylistsModule } from '../playlists/playlists.module';
 import { AuthModule } from '../auth/auth.module';
 import { ContentModule } from '../content/content.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
+import { StreamingModule } from '../streaming/streaming.module';
+import { StreamChatModule } from '../stream-chat/stream-chat.module';
+import { Stream } from '../streaming/entities/stream.entity';
+import { DatabaseObservabilityService } from '../../database/database-observability.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Video, Report]),
+    TypeOrmModule.forFeature([User, Video, Report, Stream]),
+    StreamingModule,
+    StreamChatModule,
     ContentModule,
     EntitlementsModule,
     ReportsModule,
@@ -27,6 +33,6 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
     AuthModule,
   ],
   controllers: [AdminController],
-  providers: [AdminService],
+  providers: [AdminService, DatabaseObservabilityService],
 })
 export class AdminModule {}

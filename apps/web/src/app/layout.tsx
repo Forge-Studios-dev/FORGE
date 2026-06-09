@@ -5,6 +5,7 @@ import './globals.css';
 import { Providers } from './providers';
 import { AppShell } from '@/components/shell/AppShell';
 import { AuthProvider } from '@/lib/auth';
+import { LiveStreamsSocketSync } from '@/components/live/LiveStreamsSocketSync';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-space-grotesk' });
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <Providers>
           <AuthProvider>
+            <LiveStreamsSocketSync />
             <AppShell>
               <div id="main-content">{children}</div>
             </AppShell>

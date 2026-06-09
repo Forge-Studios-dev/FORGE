@@ -21,7 +21,7 @@ alwaysApply: false
 ## Documentation (`docs/`)
 
 - Major features: update `FORGE_PROJECT_MASTER.md` or focused doc with architecture + env vars + rollback.
-- Deployment: align with `GETTING_STARTED.md`, `DEPLOYMENT_DEMO.md`; never document real credentials.
+- Deployment: align with `GETTING_STARTED.md`, `DEPLOY.md`; never document real credentials.
 - API changes: note breaking changes and migration steps.
 
 ## Scripts (`scripts/`)

@@ -94,3 +94,21 @@ export async function safeRedisIncr(redis: Redis, key: string, log?: Logger): Pr
     return null;
   }
 }
+
+/** SCAN + DEL keys matching a glob pattern (e.g. streams:list:*). */
+export async function safeRedisDelPattern(
+  redis: Redis,
+  pattern: string,
+  log?: Logger,
+): Promise<void> {
+  try {
+    let cursor = '0';
+    do {
+      const [next, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = next;
+      if (keys.length) await redis.del(...keys);
+    } while (cursor !== '0');
+  } catch (err) {
+    log?.warn(`redis DEL pattern ${pattern} failed: ${err instanceof Error ? err.message : err}`);
+  }
+}

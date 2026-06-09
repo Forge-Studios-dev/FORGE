@@ -7,6 +7,7 @@ import { SubscriptionTier } from './entities/subscription-tier.entity';
 import { MemberSubscription } from './entities/member-subscription.entity';
 import { EngagementService } from '../engagement/engagement.service';
 import { ContentVisibility } from './content-access.types';
+import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 
 describe('EntitlementsService', () => {
   let service: EntitlementsService;
@@ -36,6 +37,10 @@ describe('EntitlementsService', () => {
         {
           provide: getRepositoryToken(SubscriptionTier),
           useValue: tierRepository,
+        },
+        {
+          provide: getRepositoryToken(StreamEventPurchase),
+          useValue: { findOne: jest.fn(), find: jest.fn().mockResolvedValue([]) },
         },
         {
           provide: getRepositoryToken(MemberSubscription),

@@ -13,9 +13,14 @@ dart pub global activate flutterfire_cli
 cd apps/mobile && flutterfire configure --project=YOUR_PROJECT_ID
 ```
 
-Commit generated `lib/firebase_options.dart`. iOS: APNs key in Firebase console. Android: `google-services.json` via FlutterFire.
+Commit generated `lib/firebase_options.dart`.
 
-Until configured, push is skipped safely (`REPLACE_ME` stubs).
+- **iOS:** APNs key in Firebase Console → Cloud Messaging; enable push in Xcode
+- **Android:** `google-services.json` from FlutterFire configure
+
+Until configured, `lib/firebase_options.dart` uses `REPLACE_ME` stubs and push is skipped safely.
+
+Verify after login: `POST /notifications/devices/register` with a valid FCM token.
 
 ---
 

@@ -27,9 +27,18 @@ export enum StreamVisibility {
   PAID_EVENT = 'paid_event',
 }
 
+/** Chat participation gate — independent of stream visibility. */
+export enum StreamChatMode {
+  ALL = 'all',
+  FOLLOWERS = 'followers',
+  SUBSCRIBERS = 'subscribers',
+  MODS_ONLY = 'mods_only',
+}
+
 @Entity('streams')
 @Index(['userId'])
 @Index(['status'])
+@Index(['status', 'scheduledAt'])
 export class Stream {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -65,6 +74,18 @@ export class Stream {
   @Column({ name: 'playback_url', nullable: true })
   playbackUrl: string;
 
+  @Column({ name: 'mux_playback_id', type: 'varchar', nullable: true })
+  muxPlaybackId: string | null;
+
+  @Column({ name: 'livekit_egress_id', type: 'varchar', nullable: true })
+  livekitEgressId: string | null;
+
+  @Column({ name: 'reminder_sent_at', type: 'timestamptz', nullable: true })
+  reminderSentAt: Date | null;
+
+  @Column({ name: 'mux_idle_since', type: 'timestamptz', nullable: true })
+  muxIdleSince: Date | null;
+
   @Column({ name: 'thumbnail_url', nullable: true })
   thumbnailUrl: string;
 
@@ -92,6 +113,14 @@ export class Stream {
   @Column({ name: 'chat_enabled', default: true })
   chatEnabled: boolean;
 
+  @Column({
+    name: 'chat_mode',
+    type: 'enum',
+    enum: StreamChatMode,
+    default: StreamChatMode.ALL,
+  })
+  chatMode: StreamChatMode;
+
   @Column({ name: 'record_enabled', default: true })
   recordEnabled: boolean;
 
@@ -114,8 +143,17 @@ export class Stream {
   @Column({ name: 'ticket_price_cents', type: 'int', nullable: true })
   ticketPriceCents: number | null;
 
+  @Column({ name: 'pinned_message_id', type: 'uuid', nullable: true })
+  pinnedMessageId: string | null;
+
   @Column({ name: 'viewer_count', default: 0 })
   viewerCount: number;
+
+  @Column({ name: 'unique_viewer_count', type: 'int', default: 0 })
+  uniqueViewerCount: number;
+
+  @Column({ name: 'dvr_enabled', default: false })
+  dvrEnabled: boolean;
 
   @Column({ name: 'started_at', nullable: true })
   startedAt: Date;

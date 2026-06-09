@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import {
   CheckoutSessionInput,
   CheckoutSessionResult,
+  EventCheckoutSessionInput,
+  SuperChatCheckoutInput,
   PaymentProvider,
   ProviderWebhookResult,
 } from './payment-provider.interface';
@@ -16,6 +18,22 @@ export class StubPaymentProvider implements PaymentProvider {
     return {
       provider: this.name,
       sessionId: `stub_${randomUUID()}`,
+      checkoutUrl: null,
+    };
+  }
+
+  async createEventCheckoutSession(_input: EventCheckoutSessionInput): Promise<CheckoutSessionResult> {
+    return {
+      provider: this.name,
+      sessionId: `stub_event_${randomUUID()}`,
+      checkoutUrl: null,
+    };
+  }
+
+  async createSuperChatCheckoutSession(_input: SuperChatCheckoutInput): Promise<CheckoutSessionResult> {
+    return {
+      provider: this.name,
+      sessionId: `stub_super_${randomUUID()}`,
       checkoutUrl: null,
     };
   }

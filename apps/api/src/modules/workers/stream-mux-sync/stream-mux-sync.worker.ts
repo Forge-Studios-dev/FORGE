@@ -1,0 +1,32 @@
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
+import { Job } from 'bullmq';
+import { MuxLiveSyncService } from '../../streaming/mux-live-sync.service';
+import { StreamMuxSyncScheduler } from '../../streaming/stream-mux-sync.scheduler';
+import { STREAM_MUX_SYNC_QUEUE, StreamMuxSyncJob } from './stream-mux-sync.constants';
+
+@Processor(STREAM_MUX_SYNC_QUEUE)
+export class StreamMuxSyncWorker extends WorkerHost {
+  private readonly logger = new Logger(StreamMuxSyncWorker.name);
+
+  constructor(
+    private readonly muxLiveSyncService: MuxLiveSyncService,
+    private readonly muxSyncScheduler: StreamMuxSyncScheduler,
+  ) {
+    super();
+  }
+
+  async process(job: Job<StreamMuxSyncJob>): Promise<void> {
+    if (job.data.streamId) {
+      await this.muxLiveSyncService.syncStreamById(job.data.streamId);
+      return;
+    }
+
+    const result = await this.muxLiveSyncService.runPeriodicScan();
+    const hasLive = await this.muxLiveSyncService.hasActiveLiveStreams();
+    await this.muxSyncScheduler.syncIntervalForLiveActivity(hasLive);
+    this.logger.debug(
+      `Mux live sync scan: ${result.synced} idle synced, ${result.finalized} finalized (live=${hasLive})`,
+    );
+  }
+}

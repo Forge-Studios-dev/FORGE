@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import type { FeedSort } from '@forge/shared-types';
@@ -161,6 +161,7 @@ export class FeedService {
       const followingRows = await this.followRepository.find({
         where: { followerId: options.userId },
         select: ['followingId'],
+        take: 500,
       });
       followingIds = followingRows.map((r) => r.followingId);
       const watched = await this.watchHistoryRepository.find({
@@ -176,18 +177,21 @@ export class FeedService {
     }
 
     const query = applyDiscoverableVideoFilters(
-      this.videoRepository
-        .createQueryBuilder('v')
-        .leftJoinAndSelect('v.user', 'creator')
-        .leftJoinAndSelect('v.skillTags', 'skillTags')
-        .leftJoinAndSelect('skillTags.subcategory', 'subcategory')
-        .leftJoinAndSelect('subcategory.category', 'category'),
-    ).take(limit + 1);
+      this.videoRepository.createQueryBuilder('v'),
+    )
+      .select('v.id', 'id')
+      .addSelect(SORT_TIME_SQL, 'sort_time');
 
     if (categoryId) {
-      query.andWhere('(v.category_id = :categoryId OR category.id = :categoryId)', {
-        categoryId,
-      });
+      query.andWhere(
+        `(v.category_id = :categoryId OR EXISTS (
+          SELECT 1 FROM video_skill_tags vst
+          INNER JOIN skill_tags st ON st.id = vst.skill_tag_id
+          INNER JOIN subcategories sub ON sub.id = st.subcategory_id
+          WHERE vst.video_id = v.id AND sub.category_id = :categoryId
+        ))`,
+        { categoryId },
+      );
     }
 
     if (options.skillTagIds?.length) {
@@ -201,9 +205,6 @@ export class FeedService {
     }
 
     const cursor = parseCursor(options.cursor, sort);
-
-    // snake_case aliases — PostgreSQL lowercases unquoted identifiers (sortTime → sorttime mismatch).
-    query.addSelect(SORT_TIME_SQL, 'sort_time');
 
     if (sort === 'popular') {
       query.addSelect(POPULAR_SCORE_SQL, 'score');
@@ -259,9 +260,24 @@ export class FeedService {
       }
     }
 
-    const videos = await query.getMany();
-    const hasMore = videos.length > limit;
-    const data = hasMore ? videos.slice(0, limit) : videos;
+    query.limit(limit + 1);
+
+    type IdRow = { id: string; sort_time?: string | Date; score?: string; person_score?: string };
+    const idRows = (await query.getRawMany()) as IdRow[];
+    const hasMore = idRows.length > limit;
+    const pageRows = hasMore ? idRows.slice(0, limit) : idRows;
+    const ids = pageRows.map((row) => row.id);
+
+    if (!ids.length) {
+      return { data: [], meta: { cursor: null, hasMore: false } };
+    }
+
+    const hydrated = await this.videoRepository.find({
+      where: { id: In(ids) },
+      relations: ['user', 'skillTags', 'skillTags.subcategory', 'skillTags.subcategory.category'],
+    });
+    const byId = new Map(hydrated.map((v) => [v.id, v]));
+    const data = ids.map((id) => byId.get(id)).filter((v): v is Video => !!v);
 
     let nextCursor: string | null = null;
     if (hasMore && data.length > 0) {

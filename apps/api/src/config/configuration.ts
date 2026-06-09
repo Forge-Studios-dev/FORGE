@@ -12,8 +12,13 @@ export default () => ({
     username: process.env.DB_USERNAME || 'forge',
     password: process.env.DB_PASSWORD || 'forge',
     name: process.env.DB_NAME || 'forge_db',
-    poolMax: parseInt(process.env.DB_POOL_MAX || '20', 10),
+    poolMax: parseInt(
+      process.env.DB_POOL_MAX ||
+        (process.env.DATABASE_URL?.includes('neon.tech') ? '10' : '20'),
+      10,
+    ),
     connectTimeoutMs: parseInt(process.env.DB_CONNECT_TIMEOUT_MS || '10000', 10),
+    idleTimeoutMs: parseInt(process.env.DB_POOL_IDLE_TIMEOUT_MS || '30000', 10),
     slowQueryMs: parseInt(process.env.DB_SLOW_QUERY_MS || '2000', 10),
   },
 
@@ -56,6 +61,12 @@ export default () => ({
     tokenId: process.env.MUX_TOKEN_ID || '',
     tokenSecret: process.env.MUX_TOKEN_SECRET || '',
     webhookSecret: process.env.MUX_WEBHOOK_SECRET || '',
+    signingKeyId: process.env.MUX_SIGNING_KEY_ID || '',
+    signingPrivateKey: process.env.MUX_SIGNING_PRIVATE_KEY || '',
+    /** Signed playback token TTL (seconds). */
+    signedPlaybackTtlSec: parseInt(process.env.MUX_SIGNED_PLAYBACK_TTL_SEC || '3600', 10),
+    /** Grace period before treating Mux idle as stream ended (seconds). */
+    idleGraceSec: parseInt(process.env.MUX_IDLE_GRACE_SEC || '60', 10),
   },
 
   video: {
@@ -120,5 +131,28 @@ export default () => ({
     provider: process.env.BILLING_PROVIDER || 'stub',
     stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+  },
+
+  livekit: {
+    url: process.env.LIVEKIT_URL || '',
+    apiKey: process.env.LIVEKIT_API_KEY || '',
+    apiSecret: process.env.LIVEKIT_API_SECRET || '',
+  },
+
+  stream: {
+    profanityFilterEnabled: process.env.STREAM_PROFANITY_FILTER_ENABLED !== 'false',
+    chatAsync: process.env.STREAM_CHAT_ASYNC === 'true',
+    snapshotRetentionDays: parseInt(process.env.STREAM_SNAPSHOT_RETENTION_DAYS || '90', 10),
+    aiModerationEnabled: process.env.STREAM_AI_MODERATION_ENABLED !== 'false',
+    superChatEnabled: process.env.STREAM_SUPER_CHAT_ENABLED !== 'false',
+    superChatMinCents: parseInt(process.env.STREAM_SUPER_CHAT_MIN_CENTS || '100', 10),
+    superChatMaxCents: parseInt(process.env.STREAM_SUPER_CHAT_MAX_CENTS || '50000', 10),
+    superChatHighlightSeconds: parseInt(process.env.STREAM_SUPER_CHAT_HIGHLIGHT_SEC || '120', 10),
+    chatArchiveDays: parseInt(process.env.STREAM_CHAT_ARCHIVE_DAYS || '365', 10),
+    defaultClipDurationMs: parseInt(process.env.STREAM_CLIP_DURATION_MS || '30000', 10),
+  },
+
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY || '',
   },
 });

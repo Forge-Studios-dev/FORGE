@@ -4,10 +4,16 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { StreamingService } from './streaming.service';
 import { Stream, StreamStatus, StreamVisibility } from './entities/stream.entity';
-import { Video } from '../content/entities/video.entity';
+import { Video, VideoVisibility } from '../content/entities/video.entity';
 import { MuxVodService } from '../content/mux-vod.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
-import { UserRole } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
+import { StreamEventPurchase } from './entities/stream-event-purchase.entity';
+import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
+import { StreamViewerService } from './stream-viewer.service';
+import { MuxLiveSyncService } from './mux-live-sync.service';
+import { getQueueToken } from '@nestjs/bullmq';
+import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/premium-content-notify.constants';
 
 function mockStream(overrides: Partial<Stream> = {}): Stream {
   return {
@@ -50,6 +56,11 @@ describe('StreamingService access gating', () => {
     update: jest.fn(),
     create: jest.fn(),
   };
+  const videoRepository = {
+    findOne: jest.fn(),
+    save: jest.fn(),
+    create: jest.fn(),
+  };
 
   beforeEach(async () => {
     entitlementsService = {
@@ -58,12 +69,21 @@ describe('StreamingService access gating', () => {
     };
     streamRepository.findOne.mockReset();
     streamRepository.find.mockReset();
+    videoRepository.findOne.mockReset();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StreamingService,
         { provide: getRepositoryToken(Stream), useValue: streamRepository },
-        { provide: getRepositoryToken(Video), useValue: { save: jest.fn(), create: jest.fn() } },
+        { provide: getRepositoryToken(Video), useValue: videoRepository },
+        {
+          provide: getRepositoryToken(User),
+          useValue: { findOne: jest.fn().mockResolvedValue({ matureContentAcknowledgedAt: new Date() }) },
+        },
+        {
+          provide: getRepositoryToken(StreamEventPurchase),
+          useValue: { findOne: jest.fn(), save: jest.fn(), create: jest.fn() },
+        },
         {
           provide: ConfigService,
           useValue: {
@@ -80,6 +100,41 @@ describe('StreamingService access gating', () => {
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: MuxVodService, useValue: { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn() } },
         { provide: EntitlementsService, useValue: entitlementsService },
+        {
+          provide: WebhookIdempotencyService,
+          useValue: {
+            isDuplicate: jest.fn().mockResolvedValue(false),
+            markProcessed: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: MuxLiveSyncService,
+          useValue: {
+            handleWebhookActive: jest.fn(),
+            handleWebhookIdle: jest.fn(),
+          },
+        },
+        {
+          provide: StreamViewerService,
+          useValue: {
+            trackStreamLive: jest.fn().mockResolvedValue(undefined),
+            trackStreamEnded: jest.fn().mockResolvedValue(undefined),
+            finalizeUniqueViewers: jest.fn().mockResolvedValue(0),
+          },
+        },
+        {
+          provide: 'default_IORedisModuleConnectionToken',
+          useValue: {
+            get: jest.fn().mockResolvedValue(null),
+            setex: jest.fn().mockResolvedValue('OK'),
+            del: jest.fn(),
+            scan: jest.fn().mockResolvedValue(['0', []]),
+          },
+        },
+        {
+          provide: getQueueToken(PREMIUM_CONTENT_NOTIFY_QUEUE),
+          useValue: { add: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
@@ -162,6 +217,85 @@ describe('StreamingService access gating', () => {
       expect(results[0].playbackUrl).toBe(gated.playbackUrl);
     });
   });
+
+  describe('getStreamReplayVideo', () => {
+    it('returns accessDenied without hlsUrl for non-entitled viewers', async () => {
+      const stream = mockStream({ visibility: StreamVisibility.PAID_EVENT });
+      const video = {
+        id: 'v1',
+        title: 'Replay',
+        hlsUrl: 'https://stream.mux.com/replay.m3u8',
+        thumbnailUrl: null,
+        publishedAt: new Date(),
+        visibility: VideoVisibility.PAID_EVENT,
+        muxPlaybackId: 'replay',
+      };
+      streamRepository.findOne.mockResolvedValue(stream);
+      videoRepository.findOne.mockResolvedValue(video);
+      entitlementsService.checkAccess.mockResolvedValue({
+        allowed: false,
+        reason: 'paid_event',
+      });
+
+      const result = await service.getStreamReplayVideo('stream-1', 'viewer-1');
+
+      expect(result?.accessDenied).toBe(true);
+      expect(result?.hlsUrl).toBeNull();
+    });
+  });
+});
+
+describe('StreamingService endStream', () => {
+  it('emits stream.ended after manual end', async () => {
+    const emit = jest.fn();
+    const stream = mockStream({ userId: 'creator-1', status: StreamStatus.LIVE });
+    const streamRepository = {
+      findOne: jest.fn().mockResolvedValue(stream),
+      save: jest.fn().mockImplementation((s) => Promise.resolve(s)),
+    };
+
+    const service = new StreamingService(
+      streamRepository as never,
+      { save: jest.fn(), create: jest.fn() } as never,
+      { findOne: jest.fn() } as never,
+      { findOne: jest.fn(), save: jest.fn(), create: jest.fn() } as never,
+      {
+        get: (key: string) => (key === 'nodeEnv' ? 'test' : 'placeholder'),
+      } as never,
+      { emit } as never,
+      { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn() } as never,
+      { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
+      {
+        isDuplicate: jest.fn().mockResolvedValue(false),
+        markProcessed: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
+        trackStreamLive: jest.fn().mockResolvedValue(undefined),
+        trackStreamEnded: jest.fn().mockResolvedValue(undefined),
+        finalizeUniqueViewers: jest.fn().mockResolvedValue(0),
+      } as never,
+      {
+        handleWebhookActive: jest.fn(),
+        handleWebhookIdle: jest.fn(),
+      } as never,
+      {
+        get: jest.fn().mockResolvedValue(null),
+        setex: jest.fn().mockResolvedValue('OK'),
+        del: jest.fn(),
+        scan: jest.fn().mockResolvedValue(['0', []]),
+      } as never,
+      { add: jest.fn() } as never,
+    );
+
+    jest.spyOn(service['mux'].video.liveStreams, 'disable').mockResolvedValue({} as never);
+
+    await service.endStream('creator-1', 'stream-1');
+
+    expect(emit).toHaveBeenCalledWith(
+      'stream.ended',
+      expect.objectContaining({ streamId: 'stream-1', userId: 'creator-1' }),
+    );
+  });
 });
 
 describe('StreamingService createStream', () => {
@@ -178,6 +312,8 @@ describe('StreamingService createStream', () => {
     const service = new StreamingService(
       streamRepository as never,
       { save: jest.fn(), create: jest.fn() } as never,
+      { findOne: jest.fn() } as never,
+      { findOne: jest.fn(), save: jest.fn(), create: jest.fn() } as never,
       {
         get: (key: string) => {
           const map: Record<string, string> = {
@@ -191,6 +327,25 @@ describe('StreamingService createStream', () => {
       { emit: jest.fn() } as never,
       { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn() } as never,
       { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
+      {
+        isDuplicate: jest.fn().mockResolvedValue(false),
+        markProcessed: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
+        trackStreamLive: jest.fn().mockResolvedValue(undefined),
+        trackStreamEnded: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
+        handleWebhookActive: jest.fn(),
+        handleWebhookIdle: jest.fn(),
+      } as never,
+      {
+        get: jest.fn().mockResolvedValue(null),
+        setex: jest.fn().mockResolvedValue('OK'),
+        del: jest.fn(),
+        scan: jest.fn().mockResolvedValue(['0', []]),
+      } as never,
+      { add: jest.fn() } as never,
     );
 
     jest.spyOn(service['mux'].video.liveStreams, 'create').mockRejectedValue(muxError);

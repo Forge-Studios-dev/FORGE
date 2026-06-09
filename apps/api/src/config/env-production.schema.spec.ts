@@ -60,4 +60,35 @@ describe('validateProductionEnv', () => {
       validateProductionEnv({ ...validProdEnv, MOCK_SUBSCRIPTIONS_ENABLED: 'true' }),
     ).toThrow(/MOCK_SUBSCRIPTIONS_ENABLED/);
   });
+
+  it('rejects direct Neon URL without pooler in production', () => {
+    expect(() =>
+      validateProductionEnv({
+        ...validProdEnv,
+        DATABASE_URL:
+          'postgresql://user:pass@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require',
+      }),
+    ).toThrow(/pooler/i);
+  });
+
+  it('accepts Neon pooled URL in production', () => {
+    expect(() =>
+      validateProductionEnv({
+        ...validProdEnv,
+        DATABASE_URL:
+          'postgresql://user:pass@ep-xxxx-pooler.region.aws.neon.tech/neondb?sslmode=require',
+      }),
+    ).not.toThrow();
+  });
+
+  it('allows direct Neon URL when DATABASE_ALLOW_DIRECT_NEON=true', () => {
+    expect(() =>
+      validateProductionEnv({
+        ...validProdEnv,
+        DATABASE_URL:
+          'postgresql://user:pass@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require',
+        DATABASE_ALLOW_DIRECT_NEON: 'true',
+      }),
+    ).not.toThrow();
+  });
 });

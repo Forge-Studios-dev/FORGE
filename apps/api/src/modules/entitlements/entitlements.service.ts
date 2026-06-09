@@ -21,11 +21,13 @@ import { toPublicTier, toPublicSubscription } from './tier.mapper';
 import { EngagementService } from '../engagement/engagement.service';
 import { ChannelType } from './entities/channel-type.enum';
 import { ContentVisibility, StreamVisibility } from './content-access.types';
+import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 
 export type AccessCheckInput = {
   creatorId: string;
   visibility: string;
   requiredTierId?: string | null;
+  streamId?: string | null;
   viewerId?: string | null;
   isOwner?: boolean;
   isAdmin?: boolean;
@@ -37,6 +39,7 @@ export type ViewerAccessContext = {
   followingCreatorIds: Set<string>;
   subscriptionsByCreatorId: Map<string, MemberSubscription>;
   tierSortOrderByTierId: Map<string, number>;
+  purchasedStreamIds: Set<string>;
 };
 
 export type AccessCheckResult = {
@@ -49,7 +52,8 @@ export type AccessCheckResult = {
     | 'invite_required'
     | 'paid_event'
     | 'private'
-    | 'not_available';
+    | 'not_available'
+    | 'age_confirmation_required';
 };
 
 @Injectable()
@@ -59,6 +63,8 @@ export class EntitlementsService {
     private readonly tierRepository: Repository<SubscriptionTier>,
     @InjectRepository(MemberSubscription)
     private readonly subscriptionRepository: Repository<MemberSubscription>,
+    @InjectRepository(StreamEventPurchase)
+    private readonly streamPurchaseRepository: Repository<StreamEventPurchase>,
     private readonly engagementService: EngagementService,
     private readonly configService: ConfigService,
     @InjectRedis() private readonly redis: Redis,
@@ -305,7 +311,11 @@ export class EntitlementsService {
             : null,
         )
         .filter((id): id is string => !!id);
-      ctx = await this.buildViewerAccessContext(viewerId, creatorIds, tierIds);
+      const paidStreamIds = items
+        .filter((i) => i.visibility === ContentVisibility.PAID_EVENT && i.streamId)
+        .map((i) => i.streamId!)
+        .filter(Boolean);
+      ctx = await this.buildViewerAccessContext(viewerId, creatorIds, tierIds, paidStreamIds);
     }
 
     return items.map((item) => {
@@ -335,13 +345,54 @@ export class EntitlementsService {
     viewerId: string,
     creatorIds: string[],
     requiredTierIds: string[],
+    paidStreamIds: string[] = [],
   ): Promise<ViewerAccessContext> {
-    const [followingCreatorIds, subscriptionsByCreatorId, tierSortOrderByTierId] = await Promise.all([
-      this.engagementService.getFollowingIdsAmong(viewerId, creatorIds),
-      this.loadActiveSubscriptionsForCreators(viewerId, creatorIds),
-      this.loadTierSortOrders(requiredTierIds),
-    ]);
-    return { followingCreatorIds, subscriptionsByCreatorId, tierSortOrderByTierId };
+    const [followingCreatorIds, subscriptionsByCreatorId, tierSortOrderByTierId, purchasedStreamIds] =
+      await Promise.all([
+        this.engagementService.getFollowingIdsAmong(viewerId, creatorIds),
+        this.loadActiveSubscriptionsForCreators(viewerId, creatorIds),
+        this.loadTierSortOrders(requiredTierIds),
+        this.loadPurchasedStreamIds(viewerId, paidStreamIds),
+      ]);
+    return { followingCreatorIds, subscriptionsByCreatorId, tierSortOrderByTierId, purchasedStreamIds };
+  }
+
+  private async loadPurchasedStreamIds(
+    userId: string,
+    streamIds: string[],
+  ): Promise<Set<string>> {
+    const unique = [...new Set(streamIds.filter(Boolean))];
+    const set = new Set<string>();
+    if (unique.length === 0) return set;
+    const rows = await this.streamPurchaseRepository.find({
+      where: unique.map((streamId) => ({ streamId, userId, status: 'completed' })),
+      select: ['streamId'],
+    });
+    for (const row of rows) set.add(row.streamId);
+    return set;
+  }
+
+  private async checkPaidEventAccess(input: AccessCheckInput): Promise<AccessCheckResult> {
+    const { viewerId, streamId, isOwner, isAdmin } = input;
+    if (isOwner || isAdmin) return { allowed: true };
+    if (!viewerId) return { allowed: false, reason: 'login_required' };
+    if (!streamId) return { allowed: false, reason: 'paid_event' };
+    const purchased = await this.streamPurchaseRepository.findOne({
+      where: { streamId, userId: viewerId, status: 'completed' },
+    });
+    return purchased ? { allowed: true } : { allowed: false, reason: 'paid_event' };
+  }
+
+  private evaluatePaidEventAccess(
+    input: AccessCheckInput,
+    ctx: ViewerAccessContext,
+  ): AccessCheckResult {
+    const { streamId, viewerId } = input;
+    if (!streamId) return { allowed: false, reason: 'paid_event' };
+    if (!viewerId) return { allowed: false, reason: 'login_required' };
+    return ctx.purchasedStreamIds.has(streamId)
+      ? { allowed: true }
+      : { allowed: false, reason: 'paid_event' };
   }
 
   private async loadActiveSubscriptionsForCreators(
@@ -414,7 +465,7 @@ export class EntitlementsService {
     }
 
     if (visibility === ContentVisibility.PAID_EVENT) {
-      return { allowed: false, reason: 'paid_event' };
+      return this.evaluatePaidEventAccess(input, ctx);
     }
 
     if (visibility === ContentVisibility.FOLLOWERS || visibility === StreamVisibility.FOLLOWERS) {
@@ -464,7 +515,7 @@ export class EntitlementsService {
     }
 
     if (visibility === ContentVisibility.PAID_EVENT) {
-      return { allowed: false, reason: 'paid_event' };
+      return this.checkPaidEventAccess(input);
     }
 
     const cacheField = this.accessCacheField(visibility, requiredTierId);
@@ -507,9 +558,10 @@ export class EntitlementsService {
         subscription_required: 'An active membership is required',
         tier_required: 'A higher membership tier is required',
         invite_required: 'You are not invited to this channel',
-        paid_event: 'Paid event access is not available yet',
+        paid_event: 'Purchase a ticket to access this paid event',
         private: 'This content is private',
         not_available: 'This content is not available',
+        age_confirmation_required: 'Confirm you are 18 or older to view this content',
       };
       throw new ForbiddenException(messages[result.reason ?? 'not_available']);
     }
@@ -530,9 +582,10 @@ export class EntitlementsService {
         subscription_required: 'An active membership is required',
         tier_required: 'A higher membership tier is required',
         invite_required: 'You are not invited to this channel',
-        paid_event: 'Paid event access is not available yet',
+        paid_event: 'Purchase a ticket to access this paid event',
         private: 'This content is private',
         not_available: 'This content is not available',
+        age_confirmation_required: 'Confirm you are 18 or older to view this content',
       };
       throw new ForbiddenException(messages[result.reason ?? 'not_available']);
     }
@@ -764,6 +817,8 @@ export class EntitlementsService {
       .andWhere('s.expires_at IS NOT NULL')
       .andWhere('s.expires_at > :now', { now })
       .andWhere('s.expires_at <= :until', { until })
+      .orderBy('s.expires_at', 'ASC')
+      .take(500)
       .getMany();
   }
 

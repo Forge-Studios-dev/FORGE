@@ -25,8 +25,10 @@ import { CreateCategoryDto } from '../categories/dto/create-category.dto';
 import { UpdateCategoryDto } from '../categories/dto/update-category.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { AdminService } from './admin.service';
+import { DatabaseObservabilityService } from '../../database/database-observability.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
+import { GrantStreamAccessDto } from '../streaming/dto/grant-stream-access.dto';
 import { AdminGrantSubscriptionDto } from '../entitlements/dto/tier.dto';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { AuthUserCacheService } from '../auth/auth-user-cache.service';
@@ -48,6 +50,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly entitlementsService: EntitlementsService,
     private readonly authUserCache: AuthUserCacheService,
+    private readonly databaseObservability: DatabaseObservabilityService,
   ) {}
 
   @Get('users')
@@ -306,9 +309,77 @@ export class AdminController {
     return { userCount, videoCount, readyVideoCount };
   }
 
+  @Get('database/query-stats')
+  @ApiOperation({ summary: 'Top Postgres queries from pg_stat_statements (admin)' })
+  getDatabaseQueryStats(@Query('limit') limit = 50) {
+    return this.databaseObservability.getTopQueries(clampLimit(limit, 50, 100));
+  }
+
+  @Post('database/query-stats/reset')
+  @ApiOperation({ summary: 'Reset pg_stat_statements counters (admin)' })
+  resetDatabaseQueryStats() {
+    return this.databaseObservability.resetQueryStats();
+  }
+
   @Post('subscriptions/grant')
   @ApiOperation({ summary: 'Grant membership to a user (admin)' })
   grantSubscription(@Body() dto: AdminGrantSubscriptionDto) {
     return this.entitlementsService.adminGrantSubscription(dto);
+  }
+
+  @Get('streams')
+  @ApiOperation({ summary: 'List live streams (admin)' })
+  listStreams(
+    @Query('status') status?: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.adminService.listStreams({
+      status: status as import('../streaming/entities/stream.entity').StreamStatus | undefined,
+      page: clampPage(page),
+      limit: clampLimit(limit),
+    });
+  }
+
+  @Post('streams/:id/force-end')
+  @ApiOperation({ summary: 'Force end a live stream (admin)' })
+  forceEndStream(@Param('id') id: string, @CurrentUser() admin: JwtPayload) {
+    return this.adminService.forceEndStream(id, admin.sub);
+  }
+
+  @Post('streams/:id/grant-access')
+  @ApiOperation({ summary: 'Grant paid event access to a user (admin)' })
+  grantStreamAccess(
+    @Param('id') id: string,
+    @CurrentUser() admin: JwtPayload,
+    @Body() dto: GrantStreamAccessDto,
+  ) {
+    return this.adminService.grantStreamAccess(admin.sub, id, dto);
+  }
+
+  @Get('streams/:id/chat')
+  @ApiOperation({ summary: 'View stream chat for moderation (admin)' })
+  getStreamChat(
+    @Param('id') id: string,
+    @CurrentUser() admin: JwtPayload,
+    @Query('limit') limit = 50,
+  ) {
+    return this.adminService.getStreamChat(id, admin.sub, admin.role, Number(limit) || 50);
+  }
+
+  @Delete('streams/:id/chat/:messageId')
+  @ApiOperation({ summary: 'Delete a stream chat message (admin)' })
+  deleteStreamChatMessage(
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+    @CurrentUser() admin: JwtPayload,
+  ) {
+    return this.adminService.deleteStreamChatMessage(id, messageId, admin.sub, admin.role);
+  }
+
+  @Post('streams/backfill-mux-playback-ids')
+  @ApiOperation({ summary: 'Backfill mux_playback_id from playback_url on streams' })
+  backfillMuxPlaybackIds() {
+    return this.adminService.backfillMuxPlaybackIds();
   }
 }

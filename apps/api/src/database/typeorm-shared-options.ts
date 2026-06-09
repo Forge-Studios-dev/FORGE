@@ -27,6 +27,8 @@ export function buildTypeOrmPostgresOptions(env: NodeJS.ProcessEnv = process.env
     extra: {
       max: db.poolMax,
       connectionTimeoutMillis: db.connectTimeoutMs,
+      idleTimeoutMillis: db.idleTimeoutMs,
+      allowExitOnIdle: true,
     },
   };
 }

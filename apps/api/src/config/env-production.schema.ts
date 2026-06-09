@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateNeonPoolerUrlForProduction } from '../database/parse-database-config';
 
 const INSECURE_JWT_SECRETS = new Set([
   'jwt-secret-change-in-production',
@@ -92,4 +93,6 @@ export function validateProductionEnv(env: NodeJS.ProcessEnv = process.env): voi
   if (env.MOCK_SUBSCRIPTIONS_ENABLED === 'true') {
     throw new Error('MOCK_SUBSCRIPTIONS_ENABLED must not be true in production');
   }
+
+  validateNeonPoolerUrlForProduction(env);
 }

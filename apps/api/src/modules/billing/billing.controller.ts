@@ -5,6 +5,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { BillingService } from './billing.service';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
+import { CreateEventCheckoutDto } from './dto/create-event-checkout.dto';
 
 @ApiTags('billing')
 @Controller('billing')
@@ -14,6 +15,11 @@ export class BillingController {
   @Post('checkout')
   createCheckout(@CurrentUser() user: { sub: string }, @Body() dto: CreateCheckoutDto) {
     return this.billingService.createCheckout(user.sub, dto);
+  }
+
+  @Post('checkout/event')
+  createEventCheckout(@CurrentUser() user: { sub: string }, @Body() dto: CreateEventCheckoutDto) {
+    return this.billingService.createEventCheckout(user.sub, dto);
   }
 
   @Public()

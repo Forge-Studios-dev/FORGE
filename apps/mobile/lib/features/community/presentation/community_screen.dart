@@ -39,11 +39,22 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         await _loadMessages(_activeChannelId!);
         await ForgeSocket.connect();
         ForgeSocket.joinChannel(_activeChannelId!);
-        ForgeSocket.on('channel:message', (_) => _loadMessages(_activeChannelId!));
+        ForgeSocket.on('channel:message', (payload) {
+          if (payload is Map<String, dynamic>) {
+            _appendMessage(payload);
+          }
+        });
       }
     } catch (_) {
       setState(() => _loading = false);
     }
+  }
+
+  void _appendMessage(Map<String, dynamic> message) {
+    final id = message['id'] as String?;
+    if (id == null) return;
+    if (_messages.any((m) => m['id'] == id)) return;
+    setState(() => _messages = [..._messages, message]);
   }
 
   Future<void> _loadMessages(String channelId) async {
@@ -61,11 +72,14 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     if (_activeChannelId == null || _textCtrl.text.trim().isEmpty) return;
     try {
       final client = ref.read(apiClientProvider);
-      await client.dio.post('/channels/$_activeChannelId/messages', data: {
+      final response = await client.dio.post('/channels/$_activeChannelId/messages', data: {
         'body': _textCtrl.text.trim(),
       });
       _textCtrl.clear();
-      await _loadMessages(_activeChannelId!);
+      final message = response.data['data'];
+      if (message is Map<String, dynamic>) {
+        _appendMessage(message);
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

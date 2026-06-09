@@ -12,6 +12,7 @@ export type DatabaseConnectionOptions = {
   ssl: false | { rejectUnauthorized: boolean; ca?: string };
   poolMax: number;
   connectTimeoutMs: number;
+  idleTimeoutMs: number;
   slowQueryMs: number;
 };
 
@@ -27,6 +28,40 @@ export function isNeonDatabaseUrl(url: string | undefined): boolean {
     url.includes('.neon.database') ||
     url.includes('neon.database')
   );
+}
+
+/** Neon pooled URLs use `-pooler` in the hostname (required for Fly/serverless). */
+export function isNeonPooledDatabaseUrl(url: string | undefined): boolean {
+  if (!url || !isNeonDatabaseUrl(url)) return true;
+  try {
+    const normalized = url.replace(/^postgres(ql)?:\/\//, 'https://');
+    const hostname = new URL(normalized).hostname;
+    return hostname.includes('-pooler');
+  } catch {
+    return url.includes('-pooler.');
+  }
+}
+
+/**
+ * Production guard: Neon must use the pooler endpoint unless explicitly overridden
+ * (one-off migrations / CLI only — never for long-running API/worker processes).
+ */
+export function validateNeonPoolerUrlForProduction(
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if ((env.NODE_ENV || 'development') !== 'production') return;
+  if (env.DATABASE_ALLOW_DIRECT_NEON === 'true') return;
+
+  const url = env.DATABASE_URL?.trim();
+  if (!url || !isNeonDatabaseUrl(url)) return;
+
+  if (!isNeonPooledDatabaseUrl(url)) {
+    throw new Error(
+      'Production Neon DATABASE_URL must use the pooled endpoint (-pooler in hostname). ' +
+        'Use the connection string from Neon dashboard → Connection pooling. ' +
+        'Set DATABASE_ALLOW_DIRECT_NEON=true only for ephemeral migration/CLI tasks.',
+    );
+  }
 }
 
 export function databaseRequiresSsl(url: string | undefined, nodeEnv?: string): boolean {
@@ -61,13 +96,15 @@ export function parseDatabaseConfig(
 ): DatabaseConnectionOptions {
   const url = env.DATABASE_URL?.trim();
   const nodeEnv = env.NODE_ENV || 'development';
-  const poolMax = readInt(env.DB_POOL_MAX, isNeonDatabaseUrl(url) ? 10 : 20);
+  const isNeon = isNeonDatabaseUrl(url);
+  const poolMax = readInt(env.DB_POOL_MAX, isNeon ? 5 : 20);
   const connectTimeoutMs = readInt(env.DB_CONNECT_TIMEOUT_MS, 10_000);
+  const idleTimeoutMs = readInt(env.DB_POOL_IDLE_TIMEOUT_MS, isNeon ? 30_000 : 10_000);
   const slowQueryMs = readInt(env.DB_SLOW_QUERY_MS, 2000);
   const ssl = buildSslConfig(env, url, nodeEnv);
 
   if (url) {
-    return { url, ssl, poolMax, connectTimeoutMs, slowQueryMs };
+    return { url, ssl, poolMax, connectTimeoutMs, idleTimeoutMs, slowQueryMs };
   }
 
   return {
@@ -79,6 +116,7 @@ export function parseDatabaseConfig(
     ssl,
     poolMax,
     connectTimeoutMs,
+    idleTimeoutMs,
     slowQueryMs,
   };
 }

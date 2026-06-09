@@ -14,6 +14,8 @@ import { PUSH_DISPATCH_QUEUE } from './push-dispatch.constants';
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './subscription-maintenance.constants';
 import { SubscriptionMaintenanceScheduler } from './subscription-maintenance.scheduler';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
+import { PremiumContentNotifyService } from './premium-content-notify.service';
+import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/premium-content-notify.constants';
 
 @Module({
   imports: [
@@ -37,6 +39,15 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
         removeOnFail: { age: 7 * 86400, count: 100 },
       },
     }),
+    BullModule.registerQueue({
+      name: PREMIUM_CONTENT_NOTIFY_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: { age: 3600, count: 5000 },
+        removeOnFail: { age: 86400, count: 500 },
+      },
+    }),
   ],
   providers: [
     NotificationsService,
@@ -44,8 +55,14 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
     PushDispatchService,
     SubscriptionMaintenanceService,
     SubscriptionMaintenanceScheduler,
+    PremiumContentNotifyService,
   ],
   controllers: [NotificationsController],
-  exports: [NotificationsService, PushDispatchService, SubscriptionMaintenanceService],
+  exports: [
+    NotificationsService,
+    PushDispatchService,
+    SubscriptionMaintenanceService,
+    PremiumContentNotifyService,
+  ],
 })
 export class NotificationsModule {}

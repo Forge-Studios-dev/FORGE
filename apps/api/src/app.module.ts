@@ -18,6 +18,10 @@ import { ContentModule } from './modules/content/content.module';
 import { EngagementModule } from './modules/engagement/engagement.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { StreamingModule } from './modules/streaming/streaming.module';
+import { LiveBroadcastModule } from './modules/live-broadcast/live-broadcast.module';
+import { STREAM_REMINDER_QUEUE } from './modules/workers/stream-reminder/stream-reminder.constants';
+import { STREAM_CHAT_INGEST_QUEUE } from './modules/workers/stream-chat-ingest/stream-chat-ingest.constants';
+import { STREAM_SNAPSHOT_RETENTION_QUEUE } from './modules/workers/stream-snapshot-retention/stream-snapshot-retention.constants';
 import { WorkersModule } from './modules/workers/workers.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { PlaylistsModule } from './modules/playlists/playlists.module';
@@ -200,6 +204,29 @@ function sentryFilterProviders() {
       },
     }),
     BullModule.registerQueue({
+      name: STREAM_REMINDER_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 3600, count: 100 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: STREAM_CHAT_INGEST_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 1000 },
+        removeOnComplete: { age: 3600, count: 10_000 },
+        removeOnFail: { age: 86400, count: 5000 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: STREAM_SNAPSHOT_RETENTION_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 86400, count: 14 },
+      },
+    }),
+    BullModule.registerQueue({
       name: ANALYTICS_RETENTION_QUEUE,
       defaultJobOptions: {
         attempts: 2,
@@ -222,6 +249,7 @@ function sentryFilterProviders() {
     EngagementModule,
     FeedModule,
     StreamingModule,
+    LiveBroadcastModule,
     EntitlementsModule,
     BillingModule,
     StreamChatModule,

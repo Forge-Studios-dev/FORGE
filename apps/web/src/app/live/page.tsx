@@ -1,6 +1,5 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { PageHeader } from '@forge/design-system';
@@ -11,6 +10,7 @@ import { useAuth } from '@/lib/auth';
 import { EmptyState } from '@/components/EmptyState';
 import { FeedGridSkeleton } from '@/components/LoadingSkeleton';
 import { getApiErrorMessage } from '@/lib/api-message';
+import { useLiveStreamsQuery, useUpcomingStreamsQuery } from '@/hooks/useLiveStreamsQuery';
 
 export default function LiveDirectoryPage() {
   const { isGuest, canGoLive, canApplyForCreator } = useAuth();
@@ -18,14 +18,8 @@ export default function LiveDirectoryPage() {
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState('');
 
-  const { data: streams, isLoading, isError, refetch } = useQuery({
-    queryKey: ['live-streams'],
-    queryFn: async () => {
-      const { data } = await api.get<{ data: Stream[] }>('/streams/live');
-      return data.data;
-    },
-    refetchInterval: 15_000,
-  });
+  const { data: streams, isLoading, isError, refetch } = useLiveStreamsQuery();
+  const { data: upcoming } = useUpcomingStreamsQuery();
 
   async function startStream() {
     const t = title.trim();
@@ -107,13 +101,34 @@ export default function LiveDirectoryPage() {
           action={{ label: 'Retry', href: '/live' }}
           onAction={() => refetch()}
         />
-      ) : !streams?.length ? (
-        <EmptyState
-          icon="sensors"
-          title="No one is live right now"
-          description={canGoLive ? 'Create a stream above, then broadcast with OBS.' : 'Check back later for live lessons.'}
-        />
-      ) : (
+      ) : null}
+
+      {upcoming?.length ? (
+        <>
+          <h2 className="font-display-forge mb-4 mt-10 text-lg font-semibold">Upcoming</h2>
+          <ul className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {upcoming.map((s) => (
+              <li key={s.id}>
+                <Link
+                  href={`/live/${s.id}`}
+                  className="glass-panel block rounded-xl p-4 hover:border-primary/30"
+                >
+                  <p className="font-medium">{s.title}</p>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    {(s.user as User)?.displayName ?? 'Creator'}
+                    {s.scheduledAt
+                      ? ` · ${new Date(s.scheduledAt).toLocaleString()}`
+                      : ''}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+
+      <h2 className="font-display-forge mb-4 mt-6 text-lg font-semibold">Live now</h2>
+      {streams?.length ? (
         <ul className="forge-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {streams.map((s) => {
             const poster = resolveStreamPoster(s);
@@ -145,7 +160,13 @@ export default function LiveDirectoryPage() {
             );
           })}
         </ul>
-      )}
+      ) : !isLoading && !isError ? (
+        <EmptyState
+          icon="sensors"
+          title="No one is live right now"
+          description={canGoLive ? 'Create a stream above, then broadcast with OBS.' : 'Check back later for live lessons.'}
+        />
+      ) : null}
     </main>
   );
 }

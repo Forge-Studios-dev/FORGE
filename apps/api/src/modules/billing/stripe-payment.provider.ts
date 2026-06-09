@@ -1,44 +1,207 @@
 import { Injectable, NotImplementedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import Stripe from 'stripe';
 import {
   CheckoutSessionInput,
   CheckoutSessionResult,
+  EventCheckoutSessionInput,
+  SuperChatCheckoutInput,
   PaymentProvider,
   ProviderWebhookResult,
 } from './payment-provider.interface';
 
-/** Stripe adapter skeleton — activate with STRIPE_SECRET_KEY (live payments not enabled by default). */
 @Injectable()
 export class StripePaymentProvider implements PaymentProvider {
   readonly name = 'stripe';
+  private stripe: Stripe | null = null;
 
   constructor(private readonly configService: ConfigService) {}
+
+  private client(): Stripe {
+    if (!this.stripe) {
+      const key = this.secretKey();
+      if (!key) {
+        throw new NotImplementedException('Stripe is not configured. Set STRIPE_SECRET_KEY.');
+      }
+      this.stripe = new Stripe(key);
+    }
+    return this.stripe;
+  }
 
   private secretKey(): string | null {
     const key = this.configService.get<string>('billing.stripeSecretKey')?.trim();
     return key || null;
   }
 
-  async createCheckoutSession(_input: CheckoutSessionInput): Promise<CheckoutSessionResult> {
-    if (!this.secretKey()) {
-      throw new NotImplementedException(
-        'Stripe is not configured. Set STRIPE_SECRET_KEY to enable checkout.',
-      );
-    }
-    throw new NotImplementedException('Stripe checkout integration pending activation.');
+  private webhookSecret(): string | null {
+    const key = this.configService.get<string>('billing.stripeWebhookSecret')?.trim();
+    return key || null;
+  }
+
+  async createCheckoutSession(input: CheckoutSessionInput): Promise<CheckoutSessionResult> {
+    const stripe = this.client();
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: { name: 'FORGE membership' },
+            unit_amount: 0,
+            recurring: { interval: 'month' },
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        userId: input.userId,
+        creatorId: input.creatorId,
+        tierId: input.tierId,
+        type: 'subscription',
+      },
+    });
+    return {
+      provider: this.name,
+      sessionId: session.id,
+      checkoutUrl: session.url,
+    };
+  }
+
+  async createEventCheckoutSession(input: EventCheckoutSessionInput): Promise<CheckoutSessionResult> {
+    const stripe = this.client();
+    const currency = (input.currency ?? 'usd').toLowerCase();
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      line_items: [
+        {
+          price_data: {
+            currency,
+            product_data: { name: input.title || 'Live event ticket' },
+            unit_amount: input.amountCents,
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        userId: input.userId,
+        streamId: input.streamId,
+        creatorId: input.creatorId,
+        type: 'stream_event',
+      },
+    });
+    return {
+      provider: this.name,
+      sessionId: session.id,
+      checkoutUrl: session.url,
+    };
+  }
+
+  async createSuperChatCheckoutSession(input: SuperChatCheckoutInput): Promise<CheckoutSessionResult> {
+    const stripe = this.client();
+    const currency = (input.currency ?? 'usd').toLowerCase();
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      line_items: [
+        {
+          price_data: {
+            currency,
+            product_data: { name: 'Super Chat' },
+            unit_amount: input.amountCents,
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        userId: input.userId,
+        streamId: input.streamId,
+        creatorId: input.creatorId,
+        type: 'super_chat',
+        messageBody: input.body.slice(0, 200),
+      },
+    });
+    return {
+      provider: this.name,
+      sessionId: session.id,
+      checkoutUrl: session.url,
+    };
   }
 
   async cancelSubscription(_externalSubscriptionId: string): Promise<void> {
-    if (!this.secretKey()) {
-      throw new NotImplementedException('Stripe is not configured.');
-    }
-    throw new NotImplementedException('Stripe cancel integration pending activation.');
+    throw new NotImplementedException('Stripe subscription cancel pending activation.');
   }
 
-  verifyWebhook(_payload: Buffer, headers: Record<string, string>): ProviderWebhookResult | null {
-    if (!this.secretKey()) return null;
+  verifyWebhook(payload: Buffer, headers: Record<string, string>): ProviderWebhookResult | null {
+    const secret = this.webhookSecret();
+    if (!secret || !this.secretKey()) return null;
+
     const signature = headers['stripe-signature'] || headers['Stripe-Signature'];
     if (!signature) return null;
-    throw new NotImplementedException('Stripe webhook verification pending activation.');
+
+    let event: Stripe.Event;
+    try {
+      event = this.client().webhooks.constructEvent(payload, signature, secret);
+    } catch {
+      return null;
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const meta = session.metadata ?? {};
+      if (meta.type === 'stream_event' && meta.userId && meta.streamId) {
+        return {
+          handled: true,
+          checkoutType: 'event',
+          status: 'completed',
+          sessionId: session.id,
+          userId: meta.userId,
+          streamId: meta.streamId,
+          amountCents: session.amount_total ?? undefined,
+          currency: session.currency ?? 'usd',
+          paymentIntentId:
+            typeof session.payment_intent === 'string'
+              ? session.payment_intent
+              : session.payment_intent?.id,
+        };
+      }
+      if (meta.type === 'super_chat' && meta.userId && meta.streamId && meta.messageBody) {
+        return {
+          handled: true,
+          checkoutType: 'super_chat',
+          status: 'completed',
+          sessionId: session.id,
+          userId: meta.userId,
+          streamId: meta.streamId,
+          amountCents: session.amount_total ?? undefined,
+          currency: session.currency ?? 'usd',
+          superChatBody: meta.messageBody,
+          paymentIntentId:
+            typeof session.payment_intent === 'string'
+              ? session.payment_intent
+              : session.payment_intent?.id,
+        };
+      }
+      if (meta.type === 'subscription' && session.subscription) {
+        const subId =
+          typeof session.subscription === 'string'
+            ? session.subscription
+            : session.subscription.id;
+        return {
+          handled: true,
+          checkoutType: 'subscription',
+          subscriptionId: subId,
+          status: 'active',
+          sessionId: session.id,
+          userId: meta.userId,
+        };
+      }
+    }
+
+    return { handled: false };
   }
 }

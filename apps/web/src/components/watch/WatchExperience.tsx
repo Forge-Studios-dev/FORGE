@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { StreamChatReplayPanel } from '@/components/StreamChat/StreamChatReplayPanel';
 import { Video } from '@/types';
 import { VideoPlayer } from '@/components/VideoPlayer/VideoPlayerLazy';
 import { VideoInfo } from '@/components/VideoPlayer/VideoInfo';
@@ -35,6 +36,7 @@ export function WatchExperience({
 }) {
   const { isGuest, user } = useAuth();
   const [engageBlock, setEngageBlock] = useState<EngageBlockReason | null>(null);
+  const [playbackSeconds, setPlaybackSeconds] = useState(0);
   const blockReason = getEngageBlockReason(user, isGuest);
   const onEngageBlocked = blockReason ? () => setEngageBlock(blockReason) : undefined;
   const canPlay = video.status === 'ready' && !!video.hlsUrl;
@@ -81,6 +83,7 @@ export function WatchExperience({
               hlsUrl={video.hlsUrl!}
               thumbnailUrl={video.thumbnailUrl}
               title={video.title}
+              onPlaybackTime={setPlaybackSeconds}
             />
           ) : (
             <div className="glass-panel flex aspect-video flex-col items-center justify-center rounded-xl p-8 text-center">
@@ -102,6 +105,12 @@ export function WatchExperience({
             </div>
             <ReportContentButton targetType="video" targetId={video.id} />
           </div>
+          {video.sourceStreamId ? (
+            <StreamChatReplayPanel
+              streamId={video.sourceStreamId}
+              playbackSeconds={playbackSeconds}
+            />
+          ) : null}
           <CommentsPanel
             videoId={video.id}
             commentCount={video.commentCount}

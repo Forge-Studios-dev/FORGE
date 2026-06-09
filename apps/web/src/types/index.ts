@@ -59,14 +59,21 @@ export interface Stream {
   visibility?: 'public' | 'followers' | 'subscribers' | 'tier' | 'private' | 'paid_event';
   categoryId?: string | null;
   chatEnabled?: boolean;
+  chatMode?: 'all' | 'followers' | 'subscribers' | 'mods_only';
   recordEnabled?: boolean;
   ageRestricted?: boolean;
   requiredTierId?: string | null;
   accessDenied?: boolean;
   accessReason?: string;
   slowModeSeconds?: number;
+  scheduledAt?: string | null;
+  ticketPriceCents?: number | null;
+  pinnedMessageId?: string | null;
   viewerCount: number;
+  uniqueViewerCount?: number;
+  dvrEnabled?: boolean;
   startedAt?: string;
+  endedAt?: string;
   createdAt: string;
 }
 
