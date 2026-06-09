@@ -1,7 +1,10 @@
 import {
+  BadRequestException,
   ForbiddenException,
+  forwardRef,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -11,19 +14,35 @@ import { LessThan, MoreThan, Repository } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { StreamMessage } from './entities/stream-message.entity';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { randomUUID } from 'crypto';
+import { StreamMessage, StreamMessageType } from './entities/stream-message.entity';
 import { StreamModerationAction } from './entities/stream-moderation-action.entity';
 import { SendStreamChatDto, TimeoutUserDto } from './dto/stream-chat.dto';
+import { SendSuperChatDto } from './dto/send-super-chat.dto';
 import { toPublicStreamMessage } from './stream-chat.mapper';
+import { Stream, StreamChatMode, StreamStatus, StreamVisibility } from '../streaming/entities/stream.entity';
 import { StreamingService } from '../streaming/streaming.service';
+import { SetStreamChatSettingsDto } from '../streaming/dto/set-stream-chat-settings.dto';
+import { StreamLiveService } from '../streaming/stream-live.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
-import { UserRole } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
 import {
   safeRedisDel,
   safeRedisGet,
   safeRedisSetNx,
   safeRedisSetex,
 } from '../../common/redis/redis-safe.util';
+import { ConfigService } from '@nestjs/config';
+import { maskProfanity } from '../../common/chat/profanity-filter.util';
+import { computeStreamOffsetMs } from '../../common/chat/stream-offset.util';
+import { moderateChatMessage } from '../../common/chat/ai-moderation.util';
+import { OnEvent } from '@nestjs/event-emitter';
+import { STREAM_CHAT_INGEST_QUEUE } from '../workers/stream-chat-ingest/stream-chat-ingest.constants';
+import type { StreamChatIngestJob } from '../workers/stream-chat-ingest/stream-chat-ingest.worker';
+import { BillingService } from '../billing/billing.service';
 
 @Injectable()
 export class StreamChatService {
@@ -34,10 +53,19 @@ export class StreamChatService {
     private readonly messageRepository: Repository<StreamMessage>,
     @InjectRepository(StreamModerationAction)
     private readonly moderationRepository: Repository<StreamModerationAction>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly streamingService: StreamingService,
+    private readonly streamLiveService: StreamLiveService,
     private readonly entitlementsService: EntitlementsService,
+    private readonly usersService: UsersService,
     private readonly eventEmitter: EventEmitter2,
     @InjectRedis() private readonly redis: Redis,
+    private readonly configService: ConfigService,
+    @InjectQueue(STREAM_CHAT_INGEST_QUEUE)
+    private readonly chatIngestQueue: Queue<StreamChatIngestJob>,
+    @Inject(forwardRef(() => BillingService))
+    private readonly billingService: BillingService,
   ) {}
 
   async getMessages(
@@ -46,25 +74,34 @@ export class StreamChatService {
     cursor?: string,
     viewerId?: string | null,
     viewerRole?: UserRole | null,
+    replayWindow?: { fromMs?: number; toMs?: number },
   ) {
     const stream = await this.streamingService.findById(streamId);
     const isOwner = !!viewerId && viewerId === stream.userId;
     const isAdmin = viewerRole === UserRole.ADMIN;
+    const isMod = viewerId
+      ? await this.streamLiveService.canModerate(streamId, viewerId, viewerRole, stream)
+      : false;
 
     if (!stream.chatEnabled) {
       throw new ForbiddenException('Chat is disabled for this stream');
     }
 
-    if (!isOwner && !isAdmin) {
+    if (!isOwner && !isAdmin && !isMod) {
       await this.entitlementsService.assertAccessAsync({
         creatorId: stream.userId,
         visibility: stream.visibility,
         requiredTierId: stream.requiredTierId,
+        streamId: stream.id,
         viewerId,
       });
     }
 
-    if (!cursor) {
+    const isReplayQuery =
+      replayWindow?.fromMs != null ||
+      replayWindow?.toMs != null;
+
+    if (!cursor && !isReplayQuery) {
       const cacheKey = `stream:chat:page:${streamId}`;
       const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
       if (cached) {
@@ -77,6 +114,32 @@ export class StreamChatService {
           await safeRedisDel(this.redis, cacheKey, this.logger);
         }
       }
+    }
+
+    if (isReplayQuery) {
+      const qb = this.messageRepository
+        .createQueryBuilder('m')
+        .leftJoinAndSelect('m.user', 'user')
+        .where('m.stream_id = :streamId', { streamId })
+        .andWhere('m.deleted_at IS NULL')
+        .andWhere('m.stream_offset_ms IS NOT NULL');
+
+      if (replayWindow.fromMs != null) {
+        qb.andWhere('m.stream_offset_ms >= :fromMs', { fromMs: replayWindow.fromMs });
+      }
+      if (replayWindow.toMs != null) {
+        qb.andWhere('m.stream_offset_ms <= :toMs', { toMs: replayWindow.toMs });
+      }
+
+      const messages = await qb
+        .orderBy('m.stream_offset_ms', 'ASC')
+        .take(Math.min(limit, 500))
+        .getMany();
+
+      return {
+        data: messages.map(toPublicStreamMessage),
+        meta: { cursor: null, hasMore: false },
+      };
     }
 
     const cursorDate = cursor
@@ -122,24 +185,201 @@ export class StreamChatService {
 
     const isOwner = userId === stream.userId;
     const isAdmin = viewerRole === UserRole.ADMIN;
+    const isMod = await this.streamLiveService.canModerate(streamId, userId, viewerRole, stream);
 
-    if (!isOwner && !isAdmin) {
+    if (!isOwner && !isAdmin && !isMod) {
       await this.entitlementsService.assertAccessAsync({
         creatorId: stream.userId,
         visibility: stream.visibility,
         requiredTierId: stream.requiredTierId,
+        streamId: stream.id,
         viewerId: userId,
       });
+      await this.assertChatParticipation(stream, userId, viewerRole);
     }
 
-    await this.assertNotTimedOut(streamId, userId);
+    await this.assertNotModerated(streamId, userId);
     await this.assertRateLimit(streamId, userId, stream.slowModeSeconds);
 
-    const msg = this.messageRepository.create({
+    const profanityEnabled =
+      this.configService.get<string>('stream.profanityFilterEnabled') !== 'false';
+    const body = maskProfanity(dto.body.trim(), profanityEnabled);
+    await this.assertAiModeration(body);
+
+    const streamOffsetMs = computeStreamOffsetMs(stream);
+
+    const useAsync =
+      this.configService.get<boolean>('stream.chatAsync') ??
+      this.configService.get<string>('nodeEnv') === 'production';
+
+    if (useAsync) {
+      const messageId = randomUUID();
+      await this.chatIngestQueue.add(
+        'ingest',
+        {
+          streamId,
+          userId,
+          body,
+          parentId: dto.parentId ?? null,
+          messageId,
+          streamOffsetMs,
+          messageType: StreamMessageType.CHAT,
+        },
+        { jobId: `chat-${messageId}` },
+      );
+
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      return {
+        id: messageId,
+        streamId,
+        userId,
+        body,
+        parentId: dto.parentId ?? null,
+        streamOffsetMs,
+        messageType: StreamMessageType.CHAT,
+        createdAt: new Date().toISOString(),
+        user: user
+          ? {
+              id: user.id,
+              displayName: user.displayName,
+              username: user.username,
+              avatarUrl: user.avatarUrl,
+            }
+          : undefined,
+      };
+    }
+
+    return this.persistAndEmitMessage({
       streamId,
       userId,
-      body: dto.body.trim(),
+      body,
       parentId: dto.parentId ?? null,
+      streamOffsetMs,
+      messageType: StreamMessageType.CHAT,
+    });
+  }
+
+  async sendSuperChat(
+    streamId: string,
+    userId: string,
+    dto: SendSuperChatDto,
+    viewerRole?: UserRole | null,
+  ) {
+    if (this.configService.get<boolean>('stream.superChatEnabled') === false) {
+      throw new BadRequestException('Super chat is disabled');
+    }
+
+    const min = this.configService.get<number>('stream.superChatMinCents') ?? 100;
+    const max = this.configService.get<number>('stream.superChatMaxCents') ?? 50_000;
+    if (dto.amountCents < min || dto.amountCents > max) {
+      throw new BadRequestException(`Super chat amount must be between ${min} and ${max} cents`);
+    }
+
+    const stream = await this.streamingService.findById(streamId);
+    if (!stream.chatEnabled) {
+      throw new ForbiddenException('Chat is disabled for this stream');
+    }
+    if (stream.status !== StreamStatus.LIVE) {
+      throw new BadRequestException('Super chat is only available during live streams');
+    }
+
+    const isOwner = userId === stream.userId;
+    const isAdmin = viewerRole === UserRole.ADMIN;
+    const isMod = await this.streamLiveService.canModerate(streamId, userId, viewerRole, stream);
+
+    if (!isOwner && !isAdmin && !isMod) {
+      await this.entitlementsService.assertAccessAsync({
+        creatorId: stream.userId,
+        visibility: stream.visibility,
+        requiredTierId: stream.requiredTierId,
+        streamId: stream.id,
+        viewerId: userId,
+      });
+      await this.assertChatParticipation(stream, userId, viewerRole);
+    }
+
+    await this.assertNotModerated(streamId, userId);
+
+    if (this.billingService.isBillingEnabled() && dto.successUrl && dto.cancelUrl) {
+      const session = await this.billingService.createSuperChatCheckout(userId, {
+        streamId,
+        body: dto.body.trim(),
+        amountCents: dto.amountCents,
+        successUrl: dto.successUrl,
+        cancelUrl: dto.cancelUrl,
+      });
+      return {
+        ok: true,
+        requiresCheckout: true,
+        checkoutUrl: session.checkoutUrl,
+        sessionId: session.sessionId,
+      };
+    }
+
+    const highlightSeconds =
+      this.configService.get<number>('stream.superChatHighlightSeconds') ?? 120;
+    const profanityEnabled =
+      this.configService.get<string>('stream.profanityFilterEnabled') !== 'false';
+    const body = maskProfanity(dto.body.trim(), profanityEnabled);
+    await this.assertAiModeration(body);
+
+    return this.persistAndEmitMessage({
+      streamId,
+      userId,
+      body,
+      streamOffsetMs: computeStreamOffsetMs(stream),
+      messageType: StreamMessageType.SUPER_CHAT,
+      amountCents: dto.amountCents,
+      highlightSeconds,
+    });
+  }
+
+  @OnEvent('stream.super-chat.paid')
+  async handleSuperChatPaid(payload: {
+    streamId: string;
+    userId: string;
+    body: string;
+    amountCents: number;
+  }) {
+    const stream = await this.streamingService.findById(payload.streamId);
+    const profanityEnabled =
+      this.configService.get<string>('stream.profanityFilterEnabled') !== 'false';
+    const body = maskProfanity(payload.body.trim(), profanityEnabled);
+    const highlightSeconds =
+      this.configService.get<number>('stream.superChatHighlightSeconds') ?? 120;
+
+    await this.persistAndEmitMessage({
+      streamId: payload.streamId,
+      userId: payload.userId,
+      body,
+      streamOffsetMs: computeStreamOffsetMs(stream),
+      messageType: StreamMessageType.SUPER_CHAT,
+      amountCents: payload.amountCents,
+      highlightSeconds,
+    });
+  }
+
+  private async persistAndEmitMessage(input: {
+    streamId: string;
+    userId: string;
+    body: string;
+    parentId?: string | null;
+    messageId?: string;
+    streamOffsetMs?: number | null;
+    messageType?: StreamMessageType;
+    amountCents?: number | null;
+    highlightSeconds?: number | null;
+  }) {
+    const msg = this.messageRepository.create({
+      id: input.messageId,
+      streamId: input.streamId,
+      userId: input.userId,
+      body: input.body,
+      parentId: input.parentId ?? null,
+      streamOffsetMs: input.streamOffsetMs ?? null,
+      messageType: input.messageType ?? StreamMessageType.CHAT,
+      amountCents: input.amountCents ?? null,
+      highlightSeconds: input.highlightSeconds ?? null,
     });
     const saved = await this.messageRepository.save(msg);
     const full = await this.messageRepository.findOne({
@@ -148,9 +388,19 @@ export class StreamChatService {
     });
 
     const publicMsg = toPublicStreamMessage(full!);
-    await safeRedisDel(this.redis, `stream:chat:page:${streamId}`, this.logger);
-    this.eventEmitter.emit('stream.chat.message', { streamId, message: publicMsg });
+    await safeRedisDel(this.redis, `stream:chat:page:${input.streamId}`, this.logger);
+    this.eventEmitter.emit('stream.chat.message', { streamId: input.streamId, message: publicMsg });
     return publicMsg;
+  }
+
+  private async assertAiModeration(body: string): Promise<void> {
+    const result = await moderateChatMessage(body, {
+      enabled: this.configService.get<boolean>('stream.aiModerationEnabled') !== false,
+      openAiKey: this.configService.get<string>('openai.apiKey'),
+    });
+    if (!result.allowed) {
+      throw new ForbiddenException('Message blocked by moderation policy');
+    }
   }
 
   async deleteMessage(
@@ -159,14 +409,13 @@ export class StreamChatService {
     requesterId: string,
     requesterRole?: UserRole | null,
   ) {
-    const stream = await this.streamingService.findById(streamId);
+    await this.streamingService.findById(streamId);
     const msg = await this.messageRepository.findOne({ where: { id: messageId, streamId } });
     if (!msg) throw new NotFoundException('Message not found');
 
     const canMod =
-      requesterId === stream.userId ||
       requesterId === msg.userId ||
-      requesterRole === UserRole.ADMIN;
+      (await this.streamLiveService.canModerate(streamId, requesterId, requesterRole));
     if (!canMod) throw new ForbiddenException();
 
     msg.deletedAt = new Date();
@@ -181,18 +430,21 @@ export class StreamChatService {
     dto: TimeoutUserDto,
     requesterRole?: UserRole | null,
   ) {
-    const stream = await this.streamingService.findById(streamId);
-    if (requesterId !== stream.userId && requesterRole !== UserRole.ADMIN) {
+    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole))) {
       throw new ForbiddenException();
     }
 
     const duration = dto.durationSeconds ?? 300;
     const expiresAt = new Date(Date.now() + duration * 1000);
+    const targetUserId = await this.usersService.resolveUserId({
+      userId: dto.targetUserId,
+      username: dto.targetUsername,
+    });
 
     await this.moderationRepository.save(
       this.moderationRepository.create({
         streamId,
-        targetUserId: dto.targetUserId,
+        targetUserId,
         action: 'timeout',
         expiresAt,
         createdById: requesterId,
@@ -202,9 +454,163 @@ export class StreamChatService {
     return { ok: true, expiresAt };
   }
 
-  private async assertNotTimedOut(streamId: string, userId: string) {
+  async banUser(
+    streamId: string,
+    requesterId: string,
+    dto: TimeoutUserDto,
+    requesterRole?: UserRole | null,
+  ) {
+    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole))) {
+      throw new ForbiddenException();
+    }
+
+    const targetUserId = await this.usersService.resolveUserId({
+      userId: dto.targetUserId,
+      username: dto.targetUsername,
+    });
+
+    await this.moderationRepository.save(
+      this.moderationRepository.create({
+        streamId,
+        targetUserId,
+        action: 'ban',
+        expiresAt: null,
+        createdById: requesterId,
+      }),
+    );
+
+    return { ok: true };
+  }
+
+  async setPinnedMessage(
+    streamId: string,
+    requesterId: string,
+    messageId: string | null,
+    requesterRole?: UserRole | null,
+  ) {
+    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole))) {
+      throw new ForbiddenException();
+    }
+
+    if (messageId) {
+      const msg = await this.messageRepository.findOne({ where: { id: messageId, streamId } });
+      if (!msg) throw new NotFoundException('Message not found');
+    }
+
+    await this.streamingService.setPinnedMessage(requesterId, streamId, messageId, {
+      isAdmin: requesterRole === UserRole.ADMIN,
+      allowModerator: true,
+    });
+    return { ok: true, pinnedMessageId: messageId };
+  }
+
+  async setSlowMode(
+    streamId: string,
+    requesterId: string,
+    slowModeSeconds: number,
+    requesterRole?: UserRole | null,
+  ) {
+    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole))) {
+      throw new ForbiddenException();
+    }
+    await this.streamingService.setSlowMode(requesterId, streamId, slowModeSeconds, {
+      allowModerator: true,
+    });
+    return { ok: true, slowModeSeconds };
+  }
+
+  async setChatSettings(
+    streamId: string,
+    requesterId: string,
+    dto: SetStreamChatSettingsDto,
+    requesterRole?: UserRole | null,
+  ) {
+    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole))) {
+      throw new ForbiddenException();
+    }
+
+    const saved = await this.streamingService.updateChatSettings(streamId, {
+      chatEnabled: dto.chatEnabled,
+      chatMode: dto.chatMode,
+    });
+
+    return {
+      ok: true,
+      chatEnabled: saved.chatEnabled,
+      chatMode: saved.chatMode,
+    };
+  }
+
+  async unbanUser(
+    streamId: string,
+    requesterId: string,
+    dto: TimeoutUserDto,
+    requesterRole?: UserRole | null,
+  ) {
+    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole))) {
+      throw new ForbiddenException();
+    }
+
+    const targetUserId = await this.usersService.resolveUserId({
+      userId: dto.targetUserId,
+      username: dto.targetUsername,
+    });
+
+    await this.moderationRepository.delete({
+      streamId,
+      targetUserId,
+      action: 'ban',
+    });
+
+    return { ok: true };
+  }
+
+  private async assertChatParticipation(
+    stream: Stream,
+    userId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<void> {
+    const mode = stream.chatMode ?? StreamChatMode.ALL;
+    if (mode === StreamChatMode.ALL) return;
+
+    const isOwner = userId === stream.userId;
+    const isAdmin = viewerRole === UserRole.ADMIN;
+    const isMod = await this.streamLiveService.canModerate(stream.id, userId, viewerRole, stream);
+    if (isOwner || isAdmin || isMod) return;
+
+    if (mode === StreamChatMode.MODS_ONLY) {
+      throw new ForbiddenException('Only moderators can send messages in this chat');
+    }
+
+    if (mode === StreamChatMode.FOLLOWERS) {
+      await this.entitlementsService.assertAccessAsync({
+        creatorId: stream.userId,
+        visibility: StreamVisibility.FOLLOWERS,
+        viewerId: userId,
+      });
+      return;
+    }
+
+    if (mode === StreamChatMode.SUBSCRIBERS) {
+      await this.entitlementsService.assertAccessAsync({
+        creatorId: stream.userId,
+        visibility: StreamVisibility.SUBSCRIBERS,
+        viewerId: userId,
+      });
+    }
+  }
+
+  private async assertNotModerated(streamId: string, userId: string) {
     const now = new Date();
-    const active = await this.moderationRepository.findOne({
+    const ban = await this.moderationRepository.findOne({
+      where: { streamId, targetUserId: userId, action: 'ban' },
+      order: { createdAt: 'DESC' },
+    });
+    if (ban) {
+      throw new ForbiddenException('You are banned from this chat');
+    }
+
+    const timeout = await this.moderationRepository.findOne({
       where: {
         streamId,
         targetUserId: userId,
@@ -213,7 +619,7 @@ export class StreamChatService {
       },
       order: { createdAt: 'DESC' },
     });
-    if (active) {
+    if (timeout) {
       throw new ForbiddenException('You are timed out from this chat');
     }
   }

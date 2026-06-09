@@ -1,6 +1,6 @@
-# FORGE — Operations runbooks
+# Operations runbooks
 
-Operational guides referenced by the [enterprise audit](../audits/README.md) (**closed** 2026-06-05). Deferred items: [DEFERRED_BACKLOG.md](../audits/DEFERRED_BACKLOG.md).
+Deferred audit items: [DEFERRED_BACKLOG.md](../audits/DEFERRED_BACKLOG.md) · Neon monitoring: [NEON_COST.md](../audits/NEON_COST.md)
 
 | Runbook | Purpose |
 |---------|---------|

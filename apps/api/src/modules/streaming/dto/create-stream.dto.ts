@@ -1,10 +1,13 @@
 import {
   IsBoolean,
+  IsDateString,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -58,4 +61,20 @@ export class CreateStreamDto {
   @IsOptional()
   @IsUUID()
   requiredTierId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  scheduledAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(100)
+  ticketPriceCents?: number;
+
+  @ApiPropertyOptional({ description: 'Enable live DVR (standard latency, longer rewind buffer)' })
+  @IsOptional()
+  @IsBoolean()
+  dvrEnabled?: boolean;
 }

@@ -16,8 +16,10 @@ export default function NotificationsPage() {
     queryKey: ['notifications'],
     enabled: !isGuest,
     queryFn: async () => {
-      const { data } = await api.get('/notifications');
-      return data.data as Notification[];
+      const { data } = await api.get<{
+        data: { data: Notification[]; meta?: { cursor: string | null; hasMore: boolean } };
+      }>('/notifications');
+      return data.data.data;
     },
   });
 

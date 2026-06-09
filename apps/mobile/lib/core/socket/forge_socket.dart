@@ -27,6 +27,14 @@ class ForgeSocket {
     return _socket;
   }
 
+  static void joinStream(String streamId) {
+    _socket?.emit('join-stream', {'streamId': streamId});
+  }
+
+  static void leaveStream(String streamId) {
+    _socket?.emit('leave-stream', {'streamId': streamId});
+  }
+
   static void joinStreamChat(String streamId) {
     _socket?.emit('join-stream-chat', {'streamId': streamId});
   }

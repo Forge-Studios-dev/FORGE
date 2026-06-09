@@ -61,6 +61,13 @@ export class UsersController {
     return toPublicUser(profile);
   }
 
+  @Post('me/mature-content/acknowledge')
+  @ApiOperation({ summary: 'Acknowledge mature content access (18+)' })
+  async acknowledgeMatureContent(@CurrentUser() user: JwtPayload) {
+    const profile = await this.usersService.acknowledgeMatureContent(user.sub);
+    return toPublicUser(profile);
+  }
+
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @Get('by-username/:username')
@@ -79,6 +86,12 @@ export class UsersController {
       return { ...publicUser, viewerFollowing };
     }
     return publicUser;
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search users by username or display name (for mod/grant picker)' })
+  searchUsers(@Query('q') q: string, @Query('limit') limit?: number) {
+    return this.usersService.searchUsersForPicker(q ?? '', Number(limit) || 10);
   }
 
   @Public()

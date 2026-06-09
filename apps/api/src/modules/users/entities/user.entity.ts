@@ -112,6 +112,9 @@ export class User {
   @Column({ name: 'video_count', default: 0 })
   videoCount: number;
 
+  @Column({ name: 'mature_content_acknowledged_at', type: 'timestamptz', nullable: true })
+  matureContentAcknowledgedAt: Date | null;
+
   @OneToMany(() => Video, (video) => video.user)
   videos: Video[];
 

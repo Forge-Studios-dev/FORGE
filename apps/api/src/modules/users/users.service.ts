@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
@@ -52,6 +52,37 @@ export class UsersService {
     const user = await this.userRepository.findOne({ where: { username } });
     if (!user) throw new NotFoundException('User not found');
     return user;
+  }
+
+  /** Resolve exactly one of userId or username to a user id. */
+  async resolveUserId(input: { userId?: string; username?: string }): Promise<string> {
+    const id = input.userId?.trim();
+    const rawUsername = input.username?.trim().replace(/^@/, '');
+    if (!!id === !!rawUsername) {
+      throw new BadRequestException('Provide exactly one of userId or username');
+    }
+    if (id) {
+      await this.findById(id);
+      return id;
+    }
+    const user = await this.findByUsername(rawUsername!);
+    return user.id;
+  }
+
+  async searchUsersForPicker(q: string, limit = 10) {
+    const term = q.trim().replace(/^@/, '');
+    if (term.length < 2) return [];
+    const take = Math.min(Math.max(limit, 1), 20);
+    const users = await this.userRepository.find({
+      where: [{ username: ILike(`${term}%`) }, { displayName: ILike(`${term}%`) }],
+      take,
+      order: { username: 'ASC' },
+    });
+    return users.map((u) => ({
+      id: u.id,
+      username: u.username,
+      displayName: u.displayName,
+    }));
   }
 
   async update(requesterId: string, targetId: string, dto: UpdateUserDto): Promise<User> {
@@ -179,6 +210,12 @@ export class UsersService {
     const note = applicationNote?.trim();
     user.creatorReviewNote = note || null;
 
+    return this.userRepository.save(user);
+  }
+
+  async acknowledgeMatureContent(userId: string): Promise<User> {
+    const user = await this.findById(userId);
+    user.matureContentAcknowledgedAt = new Date();
     return this.userRepository.save(user);
   }
 }

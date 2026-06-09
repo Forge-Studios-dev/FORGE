@@ -8,12 +8,15 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
 import { Stream, Category, SubscriptionTier } from '@/types';
+import { useLiveStreamsQuery } from '@/hooks/useLiveStreamsQuery';
 
 const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Public' },
   { value: 'followers', label: 'Followers only' },
   { value: 'subscribers', label: 'Members only' },
   { value: 'tier', label: 'Tier members' },
+  { value: 'private', label: 'Private' },
+  { value: 'paid_event', label: 'Paid event' },
 ] as const;
 
 export default function StudioLivePage() {
@@ -25,18 +28,14 @@ export default function StudioLivePage() {
   const [categoryId, setCategoryId] = useState('');
   const [chatEnabled, setChatEnabled] = useState(true);
   const [recordEnabled, setRecordEnabled] = useState(true);
+  const [dvrEnabled, setDvrEnabled] = useState(false);
   const [ageRestricted, setAgeRestricted] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [ticketPriceCents, setTicketPriceCents] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
-  const { data: streams, refetch } = useQuery({
-    queryKey: ['live-streams'],
-    queryFn: async () => {
-      const { data } = await api.get<{ data: Stream[] }>('/streams/live');
-      return data.data;
-    },
-    refetchInterval: 15_000,
-  });
+  const { data: streams, refetch } = useLiveStreamsQuery();
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -62,6 +61,13 @@ export default function StudioLivePage() {
       setError('Select a membership tier for tier-only streams.');
       return;
     }
+    if (visibility === 'paid_event') {
+      const cents = Number(ticketPriceCents);
+      if (!Number.isFinite(cents) || cents < 100) {
+        setError('Paid events need a ticket price of at least $1.00.');
+        return;
+      }
+    }
     setError('');
     setCreating(true);
     try {
@@ -73,7 +79,11 @@ export default function StudioLivePage() {
         categoryId: categoryId || undefined,
         chatEnabled,
         recordEnabled,
+        dvrEnabled,
         ageRestricted,
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+        ticketPriceCents:
+          visibility === 'paid_event' ? Number(ticketPriceCents) : undefined,
       });
       setTitle('');
       await refetch();
@@ -146,6 +156,29 @@ export default function StudioLivePage() {
                 </select>
               </label>
             ) : null}
+            {visibility === 'paid_event' ? (
+              <label className="block text-sm">
+                <span className="text-on-surface-variant">Ticket price (USD cents)</span>
+                <input
+                  type="number"
+                  min={100}
+                  step={100}
+                  value={ticketPriceCents}
+                  onChange={(e) => setTicketPriceCents(e.target.value)}
+                  placeholder="e.g. 999 for $9.99"
+                  className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
+                />
+              </label>
+            ) : null}
+            <label className="block text-sm">
+              <span className="text-on-surface-variant">Schedule (optional)</span>
+              <input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
+              />
+            </label>
             <label className="block text-sm">
               <span className="text-on-surface-variant">Category</span>
               <select
@@ -170,6 +203,10 @@ export default function StudioLivePage() {
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={recordEnabled} onChange={(e) => setRecordEnabled(e.target.checked)} />
               Record VOD
+            </label>
+            <label className="flex items-center gap-2" title="Longer rewind buffer; slightly higher latency">
+              <input type="checkbox" checked={dvrEnabled} onChange={(e) => setDvrEnabled(e.target.checked)} />
+              Live DVR
             </label>
             <label className="flex items-center gap-2">
               <input

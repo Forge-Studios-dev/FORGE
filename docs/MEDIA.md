@@ -69,3 +69,34 @@ Playback must use `stream.mux.com/*.m3u8`.
 ## Thumbnails (live)
 
 Resolved in order: custom `thumbnailUrl` → Mux `image.mux.com` from playback ID → creator avatar (`mux-playback.util.ts`).
+
+---
+
+## Live platform (OBS + browser + paid events)
+
+| Path | Use |
+|------|-----|
+| OBS / RTMP | Default — `rtmps://global-live.mux.com:443/app` + stream key from `POST /streams/start` |
+| Browser go-live | LiveKit room → RTMP egress to Mux (`LIVEKIT_*` on API, `NEXT_PUBLIC_LIVEKIT_URL` on web) |
+| Paid events | `BILLING_PROVIDER=stripe` + `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`; ticket via `POST /streams/:id/checkout` |
+| Scheduling | `scheduledAt` on create; `GET /streams/upcoming`; BullMQ `stream-reminder` worker (every 5m) |
+
+**API env (live):**
+
+```bash
+LIVEKIT_URL=wss://your-project.livekit.cloud
+LIVEKIT_API_KEY=...
+LIVEKIT_API_SECRET=...
+BILLING_PROVIDER=stripe
+STRIPE_SECRET_KEY=sk_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STREAM_PROFANITY_FILTER_ENABLED=true
+```
+
+**Web env:**
+
+```bash
+NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud
+```
+
+**Stripe webhook:** `POST /api/v1/billing/webhook` — event `checkout.session.completed` with `metadata.type=stream_event` grants ticket access.

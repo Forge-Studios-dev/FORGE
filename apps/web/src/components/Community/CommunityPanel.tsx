@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -25,6 +25,12 @@ type ChannelMessage = {
 
 interface Props {
   creatorId: string;
+}
+
+function isChannelMessage(value: unknown): value is ChannelMessage {
+  if (!value || typeof value !== 'object') return false;
+  const msg = value as ChannelMessage;
+  return typeof msg.id === 'string' && typeof msg.body === 'string';
 }
 
 export function CommunityPanel({ creatorId }: Props) {
@@ -52,8 +58,10 @@ export function CommunityPanel({ creatorId }: Props) {
     }
   }, [activeChannelId, channels]);
 
+  const messagesQueryKey = ['channel-messages', activeChannelId] as const;
+
   const { data: messages } = useQuery({
-    queryKey: ['channel-messages', activeChannelId],
+    queryKey: messagesQueryKey,
     enabled: !!activeChannelId,
     queryFn: async () => {
       const { data } = await api.get<{ data: { data: ChannelMessage[] } }>(
@@ -63,13 +71,29 @@ export function CommunityPanel({ creatorId }: Props) {
     },
   });
 
+  const appendMessage = useCallback(
+    (message: ChannelMessage) => {
+      if (!activeChannelId || message.channelId !== activeChannelId) return;
+      qc.setQueryData<ChannelMessage[]>(messagesQueryKey, (prev) => {
+        const list = prev ?? [];
+        if (list.some((m) => m.id === message.id)) return list;
+        return [...list, message];
+      });
+    },
+    [activeChannelId, qc, messagesQueryKey],
+  );
+
   const sendMutation = useMutation({
     mutationFn: async (body: string) => {
-      await api.post(`/channels/${activeChannelId}/messages`, { body });
+      const { data } = await api.post<{ data: ChannelMessage }>(
+        `/channels/${activeChannelId}/messages`,
+        { body },
+      );
+      return data.data;
     },
-    onSuccess: () => {
+    onSuccess: (message) => {
       setText('');
-      void qc.invalidateQueries({ queryKey: ['channel-messages', activeChannelId] });
+      if (message) appendMessage(message);
     },
   });
 
@@ -79,8 +103,10 @@ export function CommunityPanel({ creatorId }: Props) {
     if (!socket) return;
 
     socket.emit('join-channel', { channelId: activeChannelId });
-    const onMessage = () => {
-      void qc.invalidateQueries({ queryKey: ['channel-messages', activeChannelId] });
+    const onMessage = (payload: unknown) => {
+      if (isChannelMessage(payload)) {
+        appendMessage(payload);
+      }
     };
     socket.on(SocketEvents.CHANNEL_MESSAGE, onMessage);
 
@@ -88,7 +114,7 @@ export function CommunityPanel({ creatorId }: Props) {
       socket.emit('leave-channel', { channelId: activeChannelId });
       socket.off(SocketEvents.CHANNEL_MESSAGE, onMessage);
     };
-  }, [accessToken, activeChannelId, qc]);
+  }, [accessToken, activeChannelId, appendMessage]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

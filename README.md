@@ -10,10 +10,11 @@ All docs: [`docs/README.md`](docs/README.md) — start with **[FORGE_PROJECT_MAS
 
 | Doc | Purpose |
 |-----|---------|
-| [FORGE_PROJECT_MASTER](docs/FORGE_PROJECT_MASTER.md) | Modules, routes, design system, blueprints, status |
+| [FORGE_PROJECT_MASTER](docs/FORGE_PROJECT_MASTER.md) | Modules, routes, design system, status |
 | [GETTING_STARTED](docs/GETTING_STARTED.md) | Local dev |
+| [LIVE](docs/LIVE.md) | Live streaming |
 | [API_SCHEMAS](docs/API_SCHEMAS.md) | Public API contracts |
-| [DEPLOY](docs/DEPLOY.md) · [CI_CD](docs/CI_CD.md) | Ops |
+| [DEPLOY](docs/DEPLOY.md) · [CI_CD](docs/CI_CD.md) · [SCRIPTS](docs/SCRIPTS.md) | Ops |
 | [LEGAL](docs/LEGAL.md) | Terms & privacy |
 
 ```bash

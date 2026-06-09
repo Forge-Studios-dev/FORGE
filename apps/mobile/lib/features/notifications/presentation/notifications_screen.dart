@@ -26,7 +26,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       final api = ref.read(apiClientProvider);
       final res = await api.dio.get('/notifications');
       setState(() {
-        _items = (res.data['data'] as List?) ?? [];
+        final payload = res.data['data'];
+        _items = payload is Map
+            ? ((payload['data'] as List?) ?? [])
+            : ((payload as List?) ?? []);
         _loading = false;
       });
     } catch (_) {

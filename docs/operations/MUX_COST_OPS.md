@@ -1,7 +1,7 @@
 # Mux cost operations (F-1001)
 
 **Audience:** Platform / media ops  
-**Related:** [MEDIA.md](../MEDIA.md) · [10_COST_OPTIMIZATION.md](../audits/10_COST_OPTIMIZATION.md)
+**Related:** [MEDIA.md](../MEDIA.md) · [LIVE.md](../LIVE.md)
 
 ---
 

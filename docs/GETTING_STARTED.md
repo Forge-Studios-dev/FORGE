@@ -16,6 +16,8 @@ docker compose up worker -d
 bash scripts/setup-local-demo.sh
 ```
 
+**Daily dev:** use local Docker Postgres + Redis above — do not point `DATABASE_URL` / `REDIS_URL` at shared Neon or Redis Cloud unless you are testing a deploy-specific integration. Neon preview branches should auto-suspend when idle; delete them after PR merge.
+
 **Run** (three terminals):
 
 ```bash
@@ -72,7 +74,7 @@ Auth, feed, search, admin, engagement work. Upload/live need S3 + Mux — [MEDIA
 |------|-----|
 | All modules & routes | [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) |
 | API schemas | [API_SCHEMAS.md](./API_SCHEMAS.md) |
-| UI blueprints | [design/blueprints/README.md](./design/blueprints/README.md) |
+| UI blueprints | [DESIGN.md](./DESIGN.md) |
 | Auth | [AUTH.md](./AUTH.md) |
 | Deploy | [DEPLOY.md](./DEPLOY.md) |
 | Index | [README.md](./README.md) |

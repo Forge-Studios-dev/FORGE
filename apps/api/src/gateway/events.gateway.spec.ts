@@ -16,8 +16,12 @@ describe('EventsGateway room authorization', () => {
     join: jest.fn().mockResolvedValue(1),
     leave: jest.fn(),
   };
+  const redis = {
+    get: jest.fn().mockResolvedValue(null),
+    setex: jest.fn().mockResolvedValue('OK'),
+  };
   const streamingService = {
-    getStreamForViewer: jest.fn(),
+    assertStreamSocketAccess: jest.fn(),
   };
   const videosService = {
     getVideoForViewer: jest.fn(),
@@ -47,6 +51,7 @@ describe('EventsGateway room authorization', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     gateway = new EventsGateway(
+      redis as never,
       configService as unknown as ConfigService,
       jwtService as unknown as JwtService,
       streamViewerService as never,
@@ -71,7 +76,7 @@ describe('EventsGateway room authorization', () => {
   });
 
   it('denies join-stream when accessDenied', async () => {
-    streamingService.getStreamForViewer.mockResolvedValue({ accessDenied: true });
+    streamingService.assertStreamSocketAccess.mockResolvedValue(false);
     await expect(
       gateway.handleJoinStream({ streamId: 'stream-1' }, authedClient() as never),
     ).rejects.toThrow(WsException);

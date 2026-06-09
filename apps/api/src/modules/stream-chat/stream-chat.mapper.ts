@@ -1,4 +1,4 @@
-import { StreamMessage } from './entities/stream-message.entity';
+import { StreamMessage, StreamMessageType } from './entities/stream-message.entity';
 import { toPublicUser } from '../users/user.mapper';
 
 export function toPublicStreamMessage(msg: StreamMessage) {
@@ -11,5 +11,9 @@ export function toPublicStreamMessage(msg: StreamMessage) {
     parentId: msg.parentId,
     deletedAt: msg.deletedAt,
     createdAt: msg.createdAt,
+    streamOffsetMs: msg.streamOffsetMs != null ? Number(msg.streamOffsetMs) : null,
+    messageType: msg.messageType ?? StreamMessageType.CHAT,
+    amountCents: msg.amountCents ?? null,
+    highlightSeconds: msg.highlightSeconds ?? null,
   };
 }

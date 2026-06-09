@@ -36,4 +36,4 @@
 
 ## Re-audit
 
-Schedule full 14-phase re-audit on **2026-09-04** or at **50K MAU** — whichever comes first. See [14_EXECUTIVE_SUMMARY.md](./14_EXECUTIVE_SUMMARY.md).
+Schedule full re-audit on **2026-09-04** or at **50K MAU** — whichever comes first. See [EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md).

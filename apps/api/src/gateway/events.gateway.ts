@@ -11,6 +11,9 @@ import {
 } from '@nestjs/websockets';
 import { ForbiddenException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
+import { safeRedisGet, safeRedisSetex } from '../common/redis/redis-safe.util';
 import { JwtService } from '@nestjs/jwt';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Namespace, Server, Socket } from 'socket.io';
@@ -43,8 +46,10 @@ export class EventsGateway
 
   private readonly logger = new Logger(EventsGateway.name);
   private userSockets = new Map<string, Set<string>>();
+  private static readonly SOCKET_ACCESS_CACHE_TTL_SEC = 60;
 
   constructor(
+    @InjectRedis() private readonly redis: Redis,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
     private readonly streamViewerService: StreamViewerService,
@@ -147,8 +152,8 @@ export class EventsGateway
     userId: string,
     role: UserRole,
   ): Promise<void> {
-    const stream = await this.streamingService.getStreamForViewer(streamId, userId, role);
-    if (stream.accessDenied) {
+    const allowed = await this.streamingService.assertStreamSocketAccess(streamId, userId, role);
+    if (!allowed) {
       this.denyAccess();
     }
   }
@@ -158,9 +163,22 @@ export class EventsGateway
     userId: string,
     role: UserRole,
   ): Promise<void> {
+    const cacheKey = `ent:video-access:${userId}:${videoId}`;
+    const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
+    if (cached === '1') return;
+    if (cached === '0') this.denyAccess();
+
     try {
       const video = await this.videosService.getVideoForViewer(videoId, userId, role);
-      if (video.accessDenied) {
+      const allowed = !video.accessDenied;
+      await safeRedisSetex(
+        this.redis,
+        cacheKey,
+        EventsGateway.SOCKET_ACCESS_CACHE_TTL_SEC,
+        allowed ? '1' : '0',
+        this.logger,
+      );
+      if (!allowed) {
         this.denyAccess();
       }
     } catch (err) {
@@ -176,10 +194,29 @@ export class EventsGateway
     userId: string,
     role: UserRole,
   ): Promise<void> {
+    const cacheKey = `ent:channel-access:${userId}:${channelId}`;
+    const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
+    if (cached === '1') return;
+    if (cached === '0') this.denyAccess();
+
     try {
       await this.communitiesService.verifyChannelAccess(channelId, userId, role);
+      await safeRedisSetex(
+        this.redis,
+        cacheKey,
+        EventsGateway.SOCKET_ACCESS_CACHE_TTL_SEC,
+        '1',
+        this.logger,
+      );
     } catch (err) {
       if (err instanceof ForbiddenException) {
+        await safeRedisSetex(
+          this.redis,
+          cacheKey,
+          EventsGateway.SOCKET_ACCESS_CACHE_TTL_SEC,
+          '0',
+          this.logger,
+        );
         this.denyAccess();
       }
       throw err;
@@ -228,7 +265,7 @@ export class EventsGateway
     await this.assertStreamAccess(data.streamId, userId, role);
     client.join(`stream:${data.streamId}`);
     (client.data as SocketAuthData).watchingStreamId = data.streamId;
-    const count = await this.streamViewerService.join(data.streamId, client.id);
+    const count = await this.streamViewerService.join(data.streamId, client.id, userId);
     this.server
       .to(`stream:${data.streamId}`)
       .emit('stream:viewer-count', { streamId: data.streamId, viewerCount: count });
@@ -288,6 +325,7 @@ export class EventsGateway
 
   @OnEvent('stream.started')
   handleStreamStarted(payload: { streamId: string; userId: string; title: string }) {
+    void this.streamingService.invalidateStreamListCache();
     this.server.to('streams:live').emit('stream:started', payload);
     this.server.to(`stream:${payload.streamId}`).emit('stream:started', payload);
     this.server.to(`user:${payload.userId}`).emit('stream:started', payload);
@@ -295,6 +333,7 @@ export class EventsGateway
 
   @OnEvent('stream.ended')
   handleStreamEnded(payload: { streamId: string; userId: string; title: string }) {
+    void this.streamingService.invalidateStreamListCache();
     this.server.to('streams:live').emit('stream:ended', payload);
     this.server.to(`stream:${payload.streamId}`).emit('stream:ended', payload);
     this.server.to(`user:${payload.userId}`).emit('stream:ended', payload);
@@ -318,6 +357,25 @@ export class EventsGateway
   @OnEvent('stream.slow-mode')
   handleStreamSlowMode(payload: { streamId: string; slowModeSeconds: number }) {
     this.server.to(`stream:${payload.streamId}`).emit('stream:chat:slow-mode', payload);
+  }
+
+  @OnEvent('stream.chat.pinned')
+  handleStreamChatPinned(payload: { streamId: string; messageId: string | null }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:chat:pinned', payload);
+  }
+
+  @OnEvent('stream.chat.settings')
+  handleStreamChatSettings(payload: {
+    streamId: string;
+    chatEnabled: boolean;
+    chatMode: string;
+  }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:chat:settings', payload);
+  }
+
+  @OnEvent('stream.poll.updated')
+  handleStreamPollUpdated(payload: { streamId: string; poll: unknown }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:poll:updated', payload);
   }
 
   @OnEvent('channel.message')

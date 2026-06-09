@@ -11,6 +11,10 @@ import { Follow } from '../engagement/entities/follow.entity';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { VideoVisibility } from '../content/entities/video.entity';
 import { StreamVisibility } from '../streaming/entities/stream.entity';
+import { PremiumContentNotifyService } from './premium-content-notify.service';
+
+/** Max in-app + push recipients per fan-out event (matches follower query cap). */
+const FANOUT_RECIPIENT_LIMIT = 1000;
 
 @Injectable()
 export class NotificationsListener {
@@ -21,6 +25,7 @@ export class NotificationsListener {
     private readonly pushDispatch: PushDispatchService,
     private readonly mailService: MailService,
     private readonly entitlementsService: EntitlementsService,
+    private readonly premiumContentNotify: PremiumContentNotifyService,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(Follow)
@@ -74,6 +79,39 @@ export class NotificationsListener {
     );
   }
 
+  @OnEvent('stream.reminder')
+  async onStreamReminder(payload: {
+    streamId: string;
+    userId: string;
+    title: string;
+    scheduledAt?: Date | null;
+    creatorName?: string;
+    rsvpUserIds?: string[];
+  }) {
+    const followers = await this.followRepository.find({
+      where: { followingId: payload.userId },
+      select: ['followerId'],
+      take: 500,
+    });
+    const title = payload.creatorName
+      ? `${payload.creatorName} goes live soon`
+      : 'A creator you follow goes live soon';
+    const body = payload.title || 'Live session starting soon';
+
+    const recipientIds = [
+      ...new Set([
+        ...followers.map((f) => f.followerId),
+        ...(payload.rsvpUserIds ?? []),
+      ]),
+    ];
+
+    await this.pushDispatch.enqueueForUsers(recipientIds, {
+      title,
+      body,
+      data: { type: 'stream_reminder', streamId: payload.streamId },
+    });
+  }
+
   @OnEvent('stream.started')
   async onStreamStarted(payload: {
     streamId: string;
@@ -112,39 +150,7 @@ export class NotificationsListener {
     requiredTierId?: string | null;
     title: string;
   }) {
-    if (
-      payload.visibility !== VideoVisibility.SUBSCRIBERS &&
-      payload.visibility !== VideoVisibility.TIER
-    ) {
-      return;
-    }
-
-    const creator = await this.userRepository.findOne({ where: { id: payload.creatorId } });
-    const creatorName = creator?.displayName ?? 'A creator you follow';
-
-    const subscriberIds = await this.entitlementsService.listActiveSubscriberUserIds(
-      payload.creatorId,
-      payload.visibility === VideoVisibility.TIER ? payload.requiredTierId : null,
-    );
-
-    for (const userId of subscriberIds.slice(0, 500)) {
-      await this.notificationsService.create({
-        userId,
-        type: NotificationType.PREMIUM_CONTENT_NEW,
-        title: 'New premium video',
-        body: `${creatorName} uploaded: ${payload.title}`,
-        metadata: { videoId: payload.videoId, creatorId: payload.creatorId },
-      });
-      await this.pushDispatch.enqueueForUser(userId, {
-        title: 'New premium video',
-        body: `${creatorName}: ${payload.title}`,
-        data: {
-          type: 'premium_content_new',
-          videoId: payload.videoId,
-          creatorId: payload.creatorId,
-        },
-      });
-    }
+    await this.premiumContentNotify.fanOut(payload);
   }
 
   private async notifyAudienceOfLive(payload: {
@@ -172,36 +178,41 @@ export class NotificationsListener {
       visibility === StreamVisibility.SUBSCRIBERS ||
       visibility === StreamVisibility.TIER
     ) {
-      recipientIds = await this.entitlementsService.listActiveSubscriberUserIds(
-        payload.userId,
-        visibility === StreamVisibility.TIER ? payload.requiredTierId : null,
-      );
+      recipientIds = (
+        await this.entitlementsService.listActiveSubscriberUserIds(
+          payload.userId,
+          visibility === StreamVisibility.TIER ? payload.requiredTierId : null,
+        )
+      ).slice(0, FANOUT_RECIPIENT_LIMIT);
     } else {
       const followers = await this.followRepository.find({
         where: { followingId: payload.userId },
-        take: 1000,
+        take: FANOUT_RECIPIENT_LIMIT,
       });
       recipientIds = followers.map((f) => f.followerId);
     }
 
-    for (const userId of recipientIds) {
-      await this.notificationsService.create({
+    if (!recipientIds.length) return;
+
+    const title = `${creatorName} is live`;
+    const body = payload.title || 'Join the live stream now.';
+    const metadata = { streamId: payload.streamId, creatorId: payload.userId };
+    const pushData = {
+      type: 'stream_started_followed',
+      streamId: payload.streamId,
+      creatorId: payload.userId,
+    };
+
+    await this.notificationsService.createMany(
+      recipientIds.map((userId) => ({
         userId,
         type: NotificationType.STREAM_STARTED_FOLLOWED,
-        title: `${creatorName} is live`,
-        body: payload.title || 'Join the live stream now.',
-        metadata: { streamId: payload.streamId, creatorId: payload.userId },
-      });
-      await this.pushDispatch.enqueueForUser(userId, {
-        title: `${creatorName} is live`,
-        body: payload.title || 'Join the live stream now.',
-        data: {
-          type: 'stream_started_followed',
-          streamId: payload.streamId,
-          creatorId: payload.userId,
-        },
-      });
-    }
+        title,
+        body,
+        metadata,
+      })),
+    );
+    await this.pushDispatch.enqueueForUsers(recipientIds, { title, body, data: pushData });
   }
 
   private async maybeEmailUser(userId: string, subject: string, body: string) {

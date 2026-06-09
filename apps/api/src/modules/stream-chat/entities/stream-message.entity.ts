@@ -10,8 +10,15 @@ import {
 import { Stream } from '../../streaming/entities/stream.entity';
 import { User } from '../../users/entities/user.entity';
 
+export enum StreamMessageType {
+  CHAT = 'chat',
+  SUPER_CHAT = 'super_chat',
+  SYSTEM = 'system',
+}
+
 @Entity('stream_messages')
 @Index(['streamId', 'createdAt'])
+@Index(['streamId', 'streamOffsetMs'])
 export class StreamMessage {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -38,6 +45,23 @@ export class StreamMessage {
 
   @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
   deletedAt: Date | null;
+
+  @Column({ name: 'stream_offset_ms', type: 'bigint', nullable: true })
+  streamOffsetMs: number | null;
+
+  @Column({
+    name: 'message_type',
+    type: 'enum',
+    enum: StreamMessageType,
+    default: StreamMessageType.CHAT,
+  })
+  messageType: StreamMessageType;
+
+  @Column({ name: 'amount_cents', type: 'int', nullable: true })
+  amountCents: number | null;
+
+  @Column({ name: 'highlight_seconds', type: 'int', nullable: true })
+  highlightSeconds: number | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -1,6 +1,6 @@
 # Fly.io API production SLO (F-1002)
 
-**Related:** [DEPLOY.md](../DEPLOY.md) · [10_COST_OPTIMIZATION.md](../audits/10_COST_OPTIMIZATION.md)
+**Related:** [DEPLOY.md](../DEPLOY.md) · [audits/EXECUTIVE_SUMMARY.md](../audits/EXECUTIVE_SUMMARY.md)
 
 ---
 

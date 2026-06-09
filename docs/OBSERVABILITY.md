@@ -125,17 +125,21 @@ Starter assets in [`infra/observability/`](../infra/observability/):
 | `prometheus-scrape.example.yml` | Scrape `GET /metrics` on the API |
 | `prometheus-alerts.yml` | Error rate + latency alerts |
 | `grafana-dashboard-forge-api.json` | Import into Grafana (Dashboards → Import) |
-| `grafana-cloud.md` | Grafana Cloud scrape + dashboard import |
-
 Requires `METRICS_ENABLED=true` on the API (enabled on production Fly API).
 
-**Grafana Cloud:** [infra/observability/grafana-cloud.md](../infra/observability/grafana-cloud.md)
+### Grafana Cloud setup
 
-### Grafana quick setup
+1. Create a Grafana Cloud stack at [grafana.com](https://grafana.com/)
+2. Fly API: `npm run setup:fly:metrics-token` (sets `METRICS_SCRAPE_TOKEN`)
+3. Grafana → **Connections** → **Metrics Endpoint** → create scrape job:
+   - URL: `https://api.forgestudios.net/metrics`
+   - Interval: `30s`
+   - Auth: **Bearer** — paste token from `npm run configure:grafana-scrape`
+4. Import dashboard: `GRAFANA_SA_TOKEN=... npm run import:grafana-dashboard`
+5. Verify: `npm run verify:grafana-metrics` · `npm run verify:metrics-scrape`
 
-1. `METRICS_ENABLED=true` + `npm run setup:fly:metrics-token` on Fly API
-2. Connections → **Metrics Endpoint** → scrape `https://api.forgestudios.net/metrics` (60s, Bearer token)
-3. `npm run import:grafana-dashboard` · `npm run verify:grafana-metrics`
+**Terraform scrape job:** [infra/observability/terraform/README.md](../infra/observability/terraform/README.md)  
+**Discover stack URLs:** `GRAFANA_CLOUD_ACCESS_POLICY_TOKEN=... npm run discover:grafana-cloud`
 
 ## Feature flags (large uploads)
 

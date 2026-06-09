@@ -29,9 +29,17 @@ export class NotificationsController {
 
   @Get()
   @Permissions(Permission.USE_LIBRARY)
-  @ApiOperation({ summary: 'List notifications for current user' })
-  list(@CurrentUser() user: JwtPayload) {
-    return this.notificationsService.listForUser(user.sub);
+  @ApiOperation({ summary: 'List notifications for current user (cursor pagination)' })
+  list(
+    @CurrentUser() user: JwtPayload,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+    return this.notificationsService.listForUser(user.sub, {
+      cursor,
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+    });
   }
 
   @Post(':id/read')

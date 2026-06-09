@@ -21,6 +21,21 @@ import { AnalyticsRetentionWorker } from './analytics-retention/analytics-retent
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DeviceToken } from '../notifications/entities/device-token.entity';
 import { FirebaseModule } from '../firebase/firebase.module';
+import { StreamReminderWorker } from './stream-reminder/stream-reminder.worker';
+import { STREAM_REMINDER_QUEUE } from './stream-reminder/stream-reminder.constants';
+import { StreamChatIngestWorker } from './stream-chat-ingest/stream-chat-ingest.worker';
+import { STREAM_CHAT_INGEST_QUEUE } from './stream-chat-ingest/stream-chat-ingest.constants';
+import { StreamSnapshotRetentionWorker } from './stream-snapshot-retention/stream-snapshot-retention.worker';
+import { STREAM_SNAPSHOT_RETENTION_QUEUE } from './stream-snapshot-retention/stream-snapshot-retention.constants';
+import { StreamMuxSyncWorker } from './stream-mux-sync/stream-mux-sync.worker';
+import { STREAM_MUX_SYNC_QUEUE } from './stream-mux-sync/stream-mux-sync.constants';
+import { StreamingModule } from '../streaming/streaming.module';
+import { Stream } from '../streaming/entities/stream.entity';
+import { StreamMessage } from '../stream-chat/entities/stream-message.entity';
+import { StreamAnalyticsSnapshot } from '../streaming/entities/stream-analytics-snapshot.entity';
+import { StreamRsvp } from '../streaming/entities/stream-rsvp.entity';
+import { PremiumContentNotifyWorker } from './premium-content-notify/premium-content-notify.worker';
+import { PREMIUM_CONTENT_NOTIFY_QUEUE } from './premium-content-notify/premium-content-notify.constants';
 
 function isDedicatedWorkerProcess(): boolean {
   return (
@@ -66,13 +81,41 @@ function shouldRegisterAnalyticsRetention(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+function shouldRegisterStreamReminder(): boolean {
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterStreamChatIngest(): boolean {
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterStreamSnapshotRetention(): boolean {
+  if (process.env.DISABLE_STREAM_SNAPSHOT_RETENTION === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterStreamMuxSync(): boolean {
+  if (process.env.DISABLE_STREAM_MUX_SYNC === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterPremiumContentNotify(): boolean {
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
 @Module({
   imports: [
     AnalyticsModule,
     NotificationsModule,
     ContentModule,
     FirebaseModule,
-    TypeOrmModule.forFeature([Video, AnalyticsEvent, DeviceToken]),
+    StreamingModule,
+    TypeOrmModule.forFeature([Video, AnalyticsEvent, DeviceToken, Stream, StreamMessage, StreamAnalyticsSnapshot, StreamRsvp]),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
       defaultJobOptions: {
@@ -134,6 +177,46 @@ function shouldRegisterAnalyticsRetention(): boolean {
         removeOnFail: { age: 7 * 86400, count: 50 },
       },
     }),
+    BullModule.registerQueue({
+      name: STREAM_REMINDER_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 3600, count: 100 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: STREAM_CHAT_INGEST_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 1000 },
+        removeOnComplete: { age: 3600, count: 10_000 },
+        removeOnFail: { age: 86400, count: 5000 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: STREAM_SNAPSHOT_RETENTION_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 86400, count: 14 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: STREAM_MUX_SYNC_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 3600, count: 500 },
+        removeOnFail: { age: 86400, count: 200 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: PREMIUM_CONTENT_NOTIFY_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: { age: 3600, count: 5000 },
+        removeOnFail: { age: 86400, count: 500 },
+      },
+    }),
     EventEmitterModule,
   ],
   providers: [
@@ -143,6 +226,11 @@ function shouldRegisterAnalyticsRetention(): boolean {
     ...(shouldRegisterPushDispatch() ? [PushDispatchWorker] : []),
     ...(shouldRegisterSubscriptionMaintenance() ? [SubscriptionMaintenanceWorker] : []),
     ...(shouldRegisterAnalyticsRetention() ? [AnalyticsRetentionWorker] : []),
+    ...(shouldRegisterStreamReminder() ? [StreamReminderWorker] : []),
+    ...(shouldRegisterStreamChatIngest() ? [StreamChatIngestWorker] : []),
+    ...(shouldRegisterStreamSnapshotRetention() ? [StreamSnapshotRetentionWorker] : []),
+    ...(shouldRegisterStreamMuxSync() ? [StreamMuxSyncWorker] : []),
+    ...(shouldRegisterPremiumContentNotify() ? [PremiumContentNotifyWorker] : []),
   ],
 })
 export class WorkersModule {}

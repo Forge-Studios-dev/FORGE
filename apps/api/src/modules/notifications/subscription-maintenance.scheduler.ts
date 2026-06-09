@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { shouldRegisterBullScheduler } from '../../common/bull/scheduler-role.util';
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './subscription-maintenance.constants';
 
 const SCHEDULER_ID = 'subscription-maintenance-hourly';
@@ -8,11 +9,7 @@ const HOURLY_MS = 60 * 60 * 1000;
 const REGISTER_TIMEOUT_MS = 10_000;
 
 function shouldRegisterScheduler(): boolean {
-  if (process.env.DISABLE_SUBSCRIPTION_MAINTENANCE === 'true') return false;
-  if (process.env.WORKER_ONLY === 'true') return true;
-  // Production API must not block HTTP boot on BullMQ scheduler I/O (worker app registers jobs).
-  if (process.env.NODE_ENV === 'production') return false;
-  return true;
+  return shouldRegisterBullScheduler('DISABLE_SUBSCRIPTION_MAINTENANCE');
 }
 
 @Injectable()

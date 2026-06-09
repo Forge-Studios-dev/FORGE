@@ -99,11 +99,11 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | **ContentModule** | `videos` | presigned-url, complete, multipart/*, view, watch, studio, CRUD | VOD upload, processing orchestration, playback; `ViewCountFlushService` (Redis → Postgres view counts) |
 | **FeedModule** | `videos` | `feed`, `feed/trending`, `feed/recommended`, `public`, `by-category/:slug`, `by-skills` | Home/explore feeds (`latest` / `popular` / `forYou`) |
 | **EngagementModule** | root | like, comments, follow | Social engagement |
-| **StreamingModule** | `streams` | start, live, end, slow-mode, `webhooks/mux` | Mux live + webhooks |
+| **StreamingModule** | `streams` | start, live, RSVP, polls, clips, replay, checkout, mods, `webhooks/mux` | Mux live + webhooks — see [LIVE.md](./LIVE.md) |
 | **EntitlementsModule** | root | `creators/:id/tiers`, `subscriptions/mock`, membership checks | Mock memberships, tier CRUD |
 | **BillingModule** | — | (no HTTP yet) | `PaymentProvider` scaffold for Stripe Phase 2 |
 | **CommunitiesModule** | root | channels per creator, messages, invites | Creator community chat |
-| **StreamChatModule** | `streams/:id/chat` | messages, slow mode sync | Live stream chat |
+| **StreamChatModule** | `streams/:id/chat` | messages, super-chat, ban/timeout, settings, pin | Live stream chat |
 | **PlaylistsModule** | `playlists` | CRUD, `me`, add videos | User playlists |
 | **NotificationsModule** | `notifications` | list, read, device register/revoke | In-app + FCM token registry |
 | **SearchModule** | `search` | FTS query | Postgres full-text search |
@@ -135,8 +135,14 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | `analytics-ingest` | `AnalyticsIngestWorker` | Worker in prod; API+worker in local dev |
 | `push-dispatch` | `PushDispatchWorker` | FCM multicast |
 | `subscription-maintenance` | `SubscriptionMaintenanceWorker` | Hourly expiry + notifications |
+| `analytics-retention` | `AnalyticsRetentionWorker` | Daily analytics purge |
+| `stream-mux-sync` | `StreamMuxSyncWorker` | Mux status + idle-end (45s live / 90s idle) |
+| `stream-chat-ingest` | `StreamChatIngestWorker` | Async chat when `STREAM_CHAT_ASYNC=true` |
+| `stream-reminder` | `StreamReminderWorker` | RSVP reminders |
+| `stream-snapshot-retention` | `StreamSnapshotRetentionWorker` | Snapshot cleanup |
+| `premium-content-notify` | `PremiumContentNotifyWorker` | Async tier/subscriber replay fan-out |
 
-Logic: `apps/api/src/modules/workers/workers.module.ts`
+Schedulers register on **worker only** in production. Logic: `apps/api/src/modules/workers/workers.module.ts` · deploy: [LIVE.md](./LIVE.md)
 
 ---
 
@@ -185,7 +191,7 @@ Product rule: familiar video IA, **distinct** visual identity (not a YouTube clo
 | Item | Location |
 |------|----------|
 | **Web gallery** | `/blueprints` when `blueprints_public` flag enabled (`apps/web/src/app/blueprints/page.tsx`) |
-| **Static HTML exports** | Intended path: `docs/design/blueprints/` (add Stitch export HTML here when available) |
+| **Static HTML exports** | `docs/design/blueprints/` — see [DESIGN.md](./DESIGN.md) |
 | **Implementation** | Production UI in `apps/web`, `apps/admin`, `apps/mobile` — blueprints are reference only |
 
 Enable locally:
@@ -242,7 +248,7 @@ Auth: `forge_admin_token` + HttpOnly refresh cookie.
 **Router:** `lib/core/router/` — `/feed`, `/explore`, `/live`, `/library`, `/watch/:id`, `/studio/*`, auth screens, creator gates.
 
 **Upload:** native presign → S3 → complete (`features/upload/`).  
-**FCM:** [FIREBASE.md](./FIREBASE.md) · `apps/mobile/FIREBASE_SETUP.md`
+**FCM:** [FIREBASE.md](./FIREBASE.md)
 
 ---
 
@@ -300,7 +306,7 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 | Google OAuth | ✅ | ✅ | — | — | — |
 | Feed & search | ✅ | ✅ | ✅ | ✅ | — |
 | VOD upload/playback | ✅ | ✅ | — | ⚠️ | ✅ |
-| Live (Mux) | ✅ | ⚠️ | — | ⚠️ | — |
+| Live (Mux) | ✅ | ✅ | — | ⚠️ | — |
 | Engagement | ✅ | ✅ | — | ✅ | — |
 | Playlists | ✅ | ✅ | — | — | — |
 | Creator studio | ✅ | ✅ | — | ✅ | — |
@@ -336,7 +342,9 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 
 | Topic | File |
 |-------|------|
-| Enterprise audit (14 phases) | [audits/README.md](./audits/README.md) · **Closed 2026-06** · [completion](./audits/AUDIT_COMPLETION.md) · [deferred backlog](./audits/DEFERRED_BACKLOG.md) · re-audit **2026-09-04** or 50K MAU |
+| Live streaming | [LIVE.md](./LIVE.md) |
+| Enterprise audit | [audits/README.md](./audits/README.md) · **Closed 2026-06** · [deferred backlog](./audits/DEFERRED_BACKLOG.md) |
+| Scripts | [SCRIPTS.md](./SCRIPTS.md) |
 | Operations runbooks | [operations/README.md](./operations/README.md) |
 | Local dev | [GETTING_STARTED.md](./GETTING_STARTED.md) |
 | API schemas & versioning policy | [API_SCHEMAS.md](./API_SCHEMAS.md) § API versioning |
@@ -348,7 +356,7 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 | Memberships | [MEMBERSHIPS.md](./MEMBERSHIPS.md) |
 | Legal | [LEGAL.md](./LEGAL.md) |
 | QA | [QA.md](./QA.md) |
-| Blueprint HTML folder | [design/blueprints/README.md](./design/blueprints/README.md) |
+| Design & blueprints | [DESIGN.md](./DESIGN.md) |
 
 ---
 
@@ -377,11 +385,13 @@ All paths prefixed with `/api/v1`. Auth = JWT unless `@Public`. See Swagger for 
 
 ### `streams`
 
-`POST start` · `GET live` · `GET :id` · `POST :id/end` · `PATCH :id/slow-mode` · `POST webhooks/mux` (Mux signature)
+`POST start` · `GET live` · `GET upcoming` · `GET :id` · `GET :id/replay` · `POST :id/end` · `POST :id/checkout` · `POST :id/grant-access` · `PATCH :id/slow-mode` · RSVP `GET/POST :id/rsvp` · `POST :id/rsvp/cancel` · mods `GET/POST :id/moderators` · polls `GET :id/poll` · `POST :id/polls` · `POST :id/polls/:pollId/vote|close` · clips `GET/POST :id/clips` · `GET :id/captions` · `POST webhooks/mux`
+
+Full live deploy: [LIVE.md](./LIVE.md)
 
 ### `streams/:streamId/chat`
 
-`GET /` (messages) · `POST /` · `DELETE :messageId` · `POST timeout`
+`GET /` (messages, optional `fromMs`/`toMs` replay) · `POST /` · `POST super-chat` · `DELETE :messageId` · `POST timeout` · `POST ban` · `POST unban` · `PATCH settings` · `PATCH pin` · `PATCH slow-mode`
 
 ### Engagement (root)
 
@@ -429,4 +439,4 @@ All paths prefixed with `/api/v1`. Auth = JWT unless `@Public`. See Swagger for 
 
 ---
 
-*Last updated: 2026-06-04*
+*Last updated: 2026-06-09*
