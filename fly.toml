@@ -12,6 +12,11 @@ primary_region = 'bom'
 [deploy]
   release_command = "node node_modules/typeorm/cli.js migration:run -d apps/api/dist/apps/api/src/database/data-source.js"
 
+  # BOM often has no spare capacity for one-off release machines; use a smaller VM.
+  [deploy.release_command_vm]
+    size = "shared-cpu-1x"
+    memory = "512mb"
+
 [env]
   NODE_ENV = 'production'
   PORT = '3001'
