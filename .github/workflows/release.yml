@@ -46,7 +46,8 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy to Fly.io (migrations via fly.toml release_command)
-        run: flyctl deploy --remote-only
+        # Run release_command in sin (capacity); keep app machines in bom.
+        run: flyctl deploy --remote-only --primary-region sin --regions bom
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
