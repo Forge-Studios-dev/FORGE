@@ -33,7 +33,11 @@ export function TopBar() {
       const { data } = await api.get<{ data: { count: number } }>('/notifications/unread-count');
       return data.data.count;
     },
-    refetchInterval: 60_000,
+    refetchInterval: () => {
+      const socket = accessToken ? getSocket(accessToken) : null;
+      if (socket?.connected) return false;
+      return 60_000;
+    },
   });
 
   useEffect(() => {

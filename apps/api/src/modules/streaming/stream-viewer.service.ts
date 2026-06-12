@@ -5,10 +5,13 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { Repository } from 'typeorm';
 import { Stream, StreamStatus } from './entities/stream.entity';
+import { tryAcquireIntervalLeader } from '../../common/redis/redis-interval-leader.util';
 import { StreamAnalyticsService } from './stream-analytics.service';
 
 /** Redis set of stream IDs currently LIVE — avoids polling Postgres when nothing is live. */
 const LIVE_INDEX_KEY = 'streams:live:ids';
+const LEADER_LOCK_KEY = 'leader:stream-viewer-flush';
+const LEADER_LOCK_TTL_SEC = 25;
 /** Reconcile Redis index from DB every ~10 minutes (20 × 30s flushes). */
 const RECONCILE_EVERY_N_FLUSHES = 20;
 /** Analytics snapshot INSERT + chat COUNT at most once per minute per stream. */
@@ -136,6 +139,14 @@ export class StreamViewerService implements OnModuleInit, OnModuleDestroy {
 
   private async flushAllLiveStreams(): Promise<void> {
     try {
+      const isLeader = await tryAcquireIntervalLeader(
+        this.redis,
+        LEADER_LOCK_KEY,
+        LEADER_LOCK_TTL_SEC,
+        this.logger,
+      );
+      if (!isLeader) return;
+
       this.flushCount += 1;
       if (this.flushCount % RECONCILE_EVERY_N_FLUSHES === 0) {
         await this.reconcileLiveIndexFromDb();

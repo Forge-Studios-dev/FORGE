@@ -19,10 +19,12 @@ type Props = {
   playbackSeconds: number;
 };
 
-const WINDOW_SEC = 30;
+const WINDOW_SEC = 120;
+const BUCKET_SEC = 5;
 
 export function StreamChatReplayPanel({ streamId, playbackSeconds }: Props) {
-  const playbackMs = Math.floor(playbackSeconds * 1000);
+  const bucketSeconds = Math.floor(playbackSeconds / BUCKET_SEC) * BUCKET_SEC;
+  const playbackMs = Math.floor(bucketSeconds * 1000);
   const fromMs = Math.max(0, playbackMs - WINDOW_SEC * 1000);
   const toMs = playbackMs + WINDOW_SEC * 1000;
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -37,16 +39,17 @@ export function StreamChatReplayPanel({ streamId, playbackSeconds }: Props) {
       );
       return res.data.data;
     },
-    staleTime: 10_000,
+    staleTime: 30_000,
   });
 
   const visible = useMemo(() => {
+    const currentMs = Math.floor(playbackSeconds * 1000);
     if (!data?.length) return [];
     return data.filter((m) => {
       const offset = m.streamOffsetMs ?? 0;
-      return offset <= playbackMs;
+      return offset <= currentMs;
     });
-  }, [data, playbackMs]);
+  }, [data, playbackSeconds]);
 
   useEffect(() => {
     if (!loaded && visible.length) setLoaded(true);
