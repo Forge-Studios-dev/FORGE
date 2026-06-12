@@ -5,6 +5,7 @@ import { Report, ReportStatus, ReportTargetType } from './entities/report.entity
 import { CreateReportDto } from './dto/create-report.dto';
 import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
+import { Comment } from '../engagement/entities/comment.entity';
 import { clampLimit, clampPage } from '../../common/utils/pagination.util';
 
 @Injectable()
@@ -16,6 +17,8 @@ export class ReportsService {
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Comment)
+    private readonly commentRepository: Repository<Comment>,
   ) {}
 
   async create(reporterId: string, dto: CreateReportDto) {
@@ -25,6 +28,12 @@ export class ReportsService {
       if (video.userId === reporterId) {
         throw new ForbiddenException('Cannot report your own video');
       }
+    } else if (dto.targetType === 'comment') {
+      const comment = await this.commentRepository.findOne({ where: { id: dto.targetId } });
+      if (!comment) throw new NotFoundException('Comment not found');
+      if (comment.userId === reporterId) {
+        throw new ForbiddenException('Cannot report your own comment');
+      }
     } else {
       const user = await this.userRepository.findOne({ where: { id: dto.targetId } });
       if (!user) throw new NotFoundException('User not found');
@@ -33,9 +42,15 @@ export class ReportsService {
       }
     }
 
+    const targetTypeMap: Record<CreateReportDto['targetType'], ReportTargetType> = {
+      video: ReportTargetType.VIDEO,
+      user: ReportTargetType.USER,
+      comment: ReportTargetType.COMMENT,
+    };
+
     const report = this.reportRepository.create({
       reporterId,
-      targetType: dto.targetType === 'video' ? ReportTargetType.VIDEO : ReportTargetType.USER,
+      targetType: targetTypeMap[dto.targetType],
       targetId: dto.targetId,
       reason: dto.reason,
       status: ReportStatus.PENDING,

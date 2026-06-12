@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { DeviceToken, DevicePlatform } from './entities/device-token.entity';
 
@@ -21,9 +22,10 @@ export class NotificationsService {
     private readonly notificationRepository: Repository<Notification>,
     @InjectRepository(DeviceToken)
     private readonly deviceTokenRepository: Repository<DeviceToken>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  create(input: CreateNotificationInput) {
+  async create(input: CreateNotificationInput) {
     const notif = this.notificationRepository.create({
       userId: input.userId,
       type: input.type,
@@ -32,7 +34,12 @@ export class NotificationsService {
       metadata: input.metadata ?? null,
       readAt: null,
     });
-    return this.notificationRepository.save(notif);
+    const saved = await this.notificationRepository.save(notif);
+    this.eventEmitter.emit('notification.created', {
+      userId: input.userId,
+      notification: saved,
+    });
+    return saved;
   }
 
   /** Bulk INSERT for fan-out notifications (go-live, premium content, etc.). */
@@ -51,7 +58,13 @@ export class NotificationsService {
           readAt: null,
         }),
       );
-      await this.notificationRepository.save(entities);
+      const saved = await this.notificationRepository.save(entities);
+      for (const notif of saved) {
+        this.eventEmitter.emit('notification.created', {
+          userId: notif.userId,
+          notification: notif,
+        });
+      }
     }
   }
 
@@ -99,6 +112,12 @@ export class NotificationsService {
     return { data, meta: { cursor: nextCursor, hasMore } };
   }
 
+  async getUnreadCount(userId: string): Promise<number> {
+    return this.notificationRepository.count({
+      where: { userId, readAt: IsNull() },
+    });
+  }
+
   async markRead(userId: string, id: string) {
     const notif = await this.notificationRepository.findOne({ where: { id, userId } });
     if (!notif) throw new NotFoundException('Notification not found');
@@ -107,6 +126,14 @@ export class NotificationsService {
       await this.notificationRepository.save(notif);
     }
     return notif;
+  }
+
+  async markAllRead(userId: string) {
+    await this.notificationRepository.update(
+      { userId, readAt: IsNull() },
+      { readAt: new Date() },
+    );
+    return { ok: true };
   }
 
   async registerDevice(userId: string, platform: DevicePlatform, fcmToken: string) {

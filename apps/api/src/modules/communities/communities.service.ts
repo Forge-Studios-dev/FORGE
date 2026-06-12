@@ -238,6 +238,30 @@ export class CommunitiesService {
     return publicMsg;
   }
 
+  async deleteChannelMessage(
+    channelId: string,
+    messageId: string,
+    actorId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    const channel = await this.getChannelWithCommunity(channelId);
+    const msg = await this.messageRepository.findOne({ where: { id: messageId, channelId } });
+    if (!msg || msg.deletedAt) throw new NotFoundException('Message not found');
+
+    const isOwner = channel.community.creatorId === actorId;
+    const isAuthor = msg.userId === actorId;
+    const isAdmin = viewerRole === UserRole.ADMIN;
+    if (!isOwner && !isAuthor && !isAdmin) {
+      throw new ForbiddenException('Not allowed to delete this message');
+    }
+
+    msg.deletedAt = new Date();
+    msg.body = '[deleted]';
+    await this.messageRepository.save(msg);
+    this.eventEmitter.emit('channel.message.deleted', { channelId, messageId });
+    return { deleted: true };
+  }
+
   private async getChannelWithCommunity(channelId: string): Promise<Channel & { community: Community }> {
     const channel = await this.channelRepository.findOne({
       where: { id: channelId },

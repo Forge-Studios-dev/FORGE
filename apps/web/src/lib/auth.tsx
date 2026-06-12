@@ -31,6 +31,7 @@ import {
   isPlatformAdmin,
   type AccessTier,
 } from '@/lib/access';
+import { disconnectSocket } from '@/lib/socket';
 import { User } from '@/types';
 
 type AuthContextValue = {
@@ -143,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         api.post('/auth/logout', { allDevices: !!options?.allDevices }).catch(() => undefined);
       }
       clearAuthSession();
+      disconnectSocket();
       setUser(null);
       router.push('/login');
     },

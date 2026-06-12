@@ -91,7 +91,6 @@ export function StreamChatPanel({
     },
     onSuccess: () => {
       setText('');
-      void qc.invalidateQueries({ queryKey: ['stream-chat', streamId] });
     },
   });
 

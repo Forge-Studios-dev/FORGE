@@ -26,6 +26,8 @@ import '../../features/studio/presentation/studio_analytics_screen.dart';
 import '../../features/studio/presentation/studio_comments_screen.dart';
 import '../../features/profile/presentation/profile_settings_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
+import '../../features/messages/presentation/messages_screen.dart';
+import '../../features/profile/presentation/follower_list_screen.dart';
 import '../../features/upload/presentation/upload_screen.dart';
 import '../../features/library/presentation/library_screen.dart';
 import '../../features/shell/presentation/offline_screen.dart';
@@ -35,7 +37,7 @@ import 'auth_redirect.dart';
 import 'navigation_key.dart';
 
 const _storage = FlutterSecureStorage();
-const _protected = ['/studio', '/upload', '/notifications', '/history', '/profile/settings', '/library', '/profile'];
+const _protected = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/library', '/profile'];
 
 Future<String?> _redirect(BuildContext context, GoRouterState state) async {
   final path = state.matchedLocation;
@@ -84,6 +86,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/profile/settings', builder: (_, __) => const ProfileSettingsScreen()),
       GoRoute(path: '/upload', builder: (_, __) => const UploadScreen()),
       GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
+      GoRoute(path: '/messages', builder: (_, __) => const MessagesScreen()),
       ShellRoute(
         builder: (context, state, child) => MainScaffold(child: child),
         routes: [
@@ -91,6 +94,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/profile/:username',
             builder: (_, state) => ProfileScreen(username: state.pathParameters['username']!),
+          ),
+          GoRoute(
+            path: '/profile/:username/followers',
+            builder: (_, state) => FollowerListScreen(
+              username: state.pathParameters['username']!,
+              following: false,
+            ),
+          ),
+          GoRoute(
+            path: '/profile/:username/following',
+            builder: (_, state) => FollowerListScreen(
+              username: state.pathParameters['username']!,
+              following: true,
+            ),
           ),
           GoRoute(path: '/live', builder: (_, __) => const LiveScreen()),
           GoRoute(

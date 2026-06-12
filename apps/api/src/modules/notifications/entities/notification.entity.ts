@@ -8,6 +8,11 @@ export enum NotificationType {
   STREAM_STARTED_FOLLOWED = 'stream_started_followed',
   PREMIUM_CONTENT_NEW = 'premium_content_new',
   SUBSCRIPTION_EXPIRING = 'subscription_expiring',
+  COMMENT_ON_VIDEO = 'comment_on_video',
+  COMMENT_REPLY = 'comment_reply',
+  NEW_FOLLOWER = 'new_follower',
+  VIDEO_LIKED = 'video_liked',
+  DIRECT_MESSAGE = 'direct_message',
 }
 
 @Entity('notifications')

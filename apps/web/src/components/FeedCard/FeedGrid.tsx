@@ -20,7 +20,7 @@ interface Props {
   categorySlug?: string;
   skillTagSlug?: string;
   feedPath?: string;
-  sort?: 'latest' | 'popular' | 'forYou';
+  sort?: 'latest' | 'popular' | 'forYou' | 'following';
 }
 
 export function FeedGrid({
@@ -59,7 +59,9 @@ export function FeedGrid({
       if (skillTagSlug) params.set('skillTagSlugs', skillTagSlug);
       const effectiveSort =
         sort ?? (canViewPersonalizedFeed && !categorySlug && !skillTagSlug ? 'forYou' : 'latest');
-      params.set('sort', effectiveSort);
+      if (feedPath !== '/videos/feed/following') {
+        params.set('sort', effectiveSort);
+      }
       const { data } = await api.get<{ data: PaginatedResponse<Video> }>(`${feedPath}?${params}`);
       return data.data;
     },

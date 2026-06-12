@@ -36,6 +36,12 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
   bool _chatEnabled = true;
   String _chatMode = 'all';
 
+  void Function(dynamic)? _onChatMessage;
+  void Function(dynamic)? _onChatDelete;
+  void Function(dynamic)? _onSlowMode;
+  void Function(dynamic)? _onPinned;
+  void Function(dynamic)? _onChatSettings;
+
   static const _chatModeLabels = <String, String>{
     'all': 'Everyone can chat',
     'followers': 'Followers-only chat',
@@ -89,7 +95,7 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
   }
 
   void _bindSocket() {
-    ForgeSocket.on('stream:chat:message', (payload) {
+    _onChatMessage = (payload) {
       if (payload is! Map) return;
       final msg = Map<String, dynamic>.from(payload);
       if (msg['streamId'] != widget.streamId && msg['streamId'] != null) return;
@@ -99,8 +105,8 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
         _messages = [..._messages, msg];
       });
       _scrollToBottom();
-    });
-    ForgeSocket.on('stream:chat:delete', (payload) {
+    };
+    _onChatDelete = (payload) {
       if (payload is! Map || payload['streamId'] != widget.streamId) return;
       final messageId = payload['messageId'] as String?;
       if (messageId == null || !mounted) return;
@@ -109,18 +115,18 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
             .map((m) => m['id'] == messageId ? {...m, 'body': '[deleted]'} : m)
             .toList();
       });
-    });
-    ForgeSocket.on('stream:chat:slow-mode', (payload) {
+    };
+    _onSlowMode = (payload) {
       if (payload is! Map || payload['streamId'] != widget.streamId) return;
       if (!mounted) return;
       setState(() => _slowMode = payload['slowModeSeconds'] as int? ?? 0);
-    });
-    ForgeSocket.on('stream:chat:pinned', (payload) {
+    };
+    _onPinned = (payload) {
       if (payload is! Map || payload['streamId'] != widget.streamId) return;
       if (!mounted) return;
       setState(() => _pinnedId = payload['messageId'] as String?);
-    });
-    ForgeSocket.on('stream:chat:settings', (payload) {
+    };
+    _onChatSettings = (payload) {
       if (payload is! Map || payload['streamId'] != widget.streamId) return;
       if (!mounted) return;
       setState(() {
@@ -131,7 +137,12 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
           _chatMode = payload['chatMode'] as String;
         }
       });
-    });
+    };
+    ForgeSocket.on('stream:chat:message', _onChatMessage!);
+    ForgeSocket.on('stream:chat:delete', _onChatDelete!);
+    ForgeSocket.on('stream:chat:slow-mode', _onSlowMode!);
+    ForgeSocket.on('stream:chat:pinned', _onPinned!);
+    ForgeSocket.on('stream:chat:settings', _onChatSettings!);
   }
 
   bool get _isMod =>
@@ -211,6 +222,11 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
 
   @override
   void dispose() {
+    if (_onChatMessage != null) ForgeSocket.off('stream:chat:message', _onChatMessage);
+    if (_onChatDelete != null) ForgeSocket.off('stream:chat:delete', _onChatDelete);
+    if (_onSlowMode != null) ForgeSocket.off('stream:chat:slow-mode', _onSlowMode);
+    if (_onPinned != null) ForgeSocket.off('stream:chat:pinned', _onPinned);
+    if (_onChatSettings != null) ForgeSocket.off('stream:chat:settings', _onChatSettings);
     _textCtrl.dispose();
     _unbanCtrl.dispose();
     _scrollCtrl.dispose();

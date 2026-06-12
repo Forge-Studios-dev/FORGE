@@ -91,7 +91,15 @@ export default function StudioCommunityPage() {
               <p className="font-medium">{ch.name}</p>
               <p className="text-xs capitalize text-on-surface-variant">{ch.type}</p>
             </div>
-            <span className="text-xs text-on-surface-variant">#{ch.slug}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-on-surface-variant">#{ch.slug}</span>
+              <Link
+                href={`/community/${user!.id}?channel=${ch.id}`}
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                Moderate
+              </Link>
+            </div>
           </li>
         ))}
       </ul>

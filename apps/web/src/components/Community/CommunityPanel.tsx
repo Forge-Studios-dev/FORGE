@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
@@ -21,6 +22,7 @@ type ChannelMessage = {
   user?: { displayName?: string; username?: string };
   body: string;
   createdAt: string;
+  deletedAt?: string | null;
 };
 
 interface Props {
@@ -38,7 +40,8 @@ export function CommunityPanel({ creatorId }: Props) {
   const qc = useQueryClient();
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [text, setText] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isCreator = user?.id === creatorId;
 
   const { data: communityData } = useQuery({
     queryKey: ['community', creatorId],
@@ -71,6 +74,15 @@ export function CommunityPanel({ creatorId }: Props) {
     },
   });
 
+  const messageList = messages ?? [];
+
+  const virtualizer = useVirtualizer({
+    count: messageList.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 56,
+    overscan: 8,
+  });
+
   const appendMessage = useCallback(
     (message: ChannelMessage) => {
       if (!activeChannelId || message.channelId !== activeChannelId) return;
@@ -81,6 +93,17 @@ export function CommunityPanel({ creatorId }: Props) {
       });
     },
     [activeChannelId, qc, messagesQueryKey],
+  );
+
+  const markDeleted = useCallback(
+    (messageId: string) => {
+      qc.setQueryData<ChannelMessage[]>(messagesQueryKey, (prev) =>
+        (prev ?? []).map((m) =>
+          m.id === messageId ? { ...m, body: '[deleted]', deletedAt: new Date().toISOString() } : m,
+        ),
+      );
+    },
+    [qc, messagesQueryKey],
   );
 
   const sendMutation = useMutation({
@@ -97,6 +120,14 @@ export function CommunityPanel({ creatorId }: Props) {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (messageId: string) => {
+      await api.delete(`/channels/${activeChannelId}/messages/${messageId}`);
+      return messageId;
+    },
+    onSuccess: (messageId) => markDeleted(messageId),
+  });
+
   useEffect(() => {
     if (!activeChannelId || !accessToken) return;
     const socket = getSocket(accessToken);
@@ -104,21 +135,29 @@ export function CommunityPanel({ creatorId }: Props) {
 
     socket.emit('join-channel', { channelId: activeChannelId });
     const onMessage = (payload: unknown) => {
-      if (isChannelMessage(payload)) {
-        appendMessage(payload);
-      }
+      if (isChannelMessage(payload)) appendMessage(payload);
+    };
+    const onDelete = (payload: unknown) => {
+      if (!payload || typeof payload !== 'object') return;
+      const p = payload as { channelId?: string; messageId?: string };
+      if (p.channelId !== activeChannelId || !p.messageId) return;
+      markDeleted(p.messageId);
     };
     socket.on(SocketEvents.CHANNEL_MESSAGE, onMessage);
+    socket.on(SocketEvents.CHANNEL_MESSAGE_DELETE, onDelete);
 
     return () => {
       socket.emit('leave-channel', { channelId: activeChannelId });
       socket.off(SocketEvents.CHANNEL_MESSAGE, onMessage);
+      socket.off(SocketEvents.CHANNEL_MESSAGE_DELETE, onDelete);
     };
-  }, [accessToken, activeChannelId, appendMessage]);
+  }, [accessToken, activeChannelId, appendMessage, markDeleted]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages?.length]);
+    if (messageList.length > 0) {
+      virtualizer.scrollToIndex(messageList.length - 1, { align: 'end' });
+    }
+  }, [messageList.length, virtualizer]);
 
   if (!communityData?.community) {
     return (
@@ -149,15 +188,47 @@ export function CommunityPanel({ creatorId }: Props) {
         </ul>
       </aside>
       <div className="flex flex-1 flex-col">
-        <div className="flex-1 space-y-2 overflow-y-auto p-4">
-          {(messages ?? []).map((m) => (
-            <div key={m.id} className="text-sm">
-              <span className="font-medium">{m.user?.displayName ?? 'Member'}</span>
-              <span className="text-on-surface-variant"> · </span>
-              <span>{m.body}</span>
-            </div>
-          ))}
-          <div ref={bottomRef} />
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4">
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((item) => {
+              const m = messageList[item.index];
+              const canDelete = user && (m.userId === user.id || isCreator);
+              return (
+                <div
+                  key={m.id}
+                  className="absolute left-0 top-0 w-full text-sm"
+                  style={{ transform: `translateY(${item.start}px)` }}
+                >
+                  <div className="flex items-start justify-between gap-2 py-1">
+                    <div>
+                      <span className="font-medium">{m.user?.displayName ?? 'Member'}</span>
+                      <span className="text-on-surface-variant"> · </span>
+                      <span className={m.deletedAt ? 'italic text-outline' : ''}>{m.body}</span>
+                    </div>
+                    {canDelete && !m.deletedAt && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('Delete this message?')) {
+                            deleteMutation.mutate(m.id);
+                          }
+                        }}
+                        className="shrink-0 text-xs text-error hover:underline"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
         {user && activeChannelId ? (
           <form

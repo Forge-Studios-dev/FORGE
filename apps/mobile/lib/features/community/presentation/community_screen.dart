@@ -17,6 +17,28 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   List<Map<String, dynamic>> _messages = [];
   final _textCtrl = TextEditingController();
   bool _loading = true;
+  void Function(dynamic)? _messageHandler;
+
+  void _bindChannelSocket(String channelId) {
+    _unbindChannelSocket();
+    ForgeSocket.joinChannel(channelId);
+    _messageHandler = (payload) {
+      if (payload is Map<String, dynamic>) {
+        _appendMessage(payload);
+      }
+    };
+    ForgeSocket.on('channel:message', _messageHandler!);
+  }
+
+  void _unbindChannelSocket() {
+    if (_messageHandler != null) {
+      ForgeSocket.off('channel:message', _messageHandler);
+      _messageHandler = null;
+    }
+    if (_activeChannelId != null) {
+      ForgeSocket.leaveChannel(_activeChannelId!);
+    }
+  }
 
   @override
   void initState() {
@@ -38,12 +60,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       if (_activeChannelId != null) {
         await _loadMessages(_activeChannelId!);
         await ForgeSocket.connect();
-        ForgeSocket.joinChannel(_activeChannelId!);
-        ForgeSocket.on('channel:message', (payload) {
-          if (payload is Map<String, dynamic>) {
-            _appendMessage(payload);
-          }
-        });
+        _bindChannelSocket(_activeChannelId!);
       }
     } catch (_) {
       setState(() => _loading = false);
@@ -91,9 +108,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
   @override
   void dispose() {
-    if (_activeChannelId != null) {
-      ForgeSocket.leaveChannel(_activeChannelId!);
-    }
+    _unbindChannelSocket();
     _textCtrl.dispose();
     super.dispose();
   }
@@ -130,9 +145,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                     ),
                   ),
                   onTap: () async {
-                    if (_activeChannelId != null) ForgeSocket.leaveChannel(_activeChannelId!);
+                    _unbindChannelSocket();
                     setState(() => _activeChannelId = id);
-                    ForgeSocket.joinChannel(id);
+                    _bindChannelSocket(id);
                     await _loadMessages(id);
                   },
                 );

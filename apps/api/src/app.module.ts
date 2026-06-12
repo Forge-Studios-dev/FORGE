@@ -35,6 +35,7 @@ import { PlatformModule } from './modules/platform/platform.module';
 import { EntitlementsModule } from './modules/entitlements/entitlements.module';
 import { StreamChatModule } from './modules/stream-chat/stream-chat.module';
 import { CommunitiesModule } from './modules/communities/communities.module';
+import { DirectMessagesModule } from './modules/direct-messages/direct-messages.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { forgeClsSetup } from './common/cls/forge-cls.setup';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
@@ -56,6 +57,7 @@ import { ANALYTICS_INGEST_QUEUE } from './modules/analytics/analytics-ingest.con
 import { ANALYTICS_RETENTION_QUEUE } from './modules/analytics/analytics-retention.constants';
 import { PUSH_DISPATCH_QUEUE } from './modules/notifications/push-dispatch.constants';
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './modules/notifications/subscription-maintenance.constants';
+import { ENGAGEMENT_RECONCILIATION_QUEUE } from './modules/engagement/engagement-reconciliation.constants';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 import { RedisThrottlerModule } from './common/throttler/redis-throttler.module';
@@ -204,6 +206,14 @@ function sentryFilterProviders() {
       },
     }),
     BullModule.registerQueue({
+      name: ENGAGEMENT_RECONCILIATION_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 7 * 86400, count: 14 },
+        removeOnFail: { age: 7 * 86400, count: 50 },
+      },
+    }),
+    BullModule.registerQueue({
       name: STREAM_REMINDER_QUEUE,
       defaultJobOptions: {
         attempts: 2,
@@ -254,6 +264,7 @@ function sentryFilterProviders() {
     BillingModule,
     StreamChatModule,
     CommunitiesModule,
+    DirectMessagesModule,
     ...(shouldLoadWorkersModule() ? [WorkersModule] : []),
     AdminModule,
     PlaylistsModule,

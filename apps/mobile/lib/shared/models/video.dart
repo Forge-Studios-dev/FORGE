@@ -12,6 +12,7 @@ class VideoModel {
   final int viewCount;
   final int likeCount;
   final int commentCount;
+  final bool viewerLiked;
   final UserModel user;
   final DateTime createdAt;
 
@@ -29,6 +30,7 @@ class VideoModel {
     required this.viewCount,
     required this.likeCount,
     required this.commentCount,
+    this.viewerLiked = false,
     required this.user,
     required this.createdAt,
   });
@@ -47,6 +49,7 @@ class VideoModel {
         viewCount: (json['viewCount'] as num?)?.toInt() ?? 0,
         likeCount: (json['likeCount'] as num?)?.toInt() ?? 0,
         commentCount: (json['commentCount'] as num?)?.toInt() ?? 0,
+        viewerLiked: json['viewerLiked'] as bool? ?? false,
         user: UserModel.fromJson(json['user'] as Map<String, dynamic>),
         createdAt: DateTime.parse(json['createdAt'] as String),
       );
@@ -64,6 +67,7 @@ class UserModel {
   final int followerCount;
   final int followingCount;
   final int videoCount;
+  final bool viewerFollowing;
 
   const UserModel({
     required this.id,
@@ -77,6 +81,7 @@ class UserModel {
     required this.followerCount,
     required this.followingCount,
     required this.videoCount,
+    this.viewerFollowing = false,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
@@ -91,5 +96,6 @@ class UserModel {
         followerCount: (json['followerCount'] as num?)?.toInt() ?? 0,
         followingCount: (json['followingCount'] as num?)?.toInt() ?? 0,
         videoCount: (json['videoCount'] as num?)?.toInt() ?? 0,
+        viewerFollowing: json['viewerFollowing'] as bool? ?? false,
       );
 }

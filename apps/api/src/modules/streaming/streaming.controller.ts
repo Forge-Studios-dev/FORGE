@@ -32,6 +32,7 @@ import { GrantStreamAccessDto } from './dto/grant-stream-access.dto';
 import { CreateEventCheckoutDto } from '../billing/dto/create-event-checkout.dto';
 import { CreateStreamClipDto } from './dto/create-stream-clip.dto';
 import { UsersService } from '../users/users.service';
+import { StreamReactionService } from './stream-reaction.service';
 
 @ApiTags('Streaming')
 @Controller('streams')
@@ -42,6 +43,7 @@ export class StreamingController {
     private readonly configService: ConfigService,
     private readonly billingService: BillingService,
     private readonly usersService: UsersService,
+    private readonly streamReactionService: StreamReactionService,
   ) {}
 
   @Post('start')
@@ -192,6 +194,13 @@ export class StreamingController {
     if (!user?.sub) return { isMod: false };
     const isMod = await this.streamLiveService.canModerate(id, user.sub, user.role);
     return { isMod };
+  }
+
+  @Public()
+  @Get(':id/reactions')
+  @ApiOperation({ summary: 'Get live reaction counts for a stream' })
+  getReactions(@Param('id') id: string) {
+    return this.streamReactionService.getCounts(id);
   }
 
   @Public()

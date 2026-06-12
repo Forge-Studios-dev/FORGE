@@ -1,17 +1,36 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bullmq';
 import { EngagementController } from './engagement.controller';
 import { EngagementService } from './engagement.service';
+import { EngagementReconciliationService } from './engagement-reconciliation.service';
+import { EngagementReconciliationScheduler } from './engagement-reconciliation.scheduler';
 import { Like } from './entities/like.entity';
 import { Comment } from './entities/comment.entity';
+import { CommentLike } from './entities/comment-like.entity';
 import { Follow } from './entities/follow.entity';
 import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
+import { ENGAGEMENT_RECONCILIATION_QUEUE } from './engagement-reconciliation.constants';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Like, Comment, Follow, Video, User])],
+  imports: [
+    TypeOrmModule.forFeature([Like, Comment, CommentLike, Follow, Video, User]),
+    BullModule.registerQueue({
+      name: ENGAGEMENT_RECONCILIATION_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 7 * 86400, count: 14 },
+        removeOnFail: { age: 7 * 86400, count: 50 },
+      },
+    }),
+  ],
   controllers: [EngagementController],
-  providers: [EngagementService],
-  exports: [EngagementService],
+  providers: [
+    EngagementService,
+    EngagementReconciliationService,
+    EngagementReconciliationScheduler,
+  ],
+  exports: [EngagementService, EngagementReconciliationService],
 })
 export class EngagementModule {}

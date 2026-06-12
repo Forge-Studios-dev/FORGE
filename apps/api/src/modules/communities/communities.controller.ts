@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -91,5 +92,20 @@ export class CommunitiesController {
     @Body() dto: SendChannelMessageDto,
   ) {
     return this.communitiesService.sendChannelMessage(channelId, user.sub, dto, user.role);
+  }
+
+  @Delete('channels/:channelId/messages/:messageId')
+  @ApiOperation({ summary: 'Soft-delete a channel message' })
+  deleteMessage(
+    @Param('channelId') channelId: string,
+    @Param('messageId') messageId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.communitiesService.deleteChannelMessage(
+      channelId,
+      messageId,
+      user.sub,
+      user.role,
+    );
   }
 }

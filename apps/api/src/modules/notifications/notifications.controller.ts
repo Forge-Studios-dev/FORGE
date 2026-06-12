@@ -42,6 +42,21 @@ export class NotificationsController {
     });
   }
 
+  @Get('unread-count')
+  @Permissions(Permission.USE_LIBRARY)
+  @ApiOperation({ summary: 'Unread notification count' })
+  unreadCount(@CurrentUser() user: JwtPayload) {
+    return this.notificationsService.getUnreadCount(user.sub).then((count) => ({ count }));
+  }
+
+  @Post('read-all')
+  @Permissions(Permission.USE_LIBRARY)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark all notifications as read' })
+  readAll(@CurrentUser() user: JwtPayload) {
+    return this.notificationsService.markAllRead(user.sub);
+  }
+
   @Post(':id/read')
   @Permissions(Permission.USE_LIBRARY)
   @ApiOperation({ summary: 'Mark notification as read' })

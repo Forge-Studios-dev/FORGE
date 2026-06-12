@@ -11,6 +11,7 @@ import { User } from '../../users/entities/user.entity';
 export enum ReportTargetType {
   VIDEO = 'video',
   USER = 'user',
+  COMMENT = 'comment',
 }
 
 export enum ReportStatus {

@@ -19,6 +19,7 @@ import { StreamCountdownLobby } from '@/components/live/StreamCountdownLobby';
 import { BrowserGoLivePanel } from '@/components/live/BrowserGoLivePanel';
 import { StreamHostDashboard } from '@/components/live/StreamHostDashboard';
 import { StreamPollPanel } from '@/components/live/StreamPollPanel';
+import { StreamReactionPanel } from '@/components/live/StreamReactionPanel';
 
 const ACCESS_MESSAGES: Record<string, string> = {
   login_required: 'Sign in to watch this stream.',
@@ -154,7 +155,7 @@ export default function LiveWatchPage() {
 
     if (stream.status === 'live' && stream.playbackUrl) {
       return (
-        <div className={theaterMode ? 'fixed inset-0 z-50 flex flex-col bg-background p-4' : ''}>
+        <div className={theaterMode ? 'fixed inset-0 z-50 flex flex-col bg-background p-4' : 'relative'}>
           {theaterMode ? (
             <button
               type="button"
@@ -164,14 +165,17 @@ export default function LiveWatchPage() {
               Exit theater
             </button>
           ) : null}
-          <VideoPlayer
-            hlsUrl={stream.playbackUrl}
-            thumbnailUrl={posterUrl ?? undefined}
-            title={stream.title}
-            lowLatency={!stream.dvrEnabled}
-            isLive
-            dvrEnabled={stream.dvrEnabled}
-          />
+          <div className="relative">
+            <VideoPlayer
+              hlsUrl={stream.playbackUrl}
+              thumbnailUrl={posterUrl ?? undefined}
+              title={stream.title}
+              lowLatency={!stream.dvrEnabled}
+              isLive
+              dvrEnabled={stream.dvrEnabled}
+            />
+            <StreamReactionPanel streamId={id} />
+          </div>
           {!theaterMode ? (
             <button
               type="button"

@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { Repository } from 'typeorm';
 import { NotificationsService } from './notifications.service';
 import { PushDispatchService } from './push-dispatch.service';
@@ -8,6 +10,7 @@ import { NotificationType } from './entities/notification.entity';
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
 import { Follow } from '../engagement/entities/follow.entity';
+import { Comment } from '../engagement/entities/comment.entity';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { VideoVisibility } from '../content/entities/video.entity';
 import { StreamVisibility } from '../streaming/entities/stream.entity';
@@ -30,6 +33,9 @@ export class NotificationsListener {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Follow)
     private readonly followRepository: Repository<Follow>,
+    @InjectRepository(Comment)
+    private readonly commentRepository: Repository<Comment>,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   @OnEvent('creator.approved')
@@ -151,6 +157,91 @@ export class NotificationsListener {
     title: string;
   }) {
     await this.premiumContentNotify.fanOut(payload);
+  }
+
+  @OnEvent('follow.created')
+  async onFollowCreated(payload: { followerId: string; followingId: string }) {
+    if (payload.followerId === payload.followingId) return;
+
+    const follower = await this.userRepository.findOne({ where: { id: payload.followerId } });
+    const name = follower?.displayName ?? 'Someone';
+
+    await this.notificationsService.create({
+      userId: payload.followingId,
+      type: NotificationType.NEW_FOLLOWER,
+      title: 'New follower',
+      body: `${name} started following you`,
+      metadata: { followerId: payload.followerId },
+    });
+    await this.pushDispatch.enqueueForUser(payload.followingId, {
+      title: 'New follower',
+      body: `${name} started following you`,
+      data: { type: 'new_follower', followerId: payload.followerId },
+    });
+  }
+
+  @OnEvent('comment.created')
+  async onCommentCreated(payload: {
+    videoId: string;
+    comment: Comment;
+    videoOwnerId: string;
+  }) {
+    const comment = payload.comment;
+    const author = comment.user?.displayName ?? 'Someone';
+
+    if (comment.parentId) {
+      const parent = await this.commentRepository.findOne({
+        where: { id: comment.parentId },
+        relations: ['user'],
+      });
+      if (parent && parent.userId !== comment.userId) {
+        await this.notificationsService.create({
+          userId: parent.userId,
+          type: NotificationType.COMMENT_REPLY,
+          title: 'New reply',
+          body: `${author} replied to your comment`,
+          metadata: { videoId: payload.videoId, commentId: comment.id },
+        });
+        await this.pushDispatch.enqueueForUser(parent.userId, {
+          title: 'New reply',
+          body: `${author} replied to your comment`,
+          data: { type: 'comment_reply', videoId: payload.videoId, commentId: comment.id },
+        });
+      }
+    } else if (payload.videoOwnerId !== comment.userId) {
+      await this.notificationsService.create({
+        userId: payload.videoOwnerId,
+        type: NotificationType.COMMENT_ON_VIDEO,
+        title: 'New comment',
+        body: `${author} commented on your video`,
+        metadata: { videoId: payload.videoId, commentId: comment.id },
+      });
+      await this.pushDispatch.enqueueForUser(payload.videoOwnerId, {
+        title: 'New comment',
+        body: `${author} commented on your video`,
+        data: { type: 'comment_on_video', videoId: payload.videoId, commentId: comment.id },
+      });
+    }
+  }
+
+  @OnEvent('video.liked')
+  async onVideoLiked(payload: { videoId: string; videoOwnerId: string; likerId: string }) {
+    if (payload.videoOwnerId === payload.likerId) return;
+
+    const dedupeKey = `notif:like:${payload.videoId}:${payload.likerId}`;
+    const ok = await this.redis.set(dedupeKey, '1', 'EX', 3600, 'NX');
+    if (ok !== 'OK') return;
+
+    const liker = await this.userRepository.findOne({ where: { id: payload.likerId } });
+    const name = liker?.displayName ?? 'Someone';
+
+    await this.notificationsService.create({
+      userId: payload.videoOwnerId,
+      type: NotificationType.VIDEO_LIKED,
+      title: 'New like',
+      body: `${name} liked your video`,
+      metadata: { videoId: payload.videoId, likerId: payload.likerId },
+    });
   }
 
   private async notifyAudienceOfLive(payload: {

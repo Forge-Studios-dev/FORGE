@@ -37,4 +37,22 @@ class FeedRepository {
       hasMore: meta['hasMore'] as bool,
     );
   }
+
+  Future<FeedPage> getFollowingFeed({String? cursor}) async {
+    final params = <String, dynamic>{'limit': AppConstants.feedPageSize};
+    if (cursor != null) params['cursor'] = cursor;
+
+    final response = await _apiClient.dio.get('/videos/feed/following', queryParameters: params);
+    final data = response.data['data'] as Map<String, dynamic>;
+    final videos = (data['data'] as List)
+        .map((v) => VideoModel.fromJson(v as Map<String, dynamic>))
+        .toList();
+    final meta = data['meta'] as Map<String, dynamic>;
+
+    return FeedPage(
+      videos: videos,
+      nextCursor: meta['cursor'] as String?,
+      hasMore: meta['hasMore'] as bool,
+    );
+  }
 }

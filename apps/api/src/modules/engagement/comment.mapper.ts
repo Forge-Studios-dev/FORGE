@@ -9,10 +9,14 @@ export type PublicComment = {
   content: string;
   parentId: string | null;
   likeCount: number;
+  viewerLiked?: boolean;
   createdAt: Date;
 };
 
-export function toPublicComment(comment: Comment): PublicComment {
+export function toPublicComment(
+  comment: Comment,
+  extras?: { viewerLiked?: boolean },
+): PublicComment {
   return {
     id: comment.id,
     userId: comment.userId,
@@ -21,6 +25,7 @@ export function toPublicComment(comment: Comment): PublicComment {
     content: comment.content,
     parentId: comment.parentId,
     likeCount: comment.likeCount,
+    viewerLiked: extras?.viewerLiked,
     createdAt: comment.createdAt,
   };
 }

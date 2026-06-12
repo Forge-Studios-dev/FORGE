@@ -792,6 +792,18 @@ export class EntitlementsService {
     return subs.map(toPublicSubscription);
   }
 
+  async cancelMySubscription(userId: string, creatorId: string) {
+    const sub = await this.subscriptionRepository.findOne({
+      where: { userId, creatorId, status: MemberSubscriptionStatus.ACTIVE },
+    });
+    if (!sub) throw new NotFoundException('No active subscription found');
+
+    sub.status = MemberSubscriptionStatus.CANCELED;
+    await this.subscriptionRepository.save(sub);
+    await this.bustSubscriptionCache(userId, creatorId);
+    return { canceled: true };
+  }
+
   async expireDueSubscriptions(): Promise<number> {
     const now = new Date();
     const result = await this.subscriptionRepository.update(

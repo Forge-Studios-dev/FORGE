@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -12,6 +12,8 @@ import { VideosService } from '../content/videos.service';
 import { Follow } from '../engagement/entities/follow.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { Category } from '../categories/entities/category.entity';
+import { EngagementService } from '../engagement/engagement.service';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 import {
   safeRedisDel,
   safeRedisGet,
@@ -100,6 +102,8 @@ export class FeedService {
     @InjectRedis()
     private readonly redis: Redis,
     private readonly videosService: VideosService,
+    private readonly engagementService: EngagementService,
+    private readonly entitlementsService: EntitlementsService,
   ) {}
 
   private feedCacheTtl(): number {
@@ -322,6 +326,107 @@ export class FeedService {
         this.logger,
       );
     }
+
+    return result;
+  }
+
+  /** Videos from followed + subscribed creators only. */
+  async getFollowingFeed(options: {
+    userId: string;
+    cursor?: string;
+    limit?: number;
+  }) {
+    if (!options.userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const limit = Math.min(options.limit || 20, 50);
+    const followingIds = await this.engagementService.getFollowingCreatorIds(options.userId);
+    const subs = await this.entitlementsService.listMySubscriptions(options.userId);
+    const subscribedCreatorIds = subs.map((s) => s.creatorId).filter(Boolean);
+    const creatorIds = [...new Set([...followingIds, ...subscribedCreatorIds])];
+
+    if (!creatorIds.length) {
+      return { data: [], meta: { cursor: null, hasMore: false } };
+    }
+
+    const gen = await this.feedCacheGeneration();
+    const cacheKey = `feed:following:g${gen}:${options.userId}:${options.cursor || 'start'}:${limit}`;
+    const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        /* fall through */
+      }
+    }
+
+    type LatestCursor = { sort: 'following'; ca: string; id: string };
+    let cursor: LatestCursor | null = null;
+    if (options.cursor) {
+      try {
+        const parsed = JSON.parse(
+          Buffer.from(options.cursor, 'base64url').toString('utf-8'),
+        ) as LatestCursor;
+        if (parsed?.sort === 'following') cursor = parsed;
+      } catch {
+        /* invalid cursor */
+      }
+    }
+
+    const query = applyDiscoverableVideoFilters(
+      this.videoRepository.createQueryBuilder('v'),
+    )
+      .andWhere('v.user_id IN (:...creatorIds)', { creatorIds })
+      .orderBy(SORT_TIME_SQL, 'DESC')
+      .addOrderBy('v.id', 'DESC')
+      .take(limit + 1);
+
+    if (cursor) {
+      query.andWhere(`(${SORT_TIME_SQL}, v.id) < (:ca, :cid)`, {
+        ca: new Date(cursor.ca),
+        cid: cursor.id,
+      });
+    }
+
+    const videos = await query.getMany();
+    const hasMore = videos.length > limit;
+    const page = hasMore ? videos.slice(0, limit) : videos;
+
+    let nextCursor: string | null = null;
+    if (hasMore && page.length > 0) {
+      const last = page[page.length - 1];
+      nextCursor = Buffer.from(
+        JSON.stringify({
+          sort: 'following',
+          ca: (last.publishedAt ?? last.createdAt).toISOString(),
+          id: last.id,
+        }),
+        'utf-8',
+      ).toString('base64url');
+    }
+
+    const hydrated = page.length
+      ? await this.videoRepository.find({
+          where: { id: In(page.map((v) => v.id)) },
+          relations: ['user', 'skillTags', 'skillTags.subcategory', 'skillTags.subcategory.category'],
+        })
+      : [];
+    const byId = new Map(hydrated.map((v) => [v.id, v]));
+    const data = page.map((v) => byId.get(v.id)).filter((v): v is Video => !!v);
+
+    const result = {
+      data: data.map((v) => this.videosService.mapToPublicVideo(v)),
+      meta: { cursor: nextCursor, hasMore },
+    };
+
+    await safeRedisSetex(
+      this.redis,
+      cacheKey,
+      this.feedCacheTtl(),
+      JSON.stringify(result),
+      this.logger,
+    );
 
     return result;
   }

@@ -7,6 +7,7 @@ import { StreamingService } from './streaming.service';
 import { StreamLiveService } from './stream-live.service';
 import { BillingService } from '../billing/billing.service';
 import { UsersService } from '../users/users.service';
+import { StreamReactionService } from './stream-reaction.service';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
@@ -30,6 +31,7 @@ describe('StreamingController Mux webhook', () => {
         { provide: StreamLiveService, useValue: {} },
         { provide: BillingService, useValue: { createEventCheckout: jest.fn() } },
         { provide: UsersService, useValue: { resolveUserId: jest.fn() } },
+        { provide: StreamReactionService, useValue: {} },
         {
           provide: ConfigService,
           useValue: {
