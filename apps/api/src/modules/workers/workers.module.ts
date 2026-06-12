@@ -36,6 +36,9 @@ import { StreamAnalyticsSnapshot } from '../streaming/entities/stream-analytics-
 import { StreamRsvp } from '../streaming/entities/stream-rsvp.entity';
 import { PremiumContentNotifyWorker } from './premium-content-notify/premium-content-notify.worker';
 import { PREMIUM_CONTENT_NOTIFY_QUEUE } from './premium-content-notify/premium-content-notify.constants';
+import { ENGAGEMENT_RECONCILIATION_QUEUE } from '../engagement/engagement-reconciliation.constants';
+import { EngagementReconciliationWorker } from './engagement-reconciliation/engagement-reconciliation.worker';
+import { EngagementModule } from '../engagement/engagement.module';
 
 function isDedicatedWorkerProcess(): boolean {
   return (
@@ -108,6 +111,12 @@ function shouldRegisterPremiumContentNotify(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+function shouldRegisterEngagementReconciliation(): boolean {
+  if (process.env.DISABLE_ENGAGEMENT_RECONCILIATION === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
 @Module({
   imports: [
     AnalyticsModule,
@@ -115,6 +124,7 @@ function shouldRegisterPremiumContentNotify(): boolean {
     ContentModule,
     FirebaseModule,
     StreamingModule,
+    EngagementModule,
     TypeOrmModule.forFeature([Video, AnalyticsEvent, DeviceToken, Stream, StreamMessage, StreamAnalyticsSnapshot, StreamRsvp]),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
@@ -217,6 +227,14 @@ function shouldRegisterPremiumContentNotify(): boolean {
         removeOnFail: { age: 86400, count: 500 },
       },
     }),
+    BullModule.registerQueue({
+      name: ENGAGEMENT_RECONCILIATION_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 7 * 86400, count: 14 },
+        removeOnFail: { age: 7 * 86400, count: 50 },
+      },
+    }),
     EventEmitterModule,
   ],
   providers: [
@@ -231,6 +249,7 @@ function shouldRegisterPremiumContentNotify(): boolean {
     ...(shouldRegisterStreamSnapshotRetention() ? [StreamSnapshotRetentionWorker] : []),
     ...(shouldRegisterStreamMuxSync() ? [StreamMuxSyncWorker] : []),
     ...(shouldRegisterPremiumContentNotify() ? [PremiumContentNotifyWorker] : []),
+    ...(shouldRegisterEngagementReconciliation() ? [EngagementReconciliationWorker] : []),
   ],
 })
 export class WorkersModule {}

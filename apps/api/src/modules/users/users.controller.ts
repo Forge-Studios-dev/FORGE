@@ -96,6 +96,30 @@ export class UsersController {
 
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
+  @Get(':id/followers')
+  @ApiOperation({ summary: 'List followers of a user' })
+  getFollowers(
+    @Param('id') id: string,
+    @Query('limit') limit?: number,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.engagementService.getFollowers(id, limit || 20, cursor);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get(':id/following')
+  @ApiOperation({ summary: 'List users this user follows' })
+  getFollowing(
+    @Param('id') id: string,
+    @Query('limit') limit?: number,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.engagementService.getFollowing(id, limit || 20, cursor);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/videos')
   @ApiOperation({ summary: 'Get videos by user' })
   getUserVideos(

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { FeedService, FeedSort } from './feed.service';
 import { Public } from '../../common/decorators/public.decorator';
@@ -67,6 +67,25 @@ export class FeedController {
       limit,
       sort: 'popular',
       userId: user?.sub,
+    });
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('feed/following')
+  @ApiOperation({ summary: 'Feed from followed and subscribed creators' })
+  getFollowingFeed(
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    if (!user?.sub) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    return this.feedService.getFollowingFeed({
+      userId: user.sub,
+      cursor,
+      limit,
     });
   }
 

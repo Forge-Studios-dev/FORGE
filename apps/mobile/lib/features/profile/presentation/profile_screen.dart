@@ -112,8 +112,22 @@ class _ProfileHeader extends ConsumerStatefulWidget {
 }
 
 class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
-  bool _following = false;
+  late bool _following;
   bool _followBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _following = widget.user.viewerFollowing;
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProfileHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user.id != widget.user.id) {
+      _following = widget.user.viewerFollowing;
+    }
+  }
 
   Future<void> _toggleFollow() async {
     if (_followBusy) return;
@@ -164,8 +178,16 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _Stat(count: user.videoCount, label: 'Videos'),
-                    _Stat(count: user.followerCount, label: 'Followers'),
-                    _Stat(count: user.followingCount, label: 'Following'),
+                    _Stat(
+                      count: user.followerCount,
+                      label: 'Followers',
+                      onTap: () => context.push('/profile/${user.username}/followers'),
+                    ),
+                    _Stat(
+                      count: user.followingCount,
+                      label: 'Following',
+                      onTap: () => context.push('/profile/${user.username}/following'),
+                    ),
                   ],
                 ),
               ),
@@ -291,16 +313,19 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
 class _Stat extends StatelessWidget {
   final int count;
   final String label;
-  const _Stat({required this.count, required this.label});
+  final VoidCallback? onTap;
+  const _Stat({required this.count, required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final child = Column(
       children: [
         Text(count > 999 ? '${(count / 1000).toStringAsFixed(1)}K' : count.toString(),
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
       ],
     );
+    if (onTap == null) return child;
+    return GestureDetector(onTap: onTap, child: child);
   }
 }

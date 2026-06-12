@@ -120,6 +120,7 @@ export interface Comment {
   content: string;
   parentId?: string;
   likeCount: number;
+  viewerLiked?: boolean;
   createdAt: string;
 }
 

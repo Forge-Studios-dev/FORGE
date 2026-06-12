@@ -17,7 +17,7 @@ export interface ApiEnvelope<T> {
   message?: string;
 }
 
-export type FeedSort = 'latest' | 'popular' | 'forYou';
+export type FeedSort = 'latest' | 'popular' | 'forYou' | 'following';
 
 export interface FeedMeta {
   cursor: string | null;
@@ -44,6 +44,9 @@ export const SocketEvents = {
   CHANNEL_MESSAGE: 'channel:message',
   CHANNEL_MESSAGE_DELETE: 'channel:message:delete',
   STREAM_VIEWER_COUNT: 'stream:viewer-count',
+  NOTIFICATION_NEW: 'notification:new',
+  DM_MESSAGE: 'dm:message',
+  STREAM_REACTION: 'stream:reaction',
 } as const;
 
 export type SocketEventName = (typeof SocketEvents)[keyof typeof SocketEvents];

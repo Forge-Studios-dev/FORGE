@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { FeedGrid } from '@/components/FeedCard/FeedGrid';
@@ -12,12 +13,15 @@ import { TrendingSkills } from '@/components/home/TrendingSkills';
 import { ContinueWatching } from '@/components/ContinueWatching';
 import { VerifyEmailBanner } from '@/components/VerifyEmailBanner';
 import { Category, PaginatedResponse, Video } from '@/types';
+import { useAuth } from '@/lib/auth';
 
 type Props = {
   feed: PaginatedResponse<Video>;
   trending: PaginatedResponse<Video>;
   categories: Category[];
 };
+
+type FeedTab = 'discover' | 'following';
 
 function CategoryFilterSkeleton() {
   return (
@@ -34,6 +38,9 @@ function FeedSkeleton() {
 }
 
 export function HomePageContent({ feed, trending, categories }: Props) {
+  const { canViewPersonalizedFeed } = useAuth();
+  const [tab, setTab] = useState<FeedTab>('discover');
+
   return (
     <main
       data-testid="forge-home"
@@ -47,20 +54,57 @@ export function HomePageContent({ feed, trending, categories }: Props) {
 
       <section id="discover" data-testid="discover-section" className="mt-4">
         <VerifyEmailBanner />
-        <div className="mb-8 flex items-center justify-between">
-          <h2 className="font-display-forge text-2xl font-semibold md:text-3xl">Discover lessons</h2>
-          <Link href="/explore" className="font-label-caps text-secondary hover:underline">
-            View all
-          </Link>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setTab('discover')}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                tab === 'discover'
+                  ? 'bg-primary text-on-primary'
+                  : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              Discover
+            </button>
+            {canViewPersonalizedFeed && (
+              <button
+                type="button"
+                onClick={() => setTab('following')}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  tab === 'following'
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Following
+              </button>
+            )}
+          </div>
+          {tab === 'discover' && (
+            <Link href="/explore" className="font-label-caps text-secondary hover:underline">
+              View all
+            </Link>
+          )}
         </div>
 
-        <Suspense fallback={<CategoryFilterSkeleton />}>
-          <CategoryFilter categories={categories} />
-        </Suspense>
-
-        <Suspense fallback={<FeedSkeleton />}>
-          <FeedGrid initialData={feed} />
-        </Suspense>
+        {tab === 'discover' ? (
+          <>
+            <Suspense fallback={<CategoryFilterSkeleton />}>
+              <CategoryFilter categories={categories} />
+            </Suspense>
+            <Suspense fallback={<FeedSkeleton />}>
+              <FeedGrid initialData={feed} />
+            </Suspense>
+          </>
+        ) : (
+          <Suspense fallback={<FeedSkeleton />}>
+            <FeedGrid
+              initialData={{ data: [], meta: { cursor: null, hasMore: false } }}
+              feedPath="/videos/feed/following"
+            />
+          </Suspense>
+        )}
       </section>
     </main>
   );

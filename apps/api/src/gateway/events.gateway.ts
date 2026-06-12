@@ -23,6 +23,7 @@ import { redisTlsOptions } from '../common/redis/redis-tls.util';
 import { socketIoCorsOptions } from './socket-cors.util';
 import { StreamViewerService } from '../modules/streaming/stream-viewer.service';
 import { StreamingService } from '../modules/streaming/streaming.service';
+import { StreamReactionService } from '../modules/streaming/stream-reaction.service';
 import { VideosService } from '../modules/content/videos.service';
 import { CommunitiesService } from '../modules/communities/communities.service';
 import { JwtPayload } from '../modules/auth/strategies/jwt.strategy';
@@ -54,6 +55,7 @@ export class EventsGateway
     private readonly jwtService: JwtService,
     private readonly streamViewerService: StreamViewerService,
     private readonly streamingService: StreamingService,
+    private readonly streamReactionService: StreamReactionService,
     private readonly videosService: VideosService,
     private readonly communitiesService: CommunitiesService,
   ) {}
@@ -381,6 +383,60 @@ export class EventsGateway
   @OnEvent('channel.message')
   handleChannelMessage(payload: { channelId: string; message: unknown }) {
     this.server.to(`channel:${payload.channelId}`).emit('channel:message', payload.message);
+  }
+
+  @OnEvent('channel.message.deleted')
+  handleChannelMessageDeleted(payload: { channelId: string; messageId: string }) {
+    this.server.to(`channel:${payload.channelId}`).emit('channel:message:delete', payload);
+  }
+
+  @OnEvent('notification.created')
+  handleNotificationCreated(payload: { userId: string; notification: unknown }) {
+    this.server.to(`user:${payload.userId}`).emit('notification:new', payload.notification);
+  }
+
+  @OnEvent('direct-message.sent')
+  handleDirectMessageSent(payload: { conversationId: string; message: unknown; recipientIds: string[] }) {
+    for (const userId of payload.recipientIds) {
+      this.server.to(`user:${userId}`).emit('dm:message', payload.message);
+    }
+    this.server.to(`conversation:${payload.conversationId}`).emit('dm:message', payload.message);
+  }
+
+  @OnEvent('stream.reaction')
+  handleStreamReaction(payload: { streamId: string; reaction: string; count: number }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:reaction', payload);
+  }
+
+  @SubscribeMessage('stream:react')
+  async handleStreamReact(
+    @MessageBody() data: { streamId: string; reaction: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { userId, role } = this.requireAuth(client);
+    await this.assertStreamAccess(data.streamId, userId, role);
+    const reaction = (data.reaction || 'heart').slice(0, 32);
+    const result = await this.streamReactionService.react(data.streamId, reaction);
+    return { event: 'stream:reaction', data: { streamId: data.streamId, ...result } };
+  }
+
+  @SubscribeMessage('join-conversation')
+  async handleJoinConversation(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { userId } = this.requireAuth(client);
+    // Membership verified on REST; socket join is best-effort for realtime
+    client.join(`conversation:${data.conversationId}`);
+    return { event: 'joined-conversation', data: { conversationId: data.conversationId, userId } };
+  }
+
+  @SubscribeMessage('leave-conversation')
+  handleLeaveConversation(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    client.leave(`conversation:${data.conversationId}`);
   }
 
   @SubscribeMessage('join-stream-chat')

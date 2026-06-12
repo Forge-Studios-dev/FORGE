@@ -210,6 +210,25 @@ Processed async via `analytics-ingest` queue.
 
 ---
 
+## Social engagement (2026-06)
+
+| Method | Path | Auth |
+|--------|------|------|
+| GET | `/videos/:id/comments/:commentId/replies` | public |
+| PATCH/DELETE | `/videos/:id/comments/:commentId` | engage |
+| POST/DELETE | `/videos/:id/comments/:commentId/like` | engage |
+| GET | `/users/:id/followers`, `/users/:id/following` | public |
+| GET | `/videos/feed/following` | JWT |
+| GET | `/notifications/unread-count` | library |
+| POST | `/notifications/read-all` | library |
+| DELETE | `/subscriptions/me/:creatorId` | JWT |
+| DELETE | `/channels/:channelId/messages/:messageId` | JWT |
+| GET/POST | `/messages`, `/messages/conversations` | engage |
+
+Socket events (additive): `notification:new`, `dm:message`, `stream:reaction`, `channel:message:delete`
+
+---
+
 ## Visibility enums
 
 **Videos:** `public`, `private`, `unlisted`  

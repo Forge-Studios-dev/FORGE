@@ -167,14 +167,14 @@ export function ProfileHeader({ user }: Props) {
         )}
 
         <div className="flex gap-8 py-5 text-sm">
-          <div className="text-center">
+          <Link href={`/${user.username}/followers`} className="text-center hover:text-primary">
             <p className="font-bold text-lg">{formatCount(user.followerCount)}</p>
             <p className="text-on-surface-variant">Followers</p>
-          </div>
-          <div className="text-center">
+          </Link>
+          <Link href={`/${user.username}/following`} className="text-center hover:text-primary">
             <p className="font-bold text-lg">{formatCount(user.followingCount)}</p>
             <p className="text-on-surface-variant">Following</p>
-          </div>
+          </Link>
           <div className="text-center">
             <p className="font-bold text-lg">{formatCount(user.videoCount)}</p>
             <p className="text-on-surface-variant">Videos</p>

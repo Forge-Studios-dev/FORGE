@@ -10,6 +10,7 @@ import { PushDispatchService } from './push-dispatch.service';
 import { SubscriptionMaintenanceService } from './subscription-maintenance.service';
 import { User } from '../users/entities/user.entity';
 import { Follow } from '../engagement/entities/follow.entity';
+import { Comment } from '../engagement/entities/comment.entity';
 import { PUSH_DISPATCH_QUEUE } from './push-dispatch.constants';
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './subscription-maintenance.constants';
 import { SubscriptionMaintenanceScheduler } from './subscription-maintenance.scheduler';
@@ -19,7 +20,7 @@ import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, DeviceToken, User, Follow]),
+    TypeOrmModule.forFeature([Notification, DeviceToken, User, Follow, Comment]),
     forwardRef(() => EntitlementsModule),
     BullModule.registerQueue({
       name: PUSH_DISPATCH_QUEUE,

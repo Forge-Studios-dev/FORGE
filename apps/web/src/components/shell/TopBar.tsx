@@ -1,9 +1,14 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
+import { getSocket } from '@/lib/socket';
+import { SocketEvents } from '@forge/shared-types';
 
 export function TopBar() {
   const {
@@ -15,9 +20,37 @@ export function TopBar() {
     canGoLive,
     canEngage,
     canApplyForCreator,
+    accessToken,
   } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const showAuth = !isLoading && !isGuest;
+
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ['notifications-unread'],
+    enabled: !!accessToken && canEngage,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: { count: number } }>('/notifications/unread-count');
+      return data.data.count;
+    },
+    refetchInterval: 60_000,
+  });
+
+  useEffect(() => {
+    if (!accessToken || !canEngage) return;
+    const socket = getSocket(accessToken);
+    if (!socket) return;
+
+    const onNew = () => {
+      void queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    };
+
+    socket.on(SocketEvents.NOTIFICATION_NEW, onNew);
+    return () => {
+      socket.off(SocketEvents.NOTIFICATION_NEW, onNew);
+    };
+  }, [accessToken, canEngage, queryClient]);
 
   return (
     <nav className="fixed top-0 z-50 flex h-16 w-full items-center justify-between border-b border-outline-variant/20 bg-surface/60 px-5 backdrop-blur-[30px] md:px-12">
@@ -79,13 +112,27 @@ export function TopBar() {
               </Link>
             )}
             {canEngage && (
-              <Link
-                href="/notifications"
-                className="relative flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50"
-                aria-label="Notifications"
-              >
-                <Icon name="notifications" />
-              </Link>
+              <>
+                <Link
+                  href="/messages"
+                  className="hidden h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 md:flex"
+                  aria-label="Messages"
+                >
+                  <Icon name="mail" />
+                </Link>
+                <Link
+                  href="/notifications"
+                  className="relative flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50"
+                  aria-label="Notifications"
+                >
+                  <Icon name="notifications" />
+                  {unreadCount > 0 && (
+                    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-on-error">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </Link>
+              </>
             )}
             <Link
               href={user?.username ? `/${user.username}` : '/profile'}

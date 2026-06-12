@@ -23,29 +23,106 @@ class FeedScreen extends ConsumerStatefulWidget {
   ConsumerState<FeedScreen> createState() => _FeedScreenState();
 }
 
-class _FeedScreenState extends ConsumerState<FeedScreen> {
+class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProviderStateMixin {
   final _pageController = PageController();
+  final List<VideoModel> _videos = [];
+  String? _nextCursor;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  late TabController _tabController;
+  int _tabIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) return;
+      if (_tabController.index != _tabIndex) {
+        setState(() => _tabIndex = _tabController.index);
+        _loadInitial();
+      }
+    });
+    _loadInitial();
+    _pageController.addListener(_onPageScroll);
+  }
+
+  Future<void> _loadInitial() async {
+    try {
+      final repo = ref.read(feedRepositoryProvider);
+      final page = _tabIndex == 1
+          ? await repo.getFollowingFeed()
+          : await repo.getFeed();
+      if (!mounted) return;
+      setState(() {
+        _videos
+          ..clear()
+          ..addAll(page.videos);
+        _nextCursor = page.nextCursor;
+        _hasMore = page.nextCursor != null;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _nextCursor == null) return;
+    setState(() => _loadingMore = true);
+    try {
+      final repo = ref.read(feedRepositoryProvider);
+      final page = _tabIndex == 1
+          ? await repo.getFollowingFeed(cursor: _nextCursor)
+          : await repo.getFeed(cursor: _nextCursor);
+      if (!mounted) return;
+      setState(() {
+        _videos.addAll(page.videos);
+        _nextCursor = page.nextCursor;
+        _hasMore = page.nextCursor != null;
+      });
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  void _onPageScroll() {
+    if (!_pageController.hasClients) return;
+    final page = _pageController.page?.round() ?? 0;
+    if (page >= _videos.length - 2) {
+      _loadMore();
+    }
+  }
 
   @override
   void dispose() {
+    _tabController.dispose();
+    _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final feedAsync = ref.watch(feedProvider);
+    final cwAsync = ref.watch(continueWatchingProvider);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: const Text('FORGE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: ForgeTokens.primary,
+          labelColor: ForgeTokens.onSurface,
+          unselectedLabelColor: ForgeTokens.onSurfaceVariant,
+          tabs: const [
+            Tab(text: 'Discover'),
+            Tab(text: 'Following'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              ref.invalidate(feedProvider);
+              _loadInitial();
               ref.invalidate(continueWatchingProvider);
             },
           ),
@@ -55,92 +132,55 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           ),
         ],
       ),
-      body: feedAsync.when(
-        loading: () => const FeedSkeletonList(count: 2),
-        error: (_, __) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+      body: _videos.isEmpty
+          ? const FeedSkeletonList(count: 2)
+          : Column(
               children: [
-                const Icon(Icons.error_outline, size: 48, color: ForgeTokens.error),
-                const SizedBox(height: 12),
-                const Text('Failed to load feed', style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () {
-                    ref.invalidate(feedProvider);
-                    ref.invalidate(continueWatchingProvider);
+                cwAsync.when(
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                  data: (cwVideos) {
+                    if (cwVideos.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+                          child: Text(
+                            'Continue watching',
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                          ),
+                        ),
+                        SizedBox(
+                          height: 120,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            itemCount: cwVideos.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 10),
+                            itemBuilder: (context, index) {
+                              final v = cwVideos[index];
+                              return ForgeMotion.fadeIn(
+                                index: index,
+                                child: _ContinueTile(video: v),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    );
                   },
-                  child: const Text('Retry'),
+                ),
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    scrollDirection: Axis.vertical,
+                    itemCount: _videos.length,
+                    itemBuilder: (context, index) => _VideoCard(video: _videos[index]),
+                  ),
                 ),
               ],
             ),
-          ),
-        ),
-        data: (videos) {
-          if (videos.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'No videos yet. Explore skills or check back soon!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: ForgeTokens.onSurfaceVariant),
-                ),
-              ),
-            );
-          }
-          final cwAsync = ref.watch(continueWatchingProvider);
-          return Column(
-            children: [
-              cwAsync.when(
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-                data: (cwVideos) {
-                  if (cwVideos.isEmpty) return const SizedBox.shrink();
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-                        child: Text(
-                          'Continue watching',
-                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                        ),
-                      ),
-                      SizedBox(
-                        height: 120,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          itemCount: cwVideos.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 10),
-                          itemBuilder: (context, index) {
-                            final v = cwVideos[index];
-                            return ForgeMotion.fadeIn(
-                              index: index,
-                              child: _ContinueTile(video: v),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  scrollDirection: Axis.vertical,
-                  itemCount: videos.length,
-                  itemBuilder: (context, index) => _VideoCard(video: videos[index]),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
     );
   }
 }
@@ -197,12 +237,54 @@ class _ContinueTile extends StatelessWidget {
   }
 }
 
-class _VideoCard extends ConsumerWidget {
+class _VideoCard extends ConsumerStatefulWidget {
   final VideoModel video;
   const _VideoCard({required this.video});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_VideoCard> createState() => _VideoCardState();
+}
+
+class _VideoCardState extends ConsumerState<_VideoCard> {
+  late bool _liked;
+  late int _likeCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _liked = widget.video.viewerLiked;
+    _likeCount = widget.video.likeCount;
+  }
+
+  Future<void> _toggleLike() async {
+    final wasLiked = _liked;
+    setState(() {
+      _liked = !wasLiked;
+      _likeCount += wasLiked ? -1 : 1;
+    });
+    try {
+      final client = ref.read(apiClientProvider);
+      if (wasLiked) {
+        await client.dio.delete('/videos/${widget.video.id}/like');
+      } else {
+        await client.dio.post('/videos/${widget.video.id}/like');
+      }
+    } catch (_) {
+      setState(() {
+        _liked = wasLiked;
+        _likeCount += wasLiked ? 1 : -1;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to like videos')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final video = widget.video;
     return GestureDetector(
       onTap: () => context.push('/watch/${video.id}'),
       child: Stack(
@@ -218,7 +300,6 @@ class _VideoCard extends ConsumerWidget {
           else
             Container(color: const Color(0xFF13131A)),
 
-          // Gradient overlay
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -230,7 +311,6 @@ class _VideoCard extends ConsumerWidget {
             ),
           ),
 
-          // Content overlay
           Positioned(
             bottom: 80,
             left: 16,
@@ -253,26 +333,15 @@ class _VideoCard extends ConsumerWidget {
             ),
           ),
 
-          // Action buttons
           Positioned(
             bottom: 80,
             right: 12,
             child: Column(
               children: [
                 _ActionButton(
-                  icon: Icons.favorite_border,
-                  count: video.likeCount,
-                  onTap: () async {
-                    try {
-                      await ref.read(apiClientProvider).dio.post('/videos/${video.id}/like');
-                    } catch (_) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Sign in to like videos')),
-                        );
-                      }
-                    }
-                  },
+                  icon: _liked ? Icons.favorite : Icons.favorite_border,
+                  count: _likeCount,
+                  onTap: _toggleLike,
                 ),
                 const SizedBox(height: 16),
                 _ActionButton(

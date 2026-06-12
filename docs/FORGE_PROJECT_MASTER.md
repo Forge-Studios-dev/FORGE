@@ -98,7 +98,8 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | **CategoriesModule** | `categories` | list categories, skill tags | Taxonomy for discovery |
 | **ContentModule** | `videos` | presigned-url, complete, multipart/*, view, watch, studio, CRUD | VOD upload, processing orchestration, playback; `ViewCountFlushService` (Redis → Postgres view counts) |
 | **FeedModule** | `videos` | `feed`, `feed/trending`, `feed/recommended`, `public`, `by-category/:slug`, `by-skills` | Home/explore feeds (`latest` / `popular` / `forYou`) |
-| **EngagementModule** | root | like, comments, follow | Social engagement |
+| **EngagementModule** | root | like, comments (CRUD/replies/likes), follow, follow lists | Social engagement |
+| **DirectMessagesModule** | `/messages` | DM conversations, send, read receipts | Peer messaging |
 | **StreamingModule** | `streams` | start, live, RSVP, polls, clips, replay, checkout, mods, `webhooks/mux` | Mux live + webhooks — see [LIVE.md](./LIVE.md) |
 | **EntitlementsModule** | root | `creators/:id/tiers`, `subscriptions/mock`, membership checks | Mock memberships, tier CRUD |
 | **BillingModule** | — | (no HTTP yet) | `PaymentProvider` scaffold for Stripe Phase 2 |

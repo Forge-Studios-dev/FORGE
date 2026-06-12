@@ -40,12 +40,10 @@ export function RealtimeToasts() {
       ].slice(0, 3));
     };
 
-    socket.emit('join-live-feed');
     socket.on('video:ready', onVideoReady);
     socket.on('stream:started', onStreamStarted);
 
     return () => {
-      socket.emit('leave-live-feed');
       socket.off('video:ready', onVideoReady);
       socket.off('stream:started', onStreamStarted);
     };

@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotificationsService } from './notifications.service';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { DeviceToken } from './entities/device-token.entity';
@@ -15,6 +16,10 @@ describe('NotificationsService', () => {
     createQueryBuilder: jest.fn(),
   };
 
+  const eventEmitter = {
+    emit: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
@@ -22,6 +27,7 @@ describe('NotificationsService', () => {
         NotificationsService,
         { provide: getRepositoryToken(Notification), useValue: notificationRepository },
         { provide: getRepositoryToken(DeviceToken), useValue: {} },
+        { provide: EventEmitter2, useValue: eventEmitter },
       ],
     }).compile();
     service = module.get(NotificationsService);

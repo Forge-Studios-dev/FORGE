@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/socket/forge_socket.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../core/widgets/forge_empty_state.dart';
@@ -268,22 +269,52 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
   final _ctrl = TextEditingController();
   List<dynamic> _comments = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  String? _nextCursor;
+  bool _hasMore = false;
+  String? _replyToId;
+
+  void Function(dynamic)? _onNewComment;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _bindSocket();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({String? cursor}) async {
     try {
       final client = ref.read(apiClientProvider);
-      final res = await client.dio.get('/videos/${widget.videoId}/comments', queryParameters: {'limit': 20});
-      final data = res.data['data']['data'] as List<dynamic>? ?? [];
-      if (mounted) setState(() { _comments = data; _loading = false; });
+      final params = <String, dynamic>{'limit': 20};
+      if (cursor != null) params['cursor'] = cursor;
+      final res = await client.dio.get('/videos/${widget.videoId}/comments', queryParameters: params);
+      final payload = res.data['data'] as Map<String, dynamic>;
+      final data = payload['data'] as List<dynamic>? ?? [];
+      final meta = payload['meta'] as Map<String, dynamic>? ?? {};
+      if (!mounted) return;
+      setState(() {
+        if (cursor != null) {
+          _comments = [..._comments, ...data];
+        } else {
+          _comments = data;
+        }
+        _nextCursor = meta['cursor'] as String?;
+        _hasMore = meta['hasMore'] == true;
+        _loading = false;
+      });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _bindSocket() async {
+    await ForgeSocket.connect();
+    ForgeSocket.joinVideo(widget.videoId);
+    _onNewComment = (_) {
+      if (mounted) _load();
+    };
+    ForgeSocket.on('comment:new', _onNewComment!);
   }
 
   Future<void> _post() async {
@@ -291,8 +322,11 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
     if (text.isEmpty) return;
     try {
       final client = ref.read(apiClientProvider);
-      await client.dio.post('/videos/${widget.videoId}/comments', data: {'content': text});
+      final body = <String, dynamic>{'content': text};
+      if (_replyToId != null) body['parentId'] = _replyToId;
+      await client.dio.post('/videos/${widget.videoId}/comments', data: body);
       _ctrl.clear();
+      setState(() => _replyToId = null);
       await _load();
     } catch (_) {
       if (mounted) {
@@ -303,8 +337,26 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
     }
   }
 
+  Future<void> _toggleLike(Map<String, dynamic> comment) async {
+    final id = comment['id'] as String;
+    final liked = comment['viewerLiked'] == true;
+    try {
+      final client = ref.read(apiClientProvider);
+      if (liked) {
+        await client.dio.delete('/videos/${widget.videoId}/comments/$id/like');
+      } else {
+        await client.dio.post('/videos/${widget.videoId}/comments/$id/like');
+      }
+      await _load();
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
+    if (_onNewComment != null) {
+      ForgeSocket.off('comment:new', _onNewComment);
+    }
+    ForgeSocket.leaveVideo(widget.videoId);
     _ctrl.dispose();
     super.dispose();
   }
@@ -315,6 +367,14 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Comments', style: Theme.of(context).textTheme.titleMedium),
+        if (_replyToId != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: TextButton(
+              onPressed: () => setState(() => _replyToId = null),
+              child: const Text('Cancel reply'),
+            ),
+          ),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -334,16 +394,44 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
           const Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator())
         else if (_comments.isEmpty)
           const Text('No comments yet', style: TextStyle(color: ForgeTokens.onSurfaceVariant))
-        else
+        else ...[
           ..._comments.map((c) {
             final m = c as Map<String, dynamic>;
             final user = m['user'] as Map<String, dynamic>?;
+            final likeCount = m['likeCount'] as int? ?? 0;
+            final liked = m['viewerLiked'] == true;
             return ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(user?['displayName'] as String? ?? 'User'),
               subtitle: Text(m['content'] as String? ?? ''),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(liked ? Icons.favorite : Icons.favorite_border, size: 18),
+                    onPressed: () => _toggleLike(m),
+                  ),
+                  if (likeCount > 0) Text('$likeCount', style: const TextStyle(fontSize: 12)),
+                  IconButton(
+                    icon: const Icon(Icons.reply, size: 18),
+                    onPressed: () => setState(() => _replyToId = m['id'] as String?),
+                  ),
+                ],
+              ),
             );
           }),
+          if (_hasMore)
+            TextButton(
+              onPressed: _loadingMore
+                  ? null
+                  : () async {
+                      setState(() => _loadingMore = true);
+                      await _load(cursor: _nextCursor);
+                      if (mounted) setState(() => _loadingMore = false);
+                    },
+              child: Text(_loadingMore ? 'Loading…' : 'Load more'),
+            ),
+        ],
       ],
     );
   }

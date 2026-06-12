@@ -2,9 +2,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class CreateReportDto {
-  @ApiProperty({ enum: ['video', 'user'] })
-  @IsIn(['video', 'user'])
-  targetType: 'video' | 'user';
+  @ApiProperty({ enum: ['video', 'user', 'comment'] })
+  @IsIn(['video', 'user', 'comment'])
+  targetType: 'video' | 'user' | 'comment';
 
   @ApiProperty()
   @IsUUID()

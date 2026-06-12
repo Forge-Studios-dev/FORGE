@@ -76,4 +76,10 @@ export class EntitlementsController {
   mockSubscribe(@CurrentUser() user: JwtPayload, @Body() dto: MockSubscriptionDto) {
     return this.entitlementsService.mockSubscribe(user.sub, dto);
   }
+
+  @Delete('subscriptions/me/:creatorId')
+  @ApiOperation({ summary: 'Cancel membership for a creator' })
+  cancelSubscription(@CurrentUser() user: JwtPayload, @Param('creatorId') creatorId: string) {
+    return this.entitlementsService.cancelMySubscription(user.sub, creatorId);
+  }
 }

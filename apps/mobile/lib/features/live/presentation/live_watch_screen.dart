@@ -31,6 +31,13 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
   Timer? _countdownTimer;
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
+  final Map<String, int> _reactionCounts = {};
+
+  void Function(dynamic)? _onViewerCount;
+  void Function(dynamic)? _onChatMessage;
+  void Function(dynamic)? _onStreamStarted;
+  void Function(dynamic)? _onStreamEnded;
+  void Function(dynamic)? _onReaction;
 
   @override
   void initState() {
@@ -130,24 +137,51 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
     await ForgeSocket.connect();
     ForgeSocket.joinStream(widget.streamId);
     ForgeSocket.joinStreamChat(widget.streamId);
-    ForgeSocket.on('stream:viewer-count', (payload) {
+
+    try {
+      final client = ref.read(apiClientProvider);
+      final res = await client.dio.get('/streams/${widget.streamId}/reactions');
+      final counts = res.data['data'] as Map<String, dynamic>? ?? {};
+      if (mounted) {
+        setState(() {
+          _reactionCounts
+            ..clear()
+            ..addAll(counts.map((k, v) => MapEntry(k, (v as num).toInt())));
+        });
+      }
+    } catch (_) {}
+
+    _onViewerCount = (payload) {
       if (payload is Map && payload['streamId'] == widget.streamId && mounted) {
         setState(() => _viewerCount = payload['viewerCount'] as int? ?? _viewerCount);
       }
-    });
-    ForgeSocket.on('stream:chat:message', (_) {
+    };
+    _onChatMessage = (_) {
       if (mounted) setState(() {});
-    });
-    ForgeSocket.on('stream:started', (payload) {
+    };
+    _onStreamStarted = (payload) {
       if (payload is Map && payload['streamId'] == widget.streamId && mounted) {
         _loadStream();
       }
-    });
-    ForgeSocket.on('stream:ended', (payload) {
+    };
+    _onStreamEnded = (payload) {
       if (payload is Map && payload['streamId'] == widget.streamId && mounted) {
         _loadStream();
       }
-    });
+    };
+    _onReaction = (payload) {
+      if (payload is! Map || payload['streamId'] != widget.streamId || !mounted) return;
+      final reaction = payload['reaction'] as String?;
+      final count = payload['count'] as int?;
+      if (reaction == null || count == null) return;
+      setState(() => _reactionCounts[reaction] = count);
+    };
+
+    ForgeSocket.on('stream:viewer-count', _onViewerCount!);
+    ForgeSocket.on('stream:chat:message', _onChatMessage!);
+    ForgeSocket.on('stream:started', _onStreamStarted!);
+    ForgeSocket.on('stream:ended', _onStreamEnded!);
+    ForgeSocket.on('stream:reaction', _onReaction!);
   }
 
   Future<void> _endStream() async {
@@ -172,6 +206,36 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
     await _loadStream();
   }
 
+  Widget _buildReactionBar() {
+    const reactions = {'heart': '❤️', 'fire': '🔥', 'clap': '👏', '100': '💯'};
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        ...reactions.entries.map((e) {
+          final count = _reactionCounts[e.key] ?? 0;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Material(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => ForgeSocket.reactStream(widget.streamId, e.key),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: Text(
+                    count > 0 ? '${e.value} $count' : e.value,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
   String _formatCountdown(int ms) {
     if (ms <= 0) return 'Starting soon';
     final totalSec = ms ~/ 1000;
@@ -186,6 +250,11 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    if (_onViewerCount != null) ForgeSocket.off('stream:viewer-count', _onViewerCount);
+    if (_onChatMessage != null) ForgeSocket.off('stream:chat:message', _onChatMessage);
+    if (_onStreamStarted != null) ForgeSocket.off('stream:started', _onStreamStarted);
+    if (_onStreamEnded != null) ForgeSocket.off('stream:ended', _onStreamEnded);
+    if (_onReaction != null) ForgeSocket.off('stream:reaction', _onReaction);
     ForgeSocket.leaveStream(widget.streamId);
     ForgeSocket.leaveStreamChat(widget.streamId);
     _chewieController?.dispose();
@@ -307,7 +376,19 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
                         ),
                       )
                     : _chewieController != null
-                        ? Chewie(controller: _chewieController!)
+                        ? Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Chewie(controller: _chewieController!),
+                              if (status == 'live')
+                                Positioned(
+                                  left: 8,
+                                  right: 8,
+                                  bottom: 8,
+                                  child: _buildReactionBar(),
+                                ),
+                            ],
+                          )
                         : Container(
                             color: Colors.black87,
                             padding: const EdgeInsets.all(16),

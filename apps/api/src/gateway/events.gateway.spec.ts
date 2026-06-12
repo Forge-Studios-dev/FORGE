@@ -26,6 +26,9 @@ describe('EventsGateway room authorization', () => {
   const videosService = {
     getVideoForViewer: jest.fn(),
   };
+  const streamReactionService = {
+    react: jest.fn().mockResolvedValue({ reaction: 'heart', count: 1 }),
+  };
   const communitiesService = {
     verifyChannelAccess: jest.fn(),
   };
@@ -56,6 +59,7 @@ describe('EventsGateway room authorization', () => {
       jwtService as unknown as JwtService,
       streamViewerService as never,
       streamingService as never,
+      streamReactionService as never,
       videosService as never,
       communitiesService as never,
     );

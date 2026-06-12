@@ -51,6 +51,26 @@ class ForgeSocket {
     _socket?.emit('leave-channel', {'channelId': channelId});
   }
 
+  static void joinLiveFeed() {
+    _socket?.emit('join-live-feed');
+  }
+
+  static void leaveLiveFeed() {
+    _socket?.emit('leave-live-feed');
+  }
+
+  static void joinVideo(String videoId) {
+    _socket?.emit('join-video', {'videoId': videoId});
+  }
+
+  static void leaveVideo(String videoId) {
+    _socket?.emit('leave-video', {'videoId': videoId});
+  }
+
+  static void reactStream(String streamId, String reaction) {
+    _socket?.emit('stream:react', {'streamId': streamId, 'reaction': reaction});
+  }
+
   static void on(String event, void Function(dynamic) handler) {
     _socket?.on(event, handler);
   }
