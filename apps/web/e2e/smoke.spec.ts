@@ -5,7 +5,7 @@ test.describe('FORGE web smoke', () => {
     await page.goto('/');
     await expect(page.getByTestId('forge-home')).toBeVisible();
     await expect(page.getByTestId('discover-section')).toBeVisible();
-    await expect(page.getByRole('heading', { name: /discover lessons/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^discover$/i })).toBeVisible();
   });
 
   test('explore page loads categories', async ({ page }) => {
