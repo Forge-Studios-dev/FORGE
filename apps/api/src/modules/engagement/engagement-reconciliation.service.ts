@@ -59,20 +59,46 @@ export class EngagementReconciliationService {
   }
 
   private async reconcileFollowCounts(): Promise<number> {
-    let adjusted = 0;
-    const users = await this.userRepository.find({ select: ['id', 'followerCount', 'followingCount'] });
-    for (const user of users) {
-      const followerActual = await this.followRepository.count({ where: { followingId: user.id } });
-      const followingActual = await this.followRepository.count({ where: { followerId: user.id } });
-      if (user.followerCount !== followerActual || user.followingCount !== followingActual) {
-        await this.userRepository.update(user.id, {
-          followerCount: followerActual,
-          followingCount: followingActual,
-        });
-        adjusted++;
-      }
+    const followerMismatches = await this.userRepository
+      .createQueryBuilder('u')
+      .select('u.id', 'id')
+      .addSelect('u.follower_count', 'stored')
+      .addSelect('COUNT(f.id)', 'actual')
+      .leftJoin('follows', 'f', 'f.following_id = u.id')
+      .groupBy('u.id')
+      .addGroupBy('u.follower_count')
+      .having('u.follower_count != COUNT(f.id)')
+      .getRawMany<{ id: string; stored: string; actual: string }>();
+
+    const followingMismatches = await this.userRepository
+      .createQueryBuilder('u')
+      .select('u.id', 'id')
+      .addSelect('u.following_count', 'stored')
+      .addSelect('COUNT(f.id)', 'actual')
+      .leftJoin('follows', 'f', 'f.follower_id = u.id')
+      .groupBy('u.id')
+      .addGroupBy('u.following_count')
+      .having('u.following_count != COUNT(f.id)')
+      .getRawMany<{ id: string; stored: string; actual: string }>();
+
+    const byId = new Map<string, { followerCount?: number; followingCount?: number }>();
+
+    for (const row of followerMismatches) {
+      const entry = byId.get(row.id) ?? {};
+      entry.followerCount = parseInt(row.actual, 10) || 0;
+      byId.set(row.id, entry);
     }
-    return adjusted;
+    for (const row of followingMismatches) {
+      const entry = byId.get(row.id) ?? {};
+      entry.followingCount = parseInt(row.actual, 10) || 0;
+      byId.set(row.id, entry);
+    }
+
+    for (const [userId, patch] of byId) {
+      await this.userRepository.update(userId, patch);
+    }
+
+    return byId.size;
   }
 
   private async reconcileCommentLikeCounts(): Promise<number> {

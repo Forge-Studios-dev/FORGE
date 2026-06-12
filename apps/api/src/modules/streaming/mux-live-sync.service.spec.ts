@@ -58,11 +58,27 @@ describe('MuxLiveSyncService idle grace finalization', () => {
   it('skips periodic scan when no live or idle mux candidates', async () => {
     redis.scard.mockResolvedValue(0);
     streamRepositoryWithCount.count.mockResolvedValue(0);
+    redis.get.mockResolvedValue(null);
+    redis.setex.mockResolvedValue('OK');
 
     const result = await service.runPeriodicScan();
 
     expect(result).toEqual({ synced: 0, finalized: 0 });
     expect(streamRepository.find).not.toHaveBeenCalled();
+    expect(redis.setex).toHaveBeenCalledWith(
+      MuxLiveSyncService.PLATFORM_DORMANT_KEY,
+      1200,
+      '1',
+    );
+  });
+
+  it('skips periodic scan when platform dormant flag is set', async () => {
+    redis.get.mockResolvedValue('1');
+
+    const result = await service.runPeriodicScan();
+
+    expect(result).toEqual({ synced: 0, finalized: 0 });
+    expect(streamRepositoryWithCount.count).not.toHaveBeenCalled();
   });
 
   it('finalizes LIVE streams past mux idle grace during periodic scan', async () => {
@@ -75,6 +91,7 @@ describe('MuxLiveSyncService idle grace finalization', () => {
     } as Stream;
 
     streamRepositoryWithCount.count.mockResolvedValueOnce(1).mockResolvedValue(0);
+    redis.get.mockResolvedValue(null);
     redis.scard.mockResolvedValue(1);
     streamRepository.find
       .mockResolvedValueOnce([stale])

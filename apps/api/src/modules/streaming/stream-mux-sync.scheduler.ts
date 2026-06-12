@@ -7,6 +7,9 @@ import { STREAM_MUX_SYNC_QUEUE } from '../workers/stream-mux-sync/stream-mux-syn
 export const MUX_SYNC_SCHEDULER_ID = 'stream-mux-sync-scan';
 export const MUX_SYNC_INTERVAL_LIVE_MS = 45_000;
 export const MUX_SYNC_INTERVAL_IDLE_MS = 90_000;
+export const MUX_SYNC_INTERVAL_DORMANT_MS = Number(
+  process.env.MUX_SYNC_INTERVAL_DORMANT_MS ?? 900_000,
+);
 
 @Injectable()
 export class StreamMuxSyncScheduler implements OnModuleInit {
@@ -24,11 +27,24 @@ export class StreamMuxSyncScheduler implements OnModuleInit {
     void this.registerScheduler(MUX_SYNC_INTERVAL_IDLE_MS);
   }
 
-  /** Adjust scan frequency: 45s when live streams exist, 90s when idle. */
-  async syncIntervalForLiveActivity(hasLiveStreams: boolean): Promise<void> {
-    const target = hasLiveStreams ? MUX_SYNC_INTERVAL_LIVE_MS : MUX_SYNC_INTERVAL_IDLE_MS;
+  /** Adjust scan frequency: 45s live / 90s idle / 15m dormant (deep idle). */
+  async syncIntervalForActivity(opts: {
+    hasLiveStreams: boolean;
+    isDormant: boolean;
+  }): Promise<void> {
+    let target = MUX_SYNC_INTERVAL_IDLE_MS;
+    if (opts.isDormant) {
+      target = MUX_SYNC_INTERVAL_DORMANT_MS;
+    } else if (opts.hasLiveStreams) {
+      target = MUX_SYNC_INTERVAL_LIVE_MS;
+    }
     if (target === this.currentIntervalMs) return;
     await this.registerScheduler(target);
+  }
+
+  /** @deprecated Use syncIntervalForActivity */
+  async syncIntervalForLiveActivity(hasLiveStreams: boolean): Promise<void> {
+    return this.syncIntervalForActivity({ hasLiveStreams, isDormant: false });
   }
 
   private async registerScheduler(everyMs: number): Promise<void> {

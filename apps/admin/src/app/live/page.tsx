@@ -51,7 +51,7 @@ export default function AdminLivePage() {
       }>(`/admin/streams/${chatStreamId}/chat?limit=80`);
       return res.data.data;
     },
-    refetchInterval: chatStreamId ? 30_000 : false,
+    refetchInterval: chatStreamId ? 60_000 : false,
   });
 
   const forceEnd = useMutation({

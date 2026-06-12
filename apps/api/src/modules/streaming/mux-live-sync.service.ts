@@ -24,6 +24,9 @@ export class MuxLiveSyncService {
   private static readonly MUX_SYNC_TTL_IDLE_SEC = 15;
   private static readonly MUX_SYNC_TTL_LIVE_SEC = 60;
   private static readonly LIVE_GRACE_SCAN_LIMIT = 50;
+  /** When set, periodic scan skips DB for PLATFORM_DORMANT_TTL_SEC (refreshed on empty scan). */
+  static readonly PLATFORM_DORMANT_KEY = 'streams:platform:dormant';
+  private static readonly PLATFORM_DORMANT_TTL_SEC = 1200;
 
   constructor(
     @InjectRepository(Stream)
@@ -40,15 +43,50 @@ export class MuxLiveSyncService {
   }
 
   async syncStreamById(streamId: string): Promise<void> {
+    await this.clearPlatformDormant();
     const stream = await this.streamRepository.findOne({ where: { id: streamId } });
     if (!stream) return;
     await this.syncStream(stream);
   }
 
+  /** Clears deep-idle gate so the next periodic scan probes Postgres (webhooks, stream create). */
+  async clearPlatformDormant(): Promise<void> {
+    try {
+      await this.redis.del(MuxLiveSyncService.PLATFORM_DORMANT_KEY);
+    } catch {
+      // non-fatal
+    }
+  }
+
+  async isPlatformDormant(): Promise<boolean> {
+    try {
+      return (await this.redis.get(MuxLiveSyncService.PLATFORM_DORMANT_KEY)) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  private async markPlatformDormant(): Promise<void> {
+    try {
+      await this.redis.setex(
+        MuxLiveSyncService.PLATFORM_DORMANT_KEY,
+        MuxLiveSyncService.PLATFORM_DORMANT_TTL_SEC,
+        '1',
+      );
+    } catch (err) {
+      this.logger.warn(`Platform dormant mark failed: ${(err as Error).message}`);
+    }
+  }
+
   /** Periodic worker scan: idle go-live reconciliation + idle-grace finalization + Mux poll. */
   async runPeriodicScan(): Promise<{ synced: number; finalized: number }> {
+    if (await this.isPlatformDormant()) {
+      return { synced: 0, finalized: 0 };
+    }
+
     const hasGraceWork = await this.hasStreamsPastIdleGrace();
     if (!hasGraceWork && !(await this.hasMuxSyncCandidates())) {
+      await this.markPlatformDormant();
       return { synced: 0, finalized: 0 };
     }
 
@@ -104,6 +142,7 @@ export class MuxLiveSyncService {
   }
 
   async handleWebhookActive(muxLiveStreamId: string): Promise<void> {
+    await this.clearPlatformDormant();
     const stream = await this.streamRepository.findOne({ where: { muxLiveStreamId } });
     const isFirstGoLive = stream && !stream.startedAt;
     const thumbnailPatch =
@@ -142,6 +181,7 @@ export class MuxLiveSyncService {
   }
 
   async handleWebhookIdle(muxLiveStreamId: string): Promise<void> {
+    await this.clearPlatformDormant();
     const stream = await this.streamRepository.findOne({ where: { muxLiveStreamId } });
     if (!stream || stream.status !== StreamStatus.LIVE) return;
 

@@ -178,6 +178,7 @@ export class StreamingService {
 
     const saved = await this.streamRepository.save(stream);
     void this.invalidateStreamListCache();
+    await this.muxLiveSyncService.clearPlatformDormant();
     return saved;
   }
 

@@ -23,8 +23,11 @@ export class StreamMuxSyncWorker extends WorkerHost {
     }
 
     const result = await this.muxLiveSyncService.runPeriodicScan();
-    const hasLive = await this.muxLiveSyncService.hasActiveLiveStreams();
-    await this.muxSyncScheduler.syncIntervalForLiveActivity(hasLive);
+    const isDormant = await this.muxLiveSyncService.isPlatformDormant();
+    const hasLive = isDormant
+      ? false
+      : await this.muxLiveSyncService.hasActiveLiveStreams();
+    await this.muxSyncScheduler.syncIntervalForActivity({ hasLiveStreams: hasLive, isDormant });
     this.logger.debug(
       `Mux live sync scan: ${result.synced} idle synced, ${result.finalized} finalized (live=${hasLive})`,
     );

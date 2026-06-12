@@ -4,10 +4,13 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
+import { tryAcquireIntervalLeader } from '../../common/redis/redis-interval-leader.util';
 import { Video } from './entities/video.entity';
 
 const PENDING_VIEW_PREFIX = 'video:views:pending:';
 const FLUSH_INTERVAL_MS = 60_000;
+const LEADER_LOCK_KEY = 'leader:view-count-flush';
+const LEADER_LOCK_TTL_SEC = 55;
 
 @Injectable()
 export class ViewCountFlushService implements OnModuleInit, OnModuleDestroy {
@@ -36,6 +39,14 @@ export class ViewCountFlushService implements OnModuleInit, OnModuleDestroy {
   }
 
   async flushPendingViewCounts(): Promise<void> {
+    const isLeader = await tryAcquireIntervalLeader(
+      this.redis,
+      LEADER_LOCK_KEY,
+      LEADER_LOCK_TTL_SEC,
+      this.logger,
+    );
+    if (!isLeader) return;
+
     let cursor = '0';
     const updates: { videoId: string; delta: number }[] = [];
 
