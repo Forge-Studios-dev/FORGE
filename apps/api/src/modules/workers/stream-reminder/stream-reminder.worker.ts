@@ -6,6 +6,7 @@ import { Job } from 'bullmq';
 import { Between, In, IsNull, Repository } from 'typeorm';
 import { Stream, StreamStatus } from '../../streaming/entities/stream.entity';
 import { StreamRsvp } from '../../streaming/entities/stream-rsvp.entity';
+import { MuxLiveSyncService } from '../../streaming/mux-live-sync.service';
 import { STREAM_REMINDER_QUEUE } from './stream-reminder.constants';
 
 @Processor(STREAM_REMINDER_QUEUE)
@@ -18,11 +19,17 @@ export class StreamReminderWorker extends WorkerHost {
     @InjectRepository(StreamRsvp)
     private readonly rsvpRepository: Repository<StreamRsvp>,
     private readonly eventEmitter: EventEmitter2,
+    private readonly muxLiveSyncService: MuxLiveSyncService,
   ) {
     super();
   }
 
   async process(_job: Job): Promise<void> {
+    if (await this.muxLiveSyncService.isPlatformDormant()) {
+      this.logger.debug('Stream reminder scan skipped — platform dormant');
+      return;
+    }
+
     const now = new Date();
     const in15 = new Date(now.getTime() + 15 * 60_000);
 

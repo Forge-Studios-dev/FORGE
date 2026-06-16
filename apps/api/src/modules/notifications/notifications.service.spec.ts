@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { NotificationsService } from './notifications.service';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { DeviceToken } from './entities/device-token.entity';
@@ -20,6 +21,12 @@ describe('NotificationsService', () => {
     emit: jest.fn(),
   };
 
+  const redis = {
+    get: jest.fn().mockResolvedValue(null),
+    setex: jest.fn().mockResolvedValue('OK'),
+    del: jest.fn().mockResolvedValue(1),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
@@ -28,6 +35,7 @@ describe('NotificationsService', () => {
         { provide: getRepositoryToken(Notification), useValue: notificationRepository },
         { provide: getRepositoryToken(DeviceToken), useValue: {} },
         { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: getRedisConnectionToken(), useValue: redis },
       ],
     }).compile();
     service = module.get(NotificationsService);

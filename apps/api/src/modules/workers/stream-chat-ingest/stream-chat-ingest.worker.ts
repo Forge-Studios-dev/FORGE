@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { StreamMessage, StreamMessageType } from '../../stream-chat/entities/stream-message.entity';
 import { toPublicStreamMessage } from '../../stream-chat/stream-chat.mapper';
 import { safeRedisDel } from '../../../common/redis/redis-safe.util';
+import { incrementStreamChatMinuteCounter } from '../../../common/streaming/stream-chat-minute-counter.util';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { STREAM_CHAT_INGEST_QUEUE } from './stream-chat-ingest.constants';
@@ -85,6 +86,7 @@ export class StreamChatIngestWorker extends WorkerHost {
     if (!full) return;
 
     await safeRedisDel(this.redis, `stream:chat:page:${streamId}`, this.logger);
+    void incrementStreamChatMinuteCounter(this.redis, streamId, this.logger);
     const publicMsg = toPublicStreamMessage(full);
     this.eventEmitter.emit('stream.chat.message', { streamId, message: publicMsg });
   }

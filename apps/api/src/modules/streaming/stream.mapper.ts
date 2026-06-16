@@ -81,3 +81,8 @@ export function toPublicStream(
     accessReason: opts?.accessReason,
   };
 }
+
+/** JSON payload for stream detail Redis cache. */
+export function serializeStreamForCache(stream: Stream): string {
+  return JSON.stringify(stream);
+}

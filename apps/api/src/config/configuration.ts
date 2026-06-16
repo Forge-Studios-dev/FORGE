@@ -14,7 +14,7 @@ export default () => ({
     name: process.env.DB_NAME || 'forge_db',
     poolMax: parseInt(
       process.env.DB_POOL_MAX ||
-        (process.env.DATABASE_URL?.includes('neon.tech') ? '10' : '20'),
+        (process.env.DATABASE_URL?.includes('neon.tech') ? '5' : '20'),
       10,
     ),
     connectTimeoutMs: parseInt(process.env.DB_CONNECT_TIMEOUT_MS || '10000', 10),

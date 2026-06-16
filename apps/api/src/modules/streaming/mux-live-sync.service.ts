@@ -12,6 +12,12 @@ import {
   muxPlaybackIdFromHlsUrl,
   muxThumbnailUrl,
 } from '../../common/media/mux-playback.util';
+import {
+  PLATFORM_DORMANT_KEY,
+  isPlatformDormant as readPlatformDormant,
+} from '../../common/streaming/platform-dormant.util';
+import { streamDetailCacheKey } from '../../common/streaming/stream-detail-cache.util';
+import { safeRedisDel } from '../../common/redis/redis-safe.util';
 
 @Injectable()
 export class MuxLiveSyncService {
@@ -24,8 +30,8 @@ export class MuxLiveSyncService {
   private static readonly MUX_SYNC_TTL_IDLE_SEC = 15;
   private static readonly MUX_SYNC_TTL_LIVE_SEC = 60;
   private static readonly LIVE_GRACE_SCAN_LIMIT = 50;
-  /** When set, periodic scan skips DB for PLATFORM_DORMANT_TTL_SEC (refreshed on empty scan). */
-  static readonly PLATFORM_DORMANT_KEY = 'streams:platform:dormant';
+  /** @deprecated Use PLATFORM_DORMANT_KEY from platform-dormant.util */
+  static readonly PLATFORM_DORMANT_KEY = PLATFORM_DORMANT_KEY;
   private static readonly PLATFORM_DORMANT_TTL_SEC = 1200;
 
   constructor(
@@ -52,27 +58,19 @@ export class MuxLiveSyncService {
   /** Clears deep-idle gate so the next periodic scan probes Postgres (webhooks, stream create). */
   async clearPlatformDormant(): Promise<void> {
     try {
-      await this.redis.del(MuxLiveSyncService.PLATFORM_DORMANT_KEY);
+      await this.redis.del(PLATFORM_DORMANT_KEY);
     } catch {
       // non-fatal
     }
   }
 
   async isPlatformDormant(): Promise<boolean> {
-    try {
-      return (await this.redis.get(MuxLiveSyncService.PLATFORM_DORMANT_KEY)) === '1';
-    } catch {
-      return false;
-    }
+    return readPlatformDormant(this.redis);
   }
 
   private async markPlatformDormant(): Promise<void> {
     try {
-      await this.redis.setex(
-        MuxLiveSyncService.PLATFORM_DORMANT_KEY,
-        MuxLiveSyncService.PLATFORM_DORMANT_TTL_SEC,
-        '1',
-      );
+      await this.redis.setex(PLATFORM_DORMANT_KEY, MuxLiveSyncService.PLATFORM_DORMANT_TTL_SEC, '1');
     } catch (err) {
       this.logger.warn(`Platform dormant mark failed: ${(err as Error).message}`);
     }
@@ -168,6 +166,7 @@ export class MuxLiveSyncService {
 
     await this.streamViewerService.trackStreamLive(updated.id);
     await this.redis.del(this.muxSyncCacheKey(updated.id));
+    void this.bustStreamDetailCache(updated.id);
 
     if (isFirstGoLive) {
       this.eventEmitter.emit('stream.started', {
@@ -189,6 +188,7 @@ export class MuxLiveSyncService {
       { muxLiveStreamId },
       { muxIdleSince: stream.muxIdleSince ?? new Date() },
     );
+    void this.bustStreamDetailCache(stream.id);
   }
 
   async syncStream(stream: Stream): Promise<Stream> {
@@ -221,6 +221,7 @@ export class MuxLiveSyncService {
         if (!stream.muxIdleSince) {
           await this.streamRepository.update(stream.id, { muxIdleSince: idleSince });
           stream.muxIdleSince = idleSince;
+          void this.bustStreamDetailCache(stream.id);
         } else if (Date.now() - idleSince.getTime() >= this.idleGraceMs()) {
           await this.finalizeStreamEnded(stream);
         }
@@ -244,6 +245,7 @@ export class MuxLiveSyncService {
       muxIdleSince: null,
     });
     await this.streamViewerService.trackStreamEnded(stream.id);
+    void this.bustStreamDetailCache(stream.id);
     this.eventEmitter.emit('stream.ended', {
       streamId: stream.id,
       userId: stream.userId,
@@ -269,6 +271,7 @@ export class MuxLiveSyncService {
     });
 
     await this.streamViewerService.trackStreamLive(stream.id);
+    void this.bustStreamDetailCache(stream.id);
 
     if (isFirstGoLive) {
       this.eventEmitter.emit('stream.started', {
@@ -327,6 +330,10 @@ export class MuxLiveSyncService {
 
   private muxSyncCacheKey(streamId: string): string {
     return `stream:mux:sync:${streamId}`;
+  }
+
+  private async bustStreamDetailCache(streamId: string): Promise<void> {
+    await safeRedisDel(this.redis, streamDetailCacheKey(streamId), this.logger);
   }
 
   private muxConfigured(): boolean {
