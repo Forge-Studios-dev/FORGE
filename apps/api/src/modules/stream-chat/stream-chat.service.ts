@@ -35,6 +35,12 @@ import {
   safeRedisSetNx,
   safeRedisSetex,
 } from '../../common/redis/redis-safe.util';
+import {
+  bustModerationCache,
+  getCachedModerationStatus,
+  setCachedModerationStatus,
+} from '../../common/streaming/stream-moderation-cache.util';
+import { incrementStreamChatMinuteCounter } from '../../common/streaming/stream-chat-minute-counter.util';
 import { ConfigService } from '@nestjs/config';
 import { maskProfanity } from '../../common/chat/profanity-filter.util';
 import { computeStreamOffsetMs } from '../../common/chat/stream-offset.util';
@@ -389,6 +395,7 @@ export class StreamChatService {
 
     const publicMsg = toPublicStreamMessage(full!);
     await safeRedisDel(this.redis, `stream:chat:page:${input.streamId}`, this.logger);
+    void incrementStreamChatMinuteCounter(this.redis, input.streamId, this.logger);
     this.eventEmitter.emit('stream.chat.message', { streamId: input.streamId, message: publicMsg });
     return publicMsg;
   }
@@ -450,6 +457,7 @@ export class StreamChatService {
         createdById: requesterId,
       }),
     );
+    void bustModerationCache(this.redis, streamId, targetUserId, this.logger);
 
     return { ok: true, expiresAt };
   }
@@ -478,6 +486,7 @@ export class StreamChatService {
         createdById: requesterId,
       }),
     );
+    void bustModerationCache(this.redis, streamId, targetUserId, this.logger);
 
     return { ok: true };
   }
@@ -561,6 +570,7 @@ export class StreamChatService {
       targetUserId,
       action: 'ban',
     });
+    void bustModerationCache(this.redis, streamId, targetUserId, this.logger);
 
     return { ok: true };
   }
@@ -601,12 +611,22 @@ export class StreamChatService {
   }
 
   private async assertNotModerated(streamId: string, userId: string) {
+    const cached = await getCachedModerationStatus(this.redis, streamId, userId, this.logger);
+    if (cached === 'ban') {
+      throw new ForbiddenException('You are banned from this chat');
+    }
+    if (cached === 'timeout') {
+      throw new ForbiddenException('You are timed out from this chat');
+    }
+    if (cached === 'ok') return;
+
     const now = new Date();
     const ban = await this.moderationRepository.findOne({
       where: { streamId, targetUserId: userId, action: 'ban' },
       order: { createdAt: 'DESC' },
     });
     if (ban) {
+      await setCachedModerationStatus(this.redis, streamId, userId, 'ban', 300, this.logger);
       throw new ForbiddenException('You are banned from this chat');
     }
 
@@ -620,8 +640,15 @@ export class StreamChatService {
       order: { createdAt: 'DESC' },
     });
     if (timeout) {
+      const ttlSec = Math.max(
+        10,
+        Math.ceil((timeout.expiresAt!.getTime() - now.getTime()) / 1000),
+      );
+      await setCachedModerationStatus(this.redis, streamId, userId, 'timeout', ttlSec, this.logger);
       throw new ForbiddenException('You are timed out from this chat');
     }
+
+    await setCachedModerationStatus(this.redis, streamId, userId, 'ok', undefined, this.logger);
   }
 
   private async assertRateLimit(streamId: string, userId: string, slowModeSeconds: number) {

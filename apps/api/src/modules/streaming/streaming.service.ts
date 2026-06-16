@@ -48,6 +48,11 @@ import {
   STREAM_LIST_CACHE_PREFIX,
 } from '../../common/streaming/stream-list-cache.util';
 import {
+  streamDetailCacheKey,
+  STREAM_DETAIL_CACHE_TTL_SEC,
+} from '../../common/streaming/stream-detail-cache.util';
+import { serializeStreamForCache } from './stream.mapper';
+import {
   PREMIUM_CONTENT_NOTIFY_QUEUE,
   type PremiumContentNotifyJobData,
 } from '../workers/premium-content-notify/premium-content-notify.constants';
@@ -178,17 +183,58 @@ export class StreamingService {
 
     const saved = await this.streamRepository.save(stream);
     void this.invalidateStreamListCache();
+    void this.bustStreamDetailCache(saved.id);
     await this.muxLiveSyncService.clearPlatformDormant();
     return saved;
   }
 
-  async findById(id: string): Promise<Stream> {
+  async findById(id: string, opts?: { skipCache?: boolean }): Promise<Stream> {
+    const cacheKey = streamDetailCacheKey(id);
+    if (!opts?.skipCache) {
+      const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as Stream;
+          return this.streamRepository.create({
+            ...parsed,
+            scheduledAt: parsed.scheduledAt ? new Date(parsed.scheduledAt as unknown as string) : null,
+            startedAt: parsed.startedAt ? new Date(parsed.startedAt as unknown as string) : null,
+            endedAt: parsed.endedAt ? new Date(parsed.endedAt as unknown as string) : null,
+            muxIdleSince: parsed.muxIdleSince
+              ? new Date(parsed.muxIdleSince as unknown as string)
+              : null,
+            reminderSentAt: parsed.reminderSentAt
+              ? new Date(parsed.reminderSentAt as unknown as string)
+              : null,
+            createdAt: new Date(parsed.createdAt as unknown as string),
+            updatedAt: new Date(parsed.updatedAt as unknown as string),
+          } as Stream);
+        } catch {
+          await safeRedisDel(this.redis, cacheKey, this.logger);
+        }
+      }
+    }
+
     const stream = await this.streamRepository.findOne({
       where: { id },
       relations: ['user'],
     });
     if (!stream) throw new NotFoundException('Stream not found');
+
+    if (!opts?.skipCache) {
+      await safeRedisSetex(
+        this.redis,
+        cacheKey,
+        STREAM_DETAIL_CACHE_TTL_SEC,
+        serializeStreamForCache(stream),
+        this.logger,
+      );
+    }
     return stream;
+  }
+
+  async bustStreamDetailCache(streamId: string): Promise<void> {
+    await safeRedisDel(this.redis, streamDetailCacheKey(streamId), this.logger);
   }
 
   async getStreamForViewer(
@@ -398,6 +444,7 @@ export class StreamingService {
       title: saved.title,
     });
     void this.invalidateStreamListCache();
+    void this.bustStreamDetailCache(saved.id);
     return saved;
   }
 
@@ -622,12 +669,14 @@ export class StreamingService {
     }
     stream.pinnedMessageId = messageId;
     const saved = await this.streamRepository.save(stream);
+    void this.bustStreamDetailCache(streamId);
     this.eventEmitter.emit('stream.chat.pinned', { streamId, messageId });
     return saved;
   }
 
   async setLivekitEgressId(streamId: string, egressId: string | null): Promise<void> {
     await this.streamRepository.update(streamId, { livekitEgressId: egressId });
+    void this.bustStreamDetailCache(streamId);
   }
 
   async setSlowMode(
@@ -642,6 +691,7 @@ export class StreamingService {
     }
     stream.slowModeSeconds = slowModeSeconds;
     const saved = await this.streamRepository.save(stream);
+    void this.bustStreamDetailCache(streamId);
     this.eventEmitter.emit('stream.slow-mode', { streamId, slowModeSeconds });
     return saved;
   }
@@ -654,6 +704,7 @@ export class StreamingService {
     if (patch.chatEnabled !== undefined) stream.chatEnabled = patch.chatEnabled;
     if (patch.chatMode !== undefined) stream.chatMode = patch.chatMode;
     const saved = await this.streamRepository.save(stream);
+    void this.bustStreamDetailCache(streamId);
     this.eventEmitter.emit('stream.chat.settings', {
       streamId,
       chatEnabled: saved.chatEnabled,

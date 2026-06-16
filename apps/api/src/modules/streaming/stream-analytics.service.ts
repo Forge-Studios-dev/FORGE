@@ -4,6 +4,7 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { Repository } from 'typeorm';
 import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
+import { readStreamChatMessagesPerMin } from '../../common/streaming/stream-chat-minute-counter.util';
 import { StreamAnalyticsSnapshot } from './entities/stream-analytics-snapshot.entity';
 import { Stream, StreamStatus } from './entities/stream.entity';
 import { StreamMessage, StreamMessageType } from '../stream-chat/entities/stream-message.entity';
@@ -31,13 +32,7 @@ export class StreamAnalyticsService {
   ) {}
 
   async recordSnapshot(streamId: string, concurrentViewers: number): Promise<void> {
-    const oneMinuteAgo = new Date(Date.now() - 60_000);
-    const chatCount = await this.messageRepository
-      .createQueryBuilder('m')
-      .where('m.stream_id = :streamId', { streamId })
-      .andWhere('m.created_at >= :since', { since: oneMinuteAgo })
-      .andWhere('m.deleted_at IS NULL')
-      .getCount();
+    const chatCount = await readStreamChatMessagesPerMin(this.redis, streamId);
 
     await this.snapshotRepository.save(
       this.snapshotRepository.create({

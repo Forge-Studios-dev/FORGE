@@ -1,15 +1,12 @@
 # Neon database — cost & monitoring
 
-**Date:** 2026-06-12 · **Status:** Idle-compute audit + fixes applied
+**Date:** 2026-06-16 · **Status:** Audit #3 — cache hardening + post-PR#79 validation
 
 ---
 
 ## Summary
 
-June 2026 audit #1 addressed query polling (Mux on HTTP, frontend polls, worker schedulers). **June 2026 audit #2** (this pass) targets **24/7 compute burn with near-zero query load**:
-
-- Root cause: `suspend_timeout_seconds=0` (autosuspend off) + background jobs waking DB every 30–90s
-- Fixes: enable autosuspend (300s), cap max CU, Redis leader election on API intervals, deep-idle mux sync, query-efficiency hardening
+June 2026 audit #1 addressed query polling (Mux on HTTP, frontend polls, worker schedulers). **Audit #2** (2026-06-12) targeted **24/7 compute burn with near-zero query load**: autosuspend off + background jobs waking DB every 30–90s. **Audit #3** (2026-06-16) adds **Redis read caches** on remaining hot paths and **dormant gates** on low-frequency workers.
 
 **Forge Neon IDs (no secrets):**
 
@@ -67,8 +64,8 @@ June 2026 audit #1 addressed query polling (Mux on HTTP, frontend polls, worker 
 | Stream viewer flush | 30s (live only) | API | Leader-elected (one replica) |
 | View count flush | 60s | API | Leader-elected (one replica) |
 | Mux live sync | 45s live / 90s idle / **15m dormant** | Worker | Redis dormant gate skips DB |
-| Stream reminder | 5m | Worker | |
-| Subscription maintenance | Hourly | Worker | |
+| Stream reminder | 5m | Worker | **Dormant gate** — skips DB when platform idle |
+| Subscription maintenance | Hourly | Worker | **Dormant gate** on expiring scan; always runs `expireDueSubscriptions` |
 | Engagement reconciliation | Daily | Worker | SQL batch (not O(users)) |
 | Analytics retention | Daily | Worker | |
 | Snapshot retention | Daily 04:00 UTC | Worker | |
@@ -101,10 +98,76 @@ curl "https://api.forgestudios.net/api/v1/admin/database/query-stats?limit=50" \
 
 ### Post-deploy checklist (24–48h)
 
-- [ ] Re-run `scripts/neon-consumption-report.sh` — daily CU-hr down
-- [ ] Neon console: endpoint cycles `active` ↔ `idle`
-- [ ] `query-stats` — no unexpected top queries
-- [ ] Live go-live / end still works (webhooks + mux sync)
+- [x] Re-run `scripts/neon-consumption-report.sh` — daily CU-hr down (~12 → ~6 post-PR#79)
+- [ ] Neon console: endpoint cycles `active` ↔ `idle` (verify during overnight idle window)
+- [ ] `query-stats` — reset baseline after Audit #3 deploy; compare top queries
+- [x] Live go-live / end still works (webhooks + mux sync) — health OK 2026-06-16
+
+---
+
+## Audit #3 — cache hardening (2026-06-16)
+
+### Root cause analysis
+
+| Root cause | Component | Status |
+|------------|-----------|--------|
+| Autosuspend disabled | Neon console | **Fixed** — `suspend_timeout_seconds=300` |
+| Periodic DB wake 30–90s | API intervals + mux worker | **Fixed** — PR #79 deployed (`cd7cde1`, Release 2026-06-12) |
+| Duplicate API interval runners | 2 API replicas | **Fixed** — leader election |
+| Uncached `GET /streams/:id` (15s web lobby poll) | `streaming.service.ts` | **Fixed** — `stream:detail:{id}` Redis cache (25s TTL) |
+| Chat moderation 2× DB per message | `stream-chat.service.ts` | **Fixed** — moderation status cache |
+| Analytics snapshot chat COUNT | `stream-analytics.service.ts` | **Fixed** — Redis minute bucket counter |
+| Notifications unread COUNT poll | `notifications.service.ts` | **Fixed** — `notif:unread:{userId}` cache (45s) |
+| 5m / hourly worker probes when idle | stream-reminder, subscription-maintenance | **Fixed** — platform dormant gate |
+| Fly `min_machines_running=2` + worker 24/7 | Fly.io | **Documented** — keeps pools warm; defer lowering without approval |
+
+### Before / after metrics
+
+| Metric | Before (Jun 5–11) | After PR #79 (Jun 13–15) | After Audit #3 (target) |
+|--------|-------------------|--------------------------|-------------------------|
+| Daily CU-hr (idle days) | **~12.0** flat | **~6.0** | **< 2** (needs overnight idle + Audit #3 deploy) |
+| 14d total CU-hr | 135.65 (Jun 2–15) | — | Re-measure 48h post-deploy |
+| Est. monthly compute | ~$38/mo | ~$18/mo | **$5–15** |
+| Autosuspend | Off (`0`) | **300s** | 300s |
+| Max CU | uncapped | **2** | 2 |
+| Peak pooler connections | ~6 | ~6 | ≤ 6 |
+| Endpoint state | always active | active (warm Fly keeps waking) | cycles idle overnight |
+
+**PR #79 deploy confirmed:** Release workflow `27429799502` → `cd7cde1` (2026-06-12).
+
+### Shipped fixes (Audit #3 — branch `fix/neon-cost-audit-3`)
+
+| Change | Impact |
+|--------|--------|
+| `stream:detail:{id}` Redis cache (25s) + bust on lifecycle | Cuts DB reads from live lobby 15s poll |
+| Chat moderation Redis cache (`ban` / `timeout` / `ok`) | Removes 2 DB queries per chat message |
+| `stream:chat:1m:{id}:{bucket}` counter | Replaces snapshot `COUNT` on `stream_messages` |
+| `notif:unread:{userId}` cache (45s) | Fewer unread COUNT queries when socket offline |
+| Stream reminder dormant gate | Skips 5m DB scan when platform idle |
+| Subscription expiring scan dormant gate | Skips hourly heavy scan; still expires due subs |
+| `configuration.ts` poolMax default **5** for Neon | Aligns with `parse-database-config.ts` |
+| Mux sync busts stream detail cache on status change | Prevents stale stream metadata |
+
+### Query audit (code review — EXPLAIN via admin `query-stats` post-deploy)
+
+**Top expected hot queries** (watch after `query-stats` reset):
+
+1. `SELECT` streams by id + user join — **mitigated** by stream detail cache
+2. `COUNT` notifications unread — **mitigated** by unread cache
+3. `SELECT` stream_messages moderation — **mitigated** by mod cache
+4. `SELECT` streams live/upcoming lists — already cached (20s) from Audit #2
+5. Entitlement checks — already cached (60s socket + entitlements service)
+
+**Indexes:** notification composite index exists (migration `1795000000000`). No new indexes added — add only if `EXPLAIN` shows seq scans after Audit #3 deploy.
+
+```bash
+# Baseline after Audit #3 deploy
+curl -X POST https://api.forgestudios.net/api/v1/admin/database/query-stats/reset \
+  -H "Authorization: Bearer $ADMIN_JWT"
+# Wait 24h, then:
+curl "https://api.forgestudios.net/api/v1/admin/database/query-stats?limit=50" \
+  -H "Authorization: Bearer $ADMIN_JWT"
+```
 
 ---
 

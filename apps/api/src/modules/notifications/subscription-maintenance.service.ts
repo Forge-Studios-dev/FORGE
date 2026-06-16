@@ -5,6 +5,7 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 import { NotificationsService } from './notifications.service';
 import { NotificationType } from './entities/notification.entity';
 import { PushDispatchService } from './push-dispatch.service';
+import { isPlatformDormant } from '../../common/streaming/platform-dormant.util';
 
 @Injectable()
 export class SubscriptionMaintenanceService {
@@ -20,60 +21,66 @@ export class SubscriptionMaintenanceService {
   /** Invoked by BullMQ worker (hourly repeatable job). */
   async runMaintenance() {
     try {
-      const expiring = await this.entitlementsService.getExpiringSubscriptions(3);
-      const pending: Array<{
-        userId: string;
-        title: string;
-        body: string;
-        metadata: Record<string, unknown>;
-        pushData: Record<string, string>;
-      }> = [];
+      const dormant = await isPlatformDormant(this.redis);
 
-      for (const sub of expiring) {
-        const dedupeKey = `sub:expiring:notified:${sub.id}`;
-        const already = await this.redis.get(dedupeKey);
-        if (already) continue;
+      if (!dormant) {
+        const expiring = await this.entitlementsService.getExpiringSubscriptions(3);
+        const pending: Array<{
+          userId: string;
+          title: string;
+          body: string;
+          metadata: Record<string, unknown>;
+          pushData: Record<string, string>;
+        }> = [];
 
-        const tierName = sub.tier?.name ?? 'Membership';
-        const daysLeft = sub.expiresAt
-          ? Math.ceil((sub.expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000))
-          : 3;
-        const title = `${tierName} expiring soon`;
-        const body = `Your membership expires in ${daysLeft} day(s).`;
+        for (const sub of expiring) {
+          const dedupeKey = `sub:expiring:notified:${sub.id}`;
+          const already = await this.redis.get(dedupeKey);
+          if (already) continue;
 
-        pending.push({
-          userId: sub.userId,
-          title,
-          body,
-          metadata: {
-            subscriptionId: sub.id,
-            creatorId: sub.creatorId,
-            tierId: sub.tierId,
-            expiresAt: sub.expiresAt?.toISOString(),
-          },
-          pushData: { type: 'subscription_expiring', creatorId: sub.creatorId },
-        });
-        await this.redis.setex(dedupeKey, 3 * 24 * 60 * 60, '1');
-      }
+          const tierName = sub.tier?.name ?? 'Membership';
+          const daysLeft = sub.expiresAt
+            ? Math.ceil((sub.expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000))
+            : 3;
+          const title = `${tierName} expiring soon`;
+          const body = `Your membership expires in ${daysLeft} day(s).`;
 
-      if (pending.length) {
-        await this.notificationsService.createMany(
-          pending.map((item) => ({
-            userId: item.userId,
-            type: NotificationType.SUBSCRIPTION_EXPIRING,
-            title: item.title,
-            body: item.body,
-            metadata: item.metadata,
-          })),
-        );
-        await this.pushDispatch.enqueueMany(
-          pending.map((item) => ({
-            userId: item.userId,
-            title: item.title,
-            body: item.body,
-            data: item.pushData,
-          })),
-        );
+          pending.push({
+            userId: sub.userId,
+            title,
+            body,
+            metadata: {
+              subscriptionId: sub.id,
+              creatorId: sub.creatorId,
+              tierId: sub.tierId,
+              expiresAt: sub.expiresAt?.toISOString(),
+            },
+            pushData: { type: 'subscription_expiring', creatorId: sub.creatorId },
+          });
+          await this.redis.setex(dedupeKey, 3 * 24 * 60 * 60, '1');
+        }
+
+        if (pending.length) {
+          await this.notificationsService.createMany(
+            pending.map((item) => ({
+              userId: item.userId,
+              type: NotificationType.SUBSCRIPTION_EXPIRING,
+              title: item.title,
+              body: item.body,
+              metadata: item.metadata,
+            })),
+          );
+          await this.pushDispatch.enqueueMany(
+            pending.map((item) => ({
+              userId: item.userId,
+              title: item.title,
+              body: item.body,
+              data: item.pushData,
+            })),
+          );
+        }
+      } else {
+        this.logger.debug('Subscription expiring scan skipped — platform dormant');
       }
 
       const expired = await this.entitlementsService.expireDueSubscriptions();

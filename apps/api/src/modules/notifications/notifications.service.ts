@@ -1,9 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { DeviceToken, DevicePlatform } from './entities/device-token.entity';
+import {
+  bustUnreadCountCache,
+  getCachedUnreadCount,
+  setCachedUnreadCount,
+} from '../../common/notifications/unread-count-cache.util';
 
 export type CreateNotificationInput = {
   userId: string;
@@ -16,6 +23,7 @@ export type CreateNotificationInput = {
 @Injectable()
 export class NotificationsService {
   private static readonly INSERT_CHUNK = 500;
+  private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
     @InjectRepository(Notification)
@@ -23,6 +31,7 @@ export class NotificationsService {
     @InjectRepository(DeviceToken)
     private readonly deviceTokenRepository: Repository<DeviceToken>,
     private readonly eventEmitter: EventEmitter2,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   async create(input: CreateNotificationInput) {
@@ -35,6 +44,7 @@ export class NotificationsService {
       readAt: null,
     });
     const saved = await this.notificationRepository.save(notif);
+    void bustUnreadCountCache(this.redis, input.userId, this.logger);
     this.eventEmitter.emit('notification.created', {
       userId: input.userId,
       notification: saved,
@@ -59,6 +69,10 @@ export class NotificationsService {
         }),
       );
       const saved = await this.notificationRepository.save(entities);
+      const userIds = new Set(saved.map((n) => n.userId));
+      for (const uid of userIds) {
+        void bustUnreadCountCache(this.redis, uid, this.logger);
+      }
       for (const notif of saved) {
         this.eventEmitter.emit('notification.created', {
           userId: notif.userId,
@@ -113,9 +127,14 @@ export class NotificationsService {
   }
 
   async getUnreadCount(userId: string): Promise<number> {
-    return this.notificationRepository.count({
+    const cached = await getCachedUnreadCount(this.redis, userId, this.logger);
+    if (cached != null) return cached;
+
+    const count = await this.notificationRepository.count({
       where: { userId, readAt: IsNull() },
     });
+    void setCachedUnreadCount(this.redis, userId, count, this.logger);
+    return count;
   }
 
   async markRead(userId: string, id: string) {
@@ -124,6 +143,7 @@ export class NotificationsService {
     if (!notif.readAt) {
       notif.readAt = new Date();
       await this.notificationRepository.save(notif);
+      void bustUnreadCountCache(this.redis, userId, this.logger);
     }
     return notif;
   }
@@ -133,6 +153,7 @@ export class NotificationsService {
       { userId, readAt: IsNull() },
       { readAt: new Date() },
     );
+    void bustUnreadCountCache(this.redis, userId, this.logger);
     return { ok: true };
   }
 
