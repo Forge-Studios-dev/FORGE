@@ -6,11 +6,15 @@ import {
   Param,
   Patch,
   Post,
+  Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { EntitlementsService } from './entitlements.service';
-import { CreateTierDto, UpdateTierDto, MockSubscriptionDto } from './dto/tier.dto';
+import { CreateTierDto, UpdateTierDto, MockSubscriptionDto, CreateTierEntitlementDto } from './dto/tier.dto';
+import { MemberSubscriptionStatus } from './entities/member-subscription.entity';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
@@ -81,5 +85,77 @@ export class EntitlementsController {
   @ApiOperation({ summary: 'Cancel membership for a creator' })
   cancelSubscription(@CurrentUser() user: JwtPayload, @Param('creatorId') creatorId: string) {
     return this.entitlementsService.cancelMySubscription(user.sub, creatorId);
+  }
+
+  @Get('creators/me/subscribers/analytics')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Subscriber analytics summary for creator dashboard' })
+  subscriberAnalytics(@CurrentUser() user: JwtPayload) {
+    return this.entitlementsService.getSubscriberAnalytics(user.sub);
+  }
+
+  @Get('creators/me/subscribers')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'List active subscribers for creator' })
+  listSubscribers(
+    @CurrentUser() user: JwtPayload,
+    @Query('limit') limit = 50,
+    @Query('offset') offset = 0,
+    @Query('status') status?: MemberSubscriptionStatus,
+  ) {
+    return this.entitlementsService.listSubscribersForCreator(user.sub, {
+      limit: Number(limit) || 50,
+      offset: Number(offset) || 0,
+      status,
+    });
+  }
+
+  @Get('creators/me/subscribers/export')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Export subscribers as CSV' })
+  async exportSubscribers(@CurrentUser() user: JwtPayload, @Res() res: Response) {
+    const csv = await this.entitlementsService.exportSubscribersCsv(user.sub);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="subscribers.csv"');
+    res.send(csv);
+  }
+
+  @Post('creators/me/subscribers/:subscriptionId/suspend')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Suspend a subscriber membership' })
+  suspendSubscriber(
+    @CurrentUser() user: JwtPayload,
+    @Param('subscriptionId') subscriptionId: string,
+  ) {
+    return this.entitlementsService.suspendSubscriber(user.sub, subscriptionId);
+  }
+
+  @Get('creators/me/tiers/:tierId/entitlements')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'List tier entitlements' })
+  listTierEntitlements(@CurrentUser() user: JwtPayload, @Param('tierId') tierId: string) {
+    return this.entitlementsService.listTierEntitlements(user.sub, tierId);
+  }
+
+  @Post('creators/me/tiers/:tierId/entitlements')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Add tier entitlement' })
+  addTierEntitlement(
+    @CurrentUser() user: JwtPayload,
+    @Param('tierId') tierId: string,
+    @Body() dto: CreateTierEntitlementDto,
+  ) {
+    return this.entitlementsService.addTierEntitlement(user.sub, tierId, dto);
+  }
+
+  @Delete('creators/me/tiers/:tierId/entitlements/:entitlementId')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Remove tier entitlement' })
+  removeTierEntitlement(
+    @CurrentUser() user: JwtPayload,
+    @Param('tierId') tierId: string,
+    @Param('entitlementId') entitlementId: string,
+  ) {
+    return this.entitlementsService.removeTierEntitlement(user.sub, tierId, entitlementId);
   }
 }

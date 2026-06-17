@@ -285,6 +285,7 @@ describe('StreamingService endStream', () => {
         scan: jest.fn().mockResolvedValue(['0', []]),
       } as never,
       { add: jest.fn() } as never,
+      { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
     );
 
     jest.spyOn(service['mux'].video.liveStreams, 'disable').mockResolvedValue({} as never);
@@ -346,6 +347,7 @@ describe('StreamingService createStream', () => {
         scan: jest.fn().mockResolvedValue(['0', []]),
       } as never,
       { add: jest.fn() } as never,
+      { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
     );
 
     jest.spyOn(service['mux'].video.liveStreams, 'create').mockRejectedValue(muxError);

@@ -6,6 +6,12 @@ export type CheckoutSessionInput = {
   tierId: string;
   successUrl: string;
   cancelUrl: string;
+  tierName?: string;
+  priceCents?: number;
+  currency?: string;
+  stripePriceId?: string | null;
+  billingInterval?: string;
+  trialDays?: number;
 };
 
 export type EventCheckoutSessionInput = {
@@ -40,9 +46,11 @@ export type ProviderWebhookResult = {
   handled: boolean;
   checkoutType?: 'subscription' | 'event' | 'super_chat';
   subscriptionId?: string;
-  status?: 'active' | 'canceled' | 'expired' | 'completed';
+  status?: 'active' | 'canceled' | 'expired' | 'completed' | 'failed_payment' | 'trial' | 'grace_period' | 'paused';
   sessionId?: string;
   userId?: string;
+  creatorId?: string;
+  tierId?: string;
   streamId?: string;
   amountCents?: number;
   currency?: string;

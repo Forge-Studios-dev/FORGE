@@ -19,6 +19,8 @@ import { CreateStreamDto } from './dto/create-stream.dto';
 import { Video, VideoStatus, VideoVisibility, PublishStatus } from '../content/entities/video.entity';
 import { MuxVodService } from '../content/mux-vod.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { AccessSessionsService } from '../access-sessions/access-sessions.service';
+import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 import { User, UserRole } from '../users/entities/user.entity';
 import {
   muxHlsPlaybackUrl,
@@ -79,6 +81,7 @@ export class StreamingService {
     private readonly eventEmitter: EventEmitter2,
     private readonly muxVodService: MuxVodService,
     private readonly entitlementsService: EntitlementsService,
+    private readonly accessSessionsService: AccessSessionsService,
     private readonly webhookIdempotency: WebhookIdempotencyService,
     private readonly streamViewerService: StreamViewerService,
     private readonly muxLiveSyncService: MuxLiveSyncService,
@@ -264,6 +267,26 @@ export class StreamingService {
       if (!ageOk) {
         hidePlayback = true;
         accessReason = 'age_confirmation_required';
+      }
+    }
+
+    if (
+      !hidePlayback &&
+      viewerId &&
+      !isOwner &&
+      !isAdmin &&
+      [StreamVisibility.SUBSCRIBERS, StreamVisibility.TIER].includes(stream.visibility)
+    ) {
+      try {
+        await this.accessSessionsService.requirePremiumSession(
+          viewerId,
+          stream.userId,
+          AccessSessionType.LIVE,
+          stream.id,
+        );
+      } catch (err) {
+        hidePlayback = true;
+        accessReason = 'subscription_required';
       }
     }
 

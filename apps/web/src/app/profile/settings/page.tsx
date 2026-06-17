@@ -82,7 +82,16 @@ export default function ProfileSettingsPage() {
       </form>
 
       <section className="glass-panel mt-8 rounded-2xl p-6">
-        <h2 className="font-display-forge text-lg font-semibold">Active sessions</h2>
+        <h2 className="font-display-forge text-lg font-semibold">Memberships</h2>
+        <p className="mt-2 text-sm text-on-surface-variant">
+          View and manage your creator memberships.
+        </p>
+        <Link href="/settings/memberships" className="mt-3 inline-block text-sm text-primary hover:underline">
+          My memberships →
+        </Link>
+      </section>
+
+      <section className="glass-panel mt-8 rounded-2xl p-6">
         <div className="mt-4">
           <ActiveSessions />
         </div>

@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsBoolean,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -10,6 +11,8 @@ import {
   MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { BillingInterval } from '../entities/subscription-tier.entity';
+import { TierEntitlementResourceType } from '../entities/tier-entitlement.entity';
 
 export class CreateTierDto {
   @ApiProperty()
@@ -47,6 +50,17 @@ export class CreateTierDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @ApiPropertyOptional({ enum: BillingInterval })
+  @IsOptional()
+  @IsEnum(BillingInterval)
+  billingInterval?: BillingInterval;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  trialDays?: number;
 }
 
 export class UpdateTierDto {
@@ -78,6 +92,34 @@ export class UpdateTierDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ enum: BillingInterval })
+  @IsOptional()
+  @IsEnum(BillingInterval)
+  billingInterval?: BillingInterval;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  trialDays?: number;
+}
+
+export class CreateTierEntitlementDto {
+  @ApiProperty({ enum: TierEntitlementResourceType })
+  @IsEnum(TierEntitlementResourceType)
+  resourceType: TierEntitlementResourceType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  resourceId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  accessLevel?: string;
 }
 
 export class MockSubscriptionDto {

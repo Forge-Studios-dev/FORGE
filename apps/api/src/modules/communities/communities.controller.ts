@@ -12,10 +12,14 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CommunitiesService } from './communities.service';
 import {
+  CreateCategoryDto,
   CreateChannelDto,
-  UpdateChannelDto,
-  SendChannelMessageDto,
+  CreateCommunityDto,
   InviteChannelMemberDto,
+  SendChannelMessageDto,
+  UpdateCategoryDto,
+  UpdateChannelDto,
+  UpdateCommunityDto,
 } from './dto/community.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
@@ -30,15 +34,115 @@ export class CommunitiesController {
 
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
+  @Get('creators/:creatorId/communities')
+  @ApiOperation({ summary: 'List creator communities' })
+  listCommunities(@Param('creatorId') creatorId: string, @CurrentUser() user?: JwtPayload) {
+    return this.communitiesService.listCommunitiesForCreator(creatorId, user?.sub, user?.role);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('creators/:creatorId/communities/:slug')
+  @ApiOperation({ summary: 'Get community by creator and slug' })
+  getCommunityBySlug(
+    @Param('creatorId') creatorId: string,
+    @Param('slug') slug: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.communitiesService.getCommunityBySlug(creatorId, slug, user?.sub, user?.role);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('communities/id/:communityId')
+  @ApiOperation({ summary: 'Get community by ID' })
+  getCommunityById(@Param('communityId') communityId: string, @CurrentUser() user?: JwtPayload) {
+    return this.communitiesService.getCommunityById(communityId, user?.sub, user?.role);
+  }
+
+  /** @deprecated Use GET /creators/:creatorId/communities/:slug — returns default community */
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/:creatorId')
-  @ApiOperation({ summary: 'Get creator community and visible channels' })
+  @ApiOperation({ summary: 'Get creator default community (legacy)' })
   getCommunity(@Param('creatorId') creatorId: string, @CurrentUser() user?: JwtPayload) {
     return this.communitiesService.getCommunityByCreator(creatorId, user?.sub, user?.role);
   }
 
+  @Post('creators/me/communities')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Create a community' })
+  createCommunity(@CurrentUser() user: JwtPayload, @Body() dto: CreateCommunityDto) {
+    return this.communitiesService.createCommunity(user.sub, dto);
+  }
+
+  @Patch('creators/me/communities/:communityId')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Update community settings' })
+  updateCommunity(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Body() dto: UpdateCommunityDto,
+  ) {
+    return this.communitiesService.updateCommunity(user.sub, communityId, dto);
+  }
+
+  @Get('creators/me/communities/:communityId/categories')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'List community categories' })
+  listCategories(@CurrentUser() user: JwtPayload, @Param('communityId') communityId: string) {
+    return this.communitiesService.listCategories(user.sub, communityId);
+  }
+
+  @Post('creators/me/communities/:communityId/categories')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Create a category' })
+  createCategory(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Body() dto: CreateCategoryDto,
+  ) {
+    return this.communitiesService.createCategory(user.sub, communityId, dto);
+  }
+
+  @Patch('creators/me/communities/:communityId/categories/:categoryId')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Update a category' })
+  updateCategory(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Param('categoryId') categoryId: string,
+    @Body() dto: UpdateCategoryDto,
+  ) {
+    return this.communitiesService.updateCategory(user.sub, communityId, categoryId, dto);
+  }
+
+  @Delete('creators/me/communities/:communityId/categories/:categoryId')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Delete a category' })
+  deleteCategory(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Param('categoryId') categoryId: string,
+  ) {
+    return this.communitiesService.deleteCategory(user.sub, communityId, categoryId);
+  }
+
+  @Post('creators/me/communities/:communityId/channels')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Create a channel in a community' })
+  createChannelInCommunity(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Body() dto: CreateChannelDto,
+  ) {
+    return this.communitiesService.createChannel(user.sub, dto, communityId);
+  }
+
+  /** @deprecated Prefer POST /creators/me/communities/:communityId/channels */
   @Post('creators/me/channels')
   @UseGuards(CreatorApprovedGuard)
-  @ApiOperation({ summary: 'Create a community channel' })
+  @ApiOperation({ summary: 'Create a community channel (legacy — default community)' })
   createChannel(@CurrentUser() user: JwtPayload, @Body() dto: CreateChannelDto) {
     return this.communitiesService.createChannel(user.sub, dto);
   }
@@ -95,7 +199,7 @@ export class CommunitiesController {
   }
 
   @Delete('channels/:channelId/messages/:messageId')
-  @ApiOperation({ summary: 'Soft-delete a channel message' })
+  @ApiOperation({ summary: 'Soft-delete a channel message (author, creator, or mod)' })
   deleteMessage(
     @Param('channelId') channelId: string,
     @Param('messageId') messageId: string,

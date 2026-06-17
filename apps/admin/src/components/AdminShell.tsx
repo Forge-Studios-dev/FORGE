@@ -11,6 +11,7 @@ const NAV = [
   { href: '/creator-approvals', label: 'Approvals', icon: 'verified' },
   { href: '/content', label: 'Content', icon: 'video_library' },
   { href: '/reports', label: 'Reports', icon: 'flag' },
+  { href: '/community', label: 'Community', icon: 'forum' },
   { href: '/users', label: 'Users', icon: 'group' },
   { href: '/categories', label: 'Categories', icon: 'category' },
   { href: '/live', label: 'Live', icon: 'sensors' },

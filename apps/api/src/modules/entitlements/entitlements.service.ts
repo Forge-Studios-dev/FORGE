@@ -1,8 +1,11 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -22,6 +25,17 @@ import { EngagementService } from '../engagement/engagement.service';
 import { ChannelType } from './entities/channel-type.enum';
 import { ContentVisibility, StreamVisibility } from './content-access.types';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
+import { TierEntitlement, TierEntitlementResourceType } from './entities/tier-entitlement.entity';
+import { BillingInterval } from './entities/subscription-tier.entity';
+import { StripeTierSyncService } from '../billing/stripe-tier-sync.service';
+
+/** Subscription statuses that grant content access. */
+export const ACCESS_GRANTING_STATUSES: MemberSubscriptionStatus[] = [
+  MemberSubscriptionStatus.ACTIVE,
+  MemberSubscriptionStatus.TRIAL,
+  MemberSubscriptionStatus.GRACE_PERIOD,
+  MemberSubscriptionStatus.RENEWAL_PENDING,
+];
 
 export type AccessCheckInput = {
   creatorId: string;
@@ -65,10 +79,14 @@ export class EntitlementsService {
     private readonly subscriptionRepository: Repository<MemberSubscription>,
     @InjectRepository(StreamEventPurchase)
     private readonly streamPurchaseRepository: Repository<StreamEventPurchase>,
+    @InjectRepository(TierEntitlement)
+    private readonly tierEntitlementRepository: Repository<TierEntitlement>,
     private readonly engagementService: EngagementService,
     private readonly configService: ConfigService,
     @InjectRedis() private readonly redis: Redis,
     private readonly dataSource: DataSource,
+    @Optional() @Inject(forwardRef(() => StripeTierSyncService))
+    private readonly stripeTierSync?: StripeTierSyncService,
   ) {}
 
   private subscriptionCacheKey(userId: string, creatorId: string): string {
@@ -183,9 +201,31 @@ export class EntitlementsService {
       currency: dto.currency ?? 'INR',
       benefits: dto.benefits ?? [],
       sortOrder: dto.sortOrder ?? (maxOrder?.max ? Number(maxOrder.max) + 1 : 0),
+      billingInterval: dto.billingInterval ?? BillingInterval.MONTHLY,
+      trialDays: dto.trialDays ?? 0,
     });
     const saved = await this.tierRepository.save(tier);
+    await this.syncTierToStripe(saved);
     return toPublicTier(saved);
+  }
+
+  private async syncTierToStripe(tier: SubscriptionTier): Promise<void> {
+    if (!this.stripeTierSync?.isEnabled()) return;
+    const synced = await this.stripeTierSync.syncTier(tier);
+    if (synced) {
+      tier.stripeProductId = synced.productId;
+      tier.stripePriceId = synced.priceId;
+      await this.tierRepository.save(tier);
+      await this.bustTierCache(tier.id);
+    }
+  }
+
+  async updateTierStripeIds(tierId: string, productId: string, priceId: string) {
+    await this.tierRepository.update(tierId, {
+      stripeProductId: productId,
+      stripePriceId: priceId,
+    });
+    await this.bustTierCache(tierId);
   }
 
   async updateTier(creatorId: string, tierId: string, dto: UpdateTierDto) {
@@ -197,9 +237,12 @@ export class EntitlementsService {
     if (dto.benefits !== undefined) tier.benefits = dto.benefits;
     if (dto.sortOrder !== undefined) tier.sortOrder = dto.sortOrder;
     if (dto.isActive !== undefined) tier.isActive = dto.isActive;
+    if (dto.billingInterval !== undefined) tier.billingInterval = dto.billingInterval;
+    if (dto.trialDays !== undefined) tier.trialDays = dto.trialDays;
 
     const saved = await this.tierRepository.save(tier);
     await this.bustTierCache(tierId);
+    await this.syncTierToStripe(saved);
     return toPublicTier(saved);
   }
 
@@ -235,7 +278,7 @@ export class EntitlementsService {
       .leftJoinAndSelect('s.tier', 'tier')
       .where('s.user_id = :userId', { userId })
       .andWhere('s.creator_id = :creatorId', { creatorId })
-      .andWhere('s.status = :status', { status: MemberSubscriptionStatus.ACTIVE })
+      .andWhere('s.status IN (:...statuses)', { statuses: ACCESS_GRANTING_STATUSES })
       .andWhere('s.starts_at <= :now', { now })
       .andWhere('(s.expires_at IS NULL OR s.expires_at > :now)', { now })
       .orderBy('s.created_at', 'DESC')
@@ -409,7 +452,7 @@ export class EntitlementsService {
       .leftJoinAndSelect('s.tier', 'tier')
       .where('s.user_id = :userId', { userId })
       .andWhere('s.creator_id IN (:...creatorIds)', { creatorIds: unique })
-      .andWhere('s.status = :status', { status: MemberSubscriptionStatus.ACTIVE })
+      .andWhere('s.status IN (:...statuses)', { statuses: ACCESS_GRANTING_STATUSES })
       .andWhere('s.starts_at <= :now', { now })
       .andWhere('(s.expires_at IS NULL OR s.expires_at > :now)', { now })
       .orderBy('s.created_at', 'DESC')
@@ -597,6 +640,8 @@ export class EntitlementsService {
       type: ChannelType;
       requiredTierId?: string | null;
       creatorId: string;
+      communityId?: string | null;
+      channelId?: string | null;
       isMember?: boolean;
     },
     opts?: { isOwner?: boolean; isAdmin?: boolean },
@@ -612,24 +657,58 @@ export class EntitlementsService {
         : { allowed: false, reason: 'invite_required' };
     }
 
+    let result: AccessCheckResult;
     if (channel.type === ChannelType.SUBSCRIBERS) {
-      return this.checkAccess({
+      result = await this.checkAccess({
         creatorId: channel.creatorId,
         visibility: ContentVisibility.SUBSCRIBERS,
         viewerId,
       });
-    }
-
-    if (channel.type === ChannelType.TIER) {
-      return this.checkAccess({
+    } else if (channel.type === ChannelType.TIER) {
+      result = await this.checkAccess({
         creatorId: channel.creatorId,
         visibility: ContentVisibility.TIER,
         requiredTierId: channel.requiredTierId,
         viewerId,
       });
+    } else {
+      return { allowed: false, reason: 'not_available' };
     }
 
-    return { allowed: false, reason: 'not_available' };
+    if (!result.allowed || !viewerId) return result;
+    const entitled = await this.verifyChannelTierEntitlements(
+      viewerId,
+      channel.creatorId,
+      channel.communityId,
+      channel.channelId,
+    );
+    return entitled ? result : { allowed: false, reason: 'tier_required' };
+  }
+
+  private async verifyChannelTierEntitlements(
+    viewerId: string,
+    creatorId: string,
+    communityId?: string | null,
+    channelId?: string | null,
+  ): Promise<boolean> {
+    if (channelId) {
+      const byChannel = await this.hasTierEntitlement(
+        viewerId,
+        creatorId,
+        TierEntitlementResourceType.CHANNEL,
+        channelId,
+      );
+      if (byChannel) return true;
+    }
+    if (communityId) {
+      return this.hasTierEntitlement(
+        viewerId,
+        creatorId,
+        TierEntitlementResourceType.COMMUNITY,
+        communityId,
+      );
+    }
+    return true;
   }
 
   /** Batch channel gates for community lists (F-503) — one checkAccessMany for tier/subscriber channels. */
@@ -640,6 +719,8 @@ export class EntitlementsService {
       type: ChannelType;
       requiredTierId?: string | null;
       creatorId: string;
+      communityId?: string | null;
+      channelId?: string | null;
       isMember?: boolean;
     }>,
     opts?: { isOwner?: boolean; isAdmin?: boolean },
@@ -694,6 +775,22 @@ export class EntitlementsService {
       batchIndices.forEach((channelIdx, j) => {
         results[channelIdx] = access[j];
       });
+    }
+
+    if (viewerId) {
+      for (let i = 0; i < channels.length; i++) {
+        const r = results[i];
+        if (!r?.allowed) continue;
+        const ch = channels[i];
+        if (ch.type === ChannelType.PUBLIC || ch.type === ChannelType.INVITE) continue;
+        const entitled = await this.verifyChannelTierEntitlements(
+          viewerId,
+          ch.creatorId,
+          ch.communityId,
+          ch.channelId,
+        );
+        if (!entitled) results[i] = { allowed: false, reason: 'tier_required' };
+      }
     }
 
     return results as AccessCheckResult[];
@@ -754,7 +851,7 @@ export class EntitlementsService {
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.tier', 'tier')
       .where('s.creator_id = :creatorId', { creatorId })
-      .andWhere('s.status = :status', { status: MemberSubscriptionStatus.ACTIVE })
+      .andWhere('s.status IN (:...statuses)', { statuses: ACCESS_GRANTING_STATUSES })
       .andWhere('s.starts_at <= :now', { now })
       .andWhere('(s.expires_at IS NULL OR s.expires_at > :now)', { now })
       .getMany();
@@ -798,10 +895,190 @@ export class EntitlementsService {
     });
     if (!sub) throw new NotFoundException('No active subscription found');
 
+    if (sub.externalRef && sub.source === MemberSubscriptionSource.STRIPE && this.stripeTierSync?.isEnabled()) {
+      await this.stripeTierSync.cancelSubscription(sub.externalRef);
+    }
+
     sub.status = MemberSubscriptionStatus.CANCELED;
     await this.subscriptionRepository.save(sub);
     await this.bustSubscriptionCache(userId, creatorId);
     return { canceled: true };
+  }
+
+  async cancelByExternalRef(externalRef: string): Promise<void> {
+    const sub = await this.subscriptionRepository.findOne({
+      where: { externalRef },
+      order: { createdAt: 'DESC' },
+    });
+    if (!sub || sub.status === MemberSubscriptionStatus.CANCELED) return;
+    sub.status = MemberSubscriptionStatus.CANCELED;
+    await this.subscriptionRepository.save(sub);
+    await this.bustSubscriptionCache(sub.userId, sub.creatorId);
+  }
+
+  async markSubscriptionFailedPayment(externalRef: string): Promise<void> {
+    const sub = await this.subscriptionRepository.findOne({
+      where: { externalRef },
+      order: { createdAt: 'DESC' },
+    });
+    if (!sub) return;
+    sub.status = MemberSubscriptionStatus.FAILED_PAYMENT;
+    await this.subscriptionRepository.save(sub);
+    await this.bustSubscriptionCache(sub.userId, sub.creatorId);
+  }
+
+  async hasTierEntitlement(
+    userId: string,
+    creatorId: string,
+    resourceType: TierEntitlementResourceType,
+    resourceId?: string | null,
+  ): Promise<boolean> {
+    const sub = await this.getActiveSubscription(userId, creatorId);
+    if (!sub) return false;
+
+    const entitlements = await this.tierEntitlementRepository.find({
+      where: { tierId: sub.tierId },
+    });
+    if (entitlements.length === 0) return true;
+
+    return entitlements.some(
+      (e) =>
+        e.resourceType === resourceType &&
+        (e.resourceId == null || e.resourceId === resourceId || e.resourceId === creatorId),
+    );
+  }
+
+  async listTierEntitlements(creatorId: string, tierId: string) {
+    const tier = await this.getTierById(tierId);
+    if (tier.creatorId !== creatorId) throw new ForbiddenException();
+    return this.tierEntitlementRepository.find({ where: { tierId }, order: { createdAt: 'ASC' } });
+  }
+
+  async addTierEntitlement(
+    creatorId: string,
+    tierId: string,
+    input: { resourceType: TierEntitlementResourceType; resourceId?: string | null; accessLevel?: string },
+  ) {
+    const tier = await this.getTierById(tierId);
+    if (tier.creatorId !== creatorId) throw new ForbiddenException();
+    const ent = await this.tierEntitlementRepository.save(
+      this.tierEntitlementRepository.create({
+        tierId,
+        resourceType: input.resourceType,
+        resourceId: input.resourceId ?? null,
+        accessLevel: input.accessLevel ?? 'full',
+      }),
+    );
+    return ent;
+  }
+
+  async removeTierEntitlement(creatorId: string, tierId: string, entitlementId: string) {
+    const tier = await this.getTierById(tierId);
+    if (tier.creatorId !== creatorId) throw new ForbiddenException();
+    const ent = await this.tierEntitlementRepository.findOne({ where: { id: entitlementId, tierId } });
+    if (!ent) throw new NotFoundException('Entitlement not found');
+    await this.tierEntitlementRepository.delete(entitlementId);
+    return { deleted: true };
+  }
+
+  async updateSubscriptionStatusByExternalRef(
+    externalRef: string,
+    status: MemberSubscriptionStatus,
+  ): Promise<void> {
+    const sub = await this.subscriptionRepository.findOne({
+      where: { externalRef },
+      order: { createdAt: 'DESC' },
+    });
+    if (!sub) return;
+    sub.status = status;
+    await this.subscriptionRepository.save(sub);
+    await this.bustSubscriptionCache(sub.userId, sub.creatorId);
+  }
+
+  async listSubscribersForCreator(
+    creatorId: string,
+    opts?: { status?: MemberSubscriptionStatus; limit?: number; offset?: number },
+  ) {
+    const qb = this.subscriptionRepository
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.user', 'user')
+      .leftJoinAndSelect('s.tier', 'tier')
+      .where('s.creator_id = :creatorId', { creatorId })
+      .orderBy('s.created_at', 'DESC')
+      .take(opts?.limit ?? 50)
+      .skip(opts?.offset ?? 0);
+
+    if (opts?.status) {
+      qb.andWhere('s.status = :status', { status: opts.status });
+    } else {
+      qb.andWhere('s.status IN (:...statuses)', { statuses: ACCESS_GRANTING_STATUSES });
+    }
+
+    const subs = await qb.getMany();
+    return subs.map((s) => ({
+      id: s.id,
+      userId: s.userId,
+      username: s.user?.username,
+      displayName: s.user?.displayName,
+      tierName: s.tier?.name,
+      status: s.status,
+      source: s.source,
+      startsAt: s.startsAt,
+      expiresAt: s.expiresAt,
+      createdAt: s.createdAt,
+    }));
+  }
+
+  async suspendSubscriber(creatorId: string, subscriptionId: string) {
+    const sub = await this.subscriptionRepository.findOne({ where: { id: subscriptionId, creatorId } });
+    if (!sub) throw new NotFoundException('Subscription not found');
+    sub.status = MemberSubscriptionStatus.SUSPENDED;
+    await this.subscriptionRepository.save(sub);
+    await this.bustSubscriptionCache(sub.userId, creatorId);
+    return { suspended: true };
+  }
+
+  async exportSubscribersCsv(creatorId: string): Promise<string> {
+    const subs = await this.listSubscribersForCreator(creatorId, { limit: 5000 });
+    const header = 'userId,username,displayName,tier,status,source,startsAt,expiresAt';
+    const rows = subs.map(
+      (s) =>
+        `${s.userId},${s.username ?? ''},${s.displayName ?? ''},${s.tierName ?? ''},${s.status},${s.source},${s.startsAt?.toISOString() ?? ''},${s.expiresAt?.toISOString() ?? ''}`,
+    );
+    return [header, ...rows].join('\n');
+  }
+
+  async getSubscriberAnalytics(creatorId: string) {
+    const rows = await this.subscriptionRepository
+      .createQueryBuilder('s')
+      .select('s.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('s.creator_id = :creatorId', { creatorId })
+      .groupBy('s.status')
+      .getRawMany<{ status: string; count: string }>();
+
+    const byStatus = Object.fromEntries(rows.map((r) => [r.status, Number(r.count)]));
+    const active = byStatus[MemberSubscriptionStatus.ACTIVE] ?? 0;
+    const trial = byStatus[MemberSubscriptionStatus.TRIAL] ?? 0;
+    const canceled = byStatus[MemberSubscriptionStatus.CANCELED] ?? 0;
+    const mrrRows = await this.subscriptionRepository
+      .createQueryBuilder('s')
+      .leftJoin('s.tier', 'tier')
+      .select('SUM(tier.price_cents)', 'mrrCents')
+      .where('s.creator_id = :creatorId', { creatorId })
+      .andWhere('s.status IN (:...statuses)', {
+        statuses: [MemberSubscriptionStatus.ACTIVE, MemberSubscriptionStatus.TRIAL],
+      })
+      .getRawOne<{ mrrCents: string | null }>();
+
+    return {
+      active,
+      trial,
+      canceled,
+      total: rows.reduce((sum, r) => sum + Number(r.count), 0),
+      mrrCents: Number(mrrRows?.mrrCents ?? 0),
+      byStatus,
+    };
   }
 
   async expireDueSubscriptions(): Promise<number> {

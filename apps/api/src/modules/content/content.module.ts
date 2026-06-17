@@ -18,6 +18,7 @@ import { ViewCountFlushService } from './view-count-flush.service';
 import { VideoMultipartService } from './video-multipart.service';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { EngagementModule } from '../engagement/engagement.module';
+import { AccessSessionsModule } from '../access-sessions/access-sessions.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { EngagementModule } from '../engagement/engagement.module';
     forwardRef(() => UsersModule),
     forwardRef(() => EntitlementsModule),
     EngagementModule,
+    AccessSessionsModule,
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
       defaultJobOptions: {
