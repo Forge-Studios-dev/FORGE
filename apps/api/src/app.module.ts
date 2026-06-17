@@ -35,6 +35,9 @@ import { PlatformModule } from './modules/platform/platform.module';
 import { EntitlementsModule } from './modules/entitlements/entitlements.module';
 import { StreamChatModule } from './modules/stream-chat/stream-chat.module';
 import { CommunitiesModule } from './modules/communities/communities.module';
+import { CoursesModule } from './modules/courses/courses.module';
+import { GamificationModule } from './modules/gamification/gamification.module';
+import { AccessSessionsModule } from './modules/access-sessions/access-sessions.module';
 import { DirectMessagesModule } from './modules/direct-messages/direct-messages.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { forgeClsSetup } from './common/cls/forge-cls.setup';
@@ -264,6 +267,9 @@ function sentryFilterProviders() {
     BillingModule,
     StreamChatModule,
     CommunitiesModule,
+    CoursesModule,
+    GamificationModule,
+    AccessSessionsModule,
     DirectMessagesModule,
     ...(shouldLoadWorkersModule() ? [WorkersModule] : []),
     AdminModule,

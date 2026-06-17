@@ -16,7 +16,7 @@ Skill-first platform: tutorial video, live teaching, expertise-based audiences. 
 | Live | Mux + stream chat |
 | Engagement | Likes, comments, follows, playlists |
 | Community | Creator channels (tier-gated) |
-| Monetization (phase 1) | Mock memberships — no live payments |
+| Monetization (phase 1) | Mock memberships + partial Stripe (paid events, super chat) |
 | Design | `@forge/design-system` + optional Stitch blueprints (`/blueprints`) |
 | Operations | Admin moderation & analytics summary |
 
@@ -40,7 +40,7 @@ Guest → user → creator (approved) · admin on separate admin app.
 | Mux HLS URL playback | ✅ | ✅ |
 | `accessDenied` / `accessReason` UI | ✅ | ✅ |
 | Live chat (Socket.IO) | ✅ | ✅ |
-| Membership purchase (Stripe) | — | — |
+| Membership purchase (Stripe) | partial | — |
 
 Modules & routes: [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) · Status: [§16](./FORGE_PROJECT_MASTER.md#16-feature-status-matrix)
 

@@ -15,6 +15,13 @@ export enum MemberSubscriptionStatus {
   ACTIVE = 'active',
   CANCELED = 'canceled',
   EXPIRED = 'expired',
+  TRIAL = 'trial',
+  GRACE_PERIOD = 'grace_period',
+  PAUSED = 'paused',
+  RENEWAL_PENDING = 'renewal_pending',
+  FAILED_PAYMENT = 'failed_payment',
+  SUSPENDED = 'suspended',
+  REFUNDED = 'refunded',
 }
 
 export enum MemberSubscriptionSource {

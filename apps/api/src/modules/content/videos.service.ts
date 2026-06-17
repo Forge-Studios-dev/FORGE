@@ -77,6 +77,8 @@ import { MultipartCompletePartsDto } from './dto/multipart-complete-parts.dto';
 import { MultipartCheckpointDto } from './dto/multipart-checkpoint.dto';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { EngagementService } from '../engagement/engagement.service';
+import { AccessSessionsService } from '../access-sessions/access-sessions.service';
+import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 
 export const VIDEO_PROCESSING_QUEUE = 'video-processing';
 export const VIDEO_PROCESSING_DLQ_QUEUE = 'video-processing-dlq';
@@ -129,6 +131,7 @@ export class VideosService {
     private readonly muxVodService: MuxVodService,
     private readonly entitlementsService: EntitlementsService,
     private readonly engagementService: EngagementService,
+    private readonly accessSessionsService: AccessSessionsService,
   ) {
     const awsCreds = {
       region: configService.get<string>('aws.region') || 'ap-south-1',
@@ -184,6 +187,17 @@ export class VideosService {
         isOwner,
         isAdmin,
       });
+      if (
+        viewerId &&
+        [VideoVisibility.SUBSCRIBERS, VideoVisibility.TIER].includes(video.visibility)
+      ) {
+        await this.accessSessionsService.requirePremiumSession(
+          viewerId,
+          video.userId,
+          AccessSessionType.PLAYBACK,
+          video.id,
+        );
+      }
     }
 
     if (!isOwner && !isAdmin) {

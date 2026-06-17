@@ -29,6 +29,7 @@ import { Video } from '../content/entities/video.entity';
 import { ContentModule } from '../content/content.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { BillingModule } from '../billing/billing.module';
+import { AccessSessionsModule } from '../access-sessions/access-sessions.module';
 import { WebhookIdempotencyModule } from '../../common/webhooks/webhook-idempotency.module';
 import { WebhookEvent } from './entities/webhook-event.entity';
 import { StreamViewerService } from './stream-viewer.service';
@@ -93,6 +94,7 @@ import { StreamMessage } from '../stream-chat/entities/stream-message.entity';
     UsersModule,
     ContentModule,
     EntitlementsModule,
+    AccessSessionsModule,
     forwardRef(() => BillingModule),
   ],
   controllers: [StreamingController, StreamAnalyticsController],

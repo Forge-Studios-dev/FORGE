@@ -10,12 +10,13 @@ import {
   PaymentProvider,
 } from './payment-provider.interface';
 import { EntitlementsService } from '../entitlements/entitlements.service';
-import { MemberSubscriptionSource } from '../entitlements/entities/member-subscription.entity';
+import { MemberSubscriptionSource, MemberSubscriptionStatus } from '../entitlements/entities/member-subscription.entity';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 import { Stream, StreamVisibility } from '../streaming/entities/stream.entity';
 import { StreamingService } from '../streaming/streaming.service';
 
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
+import { StripeTierSyncService } from './stripe-tier-sync.service';
 
 @Injectable()
 export class BillingService {
@@ -34,10 +35,34 @@ export class BillingService {
     @Inject(forwardRef(() => StreamingService))
     private readonly streamingService: StreamingService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly stripeTierSync: StripeTierSyncService,
   ) {}
 
   async createCheckout(userId: string, input: Omit<CheckoutSessionInput, 'userId'>) {
-    return this.paymentProvider.createCheckoutSession({ ...input, userId });
+    const tier = await this.entitlementsService.getTierById(input.tierId);
+    if (tier.creatorId !== input.creatorId) {
+      throw new BadRequestException('Tier does not belong to creator');
+    }
+
+    let stripePriceId = tier.stripePriceId;
+    if (this.isBillingEnabled() && !stripePriceId) {
+      const synced = await this.stripeTierSync.syncTier(tier);
+      if (synced) {
+        await this.entitlementsService.updateTierStripeIds(tier.id, synced.productId, synced.priceId);
+        stripePriceId = synced.priceId;
+      }
+    }
+
+    return this.paymentProvider.createCheckoutSession({
+      ...input,
+      userId,
+      tierName: tier.name,
+      priceCents: tier.priceCents,
+      currency: tier.currency,
+      stripePriceId,
+      billingInterval: tier.billingInterval,
+      trialDays: tier.trialDays,
+    });
   }
 
   async createSuperChatCheckout(
@@ -153,24 +178,41 @@ export class BillingService {
           amountCents: result.amountCents,
         });
       }
-    } else if (result.subscriptionId && result.status === 'active') {
-      const meta = JSON.parse(payload.toString('utf8') || '{}') as {
-        data?: { object?: { metadata?: { userId?: string; creatorId?: string; tierId?: string } } };
-      };
-      const sessionMeta = meta.data?.object?.metadata;
-      const userId = result.userId ?? sessionMeta?.userId;
-      const creatorId = sessionMeta?.creatorId;
-      const tierId = sessionMeta?.tierId;
-      if (userId && creatorId && tierId) {
-        await this.entitlementsService.grantSubscription(
-          userId,
-          {
-            creatorId,
-            tierId,
-            externalSubscriptionId: result.subscriptionId,
-          },
-          MemberSubscriptionSource.STRIPE,
+    } else if (result.checkoutType === 'subscription') {
+      if (result.status === 'active' && result.subscriptionId) {
+        const userId = result.userId;
+        const creatorId = result.creatorId;
+        const tierId = result.tierId;
+        if (userId && creatorId && tierId) {
+          await this.entitlementsService.grantSubscription(
+            userId,
+            {
+              creatorId,
+              tierId,
+              externalSubscriptionId: result.subscriptionId,
+            },
+            MemberSubscriptionSource.STRIPE,
+          );
+        }
+      } else if (result.status === 'trial' && result.subscriptionId) {
+        await this.entitlementsService.updateSubscriptionStatusByExternalRef(
+          result.subscriptionId,
+          MemberSubscriptionStatus.TRIAL,
         );
+      } else if (result.status === 'grace_period' && result.subscriptionId) {
+        await this.entitlementsService.updateSubscriptionStatusByExternalRef(
+          result.subscriptionId,
+          MemberSubscriptionStatus.GRACE_PERIOD,
+        );
+      } else if (result.status === 'paused' && result.subscriptionId) {
+        await this.entitlementsService.updateSubscriptionStatusByExternalRef(
+          result.subscriptionId,
+          MemberSubscriptionStatus.PAUSED,
+        );
+      } else if (result.status === 'canceled' && result.subscriptionId) {
+        await this.entitlementsService.cancelByExternalRef(result.subscriptionId);
+      } else if (result.status === 'failed_payment' && result.subscriptionId) {
+        await this.entitlementsService.markSubscriptionFailedPayment(result.subscriptionId);
       }
     }
 

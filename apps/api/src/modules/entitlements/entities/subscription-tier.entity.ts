@@ -11,6 +11,14 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { MemberSubscription } from './member-subscription.entity';
+import { TierEntitlement } from './tier-entitlement.entity';
+
+export enum BillingInterval {
+  MONTHLY = 'monthly',
+  QUARTERLY = 'quarterly',
+  YEARLY = 'yearly',
+  LIFETIME = 'lifetime',
+}
 
 @Entity('subscription_tiers')
 @Index(['creatorId'])
@@ -45,6 +53,21 @@ export class SubscriptionTier {
 
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
+
+  @Column({ name: 'stripe_product_id', type: 'varchar', length: 255, nullable: true })
+  stripeProductId: string | null;
+
+  @Column({ name: 'stripe_price_id', type: 'varchar', length: 255, nullable: true })
+  stripePriceId: string | null;
+
+  @Column({ name: 'billing_interval', length: 32, default: BillingInterval.MONTHLY })
+  billingInterval: BillingInterval;
+
+  @Column({ name: 'trial_days', type: 'int', default: 0 })
+  trialDays: number;
+
+  @OneToMany(() => TierEntitlement, (ent) => ent.tier)
+  entitlements: TierEntitlement[];
 
   @OneToMany(() => MemberSubscription, (sub) => sub.tier)
   subscriptions: MemberSubscription[];

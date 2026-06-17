@@ -12,6 +12,7 @@ import {
 import { Community } from './community.entity';
 import { SubscriptionTier } from '../../entitlements/entities/subscription-tier.entity';
 import { ChannelType } from '../../entitlements/entities/channel-type.enum';
+import { CommunityCategory } from './community-category.entity';
 import { ChannelMember } from './channel-member.entity';
 import { ChannelMessage } from './channel-message.entity';
 
@@ -43,6 +44,13 @@ export class Channel {
   @ManyToOne(() => SubscriptionTier, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'required_tier_id' })
   requiredTier: SubscriptionTier | null;
+
+  @Column({ name: 'category_id', type: 'uuid', nullable: true })
+  categoryId: string | null;
+
+  @ManyToOne(() => CommunityCategory, (cat) => cat.channels, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'category_id' })
+  category: CommunityCategory | null;
 
   @Column({ name: 'sort_order', type: 'int', default: 0 })
   sortOrder: number;

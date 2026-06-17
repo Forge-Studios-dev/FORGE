@@ -23,7 +23,9 @@ import '../../features/studio/presentation/studio_videos_screen.dart';
 import '../../features/studio/presentation/studio_live_screen.dart';
 import '../../features/studio/presentation/studio_settings_screen.dart';
 import '../../features/studio/presentation/studio_analytics_screen.dart';
-import '../../features/studio/presentation/studio_comments_screen.dart';
+import '../../features/studio/presentation/studio_tiers_screen.dart';
+import '../../features/studio/presentation/studio_community_screen.dart';
+import '../../features/studio/presentation/studio_subscribers_screen.dart';
 import '../../features/profile/presentation/profile_settings_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/messages/presentation/messages_screen.dart';
@@ -82,6 +84,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/studio/comments', builder: (_, __) => const StudioCommentsScreen()),
       GoRoute(path: '/studio/live', builder: (_, __) => const StudioLiveScreen()),
       GoRoute(path: '/studio/analytics', builder: (_, __) => const StudioAnalyticsScreen()),
+      GoRoute(path: '/studio/tiers', builder: (_, __) => const StudioTiersScreen()),
+      GoRoute(path: '/studio/subscribers', builder: (_, __) => const StudioSubscribersScreen()),
+      GoRoute(path: '/studio/community', builder: (_, __) => const StudioCommunityScreen()),
       GoRoute(path: '/studio/settings', builder: (_, __) => const StudioSettingsScreen()),
       GoRoute(path: '/profile/settings', builder: (_, __) => const ProfileSettingsScreen()),
       GoRoute(path: '/upload', builder: (_, __) => const UploadScreen()),
@@ -117,6 +122,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/community/:creatorId',
             builder: (_, state) => CommunityScreen(creatorId: state.pathParameters['creatorId']!),
+          ),
+          GoRoute(
+            path: '/community/:creatorId/c/:slug',
+            builder: (_, state) => CommunityScreen(
+              creatorId: state.pathParameters['creatorId']!,
+              communitySlug: state.pathParameters['slug'],
+            ),
           ),
           GoRoute(path: '/explore', builder: (_, __) => const ExploreScreen()),
           GoRoute(

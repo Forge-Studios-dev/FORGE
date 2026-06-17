@@ -40,21 +40,29 @@ export class StripePaymentProvider implements PaymentProvider {
 
   async createCheckoutSession(input: CheckoutSessionInput): Promise<CheckoutSessionResult> {
     const stripe = this.client();
+    const currency = (input.currency ?? 'usd').toLowerCase();
+
+    const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = input.stripePriceId
+      ? { price: input.stripePriceId, quantity: 1 }
+      : {
+          price_data: {
+            currency,
+            product_data: { name: input.tierName ?? 'FORGE membership' },
+            unit_amount: input.priceCents ?? 0,
+            recurring: { interval: 'month' },
+          },
+          quantity: 1,
+        };
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: { name: 'FORGE membership' },
-            unit_amount: 0,
-            recurring: { interval: 'month' },
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: [lineItem],
+      subscription_data:
+        input.trialDays && input.trialDays > 0
+          ? { trial_period_days: input.trialDays }
+          : undefined,
       metadata: {
         userId: input.userId,
         creatorId: input.creatorId,
@@ -132,8 +140,9 @@ export class StripePaymentProvider implements PaymentProvider {
     };
   }
 
-  async cancelSubscription(_externalSubscriptionId: string): Promise<void> {
-    throw new NotImplementedException('Stripe subscription cancel pending activation.');
+  async cancelSubscription(externalSubscriptionId: string): Promise<void> {
+    const stripe = this.client();
+    await stripe.subscriptions.cancel(externalSubscriptionId);
   }
 
   verifyWebhook(payload: Buffer, headers: Record<string, string>): ProviderWebhookResult | null {
@@ -198,8 +207,59 @@ export class StripePaymentProvider implements PaymentProvider {
           status: 'active',
           sessionId: session.id,
           userId: meta.userId,
+          creatorId: meta.creatorId,
+          tierId: meta.tierId,
         };
       }
+    }
+
+    if (event.type === 'customer.subscription.deleted') {
+      const sub = event.data.object as Stripe.Subscription;
+      const meta = sub.metadata ?? {};
+      return {
+        handled: true,
+        checkoutType: 'subscription',
+        subscriptionId: sub.id,
+        status: 'canceled',
+        userId: meta.userId,
+        creatorId: meta.creatorId,
+        tierId: meta.tierId,
+      };
+    }
+
+    if (event.type === 'customer.subscription.updated') {
+      const sub = event.data.object as Stripe.Subscription;
+      const meta = sub.metadata ?? {};
+      let status: ProviderWebhookResult['status'] = 'active';
+      if (sub.status === 'trialing') status = 'trial';
+      else if (sub.status === 'past_due') status = 'grace_period';
+      else if (sub.status === 'paused') status = 'paused';
+      else if (sub.status === 'canceled' || sub.status === 'unpaid') status = 'canceled';
+      else if (sub.status === 'active') status = 'active';
+      return {
+        handled: true,
+        checkoutType: 'subscription',
+        subscriptionId: sub.id,
+        status,
+        userId: meta.userId,
+        creatorId: meta.creatorId,
+        tierId: meta.tierId,
+      };
+    }
+
+    if (event.type === 'invoice.payment_failed') {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subId =
+        typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : invoice.subscription?.id;
+      if (!subId) return { handled: false };
+      return {
+        handled: true,
+        checkoutType: 'subscription',
+        subscriptionId: subId,
+        status: 'failed_payment',
+      };
     }
 
     return { handled: false };

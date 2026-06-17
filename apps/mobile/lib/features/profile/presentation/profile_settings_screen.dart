@@ -98,6 +98,10 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
             onPressed: _saving ? null : _save,
           ),
           const SizedBox(height: 32),
+          const Text('Active sessions', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const _ActiveSessionsSection(),
+          const SizedBox(height: 32),
           OutlinedButton(
             onPressed: () async {
               await ref.read(authRepositoryProvider).logout();
@@ -111,6 +115,66 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ActiveSessionsSection extends ConsumerStatefulWidget {
+  const _ActiveSessionsSection();
+
+  @override
+  ConsumerState<_ActiveSessionsSection> createState() => _ActiveSessionsSectionState();
+}
+
+class _ActiveSessionsSectionState extends ConsumerState<_ActiveSessionsSection> {
+  List<Map<String, dynamic>> _sessions = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final client = ref.read(apiClientProvider);
+      final res = await client.dio.get('/auth/sessions');
+      final list = (res.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      setState(() {
+        _sessions = list;
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _revoke(String sessionId) async {
+    final client = ref.read(apiClientProvider);
+    await client.dio.delete('/auth/sessions/$sessionId');
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const LinearProgressIndicator();
+    if (_sessions.isEmpty) {
+      return const Text('No other active sessions', style: TextStyle(color: Colors.grey));
+    }
+    return Column(
+      children: _sessions.map((s) {
+        return ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: Text(s['deviceLabel'] as String? ?? 'Device'),
+          subtitle: Text(s['userAgent'] as String? ?? ''),
+          trailing: TextButton(
+            onPressed: () => _revoke(s['id'] as String),
+            child: const Text('Revoke'),
+          ),
+        );
+      }).toList(),
     );
   }
 }
