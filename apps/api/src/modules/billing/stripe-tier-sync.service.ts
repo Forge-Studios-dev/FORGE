@@ -84,4 +84,19 @@ export class StripeTierSyncService {
     if (!stripe) return;
     await stripe.subscriptions.cancel(externalSubscriptionId);
   }
+
+  async getSubscriptionCustomerId(externalSubscriptionId: string): Promise<string | null> {
+    const stripe = this.client();
+    if (!stripe) return null;
+    try {
+      const sub = await stripe.subscriptions.retrieve(externalSubscriptionId);
+      const customer = sub.customer;
+      return typeof customer === 'string' ? customer : customer?.id ?? null;
+    } catch (err) {
+      this.logger.warn(
+        `Could not resolve Stripe customer for ${externalSubscriptionId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    }
+  }
 }

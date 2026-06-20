@@ -14,6 +14,8 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { CommunityModerationService } from './community-moderation.service';
 import { AiModerationService } from './ai-moderation.service';
+import { CommunityModerationQueueService } from './community-moderation-queue.service';
+import { Stream } from '../streaming/entities/stream.entity';
 import { ChannelType } from '../entitlements/entities/channel-type.enum';
 import { UserRole } from '../users/entities/user.entity';
 
@@ -41,6 +43,7 @@ describe('CommunitiesService', () => {
 
   const roleRepository = {
     findOne: jest.fn().mockResolvedValue(null),
+    find: jest.fn().mockResolvedValue([]),
   };
 
   const channelRepository = {
@@ -62,6 +65,14 @@ describe('CommunitiesService', () => {
     save: jest.fn(),
     findOne: jest.fn(),
     createQueryBuilder: jest.fn(),
+  };
+
+  const streamRepository = {
+    find: jest.fn().mockResolvedValue([]),
+  };
+
+  const moderationQueueService = {
+    enqueueMessageModeration: jest.fn(),
   };
 
   const redis = {
@@ -112,6 +123,8 @@ describe('CommunitiesService', () => {
         { provide: AccessSessionsService, useValue: accessSessionsService },
         { provide: CommunityModerationService, useValue: moderationService },
         { provide: AiModerationService, useValue: aiModerationService },
+        { provide: CommunityModerationQueueService, useValue: moderationQueueService },
+        { provide: getRepositoryToken(Stream), useValue: streamRepository },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
         { provide: DataSource, useValue: dataSource },
@@ -224,6 +237,20 @@ describe('CommunitiesService', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]?.slug).toBe('public');
+  });
+
+  it('batches membership lookup when listing multiple communities', async () => {
+    communityRepository.find.mockResolvedValue([
+      { id: 'comm-1', creatorId: 'creator-1', slug: 'public', visibility: CommunityVisibility.PUBLIC },
+      { id: 'comm-2', creatorId: 'creator-1', slug: 'paid', visibility: CommunityVisibility.PAID },
+    ]);
+    roleRepository.find.mockResolvedValue([]);
+    entitlementsService.getMembershipForViewer.mockResolvedValue({ active: true });
+
+    const result = await service.listCommunitiesForCreator('creator-1', 'viewer-1', UserRole.USER);
+
+    expect(entitlementsService.getMembershipForViewer).toHaveBeenCalledTimes(1);
+    expect(result).toHaveLength(2);
   });
 
   it('requires active membership for paid communities', async () => {

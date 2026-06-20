@@ -8,6 +8,8 @@ import {
   SuperChatCheckoutInput,
   PaymentProvider,
   ProviderWebhookResult,
+  UpdateSubscriptionTierInput,
+  UpdateSubscriptionTierResult,
 } from './payment-provider.interface';
 
 @Injectable()
@@ -54,15 +56,32 @@ export class StripePaymentProvider implements PaymentProvider {
           quantity: 1,
         };
 
+    const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
+      metadata: {
+        userId: input.userId,
+        creatorId: input.creatorId,
+        tierId: input.tierId,
+        type: 'subscription',
+      },
+      ...(input.trialDays && input.trialDays > 0
+        ? { trial_period_days: input.trialDays }
+        : {}),
+      ...(input.connectAccountId
+        ? {
+            transfer_data: { destination: input.connectAccountId },
+            ...(input.platformFeePercent && input.platformFeePercent > 0
+              ? { application_fee_percent: input.platformFeePercent }
+              : {}),
+          }
+        : {}),
+    };
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
       line_items: [lineItem],
-      subscription_data:
-        input.trialDays && input.trialDays > 0
-          ? { trial_period_days: input.trialDays }
-          : undefined,
+      subscription_data: subscriptionData,
       metadata: {
         userId: input.userId,
         creatorId: input.creatorId,
@@ -145,6 +164,32 @@ export class StripePaymentProvider implements PaymentProvider {
     await stripe.subscriptions.cancel(externalSubscriptionId);
   }
 
+  async updateSubscriptionTier(
+    input: UpdateSubscriptionTierInput,
+  ): Promise<UpdateSubscriptionTierResult> {
+    const stripe = this.client();
+    const subscription = await stripe.subscriptions.retrieve(input.externalSubscriptionId);
+    const itemId = subscription.items.data[0]?.id;
+    if (!itemId) {
+      throw new NotImplementedException('Subscription has no line items');
+    }
+    const updated = await stripe.subscriptions.update(input.externalSubscriptionId, {
+      items: [{ id: itemId, price: input.stripePriceId }],
+      proration_behavior: 'create_prorations',
+      metadata: { ...subscription.metadata, tierId: input.tierId },
+    });
+    return { subscriptionId: updated.id, prorationApplied: true };
+  }
+
+  async createBillingPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }> {
+    const stripe = this.client();
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl,
+    });
+    return { url: session.url ?? '' };
+  }
+
   verifyWebhook(payload: Buffer, headers: Record<string, string>): ProviderWebhookResult | null {
     const secret = this.webhookSecret();
     if (!secret || !this.secretKey()) return null;
@@ -213,6 +258,23 @@ export class StripePaymentProvider implements PaymentProvider {
       }
     }
 
+    if (event.type === 'invoice.paid') {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subId =
+        typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : invoice.subscription?.id;
+      if (!subId) return { handled: false };
+      const periodEnd = invoice.lines?.data?.[0]?.period?.end;
+      return {
+        handled: true,
+        checkoutType: 'subscription',
+        subscriptionId: subId,
+        status: 'active',
+        periodEndAt: periodEnd ? new Date(periodEnd * 1000) : undefined,
+      };
+    }
+
     if (event.type === 'customer.subscription.deleted') {
       const sub = event.data.object as Stripe.Subscription;
       const meta = sub.metadata ?? {};
@@ -244,6 +306,9 @@ export class StripePaymentProvider implements PaymentProvider {
         userId: meta.userId,
         creatorId: meta.creatorId,
         tierId: meta.tierId,
+        periodEndAt: sub.current_period_end
+          ? new Date(sub.current_period_end * 1000)
+          : undefined,
       };
     }
 

@@ -17,9 +17,11 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
   final _nameCtrl = TextEditingController();
   String _type = 'public';
   String? _requiredTierId;
+  String? _creatorId;
   List<Map<String, dynamic>> _channels = [];
   List<Map<String, dynamic>> _tiers = [];
-  String? _creatorId;
+  List<Map<String, dynamic>> _communities = [];
+  String? _communityId;
   bool _loading = true;
 
   @override
@@ -36,9 +38,21 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
       _creatorId = user?['id'] as String?;
       if (_creatorId == null) return;
       final client = ref.read(apiClientProvider);
-      final communityRes = await client.dio.get('/communities/$_creatorId');
+      final communitiesRes = await client.dio.get('/creators/$_creatorId/communities');
+      final communities =
+          (communitiesRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      if (communities.isEmpty) {
+        setState(() => _loading = false);
+        return;
+      }
+      _communityId = communities.first['id'] as String?;
+      final slug = communities.first['slug'] as String?;
+      final communityRes = slug != null
+          ? await client.dio.get('/creators/$_creatorId/communities/$slug')
+          : communitiesRes;
       final tiersRes = await client.dio.get('/creators/$_creatorId/tiers');
       setState(() {
+        _communities = communities;
         final data = communityRes.data['data'] as Map<String, dynamic>;
         _channels = (data['channels'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _tiers = (tiersRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -49,11 +63,40 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
     }
   }
 
-  Future<void> _createChannel() async {
-    if (_nameCtrl.text.trim().isEmpty) return;
+  Future<void> _goLiveInCommunity() async {
+    if (_communityId == null) return;
+    Map<String, dynamic>? community;
+    for (final c in _communities) {
+      if (c['id'] == _communityId) {
+        community = c;
+        break;
+      }
+    }
     try {
       final client = ref.read(apiClientProvider);
-      await client.dio.post('/creators/me/channels', data: {
+      final response = await client.dio.post('/streams/start', data: {
+        'title': '${community?['name'] ?? 'Community'} Live',
+        'communityId': _communityId,
+        'visibility': 'subscribers',
+      });
+      final streamId = response.data['data']?['id'] as String?;
+      if (mounted && streamId != null) {
+        context.go('/live/$streamId');
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not start community live')),
+        );
+      }
+    }
+  }
+
+  Future<void> _createChannel() async {
+    if (_nameCtrl.text.trim().isEmpty || _communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post('/creators/me/communities/$_communityId/channels', data: {
         'name': _nameCtrl.text.trim(),
         'type': _type,
         if (_requiredTierId != null && _requiredTierId!.isNotEmpty)
@@ -81,6 +124,25 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
     super.dispose();
   }
 
+  Future<void> _selectCommunity(String communityId, String? slug) async {
+    if (_creatorId == null) return;
+    setState(() => _loading = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      final communityRes = slug != null
+          ? await client.dio.get('/creators/$_creatorId/communities/$slug')
+          : await client.dio.get('/communities/id/$communityId');
+      setState(() {
+        _communityId = communityId;
+        final data = communityRes.data['data'] as Map<String, dynamic>;
+        _channels = (data['channels'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,6 +152,26 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
+                if (_communities.length > 1) ...[
+                  const Text(
+                    'Your communities',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._communities.map((c) {
+                    final id = c['id'] as String?;
+                    final selected = id == _communityId;
+                    return ListTile(
+                      selected: selected,
+                      title: Text(c['name'] as String? ?? 'Community'),
+                      subtitle: Text('/${c['slug'] ?? ''}'),
+                      onTap: id == null
+                          ? null
+                          : () => _selectCommunity(id, c['slug'] as String?),
+                    );
+                  }),
+                  const Divider(height: 32),
+                ],
                 const Text(
                   'Manage your creator community rooms',
                   style: TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 13),
@@ -128,6 +210,13 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
                 ),
                 const SizedBox(height: 12),
                 ForgeButton(label: 'Create channel', onPressed: _createChannel),
+                if (_communityId != null) ...[
+                  const SizedBox(height: 12),
+                  ForgeButton(
+                    label: 'Go live in community',
+                    onPressed: _goLiveInCommunity,
+                  ),
+                ],
                 const SizedBox(height: 24),
                 ..._channels.map((ch) {
                   return Card(

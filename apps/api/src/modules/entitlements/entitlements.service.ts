@@ -203,6 +203,7 @@ export class EntitlementsService {
       sortOrder: dto.sortOrder ?? (maxOrder?.max ? Number(maxOrder.max) + 1 : 0),
       billingInterval: dto.billingInterval ?? BillingInterval.MONTHLY,
       trialDays: dto.trialDays ?? 0,
+      maxConcurrentDevices: Math.min(10, Math.max(1, dto.maxConcurrentDevices ?? 1)),
     });
     const saved = await this.tierRepository.save(tier);
     await this.syncTierToStripe(saved);
@@ -239,6 +240,9 @@ export class EntitlementsService {
     if (dto.isActive !== undefined) tier.isActive = dto.isActive;
     if (dto.billingInterval !== undefined) tier.billingInterval = dto.billingInterval;
     if (dto.trialDays !== undefined) tier.trialDays = dto.trialDays;
+    if (dto.maxConcurrentDevices !== undefined) {
+      tier.maxConcurrentDevices = Math.min(10, Math.max(1, dto.maxConcurrentDevices));
+    }
 
     const saved = await this.tierRepository.save(tier);
     await this.bustTierCache(tierId);
@@ -298,6 +302,26 @@ export class EntitlementsService {
         sub.source === MemberSubscriptionSource.MOCK ||
         sub.source === MemberSubscriptionSource.ADMIN_GRANT,
     };
+  }
+
+  /** Max simultaneous premium devices for a user (per creator subscription or global max). */
+  async getMaxConcurrentDevices(userId: string, creatorId?: string): Promise<number> {
+    const clamp = (n: number) => Math.min(10, Math.max(1, n));
+    if (creatorId) {
+      const sub = await this.getActiveSubscription(userId, creatorId);
+      if (!sub?.tier) return 1;
+      return clamp(sub.tier.maxConcurrentDevices ?? 1);
+    }
+    const now = new Date();
+    const subs = await this.subscriptionRepository
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.tier', 'tier')
+      .where('s.user_id = :userId', { userId })
+      .andWhere('s.status = :status', { status: MemberSubscriptionStatus.ACTIVE })
+      .andWhere('(s.expires_at IS NULL OR s.expires_at > :now)', { now })
+      .getMany();
+    if (!subs.length) return 1;
+    return clamp(Math.max(...subs.map((s) => s.tier?.maxConcurrentDevices ?? 1)));
   }
 
   async hasActiveSubscription(userId: string, creatorId: string): Promise<boolean> {
@@ -993,6 +1017,43 @@ export class EntitlementsService {
     sub.status = status;
     await this.subscriptionRepository.save(sub);
     await this.bustSubscriptionCache(sub.userId, sub.creatorId);
+  }
+
+  async updateSubscriptionExpiresByExternalRef(
+    externalRef: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    const sub = await this.subscriptionRepository.findOne({
+      where: { externalRef },
+      order: { createdAt: 'DESC' },
+    });
+    if (!sub) return;
+    sub.expiresAt = expiresAt;
+    await this.subscriptionRepository.save(sub);
+    await this.bustSubscriptionCache(sub.userId, sub.creatorId);
+  }
+
+  async changeSubscriptionTier(subscriptionId: string, newTierId: string): Promise<void> {
+    const sub = await this.subscriptionRepository.findOne({ where: { id: subscriptionId } });
+    if (!sub) throw new NotFoundException('Subscription not found');
+    const tier = await this.getTierById(newTierId);
+    if (tier.creatorId !== sub.creatorId) {
+      throw new BadRequestException('Tier does not belong to creator');
+    }
+    sub.tierId = newTierId;
+    await this.subscriptionRepository.save(sub);
+    await this.bustSubscriptionCache(sub.userId, sub.creatorId);
+  }
+
+  async findStripeSubscriptionForUser(userId: string) {
+    return this.subscriptionRepository.findOne({
+      where: {
+        userId,
+        source: MemberSubscriptionSource.STRIPE,
+        status: MemberSubscriptionStatus.ACTIVE,
+      },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async listSubscribersForCreator(

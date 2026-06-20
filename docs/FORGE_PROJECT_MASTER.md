@@ -262,13 +262,15 @@ Auth: `forge_admin_token` + HttpOnly refresh cookie.
 |--------|-------------------|
 | Users | `users`, `refresh_tokens`, `password_reset_tokens`, `oauth_accounts` |
 | Content | `videos`, `video_skill_tags`, `video_multipart_sessions` |
-| Live | `streams` |
-| Engagement | `likes`, `comments`, `follows`, `watch_history` |
+| Live | `streams`, `stream_event_purchases`, `stream_rsvps`, `stream_moderators`, `stream_polls`, `stream_clips`, `stream_messages`, `stream_analytics_snapshots` |
+| Engagement | `likes`, `comments`, `follows`, `watch_history`, `member_xp`, `member_badges` |
 | Discovery | `categories`, `subcategories`, `skill_tags` |
-| Social | `playlists`, `playlist_videos`, `notifications`, `device_tokens` |
-| Trust | `reports` |
-| Monetization | `subscription_tiers`, `member_subscriptions` |
-| Community | community channel + message tables (see migrations) |
+| Social | `playlists`, `playlist_videos`, `notifications`, `device_tokens`, `conversations`, `direct_messages` |
+| Trust | `reports`, `community_reports`, `community_member_bans` |
+| Monetization | `subscription_tiers`, `member_subscriptions`, `tier_entitlements` |
+| Community 2.0 | `brands`, `communities`, `community_categories`, `channels`, `channel_members`, `channel_messages`, `community_posts`, `community_post_comments`, `community_post_reactions`, `community_polls`, `community_poll_votes`, `community_roles` |
+| Courses | `courses`, `course_cohorts` |
+| Access control | `access_session_audit` (runtime sessions in Redis) |
 | Analytics | `analytics_events` |
 
 Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API boot.
@@ -316,13 +318,15 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 | Playlists | ✅ | ✅ | — | — | — |
 | Creator studio | ✅ | ✅ | — | ✅ | — |
 | Memberships (mock) | ✅ | ✅ | — | — | ✅ |
-| Communities | ✅ | ✅ | — | — | — |
+| Communities | ✅ | ✅ | — | ✅ | ✅ |
+| Community 2.0 (posts, polls, BI, courses) | ✅ | ✅ | — | partial | ✅ |
+| Community post comments/reactions | ✅ | ✅ | — | partial | — |
 | Stream chat | ✅ | ✅ | — | — | — |
 | Reports | ✅ | — | ✅ | — | — |
 | Admin hub | ✅ | impersonate | ✅ | — | — |
 | FCM push | ⚠️ | — | — | ⚠️ | ✅ |
 | Analytics ingest | ✅ | partial | ✅ | — | ✅ |
-| Stripe billing (partial) | ✅ | partial | — | — | — |
+| Stripe billing (Connect + tiers) | ✅ | partial | — | partial | — |
 | Blueprints gallery | flag | flag | — | — | — |
 
 ✅ MVP-ready · ⚠️ partial or config-dependent
@@ -432,7 +436,19 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 ### Communities (root)
 
-`GET communities/:creatorId` · `POST creators/me/channels` · `PATCH creators/me/channels/:channelId` · `POST …/invite` · `GET channels/:channelId/messages` · `POST channels/:channelId/messages` · `DELETE channels/:channelId/messages/:messageId`
+`GET creators/:creatorId/communities` · `GET creators/:creatorId/communities/:slug` · `GET communities/id/:communityId` · `GET communities/:creatorId` (legacy) · `POST/PATCH creators/me/communities` · categories/channels CRUD under `creators/me/communities/:communityId/…` · `GET/POST channels/:channelId/messages` · `DELETE channels/:channelId/messages/:messageId` · posts: `GET communities/:communityId/posts` · `GET …/posts/search` · `POST creators/me/communities/:communityId/posts` · polls: `GET communities/:communityId/polls/active` · `POST …/polls/:pollId/vote` · `POST creators/me/communities/:communityId/polls` · moderation: reports, bans, roles under `creators/me/communities/:communityId/…` · `GET creators/me/brands` (+ CRUD) · gamification: `GET/POST communities/:communityId/gamification/…`
+
+### Access sessions (root)
+
+`POST access-sessions/start` · `POST access-sessions/heartbeat` · `DELETE access-sessions/current` · `GET access-sessions/me`
+
+### Courses (root)
+
+`GET/POST creators/me/courses` · `POST creators/me/courses/:courseId/cohorts`
+
+### Entitlements (extended)
+
+`GET creators/me/subscribers/analytics` (subscriber counts + MRR snapshot)
 
 ### `reports`
 
@@ -456,4 +472,4 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 ---
 
-*Last updated: 2026-06-17*
+*Last updated: 2026-06-18*

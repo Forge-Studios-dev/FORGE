@@ -16,6 +16,7 @@ export function useAccessSession(
   sessionType: AccessSessionType,
   resourceId: string | null | undefined,
   enabled: boolean,
+  creatorId?: string | null,
 ) {
   const [ready, setReady] = useState(false);
   const [conflict, setConflict] = useState<string | null>(null);
@@ -42,8 +43,13 @@ export function useAccessSession(
       if (!resourceId || !enabled) return;
       try {
         const { data } = await api.post<{
-          data: { sessionToken: string; heartbeatIntervalSec: number };
-        }>('/access-sessions/start', { sessionType, resourceId, force });
+          data: { sessionToken: string; heartbeatIntervalSec: number; maxDevices?: number };
+        }>('/access-sessions/start', {
+          sessionType,
+          resourceId,
+          force,
+          ...(creatorId ? { creatorId } : {}),
+        });
         const payload = data.data;
         sessionRef.current = {
           sessionToken: payload.sessionToken,
@@ -67,13 +73,17 @@ export function useAccessSession(
           'response' in err &&
           (err as { response?: { data?: { code?: string; message?: string } } }).response?.data
             ?.code;
-        if (code === 'concurrent_session') {
-          setConflict('Another active session exists. Take over this session?');
+        if (code === 'concurrent_session' || code === 'device_limit') {
+          setConflict(
+            code === 'device_limit'
+              ? 'Device limit reached for your membership. Take over this session?'
+              : 'Another active session exists. Take over this session?',
+          );
           setReady(false);
         }
       }
     },
-    [resourceId, enabled, sessionType, clearHeartbeat, heartbeat],
+    [resourceId, enabled, sessionType, creatorId, clearHeartbeat, heartbeat],
   );
 
   const takeOver = useCallback(() => startSession(true), [startSession]);

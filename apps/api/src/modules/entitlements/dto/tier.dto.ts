@@ -61,6 +61,12 @@ export class CreateTierDto {
   @IsInt()
   @Min(0)
   trialDays?: number;
+
+  @ApiPropertyOptional({ description: 'Max simultaneous premium devices (1–10)' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxConcurrentDevices?: number;
 }
 
 export class UpdateTierDto {
@@ -103,6 +109,12 @@ export class UpdateTierDto {
   @IsInt()
   @Min(0)
   trialDays?: number;
+
+  @ApiPropertyOptional({ description: 'Max simultaneous premium devices (1–10)' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxConcurrentDevices?: number;
 }
 
 export class CreateTierEntitlementDto {

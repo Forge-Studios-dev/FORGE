@@ -12,8 +12,11 @@
 |----------|------|---------|
 | **ci.yml** | Every PR + push to `main` | Lint, build, test (quality gate) |
 | **release.yml** | After **CI** succeeds on `main`, or manual | Deploy API (Fly) + **worker** (`fly.worker.toml`) + web + admin (Vercel) |
+| **deploy-staging.yml** | Manual only | Deploy staging Fly apps — [operations/STAGING.md](./operations/STAGING.md) |
+| **deploy-auth-secrets.yml** | Manual only | Push auth secrets to Fly from GitHub |
 | **deploy-fly.yml** | Manual only | Deploy API only (emergency) |
 | **deploy-vercel.yml** | Manual only | Deploy web + admin only (emergency) |
+| **codeql.yml** | Weekly + PR | Security static analysis |
 
 Lint and test run only in **ci.yml**. Deploy workflows do not replace CI.
 
@@ -21,7 +24,7 @@ Self-hosted Docker (GHCR image workflows) was removed; production uses Fly + Ver
 
 ### Release order (`release.yml`)
 
-1. **deploy-api** — `flyctl deploy` → health + public smoke
+1. **deploy-api** — `flyctl deploy --primary-region sin --regions bom` → health + public smoke + `verify-metrics-scrape.sh`
 2. **deploy-worker** — `scripts/sync-fly-worker-secrets.sh` (uses `flyctl` + `FLY_API_TOKEN` in CI) → `flyctl deploy -c fly.worker.toml`
 3. **deploy-web** / **deploy-admin** — Vercel production
 
@@ -193,4 +196,4 @@ Smoke prod: `npm run check:production`
 - [ ] `VERCEL_PROJECT_ID_WEB`
 - [ ] `VERCEL_PROJECT_ID_ADMIN`
 
-*Last updated: 2026-06-04*
+*Last updated: 2026-06-17*

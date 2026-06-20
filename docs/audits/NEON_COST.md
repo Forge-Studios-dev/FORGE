@@ -1,6 +1,6 @@
 # Neon database — cost & monitoring
 
-**Date:** 2026-06-16 · **Status:** Audit #3 — cache hardening + post-PR#79 validation
+**Date:** 2026-06-17 · **Status:** Audit #3 — cache hardening + post-PR#79 validation
 
 ---
 
@@ -83,6 +83,8 @@ export NEON_PROJECT_ID='orange-math-53675581'
 bash scripts/neon-consumption-report.sh --days 30
 ```
 
+Script reference: [SCRIPTS.md](../SCRIPTS.md)
+
 **Alert:** daily CU-hr > **6** with no live traffic.
 
 ### Postgres query stats
@@ -102,6 +104,7 @@ curl "https://api.forgestudios.net/api/v1/admin/database/query-stats?limit=50" \
 - [ ] Neon console: endpoint cycles `active` ↔ `idle` (verify during overnight idle window)
 - [ ] `query-stats` — reset baseline after Audit #3 deploy; compare top queries
 - [x] Live go-live / end still works (webhooks + mux sync) — health OK 2026-06-16
+- [x] **Audit #3 deployed** — Release `27631934106` (2026-06-16) after merge PR #80
 
 ---
 

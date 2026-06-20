@@ -8,7 +8,7 @@
 |-----|---------|
 | [EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md) | Closure summary, top fixes, risks |
 | [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md) | Stripe, search, load test, ops cadence |
-| [NEON_COST.md](./NEON_COST.md) | Neon billing audit (2026-06-09) — monitoring & connection budget |
+| [NEON_COST.md](./NEON_COST.md) | Neon billing audit (Audit #3, 2026-06-16) — monitoring & connection budget |
 | [INFRASTRUCTURE_COST_AUDIT_2026-06.md](./INFRASTRUCTURE_COST_AUDIT_2026-06.md) | Full infra/cost audit + shipped optimizations (2026-06-10) |
 | [SOCIAL_PLATFORM_AUDIT_2026-06.md](./SOCIAL_PLATFORM_AUDIT_2026-06.md) | Social features audit + full-stack implementation (2026-06-10) |
 

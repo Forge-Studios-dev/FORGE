@@ -61,6 +61,18 @@ export class CommunityReport {
   @Column({ name: 'message_id', type: 'uuid', nullable: true })
   messageId: string | null;
 
+  @Column({ name: 'target_type', length: 32, default: 'message' })
+  targetType: string;
+
+  @Column({ name: 'post_id', type: 'uuid', nullable: true })
+  postId: string | null;
+
+  @Column({ name: 'poll_id', type: 'uuid', nullable: true })
+  pollId: string | null;
+
+  @Column({ name: 'reported_user_id', type: 'uuid', nullable: true })
+  reportedUserId: string | null;
+
   @Column({ name: 'reporter_id', type: 'uuid' })
   reporterId: string;
 

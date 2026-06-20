@@ -87,6 +87,7 @@ export interface SubscriptionTier {
   benefits: string[];
   sortOrder: number;
   isActive: boolean;
+  maxConcurrentDevices?: number;
 }
 
 export interface Category {

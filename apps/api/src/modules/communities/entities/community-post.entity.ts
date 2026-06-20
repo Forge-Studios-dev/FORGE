@@ -49,6 +49,9 @@ export class CommunityPost {
   @Column({ name: 'is_pinned', default: false })
   isPinned: boolean;
 
+  @Column({ name: 'media_urls', type: 'jsonb', default: [] })
+  mediaUrls: string[];
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

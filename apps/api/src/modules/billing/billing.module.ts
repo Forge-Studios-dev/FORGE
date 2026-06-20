@@ -26,6 +26,7 @@ import { StripeConnectService } from './stripe-connect.service';
 import { SubscriptionChangeService } from './subscription-change.service';
 import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { User } from '../users/entities/user.entity';
 
 @Module({
   imports: [
@@ -34,7 +35,7 @@ import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard
     WebhookIdempotencyModule,
     forwardRef(() => StreamingModule),
     UsersModule,
-    TypeOrmModule.forFeature([StreamEventPurchase, Stream]),
+    TypeOrmModule.forFeature([StreamEventPurchase, Stream, User]),
   ],
   controllers: [BillingController],
   providers: [

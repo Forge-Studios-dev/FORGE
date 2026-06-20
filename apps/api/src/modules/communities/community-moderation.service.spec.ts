@@ -1,11 +1,16 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CommunityModerationService } from './community-moderation.service';
 import { CommunityReport, CommunityMemberBan } from './entities/community-moderation.entity';
 import { CommunityRole, CommunityRoleType } from './entities/community-role.entity';
 import { Community } from './entities/community.entity';
+import { Channel } from './entities/channel.entity';
 import { ChannelMessage } from './entities/channel-message.entity';
+import { CommunityPost } from './entities/community-post.entity';
+import { CommunityPoll } from './entities/community-poll.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { CommunitiesService } from './communities.service';
 
 describe('CommunityModerationService', () => {
   let service: CommunityModerationService;
@@ -24,7 +29,16 @@ describe('CommunityModerationService', () => {
     delete: jest.Mock;
   };
   let communityRepository: { findOne: jest.Mock };
-  let reportRepository: { save: jest.Mock; create: jest.Mock; find: jest.Mock };
+  let channelRepository: { findOne: jest.Mock };
+  let messageRepository: { findOne: jest.Mock };
+  let postRepository: { findOne: jest.Mock };
+  let pollRepository: { findOne: jest.Mock };
+  let reportRepository: {
+    save: jest.Mock;
+    create: jest.Mock;
+    find: jest.Mock;
+    findOne: jest.Mock;
+  };
 
   beforeEach(async () => {
     roleRepository = {
@@ -44,10 +58,27 @@ describe('CommunityModerationService', () => {
     communityRepository = {
       findOne: jest.fn().mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1' }),
     };
+    channelRepository = {
+      findOne: jest.fn().mockResolvedValue({ id: 'ch-1', communityId: 'comm-1' }),
+    };
+    messageRepository = {
+      findOne: jest.fn().mockResolvedValue({ id: 'msg-1', channelId: 'ch-1' }),
+    };
+    postRepository = {
+      findOne: jest.fn().mockResolvedValue({ id: 'post-1', communityId: 'comm-1' }),
+    };
+    pollRepository = {
+      findOne: jest.fn().mockResolvedValue({ id: 'poll-1', communityId: 'comm-1' }),
+    };
     reportRepository = {
       save: jest.fn().mockResolvedValue({ id: 'report-1', status: 'open' }),
       create: jest.fn((x) => x),
       find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue({
+        id: 'report-1',
+        communityId: 'comm-1',
+        status: 'open',
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -57,7 +88,18 @@ describe('CommunityModerationService', () => {
         { provide: getRepositoryToken(CommunityMemberBan), useValue: banRepository },
         { provide: getRepositoryToken(CommunityRole), useValue: roleRepository },
         { provide: getRepositoryToken(Community), useValue: communityRepository },
-        { provide: getRepositoryToken(ChannelMessage), useValue: { findOne: jest.fn() } },
+        { provide: getRepositoryToken(Channel), useValue: channelRepository },
+        { provide: getRepositoryToken(ChannelMessage), useValue: messageRepository },
+        { provide: getRepositoryToken(CommunityPost), useValue: postRepository },
+        { provide: getRepositoryToken(CommunityPoll), useValue: pollRepository },
+        {
+          provide: NotificationsService,
+          useValue: { create: jest.fn().mockResolvedValue({}) },
+        },
+        {
+          provide: CommunitiesService,
+          useValue: { assertCommunityAccess: jest.fn().mockResolvedValue({ id: 'comm-1' }) },
+        },
       ],
     }).compile();
 
@@ -75,6 +117,41 @@ describe('CommunityModerationService', () => {
     });
     expect(result.id).toBe('report-1');
     expect(reportRepository.save).toHaveBeenCalled();
+  });
+
+  it('creates a post report', async () => {
+    const result = await service.createReport('reporter-1', {
+      communityId: 'comm-1',
+      targetType: 'post',
+      postId: 'post-1',
+      reason: 'misleading',
+    });
+    expect(result.id).toBe('report-1');
+    expect(postRepository.findOne).toHaveBeenCalled();
+  });
+
+  it('rejects report when channel is not in community', async () => {
+    channelRepository.findOne.mockResolvedValue(null);
+    await expect(
+      service.reportMessage('reporter-1', {
+        communityId: 'comm-1',
+        channelId: 'bad-ch',
+        messageId: 'msg-1',
+        reason: 'spam',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects report when message is not in channel', async () => {
+    messageRepository.findOne.mockResolvedValue(null);
+    await expect(
+      service.reportMessage('reporter-1', {
+        communityId: 'comm-1',
+        channelId: 'ch-1',
+        messageId: 'bad-msg',
+        reason: 'spam',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('upserts role on re-assign', async () => {
@@ -123,12 +200,28 @@ describe('CommunityModerationService', () => {
     expect(banRepository.create).not.toHaveBeenCalled();
   });
 
-  it('rejects operations on unowned community', async () => {
-    communityRepository.findOne.mockResolvedValue({ id: 'comm-1', creatorId: 'other-creator' });
+  it('allows delegated moderators to ban members', async () => {
+    communityRepository.findOne.mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1' });
+    roleRepository.findOne.mockResolvedValue({
+      communityId: 'comm-1',
+      userId: 'mod-1',
+      role: CommunityRoleType.MODERATOR,
+    });
+    banRepository.findOne.mockResolvedValue(null);
 
-    await expect(
-      service.banMember('creator-1', 'comm-1', 'user-bad'),
-    ).rejects.toThrow(BadRequestException);
+    const result = await service.banMember('mod-1', 'comm-1', 'user-bad', 'spam');
+
+    expect(result.banned).toBe(true);
+    expect(banRepository.save).toHaveBeenCalled();
+  });
+
+  it('rejects ban from users without moderator privileges', async () => {
+    communityRepository.findOne.mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1' });
+    roleRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.banMember('random-user', 'comm-1', 'user-bad')).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('lists roles for owned community', async () => {
@@ -139,5 +232,36 @@ describe('CommunityModerationService', () => {
     const roles = await service.listRoles('creator-1', 'comm-1');
     expect(roles).toHaveLength(1);
     expect(roles[0]?.role).toBe(CommunityRoleType.MODERATOR);
+  });
+
+  it('resolves a report for community moderators', async () => {
+    const result = await service.resolveReportForCommunity('creator-1', 'comm-1', 'report-1');
+    expect(result.resolved).toBe(true);
+    expect(reportRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'resolved' }),
+    );
+  });
+
+  it('allows coaches to list reports', async () => {
+    roleRepository.findOne.mockResolvedValue({
+      communityId: 'comm-1',
+      userId: 'coach-1',
+      role: CommunityRoleType.COACH,
+    });
+
+    await service.listReportsForCommunity('coach-1', 'comm-1');
+    expect(reportRepository.find).toHaveBeenCalled();
+  });
+
+  it('rejects coaches from banning members', async () => {
+    roleRepository.findOne.mockResolvedValue({
+      communityId: 'comm-1',
+      userId: 'coach-1',
+      role: CommunityRoleType.COACH,
+    });
+
+    await expect(service.banMember('coach-1', 'comm-1', 'user-bad')).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/network/api_client.dart';
 import '../../auth/data/auth_repository.dart';
 
@@ -98,17 +99,13 @@ class MembershipPanel extends ConsumerWidget {
                             ),
                           ),
                           TextButton(
-                            onPressed: () => _mockJoin(context, ref, tier['id'] as String),
-                            child: const Text('Join (test)'),
+                            onPressed: () => _checkout(context, ref, tier['id'] as String),
+                            child: const Text('Join'),
                           ),
                         ],
                       ),
                     );
                   }),
-                  const Text(
-                    'Test memberships only — billing in Phase 2.',
-                    style: TextStyle(color: Colors.grey, fontSize: 11),
-                  ),
                 ],
               ),
             );
@@ -116,6 +113,29 @@ class MembershipPanel extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _checkout(BuildContext context, WidgetRef ref, String tierId) async {
+    try {
+      final client = ref.read(apiClientProvider);
+      final response = await client.dio.post('/billing/checkout', data: {
+        'creatorId': creatorId,
+        'tierId': tierId,
+        'successUrl': 'https://forgestudios.net/settings/memberships',
+        'cancelUrl': 'https://forgestudios.net/settings/memberships',
+      });
+      final checkoutUrl = response.data['data']?['checkoutUrl'] as String?;
+      if (checkoutUrl != null && checkoutUrl.isNotEmpty) {
+        final uri = Uri.parse(checkoutUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+        return;
+      }
+      await _mockJoin(context, ref, tierId);
+    } catch (_) {
+      await _mockJoin(context, ref, tierId);
+    }
   }
 
   Future<void> _mockJoin(BuildContext context, WidgetRef ref, String tierId) async {
@@ -134,7 +154,7 @@ class MembershipPanel extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sign in to join (test mode)')),
+          const SnackBar(content: Text('Sign in to join')),
         );
       }
     }

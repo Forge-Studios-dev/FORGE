@@ -50,6 +50,14 @@ export class BillingController {
     return this.subscriptionChangeService.changeTier(user.sub, body.creatorId, body.tierId);
   }
 
+  @Post('portal')
+  createPortal(
+    @CurrentUser() user: { sub: string },
+    @Body() body: { returnUrl: string },
+  ) {
+    return this.billingService.createBillingPortalSession(user.sub, body.returnUrl);
+  }
+
   @Public()
   @Post('webhook')
   async webhook(@Req() req: Request & { rawBody?: Buffer }) {

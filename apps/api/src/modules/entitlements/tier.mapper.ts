@@ -12,6 +12,7 @@ export function toPublicTier(tier: SubscriptionTier) {
     benefits: tier.benefits ?? [],
     sortOrder: tier.sortOrder,
     isActive: tier.isActive,
+    maxConcurrentDevices: tier.maxConcurrentDevices ?? 1,
     createdAt: tier.createdAt,
   };
 }

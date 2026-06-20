@@ -10,6 +10,7 @@ import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempot
 import { StreamingService } from '../streaming/streaming.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { StripeTierSyncService } from './stripe-tier-sync.service';
+import { StripeConnectService } from './stripe-connect.service';
 
 describe('BillingService', () => {
   let service: BillingService;
@@ -40,6 +41,12 @@ describe('BillingService', () => {
     syncTier: jest.fn(),
     cancelSubscription: jest.fn(),
   };
+  const stripeConnectService = {
+    getConnectStatus: jest.fn().mockResolvedValue({
+      chargesEnabled: true,
+      accountId: 'acct_test',
+    }),
+  };
   const purchaseRepository = {
     findOne: jest.fn(),
     save: jest.fn(),
@@ -63,6 +70,7 @@ describe('BillingService', () => {
         { provide: StreamingService, useValue: streamingService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: StripeTierSyncService, useValue: stripeTierSync },
+        { provide: StripeConnectService, useValue: stripeConnectService },
         {
           provide: ConfigService,
           useValue: {

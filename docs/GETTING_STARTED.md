@@ -38,13 +38,16 @@ npm run dev:admin    # :3002
 | Email | Password |
 |-------|----------|
 | `viewer@forge.local` | `ForgeDemo123!` |
+| `creator@forge.local` | `ForgeDemo123!` |
 | `admin@forge.local` | `ForgeAdmin123!` |
 
 `bash scripts/reset-demo-users.sh` · `npm run smoke:api` · [QA.md](./QA.md)
 
 ## Env
 
-See `apps/api/.env.example` (authoritative). Neon/Redis templates: `.env.neon.example`, `.env.redis-cloud.example`.
+See `apps/api/.env.example` (authoritative). Production-shaped vars: `apps/api/.env.production.example` (`DB_POOL_MAX`, `DATABASE_ALLOW_DIRECT_NEON`). Neon/Redis templates: `.env.neon.example`, `.env.redis-cloud.example`.
+
+**Mail testing:** `npm run auth:bootstrap` → Mailpit at `http://localhost:8025` (included in `docker-compose.yml`).
 
 **VOD:** default `VIDEO_TRANSCODE_PROVIDER=mux` (needs Mux creds) or `ffmpeg` without Mux.  
 **Flags:** `FEATURE_FLAGS=multipart_upload` for large files.
@@ -61,7 +64,8 @@ FCM: [FIREBASE.md](./FIREBASE.md)
 ## Commands
 
 ```bash
-npm run ci | build:all | smoke:api | db:neon:setup | redis:test
+npm run ci:local | build:all | smoke:api | smoke:memberships | smoke:community-2.0 | auth:bootstrap | auth:check
+npm run verify:video-pipeline | db:neon:setup | redis:test
 ```
 
 ## Without AWS/Mux

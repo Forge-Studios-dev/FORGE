@@ -11,24 +11,10 @@ import { useAccessSession } from '@/lib/access-session';
 import { getSocket } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
-
-type ChannelAccess = { allowed: boolean; reason?: string | null };
-
-type Category = {
-  id: string;
-  name: string;
-  slug: string;
-  sortOrder: number;
-};
-
-type Channel = {
-  id: string;
-  name: string;
-  slug: string;
-  type: string;
-  categoryId?: string | null;
-  access?: ChannelAccess;
-};
+import { AccessSessionConflict } from '@/components/Community/AccessSessionConflict';
+import { CommunityPostMedia } from '@/components/Community/CommunityPostMedia';
+import type { CommunityChannel, CommunityCategory, CommunityPayload, CommunityPoll } from '@/types/community';
+import { isAxiosError } from 'axios';
 
 type ChannelMessage = {
   id: string;
@@ -36,20 +22,13 @@ type ChannelMessage = {
   userId: string;
   user?: { displayName?: string; username?: string };
   body: string;
+  parentId?: string | null;
   createdAt: string;
   deletedAt?: string | null;
 };
 
-type CommunityPayload = {
-  community: {
-    id: string;
-    creatorId: string;
-    name: string;
-    slug: string;
-  } | null;
-  categories: Category[];
-  channels: Channel[];
-};
+type Channel = CommunityChannel;
+type Category = CommunityCategory;
 
 interface Props {
   creatorId: string;
@@ -75,7 +54,11 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [reportingId, setReportingId] = useState<string | null>(null);
-  const [view, setView] = useState<'chat' | 'posts'>('chat');
+  const [reportingPostId, setReportingPostId] = useState<string | null>(null);
+  const [view, setView] = useState<'chat' | 'posts' | 'polls' | 'leaderboard'>('chat');
+  const [replyTo, setReplyTo] = useState<ChannelMessage | null>(null);
+  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+  const [commentDraft, setCommentDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const isCreator = user?.id === creatorId;
 
@@ -83,8 +66,9 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
     ? `/creators/${creatorId}/communities/${communitySlug}`
     : `/communities/${creatorId}`;
 
-  const { data: communityData } = useQuery({
+  const { data: communityData, isError: communityError, error: communityErr } = useQuery({
     queryKey: ['community', creatorId, communitySlug ?? 'default'],
+    retry: false,
     queryFn: async () => {
       const { data } = await api.get<{ data: CommunityPayload }>(communityPath);
       return data.data;
@@ -108,10 +92,108 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
             postType: string;
             isPinned: boolean;
             author?: { displayName?: string };
+            commentCount?: number;
+            likeCount?: number;
+            likedByMe?: boolean;
+            mediaUrls?: string[];
           }>;
         };
       }>(`/communities/${communityId}/posts`);
       return data.data.data;
+    },
+  });
+
+  const { data: postComments } = useQuery({
+    queryKey: ['community-post-comments', communityId, expandedPostId],
+    enabled: !!communityId && !!expandedPostId,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: {
+          data: Array<{
+            id: string;
+            body: string;
+            parentId?: string | null;
+            author?: { displayName?: string };
+          }>;
+        };
+      }>(`/communities/${communityId}/posts/${expandedPostId}/comments`);
+      return data.data.data;
+    },
+  });
+
+  const likeMutation = useMutation({
+    mutationFn: async (postId: string) => {
+      await api.post(`/communities/${communityId}/posts/${postId}/reactions`);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['community-posts', communityId] });
+    },
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: async ({ postId, body }: { postId: string; body: string }) => {
+      await api.post(`/communities/${communityId}/posts/${postId}/comments`, { body });
+    },
+    onSuccess: () => {
+      setCommentDraft('');
+      void qc.invalidateQueries({ queryKey: ['community-post-comments', communityId, expandedPostId] });
+      void qc.invalidateQueries({ queryKey: ['community-posts', communityId] });
+    },
+  });
+
+  type CommunityPollView = CommunityPoll;
+
+  const { data: activePoll } = useQuery({
+    queryKey: ['community-poll', communityId],
+    enabled: !!communityId && view === 'polls',
+    queryFn: async () => {
+      const { data } = await api.get<{ data: CommunityPollView | null }>(
+        `/communities/${communityId}/polls/active`,
+      );
+      return data.data ?? null;
+    },
+  });
+
+  const voteMutation = useMutation({
+    mutationFn: async ({ pollId, optionIndex }: { pollId: string; optionIndex: number }) => {
+      await api.post(`/communities/${communityId}/polls/${pollId}/vote`, { optionIndex });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['community-poll', communityId] });
+    },
+  });
+
+  const { data: leaderboard } = useQuery({
+    queryKey: ['community-leaderboard', communityId],
+    enabled: !!communityId && view === 'leaderboard',
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: Array<{ rank: number; userId: string; xp: number; level: number; streak?: number }>;
+      }>(`/communities/${communityId}/leaderboard`);
+      return data.data;
+    },
+  });
+
+  const { data: gamificationProfile } = useQuery({
+    queryKey: ['community-gamification-me', communityId],
+    enabled: !!communityId && !!user && view === 'leaderboard',
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: { xp: number; level: number; streak: number; badges: string[] };
+      }>(`/communities/${communityId}/gamification/me`);
+      return data.data;
+    },
+  });
+
+  const { data: communityLive } = useQuery({
+    queryKey: ['community-live', communityId],
+    enabled: !!communityId,
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: Array<{ id: string; title: string; viewerCount: number }>;
+      }>(`/communities/${communityId}/live`);
+      return data.data ?? [];
     },
   });
 
@@ -165,6 +247,33 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
   });
 
   const messageList = messages ?? [];
+
+  const threadedMessages = useMemo(() => {
+    const byId = new Map(messageList.map((m) => [m.id, m]));
+    const roots = messageList.filter((m) => !m.parentId);
+    const repliesByParent = new Map<string, ChannelMessage[]>();
+    for (const m of messageList) {
+      if (m.parentId) {
+        const list = repliesByParent.get(m.parentId) ?? [];
+        list.push(m);
+        repliesByParent.set(m.parentId, list);
+      }
+    }
+    const result: Array<{ message: ChannelMessage; depth: number }> = [];
+    for (const root of roots) {
+      result.push({ message: root, depth: 0 });
+      for (const reply of repliesByParent.get(root.id) ?? []) {
+        result.push({ message: reply, depth: 1 });
+      }
+    }
+    for (const m of messageList) {
+      if (m.parentId && !byId.has(m.parentId)) {
+        result.push({ message: m, depth: 1 });
+      }
+    }
+    return result;
+  }, [messageList]);
+
   const accessDenied =
     !channelAccessible ||
     (messagesError &&
@@ -173,7 +282,7 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
       (messagesError as { response?: { status?: number } }).response?.status === 403);
 
   const virtualizer = useVirtualizer({
-    count: messageList.length,
+    count: threadedMessages.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 56,
     overscan: 8,
@@ -206,12 +315,13 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
     mutationFn: async (body: string) => {
       const { data } = await api.post<{ data: ChannelMessage }>(
         `/channels/${activeChannelId}/messages`,
-        { body },
+        { body, parentId: replyTo?.id },
       );
       return data.data;
     },
     onSuccess: (message) => {
       setText('');
+      setReplyTo(null);
       if (message) appendMessage(message);
     },
   });
@@ -228,12 +338,25 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
     mutationFn: async ({ messageId, reason }: { messageId: string; reason: string }) => {
       if (!communityId || !activeChannelId) return;
       await api.post(`/communities/${communityId}/reports`, {
+        targetType: 'message',
         channelId: activeChannelId,
         messageId,
         reason,
       });
     },
     onSuccess: () => setReportingId(null),
+  });
+
+  const reportPostMutation = useMutation({
+    mutationFn: async ({ postId, reason }: { postId: string; reason: string }) => {
+      if (!communityId) return;
+      await api.post(`/communities/${communityId}/reports`, {
+        targetType: 'post',
+        postId,
+        reason,
+      });
+    },
+    onSuccess: () => setReportingPostId(null),
   });
 
   useEffect(() => {
@@ -262,10 +385,10 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
   }, [accessToken, activeChannelId, appendMessage, markDeleted, channelAccessible]);
 
   useEffect(() => {
-    if (messageList.length > 0) {
-      virtualizer.scrollToIndex(messageList.length - 1, { align: 'end' });
+    if (threadedMessages.length > 0) {
+      virtualizer.scrollToIndex(threadedMessages.length - 1, { align: 'end' });
     }
-  }, [messageList.length, virtualizer]);
+  }, [threadedMessages.length, virtualizer]);
 
   const channelsByCategory = useMemo(() => {
     const uncategorized: Channel[] = [];
@@ -302,6 +425,19 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
     );
   };
 
+  if (communityError && isAxiosError(communityErr) && communityErr.response?.status === 403) {
+    return (
+      <div className="glass-panel space-y-4 rounded-xl p-8 text-center">
+        <Icon name="lock" className="mx-auto text-3xl text-outline" />
+        <h3 className="font-semibold">This community is restricted</h3>
+        <p className="text-sm text-on-surface-variant">
+          You need membership or an invite to view this community.
+        </p>
+        {!isCreator ? <MembershipPanel creatorId={creatorId} /> : null}
+      </div>
+    );
+  }
+
   if (!communityData?.community) {
     return (
       <EmptyState
@@ -328,8 +464,118 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
         >
           Posts
         </button>
+        <button
+          type="button"
+          onClick={() => setView('polls')}
+          className={`rounded-full px-4 py-1.5 text-sm ${view === 'polls' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
+        >
+          Polls
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('leaderboard')}
+          className={`rounded-full px-4 py-1.5 text-sm ${view === 'leaderboard' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
+        >
+          Leaderboard
+        </button>
       </div>
-      {view === 'posts' ? (
+      {(communityLive ?? []).length > 0 ? (
+        <div className="glass-panel space-y-2 rounded-xl border border-primary/30 p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-primary">Live now</p>
+          {(communityLive ?? []).map((stream) => (
+            <a
+              key={stream.id}
+              href={`/live/${stream.id}`}
+              className="block rounded-lg border border-outline-variant/30 px-3 py-2 text-sm hover:border-primary/40"
+            >
+              {stream.title}
+              {stream.viewerCount > 0 ? ` · ${stream.viewerCount} watching` : ''}
+            </a>
+          ))}
+        </div>
+      ) : null}
+      {view === 'leaderboard' ? (
+        <div className="glass-panel space-y-2 rounded-xl p-4">
+          {gamificationProfile && (
+            <div className="mb-3 rounded-lg border border-outline-variant/30 px-3 py-2 text-sm">
+              <p>
+                Your progress: Lv {gamificationProfile.level} · {gamificationProfile.xp} XP ·{' '}
+                {gamificationProfile.streak} day streak
+              </p>
+              {gamificationProfile.badges.length > 0 && (
+                <p className="mt-1 text-on-surface-variant">
+                  Badges: {gamificationProfile.badges.join(', ')}
+                </p>
+              )}
+            </div>
+          )}
+          {(leaderboard ?? []).length === 0 ? (
+            <p className="text-sm text-on-surface-variant">No XP earned yet — chat and post to climb.</p>
+          ) : (
+            <ol className="space-y-2">
+              {(leaderboard ?? []).map((row) => (
+                <li
+                  key={row.userId}
+                  className="flex items-center justify-between rounded-lg border border-outline-variant/30 px-3 py-2 text-sm"
+                >
+                  <span>
+                    #{row.rank} · Lv {row.level}
+                  </span>
+                  <span className="font-medium">{row.xp} XP</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      ) : view === 'polls' ? (
+        <div className="glass-panel space-y-3 rounded-xl p-4">
+          {!activePoll ? (
+            <p className="text-sm text-on-surface-variant">No active poll right now.</p>
+          ) : (
+            <>
+              <h3 className="font-semibold">{activePoll.question}</h3>
+              <ul className="space-y-2">
+                {activePoll.options.map((opt, i) => {
+                  const count = activePoll.counts[i] ?? 0;
+                  const pct =
+                    activePoll.totalVotes > 0
+                      ? Math.round((count / activePoll.totalVotes) * 100)
+                      : 0;
+                  const isMyVote = activePoll.myOptionIndex === i;
+                  return (
+                    <li key={opt}>
+                      <button
+                        type="button"
+                        disabled={!user || voteMutation.isPending}
+                        onClick={() =>
+                          voteMutation.mutate({ pollId: activePoll.id, optionIndex: i })
+                        }
+                        className={`w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-surface-container-high disabled:opacity-50 ${
+                          isMyVote
+                            ? 'border-primary bg-primary/10'
+                            : 'border-outline-variant/40'
+                        }`}
+                      >
+                        <span>{opt}</span>
+                        {isMyVote ? (
+                          <span className="ml-2 text-xs font-medium text-primary">Your vote</span>
+                        ) : null}
+                        <span className="ml-2 text-xs text-outline">
+                          {count} ({pct}%)
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-xs text-outline">{activePoll.totalVotes} votes</p>
+              {!user ? (
+                <p className="text-xs text-on-surface-variant">Sign in to vote.</p>
+              ) : null}
+            </>
+          )}
+        </div>
+      ) : view === 'posts' ? (
         <div className="glass-panel space-y-3 rounded-xl p-4">
           {(postsData ?? []).length === 0 ? (
             <p className="text-sm text-on-surface-variant">No community posts yet.</p>
@@ -341,9 +587,92 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                 ) : null}
                 {p.title ? <h3 className="font-semibold">{p.title}</h3> : null}
                 <p className="text-sm text-on-surface-variant">{p.body}</p>
-                <p className="mt-1 text-xs text-outline">
-                  {p.author?.displayName ?? 'Creator'} · {p.postType}
-                </p>
+                <CommunityPostMedia urls={p.mediaUrls ?? []} />
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    className={`text-xs ${p.likedByMe ? 'text-primary font-medium' : 'text-outline'}`}
+                    disabled={!user || likeMutation.isPending}
+                    onClick={() => likeMutation.mutate(p.id)}
+                  >
+                    ♥ {p.likeCount ?? 0}
+                  </button>
+                  <button
+                    type="button"
+                    className="text-xs text-outline"
+                    onClick={() =>
+                      setExpandedPostId((cur) => (cur === p.id ? null : p.id))
+                    }
+                  >
+                    💬 {p.commentCount ?? 0} comments
+                  </button>
+                </div>
+                {expandedPostId === p.id ? (
+                  <div className="mt-3 space-y-2 rounded-lg bg-surface-container-low p-3">
+                    {(postComments ?? []).map((c) => (
+                      <p key={c.id} className="text-sm">
+                        <span className="font-medium">{c.author?.displayName ?? 'Member'}</span>
+                        {c.parentId ? (
+                          <span className="text-xs text-outline"> · reply</span>
+                        ) : null}
+                        <span className="text-on-surface-variant"> — {c.body}</span>
+                      </p>
+                    ))}
+                    {user ? (
+                      <form
+                        className="flex gap-2"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const body = commentDraft.trim();
+                          if (!body) return;
+                          commentMutation.mutate({ postId: p.id, body });
+                        }}
+                      >
+                        <Input
+                          value={commentDraft}
+                          onChange={(e) => setCommentDraft(e.target.value)}
+                          placeholder="Add a comment…"
+                          className="flex-1 text-sm"
+                        />
+                        <Button type="submit" disabled={commentMutation.isPending}>
+                          Post
+                        </Button>
+                      </form>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <p className="text-xs text-outline">
+                    {p.author?.displayName ?? 'Creator'} · {p.postType}
+                  </p>
+                  {user && !isCreator ? (
+                    reportingPostId === p.id ? (
+                      <form
+                        className="flex gap-1"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const fd = new FormData(e.currentTarget);
+                          const reason = String(fd.get('reason') ?? '').trim();
+                          if (!reason) return;
+                          reportPostMutation.mutate({ postId: p.id, reason });
+                        }}
+                      >
+                        <Input name="reason" placeholder="Reason" className="h-7 w-24 text-xs" />
+                        <Button type="submit" className="px-2 py-0 text-xs">
+                          Report
+                        </Button>
+                      </form>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        className="px-2 py-0 text-xs text-outline"
+                        onClick={() => setReportingPostId(p.id)}
+                      >
+                        Report
+                      </Button>
+                    )
+                  ) : null}
+                </div>
               </article>
             ))
           )}
@@ -369,10 +698,7 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
       </aside>
       <div className="flex flex-1 flex-col">
         {conflict ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-            <p className="text-sm text-on-surface-variant">{conflict}</p>
-            <Button onClick={takeOver}>Use this device</Button>
-          </div>
+          <AccessSessionConflict message={conflict} onTakeOver={takeOver} />
         ) : accessDenied ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
             <Icon name="lock" className="text-3xl text-outline" />
@@ -392,22 +718,43 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                 }}
               >
                 {virtualizer.getVirtualItems().map((item) => {
-                  const m = messageList[item.index];
+                  const entry = threadedMessages[item.index];
+                  const m = entry.message;
                   const canDelete = user && (m.userId === user.id || isCreator);
                   const canReport = user && m.userId !== user.id && !m.deletedAt;
+                  const parent = m.parentId
+                    ? messageList.find((msg) => msg.id === m.parentId)
+                    : null;
                   return (
                     <div
                       key={m.id}
                       className="absolute left-0 top-0 w-full text-sm"
-                      style={{ transform: `translateY(${item.start}px)` }}
+                      style={{
+                        transform: `translateY(${item.start}px)`,
+                        paddingLeft: entry.depth > 0 ? `${entry.depth * 16}px` : undefined,
+                      }}
                     >
                       <div className="flex items-start justify-between gap-2 py-1">
                         <div>
+                          {entry.depth > 0 && parent ? (
+                            <p className="text-[10px] text-outline">
+                              ↳ reply to {parent.user?.displayName ?? 'message'}
+                            </p>
+                          ) : null}
                           <span className="font-medium">{m.user?.displayName ?? 'Member'}</span>
                           <span className="text-on-surface-variant"> · </span>
                           <span className={m.deletedAt ? 'italic text-outline' : ''}>{m.body}</span>
                         </div>
                         <div className="flex shrink-0 gap-1">
+                          {user && !m.deletedAt ? (
+                            <Button
+                              variant="ghost"
+                              className="px-2 py-0 text-xs"
+                              onClick={() => setReplyTo(m)}
+                            >
+                              Reply
+                            </Button>
+                          ) : null}
                           {canReport ? (
                             reportingId === m.id ? (
                               <form
@@ -457,7 +804,7 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
             </div>
             {user && activeChannelId ? (
               <form
-                className="flex gap-2 border-t border-outline-variant/30 p-3"
+                className="flex flex-col gap-2 border-t border-outline-variant/30 p-3"
                 onSubmit={(e) => {
                   e.preventDefault();
                   const body = text.trim();
@@ -465,15 +812,29 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                   sendMutation.mutate(body);
                 }}
               >
-                <Input
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder="Message channel…"
-                  className="flex-1"
-                />
-                <Button type="submit" disabled={sendMutation.isPending}>
-                  Send
-                </Button>
+                {replyTo ? (
+                  <p className="text-xs text-on-surface-variant">
+                    Replying to {replyTo.user?.displayName ?? 'message'}
+                    <button
+                      type="button"
+                      className="ml-2 text-primary"
+                      onClick={() => setReplyTo(null)}
+                    >
+                      Cancel
+                    </button>
+                  </p>
+                ) : null}
+                <div className="flex gap-2">
+                  <Input
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder={replyTo ? 'Write a reply…' : 'Message channel…'}
+                    className="flex-1"
+                  />
+                  <Button type="submit" disabled={sendMutation.isPending}>
+                    Send
+                  </Button>
+                </div>
               </form>
             ) : (
               <p className="border-t border-outline-variant/30 p-3 text-xs text-on-surface-variant">
