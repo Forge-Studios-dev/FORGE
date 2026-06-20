@@ -9,6 +9,8 @@ import { MuxVodService } from '../content/mux-vod.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { StreamEventPurchase } from './entities/stream-event-purchase.entity';
+import { Community } from '../communities/entities/community.entity';
+import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
 import { StreamViewerService } from './stream-viewer.service';
 import { MuxLiveSyncService } from './mux-live-sync.service';
@@ -85,6 +87,10 @@ describe('StreamingService access gating', () => {
           useValue: { findOne: jest.fn(), save: jest.fn(), create: jest.fn() },
         },
         {
+          provide: getRepositoryToken(Community),
+          useValue: { findOne: jest.fn() },
+        },
+        {
           provide: ConfigService,
           useValue: {
             get: (key: string) => {
@@ -100,6 +106,10 @@ describe('StreamingService access gating', () => {
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: MuxVodService, useValue: { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn() } },
         { provide: EntitlementsService, useValue: entitlementsService },
+        {
+          provide: AccessSessionsService,
+          useValue: { requirePremiumSession: jest.fn().mockResolvedValue(undefined) },
+        },
         {
           provide: WebhookIdempotencyService,
           useValue: {
@@ -266,6 +276,7 @@ describe('StreamingService endStream', () => {
       { emit } as never,
       { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn() } as never,
       { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
+      { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
       {
         isDuplicate: jest.fn().mockResolvedValue(false),
         markProcessed: jest.fn().mockResolvedValue(undefined),
@@ -286,7 +297,6 @@ describe('StreamingService endStream', () => {
         scan: jest.fn().mockResolvedValue(['0', []]),
       } as never,
       { add: jest.fn() } as never,
-      { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
     );
 
     jest.spyOn(service['mux'].video.liveStreams, 'disable').mockResolvedValue({} as never);
@@ -330,6 +340,7 @@ describe('StreamingService createStream', () => {
       { emit: jest.fn() } as never,
       { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn() } as never,
       { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
+      { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
       {
         isDuplicate: jest.fn().mockResolvedValue(false),
         markProcessed: jest.fn().mockResolvedValue(undefined),
@@ -337,6 +348,7 @@ describe('StreamingService createStream', () => {
       {
         trackStreamLive: jest.fn().mockResolvedValue(undefined),
         trackStreamEnded: jest.fn().mockResolvedValue(undefined),
+        finalizeUniqueViewers: jest.fn().mockResolvedValue(0),
       } as never,
       {
         handleWebhookActive: jest.fn(),
@@ -349,7 +361,6 @@ describe('StreamingService createStream', () => {
         scan: jest.fn().mockResolvedValue(['0', []]),
       } as never,
       { add: jest.fn() } as never,
-      { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
     );
 
     jest.spyOn(service['mux'].video.liveStreams, 'create').mockRejectedValue(muxError);

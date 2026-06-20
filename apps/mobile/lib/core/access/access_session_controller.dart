@@ -28,7 +28,7 @@ class AccessSessionController {
         _heartbeat = Timer.periodic(Duration(seconds: interval), (_) {
           _client.dio.post('/access-sessions/heartbeat', data: {
             'sessionToken': _sessionToken,
-          }).catchError((_) {});
+          }).catchError((_) => Future.value(null));
         });
       }
       return true;
@@ -59,7 +59,9 @@ class AccessSessionController {
     final token = _sessionToken;
     _sessionToken = null;
     if (token != null) {
-      await _client.dio.delete('/access-sessions/current', data: {'sessionToken': token}).catchError((_) {});
+      await _client.dio
+          .delete('/access-sessions/current', data: {'sessionToken': token})
+          .catchError((_) => Future.value(null));
     }
   }
 }
