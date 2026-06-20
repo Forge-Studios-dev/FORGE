@@ -37,7 +37,7 @@ export class CommunityPost {
   @JoinColumn({ name: 'author_id' })
   author: User;
 
-  @Column({ length: 300, nullable: true })
+  @Column({ type: 'varchar', length: 300, nullable: true })
   title: string | null;
 
   @Column({ type: 'text' })
