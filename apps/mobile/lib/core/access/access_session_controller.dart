@@ -25,10 +25,12 @@ class AccessSessionController {
       final interval = (data['heartbeatIntervalSec'] as num?)?.toInt() ?? 45;
       _heartbeat?.cancel();
       if (_sessionToken != null) {
-        _heartbeat = Timer.periodic(Duration(seconds: interval), (_) {
-          _client.dio.post('/access-sessions/heartbeat', data: {
-            'sessionToken': _sessionToken,
-          }).catchError((_) => Future.value(null));
+        _heartbeat = Timer.periodic(Duration(seconds: interval), (_) async {
+          try {
+            await _client.dio.post('/access-sessions/heartbeat', data: {
+              'sessionToken': _sessionToken,
+            });
+          } catch (_) {}
         });
       }
       return true;
@@ -59,9 +61,9 @@ class AccessSessionController {
     final token = _sessionToken;
     _sessionToken = null;
     if (token != null) {
-      await _client.dio
-          .delete('/access-sessions/current', data: {'sessionToken': token})
-          .catchError((_) => Future.value(null));
+      try {
+        await _client.dio.delete('/access-sessions/current', data: {'sessionToken': token});
+      } catch (_) {}
     }
   }
 }
