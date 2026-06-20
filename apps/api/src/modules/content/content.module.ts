@@ -34,7 +34,7 @@ import { AccessSessionsModule } from '../access-sessions/access-sessions.module'
     forwardRef(() => UsersModule),
     forwardRef(() => EntitlementsModule),
     EngagementModule,
-    AccessSessionsModule,
+    forwardRef(() => AccessSessionsModule),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
       defaultJobOptions: {

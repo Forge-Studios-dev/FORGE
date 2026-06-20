@@ -75,7 +75,7 @@ jobs:
 
       - name: Rollback API on smoke failure
         if: failure()
-        run: flyctl releases rollback -a forge-studios-api --yes
+        run: flyctl releases rollback -a forge-studios-api
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -103,7 +103,7 @@ jobs:
 
       - name: Rollback worker on deploy failure
         if: failure()
-        run: flyctl releases rollback -a forge-studios-worker --yes
+        run: flyctl releases rollback -a forge-studios-worker
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
