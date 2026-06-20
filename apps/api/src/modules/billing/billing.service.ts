@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,6 +17,7 @@ import { StreamingService } from '../streaming/streaming.service';
 
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
 import { StripeTierSyncService } from './stripe-tier-sync.service';
+import { StripeConnectService } from './stripe-connect.service';
 
 @Injectable()
 export class BillingService {
@@ -36,6 +37,7 @@ export class BillingService {
     private readonly streamingService: StreamingService,
     private readonly eventEmitter: EventEmitter2,
     private readonly stripeTierSync: StripeTierSyncService,
+    private readonly stripeConnectService: StripeConnectService,
   ) {}
 
   async createCheckout(userId: string, input: Omit<CheckoutSessionInput, 'userId'>) {
@@ -53,6 +55,20 @@ export class BillingService {
       }
     }
 
+    let connectAccountId: string | null = null;
+    const platformFeePercent =
+      this.configService.get<number>('billing.stripePlatformFeePercent') ?? 10;
+
+    if (this.isBillingEnabled()) {
+      const connectStatus = await this.stripeConnectService.getConnectStatus(input.creatorId);
+      if (!connectStatus.chargesEnabled) {
+        throw new BadRequestException(
+          'Creator must complete Stripe Connect onboarding before accepting paid memberships',
+        );
+      }
+      connectAccountId = (connectStatus as { accountId?: string }).accountId ?? null;
+    }
+
     return this.paymentProvider.createCheckoutSession({
       ...input,
       userId,
@@ -62,6 +78,8 @@ export class BillingService {
       stripePriceId,
       billingInterval: tier.billingInterval,
       trialDays: tier.trialDays,
+      connectAccountId,
+      platformFeePercent,
     });
   }
 
@@ -214,6 +232,13 @@ export class BillingService {
       } else if (result.status === 'failed_payment' && result.subscriptionId) {
         await this.entitlementsService.markSubscriptionFailedPayment(result.subscriptionId);
       }
+
+      if (result.periodEndAt && result.subscriptionId) {
+        await this.entitlementsService.updateSubscriptionExpiresByExternalRef(
+          result.subscriptionId,
+          result.periodEndAt,
+        );
+      }
     }
 
     if (idempotencyKey) {
@@ -247,5 +272,34 @@ export class BillingService {
   isBillingEnabled(): boolean {
     const provider = (this.configService.get<string>('billing.provider') || 'stub').toLowerCase();
     return provider === 'stripe' && !!this.configService.get<string>('billing.stripeSecretKey');
+  }
+
+  async createBillingPortalSession(userId: string, returnUrl: string) {
+    if (!this.isBillingEnabled()) {
+      throw new BadRequestException('Billing portal requires Stripe billing to be enabled');
+    }
+
+    const sub = await this.entitlementsService.findStripeSubscriptionForUser(userId);
+    if (!sub?.externalRef) {
+      throw new NotFoundException('No active Stripe subscription found');
+    }
+
+    const provider = this.paymentProvider as PaymentProvider & {
+      createBillingPortalSession?: (customerId: string, returnUrl: string) => Promise<{ url: string }>;
+    };
+    if (!provider.createBillingPortalSession) {
+      throw new BadRequestException('Billing portal is not supported by the current provider');
+    }
+
+    const customerId = await this.stripeTierSync.getSubscriptionCustomerId(sub.externalRef);
+    if (!customerId) {
+      throw new BadRequestException('Could not resolve Stripe customer for subscription');
+    }
+
+    const session = await provider.createBillingPortalSession(customerId, returnUrl);
+    if (!session.url) {
+      throw new BadRequestException('Billing portal session could not be created');
+    }
+    return { url: session.url };
   }
 }

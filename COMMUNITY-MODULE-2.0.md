@@ -588,15 +588,69 @@ The goal is to transform FORGE into a complete Creator Economy Operating System 
 
 ---
 
-## Implementation Status (2026-06)
+## Implementation Status (2026-06-19)
 
-| Sprint | Scope | Status |
-|--------|-------|--------|
-| 0 | Community 2.0 schema, access sessions, moderation API, shared types, unit tests | Shipped |
-| 1 | Studio communities detail, moderation UI, tier entitlements, access sessions on watch/live | Shipped |
-| 2 | Mobile multi-community, subscribers, access sessions, auth devices | Shipped |
-| 3 | Brand CRUD, subscriber analytics, Stripe Connect stub, tier change checkout | Shipped |
-| 4 | Community posts, search, announcements API | Shipped |
-| 5 | Courses/cohorts, gamification, AI spam moderation, load test script | Shipped (foundation) |
+**Overall:** ~90% of Creator Economy OS vision · **Living tracker:** [docs/COMMUNITY-2.0-IMPLEMENTATION.md](docs/COMMUNITY-2.0-IMPLEMENTATION.md)
 
-Deferred: full Stripe Connect payouts, signed Mux URLs, search sidecar (F-1302).
+| Phase | Scope | Completion | Status |
+|-------|-------|------------|--------|
+| Sprint 0–6 | Schema, access sessions, moderation, posts, polls, brands, Connect onboarding, gamification hooks | 100% | **Done** |
+| Phase A | Post comments/reactions, billing portal, expires_at sync, moderator UI, HTTP e2e, discovery UI, mobile creator fix | 100% | **Done** |
+| Phase B | Destination charges, in-place tier change, courses LMS, badges, community-scoped live, mobile parity | 100% | **Done** |
+| Phase C | Stage mode raise hand, retention BI, async AI mod queue, mobile moderation | 100% | **Done** |
+| Phase D | Device limits, outbox, media attachments, courses UI, creator BI funnel/cohorts, load-test script | ~85% | **Substantially complete** |
+
+### Sprint 0–6 (Foundation) — Done
+
+| Sprint | Scope | Verification |
+|--------|-------|--------------|
+| 0 | Community 2.0 schema, access sessions, moderation API, unit tests | Migration `1800000000000`, specs |
+| 1 | Studio detail, moderation UI, tier entitlements | `studio/communities/[id]` |
+| 2 | Mobile multi-community, access sessions, auth devices | Mobile + smoke |
+| 3 | Brand CRUD, subscriber analytics, Stripe Connect onboarding | Studio + API |
+| 4 | Posts, search, announcements API | BullMQ worker |
+| 5 | Courses/cohorts CRUD, gamification hooks, regex spam filter | Foundation |
+| 6 | RBAC delegation, posts access control, polls, brands UI | S6 tracker |
+
+### Phase A — Done (2026-06-19)
+
+- Post comments + reactions (migration `1826000000000`, API, web, mobile counts)
+- Billing portal (`POST /billing/portal`, memberships UI)
+- Stripe `expires_at` sync from webhooks
+- Moderator/coach UI (`/studio/moderation`, `GET /creators/me/moderated-communities`)
+- HTTP integration tests (`test/community-http.e2e-spec.ts`)
+- Community discovery page (`/discover/communities`)
+- Thread reply display in `CommunityPanel`
+- Mobile studio `_creatorId` fix + multi-community picker
+
+### Phase B/C — Done (2026-06-19)
+
+- Stripe destination charges + in-place tier change
+- Courses LMS API (lessons, enrollment, progress)
+- Gamification badges + streaks + check-in
+- Community-scoped live + raise-hand stage mode
+- Async moderation queue + mobile moderation UI
+- Expanded HTTP e2e (12 routes) + courses/communities unit specs
+
+### Phase D — Substantially complete (2026-06-19)
+
+- D-3 per-tier device limits (`maxConcurrentDevices`, multi-device sessions)
+- SC-1 platform event outbox for durable announcement dispatch
+- C-4 post media attachments + YouTube/Vimeo embeds
+- Courses web + mobile UI (studio, viewer, lesson editor)
+- Creator BI funnel + weekly/monthly cohort retention charts
+- Community load test script (`scripts/load-test-community.sh`)
+- HTTP e2e expanded to 12 routes
+
+### Deferred backlog
+
+1. Search sidecar when triggered (F-1302, 500K videos)
+2. ML moderation pipeline
+3. Voice/breakout rooms
+4. Formal 50K MAU load validation on staging
+
+### 21 Deliverables Cross-Reference
+
+See [docs/COMMUNITY-2.0-IMPLEMENTATION.md](docs/COMMUNITY-2.0-IMPLEMENTATION.md) §21 Deliverables Index for full audit deliverable status.
+
+Deferred: full Stripe Connect destination charges, signed Mux URLs, search sidecar (F-1302), AI moderation (beyond heuristics), Room entity, enterprise RBAC.

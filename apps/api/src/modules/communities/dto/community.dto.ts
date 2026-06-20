@@ -1,4 +1,5 @@
 import {
+  IsDateString,
   IsEnum,
   IsInt,
   IsObject,
@@ -7,10 +8,12 @@ import {
   IsUUID,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ChannelType } from '../../entitlements/entities/channel-type.enum';
 import { CommunityVisibility } from '../entities/community.entity';
+import { CommunityRoleType } from '../entities/community-role.entity';
 
 export class CreateCommunityDto {
   @ApiProperty()
@@ -59,6 +62,11 @@ export class UpdateCommunityDto {
   @IsOptional()
   @IsObject()
   settings?: Record<string, unknown>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  brandId?: string | null;
 }
 
 export class CreateCategoryDto {
@@ -179,4 +187,76 @@ export class InviteChannelMemberDto {
   @ApiProperty()
   @IsUUID()
   userId: string;
+}
+
+export enum CommunityReportTargetType {
+  MESSAGE = 'message',
+  POST = 'post',
+  POLL = 'poll',
+  USER = 'user',
+}
+
+export class CreateReportDto {
+  @ApiPropertyOptional({ enum: CommunityReportTargetType, default: CommunityReportTargetType.MESSAGE })
+  @IsOptional()
+  @IsEnum(CommunityReportTargetType)
+  targetType?: CommunityReportTargetType;
+
+  @ApiPropertyOptional()
+  @ValidateIf((o) => (o.targetType ?? 'message') === CommunityReportTargetType.MESSAGE)
+  @IsUUID()
+  channelId?: string;
+
+  @ApiPropertyOptional()
+  @ValidateIf((o) => (o.targetType ?? 'message') === CommunityReportTargetType.MESSAGE)
+  @IsUUID()
+  messageId?: string;
+
+  @ApiPropertyOptional()
+  @ValidateIf((o) => o.targetType === CommunityReportTargetType.POST)
+  @IsUUID()
+  postId?: string;
+
+  @ApiPropertyOptional()
+  @ValidateIf((o) => o.targetType === CommunityReportTargetType.POLL)
+  @IsUUID()
+  pollId?: string;
+
+  @ApiPropertyOptional()
+  @ValidateIf((o) => o.targetType === CommunityReportTargetType.USER)
+  @IsUUID()
+  reportedUserId?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
+  reason: string;
+}
+
+export class BanMemberDto {
+  @ApiProperty()
+  @IsUUID()
+  userId: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
+}
+
+export class AssignRoleDto {
+  @ApiProperty()
+  @IsUUID()
+  userId: string;
+
+  @ApiProperty({ enum: CommunityRoleType })
+  @IsEnum(CommunityRoleType)
+  role: CommunityRoleType;
 }

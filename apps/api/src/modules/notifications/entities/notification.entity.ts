@@ -13,6 +13,9 @@ export enum NotificationType {
   NEW_FOLLOWER = 'new_follower',
   VIDEO_LIKED = 'video_liked',
   DIRECT_MESSAGE = 'direct_message',
+  COMMUNITY_ROLE_ASSIGNED = 'community_role_assigned',
+  COMMUNITY_BANNED = 'community_banned',
+  COMMUNITY_POST_NEW = 'community_post_new',
 }
 
 @Entity('notifications')

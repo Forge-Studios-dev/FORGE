@@ -17,6 +17,8 @@ import { StreamingService } from './streaming.service';
 import { muxPlaybackIdFromHlsUrl } from '../../common/media/mux-playback.util';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { UsersService } from '../users/users.service';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 
 @Injectable()
 export class StreamLiveService {
@@ -40,6 +42,7 @@ export class StreamLiveService {
     private readonly entitlementsService: EntitlementsService,
     private readonly usersService: UsersService,
     private readonly eventEmitter: EventEmitter2,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   async canModerate(
@@ -392,5 +395,31 @@ export class StreamLiveService {
       }
     }
     return updated;
+  }
+
+  private raiseHandKey(streamId: string): string {
+    return `stream:raise-hand:${streamId}`;
+  }
+
+  async raiseHand(streamId: string, userId: string) {
+    await this.streamingService.findById(streamId);
+    const key = this.raiseHandKey(streamId);
+    await this.redis.hset(key, userId, Date.now().toString());
+    await this.redis.expire(key, 3600);
+    this.eventEmitter.emit('stream.raise-hand', { streamId, userId });
+    return { raised: true };
+  }
+
+  async lowerHand(streamId: string, userId: string) {
+    await this.redis.hdel(this.raiseHandKey(streamId), userId);
+    return { raised: false };
+  }
+
+  async listRaisedHands(streamId: string) {
+    const raw = await this.redis.hgetall(this.raiseHandKey(streamId));
+    return Object.entries(raw).map(([uid, ts]) => ({
+      userId: uid,
+      raisedAt: new Date(Number(ts)),
+    }));
   }
 }

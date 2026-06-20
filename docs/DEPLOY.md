@@ -75,7 +75,16 @@ fly secrets set \
   --app forge-studios-api
 ```
 
-**Verify:** `curl -s https://api.forgestudios.net/api/v1/health`
+**Verify:**
+
+```bash
+# Liveness (Fly probe — no DB check)
+curl -s https://api.forgestudios.net/api/v1/health/live
+# Readiness (DB + Redis + queues)
+curl -s https://api.forgestudios.net/api/v1/health
+```
+
+API runs **2 machines** (`min_machines_running=2` in `fly.toml`) — see [operations/FLY_SLO.md](./operations/FLY_SLO.md).
 
 **Do not** set `ENABLE_VIDEO_WORKER` on API. Deploy worker separately:
 
@@ -88,7 +97,7 @@ npm run sync:fly:worker-secrets
 
 ## 4. Vercel (web + admin)
 
-Two projects: root `apps/web` and `apps/admin`. Enable “Include source files outside Root Directory”.
+Two projects: root `apps/web` and `apps/admin`. Each `vercel.json` sets workspace `installCommand` / `buildCommand` (includes `@forge/design-system`). Enable “Include source files outside Root Directory”.
 
 | Variable | Value |
 |----------|--------|
@@ -141,12 +150,13 @@ Run locally, expose with [ngrok](https://ngrok.com): `ngrok http 3000` / `3001` 
 | 3 | S3 + Mux + worker — [MEDIA.md](./MEDIA.md) |
 | 4 | `METRICS_ENABLED`, Sentry — [OBSERVABILITY.md](./OBSERVABILITY.md) |
 | 5 | Google/SMTP/FCM — [AUTH.md](./AUTH.md) · [FIREBASE.md](./FIREBASE.md) |
+| 6 | Stripe + LiveKit (paid events, browser go-live) — [MEDIA.md](./MEDIA.md) · [LIVE.md](./LIVE.md) |
 
 **Rotate leaked secrets:** Fly/Vercel dashboards + Mux/AWS consoles; never commit `.env`.
 
 **Rollback:** `fly releases rollback` · Vercel promote previous deployment.
 
-**Automatic rollback (Release workflow):** If post-deploy smoke or metrics verification fails, GitHub Actions runs `flyctl releases rollback` on the API (and worker if its deploy job fails). This reverts the **app image only** — not database migrations. Failed `release_command` migrations block deploy before traffic shifts; if smoke fails after a successful migration, assess whether schema rollback is needed separately (`npm run migration:revert` — see [DISASTER_RECOVERY.md](./operations/DISASTER_RECOVERY.md)).
+**Automatic rollback (Release workflow):** If post-deploy smoke or metrics verification fails, GitHub Actions runs `flyctl releases rollback` on the API (and worker if its deploy job fails). This reverts the **app image only** — not database migrations. Failed `release_command` migrations block deploy before traffic shifts; if smoke fails after a successful migration, assess whether schema rollback is needed separately (`npm run migration:revert -w @forge/api` — see [DISASTER_RECOVERY.md](./operations/DISASTER_RECOVERY.md)).
 
 ---
 

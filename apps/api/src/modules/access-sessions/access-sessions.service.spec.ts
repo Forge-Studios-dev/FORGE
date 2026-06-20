@@ -12,19 +12,32 @@ describe('AccessSessionsService', () => {
     get: jest.Mock;
     setex: jest.Mock;
     del: jest.Mock;
+    smembers: jest.Mock;
+    sadd: jest.Mock;
+    srem: jest.Mock;
+    expire: jest.Mock;
   };
   let auditRepository: { save: jest.Mock; create: jest.Mock; findOne: jest.Mock };
+  let entitlementsService: { getMembershipForViewer: jest.Mock; getMaxConcurrentDevices: jest.Mock };
 
   beforeEach(async () => {
     redis = {
       get: jest.fn().mockResolvedValue(null),
       setex: jest.fn().mockResolvedValue('OK'),
       del: jest.fn().mockResolvedValue(1),
+      smembers: jest.fn().mockResolvedValue([]),
+      sadd: jest.fn().mockResolvedValue(1),
+      srem: jest.fn().mockResolvedValue(1),
+      expire: jest.fn().mockResolvedValue(1),
     };
     auditRepository = {
       save: jest.fn().mockResolvedValue({}),
       create: jest.fn((x) => x),
       findOne: jest.fn().mockResolvedValue(null),
+    };
+    entitlementsService = {
+      getMembershipForViewer: jest.fn().mockResolvedValue({ active: true }),
+      getMaxConcurrentDevices: jest.fn().mockResolvedValue(1),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -32,10 +45,7 @@ describe('AccessSessionsService', () => {
         AccessSessionsService,
         { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
         { provide: getRepositoryToken(AccessSessionAudit), useValue: auditRepository },
-        {
-          provide: EntitlementsService,
-          useValue: { getMembershipForViewer: jest.fn().mockResolvedValue({ active: true }) },
-        },
+        { provide: EntitlementsService, useValue: entitlementsService },
       ],
     }).compile();
 
@@ -45,8 +55,10 @@ describe('AccessSessionsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     redis.get.mockResolvedValue(null);
+    redis.smembers.mockResolvedValue([]);
     redis.setex.mockResolvedValue('OK');
     redis.del.mockResolvedValue(1);
+    entitlementsService.getMaxConcurrentDevices.mockResolvedValue(1);
     auditRepository.findOne.mockResolvedValue(null);
   });
 
@@ -58,29 +70,49 @@ describe('AccessSessionsService', () => {
 
     expect(result.sessionToken).toBeDefined();
     expect(result.heartbeatIntervalSec).toBe(45);
+    expect(result.maxDevices).toBe(1);
     expect(redis.setex).toHaveBeenCalled();
+    expect(redis.sadd).toHaveBeenCalled();
     expect(auditRepository.save).toHaveBeenCalled();
   });
 
-  it('throws concurrent_session when another session is active', async () => {
-    redis.get
-      .mockResolvedValueOnce('existing-token')
-      .mockResolvedValueOnce(JSON.stringify({ userId: 'user-1', sessionType: AccessSessionType.PLAYBACK }));
+  it('throws concurrent_session when device limit is reached', async () => {
+    entitlementsService.getMaxConcurrentDevices.mockResolvedValue(1);
+    redis.smembers.mockResolvedValue(['existing-token']);
+    redis.get.mockResolvedValue(
+      JSON.stringify({ userId: 'user-1', sessionType: AccessSessionType.PLAYBACK, startedAt: new Date().toISOString() }),
+    );
 
     await expect(
       service.startSession('user-1', { sessionType: AccessSessionType.PLAYBACK }),
     ).rejects.toThrow(ConflictException);
   });
 
+  it('throws device_limit when tier allows multiple devices but cap is reached', async () => {
+    entitlementsService.getMaxConcurrentDevices.mockResolvedValue(3);
+    redis.smembers.mockResolvedValue(['t1', 't2', 't3']);
+    redis.get.mockImplementation(async (key: string) => {
+      const token = String(key).split(':').pop();
+      return JSON.stringify({
+        userId: 'user-1',
+        sessionType: AccessSessionType.PLAYBACK,
+        startedAt: token === 't1' ? '2020-01-01' : token === 't2' ? '2020-01-02' : '2020-01-03',
+      });
+    });
+
+    await expect(
+      service.startSession('user-1', { sessionType: AccessSessionType.LIVE }),
+    ).rejects.toMatchObject({ response: { code: 'device_limit' } });
+  });
+
   it('replaces existing session when force=true', async () => {
     const existingPayload = JSON.stringify({
       userId: 'user-1',
       sessionType: AccessSessionType.PLAYBACK,
+      startedAt: new Date().toISOString(),
     });
-    redis.get
-      .mockResolvedValueOnce('existing-token')
-      .mockResolvedValueOnce(existingPayload)
-      .mockResolvedValueOnce(existingPayload);
+    redis.smembers.mockResolvedValue(['existing-token']);
+    redis.get.mockResolvedValue(existingPayload);
 
     const result = await service.startSession('user-1', {
       sessionType: AccessSessionType.LIVE,

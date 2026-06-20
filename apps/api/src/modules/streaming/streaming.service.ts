@@ -22,6 +22,7 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 import { User, UserRole } from '../users/entities/user.entity';
+import { Community } from '../communities/entities/community.entity';
 import {
   muxHlsPlaybackUrl,
   muxPlaybackIdFromHlsUrl,
@@ -77,6 +78,8 @@ export class StreamingService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(StreamEventPurchase)
     private readonly purchaseRepository: Repository<StreamEventPurchase>,
+    @InjectRepository(Community)
+    private readonly communityRepository: Repository<Community>,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly muxVodService: MuxVodService,
@@ -125,6 +128,15 @@ export class StreamingService {
       scheduledAt = new Date(dto.scheduledAt);
       if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) {
         throw new BadRequestException('scheduledAt must be a valid future datetime');
+      }
+    }
+
+    if (dto.communityId) {
+      const community = await this.communityRepository.findOne({
+        where: { id: dto.communityId, creatorId: userId },
+      });
+      if (!community) {
+        throw new BadRequestException('Community not found or not owned by creator');
       }
     }
 
@@ -182,6 +194,7 @@ export class StreamingService {
       scheduledAt,
       ticketPriceCents:
         visibility === StreamVisibility.PAID_EVENT ? (dto.ticketPriceCents ?? null) : null,
+      communityId: dto.communityId ?? null,
     });
 
     const saved = await this.streamRepository.save(stream);

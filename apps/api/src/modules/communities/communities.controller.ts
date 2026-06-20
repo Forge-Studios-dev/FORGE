@@ -60,6 +60,13 @@ export class CommunitiesController {
     return this.communitiesService.getCommunityById(communityId, user?.sub, user?.role);
   }
 
+  @Public()
+  @Get('communities/search')
+  @ApiOperation({ summary: 'Discover public communities by name or slug' })
+  searchCommunities(@Query('q') q = '', @Query('limit') limit = 20) {
+    return this.communitiesService.searchCommunities(q, Number(limit) || 20);
+  }
+
   /** @deprecated Use GET /creators/:creatorId/communities/:slug — returns default community */
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
@@ -178,6 +185,7 @@ export class CommunitiesController {
     @CurrentUser() user: JwtPayload | undefined,
     @Query('limit') limit = 50,
     @Query('cursor') cursor?: string,
+    @Query('parentId') parentId?: string,
   ) {
     return this.communitiesService.getChannelMessages(
       channelId,
@@ -185,6 +193,7 @@ export class CommunitiesController {
       user?.role,
       Number(limit) || 50,
       cursor,
+      parentId,
     );
   }
 
@@ -211,5 +220,39 @@ export class CommunitiesController {
       user.sub,
       user.role,
     );
+  }
+
+  @Get('creators/me/moderated-communities')
+  @ApiOperation({ summary: 'List communities where the user has a delegated moderation role' })
+  listModeratedCommunities(@CurrentUser() user: JwtPayload) {
+    return this.communitiesService.listModeratedCommunities(user.sub);
+  }
+
+  @Get('creators/me/communities/:communityId/analytics')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Community engagement analytics (creator)' })
+  communityAnalytics(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+  ) {
+    return this.communitiesService.getCommunityAnalytics(user.sub, communityId);
+  }
+
+  @Get('creators/me/business-analytics')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Creator business OS funnel — membership to engagement (30d)' })
+  businessAnalytics(@CurrentUser() user: JwtPayload) {
+    return this.communitiesService.getCreatorBusinessAnalytics(user.sub);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('communities/:communityId/live')
+  @ApiOperation({ summary: 'Live streams scoped to a community' })
+  communityLive(
+    @Param('communityId') communityId: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.communitiesService.getCommunityLiveStreams(communityId, user?.sub, user?.role);
   }
 }

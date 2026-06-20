@@ -131,6 +131,9 @@ export default () => ({
     provider: process.env.BILLING_PROVIDER || 'stub',
     stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+    stripeConnectRefreshUrl: process.env.STRIPE_CONNECT_REFRESH_URL || '',
+    /** Platform fee % on Connect destination charges (default 10). */
+    stripePlatformFeePercent: parseInt(process.env.STRIPE_PLATFORM_FEE_PERCENT || '10', 10),
   },
 
   livekit: {

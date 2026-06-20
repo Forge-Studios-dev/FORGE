@@ -42,6 +42,16 @@ export class StubPaymentProvider implements PaymentProvider {
     // no-op in stub mode
   }
 
+  async createBillingPortalSession(_customerId: string, _returnUrl: string): Promise<{ url: string }> {
+    return { url: '' };
+  }
+
+  async updateSubscriptionTier?(
+    _input: import('./payment-provider.interface').UpdateSubscriptionTierInput,
+  ): Promise<import('./payment-provider.interface').UpdateSubscriptionTierResult> {
+    return { subscriptionId: 'stub_sub', prorationApplied: false };
+  }
+
   verifyWebhook(_payload: Buffer, _headers: Record<string, string>): ProviderWebhookResult | null {
     return null;
   }

@@ -19,6 +19,7 @@ type SessionPayload = {
   userId: string;
   sessionType: AccessSessionType;
   resourceId?: string | null;
+  creatorId?: string | null;
   deviceFingerprint?: string | null;
   startedAt: string;
 };
@@ -32,12 +33,51 @@ export class AccessSessionsService {
     private readonly entitlementsService: EntitlementsService,
   ) {}
 
-  private userSessionKey(userId: string): string {
+  private legacyUserSessionKey(userId: string): string {
     return `access:session:user:${userId}`;
+  }
+
+  private userTokensKey(userId: string): string {
+    return `access:session:user:${userId}:tokens`;
   }
 
   private tokenKey(token: string): string {
     return `access:session:token:${token}`;
+  }
+
+  private async migrateLegacySession(userId: string): Promise<void> {
+    const legacy = await this.redis.get(this.legacyUserSessionKey(userId));
+    if (!legacy) return;
+    await this.redis.sadd(this.userTokensKey(userId), legacy);
+    await this.redis.del(this.legacyUserSessionKey(userId));
+  }
+
+  private async getActiveSessionPayloads(
+    userId: string,
+    creatorId?: string | null,
+  ): Promise<Array<{ token: string; payload: SessionPayload }>> {
+    await this.migrateLegacySession(userId);
+    const tokens = await this.redis.smembers(this.userTokensKey(userId));
+    const results: Array<{ token: string; payload: SessionPayload }> = [];
+
+    for (const token of tokens) {
+      const raw = await this.redis.get(this.tokenKey(token));
+      if (!raw) {
+        await this.redis.srem(this.userTokensKey(userId), token);
+        continue;
+      }
+      const payload = JSON.parse(raw) as SessionPayload;
+      if (payload.userId !== userId) {
+        await this.redis.srem(this.userTokensKey(userId), token);
+        await this.redis.del(this.tokenKey(token));
+        continue;
+      }
+      if (creatorId && payload.creatorId && payload.creatorId !== creatorId) {
+        continue;
+      }
+      results.push({ token, payload });
+    }
+    return results;
   }
 
   async startSession(
@@ -45,17 +85,36 @@ export class AccessSessionsService {
     dto: StartAccessSessionDto,
     meta?: { deviceFingerprint?: string | null; userAgent?: string | null },
   ) {
-    const existingToken = await this.redis.get(this.userSessionKey(userId));
-    if (existingToken) {
-      const existing = await this.redis.get(this.tokenKey(existingToken));
-      if (existing && !dto.force) {
+    const creatorId = dto.creatorId ?? null;
+    const maxDevices = await this.entitlementsService.getMaxConcurrentDevices(
+      userId,
+      creatorId ?? undefined,
+    );
+    const active = await this.getActiveSessionPayloads(userId, creatorId);
+    const deviceFingerprint = meta?.deviceFingerprint ?? null;
+
+    const sameDeviceSession = deviceFingerprint
+      ? active.find((s) => s.payload.deviceFingerprint === deviceFingerprint)
+      : undefined;
+
+    if (sameDeviceSession) {
+      await this.endSession(userId, sameDeviceSession.token, 'replaced');
+    } else if (active.length >= maxDevices) {
+      if (!dto.force) {
         throw new ConflictException({
-          code: 'concurrent_session',
-          message: 'Another active viewing session exists. End it or use force=true.',
+          code: maxDevices > 1 ? 'device_limit' : 'concurrent_session',
+          message:
+            maxDevices > 1
+              ? `Device limit reached (${maxDevices}). End another session or use force=true.`
+              : 'Another active viewing session exists. End it or use force=true.',
+          maxDevices,
         });
       }
-      if (existing) {
-        await this.endSession(userId, existingToken, 'replaced');
+      const oldest = [...active].sort((a, b) =>
+        a.payload.startedAt.localeCompare(b.payload.startedAt),
+      )[0];
+      if (oldest) {
+        await this.endSession(userId, oldest.token, 'replaced');
       }
     }
 
@@ -64,19 +123,21 @@ export class AccessSessionsService {
       userId,
       sessionType: dto.sessionType,
       resourceId: dto.resourceId ?? null,
-      deviceFingerprint: meta?.deviceFingerprint ?? null,
+      creatorId,
+      deviceFingerprint,
       startedAt: new Date().toISOString(),
     };
 
     await this.redis.setex(this.tokenKey(sessionToken), SESSION_TTL_SEC, JSON.stringify(payload));
-    await this.redis.setex(this.userSessionKey(userId), SESSION_TTL_SEC, sessionToken);
+    await this.redis.sadd(this.userTokensKey(userId), sessionToken);
+    await this.redis.expire(this.userTokensKey(userId), SESSION_TTL_SEC * 2);
 
     await this.auditRepository.save(
       this.auditRepository.create({
         userId,
         sessionType: dto.sessionType,
         resourceId: dto.resourceId ?? null,
-        deviceFingerprint: meta?.deviceFingerprint ?? null,
+        deviceFingerprint,
       }),
     );
 
@@ -84,6 +145,7 @@ export class AccessSessionsService {
       sessionToken,
       heartbeatIntervalSec: HEARTBEAT_INTERVAL_SEC,
       expiresInSec: SESSION_TTL_SEC,
+      maxDevices,
     };
   }
 
@@ -95,7 +157,8 @@ export class AccessSessionsService {
     if (payload.userId !== userId) throw new UnauthorizedException('Session mismatch');
 
     await this.redis.setex(this.tokenKey(sessionToken), SESSION_TTL_SEC, raw);
-    await this.redis.setex(this.userSessionKey(userId), SESSION_TTL_SEC, sessionToken);
+    await this.redis.sadd(this.userTokensKey(userId), sessionToken);
+    await this.redis.expire(this.userTokensKey(userId), SESSION_TTL_SEC * 2);
     return { ok: true, expiresInSec: SESSION_TTL_SEC };
   }
 
@@ -105,7 +168,7 @@ export class AccessSessionsService {
       const payload = JSON.parse(raw) as SessionPayload;
       if (payload.userId === userId) {
         await this.redis.del(this.tokenKey(sessionToken));
-        await this.redis.del(this.userSessionKey(userId));
+        await this.redis.srem(this.userTokensKey(userId), sessionToken);
 
         const audit = await this.auditRepository.findOne({
           where: { userId, sessionType: payload.sessionType, endedAt: null as unknown as Date },
@@ -122,38 +185,34 @@ export class AccessSessionsService {
   }
 
   async getCurrentSession(userId: string) {
-    const token = await this.redis.get(this.userSessionKey(userId));
-    if (!token) return { active: false };
-    const raw = await this.redis.get(this.tokenKey(token));
-    if (!raw) return { active: false };
-    const payload = JSON.parse(raw) as SessionPayload;
-    return { active: true, sessionType: payload.sessionType, resourceId: payload.resourceId };
+    const active = await this.getActiveSessionPayloads(userId);
+    if (!active.length) return { active: false as const };
+    const primary = active[0].payload;
+    const maxDevices = await this.entitlementsService.getMaxConcurrentDevices(userId);
+    return {
+      active: true as const,
+      sessionType: primary.sessionType,
+      resourceId: primary.resourceId,
+      activeDeviceCount: active.length,
+      maxDevices,
+    };
   }
 
   /** Enforce concurrent session for premium playback/live/course/community. */
   async assertSessionAllowed(userId: string, sessionType: AccessSessionType, resourceId?: string) {
-    const token = await this.redis.get(this.userSessionKey(userId));
-    if (!token) {
+    const active = await this.getActiveSessionPayloads(userId);
+    if (!active.length) {
       throw new ConflictException({
         code: 'session_required',
         message: 'Start an access session before viewing premium content',
       });
     }
-    const raw = await this.redis.get(this.tokenKey(token));
-    if (!raw) {
-      throw new ConflictException({
-        code: 'session_expired',
-        message: 'Access session expired — refresh heartbeat',
-      });
-    }
-    const payload = JSON.parse(raw) as SessionPayload;
-    if (payload.sessionType !== sessionType) {
-      throw new ConflictException({
-        code: 'concurrent_session',
-        message: 'Active session is for a different content type',
-      });
-    }
-    if (resourceId && payload.resourceId && payload.resourceId !== resourceId) {
+    const match = active.find(
+      (s) =>
+        s.payload.sessionType === sessionType &&
+        (!resourceId || !s.payload.resourceId || s.payload.resourceId === resourceId),
+    );
+    if (!match) {
       throw new ConflictException({
         code: 'concurrent_session',
         message: 'Active session is for different content',

@@ -21,6 +21,11 @@ export class StartAccessSessionDto {
   @ApiPropertyOptional({ description: 'Terminate prior session instead of returning conflict' })
   @IsOptional()
   force?: boolean;
+
+  @ApiPropertyOptional({ description: 'Creator scope for per-tier device limits' })
+  @IsOptional()
+  @IsUUID()
+  creatorId?: string;
 }
 
 export class HeartbeatAccessSessionDto {

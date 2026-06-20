@@ -259,6 +259,7 @@ describe('StreamingService endStream', () => {
       { save: jest.fn(), create: jest.fn() } as never,
       { findOne: jest.fn() } as never,
       { findOne: jest.fn(), save: jest.fn(), create: jest.fn() } as never,
+      { findOne: jest.fn() } as never,
       {
         get: (key: string) => (key === 'nodeEnv' ? 'test' : 'placeholder'),
       } as never,
@@ -315,6 +316,7 @@ describe('StreamingService createStream', () => {
       { save: jest.fn(), create: jest.fn() } as never,
       { findOne: jest.fn() } as never,
       { findOne: jest.fn(), save: jest.fn(), create: jest.fn() } as never,
+      { findOne: jest.fn() } as never,
       {
         get: (key: string) => {
           const map: Record<string, string> = {

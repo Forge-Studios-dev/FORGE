@@ -66,6 +66,9 @@ export class SubscriptionTier {
   @Column({ name: 'trial_days', type: 'int', default: 0 })
   trialDays: number;
 
+  @Column({ name: 'max_concurrent_devices', type: 'int', default: 1 })
+  maxConcurrentDevices: number;
+
   @OneToMany(() => TierEntitlement, (ent) => ent.tier)
   entitlements: TierEntitlement[];
 

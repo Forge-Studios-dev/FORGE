@@ -26,6 +26,7 @@
    ```bash
    DATABASE_URL='postgresql://...' npm run migration:run --workspace=@forge/api
    ```
+   Community 2.0 migration chain (run in order): `1800000000000-community-2-schema`, `1810000000000-community-posts`, `1820000000000-courses-cohorts`, `1821000000000-gamification`, `1822000000000-community-notifications`, `1823000000000-community-polls`.
 4. Do **not** point staging at production `main` branch URL.
 
 ---
@@ -54,12 +55,12 @@ fly secrets set DATABASE_URL='...' REDIS_URL='...' JWT_SECRET='...' \
 fly secrets set WORKER_ONLY=true DATABASE_URL='...' REDIS_URL='...' \
   --app forge-studios-worker-staging
 
-# Deploy (or use GitHub Actions deploy-staging workflow)
+# Deploy (or use GitHub Actions [deploy-staging.yml](../.github/workflows/deploy-staging.yml))
 fly deploy --app forge-studios-api-staging
 fly deploy -c fly.worker.toml --app forge-studios-worker-staging
 ```
 
-Use `fly.staging.toml` if you fork config with `app = 'forge-studios-api-staging'` — or pass `--app` on CLI.
+Pass `--app forge-studios-api-staging` on CLI (no separate `fly.staging.toml` in repo).
 
 **Staging API URL example:** `https://forge-studios-api-staging.fly.dev/api/v1`
 
@@ -89,6 +90,9 @@ Use `fly.staging.toml` if you fork config with `app = 'forge-studios-api-staging
 FORGE_SMOKE_API=https://forge-studios-api-staging.fly.dev/api/v1 \
   FORGE_SMOKE_MODE=public \
   bash scripts/smoke-api.sh
+
+FORGE_SMOKE_API=https://forge-studios-api-staging.fly.dev/api/v1 \
+  bash scripts/smoke-community-2.0.sh
 ```
 
 ---

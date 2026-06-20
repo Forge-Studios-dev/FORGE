@@ -12,6 +12,21 @@ export type CheckoutSessionInput = {
   stripePriceId?: string | null;
   billingInterval?: string;
   trialDays?: number;
+  /** Stripe Connect Express account — enables destination charges. */
+  connectAccountId?: string | null;
+  /** Platform fee percentage (0–100) retained on Connect transfers. */
+  platformFeePercent?: number;
+};
+
+export type UpdateSubscriptionTierInput = {
+  externalSubscriptionId: string;
+  stripePriceId: string;
+  tierId: string;
+};
+
+export type UpdateSubscriptionTierResult = {
+  subscriptionId: string;
+  prorationApplied: boolean;
 };
 
 export type EventCheckoutSessionInput = {
@@ -56,6 +71,7 @@ export type ProviderWebhookResult = {
   currency?: string;
   paymentIntentId?: string;
   superChatBody?: string;
+  periodEndAt?: Date;
 };
 
 export interface PaymentProvider {
@@ -64,7 +80,9 @@ export interface PaymentProvider {
   createEventCheckoutSession(input: EventCheckoutSessionInput): Promise<CheckoutSessionResult>;
   createSuperChatCheckoutSession(input: SuperChatCheckoutInput): Promise<CheckoutSessionResult>;
   cancelSubscription(externalSubscriptionId: string): Promise<void>;
+  updateSubscriptionTier?(input: UpdateSubscriptionTierInput): Promise<UpdateSubscriptionTierResult>;
   verifyWebhook(payload: Buffer, headers: Record<string, string>): ProviderWebhookResult | null;
+  createBillingPortalSession?(customerId: string, returnUrl: string): Promise<{ url: string }>;
 }
 
 export const PAYMENT_PROVIDER = Symbol('PAYMENT_PROVIDER');

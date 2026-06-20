@@ -20,6 +20,7 @@ import { BrowserGoLivePanel } from '@/components/live/BrowserGoLivePanel';
 import { StreamHostDashboard } from '@/components/live/StreamHostDashboard';
 import { StreamPollPanel } from '@/components/live/StreamPollPanel';
 import { StreamReactionPanel } from '@/components/live/StreamReactionPanel';
+import { StreamRaiseHandPanel } from '@/components/live/StreamRaiseHandPanel';
 import { useAccessSession } from '@/lib/access-session';
 import { AccessSessionConflict } from '@/components/Community/AccessSessionConflict';
 
@@ -370,6 +371,7 @@ export default function LiveWatchPage() {
             pinnedMessageId={stream.pinnedMessageId}
           />
           <StreamPollPanel streamId={id} isHost={!!isOwner} />
+          <StreamRaiseHandPanel streamId={id} isHost={!!isOwner} />
         </div>
       )}
     </main>

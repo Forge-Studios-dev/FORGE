@@ -161,6 +161,9 @@ export class Stream {
   @Column({ name: 'ended_at', nullable: true })
   endedAt: Date;
 
+  @Column({ name: 'community_id', type: 'uuid', nullable: true })
+  communityId: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

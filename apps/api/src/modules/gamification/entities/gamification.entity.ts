@@ -21,6 +21,9 @@ export class MemberXp {
   @Column({ type: 'int', default: 0 })
   streak: number;
 
+  @Column({ name: 'last_check_in_at', type: 'date', nullable: true })
+  lastCheckInAt: string | null;
+
   @CreateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }

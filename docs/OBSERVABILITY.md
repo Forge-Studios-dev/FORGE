@@ -34,7 +34,7 @@ When set, scrapers must send `Authorization: Bearer <token>`. Leave unset for op
 | `forge_bullmq_jobs_failed` | Gauge by queue name |
 | Default Node/process metrics | via `prom-client` collectDefaultMetrics |
 
-Queues exported when registered: `mux-vod-ingest`, `analytics-ingest`, `analytics-retention`, `push-dispatch`, `subscription-maintenance`, and `video-processing` when present.
+Queues exported when registered: `mux-vod-ingest`, `video-processing` (when FFmpeg), `analytics-ingest`, `analytics-retention`, `push-dispatch`, `subscription-maintenance`, `stream-mux-sync`, `stream-chat-ingest`, `stream-reminder`, `stream-snapshot-retention`, `premium-content-notify`, `engagement-reconciliation`.
 
 ### Analytics retention (F-504)
 
@@ -96,7 +96,13 @@ Uses OTLP HTTP (`/v1/traces`). Compatible with Grafana Tempo, Jaeger OTLP, Datad
 
 ## Health
 
-`GET /api/v1/health` — database, Redis, BullMQ `video-processing` job counts.
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/health/live` | **Liveness** — process up only (Fly probe in `fly.toml`) |
+| `GET /api/v1/health/ready` | **Readiness** — database, Redis, BullMQ queue depths |
+| `GET /api/v1/health` | Alias for readiness (`/ready`) |
+
+Readiness reports `muxVodQueue` when `VIDEO_TRANSCODE_PROVIDER=mux` (default), or `video-processing` when FFmpeg.
 
 ## Production smoke
 

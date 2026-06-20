@@ -1,5 +1,8 @@
 import {
   BadRequestException,
+  ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,7 +14,14 @@ import {
 } from './entities/community-moderation.entity';
 import { CommunityRole, CommunityRoleType } from './entities/community-role.entity';
 import { Community } from './entities/community.entity';
+import { Channel } from './entities/channel.entity';
 import { ChannelMessage } from './entities/channel-message.entity';
+import { CommunityPost } from './entities/community-post.entity';
+import { CommunityPoll } from './entities/community-poll.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/entities/notification.entity';
+import { UserRole } from '../users/entities/user.entity';
+import { CommunitiesService } from './communities.service';
 
 @Injectable()
 export class CommunityModerationService {
@@ -24,20 +34,129 @@ export class CommunityModerationService {
     private readonly roleRepository: Repository<CommunityRole>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
+    @InjectRepository(Channel)
+    private readonly channelRepository: Repository<Channel>,
     @InjectRepository(ChannelMessage)
     private readonly messageRepository: Repository<ChannelMessage>,
+    @InjectRepository(CommunityPost)
+    private readonly postRepository: Repository<CommunityPost>,
+    @InjectRepository(CommunityPoll)
+    private readonly pollRepository: Repository<CommunityPoll>,
+    private readonly notificationsService: NotificationsService,
+    @Inject(forwardRef(() => CommunitiesService))
+    private readonly communitiesService: CommunitiesService,
   ) {}
 
   async reportMessage(
     reporterId: string,
-    input: { communityId: string; channelId: string; messageId: string; reason: string },
+    input: {
+      communityId: string;
+      channelId?: string;
+      messageId?: string;
+      postId?: string;
+      pollId?: string;
+      reportedUserId?: string;
+      targetType?: string;
+      reason: string;
+    },
+    viewerRole?: UserRole | null,
   ) {
+    return this.createReport(reporterId, input, viewerRole);
+  }
+
+  async createReport(
+    reporterId: string,
+    input: {
+      communityId: string;
+      channelId?: string;
+      messageId?: string;
+      postId?: string;
+      pollId?: string;
+      reportedUserId?: string;
+      targetType?: string;
+      reason: string;
+    },
+    viewerRole?: UserRole | null,
+  ) {
+    await this.communitiesService.assertCommunityAccess(
+      input.communityId,
+      reporterId,
+      viewerRole,
+    );
+
+    const targetType = input.targetType ?? 'message';
+
+    if (targetType === 'message') {
+      if (!input.channelId || !input.messageId) {
+        throw new BadRequestException('channelId and messageId required for message reports');
+      }
+      const channel = await this.channelRepository.findOne({
+        where: { id: input.channelId, communityId: input.communityId },
+      });
+      if (!channel) throw new BadRequestException('Channel not found in this community');
+
+      const message = await this.messageRepository.findOne({
+        where: { id: input.messageId, channelId: input.channelId },
+      });
+      if (!message) throw new BadRequestException('Message not found in this channel');
+    } else if (targetType === 'post') {
+      if (!input.postId) throw new BadRequestException('postId required for post reports');
+      const post = await this.postRepository.findOne({
+        where: { id: input.postId, communityId: input.communityId },
+      });
+      if (!post) throw new BadRequestException('Post not found in this community');
+    } else if (targetType === 'poll') {
+      if (!input.pollId) throw new BadRequestException('pollId required for poll reports');
+      const poll = await this.pollRepository.findOne({
+        where: { id: input.pollId, communityId: input.communityId },
+      });
+      if (!poll) throw new BadRequestException('Poll not found in this community');
+    } else if (targetType === 'user') {
+      if (!input.reportedUserId) {
+        throw new BadRequestException('reportedUserId required for user reports');
+      }
+      if (input.reportedUserId === reporterId) {
+        throw new BadRequestException('Cannot report yourself');
+      }
+    } else {
+      throw new BadRequestException('Invalid report target type');
+    }
+
     const report = await this.reportRepository.save(
       this.reportRepository.create({
         communityId: input.communityId,
-        channelId: input.channelId,
-        messageId: input.messageId,
+        targetType,
+        channelId: input.channelId ?? null,
+        messageId: input.messageId ?? null,
+        postId: input.postId ?? null,
+        pollId: input.pollId ?? null,
+        reportedUserId: input.reportedUserId ?? null,
         reporterId,
+        reason: input.reason.trim(),
+        status: 'open',
+      }),
+    );
+    return { id: report.id, status: report.status, targetType: report.targetType };
+  }
+
+  /** System-generated report from async moderation queue (no member reporter). */
+  async createAutoSpamReport(input: {
+    communityId: string;
+    reportedUserId: string;
+    targetType: string;
+    reason: string;
+  }) {
+    const community = await this.communityRepository.findOne({
+      where: { id: input.communityId },
+    });
+    if (!community) return null;
+
+    const report = await this.reportRepository.save(
+      this.reportRepository.create({
+        communityId: input.communityId,
+        targetType: input.targetType,
+        reportedUserId: input.reportedUserId,
+        reporterId: community.creatorId,
         reason: input.reason.trim(),
         status: 'open',
       }),
@@ -63,19 +182,36 @@ export class CommunityModerationService {
     return { resolved: true };
   }
 
+  async resolveReportForCommunity(
+    actorId: string,
+    communityId: string,
+    reportId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.assertReportAccess(actorId, communityId, viewerRole);
+    const report = await this.reportRepository.findOne({ where: { id: reportId, communityId } });
+    if (!report) throw new NotFoundException('Report not found');
+    report.status = 'resolved';
+    report.resolvedBy = actorId;
+    report.resolvedAt = new Date();
+    await this.reportRepository.save(report);
+    return { resolved: true };
+  }
+
   async banMember(
-    creatorId: string,
+    actorId: string,
     communityId: string,
     userId: string,
     reason?: string,
     expiresAt?: Date | null,
+    viewerRole?: UserRole | null,
   ) {
-    const community = await this.getOwnedCommunity(creatorId, communityId);
+    const community = await this.assertModeratorAccess(actorId, communityId, viewerRole);
     const existing = await this.banRepository.findOne({ where: { communityId: community.id, userId } });
     if (existing) {
       existing.reason = reason ?? null;
       existing.expiresAt = expiresAt ?? null;
-      existing.createdBy = creatorId;
+      existing.createdBy = actorId;
       await this.banRepository.save(existing);
     } else {
       await this.banRepository.save(
@@ -84,26 +220,41 @@ export class CommunityModerationService {
           userId,
           reason: reason ?? null,
           expiresAt: expiresAt ?? null,
-          createdBy: creatorId,
+          createdBy: actorId,
         }),
       );
     }
+    void this.notificationsService
+      .create({
+        userId,
+        type: NotificationType.COMMUNITY_BANNED,
+        title: 'Removed from community',
+        body: reason?.trim() || 'You have been banned from this community.',
+        metadata: { communityId: community.id },
+      })
+      .catch(() => undefined);
     return { banned: true };
   }
 
-  async unbanMember(creatorId: string, communityId: string, userId: string) {
-    await this.getOwnedCommunity(creatorId, communityId);
+  async unbanMember(
+    actorId: string,
+    communityId: string,
+    userId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.assertModeratorAccess(actorId, communityId, viewerRole);
     await this.banRepository.delete({ communityId, userId });
     return { unbanned: true };
   }
 
   async assignRole(
-    creatorId: string,
+    actorId: string,
     communityId: string,
     userId: string,
     role: CommunityRoleType,
+    viewerRole?: UserRole | null,
   ) {
-    await this.getOwnedCommunity(creatorId, communityId);
+    await this.assertAdminAccess(actorId, communityId, viewerRole);
     const existing = await this.roleRepository.findOne({ where: { communityId, userId } });
     if (existing) {
       existing.role = role;
@@ -113,11 +264,20 @@ export class CommunityModerationService {
         this.roleRepository.create({ communityId, userId, role }),
       );
     }
+    void this.notificationsService
+      .create({
+        userId,
+        type: NotificationType.COMMUNITY_ROLE_ASSIGNED,
+        title: 'Community role updated',
+        body: `You are now a ${role} in this community.`,
+        metadata: { communityId, role },
+      })
+      .catch(() => undefined);
     return { assigned: true, role };
   }
 
-  async listRoles(creatorId: string, communityId: string) {
-    await this.getOwnedCommunity(creatorId, communityId);
+  async listRoles(actorId: string, communityId: string, viewerRole?: UserRole | null) {
+    await this.assertAdminAccess(actorId, communityId, viewerRole);
     const roles = await this.roleRepository.find({
       where: { communityId },
       order: { createdAt: 'ASC' },
@@ -130,14 +290,19 @@ export class CommunityModerationService {
     }));
   }
 
-  async removeRole(creatorId: string, communityId: string, userId: string) {
-    await this.getOwnedCommunity(creatorId, communityId);
+  async removeRole(
+    actorId: string,
+    communityId: string,
+    userId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.assertAdminAccess(actorId, communityId, viewerRole);
     await this.roleRepository.delete({ communityId, userId });
     return { removed: true };
   }
 
-  async listBans(creatorId: string, communityId: string) {
-    await this.getOwnedCommunity(creatorId, communityId);
+  async listBans(actorId: string, communityId: string, viewerRole?: UserRole | null) {
+    await this.assertModeratorAccess(actorId, communityId, viewerRole);
     const bans = await this.banRepository.find({
       where: { communityId },
       order: { createdAt: 'DESC' },
@@ -151,8 +316,13 @@ export class CommunityModerationService {
     }));
   }
 
-  async listReportsForCommunity(creatorId: string, communityId: string, status = 'open') {
-    await this.getOwnedCommunity(creatorId, communityId);
+  async listReportsForCommunity(
+    actorId: string,
+    communityId: string,
+    status = 'open',
+    viewerRole?: UserRole | null,
+  ) {
+    await this.assertReportAccess(actorId, communityId, viewerRole);
     return this.reportRepository.find({
       where: { communityId, status },
       order: { createdAt: 'DESC' },
@@ -170,11 +340,85 @@ export class CommunityModerationService {
     return true;
   }
 
-  private async getOwnedCommunity(creatorId: string, communityId: string): Promise<Community> {
+  private async assertReportAccess(
+    actorId: string,
+    communityId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<Community> {
     const community = await this.communityRepository.findOne({ where: { id: communityId } });
-    if (!community || community.creatorId !== creatorId) {
-      throw new BadRequestException('Community not found or not owned');
-    }
-    return community;
+    if (!community) throw new NotFoundException('Community not found');
+    if (await this.hasReportPrivileges(community, actorId, viewerRole)) return community;
+    throw new ForbiddenException('Insufficient community permissions');
+  }
+
+  private async assertModeratorAccess(
+    actorId: string,
+    communityId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<Community> {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) throw new NotFoundException('Community not found');
+    if (await this.hasModeratorPrivileges(community, actorId, viewerRole)) return community;
+    throw new ForbiddenException('Insufficient community permissions');
+  }
+
+  private async assertAdminAccess(
+    actorId: string,
+    communityId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<Community> {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) throw new NotFoundException('Community not found');
+    if (await this.hasAdminPrivileges(community, actorId, viewerRole)) return community;
+    throw new ForbiddenException('Insufficient community permissions');
+  }
+
+  private async hasReportPrivileges(
+    community: Community,
+    actorId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<boolean> {
+    if (await this.hasModeratorPrivileges(community, actorId, viewerRole)) return true;
+    if (viewerRole === UserRole.ADMIN) return true;
+    if (community.creatorId === actorId) return true;
+    const assignment = await this.roleRepository.findOne({
+      where: { communityId: community.id, userId: actorId },
+    });
+    return assignment?.role === CommunityRoleType.COACH;
+  }
+
+  private async hasModeratorPrivileges(
+    community: Community,
+    actorId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<boolean> {
+    if (viewerRole === UserRole.ADMIN) return true;
+    if (community.creatorId === actorId) return true;
+    const assignment = await this.roleRepository.findOne({
+      where: { communityId: community.id, userId: actorId },
+    });
+    if (!assignment) return false;
+    return (
+      assignment.role === CommunityRoleType.ADMIN ||
+      assignment.role === CommunityRoleType.MODERATOR ||
+      assignment.role === CommunityRoleType.OWNER
+    );
+  }
+
+  private async hasAdminPrivileges(
+    community: Community,
+    actorId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<boolean> {
+    if (viewerRole === UserRole.ADMIN) return true;
+    if (community.creatorId === actorId) return true;
+    const assignment = await this.roleRepository.findOne({
+      where: { communityId: community.id, userId: actorId },
+    });
+    if (!assignment) return false;
+    return (
+      assignment.role === CommunityRoleType.ADMIN ||
+      assignment.role === CommunityRoleType.OWNER
+    );
   }
 }
