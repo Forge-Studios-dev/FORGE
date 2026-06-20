@@ -9,6 +9,8 @@ import { Stream, StreamVisibility } from '../streaming/entities/stream.entity';
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
 import { StreamingService } from '../streaming/streaming.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { StripeTierSyncService } from './stripe-tier-sync.service';
+import { StripeConnectService } from './stripe-connect.service';
 
 describe('BillingService', () => {
   let service: BillingService;
@@ -29,6 +31,21 @@ describe('BillingService', () => {
   };
   const entitlementsService = {
     grantSubscription: jest.fn(),
+    getTierById: jest.fn(),
+    updateTierStripeIds: jest.fn(),
+    cancelByExternalRef: jest.fn(),
+    markSubscriptionFailedPayment: jest.fn(),
+  };
+  const stripeTierSync = {
+    isEnabled: jest.fn().mockReturnValue(false),
+    syncTier: jest.fn(),
+    cancelSubscription: jest.fn(),
+  };
+  const stripeConnectService = {
+    getConnectStatus: jest.fn().mockResolvedValue({
+      chargesEnabled: true,
+      accountId: 'acct_test',
+    }),
   };
   const purchaseRepository = {
     findOne: jest.fn(),
@@ -52,6 +69,8 @@ describe('BillingService', () => {
         { provide: getRepositoryToken(Stream), useValue: streamRepository },
         { provide: StreamingService, useValue: streamingService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: StripeTierSyncService, useValue: stripeTierSync },
+        { provide: StripeConnectService, useValue: stripeConnectService },
         {
           provide: ConfigService,
           useValue: {
@@ -75,6 +94,8 @@ describe('BillingService', () => {
       subscriptionId: 'sub_1',
       status: 'active',
       userId: 'u1',
+      creatorId: 'c1',
+      tierId: 't1',
       sessionId: 'sess_1',
     });
 

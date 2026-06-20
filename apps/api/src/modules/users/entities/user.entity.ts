@@ -115,6 +115,9 @@ export class User {
   @Column({ name: 'mature_content_acknowledged_at', type: 'timestamptz', nullable: true })
   matureContentAcknowledgedAt: Date | null;
 
+  @Column({ name: 'stripe_connect_account_id', type: 'varchar', length: 255, nullable: true })
+  stripeConnectAccountId: string | null;
+
   @OneToMany(() => Video, (video) => video.user)
   videos: Video[];
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { StreamChatReplayPanel } from '@/components/StreamChat/StreamChatReplayPanel';
 import { Video } from '@/types';
 import { VideoPlayer } from '@/components/VideoPlayer/VideoPlayerLazy';
@@ -17,6 +18,9 @@ import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
 import { useAuth } from '@/lib/auth';
+import { useAccessSession } from '@/lib/access-session';
+import { AccessSessionConflict } from '@/components/Community/AccessSessionConflict';
+import { api } from '@/lib/api';
 
 const ACCESS_MESSAGES: Record<string, string> = {
   login_required: 'Sign in to watch this lesson.',
@@ -42,6 +46,28 @@ export function WatchExperience({
   const canPlay = video.status === 'ready' && !!video.hlsUrl;
   const isPrivate = video.visibility === 'private';
   const isOwner = user?.id === video.userId;
+  const needsPremiumSession =
+    !!user &&
+    !isOwner &&
+    (video.visibility === 'subscribers' || video.visibility === 'tier');
+
+  const { data: membership } = useQuery({
+    queryKey: ['membership', video.userId, user?.id],
+    enabled: needsPremiumSession,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: { active: boolean } }>(
+        `/creators/${video.userId}/membership/me`,
+      );
+      return data.data;
+    },
+  });
+
+  const sessionEnabled = needsPremiumSession && !!membership?.active;
+  const { ready: sessionReady, conflict, takeOver } = useAccessSession(
+    'playback',
+    video.id,
+    sessionEnabled,
+  );
 
   if (isPrivate && (isGuest || !isOwner)) {
     return (
@@ -78,13 +104,21 @@ export function WatchExperience({
       <div className="forge-fade-in grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
         <div className="min-w-0 space-y-6">
           {canPlay ? (
-            <VideoPlayer
-              videoId={video.id}
-              hlsUrl={video.hlsUrl!}
-              thumbnailUrl={video.thumbnailUrl}
-              title={video.title}
-              onPlaybackTime={setPlaybackSeconds}
-            />
+            sessionEnabled && conflict ? (
+              <AccessSessionConflict message={conflict} onTakeOver={takeOver} />
+            ) : sessionEnabled && !sessionReady ? (
+              <div className="glass-panel flex aspect-video items-center justify-center rounded-xl">
+                <p className="text-sm text-on-surface-variant">Starting secure session…</p>
+              </div>
+            ) : (
+              <VideoPlayer
+                videoId={video.id}
+                hlsUrl={video.hlsUrl!}
+                thumbnailUrl={video.thumbnailUrl}
+                title={video.title}
+                onPlaybackTime={setPlaybackSeconds}
+              />
+            )
           ) : (
             <div className="glass-panel flex aspect-video flex-col items-center justify-center rounded-xl p-8 text-center">
               <p className="font-display-forge text-lg font-semibold">

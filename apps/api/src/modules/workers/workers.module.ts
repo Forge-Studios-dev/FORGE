@@ -36,9 +36,17 @@ import { StreamAnalyticsSnapshot } from '../streaming/entities/stream-analytics-
 import { StreamRsvp } from '../streaming/entities/stream-rsvp.entity';
 import { PremiumContentNotifyWorker } from './premium-content-notify/premium-content-notify.worker';
 import { PREMIUM_CONTENT_NOTIFY_QUEUE } from './premium-content-notify/premium-content-notify.constants';
+import { CommunityAnnouncementNotifyWorker } from './community-announcement-notify/community-announcement-notify.worker';
+import { COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE } from './community-announcement-notify/community-announcement-notify.constants';
+import { CommunityModerationWorker } from './community-moderation/community-moderation.worker';
+import { COMMUNITY_MODERATION_QUEUE } from './community-moderation/community-moderation.constants';
+import { CommunitiesModule } from '../communities/communities.module';
 import { ENGAGEMENT_RECONCILIATION_QUEUE } from '../engagement/engagement-reconciliation.constants';
 import { EngagementReconciliationWorker } from './engagement-reconciliation/engagement-reconciliation.worker';
 import { EngagementModule } from '../engagement/engagement.module';
+import { PlatformEventOutboxWorker } from './platform-event-outbox/platform-event-outbox.worker';
+import { PLATFORM_EVENT_OUTBOX_QUEUE } from './platform-event-outbox/platform-event-outbox.constants';
+import { PlatformEventOutboxModule } from '../platform-event-outbox/platform-event-outbox.module';
 
 function isDedicatedWorkerProcess(): boolean {
   return (
@@ -111,8 +119,24 @@ function shouldRegisterPremiumContentNotify(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+function shouldRegisterCommunityAnnouncementNotify(): boolean {
+  // Production: Fly worker (WORKER_ONLY=true) must consume this queue; API enqueues only.
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
 function shouldRegisterEngagementReconciliation(): boolean {
   if (process.env.DISABLE_ENGAGEMENT_RECONCILIATION === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterCommunityModeration(): boolean {
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterPlatformEventOutbox(): boolean {
   if (isDedicatedWorkerProcess()) return true;
   return process.env.NODE_ENV !== 'production';
 }
@@ -125,6 +149,7 @@ function shouldRegisterEngagementReconciliation(): boolean {
     FirebaseModule,
     StreamingModule,
     EngagementModule,
+    CommunitiesModule,
     TypeOrmModule.forFeature([Video, AnalyticsEvent, DeviceToken, Stream, StreamMessage, StreamAnalyticsSnapshot, StreamRsvp]),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
@@ -228,6 +253,15 @@ function shouldRegisterEngagementReconciliation(): boolean {
       },
     }),
     BullModule.registerQueue({
+      name: COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: { age: 3600, count: 5000 },
+        removeOnFail: { age: 86400, count: 500 },
+      },
+    }),
+    BullModule.registerQueue({
       name: ENGAGEMENT_RECONCILIATION_QUEUE,
       defaultJobOptions: {
         attempts: 2,
@@ -235,7 +269,26 @@ function shouldRegisterEngagementReconciliation(): boolean {
         removeOnFail: { age: 7 * 86400, count: 50 },
       },
     }),
+    BullModule.registerQueue({
+      name: COMMUNITY_MODERATION_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        backoff: { type: 'exponential', delay: 3000 },
+        removeOnComplete: { age: 86400, count: 5000 },
+        removeOnFail: { age: 86400, count: 500 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: PLATFORM_EVENT_OUTBOX_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: { age: 3600, count: 5000 },
+        removeOnFail: { age: 86400, count: 500 },
+      },
+    }),
     EventEmitterModule,
+    PlatformEventOutboxModule,
   ],
   providers: [
     ...(shouldRegisterAnalyticsIngest() ? [AnalyticsIngestWorker] : []),
@@ -249,6 +302,9 @@ function shouldRegisterEngagementReconciliation(): boolean {
     ...(shouldRegisterStreamSnapshotRetention() ? [StreamSnapshotRetentionWorker] : []),
     ...(shouldRegisterStreamMuxSync() ? [StreamMuxSyncWorker] : []),
     ...(shouldRegisterPremiumContentNotify() ? [PremiumContentNotifyWorker] : []),
+    ...(shouldRegisterCommunityAnnouncementNotify() ? [CommunityAnnouncementNotifyWorker] : []),
+    ...(shouldRegisterCommunityModeration() ? [CommunityModerationWorker] : []),
+    ...(shouldRegisterPlatformEventOutbox() ? [PlatformEventOutboxWorker] : []),
     ...(shouldRegisterEngagementReconciliation() ? [EngagementReconciliationWorker] : []),
   ],
 })

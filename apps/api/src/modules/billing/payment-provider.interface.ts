@@ -6,6 +6,27 @@ export type CheckoutSessionInput = {
   tierId: string;
   successUrl: string;
   cancelUrl: string;
+  tierName?: string;
+  priceCents?: number;
+  currency?: string;
+  stripePriceId?: string | null;
+  billingInterval?: string;
+  trialDays?: number;
+  /** Stripe Connect Express account — enables destination charges. */
+  connectAccountId?: string | null;
+  /** Platform fee percentage (0–100) retained on Connect transfers. */
+  platformFeePercent?: number;
+};
+
+export type UpdateSubscriptionTierInput = {
+  externalSubscriptionId: string;
+  stripePriceId: string;
+  tierId: string;
+};
+
+export type UpdateSubscriptionTierResult = {
+  subscriptionId: string;
+  prorationApplied: boolean;
 };
 
 export type EventCheckoutSessionInput = {
@@ -40,14 +61,17 @@ export type ProviderWebhookResult = {
   handled: boolean;
   checkoutType?: 'subscription' | 'event' | 'super_chat';
   subscriptionId?: string;
-  status?: 'active' | 'canceled' | 'expired' | 'completed';
+  status?: 'active' | 'canceled' | 'expired' | 'completed' | 'failed_payment' | 'trial' | 'grace_period' | 'paused';
   sessionId?: string;
   userId?: string;
+  creatorId?: string;
+  tierId?: string;
   streamId?: string;
   amountCents?: number;
   currency?: string;
   paymentIntentId?: string;
   superChatBody?: string;
+  periodEndAt?: Date;
 };
 
 export interface PaymentProvider {
@@ -56,7 +80,9 @@ export interface PaymentProvider {
   createEventCheckoutSession(input: EventCheckoutSessionInput): Promise<CheckoutSessionResult>;
   createSuperChatCheckoutSession(input: SuperChatCheckoutInput): Promise<CheckoutSessionResult>;
   cancelSubscription(externalSubscriptionId: string): Promise<void>;
+  updateSubscriptionTier?(input: UpdateSubscriptionTierInput): Promise<UpdateSubscriptionTierResult>;
   verifyWebhook(payload: Buffer, headers: Record<string, string>): ProviderWebhookResult | null;
+  createBillingPortalSession?(customerId: string, returnUrl: string): Promise<{ url: string }>;
 }
 
 export const PAYMENT_PROVIDER = Symbol('PAYMENT_PROVIDER');

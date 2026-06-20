@@ -17,6 +17,8 @@ import { SubscriptionMaintenanceScheduler } from './subscription-maintenance.sch
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { PremiumContentNotifyService } from './premium-content-notify.service';
 import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/premium-content-notify.constants';
+import { CommunityAnnouncementNotifyService } from './community-announcement-notify.service';
+import { COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE } from '../workers/community-announcement-notify/community-announcement-notify.constants';
 
 @Module({
   imports: [
@@ -49,6 +51,15 @@ import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/
         removeOnFail: { age: 86400, count: 500 },
       },
     }),
+    BullModule.registerQueue({
+      name: COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: { age: 3600, count: 5000 },
+        removeOnFail: { age: 86400, count: 500 },
+      },
+    }),
   ],
   providers: [
     NotificationsService,
@@ -57,6 +68,7 @@ import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/
     SubscriptionMaintenanceService,
     SubscriptionMaintenanceScheduler,
     PremiumContentNotifyService,
+    CommunityAnnouncementNotifyService,
   ],
   controllers: [NotificationsController],
   exports: [
@@ -64,6 +76,7 @@ import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/
     PushDispatchService,
     SubscriptionMaintenanceService,
     PremiumContentNotifyService,
+    CommunityAnnouncementNotifyService,
   ],
 })
 export class NotificationsModule {}

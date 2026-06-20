@@ -14,6 +14,16 @@ import { UsersService } from '../users/users.service';
 import { StreamClip } from './entities/stream-clip.entity';
 import { StreamCaption } from './entities/stream-caption.entity';
 import { ConfigService } from '@nestjs/config';
+import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
+
+const redisMock = {
+  get: jest.fn(),
+  setex: jest.fn(),
+  del: jest.fn(),
+  sadd: jest.fn(),
+  smembers: jest.fn(),
+  expire: jest.fn(),
+};
 
 describe('StreamLiveService votePoll', () => {
   let service: StreamLiveService;
@@ -49,6 +59,7 @@ describe('StreamLiveService votePoll', () => {
         { provide: EntitlementsService, useValue: entitlementsService },
         { provide: UsersService, useValue: usersService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: getRedisConnectionToken(), useValue: redisMock },
       ],
     }).compile();
 
@@ -103,6 +114,7 @@ describe('StreamLiveService poll aggregation', () => {
         { provide: EntitlementsService, useValue: {} },
         { provide: UsersService, useValue: {} },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: getRedisConnectionToken(), useValue: redisMock },
       ],
     }).compile();
     service = module.get(StreamLiveService);

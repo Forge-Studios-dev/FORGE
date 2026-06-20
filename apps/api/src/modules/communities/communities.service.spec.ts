@@ -1,24 +1,49 @@
+import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CommunitiesService } from './communities.service';
-import { Community } from './entities/community.entity';
+import { Community, CommunityVisibility } from './entities/community.entity';
+import { CommunityCategory } from './entities/community-category.entity';
+import { CommunityRole } from './entities/community-role.entity';
 import { Channel } from './entities/channel.entity';
 import { ChannelMember } from './entities/channel-member.entity';
 import { ChannelMessage } from './entities/channel-message.entity';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { AccessSessionsService } from '../access-sessions/access-sessions.service';
+import { CommunityModerationService } from './community-moderation.service';
+import { AiModerationService } from './ai-moderation.service';
+import { CommunityModerationQueueService } from './community-moderation-queue.service';
+import { Stream } from '../streaming/entities/stream.entity';
 import { ChannelType } from '../entitlements/entities/channel-type.enum';
 import { UserRole } from '../users/entities/user.entity';
 
 describe('CommunitiesService', () => {
   let service: CommunitiesService;
-  let entitlementsService: { checkChannelAccess: jest.Mock; checkChannelAccessMany: jest.Mock };
+  let entitlementsService: {
+    checkChannelAccess: jest.Mock;
+    checkChannelAccessMany: jest.Mock;
+    getMembershipForViewer: jest.Mock;
+  };
+  let accessSessionsService: { requirePremiumSession: jest.Mock };
+  let moderationService: { isBanned: jest.Mock };
+  let aiModerationService: { scoreSpam: jest.Mock };
 
   const communityRepository = {
     findOne: jest.fn(),
+    find: jest.fn(),
     save: jest.fn(),
     create: jest.fn((x) => x),
+  };
+
+  const categoryRepository = {
+    find: jest.fn().mockResolvedValue([]),
+  };
+
+  const roleRepository = {
+    findOne: jest.fn().mockResolvedValue(null),
+    find: jest.fn().mockResolvedValue([]),
   };
 
   const channelRepository = {
@@ -40,6 +65,14 @@ describe('CommunitiesService', () => {
     save: jest.fn(),
     findOne: jest.fn(),
     createQueryBuilder: jest.fn(),
+  };
+
+  const streamRepository = {
+    find: jest.fn().mockResolvedValue([]),
+  };
+
+  const moderationQueueService = {
+    enqueueMessageModeration: jest.fn(),
   };
 
   const redis = {
@@ -71,16 +104,27 @@ describe('CommunitiesService', () => {
     entitlementsService = {
       checkChannelAccess: jest.fn(),
       checkChannelAccessMany: jest.fn(),
+      getMembershipForViewer: jest.fn().mockResolvedValue({ active: false }),
     };
+    accessSessionsService = { requirePremiumSession: jest.fn().mockResolvedValue(undefined) };
+    moderationService = { isBanned: jest.fn().mockResolvedValue(false) };
+    aiModerationService = { scoreSpam: jest.fn().mockReturnValue({ flagged: false, score: 0, reasons: [] }) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CommunitiesService,
         { provide: getRepositoryToken(Community), useValue: communityRepository },
+        { provide: getRepositoryToken(CommunityCategory), useValue: categoryRepository },
+        { provide: getRepositoryToken(CommunityRole), useValue: roleRepository },
         { provide: getRepositoryToken(Channel), useValue: channelRepository },
         { provide: getRepositoryToken(ChannelMember), useValue: memberRepository },
         { provide: getRepositoryToken(ChannelMessage), useValue: messageRepository },
         { provide: EntitlementsService, useValue: entitlementsService },
+        { provide: AccessSessionsService, useValue: accessSessionsService },
+        { provide: CommunityModerationService, useValue: moderationService },
+        { provide: AiModerationService, useValue: aiModerationService },
+        { provide: CommunityModerationQueueService, useValue: moderationQueueService },
+        { provide: getRepositoryToken(Stream), useValue: streamRepository },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
         { provide: DataSource, useValue: dataSource },
@@ -103,8 +147,13 @@ describe('CommunitiesService', () => {
     );
   });
 
-  it('filters channels by entitlements for viewer', async () => {
-    communityRepository.findOne.mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1', name: 'Community' });
+  it('returns all channels with access metadata for viewer', async () => {
+    communityRepository.findOne.mockResolvedValue({
+      id: 'comm-1',
+      creatorId: 'creator-1',
+      name: 'Community',
+      visibility: CommunityVisibility.PUBLIC,
+    });
     channelRepository.find.mockResolvedValue([
       { id: 'ch-1', communityId: 'comm-1', name: 'General', slug: 'general', type: ChannelType.PUBLIC, sortOrder: 0 },
       {
@@ -124,14 +173,24 @@ describe('CommunitiesService', () => {
 
     const result = await service.getCommunityByCreator('creator-1', 'viewer-1', UserRole.USER);
 
-    expect(result.channels).toHaveLength(1);
+    expect(result.channels).toHaveLength(2);
     expect(result.channels[0]?.slug).toBe('general');
+    expect(result.channels[0]?.access?.allowed).toBe(true);
+    expect(result.channels[1]?.access).toEqual({
+      allowed: false,
+      reason: 'subscription_required',
+    });
     expect(entitlementsService.checkChannelAccessMany).toHaveBeenCalledTimes(1);
     expect(memberRepository.findOne).not.toHaveBeenCalled();
   });
 
   it('batch-loads invite memberships with one query', async () => {
-    communityRepository.findOne.mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1', name: 'Community' });
+    communityRepository.findOne.mockResolvedValue({
+      id: 'comm-1',
+      creatorId: 'creator-1',
+      name: 'Community',
+      visibility: CommunityVisibility.PUBLIC,
+    });
     channelRepository.find.mockResolvedValue([
       {
         id: 'ch-invite',
@@ -166,5 +225,60 @@ describe('CommunitiesService', () => {
         where: { userId: 'viewer-1', channelId: expect.anything() },
       }),
     );
+  });
+
+  it('hides private communities from non-owners', async () => {
+    communityRepository.find.mockResolvedValue([
+      { id: 'comm-1', creatorId: 'creator-1', slug: 'public', visibility: CommunityVisibility.PUBLIC },
+      { id: 'comm-2', creatorId: 'creator-1', slug: 'private', visibility: CommunityVisibility.PRIVATE },
+    ]);
+
+    const result = await service.listCommunitiesForCreator('creator-1', 'viewer-1', UserRole.USER);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.slug).toBe('public');
+  });
+
+  it('batches membership lookup when listing multiple communities', async () => {
+    communityRepository.find.mockResolvedValue([
+      { id: 'comm-1', creatorId: 'creator-1', slug: 'public', visibility: CommunityVisibility.PUBLIC },
+      { id: 'comm-2', creatorId: 'creator-1', slug: 'paid', visibility: CommunityVisibility.PAID },
+    ]);
+    roleRepository.find.mockResolvedValue([]);
+    entitlementsService.getMembershipForViewer.mockResolvedValue({ active: true });
+
+    const result = await service.listCommunitiesForCreator('creator-1', 'viewer-1', UserRole.USER);
+
+    expect(entitlementsService.getMembershipForViewer).toHaveBeenCalledTimes(1);
+    expect(result).toHaveLength(2);
+  });
+
+  it('requires active membership for paid communities', async () => {
+    communityRepository.findOne.mockResolvedValue({
+      id: 'comm-paid',
+      creatorId: 'creator-1',
+      name: 'Paid',
+      slug: 'paid',
+      visibility: CommunityVisibility.PAID,
+    });
+    entitlementsService.getMembershipForViewer.mockResolvedValue({ active: false });
+
+    await expect(
+      service.getCommunityBySlug('creator-1', 'paid', 'viewer-1', UserRole.USER),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('blocks banned users from sending messages', async () => {
+    channelRepository.findOne.mockResolvedValue({
+      id: 'ch-1',
+      type: ChannelType.PUBLIC,
+      community: { id: 'comm-1', creatorId: 'creator-1' },
+    });
+    entitlementsService.checkChannelAccess.mockResolvedValue({ allowed: true });
+    moderationService.isBanned.mockResolvedValue(true);
+
+    await expect(
+      service.sendChannelMessage('ch-1', 'banned-user', { body: 'hello' }),
+    ).rejects.toThrow(ForbiddenException);
   });
 });

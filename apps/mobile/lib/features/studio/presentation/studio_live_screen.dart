@@ -6,6 +6,8 @@ import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
 
+import '../../auth/data/auth_repository.dart';
+
 class StudioLiveScreen extends ConsumerStatefulWidget {
   const StudioLiveScreen({super.key});
 
@@ -17,10 +19,43 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   String _visibility = 'public';
+  String? _communityId;
+  String? _creatorId;
+  List<Map<String, dynamic>> _communities = [];
   bool _chatEnabled = true;
   bool _recordEnabled = true;
   bool _ageRestricted = false;
   bool _loading = false;
+  bool _loadingCommunities = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCommunities();
+  }
+
+  Future<void> _loadCommunities() async {
+    try {
+      final user =
+          await ref.read(authRepositoryProvider).refreshStoredUser() ??
+          await ref.read(authRepositoryProvider).getStoredUser();
+      _creatorId = user?['id'] as String?;
+      if (_creatorId == null) {
+        setState(() => _loadingCommunities = false);
+        return;
+      }
+      final client = ref.read(apiClientProvider);
+      final res = await client.dio.get('/creators/$_creatorId/communities');
+      final list = (res.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      setState(() {
+        _communities = list;
+        if (list.length == 1) _communityId = list.first['id'] as String?;
+        _loadingCommunities = false;
+      });
+    } catch (_) {
+      setState(() => _loadingCommunities = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -37,7 +72,8 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
       final response = await client.dio.post('/streams/start', data: {
         'title': _titleCtrl.text.trim(),
         if (_descCtrl.text.trim().isNotEmpty) 'description': _descCtrl.text.trim(),
-        'visibility': _visibility,
+        'visibility': _communityId != null ? 'subscribers' : _visibility,
+        if (_communityId != null) 'communityId': _communityId,
         'chatEnabled': _chatEnabled,
         'recordEnabled': _recordEnabled,
         'ageRestricted': _ageRestricted,
@@ -73,7 +109,7 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
         padding: const EdgeInsets.all(20),
         children: [
           const Text(
-            'Teach in real time. After starting, broadcast with OBS using your RTMP credentials on the stream page.',
+            'Teach in real time. Link to a community for member-only live sessions.',
             style: TextStyle(color: ForgeTokens.onSurfaceVariant, height: 1.5),
           ),
           const SizedBox(height: 20),
@@ -91,17 +127,46 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
             maxLines: 2,
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: _visibility,
-            decoration: const InputDecoration(labelText: 'Visibility'),
-            items: const [
-              DropdownMenuItem(value: 'public', child: Text('Public')),
-              DropdownMenuItem(value: 'followers', child: Text('Followers')),
-              DropdownMenuItem(value: 'subscribers', child: Text('Members')),
-              DropdownMenuItem(value: 'private', child: Text('Private')),
-            ],
-            onChanged: (v) => setState(() => _visibility = v ?? 'public'),
-          ),
+          if (_loadingCommunities)
+            const LinearProgressIndicator()
+          else if (_communities.isNotEmpty)
+            DropdownButtonFormField<String?>(
+              value: _communityId,
+              decoration: const InputDecoration(
+                labelText: 'Link to community (optional)',
+              ),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('No community link')),
+                ..._communities.map(
+                  (c) => DropdownMenuItem(
+                    value: c['id'] as String,
+                    child: Text(c['name'] as String? ?? 'Community'),
+                  ),
+                ),
+              ],
+              onChanged: (v) => setState(() => _communityId = v),
+            ),
+          if (_communityId == null) ...[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _visibility,
+              decoration: const InputDecoration(labelText: 'Visibility'),
+              items: const [
+                DropdownMenuItem(value: 'public', child: Text('Public')),
+                DropdownMenuItem(value: 'followers', child: Text('Followers')),
+                DropdownMenuItem(value: 'subscribers', child: Text('Members')),
+                DropdownMenuItem(value: 'private', child: Text('Private')),
+              ],
+              onChanged: (v) => setState(() => _visibility = v ?? 'public'),
+            ),
+          ] else
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Community live uses members-only visibility.',
+                style: TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant.withValues(alpha: 0.9)),
+              ),
+            ),
           SwitchListTile(
             title: const Text('Chat enabled'),
             value: _chatEnabled,

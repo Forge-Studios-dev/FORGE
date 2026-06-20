@@ -7,7 +7,12 @@ const LINKS = [
   { href: '/studio/comments', label: 'Comments', icon: 'forum', desc: 'Community feedback' },
   { href: '/studio/live', label: 'Go live', icon: 'sensors', desc: 'Start a live session' },
   { href: '/studio/tiers', label: 'Memberships', icon: 'workspace_premium', desc: 'Configure member tiers' },
-  { href: '/studio/community', label: 'Community', icon: 'groups', desc: 'Manage channels' },
+  { href: '/studio/subscribers', label: 'Subscribers', icon: 'groups', desc: 'Manage members & export' },
+  { href: '/studio/communities', label: 'Communities', icon: 'hub', desc: 'Channels, categories & moderation' },
+  { href: '/studio/courses', label: 'Courses', icon: 'school', desc: 'Structured lessons & enrollments' },
+  { href: '/studio/moderation', label: 'Moderation', icon: 'shield', desc: 'Delegated community moderation' },
+  { href: '/studio/brands', label: 'Brands', icon: 'storefront', desc: 'Brand identities' },
+  { href: '/discover/communities', label: 'Discover', icon: 'travel_explore', desc: 'Find public communities' },
   { href: '/studio/settings', label: 'Settings', icon: 'settings', desc: 'Channel preferences' },
 ];
 

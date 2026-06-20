@@ -59,7 +59,9 @@ Expect `GET /platform/config`:
 
 **Firebase service account blocked by org policy:** use workload identity — `bash scripts/deploy-firebase-json-secret.sh` or see script output for WIF steps.
 
-**Scripts:** `check-auth-env.sh` · `enable-production-auth-features.sh` · `audit-production-auth.sh`
+**Scripts:** `check-auth-env.sh` (`auth:check`) · `deploy-auth-secrets.sh` (`auth:deploy`) · `verify-production-auth.sh` (`auth:verify`) · `enable-production-auth-features.sh` · `audit-production-auth.sh`
+
+**CI alternative:** `.github/workflows/deploy-auth-secrets.yml` (manual) — see [CI_CD.md](./CI_CD.md)
 
 Push (FCM): [FIREBASE.md](./FIREBASE.md)
 

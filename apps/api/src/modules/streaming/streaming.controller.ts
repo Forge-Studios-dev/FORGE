@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -269,6 +270,26 @@ export class StreamingController {
   @ApiOperation({ summary: 'List captions/subtitles for stream replay' })
   listCaptions(@Param('id') id: string) {
     return this.streamLiveService.listCaptions(id);
+  }
+
+  @Post(':id/raise-hand')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Raise hand during live stream (stage mode)' })
+  raiseHand(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.streamLiveService.raiseHand(id, user.sub);
+  }
+
+  @Delete(':id/raise-hand')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Lower raised hand' })
+  lowerHand(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.streamLiveService.lowerHand(id, user.sub);
+  }
+
+  @Get(':id/raise-hands')
+  @ApiOperation({ summary: 'List raised hands for stream' })
+  listRaisedHands(@Param('id') id: string) {
+    return this.streamLiveService.listRaisedHands(id);
   }
 
   @Public()

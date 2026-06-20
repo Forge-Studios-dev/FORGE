@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 const BASE_NAV = [
   { href: '/', label: 'Home', icon: 'home' },
   { href: '/explore', label: 'Explore', icon: 'explore' },
+  { href: '/discover/communities', label: 'Groups', icon: 'groups' },
   { href: '/live', label: 'Live', icon: 'sensors' },
   { href: '/library', label: 'Library', icon: 'video_library', guestHref: '/login?next=/library' },
 ] as const;

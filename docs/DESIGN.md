@@ -4,9 +4,7 @@
 
 ## Blueprint gallery (Stitch HTML)
 
-Static HTML exports for layout reference during implementation.
-
-**Folder:** `docs/design/blueprints/` — group exports as `web/`, `admin/`, `mobile/` (optional).
+Static HTML exports for layout reference during implementation. **Not committed to the repo** — store locally if needed (e.g. `docs/design/blueprints/web/`, `admin/`, `mobile/`).
 
 **Web route:** `/blueprints` when `blueprints_public` is in `FEATURE_FLAGS` and `NEXT_PUBLIC_FEATURE_FLAGS`.
 

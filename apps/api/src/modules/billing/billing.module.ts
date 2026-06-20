@@ -21,26 +21,37 @@ function billingProviderFactory(
 
 import { WebhookIdempotencyModule } from '../../common/webhooks/webhook-idempotency.module';
 import { StreamingModule } from '../streaming/streaming.module';
+import { StripeTierSyncService } from './stripe-tier-sync.service';
+import { StripeConnectService } from './stripe-connect.service';
+import { SubscriptionChangeService } from './subscription-change.service';
+import { UsersModule } from '../users/users.module';
+import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { User } from '../users/entities/user.entity';
 
 @Module({
   imports: [
     ConfigModule,
-    EntitlementsModule,
+    forwardRef(() => EntitlementsModule),
     WebhookIdempotencyModule,
     forwardRef(() => StreamingModule),
-    TypeOrmModule.forFeature([StreamEventPurchase, Stream]),
+    UsersModule,
+    TypeOrmModule.forFeature([StreamEventPurchase, Stream, User]),
   ],
   controllers: [BillingController],
   providers: [
     StubPaymentProvider,
     StripePaymentProvider,
+    StripeTierSyncService,
+    StripeConnectService,
+    SubscriptionChangeService,
     BillingService,
+    CreatorApprovedGuard,
     {
       provide: PAYMENT_PROVIDER,
       inject: [ConfigService, StubPaymentProvider, StripePaymentProvider],
       useFactory: billingProviderFactory,
     },
   ],
-  exports: [PAYMENT_PROVIDER, BillingService, StubPaymentProvider, StripePaymentProvider],
+  exports: [PAYMENT_PROVIDER, BillingService, StubPaymentProvider, StripePaymentProvider, StripeTierSyncService, StripeConnectService, SubscriptionChangeService],
 })
 export class BillingModule {}

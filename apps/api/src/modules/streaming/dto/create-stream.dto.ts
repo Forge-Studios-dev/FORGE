@@ -73,8 +73,13 @@ export class CreateStreamDto {
   @Min(100)
   ticketPriceCents?: number;
 
-  @ApiPropertyOptional({ description: 'Enable live DVR (standard latency, longer rewind buffer)' })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
   dvrEnabled?: boolean;
+
+  @ApiPropertyOptional({ description: 'Link stream to a community for scoped live events' })
+  @IsOptional()
+  @IsUUID()
+  communityId?: string;
 }

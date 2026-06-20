@@ -29,6 +29,7 @@ import { Video } from '../content/entities/video.entity';
 import { ContentModule } from '../content/content.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { BillingModule } from '../billing/billing.module';
+import { AccessSessionsModule } from '../access-sessions/access-sessions.module';
 import { WebhookIdempotencyModule } from '../../common/webhooks/webhook-idempotency.module';
 import { WebhookEvent } from './entities/webhook-event.entity';
 import { StreamViewerService } from './stream-viewer.service';
@@ -37,6 +38,7 @@ import { MuxLiveSyncService } from './mux-live-sync.service';
 import { StreamReactionService } from './stream-reaction.service';
 import { StreamAnalyticsController } from './stream-analytics.controller';
 import { StreamMessage } from '../stream-chat/entities/stream-message.entity';
+import { Community } from '../communities/entities/community.entity';
 
 @Module({
   imports: [
@@ -89,10 +91,12 @@ import { StreamMessage } from '../stream-chat/entities/stream-message.entity';
       StreamPollVote,
       StreamClip,
       StreamCaption,
+      Community,
     ]),
     UsersModule,
     ContentModule,
     EntitlementsModule,
+    AccessSessionsModule,
     forwardRef(() => BillingModule),
   ],
   controllers: [StreamingController, StreamAnalyticsController],

@@ -1,9 +1,6 @@
-import { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { redirect, notFound } from 'next/navigation';
 import { serverApi } from '@/lib/api';
 import { User } from '@/types';
-import { ProfileHeader } from '@/components/ProfileHeader/ProfileHeader';
-import { CommunityPanel } from '@/components/Community/CommunityPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,23 +17,18 @@ async function getUserByUsername(username: string): Promise<User | null> {
   }
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const user = await getUserByUsername(params.username);
-  if (!user) return { title: 'Community' };
-  return { title: `${user.displayName} Community` };
-}
-
-export default async function CommunityPage({ params }: Props) {
+export default async function CommunityRedirectPage({ params }: Props) {
   const user = await getUserByUsername(params.username);
   if (!user) notFound();
 
-  return (
-    <main className="min-h-screen">
-      <ProfileHeader user={user} />
-      <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-        <h2 className="mb-6 text-xl font-bold">Community</h2>
-        <CommunityPanel creatorId={user.id} />
-      </section>
-    </main>
-  );
+  try {
+    const { data } = await serverApi.get<{ data: Array<{ slug: string }> }>(
+      `/creators/${user.id}/communities`,
+    );
+    const list = data.data ?? [];
+    const slug = list[0]?.slug ?? 'community';
+    redirect(`/${params.username}/c/${slug}`);
+  } catch {
+    redirect(`/${params.username}/c/community`);
+  }
 }

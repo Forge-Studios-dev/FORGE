@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,12 +10,14 @@ import {
   PaymentProvider,
 } from './payment-provider.interface';
 import { EntitlementsService } from '../entitlements/entitlements.service';
-import { MemberSubscriptionSource } from '../entitlements/entities/member-subscription.entity';
+import { MemberSubscriptionSource, MemberSubscriptionStatus } from '../entitlements/entities/member-subscription.entity';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 import { Stream, StreamVisibility } from '../streaming/entities/stream.entity';
 import { StreamingService } from '../streaming/streaming.service';
 
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
+import { StripeTierSyncService } from './stripe-tier-sync.service';
+import { StripeConnectService } from './stripe-connect.service';
 
 @Injectable()
 export class BillingService {
@@ -34,10 +36,51 @@ export class BillingService {
     @Inject(forwardRef(() => StreamingService))
     private readonly streamingService: StreamingService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly stripeTierSync: StripeTierSyncService,
+    private readonly stripeConnectService: StripeConnectService,
   ) {}
 
   async createCheckout(userId: string, input: Omit<CheckoutSessionInput, 'userId'>) {
-    return this.paymentProvider.createCheckoutSession({ ...input, userId });
+    const tier = await this.entitlementsService.getTierById(input.tierId);
+    if (tier.creatorId !== input.creatorId) {
+      throw new BadRequestException('Tier does not belong to creator');
+    }
+
+    let stripePriceId = tier.stripePriceId;
+    if (this.isBillingEnabled() && !stripePriceId) {
+      const synced = await this.stripeTierSync.syncTier(tier);
+      if (synced) {
+        await this.entitlementsService.updateTierStripeIds(tier.id, synced.productId, synced.priceId);
+        stripePriceId = synced.priceId;
+      }
+    }
+
+    let connectAccountId: string | null = null;
+    const platformFeePercent =
+      this.configService.get<number>('billing.stripePlatformFeePercent') ?? 10;
+
+    if (this.isBillingEnabled()) {
+      const connectStatus = await this.stripeConnectService.getConnectStatus(input.creatorId);
+      if (!connectStatus.chargesEnabled) {
+        throw new BadRequestException(
+          'Creator must complete Stripe Connect onboarding before accepting paid memberships',
+        );
+      }
+      connectAccountId = (connectStatus as { accountId?: string }).accountId ?? null;
+    }
+
+    return this.paymentProvider.createCheckoutSession({
+      ...input,
+      userId,
+      tierName: tier.name,
+      priceCents: tier.priceCents,
+      currency: tier.currency,
+      stripePriceId,
+      billingInterval: tier.billingInterval,
+      trialDays: tier.trialDays,
+      connectAccountId,
+      platformFeePercent,
+    });
   }
 
   async createSuperChatCheckout(
@@ -153,23 +196,47 @@ export class BillingService {
           amountCents: result.amountCents,
         });
       }
-    } else if (result.subscriptionId && result.status === 'active') {
-      const meta = JSON.parse(payload.toString('utf8') || '{}') as {
-        data?: { object?: { metadata?: { userId?: string; creatorId?: string; tierId?: string } } };
-      };
-      const sessionMeta = meta.data?.object?.metadata;
-      const userId = result.userId ?? sessionMeta?.userId;
-      const creatorId = sessionMeta?.creatorId;
-      const tierId = sessionMeta?.tierId;
-      if (userId && creatorId && tierId) {
-        await this.entitlementsService.grantSubscription(
-          userId,
-          {
-            creatorId,
-            tierId,
-            externalSubscriptionId: result.subscriptionId,
-          },
-          MemberSubscriptionSource.STRIPE,
+    } else if (result.checkoutType === 'subscription') {
+      if (result.status === 'active' && result.subscriptionId) {
+        const userId = result.userId;
+        const creatorId = result.creatorId;
+        const tierId = result.tierId;
+        if (userId && creatorId && tierId) {
+          await this.entitlementsService.grantSubscription(
+            userId,
+            {
+              creatorId,
+              tierId,
+              externalSubscriptionId: result.subscriptionId,
+            },
+            MemberSubscriptionSource.STRIPE,
+          );
+        }
+      } else if (result.status === 'trial' && result.subscriptionId) {
+        await this.entitlementsService.updateSubscriptionStatusByExternalRef(
+          result.subscriptionId,
+          MemberSubscriptionStatus.TRIAL,
+        );
+      } else if (result.status === 'grace_period' && result.subscriptionId) {
+        await this.entitlementsService.updateSubscriptionStatusByExternalRef(
+          result.subscriptionId,
+          MemberSubscriptionStatus.GRACE_PERIOD,
+        );
+      } else if (result.status === 'paused' && result.subscriptionId) {
+        await this.entitlementsService.updateSubscriptionStatusByExternalRef(
+          result.subscriptionId,
+          MemberSubscriptionStatus.PAUSED,
+        );
+      } else if (result.status === 'canceled' && result.subscriptionId) {
+        await this.entitlementsService.cancelByExternalRef(result.subscriptionId);
+      } else if (result.status === 'failed_payment' && result.subscriptionId) {
+        await this.entitlementsService.markSubscriptionFailedPayment(result.subscriptionId);
+      }
+
+      if (result.periodEndAt && result.subscriptionId) {
+        await this.entitlementsService.updateSubscriptionExpiresByExternalRef(
+          result.subscriptionId,
+          result.periodEndAt,
         );
       }
     }
@@ -205,5 +272,34 @@ export class BillingService {
   isBillingEnabled(): boolean {
     const provider = (this.configService.get<string>('billing.provider') || 'stub').toLowerCase();
     return provider === 'stripe' && !!this.configService.get<string>('billing.stripeSecretKey');
+  }
+
+  async createBillingPortalSession(userId: string, returnUrl: string) {
+    if (!this.isBillingEnabled()) {
+      throw new BadRequestException('Billing portal requires Stripe billing to be enabled');
+    }
+
+    const sub = await this.entitlementsService.findStripeSubscriptionForUser(userId);
+    if (!sub?.externalRef) {
+      throw new NotFoundException('No active Stripe subscription found');
+    }
+
+    const provider = this.paymentProvider as PaymentProvider & {
+      createBillingPortalSession?: (customerId: string, returnUrl: string) => Promise<{ url: string }>;
+    };
+    if (!provider.createBillingPortalSession) {
+      throw new BadRequestException('Billing portal is not supported by the current provider');
+    }
+
+    const customerId = await this.stripeTierSync.getSubscriptionCustomerId(sub.externalRef);
+    if (!customerId) {
+      throw new BadRequestException('Could not resolve Stripe customer for subscription');
+    }
+
+    const session = await provider.createBillingPortalSession(customerId, returnUrl);
+    if (!session.url) {
+      throw new BadRequestException('Billing portal session could not be created');
+    }
+    return { url: session.url };
   }
 }

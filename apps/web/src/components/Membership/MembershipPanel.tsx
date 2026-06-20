@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SubscriptionTier } from '@/types';
@@ -42,6 +43,21 @@ export function MembershipPanel({ creatorId }: Props) {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['membership', creatorId] });
+      void qc.invalidateQueries({ queryKey: ['community', creatorId] });
+    },
+  });
+
+  const checkoutMutation = useMutation({
+    mutationFn: async (tierId: string) => {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const { data } = await api.post<{ data: { checkoutUrl?: string | null } }>('/billing/checkout', {
+        creatorId,
+        tierId,
+        successUrl: `${origin}/settings/memberships?success=1`,
+        cancelUrl: `${origin}${window.location.pathname}`,
+      });
+      const url = data.data.checkoutUrl;
+      if (url) window.location.href = url;
     },
   });
 
@@ -62,8 +78,10 @@ export function MembershipPanel({ creatorId }: Props) {
 
   if (isGuest || !tiers?.length) return null;
 
+  const useStripe = process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
+
   return (
-    <div className="glass-panel space-y-3 rounded-xl p-4">
+    <div className="glass-panel w-full max-w-md space-y-3 rounded-xl p-4">
       <p className="text-sm font-medium">Become a member</p>
       <ul className="space-y-2">
         {tiers.map((tier) => (
@@ -71,20 +89,33 @@ export function MembershipPanel({ creatorId }: Props) {
             <span>
               {tier.name} — {tier.currency} {(tier.priceCents / 100).toFixed(0)}/mo
             </span>
-            <button
-              type="button"
-              disabled={mockMutation.isPending}
-              onClick={() => mockMutation.mutate(tier.id)}
-              className="rounded-lg bg-primary px-3 py-1 text-xs font-medium text-on-primary disabled:opacity-40"
-            >
-              Join (test)
-            </button>
+            {useStripe ? (
+              <Button
+                variant="primary"
+                className="px-3 py-1 text-xs"
+                disabled={checkoutMutation.isPending}
+                onClick={() => checkoutMutation.mutate(tier.id)}
+              >
+                Subscribe
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                className="px-3 py-1 text-xs"
+                disabled={mockMutation.isPending}
+                onClick={() => mockMutation.mutate(tier.id)}
+              >
+                Join (test)
+              </Button>
+            )}
           </li>
         ))}
       </ul>
-      <p className="text-xs text-on-surface-variant">
-        Test memberships only — real billing coming in Phase 2.
-      </p>
+      {!useStripe ? (
+        <p className="text-xs text-on-surface-variant">
+          Test memberships only — enable Stripe for real billing.
+        </p>
+      ) : null}
     </div>
   );
 }

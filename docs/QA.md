@@ -38,9 +38,11 @@ curl -s -X POST http://localhost:3001/api/v1/auth/login \
   -d '{"email":"viewer@forge.local","password":"ForgeDemo123!"}'
 ```
 
-**Flows:** sign up → watch → creator request → admin approve → upload (if S3/Mux) → admin reports.
+**Flows:** sign up → watch → creator request → admin approve → upload (if S3/Mux) → admin reports → DMs (`/messages`) → memberships (`npm run smoke:memberships`) → Community 2.0 (`npm run smoke:community-2.0`).
 
-Full route matrix and negative cases: see git history of `mvp-test-matrix.md` or expand in PRs as features ship.
+**Stripe recurring (staging):** set `STRIPE_SECRET_KEY` + webhook secret, create a tier with `billingInterval`, complete checkout; webhook `customer.subscription.*` should upsert `subscriptions` using metadata from checkout `subscription_data`.
+
+Route catalog: [FORGE_PROJECT_MASTER §20](./FORGE_PROJECT_MASTER.md#20-api-route-catalog) · social contracts: [API_SCHEMAS.md](./API_SCHEMAS.md)
 
 ## Environment (local)
 

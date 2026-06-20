@@ -20,6 +20,9 @@ import { BrowserGoLivePanel } from '@/components/live/BrowserGoLivePanel';
 import { StreamHostDashboard } from '@/components/live/StreamHostDashboard';
 import { StreamPollPanel } from '@/components/live/StreamPollPanel';
 import { StreamReactionPanel } from '@/components/live/StreamReactionPanel';
+import { StreamRaiseHandPanel } from '@/components/live/StreamRaiseHandPanel';
+import { useAccessSession } from '@/lib/access-session';
+import { AccessSessionConflict } from '@/components/Community/AccessSessionConflict';
 
 const ACCESS_MESSAGES: Record<string, string> = {
   login_required: 'Sign in to watch this stream.',
@@ -88,6 +91,31 @@ export default function LiveWatchPage() {
   });
 
   const isOwner = me && stream && stream.userId === me.id;
+  const needsPremiumSession =
+    !!me &&
+    !isOwner &&
+    !!stream &&
+    !stream.accessDenied &&
+    (stream.visibility === 'subscribers' || stream.visibility === 'tier');
+
+  const { data: liveMembership } = useQuery({
+    queryKey: ['membership', stream?.userId, me?.id],
+    enabled: needsPremiumSession && !!stream?.userId,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: { active: boolean } }>(
+        `/creators/${stream!.userId}/membership/me`,
+      );
+      return data.data;
+    },
+  });
+
+  const liveSessionEnabled = needsPremiumSession && !!liveMembership?.active;
+  const {
+    ready: liveSessionReady,
+    conflict: liveSessionConflict,
+    takeOver: liveSessionTakeOver,
+  } = useAccessSession('live', id, liveSessionEnabled);
+
   const isScheduledFuture =
     stream?.scheduledAt && new Date(stream.scheduledAt).getTime() > Date.now() && stream.status !== 'live';
 
@@ -154,6 +182,16 @@ export default function LiveWatchPage() {
     }
 
     if (stream.status === 'live' && stream.playbackUrl) {
+      if (liveSessionEnabled && liveSessionConflict) {
+        return <AccessSessionConflict message={liveSessionConflict} onTakeOver={liveSessionTakeOver} />;
+      }
+      if (liveSessionEnabled && !liveSessionReady) {
+        return (
+          <div className="glass-panel flex aspect-video items-center justify-center">
+            <p className="text-sm text-on-surface-variant">Starting secure session…</p>
+          </div>
+        );
+      }
       return (
         <div className={theaterMode ? 'fixed inset-0 z-50 flex flex-col bg-background p-4' : 'relative'}>
           {theaterMode ? (
@@ -333,6 +371,7 @@ export default function LiveWatchPage() {
             pinnedMessageId={stream.pinnedMessageId}
           />
           <StreamPollPanel streamId={id} isHost={!!isOwner} />
+          <StreamRaiseHandPanel streamId={id} isHost={!!isOwner} />
         </div>
       )}
     </main>

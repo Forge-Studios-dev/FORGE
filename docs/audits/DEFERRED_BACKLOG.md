@@ -9,7 +9,8 @@
 
 | ID | Item | Trigger | Owner hint |
 |----|------|---------|------------|
-| **F-1101** | Stripe Phase 2 — real billing, webhooks, `PaymentProvider` | Before paid marketing scale or creator payouts | Product + backend |
+| **F-1101** | Stripe Connect payouts + signed Mux URLs | Before creator payouts or DRM-grade playback | Product + backend |
+| **F-1101a** | ~~Recurring membership subs~~ | Shipped Community 2.0 (Stripe checkout + webhooks + tier change) | — |
 | **F-1302** | Search sidecar (e.g. Meilisearch) | Postgres FTS p95 degrades or catalog &gt;500K videos | Platform |
 | **Load test** | 100K entitlement simulation (feed + live) | 50K MAU or pre-major marketing push | Platform + perf |
 

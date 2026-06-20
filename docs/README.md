@@ -21,7 +21,8 @@ All project documentation lives in `docs/`. Start with **[FORGE_PROJECT_MASTER.m
 | [MEDIA.md](./MEDIA.md) | S3 + Mux |
 | [FIREBASE.md](./FIREBASE.md) | FCM push |
 | [OBSERVABILITY.md](./OBSERVABILITY.md) | Metrics, Sentry, Grafana |
-| [MEMBERSHIPS.md](./MEMBERSHIPS.md) | Mock tiers |
+| [MEMBERSHIPS.md](./MEMBERSHIPS.md) | Mock tiers + partial Stripe |
+| [COMMUNITY-2.0-IMPLEMENTATION.md](./COMMUNITY-2.0-IMPLEMENTATION.md) | Community 2.0 / Creator Economy OS tracker |
 | [DESIGN.md](./DESIGN.md) | Design system & Stitch blueprints |
 | [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) | Stakeholder summary |
 | [LEGAL.md](./LEGAL.md) | Terms & privacy |
@@ -37,7 +38,9 @@ All project documentation lives in `docs/`. Start with **[FORGE_PROJECT_MASTER.m
 |-----|-----|
 | [operations/README.md](./operations/README.md) | Runbooks index |
 | [audits/DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md) | Tracked post-audit items |
-| [audits/NEON_COST.md](./audits/NEON_COST.md) | Neon DB cost & monitoring |
+| [audits/NEON_COST.md](./audits/NEON_COST.md) | Neon billing audit — monitoring & connection budget |
+| [audits/INFRASTRUCTURE_COST_AUDIT_2026-06.md](./audits/INFRASTRUCTURE_COST_AUDIT_2026-06.md) | Full infra/cost audit + shipped optimizations |
+| [audits/SOCIAL_PLATFORM_AUDIT_2026-06.md](./audits/SOCIAL_PLATFORM_AUDIT_2026-06.md) | Social features audit + implementation |
 | [audits/EXECUTIVE_SUMMARY.md](./audits/EXECUTIVE_SUMMARY.md) | Closed 2026-06 enterprise audit summary |
 
 Enterprise audit **closed** 2026-06-05. Re-audit **2026-09-04** or 50K MAU.

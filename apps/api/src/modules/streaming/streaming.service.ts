@@ -19,7 +19,10 @@ import { CreateStreamDto } from './dto/create-stream.dto';
 import { Video, VideoStatus, VideoVisibility, PublishStatus } from '../content/entities/video.entity';
 import { MuxVodService } from '../content/mux-vod.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { AccessSessionsService } from '../access-sessions/access-sessions.service';
+import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 import { User, UserRole } from '../users/entities/user.entity';
+import { Community } from '../communities/entities/community.entity';
 import {
   muxHlsPlaybackUrl,
   muxPlaybackIdFromHlsUrl,
@@ -75,10 +78,13 @@ export class StreamingService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(StreamEventPurchase)
     private readonly purchaseRepository: Repository<StreamEventPurchase>,
+    @InjectRepository(Community)
+    private readonly communityRepository: Repository<Community>,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly muxVodService: MuxVodService,
     private readonly entitlementsService: EntitlementsService,
+    private readonly accessSessionsService: AccessSessionsService,
     private readonly webhookIdempotency: WebhookIdempotencyService,
     private readonly streamViewerService: StreamViewerService,
     private readonly muxLiveSyncService: MuxLiveSyncService,
@@ -122,6 +128,15 @@ export class StreamingService {
       scheduledAt = new Date(dto.scheduledAt);
       if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) {
         throw new BadRequestException('scheduledAt must be a valid future datetime');
+      }
+    }
+
+    if (dto.communityId) {
+      const community = await this.communityRepository.findOne({
+        where: { id: dto.communityId, creatorId: userId },
+      });
+      if (!community) {
+        throw new BadRequestException('Community not found or not owned by creator');
       }
     }
 
@@ -179,6 +194,7 @@ export class StreamingService {
       scheduledAt,
       ticketPriceCents:
         visibility === StreamVisibility.PAID_EVENT ? (dto.ticketPriceCents ?? null) : null,
+      communityId: dto.communityId ?? null,
     });
 
     const saved = await this.streamRepository.save(stream);
@@ -264,6 +280,26 @@ export class StreamingService {
       if (!ageOk) {
         hidePlayback = true;
         accessReason = 'age_confirmation_required';
+      }
+    }
+
+    if (
+      !hidePlayback &&
+      viewerId &&
+      !isOwner &&
+      !isAdmin &&
+      [StreamVisibility.SUBSCRIBERS, StreamVisibility.TIER].includes(stream.visibility)
+    ) {
+      try {
+        await this.accessSessionsService.requirePremiumSession(
+          viewerId,
+          stream.userId,
+          AccessSessionType.LIVE,
+          stream.id,
+        );
+      } catch (err) {
+        hidePlayback = true;
+        accessReason = 'subscription_required';
       }
     }
 
