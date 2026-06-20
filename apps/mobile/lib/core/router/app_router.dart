@@ -20,6 +20,7 @@ import '../../features/watch/presentation/watch_screen.dart';
 import '../../features/explore/presentation/explore_screen.dart';
 import '../../features/studio/presentation/studio_screen.dart';
 import '../../features/studio/presentation/studio_videos_screen.dart';
+import '../../features/studio/presentation/studio_comments_screen.dart';
 import '../../features/studio/presentation/studio_live_screen.dart';
 import '../../features/studio/presentation/studio_settings_screen.dart';
 import '../../features/studio/presentation/studio_analytics_screen.dart';

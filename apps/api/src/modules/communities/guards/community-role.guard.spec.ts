@@ -6,7 +6,6 @@ import { CommunityRoleGuard } from './community-role.guard';
 import { CommunityRole, CommunityRoleType } from '../entities/community-role.entity';
 import { Community } from '../entities/community.entity';
 import { UserRole } from '../../users/entities/user.entity';
-import { COMMUNITY_ROLES_KEY } from '../decorators/community-roles.decorator';
 
 describe('CommunityRoleGuard', () => {
   let guard: CommunityRoleGuard;

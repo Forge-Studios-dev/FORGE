@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/theme/forge_tokens.dart';
 import '../../../core/socket/forge_socket.dart';
 import '../../../core/access/access_session_controller.dart';
 import '../../profile/presentation/membership_panel.dart';
@@ -492,7 +493,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                       child: isVideo
                           ? InkWell(
                               onTap: () => launchUrl(Uri.parse(s), mode: LaunchMode.externalApplication),
-                              child: const Text('▶ Watch video', style: TextStyle(color: ForgeTokens.primary)),
+                              child: Text('▶ Watch video', style: TextStyle(color: ForgeTokens.primary)),
                             )
                           : ClipRRect(
                               borderRadius: BorderRadius.circular(8),

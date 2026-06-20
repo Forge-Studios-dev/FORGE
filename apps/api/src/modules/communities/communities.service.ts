@@ -40,7 +40,6 @@ import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 import { CommunityModerationService } from './community-moderation.service';
 import { AiModerationService } from './ai-moderation.service';
 import { ChannelType } from '../entitlements/entities/channel-type.enum';
-import { TierEntitlementResourceType } from '../entitlements/entities/tier-entitlement.entity';
 import { CommunityModerationQueueService } from './community-moderation-queue.service';
 import { Stream, StreamStatus } from '../streaming/entities/stream.entity';
 import { UserRole } from '../users/entities/user.entity';
