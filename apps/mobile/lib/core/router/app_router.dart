@@ -25,6 +25,7 @@ import '../../features/studio/presentation/studio_live_screen.dart';
 import '../../features/studio/presentation/studio_settings_screen.dart';
 import '../../features/studio/presentation/studio_analytics_screen.dart';
 import '../../features/studio/presentation/studio_tiers_screen.dart';
+import '../../features/studio/presentation/studio_subscribers_screen.dart';
 import '../../features/studio/presentation/studio_community_screen.dart';
 import '../../features/studio/presentation/studio_moderation_screen.dart';
 import '../../features/studio/presentation/studio_courses_screen.dart';

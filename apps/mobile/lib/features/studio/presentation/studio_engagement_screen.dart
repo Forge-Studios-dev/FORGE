@@ -33,7 +33,6 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
   String? _editingWikiId;
   String? _editingChallengeId;
   String? _editingSurveyId;
-  String? _analyticsSurveyId;
   bool _loading = true;
 
   @override
@@ -101,7 +100,6 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
       final res = await client.dio.get(
         '/creators/me/communities/$_communityId/surveys/$surveyId/analytics',
       );
-      setState(() => _analyticsSurveyId = surveyId);
       if (mounted) {
         final data = res.data['data'] as Map<String, dynamic>?;
         ScaffoldMessenger.of(context).showSnackBar(
