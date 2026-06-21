@@ -828,7 +828,7 @@ export class CommunitiesService {
       .leftJoinAndSelect('c.creator', 'creator')
       .where('c.visibility = :visibility', { visibility: CommunityVisibility.PUBLIC })
       .andWhere('(c.name ILIKE :pattern OR c.slug ILIKE :pattern)', { pattern })
-      .orderBy('c.created_at', 'DESC')
+      .orderBy('c.createdAt', 'DESC')
       .take(take)
       .getMany();
 
@@ -852,7 +852,7 @@ export class CommunitiesService {
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.creator', 'creator')
       .where('c.visibility = :visibility', { visibility: CommunityVisibility.PUBLIC })
-      .orderBy('c.created_at', 'DESC')
+      .orderBy('c.createdAt', 'DESC')
       .take(take)
       .getMany();
 
