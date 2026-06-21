@@ -3,8 +3,8 @@
 **Vision reference:** [COMMUNITY-MODULE-2.0.md](../COMMUNITY-MODULE-2.0.md)  
 **Memberships:** [MEMBERSHIPS.md](./MEMBERSHIPS.md)  
 **Deferred triggers:** [audits/DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md)  
-**Last updated:** 2026-06-20 (Final roadmap pass — room RBAC UI, creator AI/audit panel, sub badges in text rooms)  
-**Overall progress:** **~99%** of implementable Creator Economy OS scope · **Branch:** `feat/community-2.0-roadmap-waves`
+**Last updated:** 2026-06-21 (Production deploy complete — PRs #85–#87 on `main`)  
+**Overall progress:** **~99%** of implementable Creator Economy OS scope · **Branch:** `main` (merged)
 
 ---
 
@@ -21,6 +21,7 @@ FORGE has a **production-viable Community 2.0 + Creator Economy foundation** cov
 
 | Date | Items |
 |------|-------|
+| 2026-06-21 | **Production release:** PR #85 merged; hotfixes #86 (audit-log migration), #87 (discover orderBy); Release run 27896029691 green |
 | 2026-06-20 | **Ship readiness:** Fixed API build (admin DTO import, auth logout spec), e2e for AI/audit/summary routes, deployment checklist |
 | 2026-06-20 | **Roadmap completion pass:** Welcome modal + sub badges on chat, studio engagement CRUD/analytics, text room links, admin community drill-down API, mobile community settings + channel invite + engagement lists, e2e/smoke for featured + text rooms |
 | 2026-06-20 | **Roadmap waves 0–7:** P0 access checks on engagement/rooms, bundle entitlement cleanup, text room messaging + socket, featured discover, mobile rooms/bundles, AI moderation layer, audit logs schema, Redis pipeline for access sessions |
