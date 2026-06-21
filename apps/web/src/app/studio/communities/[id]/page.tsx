@@ -11,9 +11,12 @@ import { SubscriptionTier } from '@/types';
 import type { Community, CommunityCategory, CommunityChannel, CommunityPoll } from '@/types/community';
 import { StudioModerationPanel } from '@/components/Community/StudioModerationPanel';
 import { SubscriberPicker } from '@/components/Community/SubscriberPicker';
+import { StudioEngagementExtrasPanel } from '@/components/Community/StudioEngagementExtrasPanel';
+import { StudioCreatorOpsPanel } from '@/components/Community/StudioCreatorOpsPanel';
+import { StudioRoomsPanel } from '@/components/Community/StudioRoomsPanel';
 import { CommunityTrendsChart } from '@/components/Community/CommunityTrendsChart';
 
-type Tab = 'channels' | 'categories' | 'engagement' | 'moderation' | 'settings';
+type Tab = 'channels' | 'categories' | 'engagement' | 'rooms' | 'moderation' | 'settings';
 
 export default function StudioCommunityDetailPage() {
   const params = useParams();
@@ -47,12 +50,38 @@ export default function StudioCommunityDetailPage() {
   const [announceTitle, setAnnounceTitle] = useState('');
   const [announceBody, setAnnounceBody] = useState('');
   const [announceMediaUrls, setAnnounceMediaUrls] = useState('');
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState('Yes\nNo');
 
   const showStatus = (msg: string) => {
     setStatusMsg(msg);
     window.setTimeout(() => setStatusMsg(''), 3000);
+  };
+
+  const uploadAnnouncementImage = async (file: File) => {
+    if (!communityId) return;
+    setUploadingMedia(true);
+    try {
+      const { data } = await api.post<{ data: { uploadUrl: string; publicUrl: string } }>(
+        `/creators/me/communities/${communityId}/posts/media-upload-url?contentType=${encodeURIComponent(file.type)}`,
+      );
+      await fetch(data.data.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      setAnnounceMediaUrls((prev) => {
+        const lines = prev.split('\n').map((l) => l.trim()).filter(Boolean);
+        lines.push(data.data.publicUrl);
+        return lines.slice(0, 4).join('\n');
+      });
+      showStatus('Image uploaded');
+    } catch {
+      showStatus('Image upload failed');
+    } finally {
+      setUploadingMedia(false);
+    }
   };
 
   const { data: payload } = useQuery({
@@ -408,7 +437,7 @@ export default function StudioCommunityDetailPage() {
       ) : null}
 
       <nav className="mb-6 flex flex-wrap gap-2">
-        {(['channels', 'categories', 'engagement', 'moderation', 'settings'] as Tab[]).map((t) => (
+        {(['channels', 'categories', 'engagement', 'rooms', 'moderation', 'settings'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -742,6 +771,20 @@ export default function StudioCommunityDetailPage() {
               rows={2}
               className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
             />
+            <label className="block text-xs text-on-surface-variant">
+              Upload image (JPEG/PNG/WebP)
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                disabled={uploadingMedia}
+                className="mt-1 block w-full text-xs"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void uploadAnnouncementImage(file);
+                  e.target.value = '';
+                }}
+              />
+            </label>
             <Button
               disabled={!announceBody.trim() || createAnnouncementMutation.isPending}
               onClick={() => createAnnouncementMutation.mutate()}
@@ -788,8 +831,11 @@ export default function StudioCommunityDetailPage() {
               <p className="text-xs text-on-surface-variant">No active poll.</p>
             )}
           </section>
+          <StudioEngagementExtrasPanel communityId={communityId} />
         </div>
       ) : null}
+
+      {tab === 'rooms' ? <StudioRoomsPanel communityId={communityId} /> : null}
 
       {tab === 'moderation' ? <StudioModerationPanel communityId={communityId} /> : null}
 
@@ -830,6 +876,7 @@ export default function StudioCommunityDetailPage() {
           >
             Save settings
           </Button>
+          <StudioCreatorOpsPanel communityId={communityId} />
         </section>
       ) : null}
 

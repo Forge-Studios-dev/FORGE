@@ -20,7 +20,7 @@ const VISIBILITY_OPTIONS = [
 ] as const;
 
 export default function StudioLivePage() {
-  const { canGoLive } = useAuth();
+  const { canGoLive, user } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<string>('public');
@@ -32,6 +32,7 @@ export default function StudioLivePage() {
   const [ageRestricted, setAgeRestricted] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
   const [ticketPriceCents, setTicketPriceCents] = useState('');
+  const [communityId, setCommunityId] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
@@ -50,6 +51,17 @@ export default function StudioLivePage() {
     enabled: canGoLive,
     queryFn: async () => {
       const { data } = await api.get<{ data: SubscriptionTier[] }>('/creators/me/tiers');
+      return data.data;
+    },
+  });
+
+  const { data: myCommunities } = useQuery({
+    queryKey: ['studio-communities', user?.id],
+    enabled: canGoLive && !!user?.id,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: Array<{ id: string; name: string; slug: string }>;
+      }>(`/creators/${user!.id}/communities`);
       return data.data;
     },
   });
@@ -84,6 +96,7 @@ export default function StudioLivePage() {
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
         ticketPriceCents:
           visibility === 'paid_event' ? Number(ticketPriceCents) : undefined,
+        communityId: communityId || undefined,
       });
       setTitle('');
       await refetch();
@@ -188,6 +201,21 @@ export default function StudioLivePage() {
               >
                 <option value="">None</option>
                 {(categories ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="text-on-surface-variant">Community (optional)</span>
+              <select
+                value={communityId}
+                onChange={(e) => setCommunityId(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
+              >
+                <option value="">No community link</option>
+                {(myCommunities ?? []).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>

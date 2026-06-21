@@ -62,6 +62,17 @@ export class CommunityPostsController {
     return this.postsService.createPost(user.sub, communityId, user.sub, body);
   }
 
+  @Post('creators/me/communities/:communityId/posts/media-upload-url')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Presigned URL for community post image upload' })
+  postMediaUploadUrl(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Query('contentType') contentType: string,
+  ) {
+    return this.postsService.getMediaUploadUrl(user.sub, communityId, contentType || 'image/jpeg');
+  }
+
   @Patch('creators/me/communities/:communityId/posts/:postId')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Update a community post' })

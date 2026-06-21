@@ -8,12 +8,15 @@ import { Repository } from 'typeorm';
 import { User, UserRole } from '../../users/entities/user.entity';
 import { AUTH_USER_CLS_KEY, type AuthUserSnapshot } from '../../../common/cls/auth-cls.keys';
 import { AuthUserCacheService } from '../auth-user-cache.service';
+import { AuthSessionCacheService } from '../auth-session-cache.service';
 
 export interface JwtPayload {
   sub: string;
   email: string;
   role: UserRole;
   isVerified: boolean;
+  /** Refresh-token session id — enables instant revoke when session ends. */
+  sid?: string;
   iat?: number;
   exp?: number;
 }
@@ -24,6 +27,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     private readonly configService: ConfigService,
     private readonly cls: ClsService,
     private readonly authUserCache: AuthUserCacheService,
+    private readonly authSessionCache: AuthSessionCacheService,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {
@@ -35,6 +39,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: JwtPayload): Promise<JwtPayload> {
+    if (payload.sid) {
+      const active = await this.authSessionCache.assertSessionActive(payload.sid, payload.sub);
+      if (!active) {
+        throw new UnauthorizedException('Session revoked — sign in again');
+      }
+    }
+
     const cached = await this.authUserCache.get(payload.sub);
     if (cached) {
       if (cached.deletedAt) throw new UnauthorizedException('User no longer exists');
@@ -50,6 +61,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         email: cached.email,
         role: cached.role,
         isVerified: cached.isVerified,
+        sid: payload.sid,
       };
     }
 
@@ -79,6 +91,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       email: user.email,
       role: user.role,
       isVerified: user.isVerified,
+      sid: payload.sid,
     };
   }
 

@@ -46,6 +46,24 @@ export class CoursesController {
     return this.coursesService.createCohort(user.sub, courseId, body);
   }
 
+  @Get('creators/me/courses/:courseId/cohorts')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'List course cohorts' })
+  listCohorts(@CurrentUser() user: JwtPayload, @Param('courseId') courseId: string) {
+    return this.coursesService.listCohorts(user.sub, courseId);
+  }
+
+  @Patch('creators/me/courses/:courseId/lessons/reorder')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Reorder course lessons' })
+  reorderLessons(
+    @CurrentUser() user: JwtPayload,
+    @Param('courseId') courseId: string,
+    @Body() body: { lessonIds: string[] },
+  ) {
+    return this.coursesService.reorderLessons(user.sub, courseId, body.lessonIds ?? []);
+  }
+
   @Post('creators/me/courses/:courseId/lessons')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Create a course lesson' })

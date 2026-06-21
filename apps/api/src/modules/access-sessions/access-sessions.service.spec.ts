@@ -16,6 +16,7 @@ describe('AccessSessionsService', () => {
     sadd: jest.Mock;
     srem: jest.Mock;
     expire: jest.Mock;
+    pipeline: jest.Mock;
   };
   let auditRepository: { save: jest.Mock; create: jest.Mock; findOne: jest.Mock };
   let entitlementsService: { getMembershipForViewer: jest.Mock; getMaxConcurrentDevices: jest.Mock };
@@ -29,6 +30,13 @@ describe('AccessSessionsService', () => {
       sadd: jest.fn().mockResolvedValue(1),
       srem: jest.fn().mockResolvedValue(1),
       expire: jest.fn().mockResolvedValue(1),
+      pipeline: jest.fn(() => {
+        const chain = {
+          get: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue([]),
+        };
+        return chain;
+      }),
     };
     auditRepository = {
       save: jest.fn().mockResolvedValue({}),
@@ -58,6 +66,23 @@ describe('AccessSessionsService', () => {
     redis.smembers.mockResolvedValue([]);
     redis.setex.mockResolvedValue('OK');
     redis.del.mockResolvedValue(1);
+    redis.pipeline.mockImplementation(() => {
+      const keys: string[] = [];
+      const chain: {
+        get: jest.Mock;
+        exec: jest.Mock;
+      } = {
+        get: jest.fn((key: string) => {
+          keys.push(key);
+          return chain;
+        }),
+        exec: jest.fn(async () => {
+          const values = await Promise.all(keys.map((key) => redis.get(key)));
+          return values.map((value) => [null, value]);
+        }),
+      };
+      return chain;
+    });
     entitlementsService.getMaxConcurrentDevices.mockResolvedValue(1);
     auditRepository.findOne.mockResolvedValue(null);
   });

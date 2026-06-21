@@ -11,6 +11,7 @@ import { CommunityPost } from './entities/community-post.entity';
 import { CommunityPoll } from './entities/community-poll.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CommunitiesService } from './communities.service';
+import { CreatorAuditService } from './creator-audit.service';
 
 describe('CommunityModerationService', () => {
   let service: CommunityModerationService;
@@ -99,6 +100,10 @@ describe('CommunityModerationService', () => {
         {
           provide: CommunitiesService,
           useValue: { assertCommunityAccess: jest.fn().mockResolvedValue({ id: 'comm-1' }) },
+        },
+        {
+          provide: CreatorAuditService,
+          useValue: { log: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

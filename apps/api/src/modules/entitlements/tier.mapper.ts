@@ -9,6 +9,7 @@ export function toPublicTier(tier: SubscriptionTier) {
     slug: tier.slug,
     priceCents: tier.priceCents,
     currency: tier.currency,
+    billingInterval: tier.billingInterval,
     benefits: tier.benefits ?? [],
     sortOrder: tier.sortOrder,
     isActive: tier.isActive,

@@ -390,6 +390,16 @@ export class EventsGateway
     this.server.to(`channel:${payload.channelId}`).emit('channel:message:delete', payload);
   }
 
+  @OnEvent('room.message')
+  handleRoomMessage(payload: { communityId: string; roomId: string; message: unknown }) {
+    this.server.to(`room:${payload.roomId}`).emit('room:message', payload.message);
+  }
+
+  @OnEvent('room.message.deleted')
+  handleRoomMessageDeleted(payload: { communityId: string; roomId: string; messageId: string }) {
+    this.server.to(`room:${payload.roomId}`).emit('room:message:delete', payload);
+  }
+
   @OnEvent('notification.created')
   handleNotificationCreated(payload: { userId: string; notification: unknown }) {
     this.server.to(`user:${payload.userId}`).emit('notification:new', payload.notification);
@@ -469,6 +479,22 @@ export class EventsGateway
   @SubscribeMessage('leave-channel')
   handleLeaveChannel(@MessageBody() data: { channelId: string }, @ConnectedSocket() client: Socket) {
     client.leave(`channel:${data.channelId}`);
+  }
+
+  @SubscribeMessage('join-room')
+  async handleJoinRoom(
+    @MessageBody() data: { communityId: string; roomId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { userId, role } = this.requireAuth(client);
+    await this.communitiesService.assertCommunityAccess(data.communityId, userId, role);
+    client.join(`room:${data.roomId}`);
+    return { event: 'joined-room', data: { roomId: data.roomId } };
+  }
+
+  @SubscribeMessage('leave-room')
+  handleLeaveRoom(@MessageBody() data: { roomId: string }, @ConnectedSocket() client: Socket) {
+    client.leave(`room:${data.roomId}`);
   }
 
   emitToRoom(room: string, event: string, data: unknown) {

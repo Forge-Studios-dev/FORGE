@@ -15,12 +15,22 @@ class StudioCommunityScreen extends ConsumerStatefulWidget {
 
 class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
   final _nameCtrl = TextEditingController();
+  final _communityNameCtrl = TextEditingController();
+  final _editCommunityNameCtrl = TextEditingController();
+  final _editCommunitySlugCtrl = TextEditingController();
+  final _categoryNameCtrl = TextEditingController();
+  final _inviteUserIdCtrl = TextEditingController();
   String _type = 'public';
+  String _communityVisibility = 'public';
+  String _editCommunityVisibility = 'public';
   String? _requiredTierId;
   String? _creatorId;
+  String? _invitingChannelId;
   List<Map<String, dynamic>> _channels = [];
+  List<Map<String, dynamic>> _categories = [];
   List<Map<String, dynamic>> _tiers = [];
   List<Map<String, dynamic>> _communities = [];
+  List<Map<String, dynamic>> _subscribers = [];
   String? _communityId;
   bool _loading = true;
 
@@ -51,13 +61,17 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
           ? await client.dio.get('/creators/$_creatorId/communities/$slug')
           : communitiesRes;
       final tiersRes = await client.dio.get('/creators/$_creatorId/tiers');
+      final subsRes = await client.dio.get('/creators/me/subscribers');
       setState(() {
         _communities = communities;
         final data = communityRes.data['data'] as Map<String, dynamic>;
         _channels = (data['channels'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _categories = (data['categories'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _tiers = (tiersRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _subscribers = (subsRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _loading = false;
       });
+      _syncCommunityEditFields(_communityId);
     } catch (_) {
       setState(() => _loading = false);
     }
@@ -118,9 +132,109 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
     }
   }
 
+  Future<void> _createCommunity() async {
+    if (_communityNameCtrl.text.trim().isEmpty) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post('/creators/me/communities', data: {
+        'name': _communityNameCtrl.text.trim(),
+        'visibility': _communityVisibility,
+      });
+      _communityNameCtrl.clear();
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not create community')),
+        );
+      }
+    }
+  }
+
+  Future<void> _createCategory() async {
+    if (_categoryNameCtrl.text.trim().isEmpty || _communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post('/creators/me/communities/$_communityId/categories', data: {
+        'name': _categoryNameCtrl.text.trim(),
+      });
+      _categoryNameCtrl.clear();
+      final slug = _communities.firstWhere((c) => c['id'] == _communityId)['slug'] as String?;
+      if (_communityId != null) await _selectCommunity(_communityId!, slug);
+    } catch (_) {}
+  }
+
+  void _syncCommunityEditFields(String? communityId) {
+    if (communityId == null) return;
+    Map<String, dynamic>? selected;
+    for (final c in _communities) {
+      if (c['id'] == communityId) {
+        selected = c;
+        break;
+      }
+    }
+    if (selected == null) return;
+    _editCommunityNameCtrl.text = selected['name'] as String? ?? '';
+    _editCommunitySlugCtrl.text = selected['slug'] as String? ?? '';
+    _editCommunityVisibility = selected['visibility'] as String? ?? 'public';
+  }
+
+  Future<void> _saveCommunitySettings() async {
+    if (_communityId == null || _editCommunityNameCtrl.text.trim().isEmpty) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.patch('/creators/me/communities/$_communityId', data: {
+        'name': _editCommunityNameCtrl.text.trim(),
+        'slug': _editCommunitySlugCtrl.text.trim(),
+        'visibility': _editCommunityVisibility,
+      });
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Community settings saved')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save community settings')),
+        );
+      }
+    }
+  }
+
+  Future<void> _inviteToChannel(String channelId) async {
+    final userId = _inviteUserIdCtrl.text.trim();
+    if (userId.isEmpty) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post('/creators/me/channels/$channelId/invite', data: {
+        'userId': userId,
+      });
+      _inviteUserIdCtrl.clear();
+      setState(() => _invitingChannelId = null);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invite sent')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not send invite')),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _communityNameCtrl.dispose();
+    _editCommunityNameCtrl.dispose();
+    _editCommunitySlugCtrl.dispose();
+    _categoryNameCtrl.dispose();
+    _inviteUserIdCtrl.dispose();
     super.dispose();
   }
 
@@ -136,8 +250,10 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
         _communityId = communityId;
         final data = communityRes.data['data'] as Map<String, dynamic>;
         _channels = (data['channels'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _categories = (data['categories'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _loading = false;
       });
+      _syncCommunityEditFields(communityId);
     } catch (_) {
       setState(() => _loading = false);
     }
@@ -172,6 +288,62 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
                   }),
                   const Divider(height: 32),
                 ],
+                const Divider(height: 32),
+                const Text('Create community', style: TextStyle(fontWeight: FontWeight.w600)),
+                TextField(
+                  controller: _communityNameCtrl,
+                  decoration: const InputDecoration(labelText: 'Community name'),
+                ),
+                DropdownButtonFormField<String>(
+                  value: _communityVisibility,
+                  decoration: const InputDecoration(labelText: 'Visibility'),
+                  items: const [
+                    DropdownMenuItem(value: 'public', child: Text('Public')),
+                    DropdownMenuItem(value: 'private', child: Text('Private')),
+                    DropdownMenuItem(value: 'paid', child: Text('Paid')),
+                    DropdownMenuItem(value: 'invite', child: Text('Invite only')),
+                  ],
+                  onChanged: (v) => setState(() => _communityVisibility = v ?? 'public'),
+                ),
+                ForgeButton(label: 'Create community', onPressed: _createCommunity),
+                if (_communityId != null) ...[
+                  const Divider(height: 32),
+                  const Text('Community settings', style: TextStyle(fontWeight: FontWeight.w600)),
+                  TextField(
+                    controller: _editCommunityNameCtrl,
+                    decoration: const InputDecoration(labelText: 'Community name'),
+                  ),
+                  TextField(
+                    controller: _editCommunitySlugCtrl,
+                    decoration: const InputDecoration(labelText: 'Slug'),
+                  ),
+                  DropdownButtonFormField<String>(
+                    value: _editCommunityVisibility,
+                    decoration: const InputDecoration(labelText: 'Visibility'),
+                    items: const [
+                      DropdownMenuItem(value: 'public', child: Text('Public')),
+                      DropdownMenuItem(value: 'private', child: Text('Private')),
+                      DropdownMenuItem(value: 'paid', child: Text('Paid')),
+                      DropdownMenuItem(value: 'invite', child: Text('Invite only')),
+                    ],
+                    onChanged: (v) => setState(() => _editCommunityVisibility = v ?? 'public'),
+                  ),
+                  ForgeButton(label: 'Save community settings', onPressed: _saveCommunitySettings),
+                ],
+                const Divider(height: 32),
+                const Text('Categories', style: TextStyle(fontWeight: FontWeight.w600)),
+                ..._categories.map(
+                  (cat) => ListTile(
+                    dense: true,
+                    title: Text(cat['name'] as String? ?? ''),
+                  ),
+                ),
+                TextField(
+                  controller: _categoryNameCtrl,
+                  decoration: const InputDecoration(labelText: 'New category name'),
+                ),
+                ForgeButton(label: 'Add category', onPressed: _createCategory),
+                const Divider(height: 32),
                 const Text(
                   'Manage your creator community rooms',
                   style: TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 13),
@@ -219,11 +391,59 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
                 ],
                 const SizedBox(height: 24),
                 ..._channels.map((ch) {
+                  final channelId = ch['id'] as String?;
+                  final channelType = ch['type'] as String? ?? '';
+                  final isInvite = channelType == 'invite';
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      title: Text(ch['name'] as String? ?? ''),
-                      subtitle: Text('${ch['type']} · #${ch['slug']}'),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(ch['name'] as String? ?? ''),
+                            subtitle: Text('$channelType · #${ch['slug']}'),
+                          ),
+                          if (isInvite && channelId != null) ...[
+                            TextButton(
+                              onPressed: () => setState(() {
+                                _invitingChannelId =
+                                    _invitingChannelId == channelId ? null : channelId;
+                              }),
+                              child: Text(
+                                _invitingChannelId == channelId ? 'Cancel invite' : 'Invite member',
+                              ),
+                            ),
+                            if (_invitingChannelId == channelId)
+                              DropdownButtonFormField<String>(
+                                decoration: const InputDecoration(labelText: 'Subscriber'),
+                                items: _subscribers
+                                    .map(
+                                      (s) => DropdownMenuItem(
+                                        value: s['userId'] as String? ?? s['id'] as String?,
+                                        child: Text(
+                                          s['displayName'] as String? ??
+                                              s['username'] as String? ??
+                                              'Member',
+                                        ),
+                                      ),
+                                    )
+                                    .where((item) => item.value != null)
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v != null) _inviteUserIdCtrl.text = v;
+                                },
+                              ),
+                            if (_invitingChannelId == channelId)
+                              ForgeButton(
+                                label: 'Send invite',
+                                onPressed: () => _inviteToChannel(channelId),
+                              ),
+                          ],
+                        ],
+                      ),
                     ),
                   );
                 }),

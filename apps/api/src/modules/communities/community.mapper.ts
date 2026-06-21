@@ -1,5 +1,6 @@
 import { Channel } from './entities/channel.entity';
 import { ChannelMessage } from './entities/channel-message.entity';
+import { CommunityRoomMessage } from './entities/community-room-message.entity';
 import { Community } from './entities/community.entity';
 import { CommunityCategory } from './entities/community-category.entity';
 import { toPublicUser } from '../users/user.mapper';
@@ -45,14 +46,29 @@ export function toPublicChannel(
   };
 }
 
-export function toPublicChannelMessage(msg: ChannelMessage) {
+export function toPublicChannelMessage(msg: ChannelMessage, memberTierName?: string | null) {
   return {
     id: msg.id,
     channelId: msg.channelId,
     userId: msg.userId,
     user: msg.user ? toPublicUser(msg.user) : undefined,
+    memberTierName: memberTierName ?? null,
     body: msg.deletedAt ? '[deleted]' : msg.body,
     parentId: msg.parentId,
+    deletedAt: msg.deletedAt,
+    createdAt: msg.createdAt,
+  };
+}
+
+export function toPublicRoomMessage(msg: CommunityRoomMessage, memberTierName?: string | null) {
+  return {
+    id: msg.id,
+    roomId: msg.roomId,
+    userId: msg.userId,
+    user: msg.user ? toPublicUser(msg.user) : undefined,
+    memberTierName: memberTierName ?? null,
+    body: msg.deletedAt ? '[deleted]' : msg.body,
+    parentMessageId: msg.parentMessageId,
     deletedAt: msg.deletedAt,
     createdAt: msg.createdAt,
   };

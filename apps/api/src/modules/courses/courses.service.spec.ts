@@ -34,6 +34,7 @@ describe('CoursesService', () => {
   const cohortRepository = {
     save: jest.fn(async (entity: CourseCohort) => entity),
     create: jest.fn((dto: Partial<CourseCohort>) => dto),
+    find: jest.fn().mockResolvedValue([]),
   };
   const lessonRepository = {
     find: jest.fn().mockResolvedValue([]),
@@ -41,6 +42,7 @@ describe('CoursesService', () => {
     count: jest.fn().mockResolvedValue(2),
     save: jest.fn(async (entity: CourseLesson) => ({ ...entity, id: 'lesson-1' })),
     create: jest.fn((dto: Partial<CourseLesson>) => dto),
+    update: jest.fn().mockResolvedValue(undefined),
   };
   const enrollmentRepository = {
     findOne: jest.fn(),
@@ -129,5 +131,30 @@ describe('CoursesService', () => {
     await expect(service.listLessons('course-1', 'user-2')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+
+  it('lists cohorts for creator course', async () => {
+    courseRepository.findOne.mockResolvedValue({ id: 'course-1', creatorId: 'creator-1' });
+    cohortRepository.find.mockResolvedValue([{ id: 'cohort-1', name: 'Spring' }]);
+    const result = await service.listCohorts('creator-1', 'course-1');
+    expect(result).toHaveLength(1);
+  });
+
+  it('reorders lessons by id list', async () => {
+    courseRepository.findOne.mockResolvedValue({ id: 'course-1', creatorId: 'creator-1' });
+    lessonRepository.find.mockResolvedValue([
+      { id: 'l1', courseId: 'course-1' },
+      { id: 'l2', courseId: 'course-1' },
+    ]);
+    lessonRepository.update.mockResolvedValue(undefined);
+    lessonRepository.find.mockResolvedValueOnce([
+      { id: 'l1', courseId: 'course-1' },
+      { id: 'l2', courseId: 'course-1' },
+    ]).mockResolvedValueOnce([
+      { id: 'l2', courseId: 'course-1', sortOrder: 0 },
+      { id: 'l1', courseId: 'course-1', sortOrder: 1 },
+    ]);
+    await service.reorderLessons('creator-1', 'course-1', ['l2', 'l1']);
+    expect(lessonRepository.update).toHaveBeenCalled();
   });
 });

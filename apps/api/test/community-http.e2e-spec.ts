@@ -18,6 +18,15 @@ import { CreatorApprovedGuard } from '../src/common/guards/creator-approved.guar
 import { CommunityRoleGuard } from '../src/modules/communities/guards/community-role.guard';
 import { GamificationController } from '../src/modules/gamification/gamification.controller';
 import { GamificationService } from '../src/modules/gamification/gamification.service';
+import { CommunityEngagementController } from '../src/modules/communities/community-engagement.controller';
+import { CommunityEngagementService } from '../src/modules/communities/community-engagement.service';
+import { CommunityRoomsController } from '../src/modules/communities/community-rooms.controller';
+import { CommunityRoomsService } from '../src/modules/communities/community-rooms.service';
+import { CommunityRoomMessagesService } from '../src/modules/communities/community-room-messages.service';
+import { CommunityRoomPermissionsService } from '../src/modules/communities/community-room-permissions.service';
+import { CommunityAiController } from '../src/modules/communities/community-ai.controller';
+import { AiCommunityService } from '../src/modules/communities/ai-community.service';
+import { CreatorAuditService } from '../src/modules/communities/creator-audit.service';
 
 describe('Community HTTP (mocked e2e)', () => {
   let app: INestApplication;
@@ -33,6 +42,9 @@ describe('Community HTTP (mocked e2e)', () => {
   const communitiesService = {
     searchCommunities: jest.fn().mockResolvedValue({
       data: [{ id: 'comm-1', name: 'Test Community', slug: 'test' }],
+    }),
+    listFeaturedCommunities: jest.fn().mockResolvedValue({
+      data: [{ id: 'comm-1', name: 'Featured Community', slug: 'featured' }],
     }),
     getCommunityAnalytics: jest.fn().mockResolvedValue({ messages7d: 10, posts7d: 2 }),
     listModeratedCommunities: jest.fn().mockResolvedValue({
@@ -62,6 +74,43 @@ describe('Community HTTP (mocked e2e)', () => {
     createReport: jest.fn().mockResolvedValue({ id: 'report-1' }),
   };
 
+  const engagementService = {
+    listWiki: jest.fn().mockResolvedValue({ data: [{ id: 'w1', title: 'FAQ' }] }),
+    listChallenges: jest.fn().mockResolvedValue({ data: [{ id: 'ch1', title: '30-day streak' }] }),
+    listSurveys: jest.fn().mockResolvedValue({ data: [{ id: 's1', title: 'Feedback' }] }),
+    joinChallenge: jest.fn().mockResolvedValue({ data: { id: 'p1' } }),
+  };
+
+  const roomsService = {
+    listRooms: jest.fn().mockResolvedValue({ data: [{ id: 'room-1', name: 'Voice', roomType: 'voice' }] }),
+    getRoom: jest.fn().mockResolvedValue({ data: { id: 'room-1', name: 'Voice', roomType: 'voice' } }),
+    joinRoomToken: jest.fn().mockResolvedValue({
+      data: { token: 'lk-jwt', livekitUrl: 'wss://lk', canPublish: true, roomType: 'voice' },
+    }),
+    raiseHand: jest.fn().mockResolvedValue({ data: { raised: true } }),
+  };
+
+  const roomMessagesService = {
+    listMessages: jest.fn().mockResolvedValue({ data: [{ id: 'rm-1', body: 'Hello room' }], meta: {} }),
+    sendMessage: jest.fn().mockResolvedValue({ data: { id: 'rm-2', body: 'Hi' } }),
+    deleteMessage: jest.fn().mockResolvedValue({ ok: true }),
+  };
+
+  const roomPermissionsService = {
+    listPermissions: jest.fn().mockResolvedValue({ data: [] }),
+    grantPermission: jest.fn().mockResolvedValue({ ok: true }),
+    revokePermission: jest.fn().mockResolvedValue({ ok: true }),
+  };
+
+  const aiCommunityService = {
+    scoreContent: jest.fn().mockReturnValue({ score: 0.1, flagged: false, reasons: [], model: 'regex' }),
+    summarizeDiscussion: jest.fn().mockReturnValue('Recent themes: hello.'),
+  };
+
+  const auditService = {
+    listForCreator: jest.fn().mockResolvedValue({ data: [{ id: 'log-1', action: 'room.permission.grant' }] }),
+  };
+
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [
@@ -70,6 +119,9 @@ describe('Community HTTP (mocked e2e)', () => {
         CommunityPollsController,
         CommunityModerationController,
         GamificationController,
+        CommunityEngagementController,
+        CommunityRoomsController,
+        CommunityAiController,
       ],
       providers: [
         { provide: CommunityPostsService, useValue: postsService },
@@ -77,6 +129,12 @@ describe('Community HTTP (mocked e2e)', () => {
         { provide: CommunityPollsService, useValue: pollsService },
         { provide: CommunityModerationService, useValue: moderationService },
         { provide: GamificationService, useValue: gamificationService },
+        { provide: CommunityEngagementService, useValue: engagementService },
+        { provide: CommunityRoomsService, useValue: roomsService },
+        { provide: CommunityRoomMessagesService, useValue: roomMessagesService },
+        { provide: CommunityRoomPermissionsService, useValue: roomPermissionsService },
+        { provide: AiCommunityService, useValue: aiCommunityService },
+        { provide: CreatorAuditService, useValue: auditService },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -120,6 +178,12 @@ describe('Community HTTP (mocked e2e)', () => {
 
   afterAll(async () => {
     if (app) await app.close();
+  });
+
+  it('GET /api/v1/communities/discover/featured returns featured communities', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/communities/discover/featured');
+    expect(res.status).toBe(200);
+    expect(communitiesService.listFeaturedCommunities).toHaveBeenCalled();
   });
 
   it('GET /api/v1/communities/search returns discovery results', async () => {
@@ -209,5 +273,86 @@ describe('Community HTTP (mocked e2e)', () => {
     const res = await request(app.getHttpServer()).get('/api/v1/creators/me/business-analytics');
     expect(res.status).toBe(200);
     expect(communitiesService.getCreatorBusinessAnalytics).toHaveBeenCalledWith('user-1');
+  });
+
+  it('GET /api/v1/communities/:id/wiki returns wiki pages', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/communities/comm-1/wiki');
+    expect(res.status).toBe(200);
+    expect(engagementService.listWiki).toHaveBeenCalledWith('comm-1', 'user-1', 'consumer');
+  });
+
+  it('GET /api/v1/communities/:id/challenges returns challenges', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/communities/comm-1/challenges');
+    expect(res.status).toBe(200);
+    expect(engagementService.listChallenges).toHaveBeenCalledWith('comm-1', 'user-1', 'consumer');
+  });
+
+  it('POST /api/v1/communities/:id/challenges/:challengeId/join joins challenge', async () => {
+    const res = await request(app.getHttpServer()).post(
+      '/api/v1/communities/comm-1/challenges/ch-1/join',
+    );
+    expect(res.status).toBe(201);
+    expect(engagementService.joinChallenge).toHaveBeenCalledWith('user-1', 'comm-1', 'ch-1', 'consumer');
+  });
+
+  it('GET /api/v1/communities/:id/rooms lists rooms', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/communities/comm-1/rooms');
+    expect(res.status).toBe(200);
+    expect(roomsService.listRooms).toHaveBeenCalledWith('comm-1', 'user-1', 'consumer');
+  });
+
+  it('POST /api/v1/communities/:id/rooms/:roomId/token returns LiveKit token', async () => {
+    const res = await request(app.getHttpServer()).post(
+      '/api/v1/communities/comm-1/rooms/room-1/token',
+    );
+    expect(res.status).toBe(201);
+    expect(roomsService.joinRoomToken).toHaveBeenCalled();
+  });
+
+  it('POST /api/v1/communities/:id/rooms/:roomId/raise-hand raises hand in stage', async () => {
+    const res = await request(app.getHttpServer()).post(
+      '/api/v1/communities/comm-1/rooms/room-1/raise-hand',
+    );
+    expect(res.status).toBe(201);
+    expect(roomsService.raiseHand).toHaveBeenCalled();
+  });
+
+  it('GET /api/v1/communities/:id/rooms/:roomId/messages lists text room messages', async () => {
+    const res = await request(app.getHttpServer()).get(
+      '/api/v1/communities/comm-1/rooms/room-1/messages',
+    );
+    expect(res.status).toBe(200);
+    expect(roomMessagesService.listMessages).toHaveBeenCalled();
+  });
+
+  it('POST /api/v1/communities/:id/rooms/:roomId/messages sends text room message', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/communities/comm-1/rooms/room-1/messages')
+      .send({ body: 'Hello text room' });
+    expect(res.status).toBe(201);
+    expect(roomMessagesService.sendMessage).toHaveBeenCalled();
+  });
+
+  it('POST /api/v1/creators/me/ai/moderation/score scores content', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/creators/me/ai/moderation/score')
+      .send({ text: 'Hello community' });
+    expect(res.status).toBe(201);
+    expect(aiCommunityService.scoreContent).toHaveBeenCalled();
+  });
+
+  it('GET /api/v1/creators/me/audit-logs returns creator audit history', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/creators/me/audit-logs');
+    expect(res.status).toBe(200);
+    expect(auditService.listForCreator).toHaveBeenCalled();
+  });
+
+  it('GET /api/v1/creators/me/communities/:id/rooms/:roomId/summary summarizes room', async () => {
+    const res = await request(app.getHttpServer()).get(
+      '/api/v1/creators/me/communities/comm-1/rooms/room-1/summary',
+    );
+    expect(res.status).toBe(200);
+    expect(roomMessagesService.listMessages).toHaveBeenCalled();
+    expect(aiCommunityService.summarizeDiscussion).toHaveBeenCalled();
   });
 });

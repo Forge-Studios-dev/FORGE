@@ -14,6 +14,7 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { CommunityModerationService } from './community-moderation.service';
 import { AiModerationService } from './ai-moderation.service';
+import { AiCommunityService } from './ai-community.service';
 import { CommunityModerationQueueService } from './community-moderation-queue.service';
 import { Stream } from '../streaming/entities/stream.entity';
 import { ChannelType } from '../entitlements/entities/channel-type.enum';
@@ -29,6 +30,7 @@ describe('CommunitiesService', () => {
   let accessSessionsService: { requirePremiumSession: jest.Mock };
   let moderationService: { isBanned: jest.Mock };
   let aiModerationService: { scoreSpam: jest.Mock };
+  let aiCommunityService: { scoreContent: jest.Mock };
 
   const communityRepository = {
     findOne: jest.fn(),
@@ -73,6 +75,7 @@ describe('CommunitiesService', () => {
 
   const moderationQueueService = {
     enqueueMessageModeration: jest.fn(),
+    enqueueFlaggedMessage: jest.fn(),
   };
 
   const redis = {
@@ -109,6 +112,7 @@ describe('CommunitiesService', () => {
     accessSessionsService = { requirePremiumSession: jest.fn().mockResolvedValue(undefined) };
     moderationService = { isBanned: jest.fn().mockResolvedValue(false) };
     aiModerationService = { scoreSpam: jest.fn().mockReturnValue({ flagged: false, score: 0, reasons: [] }) };
+    aiCommunityService = { scoreContent: jest.fn().mockReturnValue({ flagged: false, score: 0, reasons: [] }) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -123,6 +127,7 @@ describe('CommunitiesService', () => {
         { provide: AccessSessionsService, useValue: accessSessionsService },
         { provide: CommunityModerationService, useValue: moderationService },
         { provide: AiModerationService, useValue: aiModerationService },
+        { provide: AiCommunityService, useValue: aiCommunityService },
         { provide: CommunityModerationQueueService, useValue: moderationQueueService },
         { provide: getRepositoryToken(Stream), useValue: streamRepository },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },

@@ -67,6 +67,13 @@ export class CommunitiesController {
     return this.communitiesService.searchCommunities(q, Number(limit) || 20);
   }
 
+  @Public()
+  @Get('communities/discover/featured')
+  @ApiOperation({ summary: 'Featured public communities for discovery browse' })
+  featuredCommunities(@Query('limit') limit = 12) {
+    return this.communitiesService.listFeaturedCommunities(Number(limit) || 12);
+  }
+
   /** @deprecated Use GET /creators/:creatorId/communities/:slug — returns default community */
   @Public()
   @UseGuards(OptionalJwtAuthGuard)

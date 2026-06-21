@@ -59,9 +59,17 @@ export class AccessSessionsService {
     await this.migrateLegacySession(userId);
     const tokens = await this.redis.smembers(this.userTokensKey(userId));
     const results: Array<{ token: string; payload: SessionPayload }> = [];
+    if (!tokens.length) return results;
 
+    const pipeline = this.redis.pipeline();
     for (const token of tokens) {
-      const raw = await this.redis.get(this.tokenKey(token));
+      pipeline.get(this.tokenKey(token));
+    }
+    const rawResults = await pipeline.exec();
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      const raw = rawResults?.[i]?.[1] as string | null;
       if (!raw) {
         await this.redis.srem(this.userTokensKey(userId), token);
         continue;

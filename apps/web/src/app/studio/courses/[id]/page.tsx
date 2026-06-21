@@ -39,6 +39,7 @@ export default function StudioCourseDetailPage() {
   const qc = useQueryClient();
   const [lessonTitle, setLessonTitle] = useState('');
   const [lessonContent, setLessonContent] = useState('');
+  const [cohortName, setCohortName] = useState('');
 
   const { data: courses } = useQuery({
     queryKey: ['studio-courses', user?.id],
@@ -78,6 +79,17 @@ export default function StudioCourseDetailPage() {
     enabled: !!courseId && !!user?.id && isCreator,
     queryFn: async () => {
       const { data } = await api.get<{ data: Lesson[] }>(`/courses/${courseId}/lessons`);
+      return data.data;
+    },
+  });
+
+  const { data: cohorts } = useQuery({
+    queryKey: ['course-cohorts', courseId],
+    enabled: !!courseId && !!user?.id && isCreator,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: Array<{ id: string; name: string }> }>(
+        `/creators/me/courses/${courseId}/cohorts`,
+      );
       return data.data;
     },
   });
@@ -122,6 +134,27 @@ export default function StudioCourseDetailPage() {
     onSuccess: () => {
       setLessonTitle('');
       setLessonContent('');
+      void qc.invalidateQueries({ queryKey: ['course-lessons', courseId] });
+    },
+  });
+
+  const createCohortMutation = useMutation({
+    mutationFn: async () => {
+      await api.post(`/creators/me/courses/${courseId}/cohorts`, {
+        name: cohortName.trim(),
+      });
+    },
+    onSuccess: () => {
+      setCohortName('');
+      void qc.invalidateQueries({ queryKey: ['course-cohorts', courseId] });
+    },
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: async (lessonIds: string[]) => {
+      await api.patch(`/creators/me/courses/${courseId}/lessons/reorder`, { lessonIds });
+    },
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['course-lessons', courseId] });
     },
   });
@@ -224,6 +257,32 @@ export default function StudioCourseDetailPage() {
       </section>
 
       <section className="glass-panel mb-8 space-y-3 rounded-xl p-6">
+        <h2 className="font-label-caps text-outline">Cohorts</h2>
+        <Input
+          value={cohortName}
+          onChange={(e) => setCohortName(e.target.value)}
+          placeholder="Cohort name (e.g. Spring 2026)"
+        />
+        <Button
+          disabled={!cohortName.trim() || createCohortMutation.isPending}
+          onClick={() => createCohortMutation.mutate()}
+        >
+          Add cohort
+        </Button>
+        {(cohorts ?? []).length > 0 ? (
+          <ul className="space-y-1 text-sm">
+            {(cohorts ?? []).map((c) => (
+              <li key={c.id} className="rounded-lg border border-outline-variant/30 px-3 py-2">
+                {c.name}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-on-surface-variant">No cohorts yet — members enroll into the default group.</p>
+        )}
+      </section>
+
+      <section className="glass-panel mb-8 space-y-3 rounded-xl p-6">
         <h2 className="font-label-caps text-outline">New lesson</h2>
         <Input
           value={lessonTitle}
@@ -253,9 +312,37 @@ export default function StudioCourseDetailPage() {
           <ol className="space-y-2">
             {(lessons ?? []).map((lesson, i) => (
               <li key={lesson.id} className="glass-panel rounded-xl p-4">
-                <p className="font-medium">
-                  {i + 1}. {lesson.title}
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-medium">
+                    {i + 1}. {lesson.title}
+                  </p>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      className="text-xs"
+                      disabled={i === 0 || reorderMutation.isPending}
+                      onClick={() => {
+                        const ids = (lessons ?? []).map((l) => l.id);
+                        [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
+                        reorderMutation.mutate(ids);
+                      }}
+                    >
+                      ↑
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="text-xs"
+                      disabled={i === (lessons ?? []).length - 1 || reorderMutation.isPending}
+                      onClick={() => {
+                        const ids = (lessons ?? []).map((l) => l.id);
+                        [ids[i], ids[i + 1]] = [ids[i + 1], ids[i]];
+                        reorderMutation.mutate(ids);
+                      }}
+                    >
+                      ↓
+                    </Button>
+                  </div>
+                </div>
                 {lesson.content ? (
                   <p className="mt-2 line-clamp-3 text-sm text-on-surface-variant">{lesson.content}</p>
                 ) : null}

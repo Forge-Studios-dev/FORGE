@@ -26,6 +26,7 @@ import { toPublicUser } from '../users/user.mapper';
 import { AuthAccountLockoutService } from './auth-account-lockout.service';
 import { AuthEmailOtpService } from './auth-email-otp.service';
 import { AuthUserCacheService } from './auth-user-cache.service';
+import { AuthSessionCacheService } from './auth-session-cache.service';
 import { isDisposableEmail } from './utils/disposable-email.util';
 
 export type ClientSessionMeta = {
@@ -54,6 +55,7 @@ export class AuthService {
     private readonly lockoutService: AuthAccountLockoutService,
     private readonly emailOtpService: AuthEmailOtpService,
     private readonly authUserCache: AuthUserCacheService,
+    private readonly authSessionCache: AuthSessionCacheService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -300,6 +302,7 @@ export class AuthService {
     }
 
     await this.refreshTokenRepository.update(storedToken.id, { revoked: true });
+    await this.authSessionCache.markRevoked(storedToken.id);
     return this.issueTokens(storedToken.user, meta);
   }
 
@@ -309,17 +312,29 @@ export class AuthService {
       return this.logoutAll(userId);
     }
     const tokenHash = this.hashToken(rawRefreshToken);
+    const stored = await this.refreshTokenRepository.findOne({
+      where: { userId, tokenHash, revoked: false },
+      select: ['id'],
+    });
     await this.refreshTokenRepository.update(
       { userId, tokenHash, revoked: false },
       { revoked: true },
     );
+    if (stored?.id) {
+      await this.authSessionCache.markRevoked(stored.id);
+    }
   }
 
   async logoutAll(userId: string) {
+    const activeSessions = await this.refreshTokenRepository.find({
+      where: { userId, revoked: false },
+      select: ['id'],
+    });
     await this.refreshTokenRepository.update(
       { userId, revoked: false },
       { revoked: true },
     );
+    await Promise.all(activeSessions.map((s) => this.authSessionCache.markRevoked(s.id)));
     await this.authUserCache.bust(userId);
   }
 
@@ -350,6 +365,7 @@ export class AuthService {
       { revoked: true },
     );
     if (!res.affected) throw new NotFoundException('Session not found');
+    await this.authSessionCache.markRevoked(sessionId);
     return { ok: true };
   }
 
@@ -468,18 +484,6 @@ export class AuthService {
   }
 
   private async issueTokens(user: User, meta?: ClientSessionMeta) {
-    const payload: JwtPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      isVerified: user.isVerified,
-    };
-
-    const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('jwt.secret'),
-      expiresIn: this.configService.get<string>('jwt.expiresIn'),
-    });
-
     const rawRefreshToken = randomBytes(64).toString('hex');
     const tokenHash = this.hashToken(rawRefreshToken);
     const refreshExpiresIn = this.configService.get<string>('jwt.refreshExpiresIn') || '7d';
@@ -499,6 +503,21 @@ export class AuthService {
         ipHash,
       }),
     );
+
+    await this.authSessionCache.markActive(session.id, user.id);
+
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      isVerified: user.isVerified,
+      sid: session.id,
+    };
+
+    const accessToken = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('jwt.secret'),
+      expiresIn: this.configService.get<string>('jwt.expiresIn'),
+    });
 
     return {
       accessToken,

@@ -84,6 +84,7 @@ export interface SubscriptionTier {
   slug: string;
   priceCents: number;
   currency: string;
+  billingInterval?: string;
   benefits: string[];
   sortOrder: number;
   isActive: boolean;

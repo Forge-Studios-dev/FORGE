@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/platform/platform_config.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/socket/forge_socket.dart';
 import '../../../core/access/access_session_controller.dart';
 import '../../profile/presentation/membership_panel.dart';
+import '../../auth/data/auth_repository.dart';
 
 class CommunityScreen extends ConsumerStatefulWidget {
   final String creatorId;
@@ -29,6 +33,16 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Map<String, dynamic>? _activePoll;
   List<Map<String, dynamic>> _leaderboard = [];
   Map<String, dynamic>? _gamificationProfile;
+  List<Map<String, dynamic>> _liveStreams = [];
+  List<Map<String, dynamic>> _postComments = [];
+  List<Map<String, dynamic>> _wikiPages = [];
+  List<Map<String, dynamic>> _challenges = [];
+  List<Map<String, dynamic>> _surveys = [];
+  List<Map<String, dynamic>> _voiceRooms = [];
+  List<Map<String, dynamic>> _textRooms = [];
+  final Map<String, List<dynamic>> _surveyAnswers = {};
+  final Map<String, TextEditingController> _surveyTextCtrls = {};
+  String? _myUserId;
   bool _checkingIn = false;
   final _textCtrl = TextEditingController();
   bool _loading = true;
@@ -37,6 +51,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   bool _sessionConflict = false;
   String? _communityId;
   void Function(dynamic)? _messageHandler;
+  void Function(dynamic)? _deleteHandler;
 
   bool _channelAccessible(Map<String, dynamic> ch) {
     final access = ch['access'] as Map<String, dynamic>?;
@@ -51,7 +66,14 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         _appendMessage(payload);
       }
     };
+    _deleteHandler = (payload) {
+      if (payload is Map<String, dynamic>) {
+        final messageId = payload['messageId'] as String? ?? payload['id'] as String?;
+        if (messageId != null) _markMessageDeleted(messageId);
+      }
+    };
     ForgeSocket.on('channel:message', _messageHandler!);
+    ForgeSocket.on('channel:message:delete', _deleteHandler!);
   }
 
   void _unbindChannelSocket() {
@@ -59,9 +81,24 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       ForgeSocket.off('channel:message', _messageHandler);
       _messageHandler = null;
     }
+    if (_deleteHandler != null) {
+      ForgeSocket.off('channel:message:delete', _deleteHandler);
+      _deleteHandler = null;
+    }
     if (_activeChannelId != null) {
       ForgeSocket.leaveChannel(_activeChannelId!);
     }
+  }
+
+  void _markMessageDeleted(String messageId) {
+    setState(() {
+      _messages = _messages.map((m) {
+        if (m['id'] == messageId) {
+          return {...m, 'body': '[deleted]', 'deletedAt': DateTime.now().toIso8601String()};
+        }
+        return m;
+      }).toList();
+    });
   }
 
   @override
@@ -72,6 +109,10 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
   Future<void> _loadCommunity() async {
     try {
+      final user =
+          await ref.read(authRepositoryProvider).refreshStoredUser() ??
+          await ref.read(authRepositoryProvider).getStoredUser();
+      _myUserId = user?['id'] as String?;
       final client = ref.read(apiClientProvider);
       final path = widget.communitySlug != null
           ? '/creators/${widget.creatorId}/communities/${widget.communitySlug}'
@@ -102,7 +143,14 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         await _selectChannel(_activeChannelId!);
       }
       if (_communityId != null) {
-        await Future.wait([_loadPosts(), _loadPoll(), _loadLeaderboard(), _loadGamificationProfile()]);
+        await Future.wait([
+          _loadPosts(),
+          _loadPoll(),
+          _loadLeaderboard(),
+          _loadGamificationProfile(),
+          _loadLiveStreams(),
+          _loadEngageContent(),
+        ]);
       }
     } catch (_) {
       setState(() => _loading = false);
@@ -144,6 +192,214 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       final response = await client.dio.get('/communities/$_communityId/leaderboard');
       final data = response.data['data'] as List;
       setState(() => _leaderboard = data.cast<Map<String, dynamic>>());
+    } catch (_) {}
+  }
+
+  Future<void> _loadLiveStreams() async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      final response = await client.dio.get('/communities/$_communityId/live');
+      final data = response.data['data'] as List? ?? [];
+      setState(() => _liveStreams = data.cast<Map<String, dynamic>>());
+    } catch (_) {}
+  }
+
+  Future<void> _loadPostComments(String postId) async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      final response = await client.dio.get('/communities/$_communityId/posts/$postId/comments');
+      final data = response.data['data']['data'] as List? ?? [];
+      setState(() => _postComments = data.cast<Map<String, dynamic>>());
+    } catch (_) {
+      setState(() => _postComments = []);
+    }
+  }
+
+  Future<void> _deleteMessage(String messageId) async {
+    if (_activeChannelId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.delete('/channels/$_activeChannelId/messages/$messageId');
+      _markMessageDeleted(messageId);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete message')),
+        );
+      }
+    }
+  }
+
+  Future<void> _reportMessage(String messageId) async {
+    if (_communityId == null || _activeChannelId == null) return;
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController(text: 'Inappropriate content');
+        return AlertDialog(
+          title: const Text('Report message'),
+          content: TextField(controller: ctrl, decoration: const InputDecoration(labelText: 'Reason')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Report')),
+          ],
+        );
+      },
+    );
+    if (reason == null || reason.isEmpty) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post('/communities/$_communityId/reports', data: {
+        'targetType': 'message',
+        'channelId': _activeChannelId,
+        'messageId': messageId,
+        'reason': reason,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report submitted')),
+        );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _reportUser(String userId) async {
+    if (_communityId == null) return;
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController(text: 'Inappropriate behavior');
+        return AlertDialog(
+          title: const Text('Report user'),
+          content: TextField(controller: ctrl, decoration: const InputDecoration(labelText: 'Reason')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Report')),
+          ],
+        );
+      },
+    );
+    if (reason == null || reason.isEmpty) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post('/communities/$_communityId/reports', data: {
+        'targetType': 'user',
+        'reportedUserId': userId,
+        'reason': reason,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User report submitted')),
+        );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadEngageContent() async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      final results = await Future.wait([
+        client.dio.get('/communities/$_communityId/wiki'),
+        client.dio.get('/communities/$_communityId/challenges'),
+        client.dio.get('/communities/$_communityId/surveys'),
+        client.dio.get('/communities/$_communityId/rooms'),
+      ]);
+      setState(() {
+        _wikiPages = (results[0].data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _challenges = (results[1].data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _surveys = (results[2].data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        final rooms = (results[3].data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _voiceRooms = rooms.where((r) => r['roomType'] != 'text').toList();
+        _textRooms = rooms.where((r) => r['roomType'] == 'text').toList();
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _joinChallenge(String challengeId) async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post('/communities/$_communityId/challenges/$challengeId/join');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Joined challenge')),
+        );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _respondSurvey(String surveyId) async {
+    if (_communityId == null) return;
+    final answers = _surveyAnswers[surveyId] ?? [];
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post(
+        '/communities/$_communityId/surveys/$surveyId/respond',
+        data: {'answers': answers},
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Survey submitted')),
+        );
+      }
+      await _loadEngageContent();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not submit survey')),
+        );
+      }
+    }
+  }
+
+  TextEditingController _surveyAnswerCtrl(String surveyId, int questionIndex) {
+    final key = '$surveyId-$questionIndex';
+    return _surveyTextCtrls.putIfAbsent(key, TextEditingController.new);
+  }
+
+  void _setSurveyAnswer(String surveyId, int questionIndex, dynamic value) {
+    final answers = List<dynamic>.from(_surveyAnswers[surveyId] ?? []);
+    while (answers.length <= questionIndex) {
+      answers.add(null);
+    }
+    answers[questionIndex] = value;
+    _surveyAnswers[surveyId] = answers;
+  }
+
+  Future<void> _reportPoll() async {
+    if (_communityId == null || _activePoll == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post('/communities/$_communityId/reports', data: {
+        'targetType': 'poll',
+        'pollId': _activePoll!['id'],
+        'reason': 'Inappropriate poll',
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report submitted')),
+        );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _reportPost(String postId) async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post('/communities/$_communityId/reports', data: {
+        'targetType': 'post',
+        'postId': postId,
+        'reason': 'Inappropriate post',
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report submitted')),
+        );
+      }
     } catch (_) {}
   }
 
@@ -295,6 +551,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       _commentCtrl.clear();
       setState(() => _expandedPostId = postId);
       await _loadPosts();
+      await _loadPostComments(postId);
     } catch (_) {}
   }
 
@@ -401,19 +658,58 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                               final m = _messages[i];
                               final user = m['user'] as Map<String, dynamic>?;
                               final parentId = m['parentId'] as String?;
+                              final messageId = m['id'] as String?;
+                              final userId = m['userId'] as String?;
+                              final deleted = m['deletedAt'] != null;
+                              final canDelete = _myUserId != null && userId == _myUserId && !deleted;
+                              final canReport = _myUserId != null && userId != _myUserId && !deleted;
                               return Padding(
                                 padding: EdgeInsets.only(
                                   bottom: 8,
                                   left: parentId != null ? 16 : 0,
                                 ),
-                                child: GestureDetector(
-                                  onLongPress: () => setState(() => _replyToId = m['id'] as String?),
-                                  child: Text(
-                                    '${user?['displayName'] ?? 'Member'}: ${m['body']}',
-                                    style: parentId != null
-                                        ? const TextStyle(fontSize: 13, color: Colors.grey)
-                                        : null,
-                                  ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onLongPress: deleted
+                                            ? null
+                                            : () => setState(() => _replyToId = messageId),
+                                        child: Text(
+                                          '${user?['displayName'] ?? 'Member'}: ${m['body']}',
+                                          style: parentId != null || deleted
+                                              ? TextStyle(
+                                                  fontSize: 13,
+                                                  color: deleted ? Colors.grey : null,
+                                                  fontStyle: deleted ? FontStyle.italic : null,
+                                                )
+                                              : null,
+                                        ),
+                                      ),
+                                    ),
+                                    if (canReport && messageId != null)
+                                      PopupMenuButton<String>(
+                                        icon: const Icon(Icons.flag_outlined, size: 16),
+                                        onSelected: (value) {
+                                          if (value == 'message') {
+                                            _reportMessage(messageId);
+                                          } else if (value == 'user' && userId != null) {
+                                            _reportUser(userId);
+                                          }
+                                        },
+                                        itemBuilder: (_) => [
+                                          const PopupMenuItem(value: 'message', child: Text('Report message')),
+                                          if (userId != null)
+                                            const PopupMenuItem(value: 'user', child: Text('Report user')),
+                                        ],
+                                      ),
+                                    if (canDelete && messageId != null)
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline, size: 16),
+                                        onPressed: () => _deleteMessage(messageId),
+                                      ),
+                                  ],
                                 ),
                               );
                             },
@@ -517,13 +813,30 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                     ),
                     const SizedBox(width: 16),
                     InkWell(
-                      onTap: () => setState(() => _expandedPostId = expanded ? null : postId),
+                      onTap: () {
+                        setState(() => _expandedPostId = expanded ? null : postId);
+                        if (!expanded) _loadPostComments(postId);
+                      },
                       child: Text('💬 $comments'),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => _reportPost(postId),
+                      child: const Text('Report', style: TextStyle(fontSize: 12)),
                     ),
                   ],
                 ),
                 if (expanded) ...[
                   const SizedBox(height: 8),
+                  ..._postComments.map(
+                    (c) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '${(c['author'] as Map?)?['displayName'] ?? 'Member'}: ${c['body']}',
+                        style: const TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                    ),
+                  ),
                   TextField(
                     controller: _commentCtrl,
                     decoration: const InputDecoration(hintText: 'Add a comment…', isDense: true),
@@ -575,6 +888,203 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                 );
               },
             ),
+        TextButton(onPressed: _reportPoll, child: const Text('Report poll')),
+      ],
+    );
+  }
+
+  Future<void> _openTextRoom(String roomId) async {
+    if (_communityId == null) return;
+    var webBase = AppConstants.webBaseUrl;
+    try {
+      final config = await ref.read(platformConfigProvider.future);
+      final fromConfig = config['webUrl'] as String?;
+      if (fromConfig != null && fromConfig.isNotEmpty) {
+        webBase = fromConfig;
+      }
+    } catch (_) {}
+    final url = '$webBase/community/$_communityId/text/$roomId';
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _openVoiceRoom(String roomId) async {
+    if (_communityId == null) return;
+    var webBase = AppConstants.webBaseUrl;
+    try {
+      final config = await ref.read(platformConfigProvider.future);
+      final fromConfig = config['webUrl'] as String?;
+      if (fromConfig != null && fromConfig.isNotEmpty) {
+        webBase = fromConfig;
+      }
+    } catch (_) {}
+    final url = '$webBase/community/$_communityId/voice/$roomId';
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Open FORGE on web to join voice rooms')),
+      );
+    }
+  }
+
+  Widget _buildEngageTab() {
+    if (_wikiPages.isEmpty &&
+        _challenges.isEmpty &&
+        _surveys.isEmpty &&
+        _voiceRooms.isEmpty &&
+        _textRooms.isEmpty) {
+      return const Center(child: Text('No wiki, challenges, surveys, or rooms yet'));
+    }
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (_textRooms.isNotEmpty) ...[
+          const Text('Text rooms', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ..._textRooms.map(
+            (r) => Card(
+              child: ListTile(
+                title: Text(r['name'] as String? ?? 'Room'),
+                subtitle: const Text('text'),
+                trailing: TextButton(
+                  onPressed: () => _openTextRoom(r['id'] as String),
+                  child: const Text('Open chat'),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (_voiceRooms.isNotEmpty) ...[
+          const Text('Voice & stage rooms', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ..._voiceRooms.map(
+            (r) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                title: Text(r['name'] as String? ?? 'Room'),
+                subtitle: Text(r['roomType'] as String? ?? 'voice'),
+                trailing: TextButton(
+                  onPressed: () => _openVoiceRoom(r['id'] as String),
+                  child: const Text('Join on web'),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (_wikiPages.isNotEmpty) ...[
+          const Text('Knowledge base', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ..._wikiPages.map(
+            (p) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ExpansionTile(
+                title: Text(p['title'] as String? ?? 'Page'),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(p['body'] as String? ?? ''),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (_challenges.isNotEmpty) ...[
+          const Text('Challenges', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ..._challenges.map(
+            (c) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                title: Text(c['title'] as String? ?? ''),
+                subtitle: Text(c['description'] as String? ?? ''),
+                trailing: TextButton(
+                  onPressed: () => _joinChallenge(c['id'] as String),
+                  child: const Text('Join'),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (_surveys.isNotEmpty) ...[
+          const Text('Surveys', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ..._surveys.map((s) {
+            final surveyId = s['id'] as String;
+            final questions = (s['questions'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s['title'] as String? ?? 'Survey',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    ...questions.asMap().entries.map((entry) {
+                      final qi = entry.key;
+                      final q = entry.value;
+                      final options = (q['options'] as List?)?.cast<String>() ?? [];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(q['question'] as String? ?? 'Question', style: const TextStyle(fontSize: 13)),
+                            const SizedBox(height: 6),
+                            if (options.isNotEmpty)
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: options.map((opt) {
+                                  final selected = (_surveyAnswers[surveyId] ?? [])[qi] == opt;
+                                  return ChoiceChip(
+                                    label: Text(opt, style: const TextStyle(fontSize: 12)),
+                                    selected: selected,
+                                    onSelected: (_) {
+                                      setState(() => _setSurveyAnswer(surveyId, qi, opt));
+                                    },
+                                  );
+                                }).toList(),
+                              )
+                            else
+                              TextField(
+                                controller: _surveyAnswerCtrl(surveyId, qi),
+                                decoration: const InputDecoration(
+                                  hintText: 'Your answer',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
+                                onChanged: (value) => _setSurveyAnswer(surveyId, qi, value),
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => _respondSurvey(surveyId),
+                        child: const Text('Submit survey'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
       ],
     );
   }
@@ -631,6 +1141,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     _unbindChannelSocket();
     _textCtrl.dispose();
     _commentCtrl.dispose();
+    for (final ctrl in _surveyTextCtrls.values) {
+      ctrl.dispose();
+    }
     super.dispose();
   }
 
@@ -642,13 +1155,33 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Community')),
-      body: IndexedStack(
-        index: _tabIndex,
+      body: Column(
         children: [
-          _buildChatTab(),
-          _buildPostsTab(),
-          _buildPollsTab(),
-          _buildLeaderboardTab(),
+          if (_liveStreams.isNotEmpty)
+            MaterialBanner(
+              content: Text('Live now: ${_liveStreams.first['title'] ?? 'Stream'}'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    final id = _liveStreams.first['id'] as String?;
+                    if (id != null) context.push('/live/$id');
+                  },
+                  child: const Text('Watch'),
+                ),
+              ],
+            ),
+          Expanded(
+            child: IndexedStack(
+              index: _tabIndex,
+              children: [
+                _buildChatTab(),
+                _buildPostsTab(),
+                _buildPollsTab(),
+                _buildLeaderboardTab(),
+                _buildEngageTab(),
+              ],
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -659,6 +1192,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           NavigationDestination(icon: Icon(Icons.article_outlined), label: 'Posts'),
           NavigationDestination(icon: Icon(Icons.poll_outlined), label: 'Polls'),
           NavigationDestination(icon: Icon(Icons.leaderboard_outlined), label: 'XP'),
+          NavigationDestination(icon: Icon(Icons.menu_book_outlined), label: 'Engage'),
         ],
       ),
     );

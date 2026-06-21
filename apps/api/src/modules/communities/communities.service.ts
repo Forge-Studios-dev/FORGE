@@ -39,6 +39,7 @@ import { AccessSessionsService } from '../access-sessions/access-sessions.servic
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 import { CommunityModerationService } from './community-moderation.service';
 import { AiModerationService } from './ai-moderation.service';
+import { AiCommunityService } from './ai-community.service';
 import { ChannelType } from '../entitlements/entities/channel-type.enum';
 import { CommunityModerationQueueService } from './community-moderation-queue.service';
 import { Stream, StreamStatus } from '../streaming/entities/stream.entity';
@@ -71,6 +72,7 @@ export class CommunitiesService {
     @Inject(forwardRef(() => CommunityModerationService))
     private readonly moderationService: CommunityModerationService,
     private readonly aiModerationService: AiModerationService,
+    private readonly aiCommunityService: AiCommunityService,
     private readonly moderationQueueService: CommunityModerationQueueService,
     @InjectRepository(Stream)
     private readonly streamRepository: Repository<Stream>,
@@ -422,8 +424,13 @@ export class CommunitiesService {
       ? Buffer.from(data[data.length - 1].createdAt.toISOString()).toString('base64')
       : null;
 
+    const tierNames = await this.entitlementsService.getActiveTierNamesByUserIds(
+      channel.community.creatorId,
+      data.map((m) => m.userId),
+    );
+
     return {
-      data: data.reverse().map(toPublicChannelMessage),
+      data: data.reverse().map((m) => toPublicChannelMessage(m, tierNames.get(m.userId) ?? null)),
       meta: { cursor: nextCursor, hasMore },
     };
   }
@@ -441,7 +448,7 @@ export class CommunitiesService {
       throw new ForbiddenException('You are banned from this community');
     }
 
-    const spam = this.aiModerationService.scoreSpam(dto.body);
+    const spam = this.aiCommunityService.scoreContent(dto.body);
     if (spam.flagged) {
       void this.moderationQueueService.enqueueFlaggedMessage({
         communityId: channel.community.id,
@@ -492,7 +499,11 @@ export class CommunitiesService {
       relations: ['user'],
     });
 
-    const publicMsg = toPublicChannelMessage(full!);
+    const tierNames = await this.entitlementsService.getActiveTierNamesByUserIds(
+      channel.community.creatorId,
+      [userId],
+    );
+    const publicMsg = toPublicChannelMessage(full!, tierNames.get(userId) ?? null);
     this.eventEmitter.emit('channel.message', { channelId, message: publicMsg });
     this.eventEmitter.emit('community.activity', {
       userId,
@@ -817,6 +828,30 @@ export class CommunitiesService {
       .leftJoinAndSelect('c.creator', 'creator')
       .where('c.visibility = :visibility', { visibility: CommunityVisibility.PUBLIC })
       .andWhere('(c.name ILIKE :pattern OR c.slug ILIKE :pattern)', { pattern })
+      .orderBy('c.created_at', 'DESC')
+      .take(take)
+      .getMany();
+
+    return {
+      data: communities.map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        creatorId: c.creatorId,
+        creator: c.creator
+          ? { username: c.creator.username, displayName: c.creator.displayName }
+          : null,
+        visibility: c.visibility,
+      })),
+    };
+  }
+
+  async listFeaturedCommunities(limit = 12) {
+    const take = Math.min(limit, 24);
+    const communities = await this.communityRepository
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.creator', 'creator')
+      .where('c.visibility = :visibility', { visibility: CommunityVisibility.PUBLIC })
       .orderBy('c.created_at', 'DESC')
       .take(take)
       .getMany();

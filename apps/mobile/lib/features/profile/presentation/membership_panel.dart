@@ -4,6 +4,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/network/api_client.dart';
 import '../../auth/data/auth_repository.dart';
 
+final creatorBundlesProvider = FutureProvider.autoDispose
+    .family<List<Map<String, dynamic>>, String>((ref, creatorId) async {
+  final client = ref.read(apiClientProvider);
+  final response = await client.dio.get('/creators/$creatorId/bundles');
+  final list = response.data['data'] as List? ?? [];
+  return list.cast<Map<String, dynamic>>();
+});
+
 final creatorTiersProvider = FutureProvider.autoDispose
     .family<List<Map<String, dynamic>>, String>((ref, creatorId) async {
   final client = ref.read(apiClientProvider);
@@ -77,7 +85,10 @@ class MembershipPanel extends ConsumerWidget {
           loading: () => const SizedBox.shrink(),
           error: (_, __) => const SizedBox.shrink(),
           data: (tiers) {
-            if (tiers.isEmpty) return const SizedBox.shrink();
+            final bundlesAsync = ref.watch(creatorBundlesProvider(creatorId));
+            if (tiers.isEmpty && (bundlesAsync.valueOrNull ?? []).isEmpty) {
+              return const SizedBox.shrink();
+            }
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Column(
@@ -106,6 +117,30 @@ class MembershipPanel extends ConsumerWidget {
                       ),
                     );
                   }),
+                  ...?bundlesAsync.whenOrNull(
+                    data: (bundles) => bundles.map((bundle) {
+                      final tier = bundle['tier'] as Map<String, dynamic>?;
+                      final priceCents = tier?['priceCents'] as int? ?? 0;
+                      final currency = tier?['currency'] as String? ?? 'USD';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Bundle: ${bundle['name']} — $currency ${(priceCents / 100).toStringAsFixed(0)}',
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => _checkout(context, ref, bundle['tierId'] as String),
+                              child: const Text('Get bundle'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ],
               ),
             );

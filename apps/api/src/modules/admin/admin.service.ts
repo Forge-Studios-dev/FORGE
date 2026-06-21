@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { CreatorStatus, User, UserRole } from '../users/entities/user.entity';
 import {
   ModerationStatus,
@@ -25,6 +25,10 @@ import { StreamingService } from '../streaming/streaming.service';
 import { StreamLiveService } from '../streaming/stream-live.service';
 import { Stream, StreamStatus } from '../streaming/entities/stream.entity';
 import { StreamChatService } from '../stream-chat/stream-chat.service';
+import { Community } from '../communities/entities/community.entity';
+import { CommunityReport } from '../communities/entities/community-moderation.entity';
+import { StripeConnectService } from '../billing/stripe-connect.service';
+import { UpdateAdminCommunityDto } from './dto/update-admin-community.dto';
 
 export type AdminUserDetail = {
   id: string;
@@ -62,6 +66,11 @@ export class AdminService {
     private readonly reportRepository: Repository<Report>,
     @InjectRepository(Stream)
     private readonly streamRepository: Repository<Stream>,
+    @InjectRepository(Community)
+    private readonly communityRepository: Repository<Community>,
+    @InjectRepository(CommunityReport)
+    private readonly communityReportRepository: Repository<CommunityReport>,
+    private readonly dataSource: DataSource,
     private readonly usersService: UsersService,
     private readonly playlistsService: PlaylistsService,
     private readonly authService: AuthService,
@@ -72,6 +81,7 @@ export class AdminService {
     private readonly streamingService: StreamingService,
     private readonly streamLiveService: StreamLiveService,
     private readonly streamChatService: StreamChatService,
+    private readonly stripeConnectService: StripeConnectService,
   ) {}
 
   async moderateVideo(
@@ -401,5 +411,180 @@ export class AdminService {
       throw new ForbiddenException();
     }
     return this.streamChatService.deleteMessage(streamId, messageId, adminId, role);
+  }
+
+  async listCommunities(page: number, limit: number, search?: string) {
+    const safePage = clampPage(page);
+    const safeLimit = clampLimit(limit);
+    const qb = this.communityRepository
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.creator', 'creator')
+      .orderBy('c.createdAt', 'DESC');
+
+    if (search?.trim()) {
+      qb.andWhere(
+        '(c.name ILIKE :search OR c.slug ILIKE :search OR creator.username ILIKE :search OR creator.email ILIKE :search)',
+        { search: `%${search.trim()}%` },
+      );
+    }
+
+    const [rows, total] = await qb
+      .skip((safePage - 1) * safeLimit)
+      .take(safeLimit)
+      .getManyAndCount();
+
+    return {
+      data: rows.map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        visibility: c.visibility,
+        creatorId: c.creatorId,
+        creator: c.creator
+          ? {
+              id: c.creator.id,
+              username: c.creator.username,
+              displayName: c.creator.displayName,
+              email: c.creator.email,
+            }
+          : null,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      })),
+      meta: {
+        total,
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.ceil(total / safeLimit),
+      },
+    };
+  }
+
+  async updateCommunity(id: string, dto: UpdateAdminCommunityDto) {
+    const community = await this.communityRepository.findOne({ where: { id } });
+    if (!community) throw new NotFoundException('Community not found');
+    if (dto.name !== undefined) community.name = dto.name.trim();
+    if (dto.visibility !== undefined) community.visibility = dto.visibility;
+    await this.communityRepository.save(community);
+    return {
+      data: {
+        id: community.id,
+        name: community.name,
+        slug: community.slug,
+        visibility: community.visibility,
+        updatedAt: community.updatedAt,
+      },
+    };
+  }
+
+  async getCommunityDetail(id: string) {
+    const community = await this.communityRepository.findOne({
+      where: { id },
+      relations: ['creator'],
+    });
+    if (!community) throw new NotFoundException('Community not found');
+
+    const [activeSubsRow] = await this.dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*)::int AS count FROM member_subscriptions
+       WHERE creator_id = $1 AND status IN ('active', 'trial', 'grace_period')`,
+      [community.creatorId],
+    );
+    const [xpMembersRow] = await this.dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(DISTINCT user_id)::int AS count FROM member_xp WHERE community_id = $1`,
+      [community.id],
+    );
+    const openReports = await this.communityReportRepository.count({
+      where: { communityId: community.id, status: 'open' },
+    });
+    const connect = community.creator
+      ? await this.stripeConnectService.getConnectStatus(community.creator.id)
+      : { connected: false, message: 'Creator not found' };
+
+    return {
+      data: {
+        id: community.id,
+        name: community.name,
+        slug: community.slug,
+        visibility: community.visibility,
+        creatorId: community.creatorId,
+        creator: community.creator
+          ? {
+              id: community.creator.id,
+              username: community.creator.username,
+              displayName: community.creator.displayName,
+              email: community.creator.email,
+            }
+          : null,
+        stats: {
+          activeSubscribers: Number(activeSubsRow?.count ?? 0),
+          engagedMembers: Number(xpMembersRow?.count ?? 0),
+          openReports,
+        },
+        connect,
+        createdAt: community.createdAt,
+        updatedAt: community.updatedAt,
+      },
+    };
+  }
+
+  async listCreatorConnectStatus(
+    page: number,
+    limit: number,
+    search?: string,
+    filter?: 'all' | 'connected' | 'incomplete' | 'none',
+  ) {
+    const safePage = clampPage(page);
+    const safeLimit = clampLimit(limit);
+    const qb = this.userRepository
+      .createQueryBuilder('u')
+      .where('u.role = :role', { role: UserRole.CREATOR })
+      .orderBy('u.createdAt', 'DESC');
+
+    if (search?.trim()) {
+      qb.andWhere(
+        '(u.email ILIKE :search OR u.username ILIKE :search OR u.displayName ILIKE :search)',
+        { search: `%${search.trim()}%` },
+      );
+    }
+
+    if (filter === 'connected') {
+      qb.andWhere('u.stripeConnectAccountId IS NOT NULL');
+    } else if (filter === 'none') {
+      qb.andWhere('u.stripeConnectAccountId IS NULL');
+    }
+
+    const [rows, total] = await qb
+      .skip((safePage - 1) * safeLimit)
+      .take(safeLimit)
+      .getManyAndCount();
+
+    const data = await Promise.all(
+      rows.map(async (creator) => {
+        const status = await this.stripeConnectService.getConnectStatus(creator.id);
+        if (filter === 'incomplete' && status.chargesEnabled) {
+          return null;
+        }
+        return {
+          id: creator.id,
+          email: creator.email,
+          username: creator.username,
+          displayName: creator.displayName,
+          stripeConnectAccountId: creator.stripeConnectAccountId,
+          connect: status,
+        };
+      }),
+    );
+
+    const filtered = data.filter((row): row is NonNullable<typeof row> => row != null);
+
+    return {
+      data: filtered,
+      meta: {
+        total: filter === 'incomplete' ? filtered.length : total,
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.ceil((filter === 'incomplete' ? filtered.length : total) / safeLimit),
+      },
+    };
   }
 }

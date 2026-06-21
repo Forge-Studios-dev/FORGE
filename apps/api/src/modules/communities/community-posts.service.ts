@@ -21,6 +21,7 @@ import {
   PlatformEventOutboxService,
   PLATFORM_EVENT_TYPES,
 } from '../platform-event-outbox/platform-event-outbox.service';
+import { CommunityStorageService } from './community-storage.service';
 
 const MAX_POST_MEDIA = 4;
 
@@ -53,6 +54,7 @@ export class CommunityPostsService {
     private readonly communityRepository: Repository<Community>,
     private readonly communitiesService: CommunitiesService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly storageService: CommunityStorageService,
     @Optional()
     @InjectQueue(COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE)
     private readonly announcementQueue?: Queue<CommunityAnnouncementNotifyJobData>,
@@ -66,6 +68,14 @@ export class CommunityPostsService {
       throw new ForbiddenException('Community not found or not owned');
     }
     return community;
+  }
+
+  async getMediaUploadUrl(creatorId: string, communityId: string, contentType: string) {
+    await this.assertOwnedCommunity(creatorId, communityId);
+    if (!this.storageService.isConfigured()) {
+      throw new BadRequestException('Media upload storage is not configured');
+    }
+    return this.storageService.getPostMediaUploadUrl(communityId, contentType);
   }
 
   async listPosts(

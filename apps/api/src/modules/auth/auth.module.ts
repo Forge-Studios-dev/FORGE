@@ -9,6 +9,7 @@ import { AuthAccountLockoutService } from './auth-account-lockout.service';
 import { AuthEmailOtpService } from './auth-email-otp.service';
 import { AuthOAuthExchangeService } from './auth-oauth-exchange.service';
 import { AuthUserCacheService } from './auth-user-cache.service';
+import { AuthSessionCacheService } from './auth-session-cache.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
@@ -34,9 +35,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
     AuthEmailOtpService,
     AuthOAuthExchangeService,
     AuthUserCacheService,
+    AuthSessionCacheService,
     JwtStrategy,
     GoogleStrategy,
   ],
-  exports: [AuthService, AuthUserCacheService],
+  exports: [AuthService, AuthUserCacheService, AuthSessionCacheService],
 })
 export class AuthModule {}

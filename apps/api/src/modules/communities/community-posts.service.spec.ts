@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CommunityPostsService } from './community-posts.service';
+import { CommunityStorageService } from './community-storage.service';
 import { CommunityPost, CommunityPostType } from './entities/community-post.entity';
 import { CommunityPostComment } from './entities/community-post-comment.entity';
 import { CommunityPostReaction } from './entities/community-post-reaction.entity';
@@ -95,6 +96,16 @@ describe('CommunityPostsService', () => {
         },
         { provide: CommunitiesService, useValue: communitiesService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        {
+          provide: CommunityStorageService,
+          useValue: {
+            isConfigured: jest.fn().mockReturnValue(true),
+            getPostMediaUploadUrl: jest.fn().mockResolvedValue({
+              uploadUrl: 'https://s3/upload',
+              publicUrl: 'https://cdn/img.jpg',
+            }),
+          },
+        },
       ],
     }).compile();
 
@@ -124,5 +135,11 @@ describe('CommunityPostsService', () => {
   it('deletes post', async () => {
     const result = await service.deletePost('creator-1', 'comm-1', 'post-1');
     expect(result.deleted).toBe(true);
+  });
+
+  it('returns presigned upload URL for owned community', async () => {
+    const result = await service.getMediaUploadUrl('creator-1', 'comm-1', 'image/jpeg');
+    expect(result.uploadUrl).toBe('https://s3/upload');
+    expect(result.publicUrl).toBe('https://cdn/img.jpg');
   });
 });

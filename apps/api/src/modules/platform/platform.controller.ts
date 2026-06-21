@@ -22,6 +22,10 @@ export class PlatformController {
     return {
       featureFlags,
       apiVersion: 'v1',
+      webUrl: (this.configService.get<string>('webUrl') || 'https://forgestudios.net').replace(
+        /\/$/,
+        '',
+      ),
       auth: {
         /** Identity is custom JWT + Postgres — not Firebase Authentication. */
         provider: 'custom' as const,
