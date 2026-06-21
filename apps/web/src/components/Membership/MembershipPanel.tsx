@@ -10,6 +10,15 @@ interface Props {
   creatorId: string;
 }
 
+type ProductBundle = {
+  id: string;
+  name: string;
+  description?: string | null;
+  tierId: string;
+  items: Array<{ resourceType: string; resourceId?: string | null }>;
+  tier?: { name: string; priceCents: number; currency: string; billingInterval: string };
+};
+
 export function MembershipPanel({ creatorId }: Props) {
   const { user, isGuest } = useAuth();
   const qc = useQueryClient();
@@ -18,6 +27,14 @@ export function MembershipPanel({ creatorId }: Props) {
     queryKey: ['tiers', creatorId],
     queryFn: async () => {
       const { data } = await api.get<{ data: SubscriptionTier[] }>(`/creators/${creatorId}/tiers`);
+      return data.data;
+    },
+  });
+
+  const { data: bundles } = useQuery({
+    queryKey: ['bundles', creatorId],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: ProductBundle[] }>(`/creators/${creatorId}/bundles`);
       return data.data;
     },
   });
@@ -111,6 +128,49 @@ export function MembershipPanel({ creatorId }: Props) {
           </li>
         ))}
       </ul>
+      {(bundles ?? []).length > 0 ? (
+        <div className="space-y-2 border-t border-outline-variant/30 pt-3">
+          <p className="text-xs font-medium text-outline">Product bundles</p>
+          {(bundles ?? []).map((bundle) => (
+            <div key={bundle.id} className="rounded-lg border border-outline-variant/30 p-3 text-sm">
+              <p className="font-medium">{bundle.name}</p>
+              {bundle.description ? (
+                <p className="mt-1 text-xs text-on-surface-variant">{bundle.description}</p>
+              ) : null}
+              <ul className="mt-2 space-y-0.5 text-xs text-on-surface-variant">
+                {bundle.items.map((item, i) => (
+                  <li key={i}>
+                    Includes {item.resourceType}
+                    {item.resourceId ? ` · ${item.resourceId.slice(0, 8)}…` : ''}
+                  </li>
+                ))}
+              </ul>
+              {useStripe ? (
+                <Button
+                  variant="secondary"
+                  className="mt-2 text-xs"
+                  disabled={checkoutMutation.isPending}
+                  onClick={() => checkoutMutation.mutate(bundle.tierId)}
+                >
+                  Get bundle
+                  {bundle.tier
+                    ? ` — ${bundle.tier.currency} ${(bundle.tier.priceCents / 100).toFixed(0)}/${bundle.tier.billingInterval}`
+                    : ''}
+                </Button>
+              ) : (
+                <Button
+                  variant="secondary"
+                  className="mt-2 text-xs"
+                  disabled={mockMutation.isPending}
+                  onClick={() => mockMutation.mutate(bundle.tierId)}
+                >
+                  Join bundle (test)
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : null}
       {!useStripe ? (
         <p className="text-xs text-on-surface-variant">
           Test memberships only — enable Stripe for real billing.

@@ -13,6 +13,7 @@ import { AnalyticsService } from '../analytics/analytics.service';
 import { AuthAccountLockoutService } from './auth-account-lockout.service';
 import { AuthEmailOtpService } from './auth-email-otp.service';
 import { AuthUserCacheService } from './auth-user-cache.service';
+import { AuthSessionCacheService } from './auth-session-cache.service';
 
 describe('AuthService', () => {
   const userRepoMock = {
@@ -81,6 +82,14 @@ describe('AuthService', () => {
         { provide: AuthEmailOtpService, useValue: emailOtpMock },
         { provide: AuthUserCacheService, useValue: { get: jest.fn(), set: jest.fn(), bust: jest.fn() } },
         {
+          provide: AuthSessionCacheService,
+          useValue: {
+            markActive: jest.fn().mockResolvedValue(undefined),
+            markRevoked: jest.fn().mockResolvedValue(undefined),
+            assertSessionActive: jest.fn().mockResolvedValue(true),
+          },
+        },
+        {
           provide: DataSource,
           useValue: {
             transaction: jest.fn(async (work) => work({
@@ -115,7 +124,7 @@ describe('AuthService', () => {
     } as unknown as User;
     userRepoMock.create.mockReturnValue(savedUser);
     userRepoMock.save.mockResolvedValue(savedUser);
-    refreshRepoMock.save.mockResolvedValue({});
+    refreshRepoMock.save.mockResolvedValue({ id: 'sid-1' });
 
     const svc = await setupService();
     const result = await svc.signup(
@@ -150,7 +159,7 @@ describe('AuthService', () => {
       revoked: false,
     });
     refreshRepoMock.update.mockResolvedValue({});
-    refreshRepoMock.save.mockResolvedValue({});
+    refreshRepoMock.save.mockResolvedValue({ id: 'sid-1' });
 
     const svc = await setupService();
     const result = await svc.refreshWithToken('opaque-refresh-token');

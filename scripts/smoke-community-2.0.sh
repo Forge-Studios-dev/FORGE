@@ -51,6 +51,10 @@ search_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
   "${BASE}/communities/search?q=community" || true)"
 [[ "$search_code" == "200" ]] && echo "OK: GET /communities/search" || echo "WARN: community search ${search_code}" >&2
 
+featured_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+  "${BASE}/communities/discover/featured" || true)"
+[[ "$featured_code" == "200" ]] && echo "OK: GET /communities/discover/featured" || echo "WARN: featured discover ${featured_code}" >&2
+
 connect_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
   -H "Authorization: Bearer ${creator_token}" \
   "${BASE}/billing/connect/status" || true)"
@@ -223,3 +227,66 @@ if [[ -n "$viewer_token" ]]; then
 fi
 
 echo "== Community 2.0 smoke passed =="
+
+# Optional: bundles + rooms when community exists
+if [[ -n "$first_community_id" ]]; then
+  wiki_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+    "${BASE}/communities/${first_community_id}/wiki" 2>/dev/null || true)"
+  [[ "$wiki_code" == "200" ]] && echo "OK: GET /communities/:id/wiki" || echo "WARN: wiki ${wiki_code}" >&2
+
+  rooms_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+    "${BASE}/communities/${first_community_id}/rooms" 2>/dev/null || true)"
+  [[ "$rooms_code" == "200" ]] && echo "OK: GET /communities/:id/rooms" || echo "WARN: rooms ${rooms_code}" >&2
+
+  bundles_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+    "${BASE}/creators/${creator_id}/bundles" 2>/dev/null || true)"
+  [[ "$bundles_code" == "200" ]] && echo "OK: GET /creators/:id/bundles" || echo "WARN: bundles ${bundles_code}" >&2
+
+  media_upload_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+    -X POST -H "Authorization: Bearer ${creator_token}" \
+    "${BASE}/creators/me/communities/${first_community_id}/posts/media-upload-url?contentType=image%2Fjpeg" 2>/dev/null || true)"
+  [[ "$media_upload_code" == "200" || "$media_upload_code" == "201" || "$media_upload_code" == "400" ]] \
+    && echo "OK: POST post media-upload-url (${media_upload_code})" \
+    || echo "WARN: media upload url ${media_upload_code}" >&2
+
+  room_detail_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+    "${BASE}/communities/${first_community_id}/rooms" 2>/dev/null || true)"
+  [[ "$room_detail_code" == "200" ]] && echo "OK: GET /communities/:id/rooms (detail list)" || echo "WARN: room detail ${room_detail_code}" >&2
+
+  text_room_body="$(curl_smoke -X POST \
+    -H "Authorization: Bearer ${creator_token}" \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"Smoke Text Room","roomType":"text"}' \
+    "${BASE}/creators/me/communities/${first_community_id}/rooms" 2>/dev/null || true)"
+  text_room_id="$(echo "$text_room_body" | python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)"
+  [[ -n "$text_room_id" ]] && echo "OK: POST text room create" || echo "WARN: text room create" >&2
+
+  if [[ -n "$text_room_id" && -n "$viewer_token" ]]; then
+    room_msg_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+      -X POST -H "Authorization: Bearer ${viewer_token}" \
+      -H 'Content-Type: application/json' \
+      -d '{"body":"Smoke text room message"}' \
+      "${BASE}/communities/${first_community_id}/rooms/${text_room_id}/messages" || true)"
+    [[ "$room_msg_code" == "200" || "$room_msg_code" == "201" ]] \
+      && echo "OK: POST text room message" \
+      || echo "WARN: text room message ${room_msg_code}" >&2
+
+    room_msgs_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+      "${BASE}/communities/${first_community_id}/rooms/${text_room_id}/messages" || true)"
+    [[ "$room_msgs_code" == "200" ]] && echo "OK: GET text room messages" || echo "WARN: text room messages ${room_msgs_code}" >&2
+  fi
+
+  audit_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer ${creator_token}" \
+    "${BASE}/creators/me/audit-logs?limit=5" 2>/dev/null || true)"
+  [[ "$audit_code" == "200" ]] && echo "OK: GET /creators/me/audit-logs" || echo "WARN: audit logs ${audit_code}" >&2
+
+  ai_score_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+    -X POST -H "Authorization: Bearer ${creator_token}" \
+    -H 'Content-Type: application/json' \
+    -d '{"text":"Hello community"}' \
+    "${BASE}/creators/me/ai/moderation/score" 2>/dev/null || true)"
+  [[ "$ai_score_code" == "200" || "$ai_score_code" == "201" ]] \
+    && echo "OK: POST /creators/me/ai/moderation/score" \
+    || echo "WARN: AI moderation score ${ai_score_code}" >&2
+fi

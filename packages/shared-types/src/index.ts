@@ -43,6 +43,8 @@ export const SocketEvents = {
   STREAM_POLL_UPDATED: 'stream:poll:updated',
   CHANNEL_MESSAGE: 'channel:message',
   CHANNEL_MESSAGE_DELETE: 'channel:message:delete',
+  ROOM_MESSAGE: 'room:message',
+  ROOM_MESSAGE_DELETE: 'room:message:delete',
   STREAM_VIEWER_COUNT: 'stream:viewer-count',
   NOTIFICATION_NEW: 'notification:new',
   DM_MESSAGE: 'dm:message',

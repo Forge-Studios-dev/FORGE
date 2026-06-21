@@ -73,6 +73,34 @@ export class CoursesService {
     );
   }
 
+  async listCohorts(creatorId: string, courseId: string) {
+    const course = await this.courseRepository.findOne({ where: { id: courseId, creatorId } });
+    if (!course) throw new NotFoundException('Course not found');
+    return this.cohortRepository.find({
+      where: { courseId },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async reorderLessons(creatorId: string, courseId: string, lessonIds: string[]) {
+    const course = await this.courseRepository.findOne({ where: { id: courseId, creatorId } });
+    if (!course) throw new NotFoundException('Course not found');
+    const lessons = await this.lessonRepository.find({ where: { courseId } });
+    const idSet = new Set(lessonIds);
+    if (idSet.size !== lessons.length || lessons.some((l) => !idSet.has(l.id))) {
+      throw new BadRequestException('Invalid lesson order');
+    }
+    await Promise.all(
+      lessonIds.map((id, index) =>
+        this.lessonRepository.update({ id, courseId }, { sortOrder: index }),
+      ),
+    );
+    return this.lessonRepository.find({
+      where: { courseId },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
+    });
+  }
+
   async listLessons(courseId: string, userId: string) {
     const course = await this.getCourseOrThrow(courseId);
     await this.assertCourseAccess(course, userId);

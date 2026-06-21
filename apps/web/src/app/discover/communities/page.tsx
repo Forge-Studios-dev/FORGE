@@ -18,6 +18,14 @@ export default function DiscoverCommunitiesPage() {
   const [query, setQuery] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
+  const { data: featured } = useQuery({
+    queryKey: ['community-featured'],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: SearchResult[] }>('/communities/discover/featured');
+      return data.data ?? [];
+    },
+  });
+
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['community-search', searchTerm],
     enabled: searchTerm.length >= 2,
@@ -58,7 +66,32 @@ export default function DiscoverCommunitiesPage() {
       </form>
 
       {searchTerm.length < 2 ? (
-        <p className="text-sm text-on-surface-variant">Enter at least 2 characters to search.</p>
+        <div className="space-y-4">
+          <p className="text-sm text-on-surface-variant">Browse featured public communities or search above.</p>
+          {(featured ?? []).length > 0 ? (
+            <ul className="space-y-3">
+              {(featured ?? []).map((c) => {
+                const username = c.creator?.username;
+                const href = username ? `/${username}/c/${c.slug}` : `/communities/id/${c.id}`;
+                return (
+                  <li key={c.id}>
+                    <Link
+                      href={href}
+                      className="glass-panel block rounded-xl p-4 transition-colors hover:border-primary/30"
+                    >
+                      <p className="font-semibold">{c.name}</p>
+                      <p className="text-sm text-on-surface-variant">
+                        {c.creator?.displayName ?? c.creator?.username ?? 'Creator'} · /{c.slug}
+                      </p>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-sm text-on-surface-variant">No featured communities yet.</p>
+          )}
+        </div>
       ) : isLoading || isFetching ? (
         <p className="text-sm text-on-surface-variant">Searching…</p>
       ) : (data ?? []).length === 0 ? (

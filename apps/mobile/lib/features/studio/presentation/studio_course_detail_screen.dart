@@ -19,7 +19,9 @@ class StudioCourseDetailScreen extends ConsumerStatefulWidget {
 class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScreen> {
   final _lessonTitleCtrl = TextEditingController();
   final _lessonContentCtrl = TextEditingController();
+  final _cohortNameCtrl = TextEditingController();
   List<Map<String, dynamic>> _lessons = [];
+  List<Map<String, dynamic>> _cohorts = [];
   List<Map<String, dynamic>> _tiers = [];
   final Map<String, String?> _tierEntitlementIds = {};
   String? _courseTitle;
@@ -69,10 +71,16 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
         }
       }
       final lessonsRes = await client.dio.get('/courses/${widget.courseId}/lessons');
+      List<Map<String, dynamic>> cohorts = [];
+      try {
+        final cohortsRes = await client.dio.get('/creators/me/courses/${widget.courseId}/cohorts');
+        cohorts = (cohortsRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      } catch (_) {}
       setState(() {
         _courseTitle = course?['title'] as String?;
         _isPublished = course?['isPublished'] == true;
         _lessons = (lessonsRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _cohorts = cohorts;
         _loading = false;
       });
     } catch (_) {
@@ -158,10 +166,59 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
     }
   }
 
+  Future<void> _addCohort() async {
+    if (_cohortNameCtrl.text.trim().isEmpty) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post('/creators/me/courses/${widget.courseId}/cohorts', data: {
+        'name': _cohortNameCtrl.text.trim(),
+      });
+      _cohortNameCtrl.clear();
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cohort created')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not create cohort')),
+        );
+      }
+    }
+  }
+
+  Future<void> _reorderLesson(int fromIndex, int toIndex) async {
+    if (fromIndex == toIndex || fromIndex < 0 || toIndex < 0) return;
+    if (fromIndex >= _lessons.length || toIndex >= _lessons.length) return;
+    final reordered = List<Map<String, dynamic>>.from(_lessons);
+    final item = reordered.removeAt(fromIndex);
+    reordered.insert(toIndex, item);
+    final lessonIds = reordered.map((l) => l['id'] as String).toList();
+    setState(() => _busy = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.patch('/creators/me/courses/${widget.courseId}/lessons/reorder', data: {
+        'lessonIds': lessonIds,
+      });
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not reorder lessons')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   void dispose() {
     _lessonTitleCtrl.dispose();
     _lessonContentCtrl.dispose();
+    _cohortNameCtrl.dispose();
     super.dispose();
   }
 
@@ -236,6 +293,24 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
                 ),
                 const SizedBox(height: 12),
                 ForgeButton(label: 'Add lesson', onPressed: _addLesson),
+                const SizedBox(height: 24),
+                const Text('Cohorts', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _cohortNameCtrl,
+                  decoration: const InputDecoration(labelText: 'Cohort name'),
+                ),
+                const SizedBox(height: 8),
+                ForgeButton(label: 'Create cohort', onPressed: _addCohort),
+                if (_cohorts.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ..._cohorts.map(
+                    (cohort) => ListTile(
+                      dense: true,
+                      title: Text(cohort['name'] as String? ?? 'Cohort'),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: () => context.push('/courses/${widget.courseId}'),
@@ -258,6 +333,21 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
                         subtitle: lesson['content'] != null
                             ? Text('${lesson['content']}', maxLines: 2, overflow: TextOverflow.ellipsis)
                             : null,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_upward, size: 20),
+                              onPressed: _busy || i == 0 ? null : () => _reorderLesson(i, i - 1),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.arrow_downward, size: 20),
+                              onPressed: _busy || i == _lessons.length - 1
+                                  ? null
+                                  : () => _reorderLesson(i, i + 1),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   }),

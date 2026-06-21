@@ -16,11 +16,14 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { StreamingModule } from '../streaming/streaming.module';
 import { StreamChatModule } from '../stream-chat/stream-chat.module';
 import { Stream } from '../streaming/entities/stream.entity';
+import { Community } from '../communities/entities/community.entity';
+import { CommunityReport } from '../communities/entities/community-moderation.entity';
+import { BillingModule } from '../billing/billing.module';
 import { DatabaseObservabilityService } from '../../database/database-observability.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Video, Report, Stream]),
+    TypeOrmModule.forFeature([User, Video, Report, Stream, Community, CommunityReport]),
     StreamingModule,
     StreamChatModule,
     ContentModule,
@@ -31,6 +34,7 @@ import { DatabaseObservabilityService } from '../../database/database-observabil
     UsersModule,
     PlaylistsModule,
     AuthModule,
+    BillingModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, DatabaseObservabilityService],

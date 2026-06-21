@@ -15,6 +15,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CreatorStatus, User, UserRole } from '../users/entities/user.entity';
 import { ModerationStatus, Video, VideoStatus } from '../content/entities/video.entity';
 import { UpdateAdminVideoDto } from './dto/update-admin-video.dto';
+import { UpdateAdminCommunityDto } from './dto/update-admin-community.dto';
 import { toAdminVideos } from '../content/video.mapper';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ReportsService } from '../reports/reports.service';
@@ -381,5 +382,43 @@ export class AdminController {
   @ApiOperation({ summary: 'Backfill mux_playback_id from playback_url on streams' })
   backfillMuxPlaybackIds() {
     return this.adminService.backfillMuxPlaybackIds();
+  }
+
+  @Get('communities')
+  @ApiOperation({ summary: 'List communities (admin oversight)' })
+  listCommunities(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.listCommunities(clampPage(page), clampLimit(limit), search);
+  }
+
+  @Get('communities/:id')
+  @ApiOperation({ summary: 'Community detail with member stats and Connect status (admin)' })
+  getCommunityDetail(@Param('id') id: string) {
+    return this.adminService.getCommunityDetail(id);
+  }
+
+  @Patch('communities/:id')
+  @ApiOperation({ summary: 'Update community visibility or name (admin)' })
+  updateCommunity(@Param('id') id: string, @Body() dto: UpdateAdminCommunityDto) {
+    return this.adminService.updateCommunity(id, dto);
+  }
+
+  @Get('creators/connect-status')
+  @ApiOperation({ summary: 'Stripe Connect onboarding status for creators (admin)' })
+  listCreatorConnectStatus(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('search') search?: string,
+    @Query('filter') filter?: 'all' | 'connected' | 'incomplete' | 'none',
+  ) {
+    return this.adminService.listCreatorConnectStatus(
+      clampPage(page),
+      clampLimit(limit),
+      search,
+      filter ?? 'all',
+    );
   }
 }

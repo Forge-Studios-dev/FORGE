@@ -27,6 +27,8 @@ class StudioScreen extends StatelessWidget {
           _link(context, 'Memberships', 'Configure tiers', Icons.workspace_premium, '/studio/tiers'),
           _link(context, 'Subscribers', 'Manage members', Icons.people, '/studio/subscribers'),
           _link(context, 'Community', 'Manage channels', Icons.groups, '/studio/community'),
+          _link(context, 'Engagement', 'Announcements & polls', Icons.campaign, '/studio/engagement'),
+          _link(context, 'Rooms', 'Text, voice & stage', Icons.meeting_room, '/studio/rooms'),
           _link(context, 'Courses', 'Lessons & enrollments', Icons.school, '/studio/courses'),
           _link(context, 'Moderation', 'Review reports', Icons.shield, '/studio/moderation'),
           _link(context, 'Discover', 'Find communities', Icons.explore, '/discover/communities'),

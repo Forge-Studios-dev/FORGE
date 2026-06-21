@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
 
 class DiscoverCommunitiesScreen extends ConsumerStatefulWidget {
@@ -70,10 +71,21 @@ class _DiscoverCommunitiesScreenState extends ConsumerState<DiscoverCommunitiesS
                     itemCount: _results.length,
                     itemBuilder: (_, i) {
                       final c = _results[i];
+                      final creatorId = c['creatorId'] as String?;
+                      final slug = c['slug'] as String?;
                       return ListTile(
                         title: Text(c['name'] as String? ?? ''),
-                        subtitle: Text(c['slug'] as String? ?? ''),
+                        subtitle: Text(
+                          [
+                            if ((c['creator'] as Map?)?['username'] != null)
+                              '@${(c['creator'] as Map)['username']}',
+                            if (slug != null) '/$slug',
+                          ].join(' · '),
+                        ),
                         trailing: Text(c['visibility'] as String? ?? 'public'),
+                        onTap: creatorId != null && slug != null
+                            ? () => context.push('/community/$creatorId/c/$slug')
+                            : null,
                       );
                     },
                   ),

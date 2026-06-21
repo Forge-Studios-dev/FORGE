@@ -32,6 +32,8 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
   final Map<String, int> _reactionCounts = {};
+  bool _handRaised = false;
+  bool _raisingHand = false;
 
   void Function(dynamic)? _onViewerCount;
   void Function(dynamic)? _onChatMessage;
@@ -204,6 +206,29 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
       await client.dio.post('/streams/${widget.streamId}/rsvp');
     }
     await _loadStream();
+  }
+
+  Future<void> _toggleRaiseHand() async {
+    if (_raisingHand) return;
+    setState(() => _raisingHand = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      if (_handRaised) {
+        await client.dio.delete('/streams/${widget.streamId}/raise-hand');
+        setState(() => _handRaised = false);
+      } else {
+        await client.dio.post('/streams/${widget.streamId}/raise-hand');
+        setState(() => _handRaised = true);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update raise hand')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _raisingHand = false);
+    }
   }
 
   Widget _buildReactionBar() {
@@ -433,6 +458,14 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
               ),
             ),
           StreamPollPanel(streamId: widget.streamId, isHost: _isOwner),
+          if (!_isOwner && (_stream?['status'] as String?) == 'live' && _myUserId != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: OutlinedButton(
+                onPressed: _raisingHand ? null : _toggleRaiseHand,
+                child: Text(_handRaised ? 'Lower hand' : 'Raise hand'),
+              ),
+            ),
           if (_stream!['chatEnabled'] != false)
             Expanded(
               child: StreamChatPanel(

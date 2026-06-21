@@ -304,6 +304,32 @@ export class EntitlementsService {
     };
   }
 
+  /** Batch-resolve active tier display names for chat sub badges. */
+  async getActiveTierNamesByUserIds(creatorId: string, userIds: string[]) {
+    const unique = [...new Set(userIds.filter(Boolean))];
+    if (!unique.length) return new Map<string, string>();
+
+    const now = new Date();
+    const subs = await this.subscriptionRepository
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.tier', 'tier')
+      .where('s.creator_id = :creatorId', { creatorId })
+      .andWhere('s.user_id IN (:...userIds)', { userIds: unique })
+      .andWhere('s.status IN (:...statuses)', { statuses: ACCESS_GRANTING_STATUSES })
+      .andWhere('s.starts_at <= :now', { now })
+      .andWhere('(s.expires_at IS NULL OR s.expires_at > :now)', { now })
+      .orderBy('s.created_at', 'DESC')
+      .getMany();
+
+    const tierNames = new Map<string, string>();
+    for (const sub of subs) {
+      if (sub.tier?.name && !tierNames.has(sub.userId)) {
+        tierNames.set(sub.userId, sub.tier.name);
+      }
+    }
+    return tierNames;
+  }
+
   /** Max simultaneous premium devices for a user (per creator subscription or global max). */
   async getMaxConcurrentDevices(userId: string, creatorId?: string): Promise<number> {
     const clamp = (n: number) => Math.min(10, Math.max(1, n));
@@ -802,18 +828,25 @@ export class EntitlementsService {
     }
 
     if (viewerId) {
+      const entitlementCache = new Map<string, boolean>();
       for (let i = 0; i < channels.length; i++) {
         const r = results[i];
         if (!r?.allowed) continue;
         const ch = channels[i];
         if (ch.type === ChannelType.PUBLIC || ch.type === ChannelType.INVITE) continue;
-        const entitled = await this.verifyChannelTierEntitlements(
-          viewerId,
-          ch.creatorId,
-          ch.communityId,
-          ch.channelId,
-        );
-        if (!entitled) results[i] = { allowed: false, reason: 'tier_required' };
+        const cacheKey = `${ch.creatorId}:${ch.communityId ?? ''}:${ch.channelId ?? ''}`;
+        if (!entitlementCache.has(cacheKey)) {
+          entitlementCache.set(
+            cacheKey,
+            await this.verifyChannelTierEntitlements(
+              viewerId,
+              ch.creatorId,
+              ch.communityId,
+              ch.channelId,
+            ),
+          );
+        }
+        if (!entitlementCache.get(cacheKey)) results[i] = { allowed: false, reason: 'tier_required' };
       }
     }
 

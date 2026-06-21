@@ -31,7 +31,9 @@ import '../../features/studio/presentation/studio_courses_screen.dart';
 import '../../features/studio/presentation/studio_course_detail_screen.dart';
 import '../../features/studio/presentation/course_viewer_screen.dart';
 import '../../features/community/presentation/discover_communities_screen.dart';
-import '../../features/studio/presentation/studio_subscribers_screen.dart';
+import '../../features/studio/presentation/studio_engagement_screen.dart';
+import '../../features/studio/presentation/studio_rooms_screen.dart';
+import '../../features/profile/presentation/my_memberships_screen.dart';
 import '../../features/profile/presentation/profile_settings_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/messages/presentation/messages_screen.dart';
@@ -45,7 +47,7 @@ import 'auth_redirect.dart';
 import 'navigation_key.dart';
 
 const _storage = FlutterSecureStorage();
-const _protected = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/library', '/profile'];
+const _protected = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/library', '/profile'];
 
 Future<String?> _redirect(BuildContext context, GoRouterState state) async {
   final path = state.matchedLocation;
@@ -93,6 +95,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/studio/tiers', builder: (_, __) => const StudioTiersScreen()),
       GoRoute(path: '/studio/subscribers', builder: (_, __) => const StudioSubscribersScreen()),
       GoRoute(path: '/studio/community', builder: (_, __) => const StudioCommunityScreen()),
+      GoRoute(path: '/studio/engagement', builder: (_, __) => const StudioEngagementScreen()),
+      GoRoute(path: '/studio/rooms', builder: (_, __) => const StudioRoomsScreen()),
       GoRoute(path: '/studio/moderation', builder: (_, __) => const StudioModerationScreen()),
       GoRoute(path: '/studio/courses', builder: (_, __) => const StudioCoursesScreen()),
       GoRoute(
@@ -106,6 +110,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/discover/communities', builder: (_, __) => const DiscoverCommunitiesScreen()),
       GoRoute(path: '/studio/settings', builder: (_, __) => const StudioSettingsScreen()),
       GoRoute(path: '/profile/settings', builder: (_, __) => const ProfileSettingsScreen()),
+      GoRoute(path: '/settings/memberships', builder: (_, __) => const MyMembershipsScreen()),
       GoRoute(path: '/upload', builder: (_, __) => const UploadScreen()),
       GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
       GoRoute(path: '/messages', builder: (_, __) => const MessagesScreen()),

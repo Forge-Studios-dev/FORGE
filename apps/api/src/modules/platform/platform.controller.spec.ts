@@ -37,6 +37,7 @@ describe('PlatformController', () => {
     const result = controller.getPublicConfig();
 
     expect(result.auth.provider).toBe('custom');
+    expect(result.webUrl).toBe('https://forgestudios.net');
     expect(result.auth.googleOAuth).toBe(true);
     expect(result.auth.mailConfigured).toBe(true);
     expect(result.auth.otpVerification).toBe(false);

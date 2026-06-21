@@ -12,7 +12,8 @@ import { getSocket } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
 import { AccessSessionConflict } from '@/components/Community/AccessSessionConflict';
-import { CommunityPostMedia } from '@/components/Community/CommunityPostMedia';
+import { CommunityEngagePanel } from '@/components/Community/CommunityEngagePanel';
+import { CommunityWelcomeModal } from '@/components/Community/CommunityWelcomeModal';
 import type { CommunityChannel, CommunityCategory, CommunityPayload, CommunityPoll } from '@/types/community';
 import { isAxiosError } from 'axios';
 
@@ -21,6 +22,7 @@ type ChannelMessage = {
   channelId: string;
   userId: string;
   user?: { displayName?: string; username?: string };
+  memberTierName?: string | null;
   body: string;
   parentId?: string | null;
   createdAt: string;
@@ -54,13 +56,26 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [reportingId, setReportingId] = useState<string | null>(null);
+  const [reportingUserId, setReportingUserId] = useState<string | null>(null);
   const [reportingPostId, setReportingPostId] = useState<string | null>(null);
-  const [view, setView] = useState<'chat' | 'posts' | 'polls' | 'leaderboard'>('chat');
+  const [reportingPoll, setReportingPoll] = useState(false);
+  const [view, setView] = useState<'chat' | 'posts' | 'polls' | 'leaderboard' | 'engage'>('chat');
   const [replyTo, setReplyTo] = useState<ChannelMessage | null>(null);
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const isCreator = user?.id === creatorId;
+
+  const { data: myMembership } = useQuery({
+    queryKey: ['membership-me', creatorId],
+    enabled: !!user && !isCreator,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: { active?: boolean; subscription?: { tier?: { name?: string } } } };
+      }>(`/creators/${creatorId}/membership/me`);
+      return data.data;
+    },
+  });
 
   const communityPath = communitySlug
     ? `/creators/${creatorId}/communities/${communitySlug}`
@@ -78,6 +93,11 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
   const communityId = communityData?.community?.id;
   const channels = communityData?.channels ?? [];
   const categories = communityData?.categories ?? [];
+  const memberTierName = myMembership?.subscription?.tier?.name;
+  const showWelcome =
+    !!myMembership?.active &&
+    !!communityData?.community?.name &&
+    !isCreator;
 
   const { data: postsData } = useQuery({
     queryKey: ['community-posts', communityId],
@@ -182,6 +202,16 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
         data: { xp: number; level: number; streak: number; badges: string[] };
       }>(`/communities/${communityId}/gamification/me`);
       return data.data;
+    },
+  });
+
+  const checkInMutation = useMutation({
+    mutationFn: async () => {
+      await api.post(`/communities/${communityId}/gamification/check-in`);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['community-gamification-me', communityId] });
+      void qc.invalidateQueries({ queryKey: ['community-leaderboard', communityId] });
     },
   });
 
@@ -347,6 +377,18 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
     onSuccess: () => setReportingId(null),
   });
 
+  const reportUserMutation = useMutation({
+    mutationFn: async ({ userId, reason }: { userId: string; reason: string }) => {
+      if (!communityId) return;
+      await api.post(`/communities/${communityId}/reports`, {
+        targetType: 'user',
+        reportedUserId: userId,
+        reason,
+      });
+    },
+    onSuccess: () => setReportingUserId(null),
+  });
+
   const reportPostMutation = useMutation({
     mutationFn: async ({ postId, reason }: { postId: string; reason: string }) => {
       if (!communityId) return;
@@ -357,6 +399,18 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
       });
     },
     onSuccess: () => setReportingPostId(null),
+  });
+
+  const reportPollMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      if (!communityId || !activePoll) return;
+      await api.post(`/communities/${communityId}/reports`, {
+        targetType: 'poll',
+        pollId: activePoll.id,
+        reason,
+      });
+    },
+    onSuccess: () => setReportingPoll(false),
   });
 
   useEffect(() => {
@@ -449,6 +503,12 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
 
   return (
     <div className="space-y-3">
+      {showWelcome && communityData?.community?.name ? (
+        <CommunityWelcomeModal
+          communityName={communityData.community.name}
+          onDismiss={() => undefined}
+        />
+      ) : null}
       <div className="flex gap-2">
         <button
           type="button"
@@ -477,6 +537,13 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
           className={`rounded-full px-4 py-1.5 text-sm ${view === 'leaderboard' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
         >
           Leaderboard
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('engage')}
+          className={`rounded-full px-4 py-1.5 text-sm ${view === 'engage' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
+        >
+          Engage
         </button>
       </div>
       {(communityLive ?? []).length > 0 ? (
@@ -507,6 +574,14 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                   Badges: {gamificationProfile.badges.join(', ')}
                 </p>
               )}
+              <Button
+                variant="secondary"
+                className="mt-3"
+                disabled={checkInMutation.isPending}
+                onClick={() => checkInMutation.mutate()}
+              >
+                {checkInMutation.isPending ? 'Checking in…' : 'Daily check-in'}
+              </Button>
             </div>
           )}
           {(leaderboard ?? []).length === 0 ? (
@@ -569,11 +644,47 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                 })}
               </ul>
               <p className="text-xs text-outline">{activePoll.totalVotes} votes</p>
+              {user ? (
+                reportingPoll ? (
+                  <div className="mt-2 flex gap-2">
+                    <Input
+                      placeholder="Reason"
+                      defaultValue="Inappropriate poll"
+                      id="poll-report-reason"
+                    />
+                    <Button
+                      variant="secondary"
+                      className="text-xs"
+                      onClick={() => {
+                        const el = document.getElementById('poll-report-reason') as HTMLInputElement;
+                        reportPollMutation.mutate(el?.value?.trim() || 'Reported');
+                      }}
+                    >
+                      Submit
+                    </Button>
+                    <Button variant="ghost" className="text-xs" onClick={() => setReportingPoll(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="mt-2 text-xs text-outline hover:text-error"
+                    onClick={() => setReportingPoll(true)}
+                  >
+                    Report poll
+                  </button>
+                )
+              ) : null}
               {!user ? (
                 <p className="text-xs text-on-surface-variant">Sign in to vote.</p>
               ) : null}
             </>
           )}
+        </div>
+      ) : view === 'engage' && communityId ? (
+        <div className="glass-panel rounded-xl p-4">
+          <CommunityEngagePanel communityId={communityId} />
         </div>
       ) : view === 'posts' ? (
         <div className="glass-panel space-y-3 rounded-xl p-4">
@@ -742,6 +853,19 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                             </p>
                           ) : null}
                           <span className="font-medium">{m.user?.displayName ?? 'Member'}</span>
+                          {m.userId === creatorId ? (
+                            <span className="ml-1 rounded bg-secondary/20 px-1.5 py-0.5 text-[10px] font-medium text-secondary">
+                              Creator
+                            </span>
+                          ) : m.memberTierName ? (
+                            <span className="ml-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                              {m.memberTierName}
+                            </span>
+                          ) : m.userId === user?.id && memberTierName ? (
+                            <span className="ml-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                              {memberTierName}
+                            </span>
+                          ) : null}
                           <span className="text-on-surface-variant"> · </span>
                           <span className={m.deletedAt ? 'italic text-outline' : ''}>{m.body}</span>
                         </div>
@@ -772,14 +896,41 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                                   Report
                                 </Button>
                               </form>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                className="px-2 py-0 text-xs text-outline"
-                                onClick={() => setReportingId(m.id)}
+                            ) : reportingUserId === m.userId ? (
+                              <form
+                                className="flex gap-1"
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const fd = new FormData(e.currentTarget);
+                                  const reason = String(fd.get('reason') ?? '').trim();
+                                  if (!reason || !m.userId) return;
+                                  reportUserMutation.mutate({ userId: m.userId, reason });
+                                }}
                               >
-                                Report
-                              </Button>
+                                <Input name="reason" placeholder="User reason" className="h-7 w-24 text-xs" />
+                                <Button type="submit" className="px-2 py-0 text-xs">
+                                  Submit
+                                </Button>
+                              </form>
+                            ) : (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  className="px-2 py-0 text-xs text-outline"
+                                  onClick={() => setReportingId(m.id)}
+                                >
+                                  Report
+                                </Button>
+                                {m.userId ? (
+                                  <Button
+                                    variant="ghost"
+                                    className="px-2 py-0 text-xs text-outline"
+                                    onClick={() => setReportingUserId(m.userId!)}
+                                  >
+                                    Report user
+                                  </Button>
+                                ) : null}
+                              </>
                             )
                           ) : null}
                           {canDelete && !m.deletedAt ? (

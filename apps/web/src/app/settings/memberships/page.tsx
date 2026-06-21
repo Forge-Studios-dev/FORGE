@@ -9,10 +9,78 @@ import { useAuth } from '@/lib/auth';
 type Subscription = {
   id: string;
   creatorId: string;
+  tierId?: string;
   status: string;
-  tier?: { name: string };
+  tier?: { id: string; name: string };
   creator?: { username?: string; displayName?: string };
 };
+
+type CreatorTier = {
+  id: string;
+  name: string;
+  priceCents: number;
+};
+
+function TierChangeSelect({
+  subscription,
+  onChanged,
+}: {
+  subscription: Subscription;
+  onChanged: () => void;
+}) {
+  const { data: tiers } = useQuery({
+    queryKey: ['creator-tiers', subscription.creatorId],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: CreatorTier[] }>(
+        `/creators/${subscription.creatorId}/tiers`,
+      );
+      return data.data;
+    },
+  });
+
+  const changeMutation = useMutation({
+    mutationFn: async (tierId: string) => {
+      await api.post('/billing/subscriptions/change-tier', {
+        creatorId: subscription.creatorId,
+        tierId,
+      });
+    },
+    onSuccess: onChanged,
+  });
+
+  const otherTiers = (tiers ?? []).filter((t) => t.id !== subscription.tierId);
+  if (otherTiers.length === 0) return null;
+
+  return (
+    <label className="mt-2 block text-xs">
+      <span className="text-on-surface-variant">Change tier</span>
+      <select
+        className="mt-1 w-full rounded-lg border border-outline-variant/30 bg-surface-container-high px-2 py-1.5 text-sm"
+        defaultValue=""
+        disabled={changeMutation.isPending}
+        onChange={(e) => {
+          const tierId = e.target.value;
+          if (!tierId) return;
+          if (
+            window.confirm(
+              'Switch to this tier? Your billing will be updated for the next cycle.',
+            )
+          ) {
+            changeMutation.mutate(tierId);
+          }
+          e.target.value = '';
+        }}
+      >
+        <option value="">Select new tier…</option>
+        {otherTiers.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name} (${(t.priceCents / 100).toFixed(2)}/mo)
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 export default function MembershipsPage() {
   const { user, isGuest } = useAuth();
@@ -116,6 +184,14 @@ export default function MembershipsPage() {
                     Manage billing
                   </Button>
                 </div>
+                {canCancel ? (
+                  <TierChangeSelect
+                    subscription={sub}
+                    onChanged={() => {
+                      void qc.invalidateQueries({ queryKey: ['my-subscriptions', user?.id] });
+                    }}
+                  />
+                ) : null}
               </li>
             );
           })}

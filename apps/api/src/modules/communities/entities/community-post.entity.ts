@@ -15,6 +15,8 @@ export enum CommunityPostType {
   POST = 'post',
   ANNOUNCEMENT = 'announcement',
   POLL = 'poll',
+  ARTICLE = 'article',
+  RESOURCE = 'resource',
 }
 
 @Entity('community_posts')

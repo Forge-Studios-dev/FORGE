@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SubscriptionTier } from './entities/subscription-tier.entity';
 import { MemberSubscription } from './entities/member-subscription.entity';
 import { TierEntitlement } from './entities/tier-entitlement.entity';
+import { CreatorBundle, CreatorBundleItem } from './entities/creator-bundle.entity';
+import { CreatorBundlesService } from './creator-bundles.service';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 import { EntitlementsService } from './entitlements.service';
 import { EntitlementsController } from './entitlements.controller';
@@ -14,13 +16,20 @@ import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SubscriptionTier, MemberSubscription, TierEntitlement, StreamEventPurchase]),
+    TypeOrmModule.forFeature([
+      SubscriptionTier,
+      MemberSubscription,
+      TierEntitlement,
+      CreatorBundle,
+      CreatorBundleItem,
+      StreamEventPurchase,
+    ]),
     forwardRef(() => EngagementModule),
     forwardRef(() => UsersModule),
     forwardRef(() => BillingModule),
   ],
   controllers: [EntitlementsController],
-  providers: [EntitlementsService, CreatorApprovedGuard, OptionalJwtAuthGuard],
-  exports: [EntitlementsService],
+  providers: [EntitlementsService, CreatorBundlesService, CreatorApprovedGuard, OptionalJwtAuthGuard],
+  exports: [EntitlementsService, CreatorBundlesService],
 })
 export class EntitlementsModule {}

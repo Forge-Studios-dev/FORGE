@@ -22,6 +22,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
 import { UserRole } from '../users/entities/user.entity';
 import { CommunitiesService } from './communities.service';
+import { CreatorAuditService } from './creator-audit.service';
 
 @Injectable()
 export class CommunityModerationService {
@@ -45,6 +46,7 @@ export class CommunityModerationService {
     private readonly notificationsService: NotificationsService,
     @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
+    private readonly auditService: CreatorAuditService,
   ) {}
 
   async reportMessage(
@@ -233,6 +235,14 @@ export class CommunityModerationService {
         metadata: { communityId: community.id },
       })
       .catch(() => undefined);
+    await this.auditService.log({
+      creatorId: community.creatorId,
+      actorId,
+      action: 'member.ban',
+      resourceType: 'community',
+      resourceId: community.id,
+      metadata: { userId, reason: reason ?? null },
+    });
     return { banned: true };
   }
 
@@ -242,8 +252,16 @@ export class CommunityModerationService {
     userId: string,
     viewerRole?: UserRole | null,
   ) {
-    await this.assertModeratorAccess(actorId, communityId, viewerRole);
+    const community = await this.assertModeratorAccess(actorId, communityId, viewerRole);
     await this.banRepository.delete({ communityId, userId });
+    await this.auditService.log({
+      creatorId: community.creatorId,
+      actorId,
+      action: 'member.unban',
+      resourceType: 'community',
+      resourceId: community.id,
+      metadata: { userId },
+    });
     return { unbanned: true };
   }
 
