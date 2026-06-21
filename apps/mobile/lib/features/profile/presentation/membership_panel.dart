@@ -35,7 +35,8 @@ final myMembershipProvider = FutureProvider.autoDispose
 
 class MembershipPanel extends ConsumerWidget {
   final String creatorId;
-  const MembershipPanel({super.key, required this.creatorId});
+  final String? communityId;
+  const MembershipPanel({super.key, required this.creatorId, this.communityId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -156,6 +157,7 @@ class MembershipPanel extends ConsumerWidget {
       final response = await client.dio.post('/billing/checkout', data: {
         'creatorId': creatorId,
         'tierId': tierId,
+        if (communityId != null) 'communityId': communityId,
         'successUrl': 'https://forgestudios.net/settings/memberships',
         'cancelUrl': 'https://forgestudios.net/settings/memberships',
       });

@@ -62,16 +62,25 @@ export class CommunityPostsService {
     private readonly outboxService?: PlatformEventOutboxService,
   ) {}
 
-  private async assertOwnedCommunity(creatorId: string, communityId: string) {
-    const community = await this.communityRepository.findOne({ where: { id: communityId } });
-    if (!community || community.creatorId !== creatorId) {
-      throw new ForbiddenException('Community not found or not owned');
-    }
-    return community;
+  private async assertStudioAccess(
+    actorId: string,
+    communityId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    return this.communitiesService.assertCommunityStudioAccess(
+      actorId,
+      communityId,
+      viewerRole,
+    );
   }
 
-  async getMediaUploadUrl(creatorId: string, communityId: string, contentType: string) {
-    await this.assertOwnedCommunity(creatorId, communityId);
+  async getMediaUploadUrl(
+    actorId: string,
+    communityId: string,
+    contentType: string,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.assertStudioAccess(actorId, communityId, viewerRole);
     if (!this.storageService.isConfigured()) {
       throw new BadRequestException('Media upload storage is not configured');
     }
@@ -171,7 +180,7 @@ export class CommunityPostsService {
   }
 
   async createPost(
-    creatorId: string,
+    actorId: string,
     communityId: string,
     authorId: string,
     input: {
@@ -181,8 +190,9 @@ export class CommunityPostsService {
       isPinned?: boolean;
       mediaUrls?: string[];
     },
+    viewerRole?: UserRole | null,
   ) {
-    await this.assertOwnedCommunity(creatorId, communityId);
+    await this.assertStudioAccess(actorId, communityId, viewerRole);
     const post = await this.postRepository.save(
       this.postRepository.create({
         communityId,
@@ -204,6 +214,11 @@ export class CommunityPostsService {
       communityId,
       xp: 5,
       source: 'community_post',
+    });
+
+    this.eventEmitter.emit('community.post.created', {
+      communityId,
+      post: { id: post.id, authorId, postType: post.postType, createdAt: post.createdAt },
     });
 
     return { id: post.id, createdAt: post.createdAt };
@@ -267,12 +282,13 @@ export class CommunityPostsService {
   }
 
   async updatePost(
-    creatorId: string,
+    actorId: string,
     communityId: string,
     postId: string,
     input: { title?: string; body?: string; isPinned?: boolean },
+    viewerRole?: UserRole | null,
   ) {
-    await this.assertOwnedCommunity(creatorId, communityId);
+    await this.assertStudioAccess(actorId, communityId, viewerRole);
     const post = await this.postRepository.findOne({ where: { id: postId, communityId } });
     if (!post) throw new ForbiddenException('Post not found');
 
@@ -291,20 +307,26 @@ export class CommunityPostsService {
     };
   }
 
-  async deletePost(creatorId: string, communityId: string, postId: string) {
-    await this.assertOwnedCommunity(creatorId, communityId);
+  async deletePost(
+    actorId: string,
+    communityId: string,
+    postId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.assertStudioAccess(actorId, communityId, viewerRole);
     const result = await this.postRepository.delete({ id: postId, communityId });
     if (!result.affected) throw new ForbiddenException('Post not found');
     return { deleted: true };
   }
 
   async setPostPinned(
-    creatorId: string,
+    actorId: string,
     communityId: string,
     postId: string,
     isPinned: boolean,
+    viewerRole?: UserRole | null,
   ) {
-    return this.updatePost(creatorId, communityId, postId, { isPinned });
+    return this.updatePost(actorId, communityId, postId, { isPinned }, viewerRole);
   }
 
   private async assertPostInCommunity(communityId: string, postId: string) {
@@ -378,6 +400,18 @@ export class CommunityPostsService {
       communityId,
       xp: 2,
       source: 'community_post_comment',
+    });
+
+    this.eventEmitter.emit('community.post.comment.created', {
+      communityId,
+      postId,
+      comment: {
+        id: comment.id,
+        authorId,
+        body: comment.body,
+        parentId: comment.parentId,
+        createdAt: comment.createdAt,
+      },
     });
 
     return { id: comment.id, createdAt: comment.createdAt };

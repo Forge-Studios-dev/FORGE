@@ -3,17 +3,83 @@
 **Vision reference:** [COMMUNITY-MODULE-2.0.md](../COMMUNITY-MODULE-2.0.md)  
 **Memberships:** [MEMBERSHIPS.md](./MEMBERSHIPS.md)  
 **Deferred triggers:** [audits/DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md)  
-**Last updated:** 2026-06-21 (Production deploy complete — PRs #85–#87 on `main`)  
-**Overall progress:** **~99%** of implementable Creator Economy OS scope · **Branch:** `main` (merged)
+**Last updated:** 2026-06-21 (ship: community access P0 — member graph, lifecycle events, web/mobile parity)  
+**Overall progress:** **100%** of implementable Creator Economy OS scope · **Branch:** `fix/community-access-p0` → merge to `main`
 
 ---
+
+## Wave 1–5 Execution (2026-06-21 audit plan)
+
+| Wave | Scope | Status |
+|------|-------|--------|
+| **W1 P0** | `community_members` in access graph, scoped subs, join-request fix, subscription→member provisioning, poll sockets, LLM judge fix | **Done** |
+| **W2** | Migrations 1834–1837, mobile text-room sockets, studio CRUD/reorder, discover featured, membership hardening | **Done** |
+| **W3** | LLM summaries when `ai.copilotEnabled`, moderation cascade fix | **Done** |
+| **W4** | Redis list visibility cache (30s), load-test script ready, partition triggers documented | **Done** |
+| **W5** | Creator grant API, cancel-at-period-end, EVENT tier entitlement for streams | **Done** (native LiveKit/promo codes deferred; cancel-at-period-end UI on web + mobile) |
+
+### Post-audit hardening (2026-06-21)
+
+| Item | Detail |
+|------|--------|
+| **Access cache invalidation** | `CommunityAccessListener` listens to `community.access.changed` → `bustCommunityListCache()`; emitted from entitlements, billing suspend, member approve |
+| **Member provisioning** | `community.member.provision` event from `grantSubscription` (billing no longer calls `provisionFromSubscription` directly) |
+| **Stripe renewal_pending** | `invoice.upcoming` webhook → `RENEWAL_PENDING` status; cancel-at-period-end keeps access until period end |
+| **MRR normalization** | `getSubscriberAnalytics` normalizes monthly/quarterly/yearly intervals; lifetime excluded from MRR |
+| **Join-request validation** | Smoke script creates private community → request → approve → viewer access; HTTP e2e for members controller |
+| **Member suspend on expiry** | `expireDueSubscriptions` emits access-changed + `community.member.suspend` for scoped members |
+| **Member suspend on self-cancel** | `cancelMySubscription` emits `community.member.suspend` for scoped members (except Stripe cancel-at-period-end) |
+| **Studio UI parity** | Web + mobile studio: Members/join requests, Subscribers grant form, member join-request on restricted communities |
+| **Billing decoupling** | Webhook cancel/pause/refund paths delegate member suspend to entitlements events; billing no longer imports `CommunitiesModule` |
+| **Deferred v2** | Room-level RBAC overrides beyond tier `access_level` (read/write/full) — channel write vs read enforced |
+
+### Migrations added (W2)
+
+- `1834000000000` — `community_rooms.category_id`
+- `1835000000000` — `community_members` + `access_session_audit.session_token`
+- `1836000000000` — `member_subscriptions.community_id`
+- `1837000000000` — partial unique index on access-granting subscriptions per scope
+
+### Key API additions (W1–W5)
+
+| Method | Path |
+|--------|------|
+| POST | `/creators/me/subscribers/grant` |
+| DELETE | `/subscriptions/me/:creatorId?cancelAtPeriodEnd=true` |
+
+| Wave | Items | Status |
+|------|-------|--------|
+| **W0 P0** | Socket room ACL, lifetime checkout, VIDEO/STREAM tier entitlements, trial webhook grant, multi-creator billing portal | **Done** |
+| **W1** | `GET /communities/:id/layout`, room analytics counts, `category_id` on rooms | **Done** |
+| **W2** | Mobile brands screen + route, native text room + sockets | **Done** (voice/stage still web deeplink until native LiveKit) |
+| **W3** | Refund webhook → `refunded`, premium session list/revoke API | **Done** |
+| **W4** | Post/comment/poll socket events, channel DELETE/reorder, room PATCH, `CommunityStudioGuard` | **Done** |
+| **W5** | `community_members` roster + join request API, AI OpenAI moderation cascade | **Done** |
+
+### Key API additions (Wave 0–5)
+
+| Method | Path |
+|--------|------|
+| GET | `/communities/:id/layout` |
+| DELETE | `/creators/me/channels/:channelId` |
+| PATCH | `/creators/me/communities/:id/channels/reorder` |
+| PATCH | `/creators/me/communities/:id/rooms/:roomId` |
+| GET | `/access-sessions` (list active) |
+| DELETE | `/access-sessions/:sessionToken` |
+| POST | `/communities/:id/join-request` |
+| GET | `/creators/:creatorId/communities/:slug/access` |
+| PATCH | `/creators/me/communities/:id/members/:userId/approve` |
+| POST | `/creators/me/subscribers/grant` |
+| DELETE | `/subscriptions/me/:creatorId?cancelAtPeriodEnd=true` |
+| POST | `/billing/portal` body `{ returnUrl, creatorId? }` |
+
 
 ## Executive Summary
 
 FORGE has a **production-viable Community 2.0 + Creator Economy foundation** covering multi-community, brands, categorized channels, realtime chat with threads, posts/announcements/comments/reactions (with image + video embed attachments), polls, moderation RBAC, tier entitlements with **per-tier device caps**, access sessions, Stripe recurring checkout with **destination charges**, **in-place tier changes** (API + web/mobile UI), Connect onboarding, community analytics with retention + cohort charts, creator BI funnel, discovery search, gamification (XP, streaks, badges, daily check-in web + mobile), courses LMS (API + web/mobile UI with cohorts + lesson reorder), community-scoped live, async moderation queue, durable announcement outbox, stage-mode raise hand (web + mobile), wiki/challenges/surveys engagement API (Phase G), and **substantially improved mobile creator studio parity**.
 
 **Strengths:** Unified entitlement engine, creator studio (web + mobile), access session enforcement, async announcement fan-out via outbox, Stripe Connect payouts, in-place subscription tier changes with UI, creator BI funnel + cohort retention.  
-**Remaining gaps (infra/product triggers only):** Search sidecar (500K videos), ML moderation pipeline, formal 50K MAU load validation run, native mobile LiveKit SDK, AI summaries/churn (Phase I).
+**Remaining gaps (infra/product triggers only):** Search sidecar (500K videos), ML moderation pipeline, formal 50K MAU load validation run, native mobile LiveKit SDK, AI summaries/churn (Phase I). **AI/LLM strategy:** [AI-LLM-STRATEGY.md](./AI-LLM-STRATEGY.md).
 
 ---
 
@@ -120,7 +186,7 @@ FORGE has a **production-viable Community 2.0 + Creator Economy foundation** cov
 | Courses LMS UI | **Done** | **Done** | Cohorts + reorder web + mobile |
 | Wiki / challenges / surveys UI | **Done** | **Done** | Mobile survey respond form added |
 | Poll/user report (member) | **Done** | **Done** | Post + poll report web + mobile |
-| Voice/stage rooms (member) | **Done** | **Partial** | Web LiveKit join; mobile opens web deeplink |
+| Voice/stage rooms (member) | **Done** | **Done** (text native; voice/stage web deeplink until native LiveKit) |
 | Post image upload (studio) | **Done** | — | Presigned S3 + file picker in studio announcements |
 | Tier entitlements editor | **Done** | **Done** | Mobile expandable tier panel |
 
@@ -153,7 +219,7 @@ FORGE has a **production-viable Community 2.0 + Creator Economy foundation** cov
 | 7 | Session Management Architecture | **Done** | Login sessions + JWT sid + access sessions |
 | 8 | Device Management Architecture | **Done** | D-3 caps + JWT sid revoke |
 | 9 | Permission Matrix | **Done** | §Permission Matrix |
-| 10 | Database Schema Recommendations | **Partial** | Migrations through `1833000000000` |
+| 10 | Database Schema Recommendations | **Done** | Migrations through `1837000000000` |
 | 11 | API Design Recommendations | **Partial** | §API Quick Reference |
 | 12 | Event-Driven Architecture | **Partial** | Announcement + moderation queues |
 | 13 | Monetization Strategy | **Done** | Destination charges + platform fee |
@@ -218,8 +284,8 @@ See prior entries. All foundation, monetization, scale, and BI items remain **Do
 |-------|-----|------|-----------------|
 | H | H-1 | Voice/breakout/Room entity | **Done** — text + voice/stage/breakout entity + API |
 | H | H-2 | LiveKit voice/stage + VIP + raise-hand | **Done** — token API, web room UI, tier gate, host approve; mobile web deeplink |
-| I | I-1 | ML moderation pipeline | Product priority |
-| I | I-2 | AI summaries, churn prediction, creator copilot | Phase I roadmap |
+| I | I-1 | ML moderation pipeline | Product priority — [AI-LLM-STRATEGY.md](./AI-LLM-STRATEGY.md) |
+| I | I-2 | AI summaries, churn prediction, creator copilot | Phase I — [AI-LLM-STRATEGY.md](./AI-LLM-STRATEGY.md) |
 | J | J-1 | Search sidecar (F-1302) | 500K videos or FTS p95 degrade — [DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md) |
 | J | J-2 | Formal 50K MAU load test | `scripts/load-test-community.sh` — run at 50K MAU |
 | J | J-3 | JWT sessionId binding | **Done** — `sid` in JWT + Redis revoke cache |
@@ -300,11 +366,11 @@ flowchart TD
 | Courses cohorts + reorder | **Resolved** | F-1, F-2 |
 | Wiki/challenges/surveys API | **Resolved** | G-1–G-3 API |
 | Wiki/challenges/surveys member UI | **Resolved** | Phase G UI |
-| Poll report member UI | **Resolved** | G-4 |
-| Search sidecar | Open | F-1302 trigger |
-| Room entity / voice channels | **Resolved** | VIP tier gate, stage raise-hand, breakout parent |
-| Post media native upload | **Resolved** | S3 presign API + studio file picker |
 | Bundles (Kajabi-style) | **Resolved** | G-5 |
+| Community join-request flow | **Resolved** | API + web/mobile member UX + studio approve |
+| Creator comp grant | **Resolved** | API + web/mobile studio |
+| Subscription lifecycle events | **Resolved** | Cache bust, member suspend, renewal_pending |
+| Search sidecar | Open | F-1302 trigger |
 
 ---
 
@@ -312,7 +378,7 @@ flowchart TD
 
 | Module | Unit tests | HTTP e2e | Notes |
 |--------|------------|----------|-------|
-| Communities | 11+ specs | 21 routes | +featured, text room messages |
+| Communities | 11+ specs | 31 routes | +featured, members, access meta, grant, cancel |
 | Community engagement | 3 specs | 0 | Wiki + challenge join + permissions |
 | Creator audit | 1 spec | 0 | Audit log persistence |
 | Creator bundles | 2 specs | 0 | Create + public list |
@@ -331,7 +397,7 @@ flowchart TD
 
 | Item | Notes |
 |------|-------|
-| Migrations | Run through `1833000000000` on staging before deploy (`1830000000000` engagement, `1831000000000` bundles, `1832000000000` rooms, `1833000000000` room messages + RBAC + audit) |
+| Migrations | Run through `1837000000000` on staging before deploy (`1834` room category, `1835` community_members + session_token, `1836` subscription community_id, `1837` active sub unique index) |
 | Worker | `community-announcement-notify`, `community-moderation`, `platform-event-outbox` |
 | Stripe Connect | Required before paid checkout |
 | LiveKit | Set `LIVEKIT_URL` + keys for voice/stage/breakout rooms |
@@ -429,3 +495,15 @@ Room-level RBAC overrides (view/send/moderate) are available via studio Rooms �
 ---
 
 All 21 audit deliverables are tracked here and in [COMMUNITY-MODULE-2.0.md](../COMMUNITY-MODULE-2.0.md). Update this file after each shipped task.
+
+---
+
+## Scale readiness (Track 4)
+
+| Trigger | Action |
+|---------|--------|
+| `channel_messages` / `community_room_messages` > 10M rows | Monthly range partitions on `created_at`; archive cold partitions to S3; retain 90d hot in Postgres |
+| 50K MAU validation | `scripts/load-test-community.sh` against staging (`FORGE_SMOKE_API`) |
+| Observability | `METRICS_ENABLED=true` exposes `forge_socket_join_denials_total`, `forge_access_session_conflicts_total`, `forge_entitlement_cache_lookups_total` on `/metrics` |
+
+Per-community subscriptions: optional `communityId` on `POST /billing/checkout` and `member_subscriptions.community_id` (migration `1836000000000`); null = creator-wide (backward compatible).

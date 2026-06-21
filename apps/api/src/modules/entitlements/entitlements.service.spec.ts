@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EntitlementsService } from './entitlements.service';
@@ -9,12 +10,23 @@ import { EngagementService } from '../engagement/engagement.service';
 import { ContentVisibility } from './content-access.types';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 import { TierEntitlement } from './entities/tier-entitlement.entity';
+import { BillingInterval } from './entities/subscription-tier.entity';
+import { MemberSubscriptionStatus, MemberSubscriptionSource } from './entities/member-subscription.entity';
 
 describe('EntitlementsService', () => {
   let service: EntitlementsService;
+  let module: TestingModule;
   let engagementService: { isFollowing: jest.Mock; getFollowingIdsAmong: jest.Mock };
   let tierRepository: { find: jest.Mock; findOne: jest.Mock; create: jest.Mock; save: jest.Mock };
+  let subscriptionRepository: {
+    findOne: jest.Mock;
+    find: jest.Mock;
+    save: jest.Mock;
+    createQueryBuilder: jest.Mock;
+  };
+  let eventEmitter: { emit: jest.Mock };
   let redis: { get: jest.Mock; setex: jest.Mock; del: jest.Mock };
+  let dataSource: { transaction: jest.Mock };
 
   beforeEach(async () => {
     engagementService = {
@@ -32,7 +44,34 @@ describe('EntitlementsService', () => {
       setex: jest.fn().mockResolvedValue('OK'),
       del: jest.fn().mockResolvedValue(1),
     };
-    const module: TestingModule = await Test.createTestingModule({
+    eventEmitter = { emit: jest.fn() };
+    dataSource = {
+      transaction: jest.fn(async (work) =>
+        work({
+          update: jest.fn(),
+          save: jest.fn(),
+          create: jest.fn((_e, x) => x),
+        }),
+      ),
+    };
+    subscriptionRepository = {
+      findOne: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
+      save: jest.fn(async (x) => x),
+      createQueryBuilder: jest.fn(() => ({
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+        getMany: jest.fn().mockResolvedValue([]),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      })),
+    };
+    const testingModule: TestingModule = await Test.createTestingModule({
       providers: [
         EntitlementsService,
         {
@@ -49,20 +88,7 @@ describe('EntitlementsService', () => {
         },
         {
           provide: getRepositoryToken(MemberSubscription),
-          useValue: {
-            findOne: jest.fn(),
-            create: jest.fn(),
-            save: jest.fn(),
-            update: jest.fn(),
-            createQueryBuilder: jest.fn(() => ({
-              leftJoinAndSelect: jest.fn().mockReturnThis(),
-              where: jest.fn().mockReturnThis(),
-              andWhere: jest.fn().mockReturnThis(),
-              orderBy: jest.fn().mockReturnThis(),
-              getOne: jest.fn().mockResolvedValue(null),
-              getMany: jest.fn().mockResolvedValue([]),
-            })),
-          },
+          useValue: subscriptionRepository,
         },
         { provide: EngagementService, useValue: engagementService },
         {
@@ -75,17 +101,13 @@ describe('EntitlementsService', () => {
         },
         {
           provide: DataSource,
-          useValue: {
-            transaction: jest.fn(async (work) => work({
-              update: jest.fn(),
-              save: jest.fn(),
-              create: jest.fn((_e, x) => x),
-            })),
-          },
+          useValue: dataSource,
         },
+        { provide: EventEmitter2, useValue: eventEmitter },
       ],
     }).compile();
 
+    module = testingModule;
     service = module.get(EntitlementsService);
   });
 
@@ -243,5 +265,172 @@ describe('EntitlementsService', () => {
     expect(results[0].allowed).toBe(true);
     expect(results[1].allowed).toBe(false);
     expect(results[1].reason).toBe('follow_required');
+  });
+
+  it('getSubscriberAnalytics normalizes MRR by billing interval', async () => {
+    subscriptionRepository.createQueryBuilder
+      .mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([
+          { status: MemberSubscriptionStatus.ACTIVE, count: '2' },
+        ]),
+      })
+      .mockReturnValueOnce({
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([
+          { tier: { priceCents: 1200, billingInterval: BillingInterval.YEARLY } },
+          { tier: { priceCents: 999, billingInterval: BillingInterval.MONTHLY } },
+          { tier: { priceCents: 5000, billingInterval: BillingInterval.LIFETIME } },
+        ]),
+      });
+
+    const analytics = await service.getSubscriberAnalytics('creator-1');
+
+    expect(analytics.mrrCents).toBe(1099);
+  });
+
+  it('expireDueSubscriptions revokes access and suspends scoped members', async () => {
+    const expiredSub = {
+      id: 'sub-1',
+      userId: 'user-1',
+      creatorId: 'creator-1',
+      communityId: 'comm-1',
+      status: MemberSubscriptionStatus.ACTIVE,
+      expiresAt: new Date('2020-01-01'),
+    };
+    subscriptionRepository.find.mockResolvedValue([expiredSub]);
+
+    const count = await service.expireDueSubscriptions();
+
+    expect(count).toBe(1);
+    expect(subscriptionRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: MemberSubscriptionStatus.EXPIRED }),
+    );
+    expect(eventEmitter.emit).toHaveBeenCalledWith('community.access.changed', {
+      userId: 'user-1',
+      creatorId: 'creator-1',
+      communityId: 'comm-1',
+    });
+    expect(eventEmitter.emit).toHaveBeenCalledWith('community.member.suspend', {
+      userId: 'user-1',
+      communityId: 'comm-1',
+    });
+  });
+
+  it('cancelByExternalRef suspends scoped community members', async () => {
+    subscriptionRepository.findOne.mockResolvedValue({
+      id: 'sub-1',
+      userId: 'user-1',
+      creatorId: 'creator-1',
+      communityId: 'comm-1',
+      status: MemberSubscriptionStatus.ACTIVE,
+      externalRef: 'sub_stripe',
+    });
+
+    await service.cancelByExternalRef('sub_stripe');
+
+    expect(eventEmitter.emit).toHaveBeenCalledWith('community.member.suspend', {
+      userId: 'user-1',
+      communityId: 'comm-1',
+    });
+  });
+
+  it('grantSubscription emits member provision for scoped community grants', async () => {
+    tierRepository.findOne.mockResolvedValue({
+      id: 'tier-1',
+      creatorId: 'creator-1',
+    });
+    subscriptionRepository.findOne.mockResolvedValue({
+      id: 'sub-new',
+      tier: { priceCents: 999 },
+    });
+
+    dataSource.transaction.mockImplementationOnce(async (work) =>
+      work({
+        createQueryBuilder: jest.fn(() => ({
+          update: jest.fn().mockReturnThis(),
+          set: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          execute: jest.fn().mockResolvedValue(undefined),
+        })),
+        save: jest.fn().mockResolvedValue({
+          id: 'sub-new',
+          userId: 'user-1',
+          creatorId: 'creator-1',
+          tierId: 'tier-1',
+          communityId: 'comm-1',
+        }),
+        create: jest.fn((_entity, payload) => payload),
+      }),
+    );
+
+    await service.grantSubscription(
+      'user-1',
+      {
+        creatorId: 'creator-1',
+        tierId: 'tier-1',
+        communityId: 'comm-1',
+        expiresInDays: 30,
+      },
+      MemberSubscriptionSource.ADMIN_GRANT,
+    );
+
+    expect(eventEmitter.emit).toHaveBeenCalledWith('community.access.changed', {
+      userId: 'user-1',
+      creatorId: 'creator-1',
+      communityId: 'comm-1',
+    });
+    expect(eventEmitter.emit).toHaveBeenCalledWith('community.member.provision', {
+      userId: 'user-1',
+      communityId: 'comm-1',
+    });
+  });
+
+  it('cancelMySubscription suspends scoped community members on immediate cancel', async () => {
+    subscriptionRepository.findOne.mockResolvedValue({
+      id: 'sub-1',
+      userId: 'user-1',
+      creatorId: 'creator-1',
+      communityId: 'comm-1',
+      status: MemberSubscriptionStatus.ACTIVE,
+      source: MemberSubscriptionSource.ADMIN_GRANT,
+    });
+
+    const result = await service.cancelMySubscription('user-1', 'creator-1');
+
+    expect(result).toEqual({ canceled: true });
+    expect(subscriptionRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: MemberSubscriptionStatus.CANCELED }),
+    );
+    expect(eventEmitter.emit).toHaveBeenCalledWith('community.member.suspend', {
+      userId: 'user-1',
+      communityId: 'comm-1',
+    });
+  });
+
+  it('cancelMySubscription keeps scoped members active when canceling Stripe at period end', async () => {
+    subscriptionRepository.findOne.mockResolvedValue({
+      id: 'sub-1',
+      userId: 'user-1',
+      creatorId: 'creator-1',
+      communityId: 'comm-1',
+      status: MemberSubscriptionStatus.ACTIVE,
+      source: MemberSubscriptionSource.STRIPE,
+      externalRef: 'sub_stripe_1',
+    });
+
+    const result = await service.cancelMySubscription('user-1', 'creator-1', true);
+
+    expect(result).toEqual({ canceled: false, cancelAtPeriodEnd: true });
+    expect(subscriptionRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: MemberSubscriptionStatus.RENEWAL_PENDING }),
+    );
+    expect(eventEmitter.emit).not.toHaveBeenCalledWith('community.member.suspend', expect.anything());
   });
 });

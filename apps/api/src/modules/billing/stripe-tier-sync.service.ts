@@ -79,9 +79,13 @@ export class StripeTierSyncService {
     return { productId, priceId: price.id };
   }
 
-  async cancelSubscription(externalSubscriptionId: string): Promise<void> {
+  async cancelSubscription(externalSubscriptionId: string, cancelAtPeriodEnd = false): Promise<void> {
     const stripe = this.client();
     if (!stripe) return;
+    if (cancelAtPeriodEnd) {
+      await stripe.subscriptions.update(externalSubscriptionId, { cancel_at_period_end: true });
+      return;
+    }
     await stripe.subscriptions.cancel(externalSubscriptionId);
   }
 

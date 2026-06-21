@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { CommunityPoll } from './entities/community-poll.entity';
 import { CommunityPollVote } from './entities/community-poll-vote.entity';
@@ -18,6 +19,7 @@ export class CommunityPollsService {
     @InjectRepository(CommunityPollVote)
     private readonly voteRepository: Repository<CommunityPollVote>,
     private readonly communitiesService: CommunitiesService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async createPoll(
@@ -48,7 +50,12 @@ export class CommunityPollsService {
       }),
     );
 
-    return this.toPublicPoll(poll.id);
+    const publicPoll = await this.toPublicPoll(poll.id);
+    this.eventEmitter.emit('community.poll.updated', {
+      communityId,
+      poll: publicPoll,
+    });
+    return publicPoll;
   }
 
   async getActivePoll(communityId: string, viewerId?: string | null, viewerRole?: UserRole | null) {
@@ -89,7 +96,12 @@ export class CommunityPollsService {
       );
     }
 
-    return this.toPublicPoll(pollId, userId);
+    const publicPoll = await this.toPublicPoll(pollId, userId);
+    this.eventEmitter.emit('community.poll.updated', {
+      communityId: poll.communityId,
+      poll: publicPoll,
+    });
+    return publicPoll;
   }
 
   async closePoll(creatorId: string, communityId: string, pollId: string) {
@@ -97,7 +109,12 @@ export class CommunityPollsService {
     const poll = await this.pollRepository.findOne({ where: { id: pollId, communityId } });
     if (!poll) throw new NotFoundException('Poll not found');
     await this.pollRepository.update({ id: pollId }, { isActive: false, closedAt: new Date() });
-    return { closed: true };
+    const publicPoll = await this.toPublicPoll(pollId);
+    this.eventEmitter.emit('community.poll.updated', {
+      communityId,
+      poll: publicPoll,
+    });
+    return { closed: true, poll: publicPoll };
   }
 
   private async toPublicPoll(pollId: string, viewerId?: string) {

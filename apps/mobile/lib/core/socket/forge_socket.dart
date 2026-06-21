@@ -51,6 +51,22 @@ class ForgeSocket {
     _socket?.emit('leave-channel', {'channelId': channelId});
   }
 
+  static void joinCommunity(String communityId) {
+    _socket?.emit('join-community', {'communityId': communityId});
+  }
+
+  static void leaveCommunity(String communityId) {
+    _socket?.emit('leave-community', {'communityId': communityId});
+  }
+
+  static void joinRoom(String roomId) {
+    _socket?.emit('join-room', {'roomId': roomId});
+  }
+
+  static void leaveRoom(String roomId) {
+    _socket?.emit('leave-room', {'roomId': roomId});
+  }
+
   static void joinLiveFeed() {
     _socket?.emit('join-live-feed');
   }

@@ -5,6 +5,7 @@ import { CommunityPollsService } from './community-polls.service';
 import { CommunityPoll } from './entities/community-poll.entity';
 import { CommunityPollVote } from './entities/community-poll-vote.entity';
 import { CommunitiesService } from './communities.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 describe('CommunityPollsService', () => {
   let service: CommunityPollsService;
@@ -72,6 +73,7 @@ describe('CommunityPollsService', () => {
         { provide: getRepositoryToken(CommunityPoll), useValue: pollRepository },
         { provide: getRepositoryToken(CommunityPollVote), useValue: voteRepository },
         { provide: CommunitiesService, useValue: communitiesService },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 

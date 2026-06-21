@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -10,6 +10,7 @@ import { CommunityRoomType } from './entities/community-room.entity';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { CommunityStudioGuard } from './guards/community-studio.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
@@ -77,25 +78,45 @@ export class CommunityRoomsController {
   }
 
   @Post('creators/me/communities/:communityId/rooms')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(CommunityStudioGuard)
   @ApiOperation({ summary: 'Create a community room (text, voice, stage, or breakout)' })
   createRoom(
     @CurrentUser() user: JwtPayload,
     @Param('communityId') communityId: string,
     @Body() dto: CreateCommunityRoomDto,
   ) {
-    return this.roomsService.createRoom(user.sub, communityId, dto);
+    return this.roomsService.createRoom(user.sub, communityId, dto, user.role);
+  }
+
+  @Patch('creators/me/communities/:communityId/rooms/:roomId')
+  @UseGuards(CommunityStudioGuard)
+  @ApiOperation({ summary: 'Update a community room' })
+  updateRoom(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Param('roomId') roomId: string,
+    @Body()
+    body: {
+      name?: string;
+      description?: string;
+      maxParticipants?: number;
+      sortOrder?: number;
+      requiredTierId?: string | null;
+      categoryId?: string | null;
+    },
+  ) {
+    return this.roomsService.updateRoom(user.sub, communityId, roomId, body, user.role);
   }
 
   @Delete('creators/me/communities/:communityId/rooms/:roomId')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(CommunityStudioGuard)
   @ApiOperation({ summary: 'Deactivate a community room' })
   deactivateRoom(
     @CurrentUser() user: JwtPayload,
     @Param('communityId') communityId: string,
     @Param('roomId') roomId: string,
   ) {
-    return this.roomsService.deactivateRoom(user.sub, communityId, roomId);
+    return this.roomsService.deactivateRoom(user.sub, communityId, roomId, user.role);
   }
 
   @Post('communities/:communityId/rooms/:roomId/token')

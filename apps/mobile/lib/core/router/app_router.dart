@@ -16,6 +16,7 @@ import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/live/presentation/live_screen.dart';
 import '../../features/live/presentation/live_watch_screen.dart';
 import '../../features/community/presentation/community_screen.dart';
+import '../../features/community/presentation/community_text_room_screen.dart';
 import '../../features/watch/presentation/watch_screen.dart';
 import '../../features/explore/presentation/explore_screen.dart';
 import '../../features/studio/presentation/studio_screen.dart';
@@ -25,6 +26,7 @@ import '../../features/studio/presentation/studio_live_screen.dart';
 import '../../features/studio/presentation/studio_settings_screen.dart';
 import '../../features/studio/presentation/studio_analytics_screen.dart';
 import '../../features/studio/presentation/studio_tiers_screen.dart';
+import '../../features/studio/presentation/studio_brands_screen.dart';
 import '../../features/studio/presentation/studio_subscribers_screen.dart';
 import '../../features/studio/presentation/studio_community_screen.dart';
 import '../../features/studio/presentation/studio_moderation_screen.dart';
@@ -94,6 +96,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/studio/live', builder: (_, __) => const StudioLiveScreen()),
       GoRoute(path: '/studio/analytics', builder: (_, __) => const StudioAnalyticsScreen()),
       GoRoute(path: '/studio/tiers', builder: (_, __) => const StudioTiersScreen()),
+      GoRoute(path: '/studio/brands', builder: (_, __) => const StudioBrandsScreen()),
       GoRoute(path: '/studio/subscribers', builder: (_, __) => const StudioSubscribersScreen()),
       GoRoute(path: '/studio/community', builder: (_, __) => const StudioCommunityScreen()),
       GoRoute(path: '/studio/engagement', builder: (_, __) => const StudioEngagementScreen()),
@@ -141,6 +144,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/live/:id',
             builder: (_, state) => LiveWatchScreen(streamId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: '/community/:communityId/text/:roomId',
+            builder: (_, state) => CommunityTextRoomScreen(
+              communityId: state.pathParameters['communityId']!,
+              roomId: state.pathParameters['roomId']!,
+            ),
           ),
           GoRoute(
             path: '/community/:creatorId',

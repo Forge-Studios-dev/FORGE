@@ -13,7 +13,19 @@ class DiscoverCommunitiesScreen extends ConsumerStatefulWidget {
 class _DiscoverCommunitiesScreenState extends ConsumerState<DiscoverCommunitiesScreen> {
   final _queryCtrl = TextEditingController();
   List<Map<String, dynamic>> _results = [];
+  List<Map<String, dynamic>> _featured = [];
   bool _loading = false;
+
+  Future<void> _loadFeatured() async {
+    try {
+      final client = ref.read(apiClientProvider);
+      final response = await client.dio.get('/communities/discover/featured');
+      final data = response.data['data'] as List? ?? [];
+      setState(() => _featured = data.cast<Map<String, dynamic>>());
+    } catch (_) {
+      setState(() => _featured = []);
+    }
+  }
 
   Future<void> _search([String? q]) async {
     setState(() => _loading = true);
@@ -33,6 +45,7 @@ class _DiscoverCommunitiesScreenState extends ConsumerState<DiscoverCommunitiesS
   @override
   void initState() {
     super.initState();
+    _loadFeatured();
     _search('');
   }
 
@@ -64,6 +77,41 @@ class _DiscoverCommunitiesScreenState extends ConsumerState<DiscoverCommunitiesS
             ),
           ),
           if (_loading) const LinearProgressIndicator(minHeight: 2),
+          if (_featured.isNotEmpty && _queryCtrl.text.trim().isEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Featured', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ),
+            SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: _featured.length,
+                itemBuilder: (_, i) {
+                  final c = _featured[i];
+                  final creatorId = c['creatorId'] as String?;
+                  final slug = c['slug'] as String?;
+                  return SizedBox(
+                    width: 200,
+                    child: Card(
+                      margin: const EdgeInsets.only(right: 8),
+                      child: ListTile(
+                        title: Text(c['name'] as String? ?? '', maxLines: 2),
+                        subtitle: Text(slug != null ? '/$slug' : ''),
+                        onTap: creatorId != null && slug != null
+                            ? () => context.push('/community/$creatorId/c/$slug')
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
           Expanded(
             child: _results.isEmpty
                 ? const Center(child: Text('No communities found'))

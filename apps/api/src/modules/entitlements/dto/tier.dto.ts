@@ -154,6 +154,11 @@ export class MockSubscriptionDto {
   @IsString()
   @MaxLength(255)
   externalSubscriptionId?: string;
+
+  @ApiPropertyOptional({ description: 'Scope subscription to a single community' })
+  @IsOptional()
+  @IsUUID()
+  communityId?: string;
 }
 
 export class AdminGrantSubscriptionDto {
@@ -177,7 +182,33 @@ export class AdminGrantSubscriptionDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsUUID()
+  communityId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   @MaxLength(255)
   externalSubscriptionId?: string;
+}
+
+export class CreatorGrantSubscriptionDto {
+  @ApiProperty()
+  @IsUUID()
+  userId: string;
+
+  @ApiProperty()
+  @IsUUID()
+  tierId: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  expiresInDays?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  communityId?: string;
 }

@@ -52,6 +52,14 @@ export class CommunityRoomsService {
     return `community-room:stage-speakers:${roomId}`;
   }
 
+  private async assertCommunityStudio(
+    actorId: string,
+    communityId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    return this.communitiesService.assertCommunityStudioAccess(actorId, communityId, viewerRole);
+  }
+
   private async assertCommunityOwner(creatorId: string, communityId: string) {
     const community = await this.communityRepository.findOne({ where: { id: communityId } });
     if (!community || community.creatorId !== creatorId) {
@@ -75,6 +83,7 @@ export class CommunityRoomsService {
       userId,
       community.creatorId,
       settings.requiredTierId,
+      community.id,
     );
     if (!ok) {
       throw new ForbiddenException('This room requires a higher membership tier');
@@ -94,6 +103,43 @@ export class CommunityRoomsService {
     return (
       room.roomType === CommunityRoomType.VOICE || room.roomType === CommunityRoomType.BREAKOUT
     );
+  }
+
+  /** Validates room belongs to community, tier gate, and room-level VIEW permission. */
+  async assertRoomAccess(
+    communityId: string,
+    roomId: string,
+    userId: string | null | undefined,
+    viewerRole?: UserRole | null,
+  ): Promise<CommunityRoom> {
+    const community = await this.communitiesService.assertCommunityAccess(
+      communityId,
+      userId,
+      viewerRole,
+    );
+    const room = await this.roomRepository.findOne({
+      where: { id: roomId, communityId, isActive: true },
+    });
+    if (!room) throw new NotFoundException('Room not found');
+
+    const settings = this.roomSettings(room);
+    const canModerate = userId
+      ? await this.communitiesService.canModerateCommunity(
+          communityId,
+          community.creatorId,
+          userId,
+          viewerRole,
+        )
+      : false;
+    await this.assertRoomTierAccess(community, userId ?? '', settings, canModerate);
+    await this.roomPermissionsService.assertRoomPermissionIfRestricted(
+      communityId,
+      roomId,
+      userId,
+      CommunityRoomPermission.VIEW,
+      viewerRole,
+    );
+    return room;
   }
 
   async listRooms(
@@ -141,9 +187,11 @@ export class CommunityRoomsService {
       sortOrder?: number;
       requiredTierId?: string;
       parentRoomId?: string;
+      categoryId?: string;
     },
+    viewerRole?: UserRole | null,
   ) {
-    await this.assertCommunityOwner(creatorId, communityId);
+    await this.assertCommunityStudio(creatorId, communityId, viewerRole);
     const slug = this.slugify(input.name);
     const existing = await this.roomRepository.findOne({ where: { communityId, slug } });
     if (existing) throw new BadRequestException('Room slug already exists');
@@ -178,6 +226,7 @@ export class CommunityRoomsService {
         description: input.description?.trim() || null,
         maxParticipants: input.maxParticipants ?? null,
         sortOrder: input.sortOrder ?? 0,
+        categoryId: input.categoryId ?? null,
         isActive: true,
         settings,
       }),
@@ -346,8 +395,53 @@ export class CommunityRoomsService {
     return { data: { approved: true, userId: targetUserId } };
   }
 
-  async deactivateRoom(creatorId: string, communityId: string, roomId: string) {
-    await this.assertCommunityOwner(creatorId, communityId);
+  async updateRoom(
+    actorId: string,
+    communityId: string,
+    roomId: string,
+    input: {
+      name?: string;
+      description?: string;
+      maxParticipants?: number;
+      sortOrder?: number;
+      requiredTierId?: string | null;
+      categoryId?: string | null;
+    },
+    viewerRole?: UserRole | null,
+  ) {
+    await this.assertCommunityStudio(actorId, communityId, viewerRole);
+    const room = await this.roomRepository.findOne({
+      where: { id: roomId, communityId, isActive: true },
+    });
+    if (!room) throw new NotFoundException('Room not found');
+
+    if (input.name?.trim()) {
+      room.name = input.name.trim();
+      room.slug = this.slugify(input.name);
+    }
+    if (input.description !== undefined) room.description = input.description?.trim() || null;
+    if (input.maxParticipants !== undefined) room.maxParticipants = input.maxParticipants;
+    if (input.sortOrder !== undefined) room.sortOrder = input.sortOrder;
+    if (input.categoryId !== undefined) room.categoryId = input.categoryId;
+
+    const settings = this.roomSettings(room);
+    if (input.requiredTierId !== undefined) {
+      if (input.requiredTierId) settings.requiredTierId = input.requiredTierId;
+      else delete settings.requiredTierId;
+      room.settings = settings;
+    }
+
+    await this.roomRepository.save(room);
+    return { data: room };
+  }
+
+  async deactivateRoom(
+    actorId: string,
+    communityId: string,
+    roomId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.assertCommunityStudio(actorId, communityId, viewerRole);
     const room = await this.roomRepository.findOne({ where: { id: roomId, communityId } });
     if (!room) throw new NotFoundException('Room not found');
     room.isActive = false;

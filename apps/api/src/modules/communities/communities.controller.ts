@@ -42,6 +42,23 @@ export class CommunitiesController {
 
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
+  @Get('creators/:creatorId/communities/:slug/access')
+  @ApiOperation({ summary: 'Community access metadata for join-request UX' })
+  getCommunityAccessMeta(
+    @Param('creatorId') creatorId: string,
+    @Param('slug') slug: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.communitiesService.getCommunityAccessMeta(
+      creatorId,
+      slug,
+      user?.sub,
+      user?.role,
+    );
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('creators/:creatorId/communities/:slug')
   @ApiOperation({ summary: 'Get community by creator and slug' })
   getCommunityBySlug(
@@ -50,6 +67,14 @@ export class CommunitiesController {
     @CurrentUser() user?: JwtPayload,
   ) {
     return this.communitiesService.getCommunityBySlug(creatorId, slug, user?.sub, user?.role);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('communities/:communityId/layout')
+  @ApiOperation({ summary: 'Unified community layout (categories, channels, rooms)' })
+  getCommunityLayout(@Param('communityId') communityId: string, @CurrentUser() user?: JwtPayload) {
+    return this.communitiesService.getCommunityLayout(communityId, user?.sub, user?.role);
   }
 
   @Public()
@@ -170,6 +195,24 @@ export class CommunitiesController {
     @Body() dto: UpdateChannelDto,
   ) {
     return this.communitiesService.updateChannel(user.sub, channelId, dto);
+  }
+
+  @Delete('creators/me/channels/:channelId')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Delete a community channel' })
+  deleteChannel(@CurrentUser() user: JwtPayload, @Param('channelId') channelId: string) {
+    return this.communitiesService.deleteChannel(user.sub, channelId);
+  }
+
+  @Patch('creators/me/communities/:communityId/channels/reorder')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Reorder channels in a community' })
+  reorderChannels(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Body() body: { channelIds: string[] },
+  ) {
+    return this.communitiesService.reorderChannels(user.sub, communityId, body.channelIds ?? []);
   }
 
   @Post('creators/me/channels/:channelId/invite')

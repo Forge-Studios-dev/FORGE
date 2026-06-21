@@ -11,6 +11,7 @@ import { StreamingService } from '../streaming/streaming.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { StripeTierSyncService } from './stripe-tier-sync.service';
 import { StripeConnectService } from './stripe-connect.service';
+import { MemberSubscriptionStatus } from '../entitlements/entities/member-subscription.entity';
 
 describe('BillingService', () => {
   let service: BillingService;
@@ -35,6 +36,9 @@ describe('BillingService', () => {
     updateTierStripeIds: jest.fn(),
     cancelByExternalRef: jest.fn(),
     markSubscriptionFailedPayment: jest.fn(),
+    markSubscriptionRefunded: jest.fn(),
+    updateSubscriptionStatusByExternalRef: jest.fn(),
+    getSubscriptionByExternalRef: jest.fn().mockResolvedValue(null),
   };
   const stripeTierSync = {
     isEnabled: jest.fn().mockReturnValue(false),
@@ -159,5 +163,34 @@ describe('BillingService', () => {
         cancelUrl: 'https://x/c',
       }),
     ).rejects.toThrow('already have access');
+  });
+
+  it('marks subscription renewal_pending on invoice.upcoming webhook', async () => {
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'subscription',
+      subscriptionId: 'sub_renewal',
+      status: 'renewal_pending',
+    });
+
+    await service.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
+
+    expect(entitlementsService.updateSubscriptionStatusByExternalRef).toHaveBeenCalledWith(
+      'sub_renewal',
+      MemberSubscriptionStatus.RENEWAL_PENDING,
+    );
+  });
+
+  it('delegates subscription cancel webhook to entitlements', async () => {
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'subscription',
+      subscriptionId: 'sub_cancel',
+      status: 'canceled',
+    });
+
+    await service.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
+
+    expect(entitlementsService.cancelByExternalRef).toHaveBeenCalledWith('sub_cancel');
   });
 });

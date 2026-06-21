@@ -40,12 +40,14 @@ import { AiModerationService } from './ai-moderation.service';
 import { AiCommunityService } from './ai-community.service';
 import { CreatorAuditService } from './creator-audit.service';
 import { CommunityRoleGuard } from './guards/community-role.guard';
+import { CommunityStudioGuard } from './guards/community-studio.guard';
 import { COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE } from '../workers/community-announcement-notify/community-announcement-notify.constants';
 import { COMMUNITY_MODERATION_QUEUE } from '../workers/community-moderation/community-moderation.constants';
 import { CommunityModerationQueueService } from './community-moderation-queue.service';
 import { CommunityEngagementService } from './community-engagement.service';
 import { CommunityEngagementController } from './community-engagement.controller';
 import { CommunityRoom } from './entities/community-room.entity';
+import { CommunityMember } from './entities/community-member.entity';
 import { CommunityRoomMessage, CommunityRoomPermissionRow, CreatorAuditLog } from './entities/community-room-message.entity';
 import { CommunityRoomsService } from './community-rooms.service';
 import { CommunityRoomMessagesService } from './community-room-messages.service';
@@ -53,6 +55,10 @@ import { CommunityRoomPermissionsService } from './community-room-permissions.se
 import { CommunityRoomsController } from './community-rooms.controller';
 import { CommunityRoomLivekitService } from './community-room-livekit.service';
 import { CommunityStorageService } from './community-storage.service';
+import { CommunityMembersService } from './community-members.service';
+import { CommunityMembersController } from './community-members.controller';
+import { CommunityAccessListener } from './community-access.listener';
+import { CreatorCopilotService } from './creator-copilot.service';
 import { CommunityAiController } from './community-ai.controller';
 import { PlatformEventOutboxModule } from '../platform-event-outbox/platform-event-outbox.module';
 import { Stream } from '../streaming/entities/stream.entity';
@@ -81,6 +87,7 @@ import { Stream } from '../streaming/entities/stream.entity';
       CommunitySurveyResponse,
       Stream,
       CommunityRoom,
+      CommunityMember,
       CommunityRoomMessage,
       CommunityRoomPermissionRow,
       CreatorAuditLog,
@@ -118,6 +125,7 @@ import { Stream } from '../streaming/entities/stream.entity';
     CommunityEngagementController,
     CommunityRoomsController,
     CommunityAiController,
+    CommunityMembersController,
   ],
   providers: [
     CommunitiesService,
@@ -135,9 +143,18 @@ import { Stream } from '../streaming/entities/stream.entity';
     AiCommunityService,
     CreatorAuditService,
     CommunityModerationQueueService,
+    CommunityMembersService,
+    CommunityAccessListener,
+    CreatorCopilotService,
     CreatorApprovedGuard,
     CommunityRoleGuard,
+    CommunityStudioGuard,
   ],
-  exports: [CommunitiesService, CommunityModerationService],
-})
+  exports: [
+    CommunitiesService,
+    CommunityModerationService,
+    CommunityRoomsService,
+    CreatorCopilotService,
+    CommunityMembersService,
+  ],})
 export class CommunitiesModule {}

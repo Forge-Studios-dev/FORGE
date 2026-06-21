@@ -30,6 +30,7 @@ describe('CommunityRoomsService', () => {
   };
   const communitiesService = {
     assertCommunityAccess: jest.fn().mockResolvedValue({ id: 'comm-1', creatorId: 'c1' }),
+    assertCommunityStudioAccess: jest.fn().mockResolvedValue({ id: 'comm-1', creatorId: 'c1' }),
     canModerateCommunity: jest.fn().mockResolvedValue(false),
   };
   const entitlementsService = {

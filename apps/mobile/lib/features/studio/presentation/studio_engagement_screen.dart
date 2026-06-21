@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,6 +38,8 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
   String? _editingChallengeId;
   String? _editingSurveyId;
   bool _loading = true;
+  List<String> _announceMediaUrls = [];
+  bool _uploadingMedia = false;
 
   @override
   void initState() {
@@ -146,6 +152,39 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
     } catch (_) {}
   }
 
+  Future<void> _pickAnnouncementImage() async {
+    if (_communityId == null || _uploadingMedia) return;
+    final picked = await FilePicker.platform.pickFiles(type: FileType.image);
+    final path = picked?.files.single.path;
+    if (path == null) return;
+    setState(() => _uploadingMedia = true);
+    try {
+      const contentType = 'image/jpeg';
+      final client = ref.read(apiClientProvider);
+      final presignRes = await client.dio.post(
+        '/creators/me/communities/$_communityId/posts/media-upload-url',
+        queryParameters: {'contentType': contentType},
+      );
+      final presign = presignRes.data['data'] as Map<String, dynamic>;
+      final uploadUrl = presign['uploadUrl'] as String;
+      final publicUrl = presign['publicUrl'] as String;
+      await client.dio.put(
+        uploadUrl,
+        data: File(path).openRead(),
+        options: Options(headers: {'Content-Type': contentType}),
+      );
+      setState(() => _announceMediaUrls = [..._announceMediaUrls, publicUrl]);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image upload failed')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingMedia = false);
+    }
+  }
+
   Future<void> _postAnnouncement() async {
     if (_communityId == null || _announceBodyCtrl.text.trim().isEmpty) return;
     try {
@@ -154,9 +193,11 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
         'title': _announceTitleCtrl.text.trim().isEmpty ? null : _announceTitleCtrl.text.trim(),
         'body': _announceBodyCtrl.text.trim(),
         'postType': 'announcement',
+        if (_announceMediaUrls.isNotEmpty) 'mediaUrls': _announceMediaUrls,
       });
       _announceTitleCtrl.clear();
       _announceBodyCtrl.clear();
+      setState(() => _announceMediaUrls = []);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Announcement posted')),
@@ -334,6 +375,24 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
                   controller: _announceBodyCtrl,
                   decoration: const InputDecoration(labelText: 'Body'),
                   maxLines: 3,
+                ),
+                if (_announceMediaUrls.isNotEmpty)
+                  Wrap(
+                    spacing: 8,
+                    children: _announceMediaUrls
+                        .map((url) => Chip(label: Text(url.split('/').last)))
+                        .toList(),
+                  ),
+                TextButton.icon(
+                  onPressed: _uploadingMedia ? null : _pickAnnouncementImage,
+                  icon: _uploadingMedia
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.image_outlined),
+                  label: const Text('Attach image'),
                 ),
                 ForgeButton(label: 'Post announcement', onPressed: _postAnnouncement),
                 const Divider(height: 32),

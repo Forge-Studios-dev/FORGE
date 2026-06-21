@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/platform/platform_config.dart';
@@ -49,6 +50,10 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   bool _accessDenied = false;
   String? _accessReason;
   bool _sessionConflict = false;
+  bool _communityRestricted = false;
+  bool _canRequestJoin = false;
+  bool _joinPending = false;
+  String? _communityRestrictedId;
   String? _communityId;
   void Function(dynamic)? _messageHandler;
   void Function(dynamic)? _deleteHandler;
@@ -152,8 +157,57 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           _loadEngageContent(),
         ]);
       }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 403 && widget.communitySlug != null) {
+        await _loadAccessMeta();
+      } else {
+        setState(() => _loading = false);
+      }
     } catch (_) {
       setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadAccessMeta() async {
+    try {
+      final client = ref.read(apiClientProvider);
+      final res = await client.dio.get(
+        '/creators/${widget.creatorId}/communities/${widget.communitySlug}/access',
+      );
+      final meta = res.data['data'] as Map<String, dynamic>;
+      setState(() {
+        _communityRestrictedId = meta['communityId'] as String?;
+        _canRequestJoin = meta['canRequestJoin'] == true;
+        _joinPending = meta['joinRequestStatus'] == 'pending';
+        _communityRestricted = true;
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _requestJoin() async {
+    final id = _communityRestrictedId ?? _communityId;
+    if (id == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post('/communities/$id/join-request');
+      setState(() {
+        _joinPending = true;
+        _canRequestJoin = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Join request submitted')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not submit join request')),
+        );
+      }
     }
   }
 
@@ -643,7 +697,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                             const SizedBox(height: 12),
                             Text(_accessLabel(), textAlign: TextAlign.center),
                             const SizedBox(height: 16),
-                            MembershipPanel(creatorId: widget.creatorId),
+                            MembershipPanel(creatorId: widget.creatorId, communityId: _communityId),
                           ],
                         ),
                       ),
@@ -895,19 +949,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
   Future<void> _openTextRoom(String roomId) async {
     if (_communityId == null) return;
-    var webBase = AppConstants.webBaseUrl;
-    try {
-      final config = await ref.read(platformConfigProvider.future);
-      final fromConfig = config['webUrl'] as String?;
-      if (fromConfig != null && fromConfig.isNotEmpty) {
-        webBase = fromConfig;
-      }
-    } catch (_) {}
-    final url = '$webBase/community/$_communityId/text/$roomId';
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    context.push('/community/$_communityId/text/$roomId');
   }
 
   Future<void> _openVoiceRoom(String roomId) async {
@@ -1151,6 +1193,47 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_communityRestricted && _communityId == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Community')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline, size: 48, color: Colors.grey),
+                const SizedBox(height: 12),
+                const Text(
+                  'This community is restricted',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'You need membership, an invite, or creator approval.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                if (_joinPending)
+                  const Text('Your join request is pending approval.'),
+                if (_canRequestJoin)
+                  FilledButton(
+                    onPressed: _requestJoin,
+                    child: const Text('Request to join'),
+                  ),
+                if (!_joinPending && !_canRequestJoin)
+                  MembershipPanel(
+                    creatorId: widget.creatorId,
+                    communityId: _communityRestrictedId,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     return Scaffold(

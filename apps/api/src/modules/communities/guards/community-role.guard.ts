@@ -16,7 +16,7 @@ import { Community } from '../entities/community.entity';
 import { UserRole } from '../../users/entities/user.entity';
 import { safeRedisGet, safeRedisSetex } from '../../../common/redis/redis-safe.util';
 
-const ROLE_CACHE_TTL_SEC = 60;
+const ROLE_CACHE_TTL_SEC = 10;
 
 @Injectable()
 export class CommunityRoleGuard implements CanActivate {

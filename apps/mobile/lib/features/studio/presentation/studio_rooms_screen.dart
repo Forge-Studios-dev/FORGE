@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/platform/platform_config.dart';
@@ -18,6 +19,10 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
   List<Map<String, dynamic>> _rooms = [];
   final _nameCtrl = TextEditingController();
   String _roomType = 'text';
+  String? _permissionsRoomId;
+  final _permUserIdCtrl = TextEditingController();
+  String _permType = 'send';
+  List<Map<String, dynamic>> _permissions = [];
   bool _loading = true;
 
   @override
@@ -29,7 +34,33 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _permUserIdCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPermissions(String roomId) async {
+    if (_communityId == null) return;
+    final client = ref.read(apiClientProvider);
+    final res = await client.dio.get(
+      '/creators/me/communities/$_communityId/rooms/$roomId/permissions',
+    );
+    setState(() {
+      _permissionsRoomId = roomId;
+      _permissions = (res.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    });
+  }
+
+  Future<void> _grantPermission() async {
+    if (_communityId == null || _permissionsRoomId == null) return;
+    final userId = _permUserIdCtrl.text.trim();
+    if (userId.isEmpty) return;
+    final client = ref.read(apiClientProvider);
+    await client.dio.post(
+      '/creators/me/communities/$_communityId/rooms/$_permissionsRoomId/permissions',
+      data: {'userId': userId, 'permission': _permType},
+    );
+    _permUserIdCtrl.clear();
+    await _loadPermissions(_permissionsRoomId!);
   }
 
   Future<void> _loadCommunities() async {
@@ -85,6 +116,12 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
 
   Future<void> _openRoom(String roomId, String roomType) async {
     if (_communityId == null) return;
+    if (roomType == 'text') {
+      if (mounted) {
+        context.push('/community/$_communityId/text/$roomId');
+      }
+      return;
+    }
     var webBase = AppConstants.webBaseUrl;
     try {
       final config = await ref.read(platformConfigProvider.future);
@@ -162,6 +199,12 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
                           children: [
                             if (roomId != null)
                               IconButton(
+                                icon: const Icon(Icons.admin_panel_settings_outlined),
+                                tooltip: 'Room permissions',
+                                onPressed: () => _loadPermissions(roomId),
+                              ),
+                            if (roomId != null)
+                              IconButton(
                                 icon: const Icon(Icons.open_in_browser),
                                 tooltip: 'Open room',
                                 onPressed: () => _openRoom(roomId, roomType),
@@ -176,6 +219,33 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
                     );
                   },
                 ),
+                if (_permissionsRoomId != null) ...[
+                  const SizedBox(height: 24),
+                  Text(
+                    'Permissions (${_permissionsRoomId!.substring(0, 8)}…)',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextField(
+                    controller: _permUserIdCtrl,
+                    decoration: const InputDecoration(labelText: 'User ID'),
+                  ),
+                  DropdownButtonFormField<String>(
+                    value: _permType,
+                    items: const [
+                      DropdownMenuItem(value: 'view', child: Text('View')),
+                      DropdownMenuItem(value: 'send', child: Text('Send')),
+                      DropdownMenuItem(value: 'moderate', child: Text('Moderate')),
+                    ],
+                    onChanged: (v) => setState(() => _permType = v ?? 'send'),
+                  ),
+                  FilledButton(onPressed: _grantPermission, child: const Text('Grant permission')),
+                  ..._permissions.map(
+                    (p) => ListTile(
+                      dense: true,
+                      title: Text('${p['userId']} — ${p['permission']}'),
+                    ),
+                  ),
+                ],
               ],
             ),
     );

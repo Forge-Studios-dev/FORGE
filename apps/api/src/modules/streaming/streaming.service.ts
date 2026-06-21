@@ -19,6 +19,7 @@ import { CreateStreamDto } from './dto/create-stream.dto';
 import { Video, VideoStatus, VideoVisibility, PublishStatus } from '../content/entities/video.entity';
 import { MuxVodService } from '../content/mux-vod.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { TierEntitlementResourceType } from '../entitlements/entities/tier-entitlement.entity';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 import { User, UserRole } from '../users/entities/user.entity';
@@ -274,6 +275,25 @@ export class StreamingService {
 
     let hidePlayback = !access.allowed;
     let accessReason = access.reason;
+
+    if (
+      !hidePlayback &&
+      viewerId &&
+      !isOwner &&
+      !isAdmin &&
+      [StreamVisibility.SUBSCRIBERS, StreamVisibility.TIER].includes(stream.visibility)
+    ) {
+      const entitled = await this.entitlementsService.verifyMediaTierEntitlements(
+        viewerId,
+        stream.userId,
+        TierEntitlementResourceType.STREAM,
+        stream.id,
+      );
+      if (!entitled) {
+        hidePlayback = true;
+        accessReason = 'tier_required';
+      }
+    }
 
     if (!hidePlayback && stream.ageRestricted && !isOwner && !isAdmin) {
       const ageOk = await this.viewerHasMatureContentAck(viewerId);

@@ -11,6 +11,7 @@ type Subscription = {
   creatorId: string;
   tierId?: string;
   status: string;
+  source?: string;
   tier?: { id: string; name: string };
   creator?: { username?: string; displayName?: string };
 };
@@ -96,8 +97,15 @@ export default function MembershipsPage() {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: async (creatorId: string) => {
-      await api.delete(`/subscriptions/me/${creatorId}`);
+    mutationFn: async ({
+      creatorId,
+      cancelAtPeriodEnd,
+    }: {
+      creatorId: string;
+      cancelAtPeriodEnd?: boolean;
+    }) => {
+      const qs = cancelAtPeriodEnd ? '?cancelAtPeriodEnd=true' : '';
+      await api.delete(`/subscriptions/me/${creatorId}${qs}`);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['my-subscriptions', user?.id] });
@@ -113,6 +121,8 @@ export default function MembershipsPage() {
       if (data.data?.url) window.location.href = data.data.url;
     },
   });
+
+  const useStripe = process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
 
   if (isGuest) {
     return (
@@ -136,7 +146,18 @@ export default function MembershipsPage() {
       ) : (
         <ul className="space-y-3">
           {(subscriptions ?? []).map((sub) => {
-            const canCancel = sub.status === 'active' || sub.status === 'trial' || sub.status === 'grace_period';
+            const isRenewalPending = sub.status === 'renewal_pending';
+            const canManage =
+              sub.status === 'active' ||
+              sub.status === 'trial' ||
+              sub.status === 'grace_period' ||
+              isRenewalPending;
+            const canCancelNow =
+              canManage &&
+              !isRenewalPending &&
+              (sub.source !== 'stripe' || !useStripe);
+            const canCancelAtPeriodEnd =
+              canManage && !isRenewalPending && sub.source === 'stripe' && useStripe;
             return (
               <li key={sub.id} className="glass-panel rounded-xl p-4">
                 <div className="flex items-start justify-between gap-4">
@@ -145,8 +166,13 @@ export default function MembershipsPage() {
                       {sub.creator?.displayName ?? sub.creator?.username ?? 'Creator'}
                     </p>
                     <p className="text-sm text-on-surface-variant">{sub.tier?.name ?? 'Member'}</p>
+                    {isRenewalPending ? (
+                      <p className="mt-1 text-xs text-on-surface-variant">
+                        Cancels at end of billing period — access remains until then.
+                      </p>
+                    ) : null}
                   </div>
-                  <span className="text-xs capitalize text-primary">{sub.status}</span>
+                  <span className="text-xs capitalize text-primary">{sub.status.replace('_', ' ')}</span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-3">
                   {sub.creator?.username ? (
@@ -157,7 +183,43 @@ export default function MembershipsPage() {
                       Open community →
                     </Link>
                   ) : null}
-                  {canCancel ? (
+                  {canCancelAtPeriodEnd ? (
+                    <Button
+                      variant="ghost"
+                      className="h-auto px-0 py-0 text-xs text-on-surface-variant"
+                      disabled={cancelMutation.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            'Cancel at the end of your billing period? You keep access until then.',
+                          )
+                        ) {
+                          cancelMutation.mutate({ creatorId: sub.creatorId, cancelAtPeriodEnd: true });
+                        }
+                      }}
+                    >
+                      Cancel at period end
+                    </Button>
+                  ) : null}
+                  {canCancelNow || (canManage && !isRenewalPending && sub.source === 'stripe' && useStripe) ? (
+                    <Button
+                      variant="ghost"
+                      className="h-auto px-0 py-0 text-xs text-error"
+                      disabled={cancelMutation.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            'Cancel this membership immediately? You may lose access to member-only content.',
+                          )
+                        ) {
+                          cancelMutation.mutate({ creatorId: sub.creatorId });
+                        }
+                      }}
+                    >
+                      Cancel now
+                    </Button>
+                  ) : null}
+                  {!canCancelNow && !canCancelAtPeriodEnd && canManage && !isRenewalPending ? (
                     <Button
                       variant="ghost"
                       className="h-auto px-0 py-0 text-xs text-error"
@@ -168,7 +230,7 @@ export default function MembershipsPage() {
                             'Cancel this membership? You may lose access to member-only content.',
                           )
                         ) {
-                          cancelMutation.mutate(sub.creatorId);
+                          cancelMutation.mutate({ creatorId: sub.creatorId });
                         }
                       }}
                     >
@@ -184,7 +246,7 @@ export default function MembershipsPage() {
                     Manage billing
                   </Button>
                 </div>
-                {canCancel ? (
+                {canManage && !isRenewalPending ? (
                   <TierChangeSelect
                     subscription={sub}
                     onChanged={() => {

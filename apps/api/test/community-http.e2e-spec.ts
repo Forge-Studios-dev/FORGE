@@ -4,6 +4,9 @@ import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
+import { CommunityMembersController } from '../src/modules/communities/community-members.controller';
+import { CommunityMembersService } from '../src/modules/communities/community-members.service';
+import { CommunityStudioGuard } from '../src/modules/communities/guards/community-studio.guard';
 import { CommunityPostsController } from '../src/modules/communities/community-posts.controller';
 import { CommunityPostsService } from '../src/modules/communities/community-posts.service';
 import { CommunitiesController } from '../src/modules/communities/communities.controller';
@@ -27,6 +30,9 @@ import { CommunityRoomPermissionsService } from '../src/modules/communities/comm
 import { CommunityAiController } from '../src/modules/communities/community-ai.controller';
 import { AiCommunityService } from '../src/modules/communities/ai-community.service';
 import { CreatorAuditService } from '../src/modules/communities/creator-audit.service';
+import { EntitlementsController } from '../src/modules/entitlements/entitlements.controller';
+import { EntitlementsService } from '../src/modules/entitlements/entitlements.service';
+import { CreatorBundlesService } from '../src/modules/entitlements/creator-bundles.service';
 
 describe('Community HTTP (mocked e2e)', () => {
   let app: INestApplication;
@@ -46,7 +52,12 @@ describe('Community HTTP (mocked e2e)', () => {
     listFeaturedCommunities: jest.fn().mockResolvedValue({
       data: [{ id: 'comm-1', name: 'Featured Community', slug: 'featured' }],
     }),
-    getCommunityAnalytics: jest.fn().mockResolvedValue({ messages7d: 10, posts7d: 2 }),
+    getCommunityAnalytics: jest.fn().mockResolvedValue({
+      messagesLast7Days: 10,
+      activeMembersLast7Days: 5,
+      postsLast7Days: 2,
+      retention: { activeSubscribers: 10, engagedMembers: 7 },
+    }),
     listModeratedCommunities: jest.fn().mockResolvedValue({
       data: [{ communityId: 'comm-1', role: 'moderator' }],
     }),
@@ -58,6 +69,13 @@ describe('Community HTTP (mocked e2e)', () => {
       communities: [],
     }),
     assertCommunityAccess: jest.fn().mockResolvedValue(undefined),
+    getCommunityAccessMeta: jest.fn().mockResolvedValue({
+      communityId: 'comm-1',
+      canView: false,
+      canRequestJoin: true,
+      joinRequestStatus: 'none',
+      visibility: 'private',
+    }),
   };
 
   const pollsService = {
@@ -103,17 +121,45 @@ describe('Community HTTP (mocked e2e)', () => {
   };
 
   const aiCommunityService = {
-    scoreContent: jest.fn().mockReturnValue({ score: 0.1, flagged: false, reasons: [], model: 'regex' }),
-    summarizeDiscussion: jest.fn().mockReturnValue('Recent themes: hello.'),
+    scoreContentAsync: jest.fn().mockResolvedValue({
+      score: 0.1,
+      flagged: false,
+      reasons: [],
+      model: 'regex',
+    }),
+    summarizeDiscussionAsync: jest.fn().mockResolvedValue('Recent themes: hello.'),
+    communityHealthScore: jest.fn().mockReturnValue({ score: 72, tips: [] }),
   };
 
   const auditService = {
     listForCreator: jest.fn().mockResolvedValue({ data: [{ id: 'log-1', action: 'room.permission.grant' }] }),
   };
 
+  const membersService = {
+    requestJoin: jest.fn().mockResolvedValue({ data: { id: 'm1', status: 'pending' }, pending: true }),
+    listMembers: jest.fn().mockResolvedValue({ data: [{ id: 'm1', userId: 'user-2', status: 'pending' }] }),
+    approveMember: jest.fn().mockResolvedValue({ data: { id: 'm1', status: 'active' } }),
+    rejectMember: jest.fn().mockResolvedValue({ data: { id: 'm1', status: 'rejected' } }),
+  };
+
+  const entitlementsService = {
+    creatorGrantSubscription: jest.fn().mockResolvedValue({
+      id: 'sub-grant-1',
+      userId: '00000000-0000-4000-8000-000000000002',
+      status: 'active',
+      source: 'creator_grant',
+    }),
+    cancelMySubscription: jest.fn().mockResolvedValue({ canceled: false, cancelAtPeriodEnd: true }),
+  };
+
+  const creatorBundlesService = {
+    listBundlesForCreator: jest.fn().mockResolvedValue({ data: [] }),
+  };
+
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [
+        CommunityMembersController,
         CommunityPostsController,
         CommunitiesController,
         CommunityPollsController,
@@ -122,6 +168,7 @@ describe('Community HTTP (mocked e2e)', () => {
         CommunityEngagementController,
         CommunityRoomsController,
         CommunityAiController,
+        EntitlementsController,
       ],
       providers: [
         { provide: CommunityPostsService, useValue: postsService },
@@ -135,6 +182,9 @@ describe('Community HTTP (mocked e2e)', () => {
         { provide: CommunityRoomPermissionsService, useValue: roomPermissionsService },
         { provide: AiCommunityService, useValue: aiCommunityService },
         { provide: CreatorAuditService, useValue: auditService },
+        { provide: CommunityMembersService, useValue: membersService },
+        { provide: EntitlementsService, useValue: entitlementsService },
+        { provide: CreatorBundlesService, useValue: creatorBundlesService },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -150,6 +200,8 @@ describe('Community HTTP (mocked e2e)', () => {
       .overrideGuard(CreatorApprovedGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(CommunityRoleGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(CommunityStudioGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
@@ -338,7 +390,7 @@ describe('Community HTTP (mocked e2e)', () => {
       .post('/api/v1/creators/me/ai/moderation/score')
       .send({ text: 'Hello community' });
     expect(res.status).toBe(201);
-    expect(aiCommunityService.scoreContent).toHaveBeenCalled();
+    expect(aiCommunityService.scoreContentAsync).toHaveBeenCalled();
   });
 
   it('GET /api/v1/creators/me/audit-logs returns creator audit history', async () => {
@@ -353,6 +405,80 @@ describe('Community HTTP (mocked e2e)', () => {
     );
     expect(res.status).toBe(200);
     expect(roomMessagesService.listMessages).toHaveBeenCalled();
-    expect(aiCommunityService.summarizeDiscussion).toHaveBeenCalled();
+    expect(aiCommunityService.summarizeDiscussionAsync).toHaveBeenCalled();
+  });
+
+  it('POST /api/v1/communities/:id/join-request submits join request', async () => {
+    const res = await request(app.getHttpServer()).post('/api/v1/communities/comm-1/join-request');
+    expect(res.status).toBe(201);
+    expect(membersService.requestJoin).toHaveBeenCalledWith('user-1', 'comm-1', 'consumer');
+  });
+
+  it('GET /api/v1/creators/me/communities/:id/members lists members', async () => {
+    const res = await request(app.getHttpServer()).get(
+      '/api/v1/creators/me/communities/comm-1/members?status=pending',
+    );
+    expect(res.status).toBe(200);
+    expect(membersService.listMembers).toHaveBeenCalledWith('user-1', 'comm-1', 'pending');
+  });
+
+  it('PATCH /api/v1/creators/me/communities/:id/members/:userId/approve approves member', async () => {
+    const res = await request(app.getHttpServer()).patch(
+      '/api/v1/creators/me/communities/comm-1/members/user-2/approve',
+    );
+    expect(res.status).toBe(200);
+    expect(membersService.approveMember).toHaveBeenCalledWith('user-1', 'comm-1', 'user-2', 'consumer');
+  });
+
+  it('GET /api/v1/creators/:creatorId/communities/:slug/access returns join metadata', async () => {
+    const res = await request(app.getHttpServer()).get(
+      '/api/v1/creators/creator-1/communities/test/access',
+    );
+    expect(res.status).toBe(200);
+    expect(communitiesService.getCommunityAccessMeta).toHaveBeenCalledWith(
+      'creator-1',
+      'test',
+      'user-1',
+      'consumer',
+    );
+  });
+
+  it('PATCH /api/v1/creators/me/communities/:id/members/:userId/reject rejects member', async () => {
+    const res = await request(app.getHttpServer()).patch(
+      '/api/v1/creators/me/communities/comm-1/members/user-2/reject',
+    );
+    expect(res.status).toBe(200);
+    expect(membersService.rejectMember).toHaveBeenCalledWith('user-1', 'comm-1', 'user-2', 'consumer');
+  });
+
+  it('POST /api/v1/creators/me/subscribers/grant grants comp membership', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/creators/me/subscribers/grant')
+      .send({
+        userId: '00000000-0000-4000-8000-000000000002',
+        tierId: '00000000-0000-4000-8000-000000000003',
+        expiresInDays: 30,
+      });
+    expect(res.status).toBe(201);
+    expect(entitlementsService.creatorGrantSubscription).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        userId: '00000000-0000-4000-8000-000000000002',
+        tierId: '00000000-0000-4000-8000-000000000003',
+        expiresInDays: 30,
+      }),
+    );
+  });
+
+  it('DELETE /api/v1/subscriptions/me/:creatorId?cancelAtPeriodEnd=true schedules cancel', async () => {
+    const res = await request(app.getHttpServer()).delete(
+      '/api/v1/subscriptions/me/creator-1?cancelAtPeriodEnd=true',
+    );
+    expect(res.status).toBe(200);
+    expect(entitlementsService.cancelMySubscription).toHaveBeenCalledWith(
+      'user-1',
+      'creator-1',
+      true,
+    );
   });
 });
