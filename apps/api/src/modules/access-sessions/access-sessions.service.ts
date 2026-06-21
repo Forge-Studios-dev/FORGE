@@ -7,10 +7,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { Repository } from 'typeorm';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 import { AccessSessionAudit } from './entities/access-session-audit.entity';
 import { AccessSessionType, StartAccessSessionDto } from './dto/access-session.dto';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { recordAccessSessionConflict } from '../../common/metrics/forge-metrics';
 
 const SESSION_TTL_SEC = 120;
 const HEARTBEAT_INTERVAL_SEC = 45;
@@ -88,6 +89,15 @@ export class AccessSessionsService {
     return results;
   }
 
+  private deriveDeviceFingerprint(
+    clientFingerprint: string | null | undefined,
+    userAgent: string | null | undefined,
+  ): string | null {
+    const material = [clientFingerprint ?? '', userAgent ?? ''].join('|').trim();
+    if (!material) return null;
+    return createHash('sha256').update(material).digest('hex').slice(0, 64);
+  }
+
   async startSession(
     userId: string,
     dto: StartAccessSessionDto,
@@ -99,7 +109,10 @@ export class AccessSessionsService {
       creatorId ?? undefined,
     );
     const active = await this.getActiveSessionPayloads(userId, creatorId);
-    const deviceFingerprint = meta?.deviceFingerprint ?? null;
+    const deviceFingerprint = this.deriveDeviceFingerprint(
+      meta?.deviceFingerprint,
+      meta?.userAgent,
+    );
 
     const sameDeviceSession = deviceFingerprint
       ? active.find((s) => s.payload.deviceFingerprint === deviceFingerprint)
@@ -146,6 +159,7 @@ export class AccessSessionsService {
         sessionType: dto.sessionType,
         resourceId: dto.resourceId ?? null,
         deviceFingerprint,
+        sessionToken,
       }),
     );
 
@@ -157,12 +171,19 @@ export class AccessSessionsService {
     };
   }
 
-  async heartbeat(userId: string, sessionToken: string) {
+  async heartbeat(userId: string, sessionToken: string, deviceFingerprint?: string | null) {
     const raw = await this.redis.get(this.tokenKey(sessionToken));
     if (!raw) throw new UnauthorizedException('Session expired or invalid');
 
     const payload = JSON.parse(raw) as SessionPayload;
     if (payload.userId !== userId) throw new UnauthorizedException('Session mismatch');
+    if (
+      payload.deviceFingerprint &&
+      deviceFingerprint &&
+      payload.deviceFingerprint !== deviceFingerprint
+    ) {
+      throw new UnauthorizedException('Device fingerprint mismatch');
+    }
 
     await this.redis.setex(this.tokenKey(sessionToken), SESSION_TTL_SEC, raw);
     await this.redis.sadd(this.userTokensKey(userId), sessionToken);
@@ -179,8 +200,7 @@ export class AccessSessionsService {
         await this.redis.srem(this.userTokensKey(userId), sessionToken);
 
         const audit = await this.auditRepository.findOne({
-          where: { userId, sessionType: payload.sessionType, endedAt: null as unknown as Date },
-          order: { startedAt: 'DESC' },
+          where: { userId, sessionToken, endedAt: null as unknown as Date },
         });
         if (audit) {
           audit.endedAt = new Date();
@@ -190,6 +210,21 @@ export class AccessSessionsService {
       }
     }
     return { ended: true };
+  }
+
+  async listSessions(userId: string) {
+    const active = await this.getActiveSessionPayloads(userId);
+    const maxDevices = await this.entitlementsService.getMaxConcurrentDevices(userId);
+    return {
+      data: active.map(({ token, payload }) => ({
+        sessionToken: token,
+        sessionType: payload.sessionType,
+        resourceId: payload.resourceId,
+        creatorId: payload.creatorId,
+        startedAt: payload.startedAt,
+      })),
+      maxDevices,
+    };
   }
 
   async getCurrentSession(userId: string) {
@@ -210,6 +245,7 @@ export class AccessSessionsService {
   async assertSessionAllowed(userId: string, sessionType: AccessSessionType, resourceId?: string) {
     const active = await this.getActiveSessionPayloads(userId);
     if (!active.length) {
+      recordAccessSessionConflict('session_required');
       throw new ConflictException({
         code: 'session_required',
         message: 'Start an access session before viewing premium content',
@@ -221,6 +257,7 @@ export class AccessSessionsService {
         (!resourceId || !s.payload.resourceId || s.payload.resourceId === resourceId),
     );
     if (!match) {
+      recordAccessSessionConflict('concurrent_session');
       throw new ConflictException({
         code: 'concurrent_session',
         message: 'Active session is for different content',

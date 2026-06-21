@@ -8,6 +8,8 @@ import { SubscriptionTier } from '@/types';
 
 interface Props {
   creatorId: string;
+  /** When set, checkout creates a community-scoped subscription. */
+  communityId?: string;
 }
 
 type ProductBundle = {
@@ -19,7 +21,7 @@ type ProductBundle = {
   tier?: { name: string; priceCents: number; currency: string; billingInterval: string };
 };
 
-export function MembershipPanel({ creatorId }: Props) {
+export function MembershipPanel({ creatorId, communityId }: Props) {
   const { user, isGuest } = useAuth();
   const qc = useQueryClient();
 
@@ -70,6 +72,7 @@ export function MembershipPanel({ creatorId }: Props) {
       const { data } = await api.post<{ data: { checkoutUrl?: string | null } }>('/billing/checkout', {
         creatorId,
         tierId,
+        ...(communityId ? { communityId } : {}),
         successUrl: `${origin}/settings/memberships?success=1`,
         cancelUrl: `${origin}${window.location.pathname}`,
       });

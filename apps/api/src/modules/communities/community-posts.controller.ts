@@ -5,7 +5,7 @@ import { CommunityPostType } from './entities/community-post.entity';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
-import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { CommunityStudioGuard } from './guards/community-studio.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
 @ApiTags('Community Posts')
@@ -45,7 +45,7 @@ export class CommunityPostsController {
   }
 
   @Post('creators/me/communities/:communityId/posts')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(CommunityStudioGuard)
   @ApiOperation({ summary: 'Create a community post or announcement' })
   create(
     @CurrentUser() user: JwtPayload,
@@ -59,22 +59,27 @@ export class CommunityPostsController {
       mediaUrls?: string[];
     },
   ) {
-    return this.postsService.createPost(user.sub, communityId, user.sub, body);
+    return this.postsService.createPost(user.sub, communityId, user.sub, body, user.role);
   }
 
   @Post('creators/me/communities/:communityId/posts/media-upload-url')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(CommunityStudioGuard)
   @ApiOperation({ summary: 'Presigned URL for community post image upload' })
   postMediaUploadUrl(
     @CurrentUser() user: JwtPayload,
     @Param('communityId') communityId: string,
     @Query('contentType') contentType: string,
   ) {
-    return this.postsService.getMediaUploadUrl(user.sub, communityId, contentType || 'image/jpeg');
+    return this.postsService.getMediaUploadUrl(
+      user.sub,
+      communityId,
+      contentType || 'image/jpeg',
+      user.role,
+    );
   }
 
   @Patch('creators/me/communities/:communityId/posts/:postId')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(CommunityStudioGuard)
   @ApiOperation({ summary: 'Update a community post' })
   update(
     @CurrentUser() user: JwtPayload,
@@ -82,22 +87,22 @@ export class CommunityPostsController {
     @Param('postId') postId: string,
     @Body() body: { title?: string; body?: string; isPinned?: boolean },
   ) {
-    return this.postsService.updatePost(user.sub, communityId, postId, body);
+    return this.postsService.updatePost(user.sub, communityId, postId, body, user.role);
   }
 
   @Delete('creators/me/communities/:communityId/posts/:postId')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(CommunityStudioGuard)
   @ApiOperation({ summary: 'Delete a community post' })
   delete(
     @CurrentUser() user: JwtPayload,
     @Param('communityId') communityId: string,
     @Param('postId') postId: string,
   ) {
-    return this.postsService.deletePost(user.sub, communityId, postId);
+    return this.postsService.deletePost(user.sub, communityId, postId, user.role);
   }
 
   @Post('creators/me/communities/:communityId/posts/:postId/pin')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(CommunityStudioGuard)
   @ApiOperation({ summary: 'Pin or unpin a community post' })
   pin(
     @CurrentUser() user: JwtPayload,
@@ -105,7 +110,13 @@ export class CommunityPostsController {
     @Param('postId') postId: string,
     @Body() body: { isPinned: boolean },
   ) {
-    return this.postsService.setPostPinned(user.sub, communityId, postId, body.isPinned);
+    return this.postsService.setPostPinned(
+      user.sub,
+      communityId,
+      postId,
+      body.isPinned,
+      user.role,
+    );
   }
 
   @Public()

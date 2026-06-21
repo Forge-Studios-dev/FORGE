@@ -54,6 +54,9 @@ export class CommunityRoom {
   @Column({ name: 'sort_order', type: 'int', default: 0 })
   sortOrder: number;
 
+  @Column({ name: 'category_id', type: 'uuid', nullable: true })
+  categoryId: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

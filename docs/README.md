@@ -23,6 +23,7 @@ All project documentation lives in `docs/`. Start with **[FORGE_PROJECT_MASTER.m
 | [OBSERVABILITY.md](./OBSERVABILITY.md) | Metrics, Sentry, Grafana |
 | [MEMBERSHIPS.md](./MEMBERSHIPS.md) | Mock tiers + partial Stripe |
 | [COMMUNITY-2.0-IMPLEMENTATION.md](./COMMUNITY-2.0-IMPLEMENTATION.md) | Community 2.0 / Creator Economy OS tracker |
+| [AI-LLM-STRATEGY.md](./AI-LLM-STRATEGY.md) | AI/LLM audit, provider selection, architecture & rollout plan |
 | [DESIGN.md](./DESIGN.md) | Design system & Stitch blueprints |
 | [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) | Stakeholder summary |
 | [LEGAL.md](./LEGAL.md) | Terms & privacy |
@@ -64,6 +65,7 @@ Enterprise audit **closed** 2026-06-05. Re-audit **2026-09-04** or 50K MAU.
 |--------|--------|
 | New module or route | `FORGE_PROJECT_MASTER.md` §4 + §20 |
 | Live feature | `LIVE.md` + master §20 |
+| AI / LLM feature | `AI-LLM-STRATEGY.md` + `COMMUNITY-2.0-IMPLEMENTATION.md` Phase I |
 | Public response shape | `API_SCHEMAS.md` + `@forge/shared-types` |
 | Feature status | Master §16 + `CLIENT_OVERVIEW.md` |
 

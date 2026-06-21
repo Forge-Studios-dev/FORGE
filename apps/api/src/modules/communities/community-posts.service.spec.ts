@@ -20,7 +20,10 @@ describe('CommunityPostsService', () => {
     delete: jest.Mock;
   };
   let communityRepository: { findOne: jest.Mock };
-  let communitiesService: { assertCommunityAccess: jest.Mock };
+  let communitiesService: {
+    assertCommunityAccess: jest.Mock;
+    assertCommunityStudioAccess: jest.Mock;
+  };
 
   beforeEach(async () => {
     const qb = {
@@ -53,6 +56,9 @@ describe('CommunityPostsService', () => {
     };
     communitiesService = {
       assertCommunityAccess: jest.fn().mockResolvedValue(undefined),
+      assertCommunityStudioAccess: jest
+        .fn()
+        .mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1' }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -121,7 +127,9 @@ describe('CommunityPostsService', () => {
   });
 
   it('rejects post for unowned community', async () => {
-    communityRepository.findOne.mockResolvedValue({ id: 'comm-1', creatorId: 'other' });
+    communitiesService.assertCommunityStudioAccess.mockRejectedValue(
+      new ForbiddenException('Insufficient permissions for community studio'),
+    );
     await expect(
       service.createPost('creator-1', 'comm-1', 'creator-1', { body: 'x' }),
     ).rejects.toThrow(ForbiddenException);

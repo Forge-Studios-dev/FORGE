@@ -14,9 +14,10 @@ import { SubscriberPicker } from '@/components/Community/SubscriberPicker';
 import { StudioEngagementExtrasPanel } from '@/components/Community/StudioEngagementExtrasPanel';
 import { StudioCreatorOpsPanel } from '@/components/Community/StudioCreatorOpsPanel';
 import { StudioRoomsPanel } from '@/components/Community/StudioRoomsPanel';
+import { StudioCommunityMembersPanel } from '@/components/Community/StudioCommunityMembersPanel';
 import { CommunityTrendsChart } from '@/components/Community/CommunityTrendsChart';
 
-type Tab = 'channels' | 'categories' | 'engagement' | 'rooms' | 'moderation' | 'settings';
+type Tab = 'channels' | 'categories' | 'engagement' | 'rooms' | 'moderation' | 'members' | 'settings';
 
 export default function StudioCommunityDetailPage() {
   const params = useParams();
@@ -274,6 +275,27 @@ export default function StudioCommunityDetailPage() {
     onError: () => showStatus('Failed to update channel'),
   });
 
+  const reorderChannelsMutation = useMutation({
+    mutationFn: async (channelIds: string[]) => {
+      await api.patch(`/creators/me/communities/${communityId}/channels/reorder`, { channelIds });
+    },
+    onSuccess: () => {
+      invalidateDetail();
+      showStatus('Channel order updated');
+    },
+    onError: () => showStatus('Failed to reorder channels'),
+  });
+
+  const moveChannel = (index: number, direction: -1 | 1) => {
+    const channels = payload?.channels ?? [];
+    const target = index + direction;
+    if (target < 0 || target >= channels.length) return;
+    const ids = channels.map((c) => c.id);
+    const [removed] = ids.splice(index, 1);
+    ids.splice(target, 0, removed);
+    reorderChannelsMutation.mutate(ids);
+  };
+
   const inviteMutation = useMutation({
     mutationFn: async ({ channelId, userId }: { channelId: string; userId: string }) => {
       await api.post(`/creators/me/channels/${channelId}/invite`, { userId });
@@ -437,7 +459,7 @@ export default function StudioCommunityDetailPage() {
       ) : null}
 
       <nav className="mb-6 flex flex-wrap gap-2">
-        {(['channels', 'categories', 'engagement', 'rooms', 'moderation', 'settings'] as Tab[]).map((t) => (
+        {(['channels', 'categories', 'engagement', 'rooms', 'members', 'moderation', 'settings'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -473,7 +495,7 @@ export default function StudioCommunityDetailPage() {
             </Button>
           </section>
           <ul className="space-y-2">
-            {(payload?.channels ?? []).map((ch) => (
+            {(payload?.channels ?? []).map((ch, index, channels) => (
               <li key={ch.id} className="glass-panel rounded-xl p-4">
                 {editingChannelId === ch.id ? (
                   <div className="space-y-2">
@@ -512,6 +534,22 @@ export default function StudioCommunityDetailPage() {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="ghost"
+                        className="text-xs"
+                        disabled={index === 0 || reorderChannelsMutation.isPending}
+                        onClick={() => moveChannel(index, -1)}
+                      >
+                        ↑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="text-xs"
+                        disabled={index === channels.length - 1 || reorderChannelsMutation.isPending}
+                        onClick={() => moveChannel(index, 1)}
+                      >
+                        ↓
+                      </Button>
                       <Button
                         variant="ghost"
                         className="text-xs"
@@ -836,6 +874,8 @@ export default function StudioCommunityDetailPage() {
       ) : null}
 
       {tab === 'rooms' ? <StudioRoomsPanel communityId={communityId} /> : null}
+
+      {tab === 'members' ? <StudioCommunityMembersPanel communityId={communityId} /> : null}
 
       {tab === 'moderation' ? <StudioModerationPanel communityId={communityId} /> : null}
 

@@ -49,7 +49,11 @@ function mockStream(overrides: Partial<Stream> = {}): Stream {
 
 describe('StreamingService access gating', () => {
   let service: StreamingService;
-  let entitlementsService: { checkAccess: jest.Mock; checkAccessMany: jest.Mock };
+  let entitlementsService: {
+    checkAccess: jest.Mock;
+    checkAccessMany: jest.Mock;
+    verifyMediaTierEntitlements: jest.Mock;
+  };
 
   const streamRepository = {
     findOne: jest.fn(),
@@ -68,6 +72,7 @@ describe('StreamingService access gating', () => {
     entitlementsService = {
       checkAccess: jest.fn(),
       checkAccessMany: jest.fn(),
+      verifyMediaTierEntitlements: jest.fn().mockResolvedValue(true),
     };
     streamRepository.findOne.mockReset();
     streamRepository.find.mockReset();

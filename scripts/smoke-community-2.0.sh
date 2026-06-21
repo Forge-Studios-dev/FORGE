@@ -47,6 +47,17 @@ subs_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
   "${BASE}/creators/me/subscribers/analytics" || true)"
 [[ "$subs_code" == "200" ]] && echo "OK: GET /creators/me/subscribers/analytics" || echo "WARN: subscriber analytics ${subs_code}" >&2
 
+tiers_json="$(curl_smoke -H "Authorization: Bearer ${creator_token}" \
+  "${BASE}/creators/${creator_id}/tiers" 2>/dev/null || true)"
+first_tier_id="$(echo "$tiers_json" | python3 -c "
+import json,sys
+try:
+  data=json.load(sys.stdin).get('data',[])
+  print(data[0]['id'] if data else '')
+except Exception:
+  print('')
+" 2>/dev/null || true)"
+
 search_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
   "${BASE}/communities/search?q=community" || true)"
 [[ "$search_code" == "200" ]] && echo "OK: GET /communities/search" || echo "WARN: community search ${search_code}" >&2
@@ -81,6 +92,10 @@ if [[ -n "$first_community_id" ]]; then
     -H "Authorization: Bearer ${creator_token}" \
     "${BASE}/creators/me/communities/${first_community_id}/analytics" || true)"
   [[ "$analytics_code" == "200" ]] && echo "OK: GET /creators/me/communities/:id/analytics" || echo "WARN: analytics ${analytics_code}" >&2
+
+  layout_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+    "${BASE}/communities/${first_community_id}/layout" || true)"
+  [[ "$layout_code" == "200" ]] && echo "OK: GET /communities/:id/layout" || echo "WARN: community layout ${layout_code}" >&2
 
   posts_list_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
     "${BASE}/communities/${first_community_id}/posts" || true)"
@@ -126,6 +141,7 @@ fi
 
 viewer_body="$(login "$VIEWER_EMAIL" "$VIEWER_PASS" || true)"
 viewer_token="$(echo "$viewer_body" | python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('accessToken',''))" 2>/dev/null || true)"
+viewer_id="$(echo "$viewer_body" | python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('user',{}).get('id',''))" 2>/dev/null || true)"
 
 if [[ -n "$viewer_token" ]]; then
   session_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
@@ -177,6 +193,74 @@ if [[ -n "$viewer_token" ]]; then
     lb_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
       "${BASE}/communities/${first_community_id}/leaderboard" || true)"
     [[ "$lb_code" == "200" ]] && echo "OK: GET /communities/:id/leaderboard" || echo "WARN: leaderboard ${lb_code}" >&2
+
+    # Join-request flow: create private community, request, approve, verify access
+    if [[ -n "$creator_token" && -n "$viewer_token" && -n "$viewer_id" ]]; then
+      private_slug="smoke-private-$(date +%s)"
+      private_body="$(curl_smoke -X POST \
+        -H "Authorization: Bearer ${creator_token}" \
+        -H 'Content-Type: application/json' \
+        -d "{\"name\":\"Smoke Private\",\"slug\":\"${private_slug}\",\"visibility\":\"private\"}" \
+        "${BASE}/creators/me/communities" 2>/dev/null || true)"
+      private_community_id="$(echo "$private_body" | python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)"
+
+      if [[ -n "$private_community_id" ]]; then
+        access_meta_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+          -H "Authorization: Bearer ${viewer_token}" \
+          "${BASE}/creators/${creator_id}/communities/${private_slug}/access" || true)"
+        [[ "$access_meta_code" == "200" ]] \
+          && echo "OK: GET /creators/:id/communities/:slug/access" \
+          || echo "WARN: community access meta ${access_meta_code}" >&2
+
+        join_req_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+          -X POST -H "Authorization: Bearer ${viewer_token}" \
+          "${BASE}/communities/${private_community_id}/join-request" || true)"
+        [[ "$join_req_code" == "200" || "$join_req_code" == "201" ]] \
+          && echo "OK: POST /communities/:id/join-request" \
+          || echo "WARN: join request ${join_req_code}" >&2
+
+        pending_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+          -H "Authorization: Bearer ${creator_token}" \
+          "${BASE}/creators/me/communities/${private_community_id}/members?status=pending" || true)"
+        [[ "$pending_code" == "200" ]] \
+          && echo "OK: GET /creators/me/communities/:id/members?status=pending" \
+          || echo "WARN: pending members ${pending_code}" >&2
+
+        approve_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+          -X PATCH -H "Authorization: Bearer ${creator_token}" \
+          "${BASE}/creators/me/communities/${private_community_id}/members/${viewer_id}/approve" || true)"
+        [[ "$approve_code" == "200" ]] \
+          && echo "OK: PATCH approve join request" \
+          || echo "WARN: approve member ${approve_code}" >&2
+
+        access_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+          -H "Authorization: Bearer ${viewer_token}" \
+          "${BASE}/communities/id/${private_community_id}" || true)"
+        [[ "$access_code" == "200" ]] \
+          && echo "OK: viewer access after approve" \
+          || echo "WARN: viewer community access ${access_code}" >&2
+
+        if [[ -n "$first_tier_id" ]]; then
+          grant_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+            -X POST -H "Authorization: Bearer ${creator_token}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"userId\":\"${viewer_id}\",\"tierId\":\"${first_tier_id}\",\"communityId\":\"${private_community_id}\",\"expiresInDays\":30}" \
+            "${BASE}/creators/me/subscribers/grant" || true)"
+          [[ "$grant_code" == "200" || "$grant_code" == "201" ]] \
+            && echo "OK: POST /creators/me/subscribers/grant" \
+            || echo "WARN: creator grant ${grant_code}" >&2
+
+          cancel_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+            -X DELETE -H "Authorization: Bearer ${viewer_token}" \
+            "${BASE}/subscriptions/me/${creator_id}?cancelAtPeriodEnd=true" || true)"
+          [[ "$cancel_code" == "200" ]] \
+            && echo "OK: DELETE /subscriptions/me/:creatorId?cancelAtPeriodEnd=true" \
+            || echo "WARN: cancel at period end ${cancel_code}" >&2
+        fi
+      else
+        echo "WARN: private community create for join-request smoke" >&2
+      fi
+    fi
   fi
 
   if [[ -n "$creator_token" ]]; then

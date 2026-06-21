@@ -76,6 +76,7 @@ import { MultipartPartUrlsDto } from './dto/multipart-part-urls.dto';
 import { MultipartCompletePartsDto } from './dto/multipart-complete-parts.dto';
 import { MultipartCheckpointDto } from './dto/multipart-checkpoint.dto';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { TierEntitlementResourceType } from '../entitlements/entities/tier-entitlement.entity';
 import { EngagementService } from '../engagement/engagement.service';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
@@ -187,6 +188,17 @@ export class VideosService {
         isOwner,
         isAdmin,
       });
+      if (viewerId && !isOwner && !isAdmin) {
+        const entitled = await this.entitlementsService.verifyMediaTierEntitlements(
+          viewerId,
+          video.userId,
+          TierEntitlementResourceType.VIDEO,
+          video.id,
+        );
+        if (!entitled) {
+          throw new ForbiddenException('Your membership tier does not include this video');
+        }
+      }
       if (
         viewerId &&
         [VideoVisibility.SUBSCRIBERS, VideoVisibility.TIER].includes(video.visibility)

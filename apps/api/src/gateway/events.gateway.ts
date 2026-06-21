@@ -26,6 +26,8 @@ import { StreamingService } from '../modules/streaming/streaming.service';
 import { StreamReactionService } from '../modules/streaming/stream-reaction.service';
 import { VideosService } from '../modules/content/videos.service';
 import { CommunitiesService } from '../modules/communities/communities.service';
+import { CommunityRoomsService } from '../modules/communities/community-rooms.service';
+import { recordSocketJoinDenial } from '../common/metrics/forge-metrics';
 import { JwtPayload } from '../modules/auth/strategies/jwt.strategy';
 import { UserRole } from '../modules/users/entities/user.entity';
 
@@ -48,6 +50,15 @@ export class EventsGateway
   private readonly logger = new Logger(EventsGateway.name);
   private userSockets = new Map<string, Set<string>>();
   private static readonly SOCKET_ACCESS_CACHE_TTL_SEC = 60;
+  private static readonly SOCKET_JOIN_RATE_SEC = 3;
+
+  private async assertSocketJoinRate(userId: string, scope: string): Promise<void> {
+    const key = `socket:join:rate:${scope}:${userId}`;
+    const set = await this.redis.set(key, '1', 'EX', EventsGateway.SOCKET_JOIN_RATE_SEC, 'NX');
+    if (set !== 'OK') {
+      throw new WsException('Too many join requests — slow down');
+    }
+  }
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
@@ -58,6 +69,7 @@ export class EventsGateway
     private readonly streamReactionService: StreamReactionService,
     private readonly videosService: VideosService,
     private readonly communitiesService: CommunitiesService,
+    private readonly communityRoomsService: CommunityRoomsService,
   ) {}
 
   async afterInit() {
@@ -400,6 +412,27 @@ export class EventsGateway
     this.server.to(`room:${payload.roomId}`).emit('room:message:delete', payload);
   }
 
+  @OnEvent('community.post.created')
+  handleCommunityPostCreated(payload: { communityId: string; post: unknown }) {
+    this.server.to(`community:${payload.communityId}`).emit('post:created', payload.post);
+  }
+
+  @OnEvent('community.post.comment.created')
+  handleCommunityPostComment(payload: {
+    communityId: string;
+    postId: string;
+    comment: unknown;
+  }) {
+    this.server
+      .to(`community:${payload.communityId}`)
+      .emit('post:comment:created', { postId: payload.postId, comment: payload.comment });
+  }
+
+  @OnEvent('community.poll.updated')
+  handleCommunityPollUpdated(payload: { communityId: string; poll: unknown }) {
+    this.server.to(`community:${payload.communityId}`).emit('poll:updated', payload.poll);
+  }
+
   @OnEvent('notification.created')
   handleNotificationCreated(payload: { userId: string; notification: unknown }) {
     this.server.to(`user:${payload.userId}`).emit('notification:new', payload.notification);
@@ -465,15 +498,46 @@ export class EventsGateway
     client.leave(`stream:${data.streamId}`);
   }
 
+  @SubscribeMessage('join-community')
+  async handleJoinCommunity(
+    @MessageBody() data: { communityId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { userId, role } = this.requireAuth(client);
+    try {
+      await this.assertSocketJoinRate(userId, `community:${data.communityId}`);
+      await this.communitiesService.assertCommunityAccess(data.communityId, userId, role);
+      client.join(`community:${data.communityId}`);
+      return { event: 'joined-community', data: { communityId: data.communityId } };
+    } catch (err) {
+      recordSocketJoinDenial('community');
+      throw err;
+    }
+  }
+
+  @SubscribeMessage('leave-community')
+  handleLeaveCommunity(
+    @MessageBody() data: { communityId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    client.leave(`community:${data.communityId}`);
+  }
+
   @SubscribeMessage('join-channel')
   async handleJoinChannel(
     @MessageBody() data: { channelId: string },
     @ConnectedSocket() client: Socket,
   ) {
     const { userId, role } = this.requireAuth(client);
-    await this.assertChannelAccess(data.channelId, userId, role);
-    client.join(`channel:${data.channelId}`);
-    return { event: 'joined-channel', data: { channelId: data.channelId } };
+    try {
+      await this.assertSocketJoinRate(userId, `channel:${data.channelId}`);
+      await this.assertChannelAccess(data.channelId, userId, role);
+      client.join(`channel:${data.channelId}`);
+      return { event: 'joined-channel', data: { channelId: data.channelId } };
+    } catch (err) {
+      recordSocketJoinDenial('channel');
+      throw err;
+    }
   }
 
   @SubscribeMessage('leave-channel')
@@ -487,9 +551,20 @@ export class EventsGateway
     @ConnectedSocket() client: Socket,
   ) {
     const { userId, role } = this.requireAuth(client);
-    await this.communitiesService.assertCommunityAccess(data.communityId, userId, role);
-    client.join(`room:${data.roomId}`);
-    return { event: 'joined-room', data: { roomId: data.roomId } };
+    try {
+      await this.assertSocketJoinRate(userId, `room:${data.roomId}`);
+      await this.communityRoomsService.assertRoomAccess(
+        data.communityId,
+        data.roomId,
+        userId,
+        role,
+      );
+      client.join(`room:${data.roomId}`);
+      return { event: 'joined-room', data: { roomId: data.roomId } };
+    } catch (err) {
+      recordSocketJoinDenial('room');
+      throw err;
+    }
   }
 
   @SubscribeMessage('leave-room')

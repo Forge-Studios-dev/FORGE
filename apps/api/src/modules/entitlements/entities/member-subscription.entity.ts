@@ -82,6 +82,10 @@ export class MemberSubscription {
   @Column({ name: 'external_ref', type: 'varchar', nullable: true, length: 255 })
   externalRef: string | null;
 
+  /** When set, subscription grants access scoped to this community (optional). */
+  @Column({ name: 'community_id', type: 'uuid', nullable: true })
+  communityId: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

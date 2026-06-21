@@ -54,29 +54,76 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
     }
   }
 
-  Future<void> _cancel(String creatorId) async {
+  Future<void> _cancel(String creatorId, {bool cancelAtPeriodEnd = false}) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Cancel membership?'),
-        content: const Text('You may lose access to member-only content.'),
+        title: Text(cancelAtPeriodEnd ? 'Cancel at period end?' : 'Cancel membership?'),
+        content: Text(
+          cancelAtPeriodEnd
+              ? 'You keep access until the end of your billing period.'
+              : 'You may lose access to member-only content immediately.',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirm')),
         ],
       ),
     );
     if (confirmed != true) return;
     try {
       final client = ref.read(apiClientProvider);
-      await client.dio.delete('/subscriptions/me/$creatorId');
+      final qs = cancelAtPeriodEnd ? '?cancelAtPeriodEnd=true' : '';
+      await client.dio.delete('/subscriptions/me/$creatorId$qs');
       await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              cancelAtPeriodEnd
+                  ? 'Membership will cancel at period end'
+                  : 'Membership canceled',
+            ),
+          ),
+        );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not cancel membership')),
         );
       }
+    }
+  }
+
+  Future<void> _promptCancel(String creatorId, {String? source}) async {
+    final isStripe = source == 'stripe';
+    if (!isStripe) {
+      await _cancel(creatorId);
+      return;
+    }
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel membership'),
+        content: const Text('Choose when to cancel your Stripe subscription.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'period_end'),
+            child: const Text('At period end'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'now'),
+            child: const Text('Cancel now'),
+          ),
+        ],
+      ),
+    );
+    if (choice == 'period_end') {
+      await _cancel(creatorId, cancelAtPeriodEnd: true);
+    } else if (choice == 'now') {
+      await _cancel(creatorId);
     }
   }
 
@@ -133,6 +180,9 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
                       final tier = sub['tier'] as Map<String, dynamic>?;
                       final creatorId = sub['creatorId'] as String?;
                       final tierId = sub['tierId'] as String?;
+                      final status = sub['status'] as String? ?? '';
+                      final source = sub['source'] as String?;
+                      final isRenewalPending = status == 'renewal_pending';
                       final username = creator?['username'] as String?;
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -155,12 +205,23 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
                                 ),
                               ),
                               Text(
-                                (sub['status'] as String? ?? '').toUpperCase(),
+                                status.replaceAll('_', ' ').toUpperCase(),
                                 style: TextStyle(
                                   color: ForgeTokens.primary,
                                   fontSize: 11,
                                 ),
                               ),
+                              if (isRenewalPending)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    'Cancels at end of billing period',
+                                    style: TextStyle(
+                                      color: ForgeTokens.onSurfaceVariant,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
                               const SizedBox(height: 8),
                               Wrap(
                                 spacing: 8,
@@ -170,13 +231,16 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
                                       onPressed: () => context.push('/community/${sub['creatorId']}'),
                                       child: const Text('Open community'),
                                     ),
-                                  TextButton(
-                                    onPressed: creatorId == null ? null : () => _cancel(creatorId),
-                                    child: const Text('Cancel', style: TextStyle(color: Colors.red)),
-                                  ),
+                                  if (!isRenewalPending)
+                                    TextButton(
+                                      onPressed: creatorId == null
+                                          ? null
+                                          : () => _promptCancel(creatorId, source: source),
+                                      child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+                                    ),
                                 ],
                               ),
-                              if (creatorId != null)
+                              if (creatorId != null && !isRenewalPending)
                                 FutureBuilder<List<Map<String, dynamic>>>(
                                   future: _fetchTiers(creatorId),
                                   builder: (context, snap) {

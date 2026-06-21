@@ -17,6 +17,8 @@ import { AiModerationService } from './ai-moderation.service';
 import { AiCommunityService } from './ai-community.service';
 import { CommunityModerationQueueService } from './community-moderation-queue.service';
 import { Stream } from '../streaming/entities/stream.entity';
+import { CommunityRoom } from './entities/community-room.entity';
+import { CommunityMember } from './entities/community-member.entity';
 import { ChannelType } from '../entitlements/entities/channel-type.enum';
 import { UserRole } from '../users/entities/user.entity';
 
@@ -26,6 +28,8 @@ describe('CommunitiesService', () => {
     checkChannelAccess: jest.Mock;
     checkChannelAccessMany: jest.Mock;
     getMembershipForViewer: jest.Mock;
+    listActiveSubscriptionsForCreator: jest.Mock;
+    subscriptionCoversCommunity: jest.Mock;
   };
   let accessSessionsService: { requirePremiumSession: jest.Mock };
   let moderationService: { isBanned: jest.Mock };
@@ -69,6 +73,15 @@ describe('CommunitiesService', () => {
     createQueryBuilder: jest.fn(),
   };
 
+  const communityMemberRepository = {
+    findOne: jest.fn().mockResolvedValue(null),
+    find: jest.fn().mockResolvedValue([]),
+  };
+
+  const roomRepository = {
+    find: jest.fn().mockResolvedValue([]),
+  };
+
   const streamRepository = {
     find: jest.fn().mockResolvedValue([]),
   };
@@ -108,6 +121,8 @@ describe('CommunitiesService', () => {
       checkChannelAccess: jest.fn(),
       checkChannelAccessMany: jest.fn(),
       getMembershipForViewer: jest.fn().mockResolvedValue({ active: false }),
+      listActiveSubscriptionsForCreator: jest.fn().mockResolvedValue([]),
+      subscriptionCoversCommunity: jest.fn().mockReturnValue(false),
     };
     accessSessionsService = { requirePremiumSession: jest.fn().mockResolvedValue(undefined) };
     moderationService = { isBanned: jest.fn().mockResolvedValue(false) };
@@ -122,6 +137,8 @@ describe('CommunitiesService', () => {
         { provide: getRepositoryToken(CommunityRole), useValue: roleRepository },
         { provide: getRepositoryToken(Channel), useValue: channelRepository },
         { provide: getRepositoryToken(ChannelMember), useValue: memberRepository },
+        { provide: getRepositoryToken(CommunityMember), useValue: communityMemberRepository },
+        { provide: getRepositoryToken(CommunityRoom), useValue: roomRepository },
         { provide: getRepositoryToken(ChannelMessage), useValue: messageRepository },
         { provide: EntitlementsService, useValue: entitlementsService },
         { provide: AccessSessionsService, useValue: accessSessionsService },
@@ -232,11 +249,12 @@ describe('CommunitiesService', () => {
     );
   });
 
-  it('hides private communities from non-owners', async () => {
+  it('hides private communities from non-members', async () => {
     communityRepository.find.mockResolvedValue([
       { id: 'comm-1', creatorId: 'creator-1', slug: 'public', visibility: CommunityVisibility.PUBLIC },
       { id: 'comm-2', creatorId: 'creator-1', slug: 'private', visibility: CommunityVisibility.PRIVATE },
     ]);
+    communityMemberRepository.find.mockResolvedValue([]);
 
     const result = await service.listCommunitiesForCreator('creator-1', 'viewer-1', UserRole.USER);
 
@@ -244,17 +262,34 @@ describe('CommunitiesService', () => {
     expect(result[0]?.slug).toBe('public');
   });
 
-  it('batches membership lookup when listing multiple communities', async () => {
+  it('shows private communities to active community members', async () => {
+    communityRepository.find.mockResolvedValue([
+      { id: 'comm-2', creatorId: 'creator-1', slug: 'private', visibility: CommunityVisibility.PRIVATE },
+    ]);
+    roleRepository.find.mockResolvedValue([]);
+    communityMemberRepository.find.mockResolvedValue([{ communityId: 'comm-2' }]);
+    entitlementsService.listActiveSubscriptionsForCreator.mockResolvedValue([]);
+    entitlementsService.subscriptionCoversCommunity.mockReturnValue(false);
+
+    const result = await service.listCommunitiesForCreator('creator-1', 'viewer-1', UserRole.USER);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.slug).toBe('private');
+  });
+
+  it('batches subscription lookup when listing multiple communities', async () => {
     communityRepository.find.mockResolvedValue([
       { id: 'comm-1', creatorId: 'creator-1', slug: 'public', visibility: CommunityVisibility.PUBLIC },
       { id: 'comm-2', creatorId: 'creator-1', slug: 'paid', visibility: CommunityVisibility.PAID },
     ]);
     roleRepository.find.mockResolvedValue([]);
-    entitlementsService.getMembershipForViewer.mockResolvedValue({ active: true });
+    communityMemberRepository.find.mockResolvedValue([]);
+    entitlementsService.listActiveSubscriptionsForCreator.mockResolvedValue([{ communityId: null }]);
+    entitlementsService.subscriptionCoversCommunity.mockReturnValue(true);
 
     const result = await service.listCommunitiesForCreator('creator-1', 'viewer-1', UserRole.USER);
 
-    expect(entitlementsService.getMembershipForViewer).toHaveBeenCalledTimes(1);
+    expect(entitlementsService.listActiveSubscriptionsForCreator).toHaveBeenCalledTimes(1);
     expect(result).toHaveLength(2);
   });
 
@@ -285,5 +320,28 @@ describe('CommunitiesService', () => {
     await expect(
       service.sendChannelMessage('ch-1', 'banned-user', { body: 'hello' }),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('returns join metadata for private communities without access', async () => {
+    communityRepository.findOne.mockResolvedValue({
+      id: 'comm-private',
+      creatorId: 'creator-1',
+      slug: 'private-club',
+      name: 'Private Club',
+      visibility: CommunityVisibility.PRIVATE,
+    });
+    communityMemberRepository.findOne.mockResolvedValue(null);
+    entitlementsService.getMembershipForViewer.mockResolvedValue({ active: false });
+    roleRepository.findOne.mockResolvedValue(null);
+
+    const meta = await service.getCommunityAccessMeta(
+      'creator-1',
+      'private-club',
+      'viewer-1',
+      UserRole.USER,
+    );
+
+    expect(meta.canRequestJoin).toBe(true);
+    expect(meta.communityId).toBe('comm-private');
   });
 });

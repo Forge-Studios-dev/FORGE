@@ -14,7 +14,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { EntitlementsService } from './entitlements.service';
 import { CreatorBundlesService } from './creator-bundles.service';
-import { CreateTierDto, UpdateTierDto, MockSubscriptionDto, CreateTierEntitlementDto } from './dto/tier.dto';
+import { CreateTierDto, UpdateTierDto, MockSubscriptionDto, CreateTierEntitlementDto, CreatorGrantSubscriptionDto } from './dto/tier.dto';
 import { CreateBundleDto, UpdateBundleDto } from './dto/bundle.dto';
 import { MemberSubscriptionStatus } from './entities/member-subscription.entity';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -88,8 +88,16 @@ export class EntitlementsController {
 
   @Delete('subscriptions/me/:creatorId')
   @ApiOperation({ summary: 'Cancel membership for a creator' })
-  cancelSubscription(@CurrentUser() user: JwtPayload, @Param('creatorId') creatorId: string) {
-    return this.entitlementsService.cancelMySubscription(user.sub, creatorId);
+  cancelSubscription(
+    @CurrentUser() user: JwtPayload,
+    @Param('creatorId') creatorId: string,
+    @Query('cancelAtPeriodEnd') cancelAtPeriodEnd?: string,
+  ) {
+    return this.entitlementsService.cancelMySubscription(
+      user.sub,
+      creatorId,
+      cancelAtPeriodEnd === 'true',
+    );
   }
 
   @Get('creators/me/subscribers/analytics')
@@ -123,6 +131,16 @@ export class EntitlementsController {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="subscribers.csv"');
     res.send(csv);
+  }
+
+  @Post('creators/me/subscribers/grant')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Grant comp membership to a user (creator)' })
+  grantSubscriber(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreatorGrantSubscriptionDto,
+  ) {
+    return this.entitlementsService.creatorGrantSubscription(user.sub, dto);
   }
 
   @Post('creators/me/subscribers/:subscriptionId/suspend')

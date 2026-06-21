@@ -8,10 +8,11 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { Repository, LessThanOrEqual, DataSource } from 'typeorm';
+import { Repository, LessThanOrEqual, DataSource, In } from 'typeorm';
 import { UserRole } from '../users/entities/user.entity';
 import { SubscriptionTier } from './entities/subscription-tier.entity';
 import {
@@ -19,7 +20,7 @@ import {
   MemberSubscriptionSource,
   MemberSubscriptionStatus,
 } from './entities/member-subscription.entity';
-import { CreateTierDto, UpdateTierDto, MockSubscriptionDto, AdminGrantSubscriptionDto } from './dto/tier.dto';
+import { CreateTierDto, UpdateTierDto, MockSubscriptionDto, AdminGrantSubscriptionDto, CreatorGrantSubscriptionDto } from './dto/tier.dto';
 import { toPublicTier, toPublicSubscription } from './tier.mapper';
 import { EngagementService } from '../engagement/engagement.service';
 import { ChannelType } from './entities/channel-type.enum';
@@ -28,6 +29,7 @@ import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase
 import { TierEntitlement, TierEntitlementResourceType } from './entities/tier-entitlement.entity';
 import { BillingInterval } from './entities/subscription-tier.entity';
 import { StripeTierSyncService } from '../billing/stripe-tier-sync.service';
+import { recordEntitlementCacheHit } from '../../common/metrics/forge-metrics';
 
 /** Subscription statuses that grant content access. */
 export const ACCESS_GRANTING_STATUSES: MemberSubscriptionStatus[] = [
@@ -36,6 +38,15 @@ export const ACCESS_GRANTING_STATUSES: MemberSubscriptionStatus[] = [
   MemberSubscriptionStatus.GRACE_PERIOD,
   MemberSubscriptionStatus.RENEWAL_PENDING,
 ];
+
+const TIER_ACCESS_LEVEL_RANK: Record<string, number> = {
+  read: 1,
+  write: 2,
+  full: 3,
+  admin: 3,
+};
+
+export type TierAccessAction = 'read' | 'write' | 'full';
 
 export type AccessCheckInput = {
   creatorId: string;
@@ -85,9 +96,55 @@ export class EntitlementsService {
     private readonly configService: ConfigService,
     @InjectRedis() private readonly redis: Redis,
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
     @Optional() @Inject(forwardRef(() => StripeTierSyncService))
     private readonly stripeTierSync?: StripeTierSyncService,
   ) {}
+
+  private normalizedMonthlyMrrCents(priceCents: number, interval?: BillingInterval | null): number {
+    switch (interval) {
+      case BillingInterval.YEARLY:
+        return Math.round(priceCents / 12);
+      case BillingInterval.QUARTERLY:
+        return Math.round(priceCents / 3);
+      case BillingInterval.LIFETIME:
+        return 0;
+      case BillingInterval.MONTHLY:
+      default:
+        return priceCents;
+    }
+  }
+
+  private emitCommunityAccessChanged(
+    userId: string,
+    creatorId: string,
+    communityId?: string | null,
+    provisionMember = false,
+  ): void {
+    this.eventEmitter.emit('community.access.changed', { userId, creatorId, communityId });
+    if (provisionMember && communityId) {
+      this.eventEmitter.emit('community.member.provision', { userId, communityId });
+    }
+  }
+
+  private emitMemberSuspend(userId: string, communityId: string): void {
+    this.eventEmitter.emit('community.member.suspend', { userId, communityId });
+  }
+
+  private tierAccessLevelMeets(entitlementLevel: string, required: TierAccessAction): boolean {
+    const granted = TIER_ACCESS_LEVEL_RANK[entitlementLevel.toLowerCase()] ?? TIER_ACCESS_LEVEL_RANK.full;
+    const needed = TIER_ACCESS_LEVEL_RANK[required] ?? TIER_ACCESS_LEVEL_RANK.read;
+    return granted >= needed;
+  }
+
+  private revokeCommunityMembershipIfNeeded(
+    sub: Pick<MemberSubscription, 'userId' | 'communityId'> | null | undefined,
+    status?: MemberSubscriptionStatus,
+  ): void {
+    if (!sub?.communityId) return;
+    if (status && ACCESS_GRANTING_STATUSES.includes(status)) return;
+    this.emitMemberSuspend(sub.userId, sub.communityId);
+  }
 
   private subscriptionCacheKey(userId: string, creatorId: string): string {
     return `ent:sub:${userId}:${creatorId}`;
@@ -105,11 +162,19 @@ export class EntitlementsService {
     return `${visibility}:${requiredTierId ?? 'none'}`;
   }
 
-  private async bustSubscriptionCache(userId: string, creatorId: string): Promise<void> {
-    await Promise.all([
-      this.redis.del(this.subscriptionCacheKey(userId, creatorId)),
-      this.redis.del(this.viewerAccessCacheKey(userId, creatorId)),
-    ]);
+  private async bustSubscriptionCache(
+    userId: string,
+    creatorId: string,
+    communityId?: string | null,
+  ): Promise<void> {
+    const keys = [
+      this.subscriptionCacheKey(userId, creatorId),
+      this.viewerAccessCacheKey(userId, creatorId),
+    ];
+    if (communityId) {
+      keys.push(`${this.subscriptionCacheKey(userId, creatorId)}:c:${communityId}`);
+    }
+    await Promise.all(keys.map((key) => this.redis.del(key)));
   }
 
   private async bustTierCache(tierId: string): Promise<void> {
@@ -125,7 +190,9 @@ export class EntitlementsService {
     if (!cachedBlob) return null;
     try {
       const map = JSON.parse(cachedBlob) as Record<string, AccessCheckResult>;
-      return map[field] ?? null;
+      const hit = map[field] ?? null;
+      if (hit) recordEntitlementCacheHit(true);
+      return hit;
     } catch {
       await this.redis.del(this.viewerAccessCacheKey(viewerId, creatorId));
       return null;
@@ -259,8 +326,14 @@ export class EntitlementsService {
     return { ok: true };
   }
 
-  async getActiveSubscription(userId: string, creatorId: string): Promise<MemberSubscription | null> {
-    const cacheKey = this.subscriptionCacheKey(userId, creatorId);
+  async getActiveSubscription(
+    userId: string,
+    creatorId: string,
+    communityId?: string | null,
+  ): Promise<MemberSubscription | null> {
+    const cacheKey = communityId
+      ? `${this.subscriptionCacheKey(userId, creatorId)}:c:${communityId}`
+      : this.subscriptionCacheKey(userId, creatorId);
     const cached = await this.redis.get(cacheKey);
     if (cached === 'none') return null;
     if (cached && cached !== 'none') {
@@ -277,23 +350,31 @@ export class EntitlementsService {
     }
 
     const now = new Date();
-    const sub = await this.subscriptionRepository
+    const qb = this.subscriptionRepository
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.tier', 'tier')
       .where('s.user_id = :userId', { userId })
       .andWhere('s.creator_id = :creatorId', { creatorId })
       .andWhere('s.status IN (:...statuses)', { statuses: ACCESS_GRANTING_STATUSES })
       .andWhere('s.starts_at <= :now', { now })
-      .andWhere('(s.expires_at IS NULL OR s.expires_at > :now)', { now })
-      .orderBy('s.created_at', 'DESC')
-      .getOne();
+      .andWhere('(s.expires_at IS NULL OR s.expires_at > :now)', { now });
+
+    if (communityId) {
+      qb.andWhere('(s.community_id IS NULL OR s.community_id = :communityId)', { communityId });
+    }
+
+    const sub = await qb.orderBy('s.community_id', 'DESC', 'NULLS LAST').addOrderBy('s.created_at', 'DESC').getOne();
 
     await this.redis.setex(cacheKey, 60, sub ? JSON.stringify(sub) : 'none');
     return sub;
   }
 
-  async getMembershipForViewer(userId: string, creatorId: string) {
-    const sub = await this.getActiveSubscription(userId, creatorId);
+  async getMembershipForViewer(
+    userId: string,
+    creatorId: string,
+    communityId?: string | null,
+  ) {
+    const sub = await this.getActiveSubscription(userId, creatorId, communityId);
     if (!sub) return { active: false as const };
     return {
       active: true as const,
@@ -302,6 +383,30 @@ export class EntitlementsService {
         sub.source === MemberSubscriptionSource.MOCK ||
         sub.source === MemberSubscriptionSource.ADMIN_GRANT,
     };
+  }
+
+  /** All access-granting subscriptions for a user+creator (for batched community visibility). */
+  async listActiveSubscriptionsForCreator(
+    userId: string,
+    creatorId: string,
+  ): Promise<MemberSubscription[]> {
+    const now = new Date();
+    return this.subscriptionRepository
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.tier', 'tier')
+      .where('s.user_id = :userId', { userId })
+      .andWhere('s.creator_id = :creatorId', { creatorId })
+      .andWhere('s.status IN (:...statuses)', { statuses: ACCESS_GRANTING_STATUSES })
+      .andWhere('s.starts_at <= :now', { now })
+      .andWhere('(s.expires_at IS NULL OR s.expires_at > :now)', { now })
+      .orderBy('s.community_id', 'DESC', 'NULLS LAST')
+      .addOrderBy('s.created_at', 'DESC')
+      .getMany();
+  }
+
+  /** Whether any active subscription covers a specific community (creator-wide or scoped). */
+  subscriptionCoversCommunity(subs: MemberSubscription[], communityId: string): boolean {
+    return subs.some((s) => s.communityId == null || s.communityId === communityId);
   }
 
   /** Batch-resolve active tier display names for chat sub badges. */
@@ -359,8 +464,9 @@ export class EntitlementsService {
     userId: string,
     creatorId: string,
     requiredTierId: string,
+    communityId?: string | null,
   ): Promise<boolean> {
-    const sub = await this.getActiveSubscription(userId, creatorId);
+    const sub = await this.getActiveSubscription(userId, creatorId, communityId);
     if (!sub?.tier) return false;
 
     const requiredTier = await this.getTierById(requiredTierId);
@@ -694,7 +800,7 @@ export class EntitlementsService {
       channelId?: string | null;
       isMember?: boolean;
     },
-    opts?: { isOwner?: boolean; isAdmin?: boolean },
+    opts?: { isOwner?: boolean; isAdmin?: boolean; action?: TierAccessAction },
   ): Promise<AccessCheckResult> {
     if (opts?.isOwner || opts?.isAdmin) return { allowed: true };
 
@@ -731,6 +837,7 @@ export class EntitlementsService {
       channel.creatorId,
       channel.communityId,
       channel.channelId,
+      opts?.action ?? 'read',
     );
     return entitled ? result : { allowed: false, reason: 'tier_required' };
   }
@@ -740,6 +847,7 @@ export class EntitlementsService {
     creatorId: string,
     communityId?: string | null,
     channelId?: string | null,
+    action: TierAccessAction = 'read',
   ): Promise<boolean> {
     if (channelId) {
       const byChannel = await this.hasTierEntitlement(
@@ -747,6 +855,8 @@ export class EntitlementsService {
         creatorId,
         TierEntitlementResourceType.CHANNEL,
         channelId,
+        communityId,
+        action,
       );
       if (byChannel) return true;
     }
@@ -756,9 +866,41 @@ export class EntitlementsService {
         creatorId,
         TierEntitlementResourceType.COMMUNITY,
         communityId,
+        communityId,
+        action,
       );
     }
     return true;
+  }
+
+  /** Enforce tier_entitlements rows for video/stream when configured on the active tier. */
+  async verifyMediaTierEntitlements(
+    viewerId: string,
+    creatorId: string,
+    resourceType: TierEntitlementResourceType.VIDEO | TierEntitlementResourceType.STREAM,
+    resourceId: string,
+  ): Promise<boolean> {
+    const sub = await this.getActiveSubscription(viewerId, creatorId);
+    if (!sub) return false;
+
+    const entitlements = await this.tierEntitlementRepository.find({
+      where: { tierId: sub.tierId },
+    });
+    const mediaEntitlements = entitlements.filter(
+      (e) =>
+        e.resourceType === resourceType ||
+        e.resourceType === TierEntitlementResourceType.CREATOR ||
+        (resourceType === TierEntitlementResourceType.STREAM &&
+          e.resourceType === TierEntitlementResourceType.EVENT),
+    );
+    if (mediaEntitlements.length === 0) return true;
+
+    return mediaEntitlements.some(
+      (e) =>
+        e.resourceId == null ||
+        e.resourceId === resourceId ||
+        e.resourceId === creatorId,
+    );
   }
 
   /** Batch channel gates for community lists (F-503) — one checkAccessMany for tier/subscriber channels. */
@@ -871,11 +1013,19 @@ export class EntitlementsService {
     }
 
     const saved = await this.dataSource.transaction(async (manager) => {
-      await manager.update(
-        MemberSubscription,
-        { userId, creatorId, status: MemberSubscriptionStatus.ACTIVE },
-        { status: MemberSubscriptionStatus.CANCELED },
-      );
+      const cancelQb = manager
+        .createQueryBuilder()
+        .update(MemberSubscription)
+        .set({ status: MemberSubscriptionStatus.CANCELED })
+        .where('user_id = :userId', { userId })
+        .andWhere('creator_id = :creatorId', { creatorId })
+        .andWhere('status IN (:...statuses)', { statuses: ACCESS_GRANTING_STATUSES });
+      if (dto.communityId) {
+        cancelQb.andWhere('community_id = :communityId', { communityId: dto.communityId });
+      } else {
+        cancelQb.andWhere('community_id IS NULL');
+      }
+      await cancelQb.execute();
 
       return manager.save(
         manager.create(MemberSubscription, {
@@ -887,11 +1037,13 @@ export class EntitlementsService {
           startsAt: new Date(),
           expiresAt,
           externalRef: dto.externalSubscriptionId ?? null,
+          communityId: dto.communityId ?? null,
         }),
       );
     });
 
-    await this.bustSubscriptionCache(userId, creatorId);
+    await this.bustSubscriptionCache(userId, creatorId, dto.communityId ?? null);
+    this.emitCommunityAccessChanged(userId, creatorId, dto.communityId ?? null, !!dto.communityId);
     const full = await this.subscriptionRepository.findOne({
       where: { id: saved.id },
       relations: ['tier'],
@@ -937,40 +1089,81 @@ export class EntitlementsService {
     return this.grantSubscription(dto.userId, dto, MemberSubscriptionSource.ADMIN_GRANT);
   }
 
+  async creatorGrantSubscription(creatorId: string, dto: CreatorGrantSubscriptionDto) {
+    const tier = await this.getTierById(dto.tierId);
+    if (tier.creatorId !== creatorId) {
+      throw new BadRequestException('Tier does not belong to creator');
+    }
+    return this.grantSubscription(
+      dto.userId,
+      {
+        creatorId,
+        tierId: dto.tierId,
+        expiresInDays: dto.expiresInDays,
+        communityId: dto.communityId,
+      },
+      MemberSubscriptionSource.ADMIN_GRANT,
+    );
+  }
+
   async listMySubscriptions(userId: string) {
     const subs = await this.subscriptionRepository.find({
-      where: { userId, status: MemberSubscriptionStatus.ACTIVE },
+      where: {
+        userId,
+        status: In(ACCESS_GRANTING_STATUSES),
+      },
       relations: ['tier', 'creator'],
       order: { createdAt: 'DESC' },
     });
     return subs.map(toPublicSubscription);
   }
 
-  async cancelMySubscription(userId: string, creatorId: string) {
+  async cancelMySubscription(userId: string, creatorId: string, cancelAtPeriodEnd = false) {
     const sub = await this.subscriptionRepository.findOne({
-      where: { userId, creatorId, status: MemberSubscriptionStatus.ACTIVE },
+      where: {
+        userId,
+        creatorId,
+        status: In(ACCESS_GRANTING_STATUSES),
+      },
+      order: { createdAt: 'DESC' },
     });
     if (!sub) throw new NotFoundException('No active subscription found');
 
     if (sub.externalRef && sub.source === MemberSubscriptionSource.STRIPE && this.stripeTierSync?.isEnabled()) {
-      await this.stripeTierSync.cancelSubscription(sub.externalRef);
+      await this.stripeTierSync.cancelSubscription(sub.externalRef, cancelAtPeriodEnd);
+    }
+
+    if (cancelAtPeriodEnd && sub.externalRef && sub.source === MemberSubscriptionSource.STRIPE) {
+      sub.status = MemberSubscriptionStatus.RENEWAL_PENDING;
+      await this.subscriptionRepository.save(sub);
+      await this.bustSubscriptionCache(userId, creatorId, sub.communityId);
+      this.emitCommunityAccessChanged(userId, creatorId, sub.communityId);
+      return { canceled: false, cancelAtPeriodEnd: true };
     }
 
     sub.status = MemberSubscriptionStatus.CANCELED;
     await this.subscriptionRepository.save(sub);
-    await this.bustSubscriptionCache(userId, creatorId);
+    await this.bustSubscriptionCache(userId, creatorId, sub.communityId);
+    this.emitCommunityAccessChanged(userId, creatorId, sub.communityId);
+    this.revokeCommunityMembershipIfNeeded(sub, MemberSubscriptionStatus.CANCELED);
     return { canceled: true };
   }
 
   async cancelByExternalRef(externalRef: string): Promise<void> {
-    const sub = await this.subscriptionRepository.findOne({
-      where: { externalRef },
-      order: { createdAt: 'DESC' },
-    });
+    const sub = await this.getSubscriptionByExternalRef(externalRef);
     if (!sub || sub.status === MemberSubscriptionStatus.CANCELED) return;
     sub.status = MemberSubscriptionStatus.CANCELED;
     await this.subscriptionRepository.save(sub);
-    await this.bustSubscriptionCache(sub.userId, sub.creatorId);
+    await this.bustSubscriptionCache(sub.userId, sub.creatorId, sub.communityId);
+    this.emitCommunityAccessChanged(sub.userId, sub.creatorId, sub.communityId);
+    this.revokeCommunityMembershipIfNeeded(sub, MemberSubscriptionStatus.CANCELED);
+  }
+
+  async getSubscriptionByExternalRef(externalRef: string): Promise<MemberSubscription | null> {
+    return this.subscriptionRepository.findOne({
+      where: { externalRef },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async markSubscriptionFailedPayment(externalRef: string): Promise<void> {
@@ -981,7 +1174,22 @@ export class EntitlementsService {
     if (!sub) return;
     sub.status = MemberSubscriptionStatus.FAILED_PAYMENT;
     await this.subscriptionRepository.save(sub);
-    await this.bustSubscriptionCache(sub.userId, sub.creatorId);
+    await this.bustSubscriptionCache(sub.userId, sub.creatorId, sub.communityId);
+    this.emitCommunityAccessChanged(sub.userId, sub.creatorId, sub.communityId);
+    this.revokeCommunityMembershipIfNeeded(sub, MemberSubscriptionStatus.FAILED_PAYMENT);
+  }
+
+  async markSubscriptionRefunded(externalRef: string): Promise<void> {
+    const sub = await this.subscriptionRepository.findOne({
+      where: { externalRef },
+      order: { createdAt: 'DESC' },
+    });
+    if (!sub) return;
+    sub.status = MemberSubscriptionStatus.REFUNDED;
+    await this.subscriptionRepository.save(sub);
+    await this.bustSubscriptionCache(sub.userId, sub.creatorId, sub.communityId);
+    this.emitCommunityAccessChanged(sub.userId, sub.creatorId, sub.communityId);
+    this.revokeCommunityMembershipIfNeeded(sub, MemberSubscriptionStatus.REFUNDED);
   }
 
   async hasTierEntitlement(
@@ -989,8 +1197,13 @@ export class EntitlementsService {
     creatorId: string,
     resourceType: TierEntitlementResourceType,
     resourceId?: string | null,
+    communityId?: string | null,
+    requiredAccess: TierAccessAction = 'read',
   ): Promise<boolean> {
-    const sub = await this.getActiveSubscription(userId, creatorId);
+    const scopeCommunityId =
+      communityId ??
+      (resourceType === TierEntitlementResourceType.COMMUNITY ? resourceId : null);
+    const sub = await this.getActiveSubscription(userId, creatorId, scopeCommunityId ?? undefined);
     if (!sub) return false;
 
     const entitlements = await this.tierEntitlementRepository.find({
@@ -1001,7 +1214,8 @@ export class EntitlementsService {
     return entitlements.some(
       (e) =>
         e.resourceType === resourceType &&
-        (e.resourceId == null || e.resourceId === resourceId || e.resourceId === creatorId),
+        (e.resourceId == null || e.resourceId === resourceId || e.resourceId === creatorId) &&
+        this.tierAccessLevelMeets(e.accessLevel, requiredAccess),
     );
   }
 
@@ -1049,7 +1263,9 @@ export class EntitlementsService {
     if (!sub) return;
     sub.status = status;
     await this.subscriptionRepository.save(sub);
-    await this.bustSubscriptionCache(sub.userId, sub.creatorId);
+    await this.bustSubscriptionCache(sub.userId, sub.creatorId, sub.communityId);
+    this.emitCommunityAccessChanged(sub.userId, sub.creatorId, sub.communityId);
+    this.revokeCommunityMembershipIfNeeded(sub, status);
   }
 
   async updateSubscriptionExpiresByExternalRef(
@@ -1078,13 +1294,20 @@ export class EntitlementsService {
     await this.bustSubscriptionCache(sub.userId, sub.creatorId);
   }
 
-  async findStripeSubscriptionForUser(userId: string) {
+  async findStripeSubscriptionForUser(userId: string, creatorId?: string) {
+    const where: {
+      userId: string;
+      source: MemberSubscriptionSource;
+      status: MemberSubscriptionStatus;
+      creatorId?: string;
+    } = {
+      userId,
+      source: MemberSubscriptionSource.STRIPE,
+      status: MemberSubscriptionStatus.ACTIVE,
+    };
+    if (creatorId) where.creatorId = creatorId;
     return this.subscriptionRepository.findOne({
-      where: {
-        userId,
-        source: MemberSubscriptionSource.STRIPE,
-        status: MemberSubscriptionStatus.ACTIVE,
-      },
+      where,
       order: { createdAt: 'DESC' },
     });
   }
@@ -1155,36 +1378,49 @@ export class EntitlementsService {
     const active = byStatus[MemberSubscriptionStatus.ACTIVE] ?? 0;
     const trial = byStatus[MemberSubscriptionStatus.TRIAL] ?? 0;
     const canceled = byStatus[MemberSubscriptionStatus.CANCELED] ?? 0;
-    const mrrRows = await this.subscriptionRepository
+    const payingSubs = await this.subscriptionRepository
       .createQueryBuilder('s')
-      .leftJoin('s.tier', 'tier')
-      .select('SUM(tier.price_cents)', 'mrrCents')
+      .leftJoinAndSelect('s.tier', 'tier')
       .where('s.creator_id = :creatorId', { creatorId })
       .andWhere('s.status IN (:...statuses)', {
         statuses: [MemberSubscriptionStatus.ACTIVE, MemberSubscriptionStatus.TRIAL],
       })
-      .getRawOne<{ mrrCents: string | null }>();
+      .getMany();
+    const mrrCents = payingSubs.reduce(
+      (sum, sub) =>
+        sum + this.normalizedMonthlyMrrCents(sub.tier?.priceCents ?? 0, sub.tier?.billingInterval),
+      0,
+    );
 
     return {
       active,
       trial,
       canceled,
       total: rows.reduce((sum, r) => sum + Number(r.count), 0),
-      mrrCents: Number(mrrRows?.mrrCents ?? 0),
+      mrrCents,
       byStatus,
     };
   }
 
   async expireDueSubscriptions(): Promise<number> {
     const now = new Date();
-    const result = await this.subscriptionRepository.update(
-      {
+    const due = await this.subscriptionRepository.find({
+      where: {
         status: MemberSubscriptionStatus.ACTIVE,
         expiresAt: LessThanOrEqual(now),
       },
-      { status: MemberSubscriptionStatus.EXPIRED },
-    );
-    return result.affected ?? 0;
+      take: 500,
+    });
+    if (!due.length) return 0;
+
+    for (const sub of due) {
+      sub.status = MemberSubscriptionStatus.EXPIRED;
+      await this.subscriptionRepository.save(sub);
+      await this.bustSubscriptionCache(sub.userId, sub.creatorId, sub.communityId);
+      this.emitCommunityAccessChanged(sub.userId, sub.creatorId, sub.communityId);
+      this.revokeCommunityMembershipIfNeeded(sub, MemberSubscriptionStatus.EXPIRED);
+    }
+    return due.length;
   }
 
   async getExpiringSubscriptions(withinDays = 3): Promise<MemberSubscription[]> {

@@ -58,6 +58,74 @@ function accessLabel(reason?: string | null): string {
   return 'You do not have access to this channel';
 }
 
+function CommunityRestrictedAccess({
+  creatorId,
+  communitySlug,
+  isCreator,
+}: {
+  creatorId: string;
+  communitySlug?: string;
+  isCreator: boolean;
+}) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const accessPath = communitySlug
+    ? `/creators/${creatorId}/communities/${communitySlug}/access`
+    : null;
+
+  const { data: accessMeta } = useQuery({
+    queryKey: ['community-access-meta', creatorId, communitySlug],
+    enabled: !!accessPath && !!user,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: {
+          communityId: string;
+          canRequestJoin: boolean;
+          joinRequestStatus: string;
+          visibility: string;
+        };
+      }>(accessPath!);
+      return data.data;
+    },
+  });
+
+  const joinMutation = useMutation({
+    mutationFn: async (targetCommunityId: string) => {
+      await api.post(`/communities/${targetCommunityId}/join-request`);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['community-access-meta', creatorId, communitySlug] });
+    },
+  });
+
+  return (
+    <div className="glass-panel space-y-4 rounded-xl p-8 text-center">
+      <Icon name="lock" className="mx-auto text-3xl text-outline" />
+      <h3 className="font-semibold">This community is restricted</h3>
+      <p className="text-sm text-on-surface-variant">
+        You need membership, an invite, or creator approval to view this community.
+      </p>
+      {!isCreator && accessMeta?.joinRequestStatus === 'pending' ? (
+        <p className="text-sm text-primary">Your join request is pending approval.</p>
+      ) : null}
+      {!isCreator && accessMeta?.canRequestJoin ? (
+        <Button
+          disabled={joinMutation.isPending}
+          onClick={() => joinMutation.mutate(accessMeta.communityId)}
+        >
+          Request to join
+        </Button>
+      ) : null}
+      {!isCreator && accessMeta?.visibility === 'paid' ? (
+        <MembershipPanel creatorId={creatorId} communityId={accessMeta?.communityId} />
+      ) : null}
+      {!user ? (
+        <p className="text-xs text-on-surface-variant">Sign in to request access or subscribe.</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function CommunityPanel({ creatorId, communitySlug }: Props) {
   const { user, accessToken } = useAuth();
   const qc = useQueryClient();
@@ -487,14 +555,11 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
 
   if (communityError && isAxiosError(communityErr) && communityErr.response?.status === 403) {
     return (
-      <div className="glass-panel space-y-4 rounded-xl p-8 text-center">
-        <Icon name="lock" className="mx-auto text-3xl text-outline" />
-        <h3 className="font-semibold">This community is restricted</h3>
-        <p className="text-sm text-on-surface-variant">
-          You need membership or an invite to view this community.
-        </p>
-        {!isCreator ? <MembershipPanel creatorId={creatorId} /> : null}
-      </div>
+      <CommunityRestrictedAccess
+        creatorId={creatorId}
+        communitySlug={communitySlug}
+        isCreator={isCreator}
+      />
     );
   }
 
@@ -822,7 +887,7 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
             <p className="text-sm text-on-surface-variant">
               {accessLabel(activeChannel?.access?.reason)}
             </p>
-            {!isCreator ? <MembershipPanel creatorId={creatorId} /> : null}
+            {!isCreator ? <MembershipPanel creatorId={creatorId} communityId={communityId} /> : null}
           </div>
         ) : (
           <>

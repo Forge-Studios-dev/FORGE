@@ -31,6 +31,9 @@ export class AccessSessionAudit {
   @Column({ name: 'device_fingerprint', type: 'varchar', length: 255, nullable: true })
   deviceFingerprint: string | null;
 
+  @Column({ name: 'session_token', type: 'varchar', length: 128, nullable: true })
+  sessionToken: string | null;
+
   @CreateDateColumn({ name: 'started_at' })
   startedAt: Date;
 

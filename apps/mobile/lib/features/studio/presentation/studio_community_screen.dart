@@ -19,8 +19,16 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
   final _editCommunityNameCtrl = TextEditingController();
   final _editCommunitySlugCtrl = TextEditingController();
   final _categoryNameCtrl = TextEditingController();
+  final _editCategoryNameCtrl = TextEditingController();
+  final _editChannelNameCtrl = TextEditingController();
   final _inviteUserIdCtrl = TextEditingController();
   String _type = 'public';
+  String? _channelCategoryId;
+  String? _editChannelCategoryId;
+  String? _editChannelType;
+  String? _editChannelTierId;
+  String? _editingCategoryId;
+  String? _editingChannelId;
   String _communityVisibility = 'public';
   String _editCommunityVisibility = 'public';
   String? _requiredTierId;
@@ -31,6 +39,7 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
   List<Map<String, dynamic>> _tiers = [];
   List<Map<String, dynamic>> _communities = [];
   List<Map<String, dynamic>> _subscribers = [];
+  List<Map<String, dynamic>> _pendingMembers = [];
   String? _communityId;
   bool _loading = true;
 
@@ -62,6 +71,15 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
           : communitiesRes;
       final tiersRes = await client.dio.get('/creators/$_creatorId/tiers');
       final subsRes = await client.dio.get('/creators/me/subscribers');
+      List<Map<String, dynamic>> pending = [];
+      if (_communityId != null) {
+        try {
+          final pendingRes = await client.dio.get(
+            '/creators/me/communities/$_communityId/members?status=pending',
+          );
+          pending = (pendingRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        } catch (_) {}
+      }
       setState(() {
         _communities = communities;
         final data = communityRes.data['data'] as Map<String, dynamic>;
@@ -69,6 +87,7 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
         _categories = (data['categories'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _tiers = (tiersRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _subscribers = (subsRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _pendingMembers = pending;
         _loading = false;
       });
       _syncCommunityEditFields(_communityId);
@@ -115,6 +134,8 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
         'type': _type,
         if (_requiredTierId != null && _requiredTierId!.isNotEmpty)
           'requiredTierId': _requiredTierId,
+        if (_channelCategoryId != null && _channelCategoryId!.isNotEmpty)
+          'categoryId': _channelCategoryId,
       });
       _nameCtrl.clear();
       await _load();
@@ -149,6 +170,57 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
         );
       }
     }
+  }
+
+  Future<void> _deleteCategory(String categoryId) async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.delete('/creators/me/communities/$_communityId/categories/$categoryId');
+      await _selectCommunity(_communityId!, null);
+    } catch (_) {}
+  }
+
+  Future<void> _updateCategory(String categoryId) async {
+    if (_communityId == null || _editCategoryNameCtrl.text.trim().isEmpty) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.patch('/creators/me/communities/$_communityId/categories/$categoryId', data: {
+        'name': _editCategoryNameCtrl.text.trim(),
+      });
+      setState(() => _editingCategoryId = null);
+      await _selectCommunity(_communityId!, null);
+    } catch (_) {}
+  }
+
+  Future<void> _updateChannel(String channelId) async {
+    if (_editChannelNameCtrl.text.trim().isEmpty) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.patch('/creators/me/channels/$channelId', data: {
+        'name': _editChannelNameCtrl.text.trim(),
+        if (_editChannelType != null) 'type': _editChannelType,
+        'requiredTierId': _editChannelTierId?.isEmpty == true ? null : _editChannelTierId,
+        'categoryId': _editChannelCategoryId?.isEmpty == true ? null : _editChannelCategoryId,
+      });
+      setState(() => _editingChannelId = null);
+      await _selectCommunity(_communityId!, null);
+    } catch (_) {}
+  }
+
+  Future<void> _reorderChannels(int fromIndex, int toIndex) async {
+    if (_communityId == null || fromIndex == toIndex) return;
+    final reordered = [..._channels];
+    final item = reordered.removeAt(fromIndex);
+    reordered.insert(toIndex, item);
+    final ids = reordered.map((c) => c['id'] as String).toList();
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.patch('/creators/me/communities/$_communityId/channels/reorder', data: {
+        'channelIds': ids,
+      });
+      setState(() => _channels = reordered);
+    } catch (_) {}
   }
 
   Future<void> _createCategory() async {
@@ -227,6 +299,62 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
     }
   }
 
+  Future<void> _loadPendingMembers() async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      final pendingRes = await client.dio.get(
+        '/creators/me/communities/$_communityId/members?status=pending',
+      );
+      setState(() {
+        _pendingMembers =
+            (pendingRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _approveMember(String userId) async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.patch(
+        '/creators/me/communities/$_communityId/members/$userId/approve',
+      );
+      await _loadPendingMembers();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not approve member')),
+        );
+      }
+    }
+  }
+
+  Future<void> _rejectMember(String userId) async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.patch(
+        '/creators/me/communities/$_communityId/members/$userId/reject',
+      );
+      await _loadPendingMembers();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not reject member')),
+        );
+      }
+    }
+  }
+
+  String _memberLabel(Map<String, dynamic> row) {
+    final user = row['user'] as Map<String, dynamic>?;
+    return user?['displayName'] as String? ??
+        user?['username'] as String? ??
+        row['userId'] as String? ??
+        'Member';
+  }
+
   @override
   void dispose() {
     _nameCtrl.dispose();
@@ -234,6 +362,8 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
     _editCommunityNameCtrl.dispose();
     _editCommunitySlugCtrl.dispose();
     _categoryNameCtrl.dispose();
+    _editCategoryNameCtrl.dispose();
+    _editChannelNameCtrl.dispose();
     _inviteUserIdCtrl.dispose();
     super.dispose();
   }
@@ -254,6 +384,7 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
         _loading = false;
       });
       _syncCommunityEditFields(communityId);
+      await _loadPendingMembers();
     } catch (_) {
       setState(() => _loading = false);
     }
@@ -329,14 +460,97 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
                     onChanged: (v) => setState(() => _editCommunityVisibility = v ?? 'public'),
                   ),
                   ForgeButton(label: 'Save community settings', onPressed: _saveCommunitySettings),
+                  const Divider(height: 32),
+                  const Text('Join requests', style: TextStyle(fontWeight: FontWeight.w600)),
+                  if (_pendingMembers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text('No pending join requests'),
+                    )
+                  else
+                    ..._pendingMembers.map((row) {
+                      final userId = row['userId'] as String?;
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          title: Text(_memberLabel(row)),
+                          trailing: userId == null
+                              ? null
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    TextButton(
+                                      onPressed: () => _approveMember(userId),
+                                      child: const Text('Approve'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => _rejectMember(userId),
+                                      child: const Text('Reject'),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      );
+                    }),
                 ],
                 const Divider(height: 32),
                 const Text('Categories', style: TextStyle(fontWeight: FontWeight.w600)),
                 ..._categories.map(
-                  (cat) => ListTile(
-                    dense: true,
-                    title: Text(cat['name'] as String? ?? ''),
-                  ),
+                  (cat) {
+                    final catId = cat['id'] as String?;
+                    final editing = catId != null && catId == _editingCategoryId;
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: editing
+                          ? Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Column(
+                                children: [
+                                  TextField(
+                                    controller: _editCategoryNameCtrl,
+                                    decoration: const InputDecoration(labelText: 'Category name'),
+                                  ),
+                                  Row(
+                                    children: [
+                                      TextButton(
+                                        onPressed: () => _updateCategory(catId),
+                                        child: const Text('Save'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => setState(() => _editingCategoryId = null),
+                                        child: const Text('Cancel'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListTile(
+                              dense: true,
+                              title: Text(cat['name'] as String? ?? ''),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, size: 20),
+                                    onPressed: catId == null
+                                        ? null
+                                        : () {
+                                            setState(() {
+                                              _editingCategoryId = catId;
+                                              _editCategoryNameCtrl.text = cat['name'] as String? ?? '';
+                                            });
+                                          },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, size: 20),
+                                    onPressed: catId == null ? null : () => _deleteCategory(catId),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    );
+                  },
                 ),
                 TextField(
                   controller: _categoryNameCtrl,
@@ -380,6 +594,21 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
                   ],
                   onChanged: (v) => setState(() => _requiredTierId = v),
                 ),
+                if (_categories.isNotEmpty)
+                  DropdownButtonFormField<String?>(
+                    value: _channelCategoryId,
+                    decoration: const InputDecoration(labelText: 'Category (optional)'),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('Uncategorized')),
+                      ..._categories.map(
+                        (c) => DropdownMenuItem(
+                          value: c['id'] as String,
+                          child: Text(c['name'] as String? ?? ''),
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _channelCategoryId = v),
+                  ),
                 const SizedBox(height: 12),
                 ForgeButton(label: 'Create channel', onPressed: _createChannel),
                 if (_communityId != null) ...[
@@ -390,10 +619,13 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
                   ),
                 ],
                 const SizedBox(height: 24),
-                ..._channels.map((ch) {
+                ..._channels.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final ch = entry.value;
                   final channelId = ch['id'] as String?;
                   final channelType = ch['type'] as String? ?? '';
                   final isInvite = channelType == 'invite';
+                  final editing = channelId != null && channelId == _editingChannelId;
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
                     child: Padding(
@@ -401,11 +633,85 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (editing) ...[
+                            TextField(
+                              controller: _editChannelNameCtrl,
+                              decoration: const InputDecoration(labelText: 'Channel name'),
+                            ),
+                            DropdownButtonFormField<String>(
+                              value: _editChannelType ?? channelType,
+                              decoration: const InputDecoration(labelText: 'Type'),
+                              items: const [
+                                DropdownMenuItem(value: 'public', child: Text('Public')),
+                                DropdownMenuItem(value: 'subscribers', child: Text('Members only')),
+                                DropdownMenuItem(value: 'tier', child: Text('Tier gated')),
+                                DropdownMenuItem(value: 'invite', child: Text('Invite only')),
+                              ],
+                              onChanged: (v) => setState(() => _editChannelType = v),
+                            ),
+                            if (_categories.isNotEmpty)
+                              DropdownButtonFormField<String?>(
+                                value: _editChannelCategoryId,
+                                decoration: const InputDecoration(labelText: 'Category'),
+                                items: [
+                                  const DropdownMenuItem(value: null, child: Text('Uncategorized')),
+                                  ..._categories.map(
+                                    (c) => DropdownMenuItem(
+                                      value: c['id'] as String,
+                                      child: Text(c['name'] as String? ?? ''),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (v) => setState(() => _editChannelCategoryId = v),
+                              ),
+                            Row(
+                              children: [
+                                TextButton(
+                                  onPressed: () => _updateChannel(channelId),
+                                  child: const Text('Save'),
+                                ),
+                                TextButton(
+                                  onPressed: () => setState(() => _editingChannelId = null),
+                                  child: const Text('Cancel'),
+                                ),
+                              ],
+                            ),
+                          ] else ...[
                           ListTile(
                             contentPadding: EdgeInsets.zero,
                             title: Text(ch['name'] as String? ?? ''),
                             subtitle: Text('$channelType · #${ch['slug']}'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (index > 0)
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_upward, size: 18),
+                                    onPressed: () => _reorderChannels(index, index - 1),
+                                  ),
+                                if (index < _channels.length - 1)
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_downward, size: 18),
+                                    onPressed: () => _reorderChannels(index, index + 1),
+                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit, size: 18),
+                                  onPressed: channelId == null
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _editingChannelId = channelId;
+                                            _editChannelNameCtrl.text = ch['name'] as String? ?? '';
+                                            _editChannelType = channelType;
+                                            _editChannelTierId = ch['requiredTierId'] as String?;
+                                            _editChannelCategoryId = ch['categoryId'] as String?;
+                                          });
+                                        },
+                                ),
+                              ],
+                            ),
                           ),
+                          ],
                           if (isInvite && channelId != null) ...[
                             TextButton(
                               onPressed: () => setState(() {

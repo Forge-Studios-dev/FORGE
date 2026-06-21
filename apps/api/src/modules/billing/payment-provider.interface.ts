@@ -4,6 +4,8 @@ export type CheckoutSessionInput = {
   userId: string;
   creatorId: string;
   tierId: string;
+  /** Optional community scope for per-community subscriptions. */
+  communityId?: string | null;
   successUrl: string;
   cancelUrl: string;
   tierName?: string;
@@ -61,11 +63,12 @@ export type ProviderWebhookResult = {
   handled: boolean;
   checkoutType?: 'subscription' | 'event' | 'super_chat';
   subscriptionId?: string;
-  status?: 'active' | 'canceled' | 'expired' | 'completed' | 'failed_payment' | 'trial' | 'grace_period' | 'paused';
+  status?: 'active' | 'canceled' | 'expired' | 'completed' | 'failed_payment' | 'trial' | 'grace_period' | 'paused' | 'refunded' | 'renewal_pending';
   sessionId?: string;
   userId?: string;
   creatorId?: string;
   tierId?: string;
+  communityId?: string;
   streamId?: string;
   amountCents?: number;
   currency?: string;
@@ -79,9 +82,9 @@ export interface PaymentProvider {
   createCheckoutSession(input: CheckoutSessionInput): Promise<CheckoutSessionResult>;
   createEventCheckoutSession(input: EventCheckoutSessionInput): Promise<CheckoutSessionResult>;
   createSuperChatCheckoutSession(input: SuperChatCheckoutInput): Promise<CheckoutSessionResult>;
-  cancelSubscription(externalSubscriptionId: string): Promise<void>;
+  cancelSubscription(externalSubscriptionId: string, cancelAtPeriodEnd?: boolean): Promise<void>;
   updateSubscriptionTier?(input: UpdateSubscriptionTierInput): Promise<UpdateSubscriptionTierResult>;
-  verifyWebhook(payload: Buffer, headers: Record<string, string>): ProviderWebhookResult | null;
+  verifyWebhook(payload: Buffer, headers: Record<string, string>): Promise<ProviderWebhookResult | null>;
   createBillingPortalSession?(customerId: string, returnUrl: string): Promise<{ url: string }>;
 }
 

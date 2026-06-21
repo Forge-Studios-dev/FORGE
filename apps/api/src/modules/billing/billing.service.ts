@@ -147,7 +147,7 @@ export class BillingService {
   }
 
   async handleWebhook(payload: Buffer, headers: Record<string, string>) {
-    const result = this.paymentProvider.verifyWebhook(payload, headers);
+    const result = await this.paymentProvider.verifyWebhook(payload, headers);
     if (!result?.handled) return { handled: false };
 
     let stripeEventId: string | undefined;
@@ -208,14 +208,35 @@ export class BillingService {
               creatorId,
               tierId,
               externalSubscriptionId: result.subscriptionId,
+              ...(result.communityId ? { communityId: result.communityId } : {}),
             },
             MemberSubscriptionSource.STRIPE,
           );
         }
       } else if (result.status === 'trial' && result.subscriptionId) {
+        const userId = result.userId;
+        const creatorId = result.creatorId;
+        const tierId = result.tierId;
+        if (userId && creatorId && tierId) {
+          await this.entitlementsService.grantSubscription(
+            userId,
+            {
+              creatorId,
+              tierId,
+              externalSubscriptionId: result.subscriptionId,
+              ...(result.communityId ? { communityId: result.communityId } : {}),
+            },
+            MemberSubscriptionSource.STRIPE,
+          );
+          await this.entitlementsService.updateSubscriptionStatusByExternalRef(
+            result.subscriptionId,
+            MemberSubscriptionStatus.TRIAL,
+          );
+        }
+      } else if (result.status === 'renewal_pending' && result.subscriptionId) {
         await this.entitlementsService.updateSubscriptionStatusByExternalRef(
           result.subscriptionId,
-          MemberSubscriptionStatus.TRIAL,
+          MemberSubscriptionStatus.RENEWAL_PENDING,
         );
       } else if (result.status === 'grace_period' && result.subscriptionId) {
         await this.entitlementsService.updateSubscriptionStatusByExternalRef(
@@ -231,6 +252,8 @@ export class BillingService {
         await this.entitlementsService.cancelByExternalRef(result.subscriptionId);
       } else if (result.status === 'failed_payment' && result.subscriptionId) {
         await this.entitlementsService.markSubscriptionFailedPayment(result.subscriptionId);
+      } else if (result.status === 'refunded' && result.subscriptionId) {
+        await this.entitlementsService.markSubscriptionRefunded(result.subscriptionId);
       }
 
       if (result.periodEndAt && result.subscriptionId) {
@@ -274,12 +297,12 @@ export class BillingService {
     return provider === 'stripe' && !!this.configService.get<string>('billing.stripeSecretKey');
   }
 
-  async createBillingPortalSession(userId: string, returnUrl: string) {
+  async createBillingPortalSession(userId: string, returnUrl: string, creatorId?: string) {
     if (!this.isBillingEnabled()) {
       throw new BadRequestException('Billing portal requires Stripe billing to be enabled');
     }
 
-    const sub = await this.entitlementsService.findStripeSubscriptionForUser(userId);
+    const sub = await this.entitlementsService.findStripeSubscriptionForUser(userId, creatorId);
     if (!sub?.externalRef) {
       throw new NotFoundException('No active Stripe subscription found');
     }

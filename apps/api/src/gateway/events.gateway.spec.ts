@@ -19,6 +19,7 @@ describe('EventsGateway room authorization', () => {
   const redis = {
     get: jest.fn().mockResolvedValue(null),
     setex: jest.fn().mockResolvedValue('OK'),
+    set: jest.fn().mockResolvedValue('OK'),
   };
   const streamingService = {
     assertStreamSocketAccess: jest.fn(),
@@ -31,6 +32,10 @@ describe('EventsGateway room authorization', () => {
   };
   const communitiesService = {
     verifyChannelAccess: jest.fn(),
+    assertCommunityAccess: jest.fn(),
+  };
+  const communityRoomsService = {
+    assertRoomAccess: jest.fn(),
   };
 
   let gateway: EventsGateway;
@@ -62,6 +67,7 @@ describe('EventsGateway room authorization', () => {
       streamReactionService as never,
       videosService as never,
       communitiesService as never,
+      communityRoomsService as never,
     );
     (gateway as unknown as { server: unknown }).server = {
       to: jest.fn().mockReturnValue({ emit: jest.fn() }),
@@ -98,5 +104,26 @@ describe('EventsGateway room authorization', () => {
     await expect(
       gateway.handleJoinChannel({ channelId: 'channel-1' }, authedClient() as never),
     ).rejects.toThrow(WsException);
+  });
+
+  it('denies join-room when room access fails', async () => {
+    communityRoomsService.assertRoomAccess.mockRejectedValue(new ForbiddenException());
+    await expect(
+      gateway.handleJoinRoom(
+        { communityId: 'comm-1', roomId: 'room-1' },
+        authedClient() as never,
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('allows join-room when room access passes', async () => {
+    communityRoomsService.assertRoomAccess.mockResolvedValue({ id: 'room-1' });
+    const client = authedClient();
+    const result = await gateway.handleJoinRoom(
+      { communityId: 'comm-1', roomId: 'room-1' },
+      client as never,
+    );
+    expect(client.join).toHaveBeenCalledWith('room:room-1');
+    expect(result).toEqual({ event: 'joined-room', data: { roomId: 'room-1' } });
   });
 });

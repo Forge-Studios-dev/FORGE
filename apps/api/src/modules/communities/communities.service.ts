@@ -43,7 +43,12 @@ import { AiCommunityService } from './ai-community.service';
 import { ChannelType } from '../entitlements/entities/channel-type.enum';
 import { CommunityModerationQueueService } from './community-moderation-queue.service';
 import { Stream, StreamStatus } from '../streaming/entities/stream.entity';
+import { CommunityRoom } from './entities/community-room.entity';
 import { UserRole } from '../users/entities/user.entity';
+import {
+  CommunityMember,
+  CommunityMemberStatus,
+} from './entities/community-member.entity';
 
 const DEFAULT_CHANNELS: Array<{ name: string; slug: string; type: ChannelType; sortOrder: number }> = [
   { name: 'Announcements', slug: 'announcements', type: ChannelType.PUBLIC, sortOrder: 0 },
@@ -63,6 +68,8 @@ export class CommunitiesService {
     private readonly channelRepository: Repository<Channel>,
     @InjectRepository(ChannelMember)
     private readonly memberRepository: Repository<ChannelMember>,
+    @InjectRepository(CommunityMember)
+    private readonly communityMemberRepository: Repository<CommunityMember>,
     @InjectRepository(ChannelMessage)
     private readonly messageRepository: Repository<ChannelMessage>,
     @InjectRepository(CommunityRole)
@@ -76,6 +83,8 @@ export class CommunitiesService {
     private readonly moderationQueueService: CommunityModerationQueueService,
     @InjectRepository(Stream)
     private readonly streamRepository: Repository<Stream>,
+    @InjectRepository(CommunityRoom)
+    private readonly roomRepository: Repository<CommunityRoom>,
     private readonly eventEmitter: EventEmitter2,
     @InjectRedis() private readonly redis: Redis,
     private readonly dataSource: DataSource,
@@ -141,10 +150,28 @@ export class CommunitiesService {
       return communities.map(toPublicCommunity);
     }
 
-    let membershipActive = false;
+    const cacheKey = viewerId
+      ? `community:list:visible:${creatorId}:${viewerId}`
+      : null;
+    if (cacheKey) {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        try {
+          return JSON.parse(cached) as ReturnType<typeof toPublicCommunity>[];
+        } catch {
+          await this.redis.del(cacheKey);
+        }
+      }
+    }
+
+    let activeSubscriptions: Awaited<
+      ReturnType<EntitlementsService['listActiveSubscriptionsForCreator']>
+    > = [];
     if (viewerId) {
-      const membership = await this.entitlementsService.getMembershipForViewer(viewerId, creatorId);
-      membershipActive = membership.active;
+      activeSubscriptions = await this.entitlementsService.listActiveSubscriptionsForCreator(
+        viewerId,
+        creatorId,
+      );
     }
 
     const communityIds = communities.map((c) => c.id);
@@ -154,6 +181,18 @@ export class CommunitiesService {
         })
       : [];
     const roleByCommunity = new Map(viewerRoles.map((r) => [r.communityId, r]));
+
+    const activeCommunityMemberRows = viewerId
+      ? await this.communityMemberRepository.find({
+          where: {
+            communityId: In(communityIds),
+            userId: viewerId,
+            status: CommunityMemberStatus.ACTIVE,
+          },
+          select: ['communityId'],
+        })
+      : [];
+    const activeCommunityMemberIds = new Set(activeCommunityMemberRows.map((r) => r.communityId));
 
     const inviteCommunityIds = communities
       .filter((c) => c.visibility === CommunityVisibility.INVITE)
@@ -188,13 +227,21 @@ export class CommunitiesService {
         community,
         viewerId,
         viewerRole,
-        membershipActive,
+        this.entitlementsService.subscriptionCoversCommunity(
+          activeSubscriptions,
+          community.id,
+        ),
         roleByCommunity.get(community.id),
+        activeCommunityMemberIds.has(community.id),
         inviteChannelsByCommunity.get(community.id) ?? [],
         invitedChannelIds,
       ),
     );
-    return visible.map(toPublicCommunity);
+    const result = visible.map(toPublicCommunity);
+    if (cacheKey) {
+      await this.redis.setex(cacheKey, 30, JSON.stringify(result));
+    }
+    return result;
   }
 
   async getCommunityById(communityId: string, viewerId?: string | null, viewerRole?: UserRole | null) {
@@ -368,6 +415,61 @@ export class CommunitiesService {
     return toPublicChannel(saved);
   }
 
+  async deleteChannel(creatorId: string, channelId: string) {
+    const channel = await this.getOwnedChannel(creatorId, channelId);
+    await this.channelRepository.delete(channel.id);
+    return { deleted: true, id: channel.id };
+  }
+
+  async reorderChannels(
+    creatorId: string,
+    communityId: string,
+    channelIds: string[],
+  ) {
+    await this.getOwnedCommunity(creatorId, communityId);
+    const channels = await this.channelRepository.find({ where: { communityId } });
+    const idSet = new Set(channelIds);
+    if (idSet.size !== channelIds.length) {
+      throw new BadRequestException('Duplicate channel ids');
+    }
+    for (const ch of channels) {
+      if (!idSet.has(ch.id)) {
+        throw new BadRequestException('channelIds must include all community channels');
+      }
+    }
+    await Promise.all(
+      channelIds.map((id, index) =>
+        this.channelRepository.update({ id, communityId }, { sortOrder: index }),
+      ),
+    );
+    return { reordered: true };
+  }
+
+  async getCommunityLayout(
+    communityId: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ) {
+    const payload = await this.getCommunityById(communityId, viewerId, viewerRole);
+    const rooms = await this.roomRepository.find({
+      where: { communityId, isActive: true },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
+    });
+    return {
+      ...payload,
+      rooms: rooms.map((r) => ({
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        roomType: r.roomType,
+        description: r.description,
+        categoryId: r.categoryId,
+        sortOrder: r.sortOrder,
+        settings: r.settings,
+      })),
+    };
+  }
+
   async inviteMember(creatorId: string, channelId: string, dto: InviteChannelMemberDto) {
     const channel = await this.getOwnedChannel(creatorId, channelId);
     if (channel.type !== ChannelType.INVITE) {
@@ -442,7 +544,7 @@ export class CommunitiesService {
     viewerRole?: UserRole | null,
   ) {
     const channel = await this.getChannelWithCommunity(channelId);
-    await this.assertChannelAccess(channel, userId, viewerRole);
+    await this.assertChannelAccess(channel, userId, viewerRole, 'write');
 
     if (await this.moderationService.isBanned(channel.community.id, userId)) {
       throw new ForbiddenException('You are banned from this community');
@@ -621,8 +723,9 @@ export class CommunitiesService {
     community: Community,
     viewerId: string | null | undefined,
     viewerRole: UserRole | null | undefined,
-    membershipActive: boolean,
+    subscriptionCoversCommunity: boolean,
     role: CommunityRole | undefined,
+    isActiveCommunityMember: boolean,
     inviteChannelIds: string[],
     invitedChannelIds: Set<string>,
   ): boolean {
@@ -630,16 +733,21 @@ export class CommunitiesService {
     if (viewerId === creatorId) return true;
     if (viewerRole === UserRole.ADMIN) return true;
 
-    if (community.visibility === CommunityVisibility.PRIVATE) return false;
+    if (community.visibility === CommunityVisibility.PRIVATE) {
+      if (!viewerId) return false;
+      if (role) return true;
+      return isActiveCommunityMember;
+    }
 
     if (community.visibility === CommunityVisibility.PAID) {
-      return !!viewerId && membershipActive;
+      return !!viewerId && subscriptionCoversCommunity;
     }
 
     if (community.visibility === CommunityVisibility.INVITE) {
       if (!viewerId) return false;
       if (role) return true;
-      if (membershipActive) return true;
+      if (isActiveCommunityMember) return true;
+      if (subscriptionCoversCommunity) return true;
       if (!inviteChannelIds.length) return false;
       return inviteChannelIds.some((id) => invitedChannelIds.has(id));
     }
@@ -656,11 +764,29 @@ export class CommunitiesService {
     if (viewerId === creatorId) return true;
     if (viewerRole === UserRole.ADMIN) return true;
 
-    if (community.visibility === CommunityVisibility.PRIVATE) return false;
+    if (community.visibility === CommunityVisibility.PRIVATE) {
+      if (!viewerId) return false;
+      const role = await this.roleRepository.findOne({
+        where: { communityId: community.id, userId: viewerId },
+      });
+      if (role) return true;
+      const activeMember = await this.communityMemberRepository.findOne({
+        where: {
+          communityId: community.id,
+          userId: viewerId,
+          status: CommunityMemberStatus.ACTIVE,
+        },
+      });
+      return !!activeMember;
+    }
 
     if (community.visibility === CommunityVisibility.PAID) {
       if (!viewerId) return false;
-      const membership = await this.entitlementsService.getMembershipForViewer(viewerId, creatorId);
+      const membership = await this.entitlementsService.getMembershipForViewer(
+        viewerId,
+        creatorId,
+        community.id,
+      );
       return membership.active;
     }
 
@@ -670,7 +796,19 @@ export class CommunitiesService {
         where: { communityId: community.id, userId: viewerId },
       });
       if (role) return true;
-      const membership = await this.entitlementsService.getMembershipForViewer(viewerId, creatorId);
+      const activeMember = await this.communityMemberRepository.findOne({
+        where: {
+          communityId: community.id,
+          userId: viewerId,
+          status: CommunityMemberStatus.ACTIVE,
+        },
+      });
+      if (activeMember) return true;
+      const membership = await this.entitlementsService.getMembershipForViewer(
+        viewerId,
+        creatorId,
+        community.id,
+      );
       if (membership.active) return true;
       const inviteChannels = await this.channelRepository.find({
         where: { communityId: community.id, type: ChannelType.INVITE },
@@ -704,8 +842,117 @@ export class CommunitiesService {
     return community;
   }
 
+  /** Invalidate cached community list visibility for a viewer. */
+  async bustCommunityListCache(userId: string, creatorId: string): Promise<void> {
+    await this.redis.del(`community:list:visible:${creatorId}:${userId}`);
+  }
+
+  /** Lightweight access metadata for join-request UX (no channel payload). */
+  async getCommunityAccessMeta(
+    creatorId: string,
+    slug: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ) {
+    const community = await this.communityRepository.findOne({ where: { creatorId, slug } });
+    if (!community) throw new NotFoundException('Community not found');
+
+    const canView = viewerId
+      ? await this.canViewCommunity(community, viewerId, viewerRole)
+      : community.visibility === CommunityVisibility.PUBLIC;
+
+    let joinRequestStatus: 'none' | 'pending' | 'active' | 'rejected' = 'none';
+    if (viewerId) {
+      const member = await this.communityMemberRepository.findOne({
+        where: { communityId: community.id, userId: viewerId },
+      });
+      if (member?.status === CommunityMemberStatus.PENDING) joinRequestStatus = 'pending';
+      else if (member?.status === CommunityMemberStatus.ACTIVE) joinRequestStatus = 'active';
+      else if (member?.status === CommunityMemberStatus.REJECTED) joinRequestStatus = 'rejected';
+    }
+
+    const canRequestJoin =
+      !!viewerId &&
+      !canView &&
+      (community.visibility === CommunityVisibility.PRIVATE ||
+        community.visibility === CommunityVisibility.INVITE) &&
+      joinRequestStatus !== 'pending' &&
+      joinRequestStatus !== 'active';
+
+    return {
+      communityId: community.id,
+      name: community.name,
+      slug: community.slug,
+      visibility: community.visibility,
+      canView,
+      canRequestJoin,
+      joinRequestStatus,
+    };
+  }
+
+  /** Validates a user may submit a join request (PRIVATE or INVITE communities without access). */
+  async assertCanRequestJoin(
+    communityId: string,
+    userId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<Community> {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) throw new NotFoundException('Community not found');
+    if (await this.moderationService.isBanned(communityId, userId)) {
+      throw new ForbiddenException('You are banned from this community');
+    }
+    if (userId === community.creatorId || viewerRole === UserRole.ADMIN) {
+      throw new BadRequestException('You already have access to this community');
+    }
+    const allowsJoinRequest =
+      community.visibility === CommunityVisibility.PRIVATE ||
+      community.visibility === CommunityVisibility.INVITE;
+    if (!allowsJoinRequest) {
+      throw new BadRequestException('This community does not accept join requests');
+    }
+    if (await this.canViewCommunity(community, userId, viewerRole)) {
+      throw new BadRequestException('You already have access to this community');
+    }
+    return community;
+  }
+
   async assertOwnedCommunity(creatorId: string, communityId: string): Promise<Community> {
     return this.getOwnedCommunity(creatorId, communityId);
+  }
+
+  /** Creator or delegated OWNER/ADMIN may manage community studio content. */
+  async assertCommunityStudioAccess(
+    actorId: string,
+    communityId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<Community> {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) throw new NotFoundException('Community not found');
+    if (viewerRole === UserRole.ADMIN) return community;
+    if (community.creatorId === actorId) return community;
+    const assignment = await this.roleRepository.findOne({
+      where: { communityId, userId: actorId },
+    });
+    if (
+      assignment &&
+      (assignment.role === CommunityRoleType.OWNER ||
+        assignment.role === CommunityRoleType.ADMIN)
+    ) {
+      return community;
+    }
+    throw new ForbiddenException('Insufficient permissions for community studio');
+  }
+
+  async canCoachCommunity(
+    communityId: string,
+    creatorId: string,
+    userId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<boolean> {
+    if (viewerRole === UserRole.ADMIN) return true;
+    if (userId === creatorId) return true;
+    const assignment = await this.roleRepository.findOne({ where: { communityId, userId } });
+    return assignment?.role === CommunityRoleType.COACH;
   }
 
   private async getOwnedCommunity(creatorId: string, communityId: string): Promise<Community> {
@@ -759,6 +1006,7 @@ export class CommunitiesService {
     channel: Channel & { community: Community },
     viewerId: string | null | undefined,
     viewerRole?: UserRole | null,
+    action: 'read' | 'write' = 'read',
   ) {
     const creatorId = channel.community.creatorId;
     const isOwner = viewerId === creatorId;
@@ -781,7 +1029,7 @@ export class CommunitiesService {
         channelId: channel.id,
         isMember,
       },
-      { isOwner, isAdmin },
+      { isOwner, isAdmin, action },
     );
 
     if (!access.allowed) {
@@ -878,13 +1126,22 @@ export class CommunitiesService {
 
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const [messagesRow] = await this.dataSource.query<{ count: string }[]>(
-      `SELECT COUNT(*)::int AS count
-       FROM channel_messages m
-       INNER JOIN channels ch ON ch.id = m.channel_id
-       WHERE ch.community_id = $1 AND m.created_at >= $2 AND m.deleted_at IS NULL`,
-      [communityId, since],
-    );
+    const [messagesRow, roomMessagesRow] = await Promise.all([
+      this.dataSource.query<{ count: string }[]>(
+        `SELECT COUNT(*)::int AS count
+         FROM channel_messages m
+         INNER JOIN channels ch ON ch.id = m.channel_id
+         WHERE ch.community_id = $1 AND m.created_at >= $2 AND m.deleted_at IS NULL`,
+        [communityId, since],
+      ),
+      this.dataSource.query<{ count: string }[]>(
+        `SELECT COUNT(*)::int AS count
+         FROM community_room_messages m
+         INNER JOIN community_rooms r ON r.id = m.room_id
+         WHERE r.community_id = $1 AND m.created_at >= $2 AND m.deleted_at IS NULL`,
+        [communityId, since],
+      ),
+    ]);
 
     const [activeRow] = await this.dataSource.query<{ count: string }[]>(
       `SELECT COUNT(DISTINCT m.user_id)::int AS count
@@ -914,7 +1171,10 @@ export class CommunitiesService {
     return {
       communityId,
       periodDays: 7,
-      messagesLast7Days: Number(messagesRow?.count ?? 0),
+      messagesLast7Days:
+        Number(messagesRow?.[0]?.count ?? 0) + Number(roomMessagesRow?.[0]?.count ?? 0),
+      channelMessagesLast7Days: Number(messagesRow?.[0]?.count ?? 0),
+      roomMessagesLast7Days: Number(roomMessagesRow?.[0]?.count ?? 0),
       activeMembersLast7Days: Number(activeRow?.count ?? 0),
       postsLast7Days: Number(postsRow?.count ?? 0),
       pollVotesLast7Days: Number(pollVotesRow?.count ?? 0),

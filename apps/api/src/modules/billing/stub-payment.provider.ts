@@ -52,7 +52,7 @@ export class StubPaymentProvider implements PaymentProvider {
     return { subscriptionId: 'stub_sub', prorationApplied: false };
   }
 
-  verifyWebhook(_payload: Buffer, _headers: Record<string, string>): ProviderWebhookResult | null {
+  async verifyWebhook(_payload: Buffer, _headers: Record<string, string>): Promise<ProviderWebhookResult | null> {
     return null;
   }
 }

@@ -53,9 +53,13 @@ export class BillingController {
   @Post('portal')
   createPortal(
     @CurrentUser() user: { sub: string },
-    @Body() body: { returnUrl: string },
+    @Body() body: { returnUrl: string; creatorId?: string },
   ) {
-    return this.billingService.createBillingPortalSession(user.sub, body.returnUrl);
+    return this.billingService.createBillingPortalSession(
+      user.sub,
+      body.returnUrl,
+      body.creatorId,
+    );
   }
 
   @Public()

@@ -40,9 +40,24 @@ export class StripePaymentProvider implements PaymentProvider {
     return key || null;
   }
 
+  private subscriptionMetadata(
+    input: CheckoutSessionInput,
+    type: string,
+  ): Stripe.MetadataParam {
+    const meta: Stripe.MetadataParam = {
+      userId: input.userId,
+      creatorId: input.creatorId,
+      tierId: input.tierId,
+      type,
+    };
+    if (input.communityId) meta.communityId = input.communityId;
+    return meta;
+  }
+
   async createCheckoutSession(input: CheckoutSessionInput): Promise<CheckoutSessionResult> {
     const stripe = this.client();
     const currency = (input.currency ?? 'usd').toLowerCase();
+    const isLifetime = input.billingInterval === 'lifetime';
 
     const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = input.stripePriceId
       ? { price: input.stripePriceId, quantity: 1 }
@@ -51,18 +66,42 @@ export class StripePaymentProvider implements PaymentProvider {
             currency,
             product_data: { name: input.tierName ?? 'FORGE membership' },
             unit_amount: input.priceCents ?? 0,
-            recurring: { interval: 'month' },
+            ...(isLifetime ? {} : { recurring: { interval: 'month' } }),
           },
           quantity: 1,
         };
 
+    if (isLifetime) {
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        success_url: input.successUrl,
+        cancel_url: input.cancelUrl,
+        line_items: [lineItem],
+        metadata: this.subscriptionMetadata(input, 'lifetime_subscription'),
+        ...(input.connectAccountId
+          ? {
+              payment_intent_data: {
+                transfer_data: { destination: input.connectAccountId },
+                ...(input.platformFeePercent && input.platformFeePercent > 0
+                  ? {
+                      application_fee_amount: Math.round(
+                        ((input.priceCents ?? 0) * input.platformFeePercent) / 100,
+                      ),
+                    }
+                  : {}),
+              },
+            }
+          : {}),
+      });
+      return {
+        provider: this.name,
+        sessionId: session.id,
+        checkoutUrl: session.url,
+      };
+    }
+
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
-      metadata: {
-        userId: input.userId,
-        creatorId: input.creatorId,
-        tierId: input.tierId,
-        type: 'subscription',
-      },
+      metadata: this.subscriptionMetadata(input, 'subscription'),
       ...(input.trialDays && input.trialDays > 0
         ? { trial_period_days: input.trialDays }
         : {}),
@@ -82,12 +121,7 @@ export class StripePaymentProvider implements PaymentProvider {
       cancel_url: input.cancelUrl,
       line_items: [lineItem],
       subscription_data: subscriptionData,
-      metadata: {
-        userId: input.userId,
-        creatorId: input.creatorId,
-        tierId: input.tierId,
-        type: 'subscription',
-      },
+      metadata: this.subscriptionMetadata(input, 'subscription'),
     });
     return {
       provider: this.name,
@@ -159,8 +193,12 @@ export class StripePaymentProvider implements PaymentProvider {
     };
   }
 
-  async cancelSubscription(externalSubscriptionId: string): Promise<void> {
+  async cancelSubscription(externalSubscriptionId: string, cancelAtPeriodEnd = false): Promise<void> {
     const stripe = this.client();
+    if (cancelAtPeriodEnd) {
+      await stripe.subscriptions.update(externalSubscriptionId, { cancel_at_period_end: true });
+      return;
+    }
     await stripe.subscriptions.cancel(externalSubscriptionId);
   }
 
@@ -190,7 +228,7 @@ export class StripePaymentProvider implements PaymentProvider {
     return { url: session.url ?? '' };
   }
 
-  verifyWebhook(payload: Buffer, headers: Record<string, string>): ProviderWebhookResult | null {
+  async verifyWebhook(payload: Buffer, headers: Record<string, string>): Promise<ProviderWebhookResult | null> {
     const secret = this.webhookSecret();
     if (!secret || !this.secretKey()) return null;
 
@@ -240,22 +278,63 @@ export class StripePaymentProvider implements PaymentProvider {
               : session.payment_intent?.id,
         };
       }
-      if (meta.type === 'subscription' && session.subscription) {
-        const subId =
-          typeof session.subscription === 'string'
-            ? session.subscription
-            : session.subscription.id;
+      if (meta.type === 'lifetime_subscription' && meta.userId && meta.creatorId && meta.tierId) {
         return {
           handled: true,
           checkoutType: 'subscription',
-          subscriptionId: subId,
           status: 'active',
           sessionId: session.id,
           userId: meta.userId,
           creatorId: meta.creatorId,
           tierId: meta.tierId,
+          communityId: meta.communityId || undefined,
+          subscriptionId:
+            typeof session.payment_intent === 'string'
+              ? `lifetime:${session.payment_intent}`
+              : session.payment_intent?.id
+                ? `lifetime:${session.payment_intent.id}`
+                : `lifetime:${session.id}`,
         };
       }
+      if (meta.type === 'subscription' && session.subscription) {
+        const subId =
+          typeof session.subscription === 'string'
+            ? session.subscription
+            : session.subscription.id;
+        let status: ProviderWebhookResult['status'] = 'active';
+        try {
+          const sub = await this.client().subscriptions.retrieve(subId);
+          if (sub.status === 'trialing') status = 'trial';
+        } catch {
+          /* default active */
+        }
+        return {
+          handled: true,
+          checkoutType: 'subscription',
+          subscriptionId: subId,
+          status,
+          sessionId: session.id,
+          userId: meta.userId,
+          creatorId: meta.creatorId,
+          tierId: meta.tierId,
+          communityId: meta.communityId || undefined,
+        };
+      }
+    }
+
+    if (event.type === 'invoice.upcoming') {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subId =
+        typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : invoice.subscription?.id;
+      if (!subId) return { handled: false };
+      return {
+        handled: true,
+        checkoutType: 'subscription',
+        subscriptionId: subId,
+        status: 'renewal_pending',
+      };
     }
 
     if (event.type === 'invoice.paid') {
@@ -286,6 +365,7 @@ export class StripePaymentProvider implements PaymentProvider {
         userId: meta.userId,
         creatorId: meta.creatorId,
         tierId: meta.tierId,
+        communityId: meta.communityId || undefined,
       };
     }
 
@@ -306,6 +386,7 @@ export class StripePaymentProvider implements PaymentProvider {
         userId: meta.userId,
         creatorId: meta.creatorId,
         tierId: meta.tierId,
+        communityId: meta.communityId || undefined,
         periodEndAt: sub.current_period_end
           ? new Date(sub.current_period_end * 1000)
           : undefined,
@@ -325,6 +406,28 @@ export class StripePaymentProvider implements PaymentProvider {
         subscriptionId: subId,
         status: 'failed_payment',
       };
+    }
+
+    if (event.type === 'charge.refunded') {
+      const charge = event.data.object as Stripe.Charge;
+      const meta = charge.metadata ?? {};
+      let subId: string | undefined;
+      const invoice = charge.invoice;
+      if (typeof invoice === 'object' && invoice && 'subscription' in invoice) {
+        const sub = (invoice as Stripe.Invoice).subscription;
+        subId = typeof sub === 'string' ? sub : sub?.id;
+      }
+      if (subId || meta.userId) {
+        return {
+          handled: true,
+          checkoutType: 'subscription',
+          subscriptionId: subId,
+          status: 'refunded',
+          userId: meta.userId,
+          creatorId: meta.creatorId,
+          tierId: meta.tierId,
+        };
+      }
     }
 
     return { handled: false };
