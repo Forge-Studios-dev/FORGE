@@ -61,7 +61,7 @@ export class CommunityRoomPermissionRow {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
-  @Column({ length: 64 })
+  @Column({ type: 'varchar', length: 64 })
   permission: CommunityRoomPermission;
 
   @CreateDateColumn({ name: 'created_at' })
@@ -83,7 +83,7 @@ export class CreatorAuditLog {
   @Column({ length: 128 })
   action: string;
 
-  @Column({ name: 'resource_type', length: 64, nullable: true })
+  @Column({ name: 'resource_type', type: 'varchar', length: 64, nullable: true })
   resourceType: string | null;
 
   @Column({ name: 'resource_id', type: 'uuid', nullable: true })
