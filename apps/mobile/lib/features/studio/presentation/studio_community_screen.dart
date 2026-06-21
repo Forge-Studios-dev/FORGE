@@ -513,7 +513,7 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
                                   Row(
                                     children: [
                                       TextButton(
-                                        onPressed: () => _updateCategory(catId!),
+                                        onPressed: () => _updateCategory(catId),
                                         child: const Text('Save'),
                                       ),
                                       TextButton(
@@ -667,7 +667,7 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
                             Row(
                               children: [
                                 TextButton(
-                                  onPressed: channelId == null ? null : () => _updateChannel(channelId),
+                                  onPressed: () => _updateChannel(channelId),
                                   child: const Text('Save'),
                                 ),
                                 TextButton(
