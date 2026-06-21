@@ -137,7 +137,8 @@ export default function StudioBundlesPage() {
             <option value="">Select tier…</option>
             {(tiers ?? []).map((tier) => (
               <option key={tier.id} value={tier.id}>
-                {tier.name} — {(tier.priceCents / 100).toFixed(0)} {tier.currency}/{tier.billingInterval}
+                {tier.name} — {(tier.priceCents / 100).toFixed(0)} {tier.currency}
+                {tier.billingInterval ? `/${tier.billingInterval}` : ''}
               </option>
             ))}
           </select>

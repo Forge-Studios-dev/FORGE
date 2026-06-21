@@ -13,6 +13,7 @@ import { SocketEvents } from '@forge/shared-types';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
 import { AccessSessionConflict } from '@/components/Community/AccessSessionConflict';
 import { CommunityEngagePanel } from '@/components/Community/CommunityEngagePanel';
+import { CommunityPostMedia } from '@/components/Community/CommunityPostMedia';
 import { CommunityWelcomeModal } from '@/components/Community/CommunityWelcomeModal';
 import type { CommunityChannel, CommunityCategory, CommunityPayload, CommunityPoll } from '@/types/community';
 import { isAxiosError } from 'axios';
@@ -31,6 +32,13 @@ type ChannelMessage = {
 
 type Channel = CommunityChannel;
 type Category = CommunityCategory;
+
+type MembershipMeResponse = {
+  data: {
+    active?: boolean;
+    subscription?: { tier?: { name?: string } };
+  };
+};
 
 interface Props {
   creatorId: string;
@@ -70,9 +78,7 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
     queryKey: ['membership-me', creatorId],
     enabled: !!user && !isCreator,
     queryFn: async () => {
-      const { data } = await api.get<{
-        data: { active?: boolean; subscription?: { tier?: { name?: string } } } };
-      }>(`/creators/${creatorId}/membership/me`);
+      const { data } = await api.get<MembershipMeResponse>(`/creators/${creatorId}/membership/me`);
       return data.data;
     },
   });

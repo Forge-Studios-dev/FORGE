@@ -25,7 +25,7 @@ import { StreamingService } from '../streaming/streaming.service';
 import { StreamLiveService } from '../streaming/stream-live.service';
 import { Stream, StreamStatus } from '../streaming/entities/stream.entity';
 import { StreamChatService } from '../stream-chat/stream-chat.service';
-import { Community, CommunityVisibility } from '../communities/entities/community.entity';
+import { Community } from '../communities/entities/community.entity';
 import { CommunityReport } from '../communities/entities/community-moderation.entity';
 import { StripeConnectService } from '../billing/stripe-connect.service';
 import { UpdateAdminCommunityDto } from './dto/update-admin-community.dto';

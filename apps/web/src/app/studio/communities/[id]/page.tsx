@@ -14,6 +14,7 @@ import { SubscriberPicker } from '@/components/Community/SubscriberPicker';
 import { StudioEngagementExtrasPanel } from '@/components/Community/StudioEngagementExtrasPanel';
 import { StudioCreatorOpsPanel } from '@/components/Community/StudioCreatorOpsPanel';
 import { StudioRoomsPanel } from '@/components/Community/StudioRoomsPanel';
+import { CommunityTrendsChart } from '@/components/Community/CommunityTrendsChart';
 
 type Tab = 'channels' | 'categories' | 'engagement' | 'rooms' | 'moderation' | 'settings';
 

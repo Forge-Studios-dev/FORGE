@@ -167,7 +167,7 @@ export class CreatorBundlesService {
       }),
     );
 
-    const items = await this.bundleItemRepository.save(
+    await this.bundleItemRepository.save(
       input.items.map((item, index) =>
         this.bundleItemRepository.create({
           bundleId: bundle.id,

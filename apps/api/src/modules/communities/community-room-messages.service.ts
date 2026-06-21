@@ -121,7 +121,7 @@ export class CommunityRoomMessagesService {
       userId,
       viewerRole,
     );
-    const room = await this.getTextRoom(communityId, roomId);
+    await this.getTextRoom(communityId, roomId);
     await this.roomPermissionsService.assertRoomPermissionIfRestricted(
       communityId,
       roomId,
