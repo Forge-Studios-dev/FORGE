@@ -86,7 +86,7 @@ export class CommunityEventRsvp {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
-  @Column({ length: 16, default: CommunityEventRsvpStatus.GOING })
+  @Column({ type: 'varchar', length: 16, default: CommunityEventRsvpStatus.GOING })
   status: CommunityEventRsvpStatus;
 
   @CreateDateColumn({ name: 'created_at' })

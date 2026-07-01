@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -55,6 +55,7 @@ export class CommunityPostsService {
     private readonly reactionRepository: Repository<CommunityPostReaction>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
+    @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
     private readonly moderationService: CommunityModerationService,
     private readonly aiCommunityService: AiCommunityService,

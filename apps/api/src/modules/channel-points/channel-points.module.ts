@@ -8,6 +8,7 @@ import {
 import { ChannelPointsService } from './channel-points.service';
 import { ChannelPointsController } from './channel-points.controller';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard
       ChannelPointReward,
       ChannelPointRedemption,
     ]),
+    UsersModule,
   ],
   providers: [ChannelPointsService, CreatorApprovedGuard],
   controllers: [ChannelPointsController],

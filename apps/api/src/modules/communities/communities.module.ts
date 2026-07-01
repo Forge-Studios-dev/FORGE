@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { Community } from './entities/community.entity';
@@ -116,9 +116,9 @@ import { MentorshipController } from './mentorship.controller';
       MentorshipProfile,
       MentorshipMatch,
     ]),
-    EntitlementsModule,
+    forwardRef(() => EntitlementsModule),
     AccessSessionsModule,
-    NotificationsModule,
+    forwardRef(() => NotificationsModule),
     UsersModule,
     PlatformModule,
     PlatformEventOutboxModule,

@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -16,6 +16,7 @@ export class CommunityRoomPermissionsService {
     @InjectRepository(CommunityRoom) private readonly roomRepository: Repository<CommunityRoom>,
     @InjectRepository(CommunityRoomPermissionRow)
     private readonly permissionRepository: Repository<CommunityRoomPermissionRow>,
+    @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
     private readonly auditService: CreatorAuditService,
   ) {}
