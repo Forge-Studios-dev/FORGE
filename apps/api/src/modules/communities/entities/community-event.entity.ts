@@ -38,16 +38,16 @@ export class CommunityEvent {
   @Column({ name: 'ends_at', type: 'timestamptz', nullable: true })
   endsAt: Date | null;
 
-  @Column({ length: 500, nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
   location: string | null;
 
   @Column({ name: 'is_online', default: true })
   isOnline: boolean;
 
-  @Column({ name: 'event_type', length: 16, default: 'one_off' })
+  @Column({ name: 'event_type', type: 'varchar', length: 16, default: 'one_off' })
   eventType: string;
 
-  @Column({ name: 'recurrence_rule', length: 16, nullable: true })
+  @Column({ name: 'recurrence_rule', type: 'varchar', length: 16, nullable: true })
   recurrenceRule: string | null;
 
   @Column({ name: 'recurrence_until', type: 'timestamptz', nullable: true })
