@@ -1,9 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, Optional } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { CommunityPost, CommunityPostType } from './entities/community-post.entity';
 import { CommunityPostComment } from './entities/community-post-comment.entity';
 import {
@@ -12,6 +12,9 @@ import {
 } from './entities/community-post-reaction.entity';
 import { Community } from './entities/community.entity';
 import { CommunitiesService } from './communities.service';
+import { CommunityModerationService } from './community-moderation.service';
+import { AiCommunityService } from './ai-community.service';
+import { CommunityModerationQueueService } from './community-moderation-queue.service';
 import { UserRole } from '../users/entities/user.entity';
 import {
   COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE,
@@ -53,6 +56,9 @@ export class CommunityPostsService {
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
     private readonly communitiesService: CommunitiesService,
+    private readonly moderationService: CommunityModerationService,
+    private readonly aiCommunityService: AiCommunityService,
+    private readonly moderationQueueService: CommunityModerationQueueService,
     private readonly eventEmitter: EventEmitter2,
     private readonly storageService: CommunityStorageService,
     @Optional()
@@ -132,6 +138,81 @@ export class CommunityPostsService {
         likeCount: counts.likes.get(p.id) ?? 0,
         likedByMe: counts.likedByMe.has(p.id),
       })),
+      meta: { cursor: nextCursor, hasMore },
+    };
+  }
+
+  /**
+   * Creator updates feed: announcement posts aggregated across every community
+   * the viewer actively belongs to (active membership already implies access,
+   * so no per-community access check or leak of private/paid announcements).
+   * Cursor-paginated by created_at. Reuses the community posts model and
+   * engagement-count batching.
+   */
+  async getMemberUpdatesFeed(
+    viewerId: string,
+    limit = 20,
+    cursor?: string,
+  ) {
+    const communityIds = await this.communitiesService.listActiveMemberCommunityIds(viewerId);
+    if (communityIds.length === 0) {
+      return { data: [], meta: { cursor: null, hasMore: false } };
+    }
+
+    const qb = this.postRepository
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.author', 'author')
+      .where('p.community_id IN (:...communityIds)', { communityIds })
+      .andWhere('p.post_type = :type', { type: CommunityPostType.ANNOUNCEMENT })
+      .orderBy('p.created_at', 'DESC')
+      .take(limit + 1);
+
+    if (cursor) {
+      const cursorDate = new Date(cursor);
+      if (!Number.isNaN(cursorDate.getTime())) {
+        qb.andWhere('p.created_at < :cursor', { cursor: cursorDate });
+      }
+    }
+
+    const posts = await qb.getMany();
+    const hasMore = posts.length > limit;
+    const data = hasMore ? posts.slice(0, limit) : posts;
+    const nextCursor = hasMore ? data[data.length - 1]?.createdAt.toISOString() : null;
+
+    const communities = await this.communityRepository.find({
+      where: { id: In([...new Set(data.map((p) => p.communityId))]) },
+      select: { id: true, name: true, slug: true, creatorId: true },
+    });
+    const communityById = new Map(communities.map((c) => [c.id, c]));
+
+    const counts = await this.getPostEngagementCounts(
+      data.map((p) => p.id),
+      viewerId,
+    );
+
+    return {
+      data: data.map((p) => {
+        const community = communityById.get(p.communityId);
+        return {
+          id: p.id,
+          communityId: p.communityId,
+          community: community
+            ? { id: community.id, name: community.name, slug: community.slug, creatorId: community.creatorId }
+            : null,
+          authorId: p.authorId,
+          author: p.author
+            ? { displayName: p.author.displayName, username: p.author.username }
+            : null,
+          title: p.title,
+          body: p.body,
+          postType: p.postType,
+          mediaUrls: p.mediaUrls ?? [],
+          createdAt: p.createdAt,
+          commentCount: counts.comments.get(p.id) ?? 0,
+          likeCount: counts.likes.get(p.id) ?? 0,
+          likedByMe: counts.likedByMe.has(p.id),
+        };
+      }),
       meta: { cursor: nextCursor, hasMore },
     };
   }
@@ -376,8 +457,27 @@ export class CommunityPostsService {
     await this.communitiesService.assertCommunityAccess(communityId, authorId, viewerRole);
     await this.assertPostInCommunity(communityId, postId);
 
+    if (await this.moderationService.isBanned(communityId, authorId)) {
+      throw new ForbiddenException('You are banned from this community');
+    }
+
     const body = input.body.trim();
     if (!body) throw new BadRequestException('Comment body is required');
+
+    const spam = this.aiCommunityService.scoreContent(body);
+    if (spam.flagged) {
+      void this.moderationQueueService.enqueueFlaggedMessage({
+        communityId,
+        channelId: postId,
+        userId: authorId,
+        messageBody: body,
+        score: spam.score,
+        reasons: spam.reasons,
+        detectedBy: 'fast_path',
+        surface: 'post_comment',
+      });
+      throw new ForbiddenException('Comment blocked by automated moderation');
+    }
 
     if (input.parentId) {
       const parent = await this.commentRepository.findOne({
@@ -394,6 +494,16 @@ export class CommunityPostsService {
         parentId: input.parentId ?? null,
       }),
     );
+
+    this.moderationQueueService.maybeQueueLlmTail({
+      communityId,
+      surface: 'post_comment',
+      surfaceId: postId,
+      userId: authorId,
+      messageId: comment.id,
+      body,
+      fastPathScore: spam.score,
+    });
 
     this.eventEmitter.emit('community.activity', {
       userId: authorId,
@@ -465,5 +575,26 @@ export class CommunityPostsService {
       }),
     );
     return { liked: true };
+  }
+
+  async acceptAnswer(
+    communityId: string,
+    postId: string,
+    commentId: string,
+    userId: string,
+  ): Promise<{ acceptedAnswerId: string }> {
+    const post = await this.postRepository.findOne({ where: { id: postId, communityId } });
+    if (!post) throw new NotFoundException('Post not found');
+    if (post.authorId !== userId) throw new ForbiddenException('Only the post author can accept an answer');
+    if (post.postType !== CommunityPostType.QA) {
+      throw new BadRequestException('Only Q&A posts support accepted answers');
+    }
+
+    const comment = await this.commentRepository.findOne({ where: { id: commentId, postId } });
+    if (!comment) throw new NotFoundException('Comment not found');
+
+    post.acceptedAnswerId = commentId;
+    await this.postRepository.save(post);
+    return { acceptedAnswerId: commentId };
   }
 }

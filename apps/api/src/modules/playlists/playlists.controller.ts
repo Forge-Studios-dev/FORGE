@@ -36,7 +36,7 @@ export class PlaylistsController {
   @Permissions(Permission.USE_LIBRARY)
   @ApiOperation({ summary: 'List playlists for the current user' })
   listMine(@CurrentUser() user: JwtPayload) {
-    return this.playlistsService.listByUser(user.sub);
+    return this.playlistsService.listByUser(user.sub, user.sub);
   }
 
   @Public()

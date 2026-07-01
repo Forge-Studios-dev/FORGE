@@ -41,6 +41,8 @@ export const SocketEvents = {
   STREAM_CHAT_PINNED: 'stream:chat:pinned',
   STREAM_CHAT_SETTINGS: 'stream:chat:settings',
   STREAM_POLL_UPDATED: 'stream:poll:updated',
+  STREAM_QA_CREATED: 'stream:qa:created',
+  STREAM_QA_UPDATED: 'stream:qa:updated',
   CHANNEL_MESSAGE: 'channel:message',
   CHANNEL_MESSAGE_DELETE: 'channel:message:delete',
   ROOM_MESSAGE: 'room:message',

@@ -21,6 +21,8 @@ type RoomSettings = {
   livekitRoomName?: string;
   requiredTierId?: string;
   parentRoomId?: string;
+  /** Set when a TEXT room was auto-created for post-live discussion of a stream. */
+  sourceStreamId?: string;
 };
 
 @Injectable()
@@ -244,6 +246,53 @@ export class CommunityRoomsService {
     }
 
     return { data: room };
+  }
+
+  /**
+   * Idempotently create a TEXT discussion room for continued conversation after
+   * a live stream ends ("after-live discussion room"). Reuses the standard
+   * community-room infrastructure (permissions, moderation, messaging, sockets).
+   *
+   * Authorization mirrors creator-studio access: the stream host must own or
+   * manage the community the stream is linked to. Returns the existing room if
+   * one was already created for this stream (safe to call from a retried/duplicate
+   * `stream.ended` event).
+   */
+  async ensureAfterLiveRoom(
+    hostUserId: string,
+    communityId: string,
+    streamId: string,
+    streamTitle?: string | null,
+  ): Promise<CommunityRoom> {
+    await this.assertCommunityStudio(hostUserId, communityId);
+
+    const existing = await this.roomRepository
+      .createQueryBuilder('room')
+      .where('room.communityId = :communityId', { communityId })
+      .andWhere("room.settings ->> 'sourceStreamId' = :streamId", { streamId })
+      .getOne();
+    if (existing) return existing;
+
+    const baseName = (streamTitle?.trim() || 'Live').slice(0, 160);
+    const name = `${baseName} — discussion`.slice(0, 200);
+    // Disambiguate slug with a short stream suffix so concurrent/identical
+    // titles never collide on the unique (community, slug) pair.
+    const slug = this.slugify(`${baseName}-live-${streamId.slice(0, 8)}`);
+
+    const settings: RoomSettings = { sourceStreamId: streamId };
+    const room = await this.roomRepository.save(
+      this.roomRepository.create({
+        communityId,
+        name,
+        slug,
+        roomType: CommunityRoomType.TEXT,
+        description: 'Continue the conversation from the live stream.',
+        sortOrder: 0,
+        isActive: true,
+        settings,
+      }),
+    );
+    return room;
   }
 
   async joinRoomToken(

@@ -22,6 +22,7 @@ import { UserRole } from '../users/entities/user.entity';
 import { CommunityRoomPermission } from './entities/community-room-message.entity';
 import { CommunityRoomPermissionsService } from './community-room-permissions.service';
 import { toPublicRoomMessage } from './community.mapper';
+import { ChannelMigrationService } from './channel-migration.service';
 
 @Injectable()
 export class CommunityRoomMessagesService {
@@ -38,8 +39,19 @@ export class CommunityRoomMessagesService {
     private readonly entitlementsService: EntitlementsService,
     private readonly roomPermissionsService: CommunityRoomPermissionsService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly channelMigrationService: ChannelMigrationService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
+
+  private async emitChannelBridge(roomId: string, publicMsg: ReturnType<typeof toPublicRoomMessage>) {
+    const channelId = await this.channelMigrationService.resolveChannelIdForRoom(roomId);
+    if (!channelId) return;
+    const { roomId: _roomId, parentMessageId, ...rest } = publicMsg;
+    this.eventEmitter.emit('channel.message', {
+      channelId,
+      message: { ...rest, channelId, parentId: parentMessageId ?? null },
+    });
+  }
 
   private async getTextRoom(communityId: string, roomId: string) {
     const room = await this.roomRepository.findOne({
@@ -146,6 +158,8 @@ export class CommunityRoomMessagesService {
         messageBody: trimmed,
         score: spam.score,
         reasons: spam.reasons,
+        detectedBy: 'fast_path',
+        surface: 'room',
       });
       throw new ForbiddenException('Message blocked by automated moderation');
     }
@@ -188,12 +202,23 @@ export class CommunityRoomMessagesService {
       relations: ['user'],
     });
 
+    this.moderationQueueService.maybeQueueLlmTail({
+      communityId,
+      surface: 'room',
+      surfaceId: roomId,
+      userId,
+      messageId: msg.id,
+      body: trimmed,
+      fastPathScore: spam.score,
+    });
+
     const tierNames = await this.entitlementsService.getActiveTierNamesByUserIds(
       community.creatorId,
       [userId],
     );
     const publicMsg = toPublicRoomMessage(full!, tierNames.get(userId) ?? null);
     this.eventEmitter.emit('room.message', { communityId, roomId, message: publicMsg });
+    await this.emitChannelBridge(roomId, publicMsg);
     this.eventEmitter.emit('community.activity', {
       userId,
       communityId,
@@ -240,6 +265,10 @@ export class CommunityRoomMessagesService {
     msg.deletedAt = new Date();
     await this.messageRepository.save(msg);
     this.eventEmitter.emit('room.message.deleted', { communityId, roomId, messageId });
+    const channelId = await this.channelMigrationService.resolveChannelIdForRoom(roomId);
+    if (channelId) {
+      this.eventEmitter.emit('channel.message.deleted', { channelId, messageId });
+    }
     return { id: messageId, deleted: true };
   }
 }

@@ -1,5 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AiBudgetService } from './ai-budget.service';
+import { recordAiLlmCall } from '../../common/metrics/forge-metrics';
 
 const SPAM_PATTERNS = [
   /\b(buy now|click here|free money|crypto pump)\b/i,
@@ -18,7 +20,10 @@ export type ModerationScore = {
 export class AiModerationService {
   private readonly logger = new Logger(AiModerationService.name);
 
-  constructor(@Optional() private readonly configService?: ConfigService) {}
+  constructor(
+    @Optional() private readonly configService?: ConfigService,
+    @Optional() private readonly aiBudget?: AiBudgetService,
+  ) {}
 
   scoreSpam(text: string): ModerationScore {
     const reasons: string[] = [];
@@ -45,6 +50,11 @@ export class AiModerationService {
     const apiKey = this.configService?.get<string>('openai.apiKey')?.trim();
     if (!apiKey || text.length < 3) return baseline;
 
+    if (this.aiBudget && !(await this.aiBudget.tryConsume())) {
+      recordAiLlmCall('moderation', 'budget_skipped');
+      return baseline;
+    }
+
     try {
       const res = await fetch('https://api.openai.com/v1/moderations', {
         method: 'POST',
@@ -54,15 +64,22 @@ export class AiModerationService {
         },
         body: JSON.stringify({ input: text.slice(0, 4000), model: 'omni-moderation-latest' }),
       });
-      if (!res.ok) return baseline;
+      if (!res.ok) {
+        recordAiLlmCall('moderation', 'error');
+        return baseline;
+      }
       const json = (await res.json()) as {
         results?: Array<{ flagged?: boolean; category_scores?: Record<string, number> }>;
       };
       const result = json.results?.[0];
-      if (!result) return baseline;
+      if (!result) {
+        recordAiLlmCall('moderation', 'error');
+        return baseline;
+      }
       const scores = result.category_scores ?? {};
       const maxScore = Math.max(0, ...Object.values(scores));
       const flagged = !!result.flagged || maxScore >= 0.75;
+      recordAiLlmCall('moderation', 'success');
       return {
         score: Math.max(baseline.score, maxScore),
         flagged,
@@ -70,6 +87,7 @@ export class AiModerationService {
         provider: 'openai',
       };
     } catch (err) {
+      recordAiLlmCall('moderation', 'error');
       this.logger.debug(
         `OpenAI moderation skipped: ${err instanceof Error ? err.message : String(err)}`,
       );

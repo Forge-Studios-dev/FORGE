@@ -21,8 +21,60 @@
 | AI moderation (OpenAI when `OPENAI_API_KEY` set) | ✅ |
 | Analytics (unique viewers, revenue, poll totals) | ✅ |
 | Highlight clip markers (30s window) | ✅ Schema + API; Mux export TBD |
+| After-live discussion rooms | ✅ Auto TEXT room on stream end (community-linked streams) |
+| Live Q&A mode (submit / upvote / answer) | ✅ API + realtime + web + mobile |
 
 **Not architected:** chat microservice, multi-region, Stripe Connect payouts, auto ASR captions, global 1M+ concurrent.
+
+### After-live discussion rooms
+
+When a stream that is linked to a community (`Stream.communityId`) ends, the API
+emits `stream.ended` and `AfterLiveRoomListener` provisions a standard **TEXT**
+community room via `CommunityRoomsService.ensureAfterLiveRoom`, so members can
+keep talking after the broadcast. Design notes:
+
+- **Reuse, not a new system:** the room is an ordinary `CommunityRoom`, so it
+  inherits room permissions, AI spam moderation, rate limiting, message history,
+  and the `room:${roomId}` socket fan-out. It appears in the normal rooms list on
+  web and mobile with no extra UI.
+- **Idempotent:** the source stream id is stored in `room.settings.sourceStreamId`;
+  retried/duplicate `stream.ended` events return the existing room instead of
+  creating duplicates.
+- **Best-effort & off the request path:** the listener never throws — failures
+  (stream not community-linked, host lacks studio access, transient DB error) are
+  logged and swallowed so they cannot affect the stream-end flow.
+- **Authorization:** room creation runs under the host's identity and requires the
+  host to own/manage the target community (creator or `OWNER`/`ADMIN` role).
+
+### Live Q&A mode
+
+Viewers submit questions during a stream; the audience upvotes them and the host
+marks them answered/dismissed. Endpoints live under `streams/:streamId/qa`:
+
+| Method | Path | Who |
+|--------|------|-----|
+| `GET` | `/streams/:id/qa?status=` | Anyone with chat access (optional auth) |
+| `POST` | `/streams/:id/qa` | Authenticated viewer with chat access |
+| `POST` | `/streams/:id/qa/:questionId/upvote` | Authenticated viewer (toggles) |
+| `PATCH` | `/streams/:id/qa/:questionId/status` | Owner / delegated moderator |
+
+Design notes:
+
+- **Reuses `stream_messages`** with `message_type = 'question'` plus
+  `question_status` (`pending|answered|dismissed`) and an `upvotes` tally — so
+  questions inherit the same entitlement, ban/timeout, profanity, AI-moderation,
+  and rate-limit guards as chat (questions are rate-limited a little harder).
+- **Upvotes** are deduplicated per user via a Redis set (`stream:qa:votes:{id}`)
+  with the persisted tally clamped at zero, so a lost Redis set can never drive
+  the count negative.
+- **Realtime:** `stream.qa.created` / `stream.qa.updated` EventEmitter2 events are
+  relayed by the gateway to the `stream:${id}` room as `stream:qa:created` /
+  `stream:qa:updated`. Web (`StreamQaPanel`) and mobile (`StreamQaPanel`) both
+  refresh on these.
+- **Migration:** `1837500000000-stream-qa` adds the enum value + columns + a
+  partial index `(stream_id, upvotes DESC) WHERE message_type='question'`
+  (`transaction = false` because Postgres disallows `ALTER TYPE ... ADD VALUE`
+  inside a transaction).
 
 ---
 

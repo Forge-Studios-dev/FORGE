@@ -133,6 +133,99 @@ export class DirectMessagesService {
     return { ok: true };
   }
 
+  static readonly MAX_GROUP_MEMBERS = 25;
+
+  async createGroupConversation(
+    creatorId: string,
+    name: string,
+    memberIds: string[],
+  ): Promise<{ conversationId: string; name: string; memberCount: number }> {
+    const allIds = [...new Set([creatorId, ...memberIds])];
+    if (allIds.length < 3) {
+      throw new BadRequestException('Group conversations require at least 3 participants');
+    }
+    if (allIds.length > DirectMessagesService.MAX_GROUP_MEMBERS) {
+      throw new BadRequestException(
+        `Group conversations support at most ${DirectMessagesService.MAX_GROUP_MEMBERS} members`,
+      );
+    }
+
+    const existingUsers = await this.userRepository.findByIds(allIds);
+    if (existingUsers.length !== allIds.length) {
+      throw new BadRequestException('One or more participant IDs are invalid');
+    }
+
+    const conv = await this.dataSource.transaction(async (manager) => {
+      const created = await manager.save(
+        manager.create(Conversation, {
+          isGroup: true,
+          name: name.trim().slice(0, 100),
+          creatorId,
+        }),
+      );
+      const memberEntities = allIds.map((userId) =>
+        manager.create(ConversationMember, { conversationId: created.id, userId }),
+      );
+      await manager.save(memberEntities);
+      return created;
+    });
+
+    return { conversationId: conv.id, name: conv.name ?? '', memberCount: allIds.length };
+  }
+
+  async addGroupMember(requesterId: string, conversationId: string, newMemberId: string) {
+    await this.assertMember(requesterId, conversationId);
+    const conversation = await this.conversationRepository.findOne({ where: { id: conversationId } });
+    if (!conversation?.isGroup) throw new BadRequestException('Not a group conversation');
+
+    const count = await this.memberRepository.count({ where: { conversationId } });
+    if (count >= DirectMessagesService.MAX_GROUP_MEMBERS) {
+      throw new BadRequestException('Group is at maximum capacity');
+    }
+
+    const existing = await this.memberRepository.findOne({ where: { conversationId, userId: newMemberId } });
+    if (existing) throw new BadRequestException('User is already a member');
+
+    const user = await this.userRepository.findOne({ where: { id: newMemberId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    await this.memberRepository.save(
+      this.memberRepository.create({ conversationId, userId: newMemberId }),
+    );
+    return { ok: true };
+  }
+
+  async sendGroupMessage(senderId: string, conversationId: string, content: string) {
+    await this.assertMember(senderId, conversationId);
+
+    const msg = await this.messageRepository.save(
+      this.messageRepository.create({
+        conversationId,
+        senderId,
+        content: content.trim(),
+      }),
+    );
+
+    await this.conversationRepository.update(conversationId, { updatedAt: new Date() });
+
+    const full = await this.messageRepository.findOne({
+      where: { id: msg.id },
+      relations: ['sender'],
+    });
+
+    const publicMsg = this.toPublicMessage(full!);
+    const members = await this.memberRepository.find({ where: { conversationId } });
+    const recipientIds = members.map((m) => m.userId).filter((id) => id !== senderId);
+
+    this.eventEmitter.emit('direct-message.sent', {
+      conversationId,
+      message: publicMsg,
+      recipientIds,
+    });
+
+    return publicMsg;
+  }
+
   private async findOrCreateDmConversation(userA: string, userB: string): Promise<Conversation> {
     const existing = await this.conversationRepository
       .createQueryBuilder('c')

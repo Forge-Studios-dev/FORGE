@@ -21,6 +21,9 @@ export class Course {
   @Column({ name: 'is_published', default: false })
   isPublished: boolean;
 
+  @Column({ name: 'community_id', type: 'uuid', nullable: true })
+  communityId: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
@@ -45,6 +48,9 @@ export class CourseCohort {
 
   @Column({ name: 'ends_at', type: 'timestamptz', nullable: true })
   endsAt: Date | null;
+
+  @Column({ name: 'community_id', type: 'uuid', nullable: true })
+  communityId: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

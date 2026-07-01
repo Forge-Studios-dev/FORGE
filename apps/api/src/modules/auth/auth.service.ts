@@ -28,6 +28,7 @@ import { AuthEmailOtpService } from './auth-email-otp.service';
 import { AuthUserCacheService } from './auth-user-cache.service';
 import { AuthSessionCacheService } from './auth-session-cache.service';
 import { isDisposableEmail } from './utils/disposable-email.util';
+import { ReferralService } from '../referral/referral.service';
 
 export type ClientSessionMeta = {
   userAgent?: string | null;
@@ -57,6 +58,7 @@ export class AuthService {
     private readonly authUserCache: AuthUserCacheService,
     private readonly authSessionCache: AuthSessionCacheService,
     private readonly dataSource: DataSource,
+    private readonly referralService: ReferralService,
   ) {}
 
   async signup(dto: SignupDto, meta?: ClientSessionMeta) {
@@ -90,9 +92,14 @@ export class AuthService {
         `Verification email not sent on signup for ${user.email}: ${err instanceof Error ? err.message : err}`,
       );
     }
+    void this.referralService.claimReferral(dto.referralCode, user.id).catch((err) =>
+      this.logger.warn(
+        `Referral claim failed for user ${user.id}: ${err instanceof Error ? err.message : err}`,
+      ),
+    );
     void this.analyticsService.ingest(user.id, {
       eventName: 'auth.signup',
-      properties: { method: 'email' },
+      properties: { method: 'email', referralCode: dto.referralCode ?? null },
     });
     return tokens;
   }

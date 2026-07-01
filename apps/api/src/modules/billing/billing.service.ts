@@ -46,6 +46,15 @@ export class BillingService {
       throw new BadRequestException('Tier does not belong to creator');
     }
 
+    if (tier.maxMembers != null) {
+      const activeCount = await this.entitlementsService.countActiveMembersOnTier(tier.id);
+      if (activeCount >= tier.maxMembers) {
+        throw new BadRequestException(
+          `This tier is full (${tier.maxMembers} seat limit reached)`,
+        );
+      }
+    }
+
     let stripePriceId = tier.stripePriceId;
     if (this.isBillingEnabled() && !stripePriceId) {
       const synced = await this.stripeTierSync.syncTier(tier);
@@ -212,6 +221,7 @@ export class BillingService {
             },
             MemberSubscriptionSource.STRIPE,
           );
+          if (userId) this.eventEmitter.emit('billing.subscription.created', { userId });
         }
       } else if (result.status === 'trial' && result.subscriptionId) {
         const userId = result.userId;
@@ -250,6 +260,7 @@ export class BillingService {
         );
       } else if (result.status === 'canceled' && result.subscriptionId) {
         await this.entitlementsService.cancelByExternalRef(result.subscriptionId);
+        if (result.userId) this.eventEmitter.emit('billing.subscription.cancelled', { userId: result.userId });
       } else if (result.status === 'failed_payment' && result.subscriptionId) {
         await this.entitlementsService.markSubscriptionFailedPayment(result.subscriptionId);
       } else if (result.status === 'refunded' && result.subscriptionId) {

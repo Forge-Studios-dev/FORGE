@@ -17,6 +17,8 @@ import {
   Video,
   VideoStatus,
   TranscodeProvider,
+  VideoType,
+  SHORT_DURATION_THRESHOLD_SECONDS,
 } from './entities/video.entity';
 import { createS3Client } from '../../common/create-s3-client';
 import { indexedAtOnReady, publishStatusOnReady } from './video-publish.util';
@@ -175,6 +177,10 @@ export class MuxVodService {
       muxPlaybackId: playbackId,
       transcodeProvider: TranscodeProvider.MUX,
       durationSeconds: duration,
+      videoType:
+        duration !== null && duration <= SHORT_DURATION_THRESHOLD_SECONDS
+          ? VideoType.SHORT
+          : VideoType.VIDEO,
       publishedAt,
       indexedAt,
       failureReason: null,

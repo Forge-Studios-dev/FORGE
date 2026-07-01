@@ -8,6 +8,9 @@ import { StreamLiveService } from './stream-live.service';
 import { BillingService } from '../billing/billing.service';
 import { UsersService } from '../users/users.service';
 import { StreamReactionService } from './stream-reaction.service';
+import { StreamAnalyticsService } from './stream-analytics.service';
+import { AiCommunityService } from '../communities/ai-community.service';
+import { StreamBreakoutService } from './stream-breakout.service';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
@@ -32,6 +35,9 @@ describe('StreamingController Mux webhook', () => {
         { provide: BillingService, useValue: { createEventCheckout: jest.fn() } },
         { provide: UsersService, useValue: { resolveUserId: jest.fn() } },
         { provide: StreamReactionService, useValue: {} },
+        { provide: StreamAnalyticsService, useValue: { getCreatorStreamAnalytics: jest.fn(), recordSnapshot: jest.fn() } },
+        { provide: AiCommunityService, useValue: { generateStreamSummary: jest.fn() } },
+        { provide: StreamBreakoutService, useValue: { createBreakoutRooms: jest.fn(), listBreakoutRooms: jest.fn(), endBreakoutSession: jest.fn() } },
         {
           provide: ConfigService,
           useValue: {

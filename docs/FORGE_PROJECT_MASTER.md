@@ -96,15 +96,15 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | **AuthModule** | `auth` | signup, login, refresh, logout, sessions, google OAuth, verify-email, forgot/reset password, impersonate (admin) | JWT + refresh rotation, Google Passport |
 | **UsersModule** | `users` | `me`, `me/watch-history`, `me/request-creator`, `by-username/:username`, profiles, avatar upload | Profiles, creator request, public channel data |
 | **CategoriesModule** | `categories` | list categories, skill tags | Taxonomy for discovery |
-| **ContentModule** | `videos` | presigned-url, complete, multipart/*, view, watch, studio, CRUD | VOD upload, processing orchestration, playback; `ViewCountFlushService` (Redis → Postgres view counts) |
-| **FeedModule** | `videos` | `feed`, `feed/trending`, `feed/recommended`, `public`, `by-category/:slug`, `by-skills` | Home/explore feeds (`latest` / `popular` / `forYou`) |
+| **ContentModule** | `videos`, `podcasts` | presigned-url, complete, multipart/*, view, watch, studio, CRUD, recommended/feed, trending, library, similar, podcast series + episodes + RSS | VOD upload, processing, playback; `ViewCountFlushService`; `RecommendationsService` (personalized + trending); `ContentLibraryService`; `PodcastsService` (series, iTunes RSS) |
+| **FeedModule** | `videos` | `feed`, `feed/trending`, `feed/following`, `feed/recommended`, `public`, `by-category/:slug`, `by-skills` | Home/explore feeds (`latest` / `popular` / `forYou`) |
 | **EngagementModule** | root | like, comments (CRUD/replies/likes), follow, follow lists | Social engagement |
 | **DirectMessagesModule** | `/messages` | DM conversations, send, read receipts | Peer messaging |
-| **StreamingModule** | `streams` | start, live, RSVP, polls, clips, replay, checkout, mods, `webhooks/mux` | Mux live + webhooks — see [LIVE.md](./LIVE.md) |
+| **StreamingModule** | `streams` | start, live, RSVP, polls, clips, replay, checkout, mods, `webhooks/mux`, co-hosts, VIP config, breakout rooms | Mux live + webhooks; multi-host (max 5 co-hosts); VIP room (tier-gated); breakout rooms via `StreamBreakoutService` — see [LIVE.md](./LIVE.md) |
 | **LiveBroadcastModule** | `streams/:streamId/broadcast/browser` | token, start, stop | LiveKit browser go-live (RTMP egress to Mux) — see [LIVE.md](./LIVE.md) |
 | **EntitlementsModule** | root | `creators/:id/tiers`, `subscriptions/mock`, membership checks | Mock memberships, tier CRUD |
 | **BillingModule** | `billing` | `checkout`, `checkout/event`, `webhook` | Stripe one-off checkout (paid events, super chat) when `BILLING_PROVIDER=stripe` |
-| **CommunitiesModule** | root | channels per creator, messages, invites | Creator community chat |
+| **CommunitiesModule** | root | channels per creator, messages, invites, mentorship profiles + matching | Creator community chat; `MentorshipService` (skill-overlap matching, accept/decline, completion tracking) |
 | **StreamChatModule** | `streams/:id/chat` | messages, super-chat, ban/timeout, settings, pin | Live stream chat |
 | **PlaylistsModule** | `playlists` | CRUD, `me`, add videos | User playlists |
 | **NotificationsModule** | `notifications` | list, read, device register/revoke | In-app + FCM token registry |
@@ -113,6 +113,8 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | **AnalyticsModule** | `analytics` | `events` ingest | Async analytics (BullMQ) |
 | **AdminModule** | `admin` | users, creators, videos, reports, categories, stats, impersonate, grant subscription | Operator APIs (`MANAGE_PLATFORM`) |
 | **PlatformModule** | `platform` | `config` | Feature flags, auth/firebase/legal public config |
+| **ChannelPointsModule** | root | `communities/:communityId/channel-points/*`, `creators/me/communities/:communityId/channel-points/*` | Twitch-style channel points: earn, redeem, reward CRUD, approve/reject redemptions |
+| **FraudDetectionModule** | `admin/fraud` | alerts, user risk, manual check | Billing fraud rules engine (velocity, chargeback, rapid cancel, new-account spend) |
 | **FirebaseModule** | — | — | FCM admin SDK, optional App Check |
 | **MailModule** | — | — | SMTP / console mail for verification & reset |
 | **WorkersModule** | — | — | BullMQ processors (see §5) |
@@ -240,6 +242,8 @@ NEXT_PUBLIC_FEATURE_FLAGS=blueprints_public
 | `/reports`, `/reports/[id]` | Reports queue |
 | `/categories` | Taxonomy CRUD |
 | `/analytics` | Platform analytics |
+| `/live` | Live stream management, force-end, grant access |
+| `/fraud` | Fraud alerts queue, risk review, manual re-check |
 | `/search` | Cross-platform search |
 | `/settings` | API URL, health |
 
@@ -269,9 +273,13 @@ Auth: `forge_admin_token` + HttpOnly refresh cookie.
 | Trust | `reports`, `community_reports`, `community_member_bans` |
 | Monetization | `subscription_tiers`, `member_subscriptions`, `tier_entitlements` |
 | Community 2.0 | `brands`, `communities`, `community_categories`, `channels`, `channel_members`, `channel_messages`, `community_posts`, `community_post_comments`, `community_post_reactions`, `community_polls`, `community_poll_votes`, `community_roles` |
+| Mentorship | `mentorship_profiles`, `mentorship_matches` |
+| Channel Points | `channel_points_balances`, `channel_point_rewards`, `channel_point_redemptions` |
+| Fraud | `fraud_alerts` |
 | Courses | `courses`, `course_cohorts` |
 | Access control | `access_session_audit` (runtime sessions in Redis) |
 | Analytics | `analytics_events` |
+| Podcasts | `podcast_series` (videos with `video_type = 'podcast'` are episodes) |
 
 Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API boot.
 
@@ -306,30 +314,41 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 
 ## 16. Feature status matrix
 
+High-level snapshot only. **Authoritative task-level tracker:** [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md) (96.6% complete, 684 tasks).
+
 | Domain | API | Web | Admin | Mobile | Worker |
 |------|:---:|:---:|:-----:|:------:|:------:|
 | Auth & sessions | ✅ | ✅ | ✅ | ✅ | — |
-| Google OAuth | ✅ | ✅ | — | — | — |
-| Feed & search | ✅ | ✅ | ✅ | ✅ | — |
+| Google OAuth | ✅ | ✅ | — | ✅ | — |
+| Feed & personalized recommendations | ✅ | ✅ | ✅ | ⚠️ | — |
 | VOD upload/playback | ✅ | ✅ | — | ⚠️ | ✅ |
-| Live (Mux) | ✅ | ✅ | — | ⚠️ | — |
-| Engagement | ✅ | ✅ | — | ✅ | — |
-| Direct messages | ✅ | ✅ | — | — | — |
-| Playlists | ✅ | ✅ | — | — | — |
-| Creator studio | ✅ | ✅ | — | ✅ | — |
-| Memberships (mock) | ✅ | ✅ | — | — | ✅ |
-| Communities | ✅ | ✅ | — | ✅ | ✅ |
-| Community 2.0 (posts, polls, BI, courses) | ✅ | ✅ | — | partial | ✅ |
-| Community post comments/reactions | ✅ | ✅ | — | partial | — |
-| Stream chat | ✅ | ✅ | — | — | — |
-| Reports | ✅ | — | ✅ | — | — |
+| Podcasts (series, episodes, iTunes RSS) | ✅ | — | — | — | — |
+| Live (Mux + LiveKit, co-hosts, VIP, breakout) | ✅ | ✅ | ✅ | ⚠️ | ✅ |
+| Engagement (likes, comments, follow) | ✅ | ✅ | — | ✅ | ✅ |
+| Direct messages | ✅ | ✅ | — | ✅ | — |
+| Playlists | ✅ | ✅ | — | ⏳ | — |
+| Creator studio | ✅ | ✅ | — | ⚠️ | — |
+| Memberships & Stripe billing | ✅ | ✅ | — | ⚠️ | ✅ |
+| Communities (rooms, posts, events) | ✅ | ✅ | ✅ | ⚠️ | ✅ |
+| Community engagement (wiki, polls, challenges) | ✅ | ✅ | — | ⚠️ | ✅ |
+| Channel points (earn, redeem, rewards) | ✅ | — | — | — | — |
+| Mentorship matching (profiles, scoring, lifecycle) | ✅ | — | — | — | — |
+| Gamification (XP, streaks, badges, retention milestones) | ✅ | ✅ | — | ⚠️ | — |
+| Courses & programs | ⚠️ | ⚠️ | — | ⚠️ | — |
+| Creator bundles | ✅ | ✅ | — | ⚠️ | — |
+| Stream chat & reactions | ✅ | ✅ | — | ⚠️ | ✅ |
+| Access sessions / device caps | ✅ | ✅ | — | ⚠️ | — |
+| Reports & moderation | ✅ | — | ✅ | — | ✅ |
+| Fraud detection (billing anomalies, velocity, chargeback) | ✅ | — | ✅ | — | — |
 | Admin hub | ✅ | impersonate | ✅ | — | — |
 | FCM push | ⚠️ | — | — | ⚠️ | ✅ |
-| Analytics ingest | ✅ | partial | ✅ | — | ✅ |
-| Stripe billing (Connect + tiers) | ✅ | partial | — | partial | — |
+| Analytics & creator BI | ✅ | ⚠️ | ✅ | ⚠️ | ✅ |
+| AI (moderation, copilot) | ⚠️ | ⚠️ | — | ⏳ | ✅ |
 | Blueprints gallery | flag | flag | — | — | — |
 
-✅ MVP-ready · ⚠️ partial or config-dependent
+✅ MVP-ready · ⚠️ partial or config-dependent · ⏳ not started
+
+**Tracker:** 3 ⏳ items remaining (optional infra only) · 15 🚫 blocked on external deps (Meilisearch, pgvector, DRM, 50K load test).
 
 ---
 
@@ -363,6 +382,7 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 | Auth | [AUTH.md](./AUTH.md) |
 | Firebase | [FIREBASE.md](./FIREBASE.md) |
 | Memberships | [MEMBERSHIPS.md](./MEMBERSHIPS.md) |
+| Creator Economy OS tracker | [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md) |
 | Legal | [LEGAL.md](./LEGAL.md) |
 | QA | [QA.md](./QA.md) |
 | Design & blueprints | [DESIGN.md](./DESIGN.md) |
@@ -388,6 +408,8 @@ All paths prefixed with `/api/v1`. Auth = JWT unless `@Public`. See Swagger for 
 ### `videos` (content + feed)
 
 **Feed:** `GET feed` · `GET feed/trending` · `GET feed/following` · `GET feed/recommended` · `GET public` · `GET by-category/:slug` · `GET by-skills`  
+**Recommendations:** `GET recommended/feed` (personalized; falls back to trending for anon) · `GET trending` · `GET :id/similar`  
+**Library:** `GET library` (unified content library, filterable by type/category/orderBy) · `GET library/creator/:creatorId`  
 **Upload:** `POST presigned-url` · `PUT :id/upload` (proxy) · `POST :id/complete` · `POST :id/cancel-upload` · multipart `progress` / `checkpoint` / `parts` / `complete` · `POST :id/thumbnail/presigned-url`  
 **Playback:** `GET :id` · `POST :id/view` · `POST :id/watch` · `PATCH :id` · `DELETE :id`  
 **Studio:** `GET studio` · `POST release-stuck-uploads` · `POST :id/retry-transcode` · `POST` (create metadata)
@@ -395,6 +417,10 @@ All paths prefixed with `/api/v1`. Auth = JWT unless `@Public`. See Swagger for 
 ### `streams`
 
 `POST start` · `GET live` · `GET upcoming` · `GET :id` · `GET :id/replay` · `POST :id/end` · `POST :id/checkout` · `POST :id/grant-access` · `PATCH :id/slow-mode` · RSVP `GET/POST :id/rsvp` · `POST :id/rsvp/cancel` · mods `GET/POST :id/moderators` · `POST :id/moderators/:userId/remove` · `GET :id/moderator-status` · `GET :id/reactions` · polls `GET :id/poll` · `POST :id/polls` · `POST :id/polls/:pollId/vote|close` · clips `GET/POST :id/clips` · `GET :id/captions` · `POST webhooks/mux`
+
+**Co-hosts:** `GET :id/co-hosts` · `POST :id/co-hosts` · `DELETE :id/co-hosts/:userId` (max 5)  
+**VIP room:** `PATCH :id/vip-config` (set tier gate) · `POST :id/vip-room/join` (entitlement check)  
+**Breakout rooms:** `POST :id/breakout-rooms` · `GET :id/breakout-rooms` · `POST :id/breakout-rooms/assign` · `POST :id/breakout-rooms/end`
 
 **Browser go-live:** `POST :streamId/broadcast/browser/token` · `POST …/start` · `POST …/stop` (LiveKit)
 
@@ -438,13 +464,25 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 `GET creators/:creatorId/communities` · `GET creators/:creatorId/communities/:slug` · `GET communities/id/:communityId` · `GET communities/:creatorId` (legacy) · `POST/PATCH creators/me/communities` · categories/channels CRUD under `creators/me/communities/:communityId/…` · `GET/POST channels/:channelId/messages` · `DELETE channels/:channelId/messages/:messageId` · posts: `GET communities/:communityId/posts` · `GET …/posts/search` · `POST creators/me/communities/:communityId/posts` · polls: `GET communities/:communityId/polls/active` · `POST …/polls/:pollId/vote` · `POST creators/me/communities/:communityId/polls` · moderation: reports, bans, roles under `creators/me/communities/:communityId/…` · `GET creators/me/brands` (+ CRUD) · gamification: `GET/POST communities/:communityId/gamification/…`
 
+**Mentorship:** `PUT communities/:communityId/mentorship/profile` · `GET communities/:communityId/mentorship/mentors` · `POST communities/:communityId/mentorship/run-matching` (creator) · `GET communities/:communityId/mentorship/my-matches` · `POST communities/:communityId/mentorship/matches/:matchId/respond` · `POST communities/:communityId/mentorship/matches/:matchId/complete`
+
+### Channel Points (root)
+
+**Member:** `GET communities/:communityId/channel-points/me` (balance) · `GET communities/:communityId/channel-points/rewards` (catalog) · `POST communities/:communityId/channel-points/redeem`  
+**Creator (requires `CreatorApprovedGuard`):** `POST creators/me/communities/:communityId/channel-points/rewards` · `PATCH …/rewards/:rewardId` · `DELETE …/rewards/:rewardId` · `GET …/redemptions` · `POST …/redemptions/:redemptionId/approve` · `POST …/redemptions/:redemptionId/reject`
+
+### `podcasts`
+
+**Public:** `GET podcasts/:seriesId/episodes` · `GET podcasts/:seriesId/rss` (iTunes XML)  
+**Creator:** `POST/GET creators/me/podcasts` · `PATCH/DELETE creators/me/podcasts/:seriesId` · `POST creators/me/podcasts/:seriesId/episodes`
+
 ### Access sessions (root)
 
 `POST access-sessions/start` · `POST access-sessions/heartbeat` · `DELETE access-sessions/current` · `GET access-sessions/me`
 
 ### Courses (root)
 
-`GET/POST creators/me/courses` · `POST creators/me/courses/:courseId/cohorts`
+`GET/POST creators/me/courses` · `POST creators/me/courses/:courseId/cohorts` · `GET creators/:creatorId/programs` · `GET creators/:creatorId/programs/:slug` · `POST programs/:programId/enroll` · `GET/POST creators/me/programs`
 
 ### Entitlements (extended)
 
@@ -462,9 +500,11 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 `GET config` (flags, auth, firebase, legal)
 
-### `admin` (role admin)
+### `admin` (role admin, requires `MANAGE_PLATFORM`)
 
 `GET stats` · `GET users` · `GET users/:id` · `GET users/:id/summary|videos|reports|watch-history|playlists` · `PATCH users/:id` · `DELETE users/:id` · `POST users/:id/impersonate` · `POST users/:id/resend-verification` · `GET creators/pending` · `POST creators/:id/approve|reject` · `GET videos` · `PATCH videos/:id` · `GET reports` · `GET reports/:id` · `PATCH reports/:id` · `GET analytics/summary` · `POST categories` · `PATCH categories/:id` · `DELETE categories/:id` · `POST subscriptions/grant` · `GET database/query-stats` · `POST database/query-stats/reset` · `GET streams` · `POST streams/:id/force-end` · `POST streams/:id/grant-access` · `GET/DELETE streams/:id/chat` · `POST streams/backfill-mux-playback-ids`
+
+**Fraud:** `GET fraud/alerts` · `GET fraud/users/:userId/risk` · `POST fraud/users/:userId/check` · `PATCH fraud/alerts/:alertId`
 
 ### Health & metrics
 
@@ -472,4 +512,4 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 ---
 
-*Last updated: 2026-06-18*
+*Last updated: 2026-06-30*

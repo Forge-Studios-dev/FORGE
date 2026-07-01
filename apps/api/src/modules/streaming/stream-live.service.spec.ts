@@ -13,6 +13,7 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 import { UsersService } from '../users/users.service';
 import { StreamClip } from './entities/stream-clip.entity';
 import { StreamCaption } from './entities/stream-caption.entity';
+import { StreamAudienceRequest } from './entities/stream-audience-request.entity';
 import { ConfigService } from '@nestjs/config';
 import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 
@@ -51,6 +52,7 @@ describe('StreamLiveService votePoll', () => {
         { provide: getRepositoryToken(Stream), useValue: {} },
         { provide: getRepositoryToken(StreamClip), useValue: { save: jest.fn(), find: jest.fn(), create: jest.fn() } },
         { provide: getRepositoryToken(StreamCaption), useValue: { find: jest.fn() } },
+        { provide: getRepositoryToken(StreamAudienceRequest), useValue: { findOne: jest.fn(), find: jest.fn(), save: jest.fn(), create: jest.fn() } },
         { provide: StreamingService, useValue: streamingService },
         {
           provide: ConfigService,
@@ -109,6 +111,7 @@ describe('StreamLiveService poll aggregation', () => {
         { provide: getRepositoryToken(Stream), useValue: {} },
         { provide: getRepositoryToken(StreamClip), useValue: {} },
         { provide: getRepositoryToken(StreamCaption), useValue: {} },
+        { provide: getRepositoryToken(StreamAudienceRequest), useValue: { findOne: jest.fn(), find: jest.fn(), save: jest.fn(), create: jest.fn() } },
         { provide: StreamingService, useValue: { findById: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: EntitlementsService, useValue: {} },

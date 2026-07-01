@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -427,6 +433,111 @@ export class FeedService {
       JSON.stringify(result),
       this.logger,
     );
+
+    return result;
+  }
+
+  /**
+   * Content-based "related / watch-next" recommendations for a video.
+   *
+   * Reuses the discoverable-video filters and popularity score. Relevance is a
+   * cheap, deterministic, index-friendly content signal (no ML infra):
+   *   shared skill tags ×3  +  same category ×2  +  same creator ×1
+   * ordered by relevance then popularity. Already-watched videos are excluded
+   * for signed-in viewers, and the rail is topped up with popular discoverable
+   * videos so it is never empty. Anonymous results are cached.
+   */
+  async getRelatedVideos(opts: { videoId: string; userId?: string; limit?: number }) {
+    const limit = Math.min(opts.limit || 12, 24);
+    const source = await this.videoRepository.findOne({
+      where: { id: opts.videoId },
+      relations: ['skillTags'],
+    });
+    if (!source) throw new NotFoundException('Video not found');
+
+    const tagIds = (source.skillTags ?? []).map((t) => t.id);
+    const categoryId = source.categoryId ?? null;
+    const creatorId = source.userId;
+
+    const cacheKey = `related:v1:${opts.videoId}:${limit}`;
+    if (!opts.userId) {
+      const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          /* corrupt cache — fall through to DB */
+        }
+      }
+    }
+
+    const sharedTagsSql = tagIds.length
+      ? `(SELECT COUNT(*) FROM video_skill_tags vst WHERE vst.video_id = v.id AND vst.skill_tag_id IN (:...relTagIds))`
+      : `0`;
+    const categorySql = categoryId
+      ? `(CASE WHEN v.category_id = :relCategoryId THEN 1 ELSE 0 END)`
+      : `0`;
+    const creatorSql = `(CASE WHEN v.user_id = :relCreatorId THEN 1 ELSE 0 END)`;
+    const relevanceSql = `(${sharedTagsSql} * 3 + ${categorySql} * 2 + ${creatorSql})`;
+
+    const buildBase = () => {
+      const q = applyDiscoverableVideoFilters(this.videoRepository.createQueryBuilder('v'))
+        .select('v.id', 'id')
+        .andWhere('v.id != :relSourceId', { relSourceId: opts.videoId })
+        .setParameter('relCreatorId', creatorId);
+      if (tagIds.length) q.setParameter('relTagIds', tagIds);
+      if (categoryId) q.setParameter('relCategoryId', categoryId);
+      if (opts.userId) {
+        q.andWhere(
+          `NOT EXISTS (SELECT 1 FROM watch_history wh WHERE wh.video_id = v.id AND wh.user_id = :relViewerId)`,
+          { relViewerId: opts.userId },
+        );
+      }
+      return q;
+    };
+
+    const relevantRows = (await buildBase()
+      .addSelect(relevanceSql, 'relevance')
+      .addSelect(POPULAR_SCORE_SQL, 'score')
+      .andWhere(`${relevanceSql} > 0`)
+      .orderBy('relevance', 'DESC')
+      .addOrderBy('score', 'DESC')
+      .addOrderBy('v.id', 'DESC')
+      .limit(limit)
+      .getRawMany()) as Array<{ id: string }>;
+    const ids = relevantRows.map((r) => r.id);
+
+    if (ids.length < limit) {
+      const exclude = [opts.videoId, ...ids];
+      const fillRows = (await buildBase()
+        .addSelect(POPULAR_SCORE_SQL, 'score')
+        .andWhere('v.id NOT IN (:...relExclude)', { relExclude: exclude })
+        .orderBy('score', 'DESC')
+        .addOrderBy('v.id', 'DESC')
+        .limit(limit - ids.length)
+        .getRawMany()) as Array<{ id: string }>;
+      for (const r of fillRows) if (!ids.includes(r.id)) ids.push(r.id);
+    }
+
+    if (!ids.length) {
+      return { data: [], meta: { source: opts.videoId } };
+    }
+
+    const hydrated = await this.videoRepository.find({
+      where: { id: In(ids) },
+      relations: ['user', 'skillTags', 'skillTags.subcategory', 'skillTags.subcategory.category'],
+    });
+    const byId = new Map(hydrated.map((v) => [v.id, v]));
+    const data = ids
+      .map((id) => byId.get(id))
+      .filter((v): v is Video => !!v)
+      .map((v) => this.videosService.mapToPublicVideo(v));
+
+    const result = { data, meta: { source: opts.videoId } };
+
+    if (!opts.userId) {
+      await safeRedisSetex(this.redis, cacheKey, this.feedCacheTtl(), JSON.stringify(result), this.logger);
+    }
 
     return result;
   }

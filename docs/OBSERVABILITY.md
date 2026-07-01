@@ -32,6 +32,7 @@ When set, scrapers must send `Authorization: Bearer <token>`. Leave unset for op
 | `forge_bullmq_jobs_active` | Gauge by queue name |
 | `forge_bullmq_jobs_delayed` | Gauge by queue name |
 | `forge_bullmq_jobs_failed` | Gauge by queue name |
+| `forge_ai_llm_calls_total` | Counter by `feature` (moderation/summary) + `result` (success/error/budget_skipped) — LLM cost & reliability |
 | Default Node/process metrics | via `prom-client` collectDefaultMetrics |
 
 Queues exported when registered: `mux-vod-ingest`, `video-processing` (when FFmpeg), `analytics-ingest`, `analytics-retention`, `push-dispatch`, `subscription-maintenance`, `stream-mux-sync`, `stream-chat-ingest`, `stream-reminder`, `stream-snapshot-retention`, `premium-content-notify`, `engagement-reconciliation`.

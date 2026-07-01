@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { MemberSubscriptionStatus } from '../entitlements/entities/member-subscription.entity';
 import { NotificationsService } from './notifications.service';
 import { NotificationType } from './entities/notification.entity';
 import { PushDispatchService } from './push-dispatch.service';
@@ -42,8 +43,13 @@ export class SubscriptionMaintenanceService {
           const daysLeft = sub.expiresAt
             ? Math.ceil((sub.expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000))
             : 3;
-          const title = `${tierName} expiring soon`;
-          const body = `Your membership expires in ${daysLeft} day(s).`;
+          const isTrial = sub.status === MemberSubscriptionStatus.TRIAL;
+          const title = isTrial
+            ? `${tierName} trial ending soon`
+            : `${tierName} expiring soon`;
+          const body = isTrial
+            ? `Your free trial ends in ${daysLeft} day(s). Add a payment method to keep access.`
+            : `Your membership expires in ${daysLeft} day(s).`;
 
           pending.push({
             userId: sub.userId,
@@ -54,8 +60,12 @@ export class SubscriptionMaintenanceService {
               creatorId: sub.creatorId,
               tierId: sub.tierId,
               expiresAt: sub.expiresAt?.toISOString(),
+              isTrial,
             },
-            pushData: { type: 'subscription_expiring', creatorId: sub.creatorId },
+            pushData: {
+              type: isTrial ? 'trial_ending' : 'subscription_expiring',
+              creatorId: sub.creatorId,
+            },
           });
           await this.redis.setex(dedupeKey, 3 * 24 * 60 * 60, '1');
         }

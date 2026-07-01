@@ -1,7 +1,7 @@
 # FORGE AI / LLM Strategy — Audit, Provider Selection & Implementation Plan
 
-**Vision reference:** [COMMUNITY-MODULE-2.0.md §Phase 9](../COMMUNITY-MODULE-2.0.md) (AI-Powered Community)  
-**Implementation tracker:** [COMMUNITY-2.0-IMPLEMENTATION.md](./COMMUNITY-2.0-IMPLEMENTATION.md) (Phase I backlog)  
+**Vision reference:** [FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md Phase 12](../FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md) (AI-Powered Community)  
+**Implementation tracker:** [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md) (Phase 12 — `CEOS-P12-*`)  
 **Live AI moderation (shipped):** [LIVE.md](./LIVE.md)  
 **Deferred triggers:** [audits/DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md)  
 **Last updated:** 2026-06-21  
@@ -55,7 +55,7 @@ There is **no single “best” LLM** for FORGE. Frontier model capability conve
 
 ## 1. Scope & Planned Features
 
-From [COMMUNITY-MODULE-2.0.md §Phase 9](../COMMUNITY-MODULE-2.0.md):
+From [FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md Phase 12](../FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md):
 
 | Feature | LLM Required? | Priority | Phase |
 |---------|---------------|----------|-------|
@@ -72,13 +72,13 @@ From [COMMUNITY-MODULE-2.0.md §Phase 9](../COMMUNITY-MODULE-2.0.md):
 | Subscription churn prediction | No (analytics/ML) | P3 | I-2 |
 | Engagement prediction | No (analytics/ML) | P3 | I-2 |
 
-**Implementation tracker status** ([COMMUNITY-2.0-IMPLEMENTATION.md](./COMMUNITY-2.0-IMPLEMENTATION.md)):
+**Implementation tracker status** ([FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md)):
 
 | Phase | Item | Status |
 |-------|------|--------|
-| I | I-1 ML moderation pipeline | Product priority — **this doc** |
-| I | I-2 AI summaries, churn prediction, creator copilot | Phase I roadmap |
-| J | J-1 Search sidecar (F-1302) | Trigger: 500K videos or FTS p95 degrade |
+| Phase 12 | C3-12-012 ML moderation pipeline | Product priority — **this doc** |
+| Phase 12 | C3-12-013 Churn prediction, C3-12-014 health ML | Phase 12 roadmap |
+| Phase 15 | C3-15-003 Search sidecar (F-1302) | Trigger: 500K videos or FTS p95 degrade |
 
 ---
 
@@ -97,9 +97,10 @@ From [COMMUNITY-MODULE-2.0.md §Phase 9](../COMMUNITY-MODULE-2.0.md):
 | **Live stream chat** | `apps/api/src/common/chat/ai-moderation.util.ts`, `stream-chat.service.ts`, `stream-chat-ingest.worker.ts` | Hard-block phrases → OpenAI Moderation API | Yes (when `OPENAI_API_KEY` set) | **Production-ready** |
 | **Community room messages** | `community-room-messages.service.ts`, `ai-community.service.ts` | Regex + heuristics; blocks sync | No | **Partial** |
 | **Community posts/channels** | `communities.service.ts`, `ai-moderation.service.ts` | Regex patterns + length heuristics | No | **Partial** |
-| **Async moderation queue** | `community-moderation.worker.ts`, BullMQ `COMMUNITY_MODERATION_QUEUE` | Creates auto spam report only | No LLM in worker | **Partial** |
-| **Creator copilot (summaries)** | `ai-community.service.ts` → `summarizeDiscussion()` | Word-frequency + last-3-messages fallback | No | **Stub** |
+| **Async moderation queue** | `community-moderation.worker.ts`, BullMQ `COMMUNITY_MODERATION_QUEUE` | LLM judge tail (`judgeFlaggedContent`) → auto spam report | Active when `AI_MODERATION_LLM_ENABLED=true` | **Wired** |
+| **Creator copilot (summaries)** | `ai-community.service.ts` → `summarizeDiscussionAsync()` | OpenAI chat-completion (`gpt-4.1-mini`) behind `copilotEnabled`+`apiKey`+budget; word-frequency deterministic fallback | Yes (when `AI_COPILOT_ENABLED=true` + key) | **Production-ready** |
 | **Studio AI preview UI** | `StudioCreatorOpsPanel.tsx`, `community-ai.controller.ts` | Calls `/creators/me/ai/moderation/score` | Heuristic only | **UI exists** |
+| **Content tagging** | `categories.service.ts` → `suggestSkillTags()`, `POST categories/:id/ai/suggest-tags` | Relevance ranking of curated skill-tag catalog vs. title/description | No (deterministic, bounded per category) | **Production-ready (API)** |
 | **Audit logs** | `creator-audit.service.ts`, `community-ai.controller.ts` | Creator action history | N/A | **Shipped** |
 | **AI Search / RAG** | — | Not implemented | — | **Deferred** |
 | **Churn / health scoring** | — | Not implemented | — | **Deferred** |
@@ -140,17 +141,31 @@ community-moderation.worker.ts
 |------------|---------|--------|-------|
 | `openai.apiKey` | `OPENAI_API_KEY` | ✅ | Used by live chat only |
 | `stream.aiModerationEnabled` | `STREAM_AI_MODERATION_ENABLED` | ✅ | Default true |
-| `ai.moderationLlmEnabled` | — | ❌ | Referenced in code; **not in `configuration.ts`** |
+| `ai.moderationLlmEnabled` | `AI_MODERATION_LLM_ENABLED` | ✅ | Wired in `configuration.ts`; activates async LLM judge tail |
+| `ai.moderationReviewThreshold` | `AI_MODERATION_REVIEW_THRESHOLD` | ✅ | Cost guard — borderline-only LLM tail (default 0.25) |
+| `ai.copilotEnabled` / `ai.copilotModel` | `AI_COPILOT_ENABLED` / `AI_COPILOT_MODEL` | ✅ | Discussion summary LLM path |
 | `ai.*` provider keys | — | ❌ | Anthropic, Google not configured |
-| Daily budget caps | — | ❌ | Not implemented |
+| `ai.dailyLlmBudget` | `AI_DAILY_LLM_BUDGET` | ✅ | Daily cost ceiling — Redis-counted OpenAI calls/UTC-day across all AI features (0 = unlimited). Enforced at the shared `AiModerationService.scoreContent` chokepoint + copilot summary; fail-open on Redis outage. Usage via `GET /admin/ai/budget` |
 
 ### 2.5 API Routes (Community AI)
 
 | Method | Route | Purpose | LLM? |
 |--------|-------|---------|------|
 | `POST` | `/creators/me/ai/moderation/score` | Score text for spam/toxicity (studio preview) | Heuristic |
-| `GET` | `/creators/me/communities/:communityId/rooms/:roomId/summary` | Summarize recent room discussion | Deterministic stub |
+| `GET` | `/creators/me/communities/:communityId/rooms/:roomId/summary` | Summarize recent room discussion | Real LLM (budget-guarded) + deterministic fallback |
+| `POST` | `/categories/:id/ai/suggest-tags` | Suggest skill tags from draft title/description | Deterministic catalog ranking (creator/admin) |
+| `GET` | `/admin/ai/budget` | Daily LLM budget usage (admin) | N/A |
 | `GET` | `/creators/me/audit-logs` | Creator audit history | N/A |
+
+**UGC moderation coverage.** The two-stage cascade (sync regex/heuristic fast-path **block** + async LLM judge **tail** → moderator review) now protects **both** untrusted UGC surfaces:
+
+| Surface | Writer | Sync block | LLM tail | `surface` tag |
+|---------|--------|------------|----------|---------------|
+| Community room messages | any member | ✅ | ✅ | `room` |
+| Community post comments | any member | ✅ (+ ban check) | ✅ | `post_comment` |
+| Community posts | creator/studio only (trusted) | n/a | n/a | — |
+
+The tail is centralized in `CommunityModerationQueueService.maybeQueueLlmTail()` (single implementation, both surfaces) and is subject to the daily budget cap (`AI_DAILY_LLM_BUDGET`).
 
 ---
 
@@ -666,14 +681,14 @@ Add corresponding entries to `apps/api/src/config/configuration.ts` under an `ai
 
 | # | Gap | File / Area | Priority |
 |---|-----|-------------|----------|
-| 1 | `ai.moderationLlmEnabled` referenced but not in config | `configuration.ts` | P0 |
-| 2 | Community rooms lack OpenAI Moderation (live chat has it) | `community-room-messages.service.ts` | P0 |
+| 1 | ~~`ai.moderationLlmEnabled` referenced but not in config~~ | `configuration.ts` | ✅ Done |
+| 2 | ~~Community rooms lack OpenAI Moderation (live chat has it)~~ — async LLM judge tail wired (`maybeQueueLlmJudgeTail`) | `community-room-messages.service.ts` | ✅ Done |
 | 3 | Community posts lack OpenAI Moderation | `community-posts.service.ts` | P0 |
-| 4 | Moderation worker does not call LLM | `community-moderation.worker.ts` | P1 |
-| 5 | Summaries are deterministic stub | `ai-community.service.ts` | P1 |
+| 4 | ~~Moderation worker does not call LLM~~ — LLM judge tail active (`judgeFlaggedContent`) | `community-moderation.worker.ts` | ✅ Done |
+| 5 | ~~Summaries are deterministic stub~~ — `summarizeDiscussionAsync()` real OpenAI call (budget-guarded) + deterministic fallback | `ai-community.service.ts` | ✅ Done |
 | 6 | No Anthropic/Google keys or config | `configuration.ts` | P1 |
 | 7 | No per-creator token budget | New | P1 |
-| 8 | No AI-specific observability metrics | `OBSERVABILITY.md` | P1 |
+| 8 | ~~No AI-specific observability metrics~~ — `forge_ai_llm_calls_total{feature,result}` Prometheus counter wired at moderation + summary chokepoints | `common/metrics/forge-metrics.ts` | ✅ Done |
 | 9 | No `ai_decision_logs` table | New migration | P2 |
 | 10 | Mobile studio copilot UI | `studio_*` screens | P2 |
 
@@ -726,7 +741,7 @@ Maintain **2,000–5,000 labeled examples** for quarterly eval:
 
 Run regression when switching models or updating policy prompts.
 
-### 14.4 Validation Gates (per `COMMUNITY-2.0-IMPLEMENTATION.md`)
+### 14.4 Validation Gates
 
 | Dimension | AI-specific checks |
 |-----------|-------------------|
@@ -785,8 +800,8 @@ All toggles via env — no redeploy required if Fly secrets updated + restart.
 
 ### Internal
 
-- [COMMUNITY-MODULE-2.0.md §Phase 9](../COMMUNITY-MODULE-2.0.md) — AI feature spec
-- [COMMUNITY-2.0-IMPLEMENTATION.md](./COMMUNITY-2.0-IMPLEMENTATION.md) — Phase I/J tracker
+- [FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md Phase 12](../FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md) — AI feature spec
+- [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md) — Phase 12 / deferred AI items
 - [LIVE.md](./LIVE.md) — Shipped live chat AI moderation
 - [audits/DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md) — Search sidecar trigger
 - [OBSERVABILITY.md](./OBSERVABILITY.md) — Metrics baseline
@@ -825,7 +840,7 @@ All toggles via env — no redeploy required if Fly secrets updated + restart.
 
 | Change | Update |
 |--------|--------|
-| New AI feature shipped | This doc + `COMMUNITY-2.0-IMPLEMENTATION.md` Phase I/J |
+| New AI feature shipped | This doc + `FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md` Phase 12 |
 | New env vars | `apps/api/.env.example` + §10 here |
 | Provider pricing shift | §3.2 + §8 cost tables |
 | New provider integrated | §4 + §6.2 architecture |

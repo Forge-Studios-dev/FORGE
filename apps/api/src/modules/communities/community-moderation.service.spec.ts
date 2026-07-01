@@ -9,6 +9,8 @@ import { Channel } from './entities/channel.entity';
 import { ChannelMessage } from './entities/channel-message.entity';
 import { CommunityPost } from './entities/community-post.entity';
 import { CommunityPoll } from './entities/community-poll.entity';
+import { CommunityRoom } from './entities/community-room.entity';
+import { CommunityRoomMessage } from './entities/community-room-message.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CommunitiesService } from './communities.service';
 import { CreatorAuditService } from './creator-audit.service';
@@ -34,6 +36,8 @@ describe('CommunityModerationService', () => {
   let messageRepository: { findOne: jest.Mock };
   let postRepository: { findOne: jest.Mock };
   let pollRepository: { findOne: jest.Mock };
+  let roomRepository: { findOne: jest.Mock };
+  let roomMessageRepository: { findOne: jest.Mock };
   let reportRepository: {
     save: jest.Mock;
     create: jest.Mock;
@@ -71,6 +75,12 @@ describe('CommunityModerationService', () => {
     pollRepository = {
       findOne: jest.fn().mockResolvedValue({ id: 'poll-1', communityId: 'comm-1' }),
     };
+    roomRepository = {
+      findOne: jest.fn().mockResolvedValue({ id: 'room-1', communityId: 'comm-1' }),
+    };
+    roomMessageRepository = {
+      findOne: jest.fn().mockResolvedValue({ id: 'rmsg-1', roomId: 'room-1' }),
+    };
     reportRepository = {
       save: jest.fn().mockResolvedValue({ id: 'report-1', status: 'open' }),
       create: jest.fn((x) => x),
@@ -93,6 +103,8 @@ describe('CommunityModerationService', () => {
         { provide: getRepositoryToken(ChannelMessage), useValue: messageRepository },
         { provide: getRepositoryToken(CommunityPost), useValue: postRepository },
         { provide: getRepositoryToken(CommunityPoll), useValue: pollRepository },
+        { provide: getRepositoryToken(CommunityRoom), useValue: roomRepository },
+        { provide: getRepositoryToken(CommunityRoomMessage), useValue: roomMessageRepository },
         {
           provide: NotificationsService,
           useValue: { create: jest.fn().mockResolvedValue({}) },

@@ -12,6 +12,7 @@ import { CommunityModerationQueueService } from './community-moderation-queue.se
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { CommunityRoomPermissionsService } from './community-room-permissions.service';
+import { ChannelMigrationService } from './channel-migration.service';
 
 describe('CommunityRoomMessagesService', () => {
   let service: CommunityRoomMessagesService;
@@ -27,7 +28,14 @@ describe('CommunityRoomMessagesService', () => {
   };
   const messageRepository = {
     createQueryBuilder: jest.fn(),
-    findOne: jest.fn(),
+    findOne: jest.fn().mockResolvedValue({
+      id: 'msg-1',
+      roomId: 'room-1',
+      userId: 'user-1',
+      body: 'hello',
+      user: { id: 'user-1', username: 'tester' },
+      createdAt: new Date(),
+    }),
     create: jest.fn((x) => x),
     save: jest.fn((x) => ({ id: 'msg-1', ...x, createdAt: new Date() })),
   };
@@ -42,8 +50,14 @@ describe('CommunityRoomMessagesService', () => {
   const moderationService = { isBanned: jest.fn().mockResolvedValue(false) };
   const aiCommunityService = {
     scoreContent: jest.fn().mockReturnValue({ flagged: false, score: 0, reasons: [], model: 'regex' }),
+    scoreContentAsync: jest
+      .fn()
+      .mockResolvedValue({ flagged: false, score: 0, reasons: [], model: 'regex' }),
   };
-  const moderationQueueService = { enqueueFlaggedMessage: jest.fn() };
+  const moderationQueueService = {
+    enqueueFlaggedMessage: jest.fn().mockResolvedValue(undefined),
+    maybeQueueLlmTail: jest.fn(),
+  };
   const accessSessionsService = { requirePremiumSession: jest.fn() };
   const entitlementsService = {
     getActiveTierNamesByUserIds: jest.fn().mockResolvedValue(new Map()),
@@ -51,6 +65,9 @@ describe('CommunityRoomMessagesService', () => {
   const roomPermissionsService = {
     assertRoomPermissionIfRestricted: jest.fn().mockResolvedValue(undefined),
     hasRoomPermission: jest.fn().mockResolvedValue(false),
+  };
+  const channelMigrationService = {
+    resolveChannelIdForRoom: jest.fn().mockResolvedValue(null),
   };
   const redis = { set: jest.fn().mockResolvedValue('OK') };
   const eventEmitter = { emit: jest.fn() };
@@ -69,6 +86,7 @@ describe('CommunityRoomMessagesService', () => {
         { provide: AccessSessionsService, useValue: accessSessionsService },
         { provide: EntitlementsService, useValue: entitlementsService },
         { provide: CommunityRoomPermissionsService, useValue: roomPermissionsService },
+        { provide: ChannelMigrationService, useValue: channelMigrationService },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
       ],
@@ -102,5 +120,29 @@ describe('CommunityRoomMessagesService', () => {
     await expect(
       service.sendMessage('comm-1', 'room-1', 'user-1', 'buy now click here free money spam'),
     ).rejects.toThrow(ForbiddenException);
+    expect(moderationQueueService.enqueueFlaggedMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ detectedBy: 'fast_path', surface: 'room' }),
+    );
+  });
+
+  it('delegates the async LLM judge tail to the shared moderation queue for persisted messages', async () => {
+    aiCommunityService.scoreContent.mockReturnValue({
+      flagged: false,
+      score: 0.3,
+      reasons: ['length'],
+      model: 'heuristic-ml',
+    });
+
+    await service.sendMessage('comm-1', 'room-1', 'user-1', 'a borderline message');
+
+    expect(moderationQueueService.maybeQueueLlmTail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        surface: 'room',
+        surfaceId: 'room-1',
+        userId: 'user-1',
+        messageId: 'msg-1',
+        fastPathScore: 0.3,
+      }),
+    );
   });
 });

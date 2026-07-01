@@ -306,6 +306,45 @@ export class NotificationsListener {
     await this.pushDispatch.enqueueForUsers(recipientIds, { title, body, data: pushData });
   }
 
+  @OnEvent('gamification.achievement_unlocked', { async: true })
+  async onAchievementUnlocked(payload: {
+    userId: string;
+    key: string;
+    title: string;
+    icon: string;
+  }) {
+    const notifTitle = `${payload.icon} Achievement unlocked: ${payload.title}`;
+    await this.notificationsService.create({
+      userId: payload.userId,
+      type: NotificationType.ACHIEVEMENT_UNLOCKED,
+      title: notifTitle,
+      body: null,
+      metadata: { key: payload.key },
+    });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title: notifTitle,
+      body: '',
+      data: { type: 'achievement_unlocked', key: payload.key },
+    });
+  }
+
+  @OnEvent('gamification.level_up', { async: true })
+  async onXpLevelUp(payload: { userId: string; level: number; xp: number }) {
+    const notifTitle = `Level up! You reached Level ${payload.level}`;
+    await this.notificationsService.create({
+      userId: payload.userId,
+      type: NotificationType.XP_LEVEL_UP,
+      title: notifTitle,
+      body: `You now have ${payload.xp} total XP.`,
+      metadata: { level: payload.level, xp: payload.xp },
+    });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title: notifTitle,
+      body: `${payload.xp} XP total`,
+      data: { type: 'xp_level_up', level: String(payload.level) },
+    });
+  }
+
   private async maybeEmailUser(userId: string, subject: string, body: string) {
     try {
       const user = await this.userRepository.findOne({ where: { id: userId } });

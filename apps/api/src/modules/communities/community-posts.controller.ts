@@ -13,6 +13,16 @@ import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 export class CommunityPostsController {
   constructor(private readonly postsService: CommunityPostsService) {}
 
+  @Get('me/community-updates')
+  @ApiOperation({ summary: 'Creator updates feed — announcements across joined communities' })
+  updatesFeed(
+    @CurrentUser() user: JwtPayload,
+    @Query('limit') limit = 20,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.postsService.getMemberUpdatesFeed(user.sub, Number(limit) || 20, cursor);
+  }
+
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/:communityId/posts')
@@ -173,5 +183,16 @@ export class CommunityPostsController {
     @Param('postId') postId: string,
   ) {
     return this.postsService.toggleReaction(communityId, postId, user.sub, user.role);
+  }
+
+  @Patch('communities/:communityId/posts/:postId/accept-answer/:commentId')
+  @ApiOperation({ summary: 'Mark a comment as the accepted answer for a Q&A post' })
+  acceptAnswer(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Param('postId') postId: string,
+    @Param('commentId') commentId: string,
+  ) {
+    return this.postsService.acceptAnswer(communityId, postId, commentId, user.sub);
   }
 }

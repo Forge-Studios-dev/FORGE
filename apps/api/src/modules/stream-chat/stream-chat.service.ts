@@ -17,11 +17,16 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
-import { StreamMessage, StreamMessageType } from './entities/stream-message.entity';
+import {
+  StreamMessage,
+  StreamMessageType,
+  StreamQuestionStatus,
+} from './entities/stream-message.entity';
 import { StreamModerationAction } from './entities/stream-moderation-action.entity';
 import { SendStreamChatDto, TimeoutUserDto } from './dto/stream-chat.dto';
+import { SubmitQuestionDto } from './dto/stream-qa.dto';
 import { SendSuperChatDto } from './dto/send-super-chat.dto';
-import { toPublicStreamMessage } from './stream-chat.mapper';
+import { toPublicStreamMessage, toPublicStreamQuestion } from './stream-chat.mapper';
 import { Stream, StreamChatMode, StreamStatus, StreamVisibility } from '../streaming/entities/stream.entity';
 import { StreamingService } from '../streaming/streaming.service';
 import { SetStreamChatSettingsDto } from '../streaming/dto/set-stream-chat-settings.dto';
@@ -363,6 +368,211 @@ export class StreamChatService {
       amountCents: payload.amountCents,
       highlightSeconds,
     });
+  }
+
+  // ── Live Q&A ──────────────────────────────────────────────────────────────
+  // Reuses the stream_messages table (messageType = 'question') so questions
+  // inherit the same access, moderation, profanity, and rate-limit guards as
+  // chat. Questions are persisted synchronously (low volume vs. chat) and fanned
+  // out via dedicated `stream.qa.*` events.
+
+  /** Shared read-side gating: a viewer may see Q&A iff they could see chat. */
+  private async assertCanViewStream(
+    stream: Stream,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ): Promise<void> {
+    if (!stream.chatEnabled) {
+      throw new ForbiddenException('Chat is disabled for this stream');
+    }
+    const isOwner = !!viewerId && viewerId === stream.userId;
+    const isAdmin = viewerRole === UserRole.ADMIN;
+    const isMod = viewerId
+      ? await this.streamLiveService.canModerate(stream.id, viewerId, viewerRole, stream)
+      : false;
+    if (isOwner || isAdmin || isMod) return;
+    await this.entitlementsService.assertAccessAsync({
+      creatorId: stream.userId,
+      visibility: stream.visibility,
+      requiredTierId: stream.requiredTierId,
+      streamId: stream.id,
+      viewerId,
+    });
+  }
+
+  async submitQuestion(
+    streamId: string,
+    userId: string,
+    dto: SubmitQuestionDto,
+    viewerRole?: UserRole | null,
+  ) {
+    const stream = await this.streamingService.findById(streamId);
+    if (!stream.chatEnabled) {
+      throw new ForbiddenException('Chat is disabled for this stream');
+    }
+
+    const isOwner = userId === stream.userId;
+    const isAdmin = viewerRole === UserRole.ADMIN;
+    const isMod = await this.streamLiveService.canModerate(streamId, userId, viewerRole, stream);
+    if (!isOwner && !isAdmin && !isMod) {
+      await this.entitlementsService.assertAccessAsync({
+        creatorId: stream.userId,
+        visibility: stream.visibility,
+        requiredTierId: stream.requiredTierId,
+        streamId: stream.id,
+        viewerId: userId,
+      });
+      await this.assertChatParticipation(stream, userId, viewerRole);
+    }
+
+    await this.assertNotModerated(streamId, userId);
+    // Questions are rate-limited more strictly than chat to keep the queue clean.
+    await this.assertRateLimit(streamId, userId, Math.max(stream.slowModeSeconds ?? 0, 10));
+
+    const profanityEnabled =
+      this.configService.get<string>('stream.profanityFilterEnabled') !== 'false';
+    const body = maskProfanity(dto.body.trim(), profanityEnabled);
+    await this.assertAiModeration(body);
+
+    const saved = await this.messageRepository.save(
+      this.messageRepository.create({
+        streamId,
+        userId,
+        body,
+        messageType: StreamMessageType.QUESTION,
+        questionStatus: StreamQuestionStatus.PENDING,
+        upvotes: 0,
+        streamOffsetMs: computeStreamOffsetMs(stream),
+      }),
+    );
+    const full = await this.messageRepository.findOne({
+      where: { id: saved.id },
+      relations: ['user'],
+    });
+    const question = toPublicStreamQuestion(full!, false);
+    this.eventEmitter.emit('stream.qa.created', { streamId, question });
+    return question;
+  }
+
+  async listQuestions(
+    streamId: string,
+    status: StreamQuestionStatus | undefined,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ) {
+    const stream = await this.streamingService.findById(streamId);
+    await this.assertCanViewStream(stream, viewerId, viewerRole);
+
+    const qb = this.messageRepository
+      .createQueryBuilder('m')
+      .leftJoinAndSelect('m.user', 'user')
+      .where('m.stream_id = :streamId', { streamId })
+      .andWhere('m.message_type = :type', { type: StreamMessageType.QUESTION })
+      .andWhere('m.deleted_at IS NULL');
+    if (status) qb.andWhere('m.question_status = :status', { status });
+
+    const rows = await qb
+      .orderBy('m.upvotes', 'DESC')
+      .addOrderBy('m.created_at', 'ASC')
+      .take(100)
+      .getMany();
+
+    const voted = await this.getViewerUpvotes(rows.map((r) => r.id), viewerId);
+    return { data: rows.map((r) => toPublicStreamQuestion(r, voted.has(r.id))) };
+  }
+
+  async upvoteQuestion(
+    streamId: string,
+    questionId: string,
+    userId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    const stream = await this.streamingService.findById(streamId);
+    await this.assertCanViewStream(stream, userId, viewerRole);
+
+    const question = await this.messageRepository.findOne({
+      where: { id: questionId, streamId, messageType: StreamMessageType.QUESTION },
+    });
+    if (!question || question.deletedAt) throw new NotFoundException('Question not found');
+
+    const key = `stream:qa:votes:${questionId}`;
+    let viewerHasUpvoted: boolean;
+    try {
+      const added = await this.redis.sadd(key, userId);
+      if (added === 1) {
+        await this.redis.expire(key, 60 * 60 * 12);
+        await this.messageRepository.increment({ id: questionId }, 'upvotes', 1);
+        viewerHasUpvoted = true;
+      } else {
+        await this.redis.srem(key, userId);
+        // Clamp at zero so a lost Redis set can never drive the tally negative.
+        await this.messageRepository
+          .createQueryBuilder()
+          .update(StreamMessage)
+          .set({ upvotes: () => 'GREATEST(upvotes - 1, 0)' })
+          .where('id = :id', { id: questionId })
+          .execute();
+        viewerHasUpvoted = false;
+      }
+    } catch (err) {
+      this.logger.warn(`Q&A upvote failed for ${questionId}: ${String(err)}`);
+      throw new BadRequestException('Could not register vote');
+    }
+
+    const fresh = await this.messageRepository.findOne({
+      where: { id: questionId },
+      relations: ['user'],
+    });
+    const result = toPublicStreamQuestion(fresh!, viewerHasUpvoted);
+    this.eventEmitter.emit('stream.qa.updated', { streamId, question: result });
+    return result;
+  }
+
+  async setQuestionStatus(
+    streamId: string,
+    questionId: string,
+    status: StreamQuestionStatus,
+    requesterId: string,
+    requesterRole?: UserRole | null,
+  ) {
+    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole))) {
+      throw new ForbiddenException();
+    }
+    const question = await this.messageRepository.findOne({
+      where: { id: questionId, streamId, messageType: StreamMessageType.QUESTION },
+    });
+    if (!question) throw new NotFoundException('Question not found');
+
+    question.questionStatus = status;
+    await this.messageRepository.save(question);
+
+    const fresh = await this.messageRepository.findOne({
+      where: { id: questionId },
+      relations: ['user'],
+    });
+    const result = toPublicStreamQuestion(fresh!);
+    this.eventEmitter.emit('stream.qa.updated', { streamId, question: result });
+    return result;
+  }
+
+  /** Resolve which of the given questions the viewer has upvoted (best-effort). */
+  private async getViewerUpvotes(
+    questionIds: string[],
+    viewerId?: string | null,
+  ): Promise<Set<string>> {
+    const voted = new Set<string>();
+    if (!viewerId || !questionIds.length) return voted;
+    try {
+      const pipeline = this.redis.pipeline();
+      for (const id of questionIds) pipeline.sismember(`stream:qa:votes:${id}`, viewerId);
+      const results = await pipeline.exec();
+      results?.forEach(([, isMember], i) => {
+        if (isMember === 1) voted.add(questionIds[i]);
+      });
+    } catch (err) {
+      this.logger.warn(`Q&A vote lookup failed: ${String(err)}`);
+    }
+    return voted;
   }
 
   private async persistAndEmitMessage(input: {

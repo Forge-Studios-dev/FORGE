@@ -21,6 +21,7 @@ import { StreamPoll } from './entities/stream-poll.entity';
 import { StreamPollVote } from './entities/stream-poll-vote.entity';
 import { StreamClip } from './entities/stream-clip.entity';
 import { StreamCaption } from './entities/stream-caption.entity';
+import { StreamAudienceRequest } from './entities/stream-audience-request.entity';
 import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
@@ -31,6 +32,7 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { BillingModule } from '../billing/billing.module';
 import { AccessSessionsModule } from '../access-sessions/access-sessions.module';
 import { WebhookIdempotencyModule } from '../../common/webhooks/webhook-idempotency.module';
+import { CommunitiesModule } from '../communities/communities.module';
 import { WebhookEvent } from './entities/webhook-event.entity';
 import { StreamViewerService } from './stream-viewer.service';
 import { StreamAnalyticsService } from './stream-analytics.service';
@@ -39,6 +41,8 @@ import { StreamReactionService } from './stream-reaction.service';
 import { StreamAnalyticsController } from './stream-analytics.controller';
 import { StreamMessage } from '../stream-chat/entities/stream-message.entity';
 import { Community } from '../communities/entities/community.entity';
+import { StreamBreakoutService } from './stream-breakout.service';
+import { CommunityRoom } from '../communities/entities/community-room.entity';
 
 @Module({
   imports: [
@@ -91,13 +95,16 @@ import { Community } from '../communities/entities/community.entity';
       StreamPollVote,
       StreamClip,
       StreamCaption,
+      StreamAudienceRequest,
       Community,
+      CommunityRoom,
     ]),
     UsersModule,
     forwardRef(() => ContentModule),
     forwardRef(() => EntitlementsModule),
     forwardRef(() => AccessSessionsModule),
     forwardRef(() => BillingModule),
+    forwardRef(() => CommunitiesModule),
   ],
   controllers: [StreamingController, StreamAnalyticsController],
   providers: [
@@ -110,6 +117,7 @@ import { Community } from '../communities/entities/community.entity';
     StreamSnapshotRetentionScheduler,
     StreamMuxSyncScheduler,
     StreamReactionService,
+    StreamBreakoutService,
     CreatorApprovedGuard,
     OptionalJwtAuthGuard,
   ],

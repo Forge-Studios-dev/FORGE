@@ -14,6 +14,7 @@ import { CommunityModerationService } from './community-moderation.service';
 import { CommunitiesController } from './communities.controller';
 import { CommunityModerationController } from './community-moderation.controller';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
+import { PlatformModule } from '../platform/platform.module';
 import { AccessSessionsModule } from '../access-sessions/access-sessions.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
@@ -38,6 +39,7 @@ import { BrandsService } from './brands.service';
 import { BrandsController } from './brands.controller';
 import { AiModerationService } from './ai-moderation.service';
 import { AiCommunityService } from './ai-community.service';
+import { AiBudgetService } from './ai-budget.service';
 import { CreatorAuditService } from './creator-audit.service';
 import { CommunityRoleGuard } from './guards/community-role.guard';
 import { CommunityStudioGuard } from './guards/community-studio.guard';
@@ -47,6 +49,8 @@ import { CommunityModerationQueueService } from './community-moderation-queue.se
 import { CommunityEngagementService } from './community-engagement.service';
 import { CommunityEngagementController } from './community-engagement.controller';
 import { CommunityRoom } from './entities/community-room.entity';
+import { ChannelRoomMapping } from './entities/channel-room-mapping.entity';
+import { CommunityEvent, CommunityEventRsvp } from './entities/community-event.entity';
 import { CommunityMember } from './entities/community-member.entity';
 import { CommunityRoomMessage, CommunityRoomPermissionRow, CreatorAuditLog } from './entities/community-room-message.entity';
 import { CommunityRoomsService } from './community-rooms.service';
@@ -57,11 +61,24 @@ import { CommunityRoomLivekitService } from './community-room-livekit.service';
 import { CommunityStorageService } from './community-storage.service';
 import { CommunityMembersService } from './community-members.service';
 import { CommunityMembersController } from './community-members.controller';
+import { ChannelMigrationService } from './channel-migration.service';
+import { CommunityEventsService } from './community-events.service';
+import { CommunityEventsController } from './community-events.controller';
+import { CommunityActivityNotifyListener } from './community-activity-notify.listener';
+import { AfterLiveRoomListener } from './after-live-room.listener';
 import { CommunityAccessListener } from './community-access.listener';
 import { CreatorCopilotService } from './creator-copilot.service';
+import { LlmRouterService } from './llm-router.service';
 import { CommunityAiController } from './community-ai.controller';
 import { PlatformEventOutboxModule } from '../platform-event-outbox/platform-event-outbox.module';
+import { DeprecatedChannelApiInterceptor } from '../../common/interceptors/deprecated-channel-api.interceptor';
 import { Stream } from '../streaming/entities/stream.entity';
+import { CommunityGroup, CommunityGroupMember } from './entities/community-group.entity';
+import { CommunityGroupsService } from './community-groups.service';
+import { CommunityGroupsController } from './community-groups.controller';
+import { MentorshipMatch, MentorshipProfile } from './entities/mentorship.entity';
+import { MentorshipService } from './mentorship.service';
+import { MentorshipController } from './mentorship.controller';
 
 @Module({
   imports: [
@@ -91,11 +108,19 @@ import { Stream } from '../streaming/entities/stream.entity';
       CommunityRoomMessage,
       CommunityRoomPermissionRow,
       CreatorAuditLog,
+      ChannelRoomMapping,
+      CommunityEvent,
+      CommunityEventRsvp,
+      CommunityGroup,
+      CommunityGroupMember,
+      MentorshipProfile,
+      MentorshipMatch,
     ]),
     EntitlementsModule,
     AccessSessionsModule,
     NotificationsModule,
     UsersModule,
+    PlatformModule,
     PlatformEventOutboxModule,
     BullModule.registerQueue({
       name: COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE,
@@ -126,9 +151,13 @@ import { Stream } from '../streaming/entities/stream.entity';
     CommunityRoomsController,
     CommunityAiController,
     CommunityMembersController,
+    CommunityEventsController,
+    CommunityGroupsController,
+    MentorshipController,
   ],
   providers: [
     CommunitiesService,
+    DeprecatedChannelApiInterceptor,
     CommunityModerationService,
     BrandsService,
     CommunityPostsService,
@@ -141,20 +170,30 @@ import { Stream } from '../streaming/entities/stream.entity';
     CommunityStorageService,
     AiModerationService,
     AiCommunityService,
+    AiBudgetService,
     CreatorAuditService,
     CommunityModerationQueueService,
     CommunityMembersService,
     CommunityAccessListener,
     CreatorCopilotService,
+    LlmRouterService,
+    ChannelMigrationService,
+    CommunityEventsService,
+    CommunityActivityNotifyListener,
+    AfterLiveRoomListener,
     CreatorApprovedGuard,
     CommunityRoleGuard,
     CommunityStudioGuard,
+    CommunityGroupsService,
+    MentorshipService,
   ],
   exports: [
     CommunitiesService,
     CommunityModerationService,
     CommunityRoomsService,
     CreatorCopilotService,
+    LlmRouterService,
     CommunityMembersService,
+    AiCommunityService,
   ],})
 export class CommunitiesModule {}

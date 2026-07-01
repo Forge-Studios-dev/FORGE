@@ -6,6 +6,7 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { toCsv } from '../../common/utils/csv.util';
 import {
   CommunityMember,
   CommunityMemberSource,
@@ -56,6 +57,28 @@ export class CommunityMembersService {
       take: 100,
     });
     return { data: rows };
+  }
+
+  async exportMembersCsv(creatorId: string, communityId: string): Promise<string> {
+    await this.communitiesService.assertOwnedCommunity(creatorId, communityId);
+    const rows = await this.memberRepository.find({
+      where: { communityId },
+      relations: ['user'],
+      order: { joinedAt: 'DESC' },
+      take: 5000,
+    });
+    return toCsv(
+      ['userId', 'username', 'displayName', 'email', 'status', 'source', 'joinedAt'],
+      rows.map((r) => [
+        r.userId,
+        r.user?.username ?? '',
+        r.user?.displayName ?? '',
+        r.user?.email ?? '',
+        r.status,
+        r.source,
+        r.joinedAt?.toISOString() ?? '',
+      ]),
+    );
   }
 
   async approveMember(
@@ -135,5 +158,55 @@ export class CommunityMembersService {
     if (!row || row.status === CommunityMemberStatus.SUSPENDED) return;
     row.status = CommunityMemberStatus.SUSPENDED;
     await this.memberRepository.save(row);
+  }
+
+  async suspendMember(
+    actorId: string,
+    communityId: string,
+    userId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    const community = await this.communitiesService.assertCommunityStudioAccess(
+      actorId,
+      communityId,
+      viewerRole,
+    );
+    const row = await this.memberRepository.findOne({ where: { communityId, userId } });
+    if (!row || row.status !== CommunityMemberStatus.ACTIVE) {
+      throw new NotFoundException('Active member not found');
+    }
+    row.status = CommunityMemberStatus.SUSPENDED;
+    await this.memberRepository.save(row);
+    this.eventEmitter.emit('community.access.changed', {
+      userId,
+      creatorId: community.creatorId,
+      communityId,
+    });
+    return { data: row };
+  }
+
+  async unsuspendMember(
+    actorId: string,
+    communityId: string,
+    userId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    const community = await this.communitiesService.assertCommunityStudioAccess(
+      actorId,
+      communityId,
+      viewerRole,
+    );
+    const row = await this.memberRepository.findOne({ where: { communityId, userId } });
+    if (!row || row.status !== CommunityMemberStatus.SUSPENDED) {
+      throw new NotFoundException('Suspended member not found');
+    }
+    row.status = CommunityMemberStatus.ACTIVE;
+    await this.memberRepository.save(row);
+    this.eventEmitter.emit('community.access.changed', {
+      userId,
+      creatorId: community.creatorId,
+      communityId,
+    });
+    return { data: row };
   }
 }

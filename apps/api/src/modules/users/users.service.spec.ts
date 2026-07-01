@@ -4,7 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from './users.service';
 import { User, UserRole, CreatorStatus } from './entities/user.entity';
-import { Video } from '../content/entities/video.entity';
+import { Video, VideoVisibility } from '../content/entities/video.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { VideosService } from '../content/videos.service';
 
@@ -14,18 +14,39 @@ describe('UsersService', () => {
     save: jest.fn((u) => Promise.resolve(u)),
   };
 
+  // Records every andWhere clause so we can assert visibility enforcement.
+  let qbCalls: Array<{ method: string; args: unknown[] }>;
+  const videoRepo = {
+    createQueryBuilder: jest.fn(() => {
+      const qb: Record<string, jest.Mock> = {};
+      const chain = (method: string) =>
+        jest.fn((...args: unknown[]) => {
+          qbCalls.push({ method, args });
+          return qb;
+        });
+      qb.leftJoinAndSelect = chain('leftJoinAndSelect');
+      qb.where = chain('where');
+      qb.andWhere = chain('andWhere');
+      qb.orderBy = chain('orderBy');
+      qb.take = chain('take');
+      qb.getMany = jest.fn(async () => []);
+      return qb;
+    }),
+  };
+
   const setup = async () => {
     const module = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: getRepositoryToken(User), useValue: userRepo },
-        { provide: getRepositoryToken(Video), useValue: {} },
+        { provide: getRepositoryToken(Video), useValue: videoRepo },
         { provide: getRepositoryToken(WatchHistory), useValue: {} },
         {
           provide: VideosService,
           useValue: {
             listStudioVideos: jest.fn(),
             releaseAllStuckUploads: jest.fn(),
+            mapToPublicVideo: jest.fn((v) => v),
           },
         },
         {
@@ -45,6 +66,30 @@ describe('UsersService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    qbCalls = [];
+  });
+
+  it('getUserVideos hides UNLISTED (and non-public) videos from non-owners', async () => {
+    const svc = await setup();
+    await svc.getUserVideos('creator-1', 20, undefined, 'viewer-2');
+
+    const visClause = qbCalls.find(
+      (c) => c.method === 'andWhere' && c.args[0] === 'v.visibility = :vis',
+    );
+    expect(visClause).toBeDefined();
+    expect(visClause?.args[1]).toEqual({ vis: VideoVisibility.PUBLIC });
+
+    // never widens to include unlisted on a public profile surface
+    const widened = qbCalls.find((c) => c.args[0] === 'v.visibility IN (:...vis)');
+    expect(widened).toBeUndefined();
+  });
+
+  it('getUserVideos does not apply visibility filter for the owner (sees own catalog)', async () => {
+    const svc = await setup();
+    await svc.getUserVideos('creator-1', 20, undefined, 'creator-1');
+
+    const visClause = qbCalls.find((c) => c.args[0] === 'v.visibility = :vis');
+    expect(visClause).toBeUndefined();
   });
 
   it('requestCreator requires verified email', async () => {

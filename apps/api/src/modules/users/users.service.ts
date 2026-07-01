@@ -12,7 +12,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 import { CreatorStatus, User, UserRole } from './entities/user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { Video, VideoStatus } from '../content/entities/video.entity';
+import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.entity';
 import { VideosService } from '../content/videos.service';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { ModerationStatus } from '../content/entities/video.entity';
@@ -131,11 +131,13 @@ export class UsersService {
       .take(limit + 1);
 
     if (!isOwner) {
+      // Public profile listing must honour the platform discovery contract
+      // (see isVideoDiscoverable / applyDiscoverableVideoFilters): only PUBLIC
+      // videos are listed. UNLISTED is link-only and must not surface here, and
+      // followers/subscribers/tier/paid content is gated elsewhere.
       query
         .andWhere('v.publish_status = :publishStatus', { publishStatus: 'published' })
-        .andWhere('v.visibility IN (:...vis)', {
-          vis: ['public', 'unlisted'],
-        })
+        .andWhere('v.visibility = :vis', { vis: VideoVisibility.PUBLIC })
         .andWhere('v.moderation_status = :mod', { mod: ModerationStatus.NONE })
         .andWhere(
           '(v.scheduled_publish_at IS NULL OR v.scheduled_publish_at <= CURRENT_TIMESTAMP)',

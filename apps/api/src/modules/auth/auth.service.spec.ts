@@ -14,6 +14,7 @@ import { AuthAccountLockoutService } from './auth-account-lockout.service';
 import { AuthEmailOtpService } from './auth-email-otp.service';
 import { AuthUserCacheService } from './auth-user-cache.service';
 import { AuthSessionCacheService } from './auth-session-cache.service';
+import { ReferralService } from '../referral/referral.service';
 
 describe('AuthService', () => {
   const userRepoMock = {
@@ -98,6 +99,7 @@ describe('AuthService', () => {
             })),
           },
         },
+        { provide: ReferralService, useValue: { claimReferral: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
     return moduleRef.get(AuthService);

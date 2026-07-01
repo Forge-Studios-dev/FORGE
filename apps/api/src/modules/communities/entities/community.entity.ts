@@ -21,6 +21,25 @@ export enum CommunityVisibility {
   INVITE = 'invite',
 }
 
+/**
+ * Community classification. STANDARD is the default general community; EVENT is
+ * an event-focused community (RSVPs/sessions front-and-centre). COURSE and
+ * COHORT are system-managed and derived from course linkage — they are not
+ * creator-selectable (see CREATOR_SELECTABLE_COMMUNITY_TYPES).
+ */
+export enum CommunityType {
+  STANDARD = 'standard',
+  COURSE = 'course',
+  EVENT = 'event',
+  COHORT = 'cohort',
+}
+
+/** Types a creator may assign directly; the rest are managed by the platform. */
+export const CREATOR_SELECTABLE_COMMUNITY_TYPES: readonly CommunityType[] = [
+  CommunityType.STANDARD,
+  CommunityType.EVENT,
+];
+
 @Entity('communities')
 @Index(['creatorId'])
 export class Community {
@@ -49,6 +68,12 @@ export class Community {
 
   @Column({ length: 32, default: CommunityVisibility.PUBLIC })
   visibility: CommunityVisibility;
+
+  @Column({ name: 'community_type', length: 32, default: CommunityType.STANDARD })
+  communityType: CommunityType;
+
+  @Column({ name: 'linked_course_id', type: 'uuid', nullable: true })
+  linkedCourseId: string | null;
 
   @Column({ type: 'jsonb', default: {} })
   settings: Record<string, unknown>;

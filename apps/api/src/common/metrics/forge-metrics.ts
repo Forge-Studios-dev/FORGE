@@ -6,6 +6,7 @@ let httpRequestDuration: Histogram<'method' | 'status'> | null = null;
 let socketJoinDenials: Counter<'kind'> | null = null;
 let accessSessionConflicts: Counter<'code'> | null = null;
 let entitlementCacheHits: Counter<'result'> | null = null;
+let aiLlmCalls: Counter<'feature' | 'result'> | null = null;
 
 export function forgeMetricsEnabled(): boolean {
   return process.env.METRICS_ENABLED === 'true';
@@ -45,6 +46,12 @@ export function getForgeMetricsRegistry(): Registry {
       labelNames: ['result'] as const,
       registers: [registry],
     });
+    aiLlmCalls = new Counter({
+      name: 'forge_ai_llm_calls_total',
+      help: 'AI/LLM call outcomes by feature (cost & reliability observability)',
+      labelNames: ['feature', 'result'] as const,
+      registers: [registry],
+    });
   }
   return registry;
 }
@@ -69,4 +76,12 @@ export function recordAccessSessionConflict(code: string): void {
 export function recordEntitlementCacheHit(hit: boolean): void {
   if (!forgeMetricsEnabled() || !entitlementCacheHits) return;
   entitlementCacheHits.inc({ result: hit ? 'hit' : 'miss' });
+}
+
+export type AiLlmFeature = 'moderation' | 'summary' | 'judge' | 'creator_insights' | 'stream_summary';
+export type AiLlmResult = 'success' | 'error' | 'budget_skipped';
+
+export function recordAiLlmCall(feature: AiLlmFeature, result: AiLlmResult): void {
+  if (!forgeMetricsEnabled() || !aiLlmCalls) return;
+  aiLlmCalls.inc({ feature, result });
 }

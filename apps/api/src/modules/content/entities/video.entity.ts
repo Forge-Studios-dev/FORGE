@@ -51,6 +51,15 @@ export enum TranscodeProvider {
   MUX = 'mux',
 }
 
+export enum VideoType {
+  VIDEO = 'video',
+  SHORT = 'short',
+  PODCAST = 'podcast',
+}
+
+/** Duration threshold (seconds) below which a video is auto-classified as a short. */
+export const SHORT_DURATION_THRESHOLD_SECONDS = 60;
+
 @Entity('videos')
 @Index(['userId'])
 @Index(['status'])
@@ -130,6 +139,9 @@ export class Video {
   @Column({ name: 'duration_seconds', nullable: true, type: 'float' })
   durationSeconds: number | null;
 
+  @Column({ name: 'video_type', type: 'varchar', length: 10, default: VideoType.VIDEO })
+  videoType: VideoType;
+
   @Column({ name: 'file_size_bytes', nullable: true, type: 'bigint' })
   fileSizeBytes: number | null;
 
@@ -206,6 +218,19 @@ export class Video {
 
   @Column({ name: 'source_stream_id', type: 'uuid', nullable: true })
   sourceStreamId: string | null;
+
+  // Podcast episode fields (used when video_type = 'podcast')
+  @Column({ name: 'podcast_series_id', type: 'uuid', nullable: true })
+  podcastSeriesId: string | null;
+
+  @Column({ name: 'episode_number', type: 'int', nullable: true })
+  episodeNumber: number | null;
+
+  @Column({ type: 'int', nullable: true })
+  season: number | null;
+
+  @Column({ name: 'show_notes', type: 'text', nullable: true })
+  showNotes: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

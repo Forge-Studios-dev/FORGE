@@ -33,6 +33,7 @@ import {
   ModerationStatus,
   PublishStatus,
   TranscodeProvider,
+  VideoType,
 } from './entities/video.entity';
 import { MUX_VOD_INGEST_QUEUE, muxVodIngestJobId } from './mux-vod.constants';
 import { MuxVodService } from './mux-vod.service';
@@ -51,6 +52,8 @@ import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { Playlist } from '../playlists/entities/playlist.entity';
 import { PlaylistVideo } from '../playlists/entities/playlist-video.entity';
 import { CreateVideoDto } from './dto/create-video.dto';
+import { StudioVideosQueryDto } from './dto/studio-videos-query.dto';
+import { buildStudioVideoFindOptions } from './studio-library-query.util';
 import { PresignedUrlDto } from './dto/presigned-url.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { RecordWatchDto } from './dto/record-watch.dto';
@@ -338,14 +341,20 @@ export class VideosService {
   }
 
   /** All own videos for Studio (uploading, processing, ready, failed). */
-  async listStudioVideos(userId: string, limit = 50) {
+  /**
+   * Creator Studio content library — every status, with optional server-side
+   * filtering (status/visibility/category), title search, sorting, and
+   * pagination so large libraries remain reachable and performant. Response is
+   * backward compatible: `data` keeps the prior shape and `pagination` is added.
+   */
+  async listStudioVideos(userId: string, query: StudioVideosQueryDto = {}) {
     await this.releaseIncompleteUploads(userId);
-    const rows = await this.videoRepository.find({
-      where: { userId },
-      order: { createdAt: 'DESC' },
-      take: Math.min(limit, 100),
-    });
-    return { data: rows.map((v) => this.mapToPublicVideo(v)) };
+    const { page, limit, where, order, skip, take } = buildStudioVideoFindOptions(userId, query);
+    const [rows, total] = await this.videoRepository.findAndCount({ where, order, skip, take });
+    return {
+      data: rows.map((v) => this.mapToPublicVideo(v)),
+      pagination: { page, limit, total, hasMore: page * limit < total },
+    };
   }
 
   /** Cancel or remove a non-published video (uploading, processing, failed). */
@@ -836,6 +845,34 @@ export class VideosService {
     return withViews;
   }
 
+  /** Paginated public shorts feed (duration <= 60s, published, public). */
+  async listShorts(opts: { cursor?: string; limit?: number } = {}): Promise<{
+    data: PublicVideo[];
+    nextCursor: string | null;
+  }> {
+    const limit = Math.min(opts.limit ?? 20, 50);
+    const qb = this.videoRepository
+      .createQueryBuilder('v')
+      .leftJoinAndSelect('v.skillTags', 'st')
+      .where('v.video_type = :type', { type: VideoType.SHORT })
+      .andWhere('v.status = :status', { status: VideoStatus.READY })
+      .andWhere('v.publish_status = :ps', { ps: PublishStatus.PUBLISHED })
+      .andWhere('v.visibility = :vis', { vis: VideoVisibility.PUBLIC })
+      .andWhere('v.moderation_status != :blocked', { blocked: ModerationStatus.BLOCKED })
+      .orderBy('v.published_at', 'DESC')
+      .take(limit + 1);
+
+    if (opts.cursor) {
+      qb.andWhere('v.published_at < :cursor', { cursor: new Date(opts.cursor) });
+    }
+
+    const rows = await qb.getMany();
+    const hasMore = rows.length > limit;
+    const data = rows.slice(0, limit).map((v) => this.mapToPublicVideo(v));
+    const nextCursor = hasMore ? data[data.length - 1].publishedAt?.toISOString() ?? null : null;
+    return { data, nextCursor };
+  }
+
   /** Re-queue Mux ingest after a failed transcode (creator-owned, source still in S3). */
   async retryTranscode(userId: string, videoId: string): Promise<{ ok: true }> {
     if (!this.usesMuxTranscode()) {
@@ -970,12 +1007,49 @@ export class VideosService {
     return { ok: true };
   }
 
+  /**
+   * Validate a replacement skill-tag set for an existing video and apply it,
+   * recomputing the denormalized `tagsSearchText`. Tags must exist and belong
+   * to the video's current category (mirrors the upload-time contract). The
+   * generated `search_vector` column refreshes automatically from
+   * title/description/tags_search_text, so discovery stays consistent.
+   */
+  private async applySkillTagUpdate(video: Video, skillTagIds: string[]): Promise<void> {
+    const uniqueTagIds = [...new Set(skillTagIds)];
+    if (uniqueTagIds.length === 0) {
+      throw new BadRequestException('At least one skill tag is required');
+    }
+    const tags = await this.skillTagRepository.find({
+      where: { id: In(uniqueTagIds) },
+      relations: ['subcategory'],
+    });
+    if (tags.length !== uniqueTagIds.length) {
+      throw new BadRequestException('One or more skill tags were not found');
+    }
+    const invalidForCategory = tags.filter((t) => t.subcategory?.categoryId !== video.categoryId);
+    if (invalidForCategory.length > 0) {
+      throw new BadRequestException("All skill tags must belong to the video's category");
+    }
+    const category = video.categoryId
+      ? await this.categoryRepository.findOne({ where: { id: video.categoryId } })
+      : null;
+    video.skillTags = tags;
+    video.tagsSearchText = [category?.name, ...tags.map((t) => t.name)]
+      .filter(Boolean)
+      .join(' ')
+      .slice(0, 2000);
+  }
+
   async updateVideo(requesterId: string, videoId: string, dto: UpdateVideoDto) {
     const video = await this.findById(videoId, { skipCache: true });
     if (video.userId !== requesterId) throw new ForbiddenException();
     if (dto.title !== undefined) video.title = dto.title;
     if (dto.description !== undefined) video.description = dto.description;
     if (dto.visibility !== undefined) video.visibility = dto.visibility;
+    if (dto.videoType !== undefined) video.videoType = dto.videoType;
+    if (dto.skillTagIds !== undefined) {
+      await this.applySkillTagUpdate(video, dto.skillTagIds);
+    }
     if (dto.scheduledPublishAt !== undefined) {
       if (dto.scheduledPublishAt === null) {
         video.scheduledPublishAt = null;

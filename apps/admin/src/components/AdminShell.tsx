@@ -15,6 +15,7 @@ const NAV = [
   { href: '/users', label: 'Users', icon: 'group' },
   { href: '/categories', label: 'Categories', icon: 'category' },
   { href: '/live', label: 'Live', icon: 'sensors' },
+  { href: '/fraud', label: 'Fraud', icon: 'security' },
   { href: '/analytics', label: 'Analytics', icon: 'analytics' },
   { href: '/search', label: 'Search', icon: 'search' },
   { href: '/settings', label: 'Settings', icon: 'settings' },

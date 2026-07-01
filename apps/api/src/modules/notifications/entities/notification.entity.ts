@@ -16,6 +16,8 @@ export enum NotificationType {
   COMMUNITY_ROLE_ASSIGNED = 'community_role_assigned',
   COMMUNITY_BANNED = 'community_banned',
   COMMUNITY_POST_NEW = 'community_post_new',
+  ACHIEVEMENT_UNLOCKED = 'achievement_unlocked',
+  XP_LEVEL_UP = 'xp_level_up',
 }
 
 @Entity('notifications')

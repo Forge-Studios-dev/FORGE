@@ -1,6 +1,16 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
-import { VideoVisibility } from '../entities/video.entity';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
+import { VideoType, VideoVisibility } from '../entities/video.entity';
 
 export class UpdateVideoDto {
   @ApiPropertyOptional()
@@ -20,8 +30,25 @@ export class UpdateVideoDto {
   @IsEnum(VideoVisibility)
   visibility?: VideoVisibility;
 
+  @ApiPropertyOptional({ enum: VideoType, description: 'Explicitly mark video as short or full-length' })
+  @IsOptional()
+  @IsEnum(VideoType)
+  videoType?: VideoType;
+
   @ApiPropertyOptional({ description: 'ISO8601 — video hidden from feed until this instant' })
   @IsOptional()
   @IsDateString()
   scheduledPublishAt?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Replace the video\'s skill tags. All tags must belong to the video\'s current category.',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(20)
+  @IsUUID('4', { each: true })
+  skillTagIds?: string[];
 }

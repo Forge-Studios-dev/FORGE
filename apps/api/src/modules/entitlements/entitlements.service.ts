@@ -30,6 +30,7 @@ import { TierEntitlement, TierEntitlementResourceType } from './entities/tier-en
 import { BillingInterval } from './entities/subscription-tier.entity';
 import { StripeTierSyncService } from '../billing/stripe-tier-sync.service';
 import { recordEntitlementCacheHit } from '../../common/metrics/forge-metrics';
+import { toCsv } from '../../common/utils/csv.util';
 
 /** Subscription statuses that grant content access. */
 export const ACCESS_GRANTING_STATUSES: MemberSubscriptionStatus[] = [
@@ -123,7 +124,7 @@ export class EntitlementsService {
   ): void {
     this.eventEmitter.emit('community.access.changed', { userId, creatorId, communityId });
     if (provisionMember && communityId) {
-      this.eventEmitter.emit('community.member.provision', { userId, communityId });
+      this.eventEmitter.emit('community.member.provision', { userId, communityId, creatorId });
     }
   }
 
@@ -271,6 +272,7 @@ export class EntitlementsService {
       billingInterval: dto.billingInterval ?? BillingInterval.MONTHLY,
       trialDays: dto.trialDays ?? 0,
       maxConcurrentDevices: Math.min(10, Math.max(1, dto.maxConcurrentDevices ?? 1)),
+      maxMembers: dto.maxMembers ?? null,
     });
     const saved = await this.tierRepository.save(tier);
     await this.syncTierToStripe(saved);
@@ -310,6 +312,7 @@ export class EntitlementsService {
     if (dto.maxConcurrentDevices !== undefined) {
       tier.maxConcurrentDevices = Math.min(10, Math.max(1, dto.maxConcurrentDevices));
     }
+    if (dto.maxMembers !== undefined) tier.maxMembers = dto.maxMembers ?? null;
 
     const saved = await this.tierRepository.save(tier);
     await this.bustTierCache(tierId);
@@ -324,6 +327,15 @@ export class EntitlementsService {
     await this.tierRepository.save(tier);
     await this.bustTierCache(tierId);
     return { ok: true };
+  }
+
+  async countActiveMembersOnTier(tierId: string): Promise<number> {
+    return this.subscriptionRepository.count({
+      where: {
+        tierId,
+        status: In(ACCESS_GRANTING_STATUSES),
+      },
+    });
   }
 
   async getActiveSubscription(
@@ -1357,12 +1369,19 @@ export class EntitlementsService {
 
   async exportSubscribersCsv(creatorId: string): Promise<string> {
     const subs = await this.listSubscribersForCreator(creatorId, { limit: 5000 });
-    const header = 'userId,username,displayName,tier,status,source,startsAt,expiresAt';
-    const rows = subs.map(
-      (s) =>
-        `${s.userId},${s.username ?? ''},${s.displayName ?? ''},${s.tierName ?? ''},${s.status},${s.source},${s.startsAt?.toISOString() ?? ''},${s.expiresAt?.toISOString() ?? ''}`,
+    return toCsv(
+      ['userId', 'username', 'displayName', 'tier', 'status', 'source', 'startsAt', 'expiresAt'],
+      subs.map((s) => [
+        s.userId,
+        s.username ?? '',
+        s.displayName ?? '',
+        s.tierName ?? '',
+        s.status,
+        s.source,
+        s.startsAt?.toISOString() ?? '',
+        s.expiresAt?.toISOString() ?? '',
+      ]),
     );
-    return [header, ...rows].join('\n');
   }
 
   async getSubscriberAnalytics(creatorId: string) {
@@ -1404,9 +1423,23 @@ export class EntitlementsService {
 
   async expireDueSubscriptions(): Promise<number> {
     const now = new Date();
+    // Safety net for access-granting statuses with a definite end date:
+    //  - ACTIVE: normal expiry when a paid period lapses (webhook forward-dates
+    //    expiresAt on renewal, so live subscriptions are never caught here).
+    //  - TRIAL: a trial whose end date passed without conversion (Stripe webhook
+    //    missed, or a non-Stripe/admin trial that has no webhook at all).
+    //  - RENEWAL_PENDING: cancel-at-period-end reached its period end.
+    // GRACE_PERIOD is intentionally excluded — its expiresAt is the already-past
+    // period end, and time-expiring it would collapse the dunning grace window;
+    // it exits via Stripe webhooks (recovered -> active, or final failure ->
+    // canceled).
     const due = await this.subscriptionRepository.find({
       where: {
-        status: MemberSubscriptionStatus.ACTIVE,
+        status: In([
+          MemberSubscriptionStatus.ACTIVE,
+          MemberSubscriptionStatus.TRIAL,
+          MemberSubscriptionStatus.RENEWAL_PENDING,
+        ]),
         expiresAt: LessThanOrEqual(now),
       },
       take: 500,
@@ -1432,7 +1465,9 @@ export class EntitlementsService {
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.tier', 'tier')
       .leftJoinAndSelect('s.creator', 'creator')
-      .where('s.status = :status', { status: MemberSubscriptionStatus.ACTIVE })
+      .where('s.status IN (:...statuses)', {
+        statuses: [MemberSubscriptionStatus.ACTIVE, MemberSubscriptionStatus.TRIAL],
+      })
       .andWhere('s.expires_at IS NOT NULL')
       .andWhere('s.expires_at > :now', { now })
       .andWhere('s.expires_at <= :until', { until })

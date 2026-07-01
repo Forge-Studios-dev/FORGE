@@ -127,6 +127,23 @@ export class FeedController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get(':id/related')
+  @ApiOperation({ summary: 'Related / watch-next recommendations for a video' })
+  @ApiQuery({ name: 'limit', required: false })
+  getRelated(
+    @Param('id') id: string,
+    @Query('limit') limit?: number,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.feedService.getRelatedVideos({
+      videoId: id,
+      userId: user?.sub,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Public()
   @Get('by-category/:slug')
   @ApiOperation({ summary: 'Videos in a category by slug' })
   @ApiQuery({ name: 'cursor', required: false })

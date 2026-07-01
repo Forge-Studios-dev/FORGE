@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -498,6 +499,7 @@ export class StreamingService {
       streamId: saved.id,
       userId: saved.userId,
       title: saved.title,
+      communityId: saved.communityId ?? null,
     });
     void this.invalidateStreamListCache();
     void this.bustStreamDetailCache(saved.id);
@@ -890,5 +892,74 @@ export class StreamingService {
     }
 
     return { handled: true };
+  }
+
+  // ── P07-T029: Multi-host live ──────────────────────────────────────────────
+
+  static readonly MAX_CO_HOSTS = 5;
+
+  async addCoHost(creatorId: string, streamId: string, coHostId: string): Promise<{ coHostIds: string[] }> {
+    if (creatorId === coHostId) throw new BadRequestException('Creator cannot add themselves as co-host');
+    const stream = await this.findById(streamId);
+    if (stream.userId !== creatorId) throw new ForbiddenException('Only the stream creator can manage co-hosts');
+
+    const existing = stream.coHostIds ?? [];
+    if (existing.includes(coHostId)) throw new BadRequestException('User is already a co-host');
+    if (existing.length >= StreamingService.MAX_CO_HOSTS) {
+      throw new BadRequestException(`Maximum ${StreamingService.MAX_CO_HOSTS} co-hosts allowed`);
+    }
+
+    const updated = [...existing, coHostId];
+    await this.streamRepository.update(streamId, { coHostIds: updated });
+    this.eventEmitter.emit('stream.cohost.added', { streamId, creatorId, coHostId });
+    return { coHostIds: updated };
+  }
+
+  async removeCoHost(creatorId: string, streamId: string, coHostId: string): Promise<{ coHostIds: string[] }> {
+    const stream = await this.findById(streamId);
+    if (stream.userId !== creatorId) throw new ForbiddenException('Only the stream creator can manage co-hosts');
+
+    const updated = (stream.coHostIds ?? []).filter((id) => id !== coHostId);
+    await this.streamRepository.update(streamId, { coHostIds: updated });
+    return { coHostIds: updated };
+  }
+
+  async listCoHosts(streamId: string): Promise<{ streamId: string; coHostIds: string[] }> {
+    const stream = await this.findById(streamId);
+    return { streamId, coHostIds: stream.coHostIds ?? [] };
+  }
+
+  isCoHost(stream: Stream, userId: string): boolean {
+    return (stream.coHostIds ?? []).includes(userId);
+  }
+
+  // ── P07-T030: VIP rooms live ───────────────────────────────────────────────
+
+  async setVipTier(
+    creatorId: string,
+    streamId: string,
+    vipTierId: string | null,
+  ): Promise<{ streamId: string; vipTierId: string | null }> {
+    const stream = await this.findById(streamId);
+    if (stream.userId !== creatorId) throw new ForbiddenException('Only the stream creator can configure VIP');
+    await this.streamRepository.update(streamId, { vipTierId });
+    void this.bustStreamDetailCache(streamId);
+    return { streamId, vipTierId };
+  }
+
+  async assertVipAccess(streamId: string, userId: string, userRole: UserRole): Promise<void> {
+    if (userRole === UserRole.ADMIN) return;
+    const stream = await this.findById(streamId);
+    if (!stream.vipTierId) throw new BadRequestException('No VIP room configured for this stream');
+    if (stream.userId === userId) return;
+    if ((stream.coHostIds ?? []).includes(userId)) return;
+
+    const result = await this.entitlementsService.checkAccess({
+      creatorId: stream.userId,
+      visibility: 'subscribers',
+      requiredTierId: stream.vipTierId,
+      viewerId: userId,
+    });
+    if (!result.allowed) throw new ForbiddenException('VIP room requires the configured membership tier');
   }
 }

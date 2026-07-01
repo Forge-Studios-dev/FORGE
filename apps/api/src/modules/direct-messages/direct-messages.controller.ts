@@ -44,4 +44,36 @@ export class DirectMessagesController {
   markRead(@CurrentUser() user: JwtPayload, @Param('conversationId') conversationId: string) {
     return this.directMessagesService.markRead(user.sub, conversationId);
   }
+
+  @Post('conversations/group')
+  @Permissions(Permission.ENGAGE)
+  @ApiOperation({ summary: 'Create a group DM channel with 3–25 participants' })
+  createGroup(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { name: string; memberIds: string[] },
+  ) {
+    return this.directMessagesService.createGroupConversation(user.sub, body.name, body.memberIds);
+  }
+
+  @Post('conversations/:conversationId/members')
+  @Permissions(Permission.ENGAGE)
+  @ApiOperation({ summary: 'Add a member to a group DM channel' })
+  addMember(
+    @CurrentUser() user: JwtPayload,
+    @Param('conversationId') conversationId: string,
+    @Body() body: { userId: string },
+  ) {
+    return this.directMessagesService.addGroupMember(user.sub, conversationId, body.userId);
+  }
+
+  @Post('conversations/:conversationId/messages')
+  @Permissions(Permission.ENGAGE)
+  @ApiOperation({ summary: 'Send a message to a group DM channel' })
+  sendGroupMessage(
+    @CurrentUser() user: JwtPayload,
+    @Param('conversationId') conversationId: string,
+    @Body() body: { content: string },
+  ) {
+    return this.directMessagesService.sendGroupMessage(user.sub, conversationId, body.content);
+  }
 }

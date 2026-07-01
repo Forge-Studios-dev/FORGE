@@ -18,6 +18,7 @@ import { OAuthAccount } from './entities/oauth-account.entity';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ReferralModule } from '../referral/referral.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     JwtModule.register({}),
     AnalyticsModule,
     NotificationsModule,
+    ReferralModule,
     TypeOrmModule.forFeature([User, RefreshToken, PasswordResetToken, OAuthAccount]),
   ],
   controllers: [AuthController],

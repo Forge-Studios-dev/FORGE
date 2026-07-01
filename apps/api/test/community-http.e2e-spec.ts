@@ -29,6 +29,7 @@ import { CommunityRoomMessagesService } from '../src/modules/communities/communi
 import { CommunityRoomPermissionsService } from '../src/modules/communities/community-room-permissions.service';
 import { CommunityAiController } from '../src/modules/communities/community-ai.controller';
 import { AiCommunityService } from '../src/modules/communities/ai-community.service';
+import { AiBudgetService } from '../src/modules/communities/ai-budget.service';
 import { CreatorAuditService } from '../src/modules/communities/creator-audit.service';
 import { EntitlementsController } from '../src/modules/entitlements/entitlements.controller';
 import { EntitlementsService } from '../src/modules/entitlements/entitlements.service';
@@ -181,6 +182,7 @@ describe('Community HTTP (mocked e2e)', () => {
         { provide: CommunityRoomMessagesService, useValue: roomMessagesService },
         { provide: CommunityRoomPermissionsService, useValue: roomPermissionsService },
         { provide: AiCommunityService, useValue: aiCommunityService },
+        { provide: AiBudgetService, useValue: { checkAndCharge: jest.fn().mockResolvedValue({ allowed: true, remaining: 100 }) } },
         { provide: CreatorAuditService, useValue: auditService },
         { provide: CommunityMembersService, useValue: membersService },
         { provide: EntitlementsService, useValue: entitlementsService },
