@@ -20,6 +20,7 @@ primary_region = 'bom'
 [env]
   NODE_ENV = 'production'
   PORT = '3001'
+  BILLING_PROVIDER = 'stripe'
 
 [http_service]
   internal_port = 3001
