@@ -3,7 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 
 class StudioModerationScreen extends ConsumerStatefulWidget {
-  const StudioModerationScreen({super.key});
+  const StudioModerationScreen({
+    super.key,
+    this.embedded = false,
+    this.fixedCommunityId,
+  });
+
+  final bool embedded;
+  final String? fixedCommunityId;
 
   @override
   ConsumerState<StudioModerationScreen> createState() => _StudioModerationScreenState();
@@ -38,6 +45,14 @@ class _StudioModerationScreenState extends ConsumerState<StudioModerationScreen>
 
   Future<void> _loadModerated() async {
     try {
+      if (widget.fixedCommunityId != null) {
+        setState(() {
+          _selectedCommunityId = widget.fixedCommunityId;
+          _loading = false;
+        });
+        await _loadAll(widget.fixedCommunityId!);
+        return;
+      }
       final client = ref.read(apiClientProvider);
       final response = await client.dio.get('/creators/me/moderated-communities');
       final list = (response.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -136,39 +151,39 @@ class _StudioModerationScreenState extends ConsumerState<StudioModerationScreen>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      final loading = const Center(child: CircularProgressIndicator());
+      if (widget.embedded) return loading;
+      return Scaffold(body: loading);
     }
-    if (_communities.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Moderation')),
-        body: const Center(child: Text('No moderated communities assigned')),
-      );
+    if (_communities.isEmpty && widget.fixedCommunityId == null) {
+      final empty = const Center(child: Text('No moderated communities assigned'));
+      if (widget.embedded) return empty;
+      return Scaffold(appBar: AppBar(title: const Text('Moderation')), body: empty);
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Moderation')),
-      body: Column(
+    final body = Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: DropdownButtonFormField<String>(
-              value: _selectedCommunityId,
-              decoration: const InputDecoration(labelText: 'Community', isDense: true),
-              items: _communities
-                  .map(
-                    (c) => DropdownMenuItem(
-                      value: c['id'] as String,
-                      child: Text(c['name'] as String? ?? ''),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (id) {
-                if (id == null) return;
-                setState(() => _selectedCommunityId = id);
-                _loadAll(id);
-              },
+          if (!widget.embedded && _communities.length > 1)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: DropdownButtonFormField<String>(
+                value: _selectedCommunityId,
+                decoration: const InputDecoration(labelText: 'Community', isDense: true),
+                items: _communities
+                    .map(
+                      (c) => DropdownMenuItem(
+                        value: c['id'] as String,
+                        child: Text(c['name'] as String? ?? ''),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (id) {
+                  if (id == null) return;
+                  setState(() => _selectedCommunityId = id);
+                  _loadAll(id);
+                },
+              ),
             ),
-          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
@@ -205,7 +220,12 @@ class _StudioModerationScreenState extends ConsumerState<StudioModerationScreen>
             ),
           ),
         ],
-      ),
+      );
+
+    if (widget.embedded) return body;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Moderation')),
+      body: body,
     );
   }
 

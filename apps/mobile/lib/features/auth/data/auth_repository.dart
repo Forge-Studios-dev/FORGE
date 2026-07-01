@@ -74,6 +74,9 @@ class AuthRepository {
   }
 
   Future<void> logout({bool allDevices = false}) async {
+    // Revoke the push token while the access token is still valid (before the
+    // session is invalidated server-side), so the device stops receiving pushes.
+    await _push.deregister(allDevices: allDevices);
     try {
       await _apiClient.dio.post('/auth/logout', data: {'allDevices': allDevices});
     } catch (_) {}

@@ -61,7 +61,7 @@ export class ChannelPointReward {
   @Column({ name: 'global_max', type: 'int', nullable: true })
   globalMax: number | null;
 
-  @Column({ length: 20, default: ChannelPointRewardStatus.ACTIVE })
+  @Column({ type: 'varchar', length: 20, default: ChannelPointRewardStatus.ACTIVE })
   status: ChannelPointRewardStatus;
 
   @Column({ name: 'requires_approval', default: false })
@@ -100,7 +100,7 @@ export class ChannelPointRedemption {
   @Column({ name: 'cost_points', type: 'int' })
   costPoints: number;
 
-  @Column({ length: 30, default: ChannelPointRedemptionStatus.PENDING })
+  @Column({ type: 'varchar', length: 30, default: ChannelPointRedemptionStatus.PENDING })
   status: ChannelPointRedemptionStatus;
 
   @Column({ type: 'text', nullable: true })

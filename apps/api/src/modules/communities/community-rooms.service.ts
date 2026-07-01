@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -31,6 +33,7 @@ export class CommunityRoomsService {
     @InjectRepository(Community) private readonly communityRepository: Repository<Community>,
     @InjectRepository(CommunityRoom) private readonly roomRepository: Repository<CommunityRoom>,
     private readonly livekitService: CommunityRoomLivekitService,
+    @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
     private readonly entitlementsService: EntitlementsService,
     private readonly roomPermissionsService: CommunityRoomPermissionsService,

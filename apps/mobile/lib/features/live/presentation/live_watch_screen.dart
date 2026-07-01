@@ -9,6 +9,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/socket/forge_socket.dart';
 import 'stream_chat_panel.dart';
 import 'stream_poll_panel.dart';
+import 'stream_qa_panel.dart';
 
 class LiveWatchScreen extends ConsumerStatefulWidget {
   final String streamId;
@@ -458,6 +459,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
               ),
             ),
           StreamPollPanel(streamId: widget.streamId, isHost: _isOwner),
+          StreamQaPanel(streamId: widget.streamId, isHost: _isOwner),
           if (!_isOwner && (_stream?['status'] as String?) == 'live' && _myUserId != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

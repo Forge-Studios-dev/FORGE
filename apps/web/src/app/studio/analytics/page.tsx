@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@forge/design-system';
 import { EmptyState } from '@/components/EmptyState';
 import { StatCardsSkeleton } from '@/components/LoadingSkeleton';
@@ -30,6 +30,29 @@ export default function StudioAnalyticsPage() {
       const { data } = await api.get<{
         data: { active: number; trial: number; mrrCents: number; canceled: number };
       }>('/creators/me/subscribers/analytics');
+      return data.data;
+    },
+  });
+
+  const { data: ecosystemTree } = useQuery({
+    queryKey: ['ecosystem-tree', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: {
+          brands: Array<{ id: string; name: string; slug: string }>;
+          communities: Array<{
+            id: string;
+            name: string;
+            slug: string;
+            courses: Array<{ id: string; title: string }>;
+            programs: Array<{ id: string; name: string; courseCount: number }>;
+          }>;
+          standaloneCourses: Array<{ id: string; title: string }>;
+          programs: Array<{ id: string; name: string; courseCount: number }>;
+          bundles: Array<{ id: string; name: string; itemCount: number }>;
+        };
+      }>('/creators/me/ecosystem-tree');
       return data.data;
     },
   });
@@ -75,6 +98,20 @@ export default function StudioAnalyticsPage() {
     },
   });
 
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.get<Blob>('/creators/me/business-analytics/export', {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(data);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'business-analytics.csv';
+      anchor.click();
+      URL.revokeObjectURL(url);
+    },
+  });
+
   const totalViews = videos?.reduce((sum, v) => sum + (v.viewCount ?? 0), 0) ?? 0;
   const totalLikes = videos?.reduce((sum, v) => sum + (v.likeCount ?? 0), 0) ?? 0;
   const readyCount = videos?.filter((v) => v.status === 'ready').length ?? 0;
@@ -110,6 +147,16 @@ export default function StudioAnalyticsPage() {
 
       {businessAnalytics?.funnel?.length ? (
         <div className="mb-8 space-y-6">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => exportMutation.mutate()}
+              disabled={exportMutation.isPending}
+              className="rounded-lg border border-outline-variant/40 px-3 py-1.5 text-sm font-medium text-on-surface hover:bg-surface-variant/40 disabled:opacity-60"
+            >
+              {exportMutation.isPending ? 'Exporting…' : 'Export CSV'}
+            </button>
+          </div>
           <CreatorFunnelChart stages={businessAnalytics.funnel} />
           {businessAnalytics.cohortRetention ? (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -142,6 +189,41 @@ export default function StudioAnalyticsPage() {
             </section>
           ) : null}
         </div>
+      ) : null}
+
+      {ecosystemTree ? (
+        <section className="glass-panel mb-8 rounded-xl p-6">
+          <h2 className="mb-3 font-label-caps text-outline">Creator ecosystem</h2>
+          <ul className="space-y-3 text-sm">
+            {(ecosystemTree.brands ?? []).map((b) => (
+              <li key={b.id} className="text-on-surface-variant">
+                Brand · {b.name}
+              </li>
+            ))}
+            {(ecosystemTree.communities ?? []).map((c) => (
+              <li key={c.id} className="rounded-lg border border-outline-variant/30 px-3 py-2">
+                <p className="font-medium">{c.name}</p>
+                <p className="text-xs text-on-surface-variant">
+                  {c.courses.length} course{c.courses.length === 1 ? '' : 's'}
+                  {c.programs.length > 0
+                    ? ` · ${c.programs.length} program${c.programs.length === 1 ? '' : 's'}`
+                    : ''}
+                </p>
+              </li>
+            ))}
+            {(ecosystemTree.standaloneCourses ?? []).length > 0 ? (
+              <li className="text-xs text-on-surface-variant">
+                {ecosystemTree.standaloneCourses.length} standalone course
+                {ecosystemTree.standaloneCourses.length === 1 ? '' : 's'}
+              </li>
+            ) : null}
+            {(ecosystemTree.bundles ?? []).length > 0 ? (
+              <li className="text-xs text-on-surface-variant">
+                {ecosystemTree.bundles.length} bundle{ecosystemTree.bundles.length === 1 ? '' : 's'}
+              </li>
+            ) : null}
+          </ul>
+        </section>
       ) : null}
 
       {isLoading && <StatCardsSkeleton />}

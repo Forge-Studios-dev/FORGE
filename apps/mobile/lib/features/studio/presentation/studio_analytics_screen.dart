@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/utils/csv_export_util.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../shared/models/video.dart';
@@ -22,11 +23,38 @@ final studioAnalyticsProvider = FutureProvider.autoDispose<List<VideoModel>>((re
   return ref.read(studioRepositoryProvider).getMyVideos();
 });
 
-class StudioAnalyticsScreen extends ConsumerWidget {
+class StudioAnalyticsScreen extends ConsumerStatefulWidget {
   const StudioAnalyticsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StudioAnalyticsScreen> createState() => _StudioAnalyticsScreenState();
+}
+
+class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
+  bool _exporting = false;
+
+  Future<void> _exportCsv() async {
+    setState(() => _exporting = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      await CsvExportUtil.downloadAndShare(
+        dio: client.dio,
+        apiPath: '/creators/me/business-analytics/export',
+        filename: 'business-analytics.csv',
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not export analytics')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final videosAsync = ref.watch(studioAnalyticsProvider);
     final businessAsync = ref.watch(businessAnalyticsProvider);
 
@@ -37,6 +65,19 @@ class StudioAnalyticsScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
+        actions: [
+          TextButton.icon(
+            onPressed: _exporting ? null : _exportCsv,
+            icon: _exporting
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download_outlined, size: 18),
+            label: const Text('Export'),
+          ),
+        ],
       ),
       body: videosAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

@@ -65,7 +65,7 @@ export class CommunityGroupMember {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
-  @Column({ length: 20, default: CommunityGroupMemberRole.MEMBER })
+  @Column({ type: 'varchar', length: 20, default: CommunityGroupMemberRole.MEMBER })
   role: CommunityGroupMemberRole;
 
   @CreateDateColumn({ name: 'joined_at' })

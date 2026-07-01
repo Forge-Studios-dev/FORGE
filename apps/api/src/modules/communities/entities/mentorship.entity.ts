@@ -31,7 +31,7 @@ export class MentorshipProfile {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
-  @Column({ length: 10 })
+  @Column({ type: 'varchar', length: 10 })
   role: MentorshipRole;
 
   @Column({ type: 'text', array: true, default: '{}' })
@@ -43,7 +43,7 @@ export class MentorshipProfile {
   @Column({ name: 'max_mentees', type: 'int', default: 3 })
   maxMentees: number;
 
-  @Column({ length: 20, default: MentorshipProfileStatus.ACTIVE })
+  @Column({ type: 'varchar', length: 20, default: MentorshipProfileStatus.ACTIVE })
   status: MentorshipProfileStatus;
 
   @Column({ type: 'text', nullable: true })
@@ -81,7 +81,7 @@ export class MentorshipMatch {
   @Column({ name: 'mentee_id', type: 'uuid' })
   menteeId: string;
 
-  @Column({ length: 20, default: MentorshipMatchStatus.PENDING })
+  @Column({ type: 'varchar', length: 20, default: MentorshipMatchStatus.PENDING })
   status: MentorshipMatchStatus;
 
   @Column({ name: 'match_score', type: 'int', default: 0 })

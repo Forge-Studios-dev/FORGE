@@ -29,7 +29,14 @@ const _disciplines = [
 ];
 
 class ExploreScreen extends ConsumerStatefulWidget {
-  const ExploreScreen({super.key});
+  /// Optional query to prefill the search box (used by the dedicated `/search`
+  /// route for deep links). When non-empty, results load immediately.
+  final String? initialQuery;
+
+  /// Focus the search field on open (search-first entry, e.g. `/search`).
+  final bool autofocusSearch;
+
+  const ExploreScreen({super.key, this.initialQuery, this.autofocusSearch = false});
 
   @override
   ConsumerState<ExploreScreen> createState() => _ExploreScreenState();
@@ -40,6 +47,18 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   Timer? _debounce;
   String _lastQuery = '';
   Future<SearchResults>? _searchFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    final q = widget.initialQuery?.trim() ?? '';
+    if (q.length >= 2) {
+      _controller.text = q;
+      // Safe in initState: for q>=2 this only arms a debounce Timer (no
+      // synchronous setState); the result loads after the first frame.
+      _scheduleSearch(q);
+    }
+  }
 
   @override
   void dispose() {
@@ -75,6 +94,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: TextField(
               controller: _controller,
+              autofocus: widget.autofocusSearch,
               style: const TextStyle(color: ForgeTokens.onSurface),
               decoration: InputDecoration(
                 hintText: 'Search videos and creators',

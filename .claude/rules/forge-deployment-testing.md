@@ -1,0 +1,48 @@
+# FORGE — Deployment Testing
+
+> Scope: **Always apply** (every change). Mirrors `.cursor/rules/forge-deployment-testing.mdc`.
+
+Do **not** run full deployment or server-wide testing after every change. Balance validation with efficiency — minimize server load, execution time, and infrastructure cost without compromising reliability.
+
+## Full deployment testing (major changes only)
+
+Run comprehensive deployment validation **only** when the change set warrants a production deploy cycle (see `forge-git-branching.md`):
+
+- Architecture or infrastructure changes
+- Database schema or migration updates
+- Authentication or security changes
+- API contract or backend logic changes
+- Deployment pipeline or DevOps modifications
+- Performance or scalability improvements
+- Critical bug fixes affecting production behavior
+
+Examples: `npm run ci:local`, full e2e where applicable, post-merge release smoke — **once** when shipping, not after every incremental edit.
+
+## Targeted validation (minor changes)
+
+For minor work, run **only** what validates the affected surface:
+
+- UI updates, styling, copy → component/unit tests or local dev check
+- Small refactors → tests for touched modules only
+- Documentation, comments → no server or deploy testing
+- Simple fixes → targeted spec/test file for the changed code
+
+Do **not** trigger `fly deploy`, production smoke, full CI, or live infra checks for minor iterations.
+
+## During deployment
+
+When a major change is ready to ship:
+
+1. Run the **minimal test set** that covers affected components and critical paths
+2. Prefer unit + slim HTTP tests over full stack (see `forge-testing.md`)
+3. One consolidated validation before merge — not repeated full runs after each fix-forward
+
+## Never do this
+
+- Full deployment testing after every small commit or WIP change
+- Production smoke or `fly deploy` while still iterating on the same branch
+- Re-running entire CI suites when a targeted test already covers the fix
+
+## Exceptions
+
+User explicitly requests full deploy testing, production smoke, or emergency hotfix validation.

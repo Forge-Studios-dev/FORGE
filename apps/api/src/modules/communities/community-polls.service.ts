@@ -1,7 +1,9 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -18,6 +20,7 @@ export class CommunityPollsService {
     private readonly pollRepository: Repository<CommunityPoll>,
     @InjectRepository(CommunityPollVote)
     private readonly voteRepository: Repository<CommunityPollVote>,
+    @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
     private readonly eventEmitter: EventEmitter2,
   ) {}

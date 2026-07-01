@@ -3,9 +3,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../data/upload_repository.dart';
+
+/// Categories with their selectable skill tags, used to satisfy the required
+/// categoryId + skillTagIds fields on the complete-upload contract.
+final uploadOptionsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final client = ref.read(apiClientProvider);
+  final response = await client.dio.get('/categories/upload-options');
+  final list = response.data['data'] as List? ?? [];
+  return list.cast<Map<String, dynamic>>();
+});
+
+const _visibilityOptions = <({String value, String label})>[
+  (value: 'public', label: 'Public — anyone can discover'),
+  (value: 'unlisted', label: 'Unlisted — only with the link'),
+  (value: 'private', label: 'Private — only you'),
+  (value: 'subscribers', label: 'Subscribers only'),
+];
 
 class UploadScreen extends ConsumerStatefulWidget {
   const UploadScreen({super.key});
@@ -17,8 +35,10 @@ class UploadScreen extends ConsumerStatefulWidget {
 class _UploadScreenState extends ConsumerState<UploadScreen> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _skillCtrl = TextEditingController();
   PlatformFile? _file;
+  String? _categoryId;
+  final Set<String> _skillTagIds = {};
+  String _visibility = 'public';
   bool _uploading = false;
   int _progress = 0;
   String? _error;
@@ -27,7 +47,6 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
-    _skillCtrl.dispose();
     super.dispose();
   }
 
@@ -64,8 +83,16 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
       setState(() => _error = 'Select a video file first.');
       return;
     }
-    if (_titleCtrl.text.trim().isEmpty) {
-      setState(() => _error = 'Title is required.');
+    if (_titleCtrl.text.trim().length < 3) {
+      setState(() => _error = 'Title must be at least 3 characters.');
+      return;
+    }
+    if (_categoryId == null) {
+      setState(() => _error = 'Choose a category.');
+      return;
+    }
+    if (_skillTagIds.isEmpty) {
+      setState(() => _error = 'Select at least one skill tag.');
       return;
     }
     setState(() {
@@ -81,7 +108,9 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
             fileSizeBytes: _file!.size,
             title: _titleCtrl.text,
             description: _descCtrl.text,
-            skillTagName: _skillCtrl.text,
+            categoryId: _categoryId!,
+            skillTagIds: _skillTagIds.toList(),
+            visibility: _visibility,
             onProgress: (p) {
               if (mounted) setState(() => _progress = p);
             },
@@ -128,11 +157,10 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
               maxLines: 3,
               decoration: const InputDecoration(labelText: 'Description (optional)'),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _skillCtrl,
-              decoration: const InputDecoration(labelText: 'Skill tag (optional)'),
-            ),
+            const SizedBox(height: 16),
+            _buildCategoryAndSkills(),
+            const SizedBox(height: 16),
+            _buildVisibilitySelector(),
             if (_uploading) ...[
               const SizedBox(height: 24),
               LinearProgressIndicator(value: _progress / 100),
@@ -147,6 +175,102 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCategoryAndSkills() {
+    final optionsAsync = ref.watch(uploadOptionsProvider);
+    return optionsAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: LinearProgressIndicator(),
+      ),
+      error: (_, __) => const Text(
+        'Could not load categories. Pull to retry.',
+        style: TextStyle(color: ForgeTokens.error),
+      ),
+      data: (categories) {
+        if (categories.isEmpty) {
+          return const Text('No categories available yet.');
+        }
+        final selected = categories.firstWhere(
+          (c) => c['id'] == _categoryId,
+          orElse: () => const <String, dynamic>{},
+        );
+        final skillTags =
+            (selected['skillTags'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DropdownButtonFormField<String>(
+              value: _categoryId,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Category'),
+              items: categories
+                  .map((c) => DropdownMenuItem<String>(
+                        value: c['id'] as String,
+                        child: Text(c['name'] as String? ?? 'Category'),
+                      ))
+                  .toList(),
+              onChanged: _uploading
+                  ? null
+                  : (value) => setState(() {
+                        _categoryId = value;
+                        _skillTagIds.clear();
+                      }),
+            ),
+            if (_categoryId != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Skill tags',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 6),
+              if (skillTags.isEmpty)
+                const Text('No skill tags for this category.')
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: skillTags.map((tag) {
+                    final id = tag['id'] as String;
+                    final selectedTag = _skillTagIds.contains(id);
+                    return FilterChip(
+                      label: Text(tag['name'] as String? ?? ''),
+                      selected: selectedTag,
+                      onSelected: _uploading
+                          ? null
+                          : (on) => setState(() {
+                                if (on) {
+                                  _skillTagIds.add(id);
+                                } else {
+                                  _skillTagIds.remove(id);
+                                }
+                              }),
+                    );
+                  }).toList(),
+                ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildVisibilitySelector() {
+    return DropdownButtonFormField<String>(
+      value: _visibility,
+      isExpanded: true,
+      decoration: const InputDecoration(labelText: 'Visibility'),
+      items: _visibilityOptions
+          .map((o) => DropdownMenuItem<String>(
+                value: o.value,
+                child: Text(o.label, overflow: TextOverflow.ellipsis),
+              ))
+          .toList(),
+      onChanged: _uploading
+          ? null
+          : (value) => setState(() => _visibility = value ?? 'public'),
     );
   }
 }

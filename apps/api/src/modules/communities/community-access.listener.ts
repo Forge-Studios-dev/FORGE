@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { CommunitiesService } from './communities.service';
 import { CommunityMembersService } from './community-members.service';
@@ -24,6 +24,7 @@ export type CommunityMemberSuspendEvent = {
 @Injectable()
 export class CommunityAccessListener {
   constructor(
+    @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
     private readonly membersService: CommunityMembersService,
   ) {}

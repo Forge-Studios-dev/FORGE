@@ -1,9 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Button, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { getApiErrorMessage } from '@/lib/api-message';
 import { useAuth } from '@/lib/auth';
 
 type Subscription = {
@@ -22,6 +24,12 @@ type CreatorTier = {
   priceCents: number;
 };
 
+type TierChangeResult = {
+  checkoutUrl?: string | null;
+  changed?: boolean;
+  prorationApplied?: boolean;
+};
+
 function TierChangeSelect({
   subscription,
   onChanged,
@@ -29,6 +37,8 @@ function TierChangeSelect({
   subscription: Subscription;
   onChanged: () => void;
 }) {
+  const [error, setError] = useState<string | null>(null);
+
   const { data: tiers } = useQuery({
     queryKey: ['creator-tiers', subscription.creatorId],
     queryFn: async () => {
@@ -41,44 +51,72 @@ function TierChangeSelect({
 
   const changeMutation = useMutation({
     mutationFn: async (tierId: string) => {
-      await api.post('/billing/subscriptions/change-tier', {
-        creatorId: subscription.creatorId,
-        tierId,
-      });
+      const { data } = await api.post<{ data: TierChangeResult }>(
+        '/billing/subscriptions/change-tier',
+        { creatorId: subscription.creatorId, tierId },
+      );
+      return data.data;
     },
-    onSuccess: onChanged,
+    onSuccess: (result) => {
+      // The backend either applies an immediate (prorated) tier change or, when a
+      // new checkout is required, returns a hosted checkout URL — follow it.
+      if (result?.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
+        return;
+      }
+      onChanged();
+    },
+    onError: (err) =>
+      setError(getApiErrorMessage(err, 'Could not change your tier. Please try again.')),
   });
 
-  const otherTiers = (tiers ?? []).filter((t) => t.id !== subscription.tierId);
+  const currentTier = (tiers ?? []).find((t) => t.id === subscription.tierId);
+  const otherTiers = (tiers ?? [])
+    .filter((t) => t.id !== subscription.tierId)
+    .sort((a, b) => a.priceCents - b.priceCents);
   if (otherTiers.length === 0) return null;
+
+  const optionLabel = (t: CreatorTier) => {
+    const price = `$${(t.priceCents / 100).toFixed(2)}/mo`;
+    if (!currentTier || t.priceCents === currentTier.priceCents) {
+      return `Switch to ${t.name} (${price})`;
+    }
+    const direction = t.priceCents > currentTier.priceCents ? 'Upgrade' : 'Downgrade';
+    return `${direction} to ${t.name} (${price})`;
+  };
 
   return (
     <label className="mt-2 block text-xs">
       <span className="text-on-surface-variant">Change tier</span>
       <select
-        className="mt-1 w-full rounded-lg border border-outline-variant/30 bg-surface-container-high px-2 py-1.5 text-sm"
+        className="mt-1 w-full rounded-lg border border-outline-variant/30 bg-surface-container-high px-2 py-1.5 text-sm disabled:opacity-60"
         defaultValue=""
         disabled={changeMutation.isPending}
         onChange={(e) => {
           const tierId = e.target.value;
           if (!tierId) return;
-          if (
-            window.confirm(
-              'Switch to this tier? Your billing will be updated for the next cycle.',
-            )
-          ) {
+          const target = otherTiers.find((t) => t.id === tierId);
+          const isUpgrade = !!currentTier && !!target && target.priceCents > currentTier.priceCents;
+          const message = isUpgrade
+            ? 'Upgrade now? Your card is charged a prorated amount immediately and access updates right away.'
+            : 'Change your tier? Billing is adjusted on your subscription and access updates accordingly.';
+          if (window.confirm(message)) {
+            setError(null);
             changeMutation.mutate(tierId);
           }
           e.target.value = '';
         }}
       >
-        <option value="">Select new tier…</option>
+        <option value="">
+          {changeMutation.isPending ? 'Updating…' : 'Select new tier…'}
+        </option>
         {otherTiers.map((t) => (
           <option key={t.id} value={t.id}>
-            {t.name} (${(t.priceCents / 100).toFixed(2)}/mo)
+            {optionLabel(t)}
           </option>
         ))}
       </select>
+      {error ? <p className="mt-1 text-xs text-error">{error}</p> : null}
     </label>
   );
 }

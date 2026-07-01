@@ -4,18 +4,22 @@ import { Video } from '@/types';
 
 export async function RelatedVideos({
   videoId,
-  creatorId,
   skillTag,
 }: {
   videoId: string;
-  creatorId: string;
+  /** Accepted for caller compatibility; related ranking now handles creator affinity server-side. */
+  creatorId?: string;
   skillTag?: string;
 }) {
   let videos: Video[] = [];
   try {
-    const { data } = await serverApi.get<{ data: { data: Video[] } }>('/videos/feed?limit=8');
-    videos = (data.data?.data ?? []).filter((v) => v.id !== videoId && v.userId !== creatorId).slice(0, 4);
-    if (videos.length < 2 && skillTag) {
+    // Content-based recommendations (shared skill tags / category / creator).
+    const { data } = await serverApi.get<{ data: { data: Video[] } }>(
+      `/videos/${videoId}/related?limit=8`,
+    );
+    videos = (data.data?.data ?? []).filter((v) => v.id !== videoId).slice(0, 6);
+    // Last-resort fallback if the related rail is empty for a brand-new catalog.
+    if (videos.length === 0 && skillTag) {
       const search = await serverApi.get<{ data: { videos: Video[] } }>(
         `/search?q=${encodeURIComponent(skillTag)}&limit=4`,
       );

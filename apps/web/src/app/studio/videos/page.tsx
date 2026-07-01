@@ -1,11 +1,12 @@
 'use client';
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getActiveUpload, subscribeActiveUpload } from '@/lib/upload-manager';
 import { Icon, PageHeader } from '@forge/design-system';
-import { getStudioVideos } from '@/lib/creator-studio';
+import { fetchStudioLibrary, type StudioVideoSort } from '@/lib/creator-studio';
+import { fetchCategorySkillTags, type UploadSkillTag } from '@/lib/categories';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { formatCount, timeAgo } from '@/lib/utils';
@@ -119,9 +120,17 @@ export default function StudioVideosPage() {
   const [editing, setEditing] = useState<Video | null>(null);
   const [editVisibility, setEditVisibility] = useState<UploadVisibility>('public');
   const [editSchedule, setEditSchedule] = useState('');
+  const [availableTags, setAvailableTags] = useState<UploadSkillTag[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [browserUploadPct, setBrowserUploadPct] = useState<number | null>(null);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [sort, setSort] = useState<StudioVideoSort>('recent');
+
+  const PAGE_SIZE = 30;
 
   useEffect(() => {
     const sync = () => {
@@ -133,19 +142,40 @@ export default function StudioVideosPage() {
     return subscribeActiveUpload(sync);
   }, []);
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['studio-videos'],
-    queryFn: getStudioVideos,
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const {
+    data: pages,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['studio-videos', debouncedSearch, sort],
     enabled: !!user?.id,
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      fetchStudioLibrary({ search: debouncedSearch, sort, page: pageParam, limit: PAGE_SIZE }),
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.hasMore ? lastPage.pagination.page + 1 : undefined,
     refetchInterval: (q) => {
-      const list = q.state.data ?? [];
-      const needsPoll = list.some((v) => v.status === 'uploading' || v.status === 'processing');
+      const loaded = (q.state.data?.pages ?? []).flatMap((p) => p.items);
+      const needsPoll = loaded.some(
+        (v) => v.status === 'uploading' || v.status === 'processing',
+      );
       return needsPoll ? 5000 : false;
     },
   });
 
+  const data = useMemo(() => (pages?.pages ?? []).flatMap((p) => p.items), [pages]);
+
   const groups = useMemo(() => {
-    const list = data ?? [];
+    const list = data;
     return {
       inProgress: list.filter((v) => v.status === 'uploading' || v.status === 'processing'),
       published: list.filter((v) => v.status === 'ready'),
@@ -182,15 +212,38 @@ export default function StudioVideosPage() {
         ? new Date(video.scheduledPublishAt).toISOString().slice(0, 16)
         : '',
     );
+    setSelectedTagIds((video.skillTags ?? []).map((t) => t.id));
+    setAvailableTags([]);
+    if (video.categoryId) {
+      setTagsLoading(true);
+      void fetchCategorySkillTags(video.categoryId)
+        .then(setAvailableTags)
+        .catch(() => setAvailableTags([]))
+        .finally(() => setTagsLoading(false));
+    }
+  };
+
+  const toggleTag = (tagId: string) => {
+    setSelectedTagIds((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId],
+    );
   };
 
   const saveEdit = async () => {
     if (!editing) return;
+    // Re-tagging is only allowed within the video's existing category and must
+    // keep at least one tag; otherwise we omit skillTagIds and leave tags as-is.
+    const canEditTags = !!editing.categoryId && availableTags.length > 0;
+    if (canEditTags && selectedTagIds.length === 0) {
+      window.alert('Select at least one skill tag.');
+      return;
+    }
     setSaving(true);
     try {
       await api.patch(`/videos/${editing.id}`, {
         visibility: editVisibility,
         scheduledPublishAt: editSchedule ? new Date(editSchedule).toISOString() : null,
+        ...(canEditTags ? { skillTagIds: selectedTagIds } : {}),
       });
       await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
       setEditing(null);
@@ -222,6 +275,37 @@ export default function StudioVideosPage() {
         ) : null}
       </div>
 
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Icon
+            name="search"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-outline"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search your videos by title"
+            aria-label="Search your videos by title"
+            className="w-full rounded-full border border-outline-variant bg-surface-container-low py-2 pl-10 pr-4 text-sm"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+          Sort
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as StudioVideoSort)}
+            aria-label="Sort videos"
+            className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface"
+          >
+            <option value="recent">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="views">Most viewed</option>
+            <option value="title">Title (A–Z)</option>
+          </select>
+        </label>
+      </div>
+
       {groups.inProgress.length > 0 ? (
         <div className="mb-8 rounded-xl border border-tertiary/30 bg-tertiary/5 p-4">
           <p className="text-sm font-medium text-on-surface">
@@ -236,10 +320,14 @@ export default function StudioVideosPage() {
       {isLoading && <p className="text-on-surface-variant">Loading videos…</p>}
       {isError && <p className="text-error">Failed to load videos.</p>}
 
-      {!isLoading && !data?.length ? (
+      {!isLoading && !data.length ? (
         <div className="glass-panel rounded-xl p-10 text-center">
           <Icon name="video_library" className="mb-4 text-4xl text-outline" />
-          <p className="text-on-surface-variant">No videos yet. Upload your first lesson.</p>
+          <p className="text-on-surface-variant">
+            {debouncedSearch
+              ? `No videos match “${debouncedSearch}”.`
+              : 'No videos yet. Upload your first lesson.'}
+          </p>
         </div>
       ) : null}
 
@@ -295,6 +383,19 @@ export default function StudioVideosPage() {
         </section>
       ) : null}
 
+      {hasNextPage ? (
+        <div className="mt-8 flex justify-center">
+          <button
+            type="button"
+            disabled={isFetchingNextPage}
+            onClick={() => void fetchNextPage()}
+            className="rounded-full border border-outline-variant px-6 py-2 text-sm hover:border-primary disabled:opacity-50"
+          >
+            {isFetchingNextPage ? 'Loading…' : 'Load more'}
+          </button>
+        </div>
+      ) : null}
+
       {editing ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="glass-panel w-full max-w-md space-y-4 rounded-2xl p-6">
@@ -322,6 +423,38 @@ export default function StudioVideosPage() {
                 className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
               />
             </label>
+            {editing.categoryId ? (
+              <fieldset className="space-y-2">
+                <legend className="font-label-caps text-outline">Skill tags</legend>
+                {tagsLoading ? (
+                  <p className="text-sm text-on-surface-variant">Loading tags…</p>
+                ) : availableTags.length === 0 ? (
+                  <p className="text-sm text-on-surface-variant">
+                    No skill tags available for this category.
+                  </p>
+                ) : (
+                  <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+                    {availableTags.map((tag) => {
+                      const selected = selectedTagIds.includes(tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => toggleTag(tag.id)}
+                          className={`font-label-caps rounded-full border px-3 py-1 text-xs transition ${
+                            selected
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-outline-variant text-on-surface-variant hover:opacity-80'
+                          }`}
+                        >
+                          {tag.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </fieldset>
+            ) : null}
             <div className="flex justify-end gap-3">
               <button
                 type="button"

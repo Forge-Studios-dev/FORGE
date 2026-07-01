@@ -22,6 +22,9 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
   final _draftCtrl = TextEditingController();
   List<Map<String, dynamic>> _messages = [];
   String? _roomName;
+  String? _replyToId;
+  String? _replyToLabel;
+  String? _currentUserId;
   bool _loading = true;
   bool _sending = false;
   void Function(dynamic)? _messageHandler;
@@ -40,13 +43,39 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
     super.dispose();
   }
 
+  List<Map<String, dynamic>> get _threadedMessages {
+    final byId = {for (final m in _messages) m['id'] as String: m};
+    final roots = _messages.where((m) => m['parentMessageId'] == null).toList();
+    final repliesByParent = <String, List<Map<String, dynamic>>>{};
+    for (final m in _messages) {
+      final parentId = m['parentMessageId'] as String?;
+      if (parentId != null) {
+        repliesByParent.putIfAbsent(parentId, () => []).add(m);
+      }
+    }
+    final result = <Map<String, dynamic>>[];
+    for (final root in roots) {
+      result.add({...root, '_depth': 0});
+      for (final reply in repliesByParent[root['id']] ?? []) {
+        result.add({...reply, '_depth': 1});
+      }
+    }
+    for (final m in _messages) {
+      final parentId = m['parentMessageId'] as String?;
+      if (parentId != null && !byId.containsKey(parentId)) {
+        result.add({...m, '_depth': 1});
+      }
+    }
+    return result;
+  }
+
   Future<void> _connectSocket() async {
     await ForgeSocket.connect();
     ForgeSocket.joinCommunity(widget.communityId);
     ForgeSocket.joinRoom(widget.roomId);
     _messageHandler = (payload) {
       final data = payload as Map<String, dynamic>?;
-      final message = data?['message'] as Map<String, dynamic>?;
+      final message = data?['message'] as Map<String, dynamic>? ?? data;
       if (message == null) return;
       if (message['roomId'] != widget.roomId && message['roomId'] != null) return;
       setState(() {
@@ -76,12 +105,83 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
       final msgRes = await client.dio.get(
         '/communities/${widget.communityId}/rooms/${widget.roomId}/messages',
       );
+      String? userId;
+      try {
+        final me = await client.dio.get('/users/me');
+        userId = me.data['data']?['id'] as String?;
+      } catch (_) {}
       setState(() {
         _roomName = roomRes.data['data']?['name'] as String?;
         _messages = (msgRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _currentUserId = userId;
       });
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _setReply(Map<String, dynamic> msg) {
+    final author = msg['user']?['displayName'] ?? msg['user']?['username'] ?? 'Member';
+    setState(() {
+      _replyToId = msg['id'] as String?;
+      _replyToLabel = author.toString();
+    });
+  }
+
+  void _clearReply() {
+    setState(() {
+      _replyToId = null;
+      _replyToLabel = null;
+    });
+  }
+
+  Future<void> _reportMessage(Map<String, dynamic> msg) async {
+    final reasonCtrl = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Report message'),
+        content: TextField(
+          controller: reasonCtrl,
+          decoration: const InputDecoration(hintText: 'Reason'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final text = reasonCtrl.text.trim();
+              if (text.isNotEmpty) Navigator.pop(ctx, text);
+            },
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+    reasonCtrl.dispose();
+    if (reason == null || reason.isEmpty || !mounted) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.post(
+        '/communities/${widget.communityId}/reports',
+        data: {
+          'targetType': 'message',
+          'roomId': widget.roomId,
+          'messageId': msg['id'],
+          'reason': reason,
+        },
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report submitted')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to submit report')),
+        );
+      }
     }
   }
 
@@ -91,11 +191,14 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
     setState(() => _sending = true);
     try {
       final client = ref.read(apiClientProvider);
+      final payload = <String, dynamic>{'body': body};
+      if (_replyToId != null) payload['parentMessageId'] = _replyToId;
       final res = await client.dio.post(
         '/communities/${widget.communityId}/rooms/${widget.roomId}/messages',
-        data: {'body': body},
+        data: payload,
       );
       _draftCtrl.clear();
+      _clearReply();
       final message = res.data['data'] as Map<String, dynamic>?;
       if (message != null && !_messages.any((m) => m['id'] == message['id'])) {
         setState(() => _messages = [..._messages, message]);
@@ -113,6 +216,7 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
 
   @override
   Widget build(BuildContext context) {
+    final threaded = _threadedMessages;
     return Scaffold(
       appBar: AppBar(
         title: Text(_roomName ?? 'Text room'),
@@ -131,18 +235,67 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
-                    itemCount: _messages.length,
+                    itemCount: threaded.length,
                     itemBuilder: (_, i) {
-                      final m = _messages[i];
+                      final m = threaded[i];
+                      final depth = m['_depth'] as int? ?? 0;
                       final author = m['user']?['displayName'] ?? m['user']?['username'] ?? 'Member';
+                      final parentId = m['parentMessageId'] as String?;
+                      final parent = parentId != null
+                          ? _messages.cast<Map<String, dynamic>?>().firstWhere(
+                                (x) => x?['id'] == parentId,
+                                orElse: () => null,
+                              )
+                          : null;
                       return ListTile(
+                        contentPadding: EdgeInsets.only(left: 12.0 + depth * 16, right: 12),
                         title: Text(author.toString()),
-                        subtitle: Text(m['body']?.toString() ?? ''),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (depth > 0 && parent != null)
+                              Text(
+                                '↳ reply to ${parent['user']?['displayName'] ?? 'message'}',
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                            Text(m['body']?.toString() ?? ''),
+                          ],
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_currentUserId == null ||
+                                m['userId']?.toString() != _currentUserId)
+                              IconButton(
+                                icon: const Icon(Icons.flag_outlined, size: 18),
+                                onPressed: () => _reportMessage(m),
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.reply, size: 18),
+                              onPressed: () => _setReply(m),
+                            ),
+                          ],
+                        ),
                         dense: true,
                       );
                     },
                   ),
                 ),
+                if (_replyToId != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Replying to $_replyToLabel',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        TextButton(onPressed: _clearReply, child: const Text('Cancel')),
+                      ],
+                    ),
+                  ),
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(8),
@@ -151,9 +304,9 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
                         Expanded(
                           child: TextField(
                             controller: _draftCtrl,
-                            decoration: const InputDecoration(
-                              hintText: 'Message…',
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              hintText: _replyToId != null ? 'Write a reply…' : 'Message…',
+                              border: const OutlineInputBorder(),
                             ),
                             onSubmitted: (_) => _send(),
                           ),

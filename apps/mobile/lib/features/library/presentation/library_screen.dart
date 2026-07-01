@@ -45,6 +45,24 @@ class LibraryScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ForgeCard(
+            onTap: () => context.push('/playlists'),
+            child: const _LibraryRow(
+              icon: Icons.playlist_play,
+              title: 'Playlists',
+              subtitle: 'Lessons you have saved and organized',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
+            onTap: () => context.push('/updates'),
+            child: const _LibraryRow(
+              icon: Icons.campaign_outlined,
+              title: 'Updates',
+              subtitle: 'Announcements from communities you joined',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
             onTap: () => context.push('/studio'),
             child: const _LibraryRow(
               icon: Icons.video_camera_front_outlined,

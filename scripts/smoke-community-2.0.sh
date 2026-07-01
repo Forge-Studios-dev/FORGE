@@ -358,6 +358,102 @@ if [[ -n "$first_community_id" ]]; then
     room_msgs_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
       "${BASE}/communities/${first_community_id}/rooms/${text_room_id}/messages" || true)"
     [[ "$room_msgs_code" == "200" ]] && echo "OK: GET text room messages" || echo "WARN: text room messages ${room_msgs_code}" >&2
+
+    root_msg_body="$(curl_smoke -X POST \
+      -H "Authorization: Bearer ${viewer_token}" \
+      -H 'Content-Type: application/json' \
+      -d '{"body":"Smoke thread root"}' \
+      "${BASE}/communities/${first_community_id}/rooms/${text_room_id}/messages" 2>/dev/null || true)"
+    root_msg_id="$(echo "$root_msg_body" | python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)"
+    if [[ -n "$root_msg_id" ]]; then
+      reply_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+        -X POST -H "Authorization: Bearer ${viewer_token}" \
+        -H 'Content-Type: application/json' \
+        -d "{\"body\":\"Smoke thread reply\",\"parentMessageId\":\"${root_msg_id}\"}" \
+        "${BASE}/communities/${first_community_id}/rooms/${text_room_id}/messages" || true)"
+      [[ "$reply_code" == "200" || "$reply_code" == "201" ]] \
+        && echo "OK: POST text room threaded reply" \
+        || echo "WARN: text room thread reply ${reply_code}" >&2
+    fi
+
+    creator_msg_body="$(curl_smoke -X POST \
+      -H "Authorization: Bearer ${creator_token}" \
+      -H 'Content-Type: application/json' \
+      -d '{"body":"Smoke report target message"}' \
+      "${BASE}/communities/${first_community_id}/rooms/${text_room_id}/messages" 2>/dev/null || true)"
+    creator_msg_id="$(echo "$creator_msg_body" | python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)"
+    if [[ -n "$creator_msg_id" ]]; then
+      room_report_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+        -X POST -H "Authorization: Bearer ${viewer_token}" \
+        -H 'Content-Type: application/json' \
+        -d "{\"targetType\":\"message\",\"roomId\":\"${text_room_id}\",\"messageId\":\"${creator_msg_id}\",\"reason\":\"Smoke room report\"}" \
+        "${BASE}/communities/${first_community_id}/reports" 2>/dev/null || true)"
+      [[ "$room_report_code" == "200" || "$room_report_code" == "201" ]] \
+        && echo "OK: POST room message report" \
+        || echo "WARN: room message report ${room_report_code}" >&2
+    fi
+
+    layout_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+      "${BASE}/communities/${first_community_id}/layout" 2>/dev/null || true)"
+    [[ "$layout_code" == "200" ]] && echo "OK: GET /communities/:id/layout (3.0)" || echo "WARN: layout ${layout_code}" >&2
+
+    events_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+      "${BASE}/communities/${first_community_id}/events" 2>/dev/null || true)"
+    [[ "$events_code" == "200" ]] && echo "OK: GET /communities/:id/events" || echo "WARN: events ${events_code}" >&2
+
+    event_create_body="$(curl_smoke -X POST \
+      -H "Authorization: Bearer ${creator_token}" \
+      -H 'Content-Type: application/json' \
+      -d "{\"title\":\"Smoke Event\",\"startsAt\":\"$(date -u -v+7d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '+7 days' +%Y-%m-%dT%H:%M:%SZ)\",\"isOnline\":true}" \
+      "${BASE}/creators/me/communities/${first_community_id}/events" 2>/dev/null || true)"
+    smoke_event_id="$(echo "$event_create_body" | python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('id',''))" 2>/dev/null || true)"
+    [[ -n "$smoke_event_id" ]] \
+      && echo "OK: POST community event create" \
+      || echo "WARN: event create" >&2
+
+    if [[ -n "$smoke_event_id" ]]; then
+      event_update_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+        -X PATCH -H "Authorization: Bearer ${creator_token}" \
+        -H 'Content-Type: application/json' \
+        -d '{"title":"Smoke Event Updated"}' \
+        "${BASE}/creators/me/communities/${first_community_id}/events/${smoke_event_id}" 2>/dev/null || true)"
+      [[ "$event_update_code" == "200" ]] \
+        && echo "OK: PATCH community event update" \
+        || echo "WARN: event update ${event_update_code}" >&2
+
+      event_delete_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+        -X DELETE -H "Authorization: Bearer ${creator_token}" \
+        "${BASE}/creators/me/communities/${first_community_id}/events/${smoke_event_id}" 2>/dev/null || true)"
+      [[ "$event_delete_code" == "200" || "$event_delete_code" == "204" ]] \
+        && echo "OK: DELETE community event" \
+        || echo "WARN: event delete ${event_delete_code}" >&2
+    fi
+
+    export_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+      -H "Authorization: Bearer ${creator_token}" \
+      "${BASE}/creators/me/communities/${first_community_id}/members/export" 2>/dev/null || true)"
+    [[ "$export_code" == "200" ]] && echo "OK: GET community members export" || echo "WARN: members export ${export_code}" >&2
+
+    inbox_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+      -H "Authorization: Bearer ${creator_token}" \
+      "${BASE}/creators/me/moderation/inbox" 2>/dev/null || true)"
+    [[ "$inbox_code" == "200" ]] && echo "OK: GET unified moderation inbox" || echo "WARN: mod inbox ${inbox_code}" >&2
+
+    if [[ -n "$viewer_id" ]]; then
+      suspend_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+        -X PATCH -H "Authorization: Bearer ${creator_token}" \
+        "${BASE}/creators/me/communities/${first_community_id}/members/${viewer_id}/suspend" 2>/dev/null || true)"
+      [[ "$suspend_code" == "200" ]] \
+        && echo "OK: PATCH member suspend" \
+        || echo "WARN: member suspend ${suspend_code}" >&2
+
+      unsuspend_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+        -X PATCH -H "Authorization: Bearer ${creator_token}" \
+        "${BASE}/creators/me/communities/${first_community_id}/members/${viewer_id}/unsuspend" 2>/dev/null || true)"
+      [[ "$unsuspend_code" == "200" ]] \
+        && echo "OK: PATCH member unsuspend" \
+        || echo "WARN: member unsuspend ${unsuspend_code}" >&2
+    fi
   fi
 
   audit_code="$(curl_smoke -o /dev/null -w "%{http_code}" \

@@ -11,7 +11,8 @@ type SearchResult = {
   name: string;
   slug: string;
   creatorId: string;
-  creator?: { username?: string; displayName?: string };
+  visibility?: string;
+  creator?: { username?: string; displayName?: string; id?: string };
 };
 
 export default function DiscoverCommunitiesPage() {
@@ -73,17 +74,29 @@ export default function DiscoverCommunitiesPage() {
               {(featured ?? []).map((c) => {
                 const username = c.creator?.username;
                 const href = username ? `/${username}/c/${c.slug}` : `/communities/id/${c.id}`;
+                const isPaid = c.visibility === 'paid';
+                const subscribeHref = c.creator?.id
+                  ? `/${username ?? c.creator.id}/c/${c.slug}?subscribe=1`
+                  : href;
                 return (
                   <li key={c.id}>
-                    <Link
-                      href={href}
-                      className="glass-panel block rounded-xl p-4 transition-colors hover:border-primary/30"
-                    >
-                      <p className="font-semibold">{c.name}</p>
-                      <p className="text-sm text-on-surface-variant">
-                        {c.creator?.displayName ?? c.creator?.username ?? 'Creator'} · /{c.slug}
-                      </p>
-                    </Link>
+                    <div className="glass-panel rounded-xl p-4 transition-colors hover:border-primary/30">
+                      <Link href={href} className="block">
+                        <p className="font-semibold">{c.name}</p>
+                        <p className="text-sm text-on-surface-variant">
+                          {c.creator?.displayName ?? c.creator?.username ?? 'Creator'} · /{c.slug}
+                          {isPaid ? ' · Paid community' : ''}
+                        </p>
+                      </Link>
+                      {isPaid ? (
+                        <Link
+                          href={subscribeHref}
+                          className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+                        >
+                          View membership options →
+                        </Link>
+                      ) : null}
+                    </div>
                   </li>
                 );
               })}
@@ -101,17 +114,29 @@ export default function DiscoverCommunitiesPage() {
           {(data ?? []).map((c) => {
             const username = c.creator?.username;
             const href = username ? `/${username}/c/${c.slug}` : `/communities/id/${c.id}`;
+            const isPaid = c.visibility === 'paid';
+            const subscribeHref = c.creator?.id
+              ? `/${username ?? c.creator.id}/c/${c.slug}?subscribe=1`
+              : href;
             return (
               <li key={c.id}>
-                <Link
-                  href={href}
-                  className="glass-panel block rounded-xl p-4 transition-colors hover:border-primary/30"
-                >
-                  <p className="font-semibold">{c.name}</p>
-                  <p className="text-sm text-on-surface-variant">
-                    {c.creator?.displayName ?? c.creator?.username ?? 'Creator'} · /{c.slug}
-                  </p>
-                </Link>
+                <div className="glass-panel rounded-xl p-4 transition-colors hover:border-primary/30">
+                  <Link href={href} className="block">
+                    <p className="font-semibold">{c.name}</p>
+                    <p className="text-sm text-on-surface-variant">
+                      {c.creator?.displayName ?? c.creator?.username ?? 'Creator'} · /{c.slug}
+                      {isPaid ? ' · Paid community' : ''}
+                    </p>
+                  </Link>
+                  {isPaid ? (
+                    <Link
+                      href={subscribeHref}
+                      className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+                    >
+                      View membership options →
+                    </Link>
+                  ) : null}
+                </div>
               </li>
             );
           })}

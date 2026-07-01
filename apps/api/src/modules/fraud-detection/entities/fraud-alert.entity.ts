@@ -33,13 +33,13 @@ export class FraudAlert {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
-  @Column({ length: 60 })
+  @Column({ type: 'varchar', length: 60 })
   signal: FraudSignal;
 
   @Column({ name: 'risk_score', type: 'int' })
   riskScore: number;
 
-  @Column({ length: 30, default: FraudAlertStatus.OPEN })
+  @Column({ type: 'varchar', length: 30, default: FraudAlertStatus.OPEN })
   status: FraudAlertStatus;
 
   @Column({ type: 'jsonb', default: '{}' })

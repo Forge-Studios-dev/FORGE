@@ -5,9 +5,10 @@ import { CreatorResourcesService } from './creator-resources.service';
 import { CreatorResourcesController } from './creator-resources.controller';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CreatorResource]), EntitlementsModule],
+  imports: [TypeOrmModule.forFeature([CreatorResource]), EntitlementsModule, UsersModule],
   controllers: [CreatorResourcesController],
   providers: [CreatorResourcesService, CreatorApprovedGuard],
   exports: [CreatorResourcesService],

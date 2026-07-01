@@ -136,6 +136,9 @@ export function StudioRoomsPanel({ communityId }: Props) {
 
   return (
     <div className="space-y-6">
+      <p className="rounded-lg border border-outline-variant/40 bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
+        Text and voice spaces live here. Legacy channels were migrated to rooms automatically.
+      </p>
       <section className="glass-panel space-y-3 rounded-xl p-6">
         <h2 className="font-label-caps text-xs text-outline">Create room</h2>
         <p className="text-xs text-on-surface-variant">

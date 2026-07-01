@@ -95,16 +95,36 @@ class _DiscoverCommunitiesScreenState extends ConsumerState<DiscoverCommunitiesS
                   final c = _featured[i];
                   final creatorId = c['creatorId'] as String?;
                   final slug = c['slug'] as String?;
+                  final isPaid = c['visibility'] == 'paid';
                   return SizedBox(
                     width: 200,
                     child: Card(
                       margin: const EdgeInsets.only(right: 8),
-                      child: ListTile(
-                        title: Text(c['name'] as String? ?? '', maxLines: 2),
-                        subtitle: Text(slug != null ? '/$slug' : ''),
-                        onTap: creatorId != null && slug != null
-                            ? () => context.push('/community/$creatorId/c/$slug')
-                            : null,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(c['name'] as String? ?? '', maxLines: 2),
+                              subtitle: Text(
+                                [
+                                  if (slug != null) '/$slug',
+                                  if (isPaid) 'Paid community',
+                                ].join(' · '),
+                              ),
+                              onTap: creatorId != null && slug != null
+                                  ? () => context.push('/community/$creatorId/c/$slug')
+                                  : null,
+                            ),
+                            if (isPaid && creatorId != null && slug != null)
+                              TextButton(
+                                onPressed: () => context.push('/community/$creatorId/c/$slug?subscribe=1'),
+                                child: const Text('Membership options'),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -121,6 +141,7 @@ class _DiscoverCommunitiesScreenState extends ConsumerState<DiscoverCommunitiesS
                       final c = _results[i];
                       final creatorId = c['creatorId'] as String?;
                       final slug = c['slug'] as String?;
+                      final isPaid = c['visibility'] == 'paid';
                       return ListTile(
                         title: Text(c['name'] as String? ?? ''),
                         subtitle: Text(
@@ -128,9 +149,17 @@ class _DiscoverCommunitiesScreenState extends ConsumerState<DiscoverCommunitiesS
                             if ((c['creator'] as Map?)?['username'] != null)
                               '@${(c['creator'] as Map)['username']}',
                             if (slug != null) '/$slug',
+                            if (isPaid) 'Paid community',
                           ].join(' · '),
                         ),
-                        trailing: Text(c['visibility'] as String? ?? 'public'),
+                        trailing: isPaid
+                            ? TextButton(
+                                onPressed: creatorId != null && slug != null
+                                    ? () => context.push('/community/$creatorId/c/$slug?subscribe=1')
+                                    : null,
+                                child: const Text('Join'),
+                              )
+                            : Text(c['visibility'] as String? ?? 'public'),
                         onTap: creatorId != null && slug != null
                             ? () => context.push('/community/$creatorId/c/$slug')
                             : null,

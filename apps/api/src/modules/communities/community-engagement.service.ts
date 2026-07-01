@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -31,6 +33,7 @@ export class CommunityEngagementService {
     private readonly surveyRepository: Repository<CommunitySurvey>,
     @InjectRepository(CommunitySurveyResponse)
     private readonly surveyResponseRepository: Repository<CommunitySurveyResponse>,
+    @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
   ) {}
 
