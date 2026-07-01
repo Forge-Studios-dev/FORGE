@@ -1,5 +1,6 @@
-import { Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { CommunityMembersService } from './community-members.service';
 import { CommunityMemberStatus } from './entities/community-member.entity';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -49,5 +50,41 @@ export class CommunityMembersController {
     @Param('userId') userId: string,
   ) {
     return this.membersService.rejectMember(user.sub, communityId, userId, user.role);
+  }
+
+  @Patch('creators/me/communities/:communityId/members/:userId/suspend')
+  @UseGuards(CommunityStudioGuard)
+  @ApiOperation({ summary: 'Suspend an active community member' })
+  suspend(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.membersService.suspendMember(user.sub, communityId, userId, user.role);
+  }
+
+  @Patch('creators/me/communities/:communityId/members/:userId/unsuspend')
+  @UseGuards(CommunityStudioGuard)
+  @ApiOperation({ summary: 'Restore a suspended community member' })
+  unsuspend(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.membersService.unsuspendMember(user.sub, communityId, userId, user.role);
+  }
+
+  @Get('creators/me/communities/:communityId/members/export')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Export community members as CSV' })
+  async exportMembers(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+    @Res() res: Response,
+  ) {
+    const csv = await this.membersService.exportMembersCsv(user.sub, communityId);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="community-${communityId}-members.csv"`);
+    res.send(csv);
   }
 }

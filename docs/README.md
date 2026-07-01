@@ -21,8 +21,9 @@ All project documentation lives in `docs/`. Start with **[FORGE_PROJECT_MASTER.m
 | [MEDIA.md](./MEDIA.md) | S3 + Mux |
 | [FIREBASE.md](./FIREBASE.md) | FCM push |
 | [OBSERVABILITY.md](./OBSERVABILITY.md) | Metrics, Sentry, Grafana |
-| [MEMBERSHIPS.md](./MEMBERSHIPS.md) | Mock tiers + partial Stripe |
-| [COMMUNITY-2.0-IMPLEMENTATION.md](./COMMUNITY-2.0-IMPLEMENTATION.md) | Community 2.0 / Creator Economy OS tracker |
+| [MEMBERSHIPS.md](./MEMBERSHIPS.md) | Tiers, Stripe Connect, entitlements, access sessions |
+| [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md) | **Single source of truth** — 684 task-level items, 96.6% complete, gaps, roadmap, status |
+| [FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md](../FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md) | Creator Economy OS v3.0 — requirements vision & architecture blueprint |
 | [AI-LLM-STRATEGY.md](./AI-LLM-STRATEGY.md) | AI/LLM audit, provider selection, architecture & rollout plan |
 | [DESIGN.md](./DESIGN.md) | Design system & Stitch blueprints |
 | [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) | Stakeholder summary |
@@ -64,9 +65,11 @@ Enterprise audit **closed** 2026-06-05. Re-audit **2026-09-04** or 50K MAU.
 | Change | Update |
 |--------|--------|
 | New module or route | `FORGE_PROJECT_MASTER.md` §4 + §20 |
-| Live feature | `LIVE.md` + master §20 |
-| AI / LLM feature | `AI-LLM-STRATEGY.md` + `COMMUNITY-2.0-IMPLEMENTATION.md` Phase I |
+| Live / streaming feature | `LIVE.md` + `FORGE_PROJECT_MASTER.md` §20 |
+| AI / LLM feature | `AI-LLM-STRATEGY.md` + master tracker Phase 12 (`CEOS-P12-*`) |
+| Channel points / gamification | `FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md` + `FORGE_PROJECT_MASTER.md` §4 |
+| Community / Creator Economy task | `FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md` (update task status on merge) |
 | Public response shape | `API_SCHEMAS.md` + `@forge/shared-types` |
-| Feature status | Master §16 + `CLIENT_OVERVIEW.md` |
+| Feature status snapshot | `FORGE_PROJECT_MASTER.md` §16 + master tracker + `CLIENT_OVERVIEW.md` |
 
 *Do not add new top-level doc files without updating this index.*

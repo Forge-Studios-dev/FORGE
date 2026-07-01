@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -37,18 +38,34 @@ import { Throttle } from '@nestjs/throttler';
 import { MultipartPartUrlsDto } from './dto/multipart-part-urls.dto';
 import { MultipartCompletePartsDto } from './dto/multipart-complete-parts.dto';
 import { MultipartCheckpointDto } from './dto/multipart-checkpoint.dto';
+import { StudioVideosQueryDto } from './dto/studio-videos-query.dto';
+import { RecommendationsService } from './recommendations.service';
+import { ContentLibraryService, ContentType } from './content-library.service';
 
 @ApiTags('Videos')
 @Controller('videos')
 export class VideosController {
-  constructor(private readonly videosService: VideosService) {}
+  constructor(
+    private readonly videosService: VideosService,
+    private readonly recommendationsService: RecommendationsService,
+    private readonly contentLibraryService: ContentLibraryService,
+  ) {}
+
+  @Public()
+  @Get('shorts')
+  @ApiOperation({ summary: 'Paginated public Shorts feed (≤60s, published, public)' })
+  listShorts(@Query('cursor') cursor?: string, @Query('limit') limit?: string) {
+    return this.videosService.listShorts({ cursor, limit: limit ? parseInt(limit, 10) : undefined });
+  }
 
   @Get('studio')
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.UPLOAD_VIDEO)
-  @ApiOperation({ summary: 'List all own videos for Studio (every status)' })
-  listStudio(@CurrentUser() user: JwtPayload) {
-    return this.videosService.listStudioVideos(user.sub);
+  @ApiOperation({
+    summary: 'Creator content library — own videos (every status) with filter/search/sort/pagination',
+  })
+  listStudio(@CurrentUser() user: JwtPayload, @Query() query: StudioVideosQueryDto) {
+    return this.videosService.listStudioVideos(user.sub, query);
   }
 
   @Post('release-stuck-uploads')
@@ -249,5 +266,83 @@ export class VideosController {
   @ApiOperation({ summary: 'Delete video' })
   delete(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.videosService.delete(user.sub, id);
+  }
+
+  // ── P01-T025: Personalized feed & semantic recommendations ────────────────
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('recommended/feed')
+  @ApiOperation({ summary: 'Personalized video feed (category affinity + followed creators + trending)' })
+  personalizedFeed(
+    @CurrentUser() user: JwtPayload | undefined,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    if (!user) {
+      return this.recommendationsService.getTrending(undefined, limit ? Number(limit) : 20);
+    }
+    return this.recommendationsService.getPersonalizedFeed(user.sub, {
+      limit: limit ? Number(limit) : 20,
+      offset: offset ? Number(offset) : 0,
+    });
+  }
+
+  @Public()
+  @Get('trending')
+  @ApiOperation({ summary: 'Trending videos by recent view velocity' })
+  trending(@Query('limit') limit?: number) {
+    return this.recommendationsService.getTrending(undefined, limit ? Number(limit) : 20);
+  }
+
+  @Public()
+  @Get(':id([0-9a-fA-F-]{36})/similar')
+  @ApiOperation({ summary: 'Videos similar to a given video (same category ranking)' })
+  similarVideos(@Param('id') id: string, @Query('limit') limit?: number) {
+    return this.recommendationsService.getSimilarVideos(id, limit ? Number(limit) : 10);
+  }
+
+  // ── P06-T044: Unified content library (Netflix-style) ─────────────────────
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('library')
+  @ApiOperation({ summary: 'Unified content library: videos, shorts, podcasts, filtered and sorted' })
+  contentLibrary(
+    @CurrentUser() user: JwtPayload | undefined,
+    @Query('types') types?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('creatorId') creatorId?: string,
+    @Query('orderBy') orderBy?: 'recent' | 'popular' | 'trending',
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    const contentTypes = types
+      ? (types.split(',').filter((t) => ['video','short','podcast','course','live'].includes(t)) as ContentType[])
+      : undefined;
+    return this.contentLibraryService.getUnifiedLibrary(user?.sub, {
+      contentTypes,
+      categoryId,
+      creatorId,
+      orderBy,
+      limit: limit ? Number(limit) : 24,
+      offset: offset ? Number(offset) : 0,
+    });
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('library/creator/:creatorId')
+  @ApiOperation({ summary: "A creator's full content library (unified)" })
+  creatorLibrary(
+    @CurrentUser() user: JwtPayload | undefined,
+    @Param('creatorId') creatorId: string,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    return this.contentLibraryService.getCreatorLibrary(creatorId, user?.sub, {
+      limit: limit ? Number(limit) : 24,
+      offset: offset ? Number(offset) : 0,
+    });
   }
 }

@@ -67,6 +67,12 @@ export class CreateTierDto {
   @IsInt()
   @Min(1)
   maxConcurrentDevices?: number;
+
+  @ApiPropertyOptional({ description: 'Max members allowed on this tier (null = unlimited)' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxMembers?: number;
 }
 
 export class UpdateTierDto {
@@ -115,6 +121,12 @@ export class UpdateTierDto {
   @IsInt()
   @Min(1)
   maxConcurrentDevices?: number;
+
+  @ApiPropertyOptional({ description: 'Max members allowed on this tier (null = unlimited)' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxMembers?: number;
 }
 
 export class CreateTierEntitlementDto {

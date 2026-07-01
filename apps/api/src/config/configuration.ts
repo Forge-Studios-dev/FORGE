@@ -158,4 +158,23 @@ export default () => ({
   openai: {
     apiKey: process.env.OPENAI_API_KEY || '',
   },
+
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY || '',
+  },
+
+  ai: {
+    /** Async LLM judge tail for community moderation queue (requires OPENAI_API_KEY). */
+    moderationLlmEnabled: process.env.AI_MODERATION_LLM_ENABLED === 'true',
+    /** Creator copilot features (discussion summaries) via OpenAI chat completions. */
+    copilotEnabled: process.env.AI_COPILOT_ENABLED === 'true',
+    copilotModel: process.env.AI_COPILOT_MODEL || 'gpt-4.1-mini',
+    /** Claude-powered creator insights copilot (requires ANTHROPIC_API_KEY). */
+    claudeEnabled: process.env.AI_CLAUDE_ENABLED === 'true',
+    claudeModel: process.env.AI_CLAUDE_MODEL || 'claude-haiku-4-5-20251001',
+    /** Cost guard: only LLM-judge messages whose fast-path score is at/above this (borderline tail). */
+    moderationReviewThreshold: parseFloat(process.env.AI_MODERATION_REVIEW_THRESHOLD || '0.25'),
+    /** Max LLM (OpenAI) calls per UTC day across all AI features. 0 = unlimited. */
+    dailyLlmBudget: parseInt(process.env.AI_DAILY_LLM_BUDGET || '0', 10),
+  },
 });

@@ -19,6 +19,11 @@ import { VideoMultipartService } from './video-multipart.service';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { EngagementModule } from '../engagement/engagement.module';
 import { AccessSessionsModule } from '../access-sessions/access-sessions.module';
+import { PodcastSeries } from './entities/podcast-series.entity';
+import { PodcastsService } from './podcasts.service';
+import { PodcastsController } from './podcasts.controller';
+import { RecommendationsService } from './recommendations.service';
+import { ContentLibraryService } from './content-library.service';
 
 @Module({
   imports: [
@@ -30,6 +35,7 @@ import { AccessSessionsModule } from '../access-sessions/access-sessions.module'
       WatchHistory,
       Playlist,
       PlaylistVideo,
+      PodcastSeries,
     ]),
     forwardRef(() => UsersModule),
     forwardRef(() => EntitlementsModule),
@@ -54,14 +60,17 @@ import { AccessSessionsModule } from '../access-sessions/access-sessions.module'
       },
     }),
   ],
-  controllers: [VideosController],
+  controllers: [VideosController, PodcastsController],
   providers: [
     VideosService,
     MuxVodService,
     CreatorApprovedGuard,
     ViewCountFlushService,
     VideoMultipartService,
+    PodcastsService,
+    RecommendationsService,
+    ContentLibraryService,
   ],
-  exports: [VideosService, MuxVodService],
+  exports: [VideosService, MuxVodService, PodcastsService, RecommendationsService, ContentLibraryService],
 })
 export class ContentModule {}

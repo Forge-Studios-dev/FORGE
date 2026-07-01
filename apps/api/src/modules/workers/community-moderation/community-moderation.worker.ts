@@ -20,22 +20,24 @@ export class CommunityModerationWorker extends WorkerHost {
   }
 
   async process(job: Job<CommunityModerationJobData>): Promise<void> {
-    const { communityId, userId, messageBody, score, reasons } = job.data;
+    const { communityId, userId, messageBody, score, reasons, detectedBy, surface } = job.data;
+    const via = detectedBy ?? 'fast_path';
+    const on = surface ?? 'room';
     const judgment = await this.copilotService.judgeFlaggedContent(messageBody);
     if (!judgment.confirmed) {
       this.logger.debug(
-        `Moderation queue dismissed: community=${communityId} user=${userId} judge=${judgment.reason}`,
+        `Moderation queue dismissed: community=${communityId} user=${userId} surface=${on} via=${via} judge=${judgment.reason}`,
       );
       return;
     }
     this.logger.log(
-      `Moderation queue: community=${communityId} user=${userId} score=${score} judge=${judgment.score}`,
+      `Moderation queue: community=${communityId} user=${userId} surface=${on} via=${via} score=${score} judge=${judgment.score}`,
     );
     await this.moderationService.createAutoSpamReport({
       communityId,
       reportedUserId: userId,
       targetType: 'user',
-      reason: `Auto-flagged spam (score=${score.toFixed(2)}, judge=${judgment.score.toFixed(2)}): ${reasons.join(', ')} — "${messageBody.slice(0, 120)}"`,
+      reason: `Auto-flagged spam (score=${score.toFixed(2)}, judge=${judgment.score.toFixed(2)}, surface=${on}, via=${via}): ${reasons.join(', ')} — "${messageBody.slice(0, 120)}"`,
     });
   }
 }

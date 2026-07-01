@@ -164,6 +164,14 @@ export class Stream {
   @Column({ name: 'community_id', type: 'uuid', nullable: true })
   communityId: string | null;
 
+  /** P07-T029: Co-host user IDs who can manage stream settings and chat */
+  @Column({ name: 'co_host_ids', type: 'jsonb', default: '[]' })
+  coHostIds: string[];
+
+  /** P07-T030: Tier required for VIP room access (null = no VIP room) */
+  @Column({ name: 'vip_tier_id', type: 'uuid', nullable: true })
+  vipTierId: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

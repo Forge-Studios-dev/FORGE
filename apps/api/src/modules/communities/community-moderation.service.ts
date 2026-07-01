@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import {
   CommunityMemberBan,
   CommunityReport,
@@ -18,6 +18,8 @@ import { Channel } from './entities/channel.entity';
 import { ChannelMessage } from './entities/channel-message.entity';
 import { CommunityPost } from './entities/community-post.entity';
 import { CommunityPoll } from './entities/community-poll.entity';
+import { CommunityRoom } from './entities/community-room.entity';
+import { CommunityRoomMessage } from './entities/community-room-message.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
 import { UserRole } from '../users/entities/user.entity';
@@ -43,6 +45,10 @@ export class CommunityModerationService {
     private readonly postRepository: Repository<CommunityPost>,
     @InjectRepository(CommunityPoll)
     private readonly pollRepository: Repository<CommunityPoll>,
+    @InjectRepository(CommunityRoom)
+    private readonly roomRepository: Repository<CommunityRoom>,
+    @InjectRepository(CommunityRoomMessage)
+    private readonly roomMessageRepository: Repository<CommunityRoomMessage>,
     private readonly notificationsService: NotificationsService,
     @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
@@ -54,6 +60,7 @@ export class CommunityModerationService {
     input: {
       communityId: string;
       channelId?: string;
+      roomId?: string;
       messageId?: string;
       postId?: string;
       pollId?: string;
@@ -71,6 +78,7 @@ export class CommunityModerationService {
     input: {
       communityId: string;
       channelId?: string;
+      roomId?: string;
       messageId?: string;
       postId?: string;
       pollId?: string;
@@ -89,18 +97,29 @@ export class CommunityModerationService {
     const targetType = input.targetType ?? 'message';
 
     if (targetType === 'message') {
-      if (!input.channelId || !input.messageId) {
-        throw new BadRequestException('channelId and messageId required for message reports');
+      if (!input.messageId || (!input.channelId && !input.roomId)) {
+        throw new BadRequestException('messageId and channelId or roomId required for message reports');
       }
-      const channel = await this.channelRepository.findOne({
-        where: { id: input.channelId, communityId: input.communityId },
-      });
-      if (!channel) throw new BadRequestException('Channel not found in this community');
+      if (input.roomId) {
+        const room = await this.roomRepository.findOne({
+          where: { id: input.roomId, communityId: input.communityId },
+        });
+        if (!room) throw new BadRequestException('Room not found in this community');
+        const message = await this.roomMessageRepository.findOne({
+          where: { id: input.messageId, roomId: input.roomId },
+        });
+        if (!message) throw new BadRequestException('Message not found in this room');
+      } else {
+        const channel = await this.channelRepository.findOne({
+          where: { id: input.channelId, communityId: input.communityId },
+        });
+        if (!channel) throw new BadRequestException('Channel not found in this community');
 
-      const message = await this.messageRepository.findOne({
-        where: { id: input.messageId, channelId: input.channelId },
-      });
-      if (!message) throw new BadRequestException('Message not found in this channel');
+        const message = await this.messageRepository.findOne({
+          where: { id: input.messageId, channelId: input.channelId },
+        });
+        if (!message) throw new BadRequestException('Message not found in this channel');
+      }
     } else if (targetType === 'post') {
       if (!input.postId) throw new BadRequestException('postId required for post reports');
       const post = await this.postRepository.findOne({
@@ -129,6 +148,7 @@ export class CommunityModerationService {
         communityId: input.communityId,
         targetType,
         channelId: input.channelId ?? null,
+        roomId: input.roomId ?? null,
         messageId: input.messageId ?? null,
         postId: input.postId ?? null,
         pollId: input.pollId ?? null,
@@ -346,6 +366,27 @@ export class CommunityModerationService {
       order: { createdAt: 'DESC' },
       take: 100,
     });
+  }
+
+  async listUnifiedReportsForCreator(creatorId: string, status = 'open') {
+    const communities = await this.communityRepository.find({
+      where: { creatorId },
+      select: ['id', 'name', 'slug'],
+    });
+    const communityIds = communities.map((c) => c.id);
+    if (!communityIds.length) return { data: [] };
+    const reports = await this.reportRepository.find({
+      where: { communityId: In(communityIds), status },
+      order: { createdAt: 'DESC' },
+      take: 200,
+    });
+    const nameById = new Map(communities.map((c) => [c.id, c.name]));
+    return {
+      data: reports.map((r) => ({
+        ...r,
+        communityName: nameById.get(r.communityId) ?? r.communityId,
+      })),
+    };
   }
 
   async isBanned(communityId: string, userId: string): Promise<boolean> {

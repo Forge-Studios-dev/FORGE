@@ -25,6 +25,7 @@ export type PublicVideo = {
   hlsUrl: string | null;
   thumbnailUrl: string | null;
   durationSeconds: number | null;
+  videoType: Video['videoType'];
   viewCount: number;
   likeCount: number;
   commentCount: number;
@@ -72,6 +73,7 @@ export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): Publi
     hlsUrl: rewrite(playback.hlsUrl),
     thumbnailUrl: rewrite(playback.thumbnailUrl),
     durationSeconds: video.durationSeconds,
+    videoType: video.videoType,
     viewCount: video.viewCount,
     likeCount: video.likeCount,
     commentCount: video.commentCount,

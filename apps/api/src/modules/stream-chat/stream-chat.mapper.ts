@@ -1,5 +1,24 @@
-import { StreamMessage, StreamMessageType } from './entities/stream-message.entity';
+import {
+  StreamMessage,
+  StreamMessageType,
+  StreamQuestionStatus,
+} from './entities/stream-message.entity';
 import { toPublicUser } from '../users/user.mapper';
+
+export function toPublicStreamQuestion(msg: StreamMessage, viewerHasUpvoted = false) {
+  return {
+    id: msg.id,
+    streamId: msg.streamId,
+    userId: msg.userId,
+    user: msg.user ? toPublicUser(msg.user) : undefined,
+    body: msg.deletedAt ? '[deleted]' : msg.body,
+    status: msg.questionStatus ?? StreamQuestionStatus.PENDING,
+    upvotes: msg.upvotes ?? 0,
+    viewerHasUpvoted,
+    deletedAt: msg.deletedAt,
+    createdAt: msg.createdAt,
+  };
+}
 
 export function toPublicStreamMessage(msg: StreamMessage) {
   return {

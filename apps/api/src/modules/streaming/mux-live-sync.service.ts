@@ -250,6 +250,7 @@ export class MuxLiveSyncService {
       streamId: stream.id,
       userId: stream.userId,
       title: stream.title,
+      communityId: stream.communityId ?? null,
     });
   }
 

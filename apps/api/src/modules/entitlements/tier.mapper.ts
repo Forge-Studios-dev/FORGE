@@ -14,6 +14,7 @@ export function toPublicTier(tier: SubscriptionTier) {
     sortOrder: tier.sortOrder,
     isActive: tier.isActive,
     maxConcurrentDevices: tier.maxConcurrentDevices ?? 1,
+    maxMembers: tier.maxMembers ?? null,
     createdAt: tier.createdAt,
   };
 }

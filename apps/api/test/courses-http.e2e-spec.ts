@@ -24,6 +24,7 @@ describe('Courses HTTP (mocked e2e)', () => {
   };
 
   const coursesService = {
+    listPublishedForCreator: jest.fn().mockResolvedValue([course]),
     listForCreator: jest.fn().mockResolvedValue([course]),
     createCourse: jest.fn().mockResolvedValue(course),
     updateCourse: jest.fn().mockResolvedValue({ ...course, isPublished: true }),

@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsEmail,
+  IsOptional,
   IsString,
   Matches,
   MaxLength,
@@ -40,4 +41,10 @@ export class SignupDto {
   @IsBoolean()
   @Equals(true, { message: 'You must accept the Terms of Service and Privacy Policy' })
   acceptedTerms: boolean;
+
+  @ApiProperty({ description: 'Optional referral code from an existing user', required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(12)
+  referralCode?: string;
 }

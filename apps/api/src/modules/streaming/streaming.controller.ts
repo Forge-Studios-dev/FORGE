@@ -34,6 +34,10 @@ import { CreateEventCheckoutDto } from '../billing/dto/create-event-checkout.dto
 import { CreateStreamClipDto } from './dto/create-stream-clip.dto';
 import { UsersService } from '../users/users.service';
 import { StreamReactionService } from './stream-reaction.service';
+import { StreamAnalyticsService } from './stream-analytics.service';
+import { AiCommunityService } from '../communities/ai-community.service';
+import { AudienceRequestType } from './entities/stream-audience-request.entity';
+import { StreamBreakoutService } from './stream-breakout.service';
 
 @ApiTags('Streaming')
 @Controller('streams')
@@ -45,6 +49,9 @@ export class StreamingController {
     private readonly billingService: BillingService,
     private readonly usersService: UsersService,
     private readonly streamReactionService: StreamReactionService,
+    private readonly streamAnalyticsService: StreamAnalyticsService,
+    private readonly aiCommunityService: AiCommunityService,
+    private readonly streamBreakoutService: StreamBreakoutService,
   ) {}
 
   @Post('start')
@@ -292,6 +299,67 @@ export class StreamingController {
     return this.streamLiveService.listRaisedHands(id);
   }
 
+  // ── Audience Requests (P07-T027: audience requests, P07-T031: guest speakers) ──
+
+  @Post(':id/requests')
+  @ApiOperation({ summary: 'Submit an audience request (question or speak/guest request)' })
+  createAudienceRequest(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() body: { requestType?: AudienceRequestType; message?: string },
+  ) {
+    return this.streamLiveService.createAudienceRequest(
+      id,
+      user.sub,
+      body.requestType ?? AudienceRequestType.QUESTION,
+      body.message,
+    );
+  }
+
+  @Delete(':id/requests/me')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Withdraw my audience request' })
+  withdrawAudienceRequest(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.streamLiveService.withdrawAudienceRequest(id, user.sub);
+  }
+
+  @UseGuards(CreatorApprovedGuard)
+  @Get(':id/requests')
+  @ApiOperation({ summary: "List audience requests for creator's stream" })
+  listAudienceRequests(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    return this.streamLiveService.listAudienceRequests(id, user.sub);
+  }
+
+  @UseGuards(CreatorApprovedGuard)
+  @Patch(':id/requests/:requestId')
+  @ApiOperation({ summary: 'Approve or reject an audience request' })
+  respondToAudienceRequest(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('requestId') requestId: string,
+    @Body() body: { approve: boolean },
+  ) {
+    return this.streamLiveService.respondToAudienceRequest(id, requestId, user.sub, body.approve);
+  }
+
+  @Get(':id/ai-summary')
+  @ApiOperation({ summary: 'AI-generated summary of a live stream' })
+  async getStreamAiSummary(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    const stream = await this.streamingService.getStreamForViewer(id, user.sub, user.role);
+    const chatMessages = await this.streamAnalyticsService.getStreamChatMessages(id, 200);
+    return this.aiCommunityService.generateStreamSummary({
+      title: stream.title,
+      chatMessages,
+      peakViewers: stream.viewerCount ?? undefined,
+    });
+  }
+
   @Public()
   @Post('webhooks/mux')
   @HttpCode(HttpStatus.OK)
@@ -324,5 +392,106 @@ export class StreamingController {
     }
 
     return this.streamingService.handleMuxWebhook(event);
+  }
+
+  // ── P07-T028: Breakout rooms ───────────────────────────────────────────────
+
+  @UseGuards(CreatorApprovedGuard)
+  @Post(':id/breakout-rooms')
+  @ApiOperation({ summary: 'Create breakout rooms from a live stream (creator)' })
+  createBreakoutRooms(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() body: { roomCount: number; durationMinutes: number; maxParticipantsPerRoom?: number; namingPrefix?: string },
+  ) {
+    return this.streamBreakoutService.createBreakoutRooms(user.sub, id, body);
+  }
+
+  @UseGuards(CreatorApprovedGuard)
+  @Get(':id/breakout-rooms')
+  @ApiOperation({ summary: 'List active breakout rooms for a stream' })
+  listBreakoutRooms(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() body: { communityId: string },
+  ) {
+    return this.streamBreakoutService.listBreakoutRooms(id, body.communityId);
+  }
+
+  @UseGuards(CreatorApprovedGuard)
+  @Post(':id/breakout-rooms/assign')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Auto-assign participants to breakout rooms (creator)' })
+  assignBreakout(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() body: { communityId: string; roomIds: string[] },
+  ) {
+    return this.streamBreakoutService.assignParticipants(user.sub, id, body.communityId, body.roomIds);
+  }
+
+  @UseGuards(CreatorApprovedGuard)
+  @Post(':id/breakout-rooms/end')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'End all breakout rooms and return participants to main stream' })
+  endBreakoutRooms(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() body: { roomIds: string[] },
+  ) {
+    return this.streamBreakoutService.endBreakoutRooms(user.sub, id, body.roomIds).then(() => ({ ok: true }));
+  }
+
+  // ── P07-T029: Multi-host live ──────────────────────────────────────────────
+
+  @UseGuards(CreatorApprovedGuard)
+  @Get(':id/co-hosts')
+  @ApiOperation({ summary: 'List co-hosts for a stream' })
+  listCoHosts(@Param('id') id: string) {
+    return this.streamingService.listCoHosts(id);
+  }
+
+  @UseGuards(CreatorApprovedGuard)
+  @Post(':id/co-hosts')
+  @ApiOperation({ summary: 'Add a co-host to the stream (creator only)' })
+  addCoHost(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() body: { userId: string },
+  ) {
+    return this.streamingService.addCoHost(user.sub, id, body.userId);
+  }
+
+  @UseGuards(CreatorApprovedGuard)
+  @Delete(':id/co-hosts/:userId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove a co-host from the stream (creator only)' })
+  removeCoHost(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('userId') coHostId: string,
+  ) {
+    return this.streamingService.removeCoHost(user.sub, id, coHostId);
+  }
+
+  // ── P07-T030: VIP rooms live ───────────────────────────────────────────────
+
+  @UseGuards(CreatorApprovedGuard)
+  @Patch(':id/vip-config')
+  @ApiOperation({ summary: 'Configure VIP room tier for a stream (creator only)' })
+  setVipTier(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() body: { vipTierId: string | null },
+  ) {
+    return this.streamingService.setVipTier(user.sub, id, body.vipTierId ?? null);
+  }
+
+  @Post(':id/vip-room/join')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify VIP room access and get join token' })
+  async joinVipRoom(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    await this.streamingService.assertVipAccess(id, user.sub, user.role);
+    return { streamId: id, vipRoom: `stream:${id}:vip`, access: 'granted' };
   }
 }

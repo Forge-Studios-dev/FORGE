@@ -13,11 +13,17 @@ describe('CommunityRoomsService', () => {
   let service: CommunityRoomsService;
 
   const communityRepository = { findOne: jest.fn() };
+  const afterLiveQb = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    getOne: jest.fn().mockResolvedValue(null),
+  };
   const roomRepository = {
     find: jest.fn(),
     findOne: jest.fn(),
     save: jest.fn(),
     create: jest.fn((input) => input),
+    createQueryBuilder: jest.fn(() => afterLiveQb),
   };
   const livekitService = {
     isConfigured: jest.fn().mockReturnValue(true),
@@ -52,6 +58,9 @@ describe('CommunityRoomsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    afterLiveQb.where.mockReturnThis();
+    afterLiveQb.andWhere.mockReturnThis();
+    afterLiveQb.getOne.mockResolvedValue(null);
     livekitService.isConfigured.mockReturnValue(true);
     communitiesService.assertCommunityAccess.mockResolvedValue({ id: 'comm-1', creatorId: 'c1' });
     communitiesService.canModerateCommunity.mockResolvedValue(false);
@@ -160,6 +169,45 @@ describe('CommunityRoomsService', () => {
     expect(livekitService.createJoinToken).toHaveBeenCalledWith(
       expect.objectContaining({ canPublish: true }),
     );
+  });
+
+  describe('ensureAfterLiveRoom', () => {
+    it('creates a TEXT discussion room linked to the source stream', async () => {
+      communitiesService.assertCommunityStudioAccess.mockResolvedValue({ id: 'comm-1', creatorId: 'host-1' });
+      afterLiveQb.getOne.mockResolvedValue(null);
+      roomRepository.save.mockResolvedValue({ id: 'r-live', roomType: 'text' });
+
+      const room = await service.ensureAfterLiveRoom('host-1', 'comm-1', 'stream-1234abcd', 'My Stream');
+
+      expect(room.id).toBe('r-live');
+      expect(roomRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          communityId: 'comm-1',
+          roomType: CommunityRoomType.TEXT,
+          settings: { sourceStreamId: 'stream-1234abcd' },
+        }),
+      );
+    });
+
+    it('is idempotent and returns the existing room for a repeated stream', async () => {
+      communitiesService.assertCommunityStudioAccess.mockResolvedValue({ id: 'comm-1', creatorId: 'host-1' });
+      afterLiveQb.getOne.mockResolvedValue({ id: 'r-existing' });
+
+      const room = await service.ensureAfterLiveRoom('host-1', 'comm-1', 'stream-1', 'My Stream');
+
+      expect(room.id).toBe('r-existing');
+      expect(roomRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the host lacks community studio access', async () => {
+      communitiesService.assertCommunityStudioAccess.mockRejectedValue(
+        new ForbiddenException('Insufficient permissions for community studio'),
+      );
+      await expect(
+        service.ensureAfterLiveRoom('intruder', 'comm-1', 'stream-1', 'My Stream'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(roomRepository.save).not.toHaveBeenCalled();
+    });
   });
 
   it('approves stage speaker for hosts', async () => {

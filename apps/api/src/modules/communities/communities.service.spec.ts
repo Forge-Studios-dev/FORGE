@@ -16,6 +16,9 @@ import { CommunityModerationService } from './community-moderation.service';
 import { AiModerationService } from './ai-moderation.service';
 import { AiCommunityService } from './ai-community.service';
 import { CommunityModerationQueueService } from './community-moderation-queue.service';
+import { ChannelMigrationService } from './channel-migration.service';
+import { CommunityRoomMessagesService } from './community-room-messages.service';
+import { FeatureFlagsService } from '../platform/feature-flags.service';
 import { Stream } from '../streaming/entities/stream.entity';
 import { CommunityRoom } from './entities/community-room.entity';
 import { CommunityMember } from './entities/community-member.entity';
@@ -150,6 +153,21 @@ describe('CommunitiesService', () => {
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
         { provide: DataSource, useValue: dataSource },
+        {
+          provide: ChannelMigrationService,
+          useValue: {
+            resolveRoomIdForChannel: jest.fn().mockResolvedValue(null),
+            resolveChannelIdForRoom: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: CommunityRoomMessagesService,
+          useValue: { listMessages: jest.fn(), sendMessage: jest.fn() },
+        },
+        {
+          provide: FeatureFlagsService,
+          useValue: { isEnabled: jest.fn().mockResolvedValue(false) },
+        },
       ],
     }).compile();
 
@@ -320,6 +338,42 @@ describe('CommunitiesService', () => {
     await expect(
       service.sendChannelMessage('ch-1', 'banned-user', { body: 'hello' }),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('exports business analytics as injection-safe long-format CSV', async () => {
+    jest.spyOn(service, 'getCreatorBusinessAnalytics').mockResolvedValue({
+      periodDays: 30,
+      membership: { active: 12, trial: 3, canceled: 5, mrrCents: 49900 },
+      kpis: { churnRate30d: 2.5, canceledLast30Days: 5, engagementScore: 0.72, arrCents: 598800 },
+      engagement: {
+        engagedMembers: 8,
+        activeChatters: 6,
+        postAuthors: 2,
+        courseEnrollments: 4,
+      },
+      funnel: [
+        { stage: 'paying_members', label: 'Paying members', count: 15, rateFromTop: 100 },
+        { stage: 'engaged_xp', label: 'Engaged (XP)', count: 8, rateFromTop: 53 },
+      ],
+      cohortRetention: {
+        weekly: [{ period: '2026-W24', cohortSize: 10, retained: 7, engagedRetained: 5, retentionRate: 70 }],
+        monthly: [],
+      },
+      communities: [
+        { id: 'c1', name: 'Main', slug: 'main', activeMembersLast7Days: 9 },
+      ],
+    } as never);
+
+    const csv = await service.getCreatorBusinessAnalyticsCsv('creator-1');
+    const lines = csv.split('\n');
+
+    expect(lines[0]).toBe('section,key,value');
+    expect(csv).toContain('membership,active,12');
+    expect(csv).toContain('membership,mrr_cents,49900');
+    expect(csv).toContain('funnel,paying_members.count,15');
+    expect(csv).toContain('funnel,engaged_xp.rate_from_top,53');
+    expect(csv).toContain('community,main.active_members_7d,9');
+    expect(csv).toContain('retention_weekly,2026-W24.retention_rate,70');
   });
 
   it('returns join metadata for private communities without access', async () => {

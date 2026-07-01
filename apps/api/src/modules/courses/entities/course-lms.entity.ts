@@ -7,8 +7,14 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+export enum LessonType {
+  TEXT = 'text',
+  VIDEO = 'video',
+}
+
 @Entity('course_lessons')
 @Index(['courseId'])
+@Index(['videoId'])
 export class CourseLesson {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -30,6 +36,18 @@ export class CourseLesson {
 
   @Column({ name: 'duration_minutes', type: 'int', nullable: true })
   durationMinutes: number | null;
+
+  @Column({
+    name: 'lesson_type',
+    type: 'varchar',
+    length: 10,
+    default: LessonType.TEXT,
+  })
+  lessonType: LessonType;
+
+  /** UUID of a Video asset (mux-ready) attached to this lesson. */
+  @Column({ name: 'video_id', type: 'uuid', nullable: true })
+  videoId: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
@@ -77,4 +95,31 @@ export class CourseLessonProgress {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+}
+
+/** Issued when a learner completes 100% of a course's lessons. */
+@Entity('course_certificates')
+@Index(['courseId', 'userId'], { unique: true })
+export class CourseCertificate {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ name: 'course_id', type: 'uuid' })
+  courseId: string;
+
+  @Column({ name: 'user_id', type: 'uuid' })
+  userId: string;
+
+  /** Display name captured at issuance (user may change name later). */
+  @Column({ name: 'recipient_name', length: 200 })
+  recipientName: string;
+
+  @Column({ name: 'course_title', length: 300 })
+  courseTitle: string;
+
+  @Column({ name: 'creator_name', length: 200 })
+  creatorName: string;
+
+  @CreateDateColumn({ name: 'issued_at' })
+  issuedAt: Date;
 }

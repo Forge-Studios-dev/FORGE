@@ -14,6 +14,13 @@ export enum StreamMessageType {
   CHAT = 'chat',
   SUPER_CHAT = 'super_chat',
   SYSTEM = 'system',
+  QUESTION = 'question',
+}
+
+export enum StreamQuestionStatus {
+  PENDING = 'pending',
+  ANSWERED = 'answered',
+  DISMISSED = 'dismissed',
 }
 
 @Entity('stream_messages')
@@ -62,6 +69,14 @@ export class StreamMessage {
 
   @Column({ name: 'highlight_seconds', type: 'int', nullable: true })
   highlightSeconds: number | null;
+
+  /** Lifecycle for `question` messages (Live Q&A): pending | answered | dismissed. Null for chat. */
+  @Column({ name: 'question_status', type: 'varchar', length: 16, nullable: true })
+  questionStatus: StreamQuestionStatus | null;
+
+  /** Audience upvote tally for `question` messages. */
+  @Column({ name: 'upvotes', type: 'int', default: 0 })
+  upvotes: number;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

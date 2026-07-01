@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   forwardRef,
+  GoneException,
   Inject,
   Injectable,
   NotFoundException,
@@ -12,7 +13,13 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { Community, CommunityVisibility } from './entities/community.entity';
+import { toCsv } from '../../common/utils/csv.util';
+import {
+  Community,
+  CommunityType,
+  CommunityVisibility,
+  CREATOR_SELECTABLE_COMMUNITY_TYPES,
+} from './entities/community.entity';
 import { CommunityCategory } from './entities/community-category.entity';
 import { Channel } from './entities/channel.entity';
 import { ChannelMember } from './entities/channel-member.entity';
@@ -49,6 +56,18 @@ import {
   CommunityMember,
   CommunityMemberStatus,
 } from './entities/community-member.entity';
+import { ChannelMigrationService } from './channel-migration.service';
+import { CommunityRoomMessagesService } from './community-room-messages.service';
+import { FeatureFlagsService } from '../platform/feature-flags.service';
+import {
+  COMMUNITY_PERMISSIONS,
+  COMMUNITY_ROLE_PERMISSION_MATRIX,
+  permissionsForRole,
+} from './community-permissions.constants';
+import {
+  CHANNELS_DEPRECATED_FLAG,
+  CHANNELS_MIGRATION_HINT,
+} from './community-deprecation.constants';
 
 const DEFAULT_CHANNELS: Array<{ name: string; slug: string; type: ChannelType; sortOrder: number }> = [
   { name: 'Announcements', slug: 'announcements', type: ChannelType.PUBLIC, sortOrder: 0 },
@@ -88,6 +107,10 @@ export class CommunitiesService {
     private readonly eventEmitter: EventEmitter2,
     @InjectRedis() private readonly redis: Redis,
     private readonly dataSource: DataSource,
+    private readonly channelMigrationService: ChannelMigrationService,
+    @Inject(forwardRef(() => CommunityRoomMessagesService))
+    private readonly roomMessagesService: CommunityRoomMessagesService,
+    private readonly featureFlagsService: FeatureFlagsService,
   ) {}
 
   @OnEvent('creator.approved')
@@ -270,6 +293,19 @@ export class CommunitiesService {
     return this.buildCommunityPayload(community, viewerId, viewerRole);
   }
 
+  /**
+   * Guard creator-supplied community types. COURSE/COHORT are platform-managed
+   * (derived from course linkage) and must never be set or impersonated via the
+   * public create/update API — protects the integrity of the type taxonomy.
+   */
+  private assertCreatorSelectableType(type: CommunityType): void {
+    if (!CREATOR_SELECTABLE_COMMUNITY_TYPES.includes(type)) {
+      throw new BadRequestException(
+        `communityType '${type}' is managed by the platform and cannot be set directly`,
+      );
+    }
+  }
+
   async createCommunity(creatorId: string, dto: CreateCommunityDto) {
     const slug =
       dto.slug?.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-') ||
@@ -278,6 +314,9 @@ export class CommunitiesService {
     const existing = await this.communityRepository.findOne({ where: { creatorId, slug } });
     if (existing) throw new BadRequestException('Community slug already exists');
 
+    const communityType = dto.communityType ?? CommunityType.STANDARD;
+    this.assertCreatorSelectableType(communityType);
+
     const community = await this.dataSource.transaction(async (manager) => {
       const created = await manager.save(
         manager.create(Community, {
@@ -285,6 +324,7 @@ export class CommunitiesService {
           name: dto.name.trim(),
           slug,
           visibility: dto.visibility ?? CommunityVisibility.PUBLIC,
+          communityType,
           brandId: dto.brandId ?? null,
         }),
       );
@@ -314,6 +354,14 @@ export class CommunitiesService {
       community.slug = slug;
     }
     if (dto.visibility !== undefined) community.visibility = dto.visibility;
+    if (dto.communityType !== undefined) {
+      // Both the new value and the current value must be creator-selectable:
+      // prevents re-typing a platform-managed (course/cohort) community and
+      // prevents impersonating a managed type.
+      this.assertCreatorSelectableType(dto.communityType);
+      this.assertCreatorSelectableType(community.communityType);
+      community.communityType = dto.communityType;
+    }
     if (dto.settings !== undefined) community.settings = dto.settings;
     if (dto.brandId !== undefined) community.brandId = dto.brandId;
     const saved = await this.communityRepository.save(community);
@@ -374,6 +422,7 @@ export class CommunitiesService {
   }
 
   async createChannel(creatorId: string, dto: CreateChannelDto, communityId?: string) {
+    await this.assertChannelMutationsAllowed();
     const community = communityId
       ? await this.getOwnedCommunity(creatorId, communityId)
       : dto.communityId
@@ -405,6 +454,7 @@ export class CommunitiesService {
   }
 
   async updateChannel(creatorId: string, channelId: string, dto: UpdateChannelDto) {
+    await this.assertChannelMutationsAllowed();
     const channel = await this.getOwnedChannel(creatorId, channelId);
     if (dto.name !== undefined) channel.name = dto.name.trim();
     if (dto.type !== undefined) channel.type = dto.type;
@@ -416,6 +466,7 @@ export class CommunitiesService {
   }
 
   async deleteChannel(creatorId: string, channelId: string) {
+    await this.assertChannelMutationsAllowed();
     const channel = await this.getOwnedChannel(creatorId, channelId);
     await this.channelRepository.delete(channel.id);
     return { deleted: true, id: channel.id };
@@ -426,6 +477,7 @@ export class CommunitiesService {
     communityId: string,
     channelIds: string[],
   ) {
+    await this.assertChannelMutationsAllowed();
     await this.getOwnedCommunity(creatorId, communityId);
     const channels = await this.channelRepository.find({ where: { communityId } });
     const idSet = new Set(channelIds);
@@ -437,10 +489,16 @@ export class CommunitiesService {
         throw new BadRequestException('channelIds must include all community channels');
       }
     }
-    await Promise.all(
-      channelIds.map((id, index) =>
-        this.channelRepository.update({ id, communityId }, { sortOrder: index }),
-      ),
+    if (channelIds.length === 0) {
+      return { reordered: true };
+    }
+    const caseSql = channelIds
+      .map((id, index) => `WHEN id = $${index + 3}::uuid THEN ${index}`)
+      .join(' ');
+    await this.channelRepository.query(
+      `UPDATE channels SET sort_order = CASE ${caseSql} END, updated_at = NOW()
+       WHERE community_id = $1::uuid AND id = ANY($2::uuid[])`,
+      [communityId, channelIds, ...channelIds],
     );
     return { reordered: true };
   }
@@ -471,6 +529,7 @@ export class CommunitiesService {
   }
 
   async inviteMember(creatorId: string, channelId: string, dto: InviteChannelMemberDto) {
+    await this.assertChannelMutationsAllowed();
     const channel = await this.getOwnedChannel(creatorId, channelId);
     if (channel.type !== ChannelType.INVITE) {
       throw new BadRequestException('Channel is not invite-only');
@@ -489,6 +548,28 @@ export class CommunitiesService {
     cursor?: string,
     parentId?: string | null,
   ) {
+    const mappedRoomId = await this.channelMigrationService.resolveRoomIdForChannel(channelId);
+    if (mappedRoomId) {
+      const channel = await this.getChannelWithCommunity(channelId);
+      const result = await this.roomMessagesService.listMessages(
+        channel.community.id,
+        mappedRoomId,
+        limit,
+        cursor,
+        parentId ?? undefined,
+        viewerId,
+        viewerRole,
+      );
+      return {
+        data: result.data.map((m) => ({
+          ...m,
+          channelId,
+          parentId: m.parentMessageId ?? null,
+        })),
+        meta: result.meta,
+      };
+    }
+
     const channel = await this.getChannelWithCommunity(channelId);
     await this.assertChannelAccess(channel, viewerId, viewerRole);
 
@@ -543,6 +624,26 @@ export class CommunitiesService {
     dto: SendChannelMessageDto,
     viewerRole?: UserRole | null,
   ) {
+    const mappedRoomId = await this.channelMigrationService.resolveRoomIdForChannel(channelId);
+    if (mappedRoomId) {
+      const channel = await this.getChannelWithCommunity(channelId);
+      const roomMsg = await this.roomMessagesService.sendMessage(
+        channel.community.id,
+        mappedRoomId,
+        userId,
+        dto.body,
+        dto.parentId ?? undefined,
+        viewerRole,
+      );
+      const publicMsg = {
+        ...roomMsg,
+        channelId,
+        parentId: roomMsg.parentMessageId ?? null,
+      };
+      this.eventEmitter.emit('channel.message', { channelId, message: publicMsg });
+      return publicMsg;
+    }
+
     const channel = await this.getChannelWithCommunity(channelId);
     await this.assertChannelAccess(channel, userId, viewerRole, 'write');
 
@@ -661,6 +762,12 @@ export class CommunitiesService {
     );
   }
 
+  private async assertChannelMutationsAllowed() {
+    if (await this.featureFlagsService.isEnabled(CHANNELS_DEPRECATED_FLAG)) {
+      throw new GoneException(CHANNELS_MIGRATION_HINT);
+    }
+  }
+
   private async buildCommunityPayload(
     community: Community,
     viewerId?: string | null,
@@ -671,7 +778,7 @@ export class CommunitiesService {
       throw new ForbiddenException('You do not have access to this community');
     }
 
-    const [channels, categories] = await Promise.all([
+    const [channels, categories, channelsDeprecated] = await Promise.all([
       this.channelRepository.find({
         where: { communityId: community.id },
         order: { sortOrder: 'ASC' },
@@ -680,7 +787,16 @@ export class CommunitiesService {
         where: { communityId: community.id },
         order: { sortOrder: 'ASC' },
       }),
+      this.featureFlagsService.isEnabled(CHANNELS_DEPRECATED_FLAG),
     ]);
+
+    if (channelsDeprecated) {
+      return {
+        community: toPublicCommunity(community),
+        categories: categories.map(toPublicCategory),
+        channels: [],
+      };
+    }
 
     const creatorId = community.creatorId;
     const isOwner = viewerId === creatorId;
@@ -764,24 +880,29 @@ export class CommunitiesService {
     if (viewerId === creatorId) return true;
     if (viewerRole === UserRole.ADMIN) return true;
 
+    if (community.visibility === CommunityVisibility.PUBLIC) {
+      return true;
+    }
+
+    if (!viewerId) return false;
+
     if (community.visibility === CommunityVisibility.PRIVATE) {
-      if (!viewerId) return false;
-      const role = await this.roleRepository.findOne({
-        where: { communityId: community.id, userId: viewerId },
-      });
-      if (role) return true;
-      const activeMember = await this.communityMemberRepository.findOne({
-        where: {
-          communityId: community.id,
-          userId: viewerId,
-          status: CommunityMemberStatus.ACTIVE,
-        },
-      });
-      return !!activeMember;
+      const [role, activeMember] = await Promise.all([
+        this.roleRepository.findOne({
+          where: { communityId: community.id, userId: viewerId },
+        }),
+        this.communityMemberRepository.findOne({
+          where: {
+            communityId: community.id,
+            userId: viewerId,
+            status: CommunityMemberStatus.ACTIVE,
+          },
+        }),
+      ]);
+      return !!role || !!activeMember;
     }
 
     if (community.visibility === CommunityVisibility.PAID) {
-      if (!viewerId) return false;
       const membership = await this.entitlementsService.getMembershipForViewer(
         viewerId,
         creatorId,
@@ -791,29 +912,26 @@ export class CommunitiesService {
     }
 
     if (community.visibility === CommunityVisibility.INVITE) {
-      if (!viewerId) return false;
-      const role = await this.roleRepository.findOne({
-        where: { communityId: community.id, userId: viewerId },
-      });
+      const [role, activeMember, membership, inviteChannels] = await Promise.all([
+        this.roleRepository.findOne({
+          where: { communityId: community.id, userId: viewerId },
+        }),
+        this.communityMemberRepository.findOne({
+          where: {
+            communityId: community.id,
+            userId: viewerId,
+            status: CommunityMemberStatus.ACTIVE,
+          },
+        }),
+        this.entitlementsService.getMembershipForViewer(viewerId, creatorId, community.id),
+        this.channelRepository.find({
+          where: { communityId: community.id, type: ChannelType.INVITE },
+          select: ['id'],
+        }),
+      ]);
       if (role) return true;
-      const activeMember = await this.communityMemberRepository.findOne({
-        where: {
-          communityId: community.id,
-          userId: viewerId,
-          status: CommunityMemberStatus.ACTIVE,
-        },
-      });
       if (activeMember) return true;
-      const membership = await this.entitlementsService.getMembershipForViewer(
-        viewerId,
-        creatorId,
-        community.id,
-      );
       if (membership.active) return true;
-      const inviteChannels = await this.channelRepository.find({
-        where: { communityId: community.id, type: ChannelType.INVITE },
-        select: ['id'],
-      });
       if (inviteChannels.length === 0) return false;
       const member = await this.memberRepository.findOne({
         where: {
@@ -836,6 +954,18 @@ export class CommunitiesService {
     if (!community) throw new NotFoundException('Community not found');
     if (viewerId && (await this.moderationService.isBanned(communityId, viewerId))) {
       throw new ForbiddenException('You are banned from this community');
+    }
+    if (viewerId) {
+      const suspended = await this.communityMemberRepository.findOne({
+        where: {
+          communityId,
+          userId: viewerId,
+          status: CommunityMemberStatus.SUSPENDED,
+        },
+      });
+      if (suspended) {
+        throw new ForbiddenException('Your community membership is suspended');
+      }
     }
     const canView = await this.canViewCommunity(community, viewerId, viewerRole);
     if (!canView) throw new ForbiddenException('You do not have access to this community');
@@ -1066,19 +1196,18 @@ export class CommunitiesService {
     };
   }
 
-  async searchCommunities(query: string, limit = 20) {
+  async searchCommunities(query: string, limit = 20, type?: CommunityType) {
     const term = query.trim();
     if (term.length < 2) return { data: [] };
     const pattern = `%${term}%`;
     const take = Math.min(limit, 50);
-    const communities = await this.communityRepository
+    const qb = this.communityRepository
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.creator', 'creator')
       .where('c.visibility = :visibility', { visibility: CommunityVisibility.PUBLIC })
-      .andWhere('(c.name ILIKE :pattern OR c.slug ILIKE :pattern)', { pattern })
-      .orderBy('c.createdAt', 'DESC')
-      .take(take)
-      .getMany();
+      .andWhere('(c.name ILIKE :pattern OR c.slug ILIKE :pattern)', { pattern });
+    if (type) qb.andWhere('c.communityType = :type', { type });
+    const communities = await qb.orderBy('c.createdAt', 'DESC').take(take).getMany();
 
     return {
       data: communities.map((c) => ({
@@ -1090,19 +1219,19 @@ export class CommunitiesService {
           ? { username: c.creator.username, displayName: c.creator.displayName }
           : null,
         visibility: c.visibility,
+        communityType: c.communityType,
       })),
     };
   }
 
-  async listFeaturedCommunities(limit = 12) {
+  async listFeaturedCommunities(limit = 12, type?: CommunityType) {
     const take = Math.min(limit, 24);
-    const communities = await this.communityRepository
+    const qb = this.communityRepository
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.creator', 'creator')
-      .where('c.visibility = :visibility', { visibility: CommunityVisibility.PUBLIC })
-      .orderBy('c.createdAt', 'DESC')
-      .take(take)
-      .getMany();
+      .where('c.visibility = :visibility', { visibility: CommunityVisibility.PUBLIC });
+    if (type) qb.andWhere('c.communityType = :type', { type });
+    const communities = await qb.orderBy('c.createdAt', 'DESC').take(take).getMany();
 
     return {
       data: communities.map((c) => ({
@@ -1114,6 +1243,7 @@ export class CommunitiesService {
           ? { username: c.creator.username, displayName: c.creator.displayName }
           : null,
         visibility: c.visibility,
+        communityType: c.communityType,
       })),
     };
   }
@@ -1208,6 +1338,15 @@ export class CommunitiesService {
     };
   }
 
+  /** Active community IDs the viewer belongs to (membership implies access). */
+  async listActiveMemberCommunityIds(userId: string): Promise<string[]> {
+    const rows = await this.communityMemberRepository.find({
+      where: { userId, status: CommunityMemberStatus.ACTIVE },
+      select: { communityId: true },
+    });
+    return rows.map((r) => r.communityId);
+  }
+
   async getCreatorBusinessAnalytics(creatorId: string) {
     const periodDays = 30;
     const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
@@ -1224,27 +1363,34 @@ export class CommunitiesService {
     let postAuthors = 0;
 
     if (communityIds.length > 0) {
-      const [engagedRow] = await this.dataSource.query<{ count: string }[]>(
-        `SELECT COUNT(DISTINCT user_id)::int AS count FROM member_xp
-         WHERE community_id = ANY($1::uuid[])`,
-        [communityIds],
-      );
+      const [[engagedRow], [chatRow], [postAuthorRow]] = await Promise.all([
+        this.dataSource.query<{ count: string }[]>(
+          `SELECT COUNT(DISTINCT user_id)::int AS count FROM member_xp
+           WHERE community_id = ANY($1::uuid[])`,
+          [communityIds],
+        ),
+        this.dataSource.query<{ count: string }[]>(
+          `SELECT COUNT(DISTINCT user_id)::int AS count FROM (
+             SELECT m.user_id
+             FROM channel_messages m
+             INNER JOIN channels ch ON ch.id = m.channel_id
+             WHERE ch.community_id = ANY($1::uuid[]) AND m.created_at >= $2 AND m.deleted_at IS NULL
+             UNION
+             SELECT m.user_id
+             FROM community_room_messages m
+             INNER JOIN community_rooms r ON r.id = m.room_id
+             WHERE r.community_id = ANY($1::uuid[]) AND m.created_at >= $2 AND m.deleted_at IS NULL
+           ) chatters`,
+          [communityIds, since],
+        ),
+        this.dataSource.query<{ count: string }[]>(
+          `SELECT COUNT(DISTINCT author_id)::int AS count FROM community_posts
+           WHERE community_id = ANY($1::uuid[]) AND created_at >= $2`,
+          [communityIds, since],
+        ),
+      ]);
       engagedMembers = Number(engagedRow?.count ?? 0);
-
-      const [chatRow] = await this.dataSource.query<{ count: string }[]>(
-        `SELECT COUNT(DISTINCT m.user_id)::int AS count
-         FROM channel_messages m
-         INNER JOIN channels ch ON ch.id = m.channel_id
-         WHERE ch.community_id = ANY($1::uuid[]) AND m.created_at >= $2 AND m.deleted_at IS NULL`,
-        [communityIds, since],
-      );
       activeChatters = Number(chatRow?.count ?? 0);
-
-      const [postAuthorRow] = await this.dataSource.query<{ count: string }[]>(
-        `SELECT COUNT(DISTINCT author_id)::int AS count FROM community_posts
-         WHERE community_id = ANY($1::uuid[]) AND created_at >= $2`,
-        [communityIds, since],
-      );
       postAuthors = Number(postAuthorRow?.count ?? 0);
     }
 
@@ -1294,26 +1440,71 @@ export class CommunitiesService {
       },
     ];
 
-    const communitySummaries = await Promise.all(
-      communities.map(async (c) => {
-        const since7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        const [activeRow] = await this.dataSource.query<{ count: string }[]>(
-          `SELECT COUNT(DISTINCT m.user_id)::int AS count
-           FROM channel_messages m
-           INNER JOIN channels ch ON ch.id = m.channel_id
-           WHERE ch.community_id = $1 AND m.created_at >= $2 AND m.deleted_at IS NULL`,
-          [c.id, since7],
-        );
-        return {
-          id: c.id,
-          name: c.name,
-          slug: c.slug,
-          activeMembersLast7Days: Number(activeRow?.count ?? 0),
-        };
-      }),
+    const since7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const activeRows =
+      communityIds.length === 0
+        ? []
+        : await this.dataSource.query<Array<{ community_id: string; count: string }>>(
+            `SELECT community_id, COUNT(DISTINCT user_id)::int AS count FROM (
+               SELECT ch.community_id, m.user_id
+               FROM channel_messages m
+               INNER JOIN channels ch ON ch.id = m.channel_id
+               WHERE ch.community_id = ANY($1::uuid[]) AND m.created_at >= $2 AND m.deleted_at IS NULL
+               UNION
+               SELECT r.community_id, m.user_id
+               FROM community_room_messages m
+               INNER JOIN community_rooms r ON r.id = m.room_id
+               WHERE r.community_id = ANY($1::uuid[]) AND m.created_at >= $2 AND m.deleted_at IS NULL
+             ) active GROUP BY community_id`,
+            [communityIds, since7],
+          );
+    const activeByCommunity = new Map(
+      activeRows.map((r) => [r.community_id, Number(r.count ?? 0)]),
     );
+    const communitySummaries = communities.map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      activeMembersLast7Days: activeByCommunity.get(c.id) ?? 0,
+    }));
 
     const cohortRetention = await this.getSubscriberCohortRetention(creatorId);
+
+    // Churn rate: subscriptions canceled in the last 30 days vs. total
+    // that were active at start of period (approximated as active+trial+canceled30d).
+    const [canceledRow] = await this.dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*)::int AS count FROM member_subscriptions
+       WHERE creator_id = $1 AND status = 'canceled' AND updated_at >= $2`,
+      [creatorId, since],
+    );
+    const canceledLast30Days = Number(canceledRow?.count ?? 0);
+    const denominator = membership.active + membership.trial + canceledLast30Days;
+    const churnRate30d = denominator > 0 ? Math.round((canceledLast30Days / denominator) * 10000) / 100 : 0;
+
+    // Engagement score: weighted activity signals normalized to 0-100.
+    // Weights: active chatters (40%), post authors (30%), course enrollments (30%).
+    const totalMembers = membership.active + membership.trial;
+    const engagementScore =
+      totalMembers > 0
+        ? Math.min(
+            100,
+            Math.round(
+              (activeChatters * 0.4 + postAuthors * 0.3 + courseEnrollments * 0.3) /
+                totalMembers *
+                100,
+            ),
+          )
+        : 0;
+
+    // Live event revenue (30d) from paid stream tickets
+    const [liveRevenueRow] = await this.dataSource.query<{ total: string | null }[]>(
+      `SELECT COALESCE(SUM(sep.amount_cents), 0)::bigint AS total
+       FROM stream_event_purchases sep
+       INNER JOIN streams s ON s.id = sep.stream_id
+       WHERE s.user_id = $1 AND sep.created_at >= $2 AND sep.status = 'completed' AND sep.grant_source = 'purchase'`,
+      [creatorId, since],
+    );
+    const liveRevenue30dCents = Number(liveRevenueRow?.total ?? 0);
 
     return {
       periodDays,
@@ -1322,6 +1513,17 @@ export class CommunitiesService {
         trial: membership.trial,
         canceled: membership.canceled,
         mrrCents: membership.mrrCents,
+        totalRevenue30d: liveRevenue30dCents,
+      },
+      revenue: {
+        mrr: membership.mrrCents,
+        arr: membership.mrrCents * 12,
+        liveEvents30d: liveRevenue30dCents,
+      },
+      kpis: {
+        churnRate30d,
+        canceledLast30Days,
+        engagementScore,
       },
       engagement: {
         engagedMembers,
@@ -1335,6 +1537,44 @@ export class CommunitiesService {
     };
   }
 
+  /**
+   * Long-format (section,key,value) CSV of the creator business analytics.
+   * Reuses getCreatorBusinessAnalytics so the export always matches the
+   * dashboard. Field serialization is CSV-injection hardened via csv.util.
+   */
+  async getCreatorBusinessAnalyticsCsv(creatorId: string): Promise<string> {
+    const a = await this.getCreatorBusinessAnalytics(creatorId);
+    const rows: Array<[string, string, number]> = [
+      ['membership', 'active', a.membership.active],
+      ['membership', 'trial', a.membership.trial],
+      ['membership', 'canceled', a.membership.canceled],
+      ['membership', 'mrr_cents', a.membership.mrrCents],
+      ['kpi', 'churn_rate_30d', a.kpis.churnRate30d],
+      ['kpi', 'canceled_last_30d', a.kpis.canceledLast30Days],
+      ['kpi', 'engagement_score', a.kpis.engagementScore],
+      ['engagement', 'engaged_members', a.engagement.engagedMembers],
+      ['engagement', 'active_chatters', a.engagement.activeChatters],
+      ['engagement', 'post_authors', a.engagement.postAuthors],
+      ['engagement', 'course_enrollments', a.engagement.courseEnrollments],
+    ];
+
+    for (const f of a.funnel) {
+      rows.push(['funnel', `${f.stage}.count`, f.count]);
+      rows.push(['funnel', `${f.stage}.rate_from_top`, f.rateFromTop]);
+    }
+    for (const c of a.communities) {
+      rows.push(['community', `${c.slug}.active_members_7d`, c.activeMembersLast7Days]);
+    }
+    for (const w of a.cohortRetention?.weekly ?? []) {
+      rows.push(['retention_weekly', `${w.period}.retention_rate`, w.retentionRate]);
+    }
+    for (const m of a.cohortRetention?.monthly ?? []) {
+      rows.push(['retention_monthly', `${m.period}.retention_rate`, m.retentionRate]);
+    }
+
+    return toCsv(['section', 'key', 'value'], rows);
+  }
+
   private async getSubscriberCohortRetention(creatorId: string) {
     const weeklySince = new Date(Date.now() - 8 * 7 * 24 * 60 * 60 * 1000);
     const monthlySince = new Date();
@@ -1345,13 +1585,25 @@ export class CommunitiesService {
       COUNT(*) FILTER (WHERE s.status IN ('active', 'trial', 'grace_period'))::int AS retained,
       COUNT(*) FILTER (
         WHERE EXISTS (
-          SELECT 1 FROM channel_messages m
-          INNER JOIN channels ch ON ch.id = m.channel_id
-          INNER JOIN communities c ON c.id = ch.community_id
-          WHERE c.creator_id = $1
-            AND m.user_id = s.user_id
-            AND m.created_at >= NOW() - INTERVAL '30 days'
-            AND m.deleted_at IS NULL
+          SELECT 1 FROM (
+            SELECT m.user_id
+            FROM channel_messages m
+            INNER JOIN channels ch ON ch.id = m.channel_id
+            INNER JOIN communities c ON c.id = ch.community_id
+            WHERE c.creator_id = $1
+              AND m.user_id = s.user_id
+              AND m.created_at >= NOW() - INTERVAL '30 days'
+              AND m.deleted_at IS NULL
+            UNION
+            SELECT m.user_id
+            FROM community_room_messages m
+            INNER JOIN community_rooms r ON r.id = m.room_id
+            INNER JOIN communities c ON c.id = r.community_id
+            WHERE c.creator_id = $1
+              AND m.user_id = s.user_id
+              AND m.created_at >= NOW() - INTERVAL '30 days'
+              AND m.deleted_at IS NULL
+          ) engaged WHERE engaged.user_id = s.user_id
         )
       )::int AS engaged_retained
     `;
@@ -1428,5 +1680,262 @@ export class CommunitiesService {
       activeSubscribers: Number(activeSubsRow?.count ?? 0),
       engagedMembers: Number(xpMembersRow?.count ?? 0),
     };
+  }
+
+  async getCommunityPermissionMatrix(
+    communityId: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.assertCommunityAccess(communityId, viewerId, viewerRole);
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) throw new NotFoundException('Community not found');
+
+    let effectiveRole: CommunityRoleType | 'owner' | 'member' = 'member';
+    if (viewerId) {
+      if (community.creatorId === viewerId) {
+        effectiveRole = 'owner';
+      } else if (viewerRole === UserRole.ADMIN) {
+        effectiveRole = CommunityRoleType.ADMIN;
+      } else {
+        const assignment = await this.roleRepository.findOne({
+          where: { communityId, userId: viewerId },
+        });
+        if (assignment) effectiveRole = assignment.role;
+      }
+    }
+
+    return {
+      communityId,
+      permissions: COMMUNITY_PERMISSIONS,
+      matrix: COMMUNITY_ROLE_PERMISSION_MATRIX,
+      viewerRole: effectiveRole,
+      viewerPermissions: permissionsForRole(effectiveRole),
+    };
+  }
+
+  async getCreatorEcosystemTree(creatorId: string) {
+    const [communities, courseRows, programRows, bundleRows, brandRows] = await Promise.all([
+      this.communityRepository.find({ where: { creatorId }, order: { name: 'ASC' } }),
+      this.dataSource.query<
+        Array<{ id: string; title: string; slug: string; community_id: string | null; is_published: boolean }>
+      >(
+        `SELECT id, title, slug, community_id, is_published
+         FROM courses WHERE creator_id = $1 ORDER BY created_at DESC`,
+        [creatorId],
+      ),
+      this.dataSource.query<
+        Array<{
+          id: string;
+          name: string;
+          slug: string;
+          community_id: string | null;
+          is_published: boolean;
+          course_count: string;
+        }>
+      >(
+        `SELECT p.id, p.name, p.slug, p.community_id, p.is_published,
+                COUNT(pc.course_id)::int AS course_count
+         FROM creator_programs p
+         LEFT JOIN creator_program_courses pc ON pc.program_id = p.id
+         WHERE p.creator_id = $1
+         GROUP BY p.id
+         ORDER BY p.sort_order ASC, p.created_at DESC`,
+        [creatorId],
+      ),
+      this.dataSource.query<
+        Array<{ id: string; name: string; slug: string; is_active: boolean; item_count: string }>
+      >(
+        `SELECT b.id, b.name, b.slug, b.is_active,
+                COUNT(i.id)::int AS item_count
+         FROM creator_bundles b
+         LEFT JOIN creator_bundle_items i ON i.bundle_id = b.id
+         WHERE b.creator_id = $1
+         GROUP BY b.id
+         ORDER BY b.sort_order ASC, b.created_at DESC`,
+        [creatorId],
+      ),
+      this.dataSource.query<Array<{ id: string; name: string; slug: string }>>(
+        `SELECT id, name, slug FROM brands WHERE creator_id = $1 ORDER BY name ASC`,
+        [creatorId],
+      ),
+    ]);
+
+    const coursesByCommunity = new Map<string, typeof courseRows>();
+    const standaloneCourses: typeof courseRows = [];
+    for (const course of courseRows) {
+      if (course.community_id) {
+        const list = coursesByCommunity.get(course.community_id) ?? [];
+        list.push(course);
+        coursesByCommunity.set(course.community_id, list);
+      } else {
+        standaloneCourses.push(course);
+      }
+    }
+
+    const programsByCommunity = new Map<string, typeof programRows>();
+    const standalonePrograms: typeof programRows = [];
+    for (const program of programRows) {
+      if (program.community_id) {
+        const list = programsByCommunity.get(program.community_id) ?? [];
+        list.push(program);
+        programsByCommunity.set(program.community_id, list);
+      } else {
+        standalonePrograms.push(program);
+      }
+    }
+
+    return {
+      data: {
+        brands: brandRows,
+        communities: communities.map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          visibility: c.visibility,
+          courses: (coursesByCommunity.get(c.id) ?? []).map((course) => ({
+            id: course.id,
+            title: course.title,
+            slug: course.slug,
+            isPublished: course.is_published,
+          })),
+          programs: (programsByCommunity.get(c.id) ?? []).map((program) => ({
+            id: program.id,
+            name: program.name,
+            slug: program.slug,
+            isPublished: program.is_published,
+            courseCount: Number(program.course_count ?? 0),
+          })),
+        })),
+        standaloneCourses: standaloneCourses.map((course) => ({
+          id: course.id,
+          title: course.title,
+          slug: course.slug,
+          isPublished: course.is_published,
+        })),
+        programs: standalonePrograms.map((program) => ({
+          id: program.id,
+          name: program.name,
+          slug: program.slug,
+          isPublished: program.is_published,
+          courseCount: Number(program.course_count ?? 0),
+        })),
+        bundles: bundleRows.map((bundle) => ({
+          id: bundle.id,
+          name: bundle.name,
+          slug: bundle.slug,
+          isActive: bundle.is_active,
+          itemCount: Number(bundle.item_count ?? 0),
+        })),
+      },
+    };
+  }
+
+  private static readonly MAX_BADGE_TIERS = 5;
+
+  /** Return the creator-configured XP badge tiers for a community. */
+  async getBadgeConfig(
+    communityId: string,
+    creatorId: string,
+  ): Promise<Array<{ key: string; label: string; xpThreshold: number; icon: string }>> {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community || community.creatorId !== creatorId) {
+      throw new ForbiddenException('Community not found or not owned');
+    }
+    const tiers = (community.settings?.badgeTiers ?? []) as Array<{
+      key: string;
+      label: string;
+      xpThreshold: number;
+      icon: string;
+    }>;
+    return tiers;
+  }
+
+  /** Persist XP-threshold badge tier config for a community (max 5 tiers). */
+  async transferCommunityOwnership(
+    communityId: string,
+    requesterId: string,
+    newOwnerId: string,
+  ): Promise<{ communityId: string; newOwnerId: string }> {
+    if (requesterId === newOwnerId) {
+      throw new BadRequestException('New owner must be a different user');
+    }
+
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) throw new NotFoundException('Community not found');
+    if (community.creatorId !== requesterId) {
+      throw new ForbiddenException('Only the community owner can transfer ownership');
+    }
+
+    const newOwnerMembership = await this.communityMemberRepository.findOne({
+      where: { communityId, userId: newOwnerId, status: CommunityMemberStatus.ACTIVE },
+    });
+    if (!newOwnerMembership) {
+      throw new BadRequestException('New owner must be an active member of this community');
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(Community, { id: communityId }, { creatorId: newOwnerId });
+
+      // Give old owner ADMIN role; remove any OWNER role they might have
+      await manager.delete(CommunityRole, { communityId, userId: requesterId, role: CommunityRoleType.OWNER });
+      const existingOldRole = await manager.findOne(CommunityRole, {
+        where: { communityId, userId: requesterId },
+      });
+      if (!existingOldRole) {
+        await manager.save(
+          manager.create(CommunityRole, { communityId, userId: requesterId, role: CommunityRoleType.ADMIN }),
+        );
+      }
+
+      // Give new owner OWNER role; remove any previous role
+      await manager.delete(CommunityRole, { communityId, userId: newOwnerId });
+      await manager.save(
+        manager.create(CommunityRole, { communityId, userId: newOwnerId, role: CommunityRoleType.OWNER }),
+      );
+    });
+
+    this.eventEmitter.emit('community.ownership.transferred', {
+      communityId,
+      previousOwnerId: requesterId,
+      newOwnerId,
+    });
+    this.eventEmitter.emit('creator.audit.log', {
+      creatorId: requesterId,
+      actorId: requesterId,
+      action: 'community.transfer_ownership',
+      resourceType: 'community',
+      resourceId: communityId,
+      metadata: { newOwnerId },
+    });
+
+    return { communityId, newOwnerId };
+  }
+
+  async setBadgeConfig(
+    communityId: string,
+    creatorId: string,
+    tiers: Array<{ key: string; label: string; xpThreshold: number; icon?: string }>,
+  ): Promise<Array<{ key: string; label: string; xpThreshold: number; icon: string }>> {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community || community.creatorId !== creatorId) {
+      throw new ForbiddenException('Community not found or not owned');
+    }
+    if (tiers.length > CommunitiesService.MAX_BADGE_TIERS) {
+      throw new BadRequestException(`Maximum ${CommunitiesService.MAX_BADGE_TIERS} badge tiers allowed`);
+    }
+
+    const normalized = tiers
+      .map((t) => ({
+        key: t.key.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32),
+        label: t.label.slice(0, 64),
+        xpThreshold: Math.max(0, Math.floor(t.xpThreshold)),
+        icon: t.icon?.slice(0, 8) ?? '🏅',
+      }))
+      .sort((a, b) => a.xpThreshold - b.xpThreshold);
+
+    community.settings = { ...community.settings, badgeTiers: normalized };
+    await this.communityRepository.save(community);
+    return normalized;
   }
 }

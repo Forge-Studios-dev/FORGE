@@ -5,6 +5,7 @@ import { StreamMessage } from './entities/stream-message.entity';
 import { StreamModerationAction } from './entities/stream-moderation-action.entity';
 import { StreamChatService } from './stream-chat.service';
 import { StreamChatController } from './stream-chat.controller';
+import { StreamQaController } from './stream-qa.controller';
 import { StreamingModule } from '../streaming/streaming.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { User } from '../users/entities/user.entity';
@@ -23,7 +24,7 @@ import { forwardRef } from '@nestjs/common';
     UsersModule,
     forwardRef(() => BillingModule),
   ],
-  controllers: [StreamChatController],
+  controllers: [StreamChatController, StreamQaController],
   providers: [StreamChatService],
   exports: [StreamChatService],
 })

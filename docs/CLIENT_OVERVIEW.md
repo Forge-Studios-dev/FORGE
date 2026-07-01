@@ -10,28 +10,34 @@ Skill-first platform: tutorial video, live teaching, expertise-based audiences. 
 
 | Goal | Delivery |
 |------|----------|
-| Discovery | Categories, tags, search, feeds |
+| Discovery | Categories, tags, search, feeds, recommendations, Shorts feed |
 | Trusted creators | Admin approval before publish/live |
-| Video | S3 upload → Mux HLS (default) |
-| Live | Mux + stream chat |
-| Engagement | Likes, comments, follows, playlists |
-| Community | Creator channels (tier-gated) |
-| Monetization (phase 1) | Mock memberships + partial Stripe (paid events, super chat) |
+| Video | S3 upload → Mux HLS; Shorts (≤60s auto-classified) |
+| Live | Mux + stream chat, polls, clips, AI summaries |
+| Engagement | Likes, comments, follows, playlists, platform XP/gamification, streaks |
+| Community | Creator channels (tier-gated), RBAC, room messages, polls, events |
+| Monetization | Stripe memberships + paid events + super chat + program pricing |
+| AI | LLM moderation, discussion summaries, stream summaries, copilot, multi-provider routing |
 | Design | `@forge/design-system` + optional Stitch blueprints (`/blueprints`) |
-| Operations | Admin moderation & analytics summary |
+| Operations | Admin moderation, audit log, analytics, community health KPI dashboard |
 
 ## Roles
 
 Guest → user → creator (approved) · admin on separate admin app.
 
-## Status (MVP)
+## Status (V3.0 — 87%+ complete)
 
 | Area | API | Web | Mobile | Admin |
 |------|:---:|:---:|:------:|:-----:|
 | Auth | ✅ | ✅ | ✅ | ✅ |
-| Feed / search | ✅ | ✅ | ✅ | — |
-| VOD / live | ✅ | ✅ | ✅ | — |
-| Memberships | ✅ | ✅ | — | — |
+| Feed / search / recommendations | ✅ | ✅ | ✅ | — |
+| VOD / live / Shorts | ✅ | ✅ | ✅ | — |
+| Memberships / billing | ✅ | ✅ | ✅ | — |
+| Community / RBAC / rooms | ✅ | ✅ | ✅ | — |
+| Gamification / XP / achievements | ✅ | ✅ | ✅ | — |
+| AI (moderation, summaries, copilot) | ✅ | ✅ | — | — |
+| Creator analytics / KPI dashboard | ✅ | ✅ | ✅ | ✅ |
+| Courses / programs | ✅ | ✅ | ✅ | — |
 
 ### Playback parity (VOD / live)
 

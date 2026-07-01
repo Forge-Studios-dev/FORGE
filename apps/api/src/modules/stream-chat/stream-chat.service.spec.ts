@@ -40,6 +40,7 @@ describe('StreamChatService', () => {
     save: jest.fn(),
     findOne: jest.fn(),
     find: jest.fn(),
+    increment: jest.fn().mockResolvedValue(undefined),
     createQueryBuilder: jest.fn(),
   };
 
@@ -63,12 +64,25 @@ describe('StreamChatService', () => {
     setex: jest.fn().mockResolvedValue('OK'),
     del: jest.fn().mockResolvedValue(1),
     set: jest.fn().mockResolvedValue('OK'),
+    sadd: jest.fn().mockResolvedValue(1),
+    srem: jest.fn().mockResolvedValue(1),
+    expire: jest.fn().mockResolvedValue(1),
+    sismember: jest.fn().mockResolvedValue(0),
+    pipeline: jest.fn(),
   };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     streamLiveService.canModerate.mockResolvedValue(false);
     moderationRepository.findOne.mockResolvedValue(null);
+    redis.sadd.mockResolvedValue(1);
+    redis.srem.mockResolvedValue(1);
+    redis.sismember.mockResolvedValue(0);
+    redis.pipeline.mockReturnValue({
+      sismember: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([]),
+    });
+    messageRepository.increment.mockResolvedValue(undefined);
 
     streamingService = {
       findById: jest.fn(),
@@ -307,6 +321,134 @@ describe('StreamChatService', () => {
       streamId: 's1',
       targetUserId: 'banned-1',
       action: 'ban',
+    });
+  });
+
+  describe('Live Q&A', () => {
+    const liveStream = {
+      id: 's1',
+      userId: 'c1',
+      chatEnabled: true,
+      visibility: StreamVisibility.PUBLIC,
+      requiredTierId: null,
+      slowModeSeconds: 0,
+      startedAt: new Date(),
+    } as Stream;
+    const emit = () => (service as unknown as { eventEmitter: { emit: jest.Mock } }).eventEmitter.emit;
+
+    it('persists a question as pending and emits a created event', async () => {
+      streamingService.findById.mockResolvedValue(liveStream);
+      messageRepository.save.mockResolvedValue({ id: 'q1' });
+      messageRepository.findOne.mockResolvedValue({
+        id: 'q1',
+        streamId: 's1',
+        userId: 'c1',
+        body: 'Why?',
+        questionStatus: 'pending',
+        upvotes: 0,
+        createdAt: new Date(),
+        user: { id: 'c1', displayName: 'Creator' },
+      });
+
+      const result = await service.submitQuestion('s1', 'c1', { body: 'Why?' });
+
+      expect(result.status).toBe('pending');
+      expect(result.upvotes).toBe(0);
+      expect(messageRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ messageType: 'question', questionStatus: 'pending' }),
+      );
+      expect(emit()).toHaveBeenCalledWith('stream.qa.created', expect.objectContaining({ streamId: 's1' }));
+    });
+
+    it('enforces entitlements before accepting a question from a non-owner', async () => {
+      streamingService.findById.mockResolvedValue({
+        ...liveStream,
+        visibility: StreamVisibility.SUBSCRIBERS,
+      } as Stream);
+      entitlementsService.assertAccessAsync.mockRejectedValue(
+        new ForbiddenException('An active membership is required'),
+      );
+
+      await expect(
+        service.submitQuestion('s1', 'viewer-1', { body: 'Question?' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('toggles an upvote on and increments the tally', async () => {
+      streamingService.findById.mockResolvedValue(liveStream);
+      messageRepository.findOne
+        .mockResolvedValueOnce({ id: 'q1', streamId: 's1', messageType: 'question', deletedAt: null })
+        .mockResolvedValueOnce({ id: 'q1', streamId: 's1', upvotes: 1, questionStatus: 'pending', user: {} });
+      redis.sadd.mockResolvedValue(1);
+
+      const result = await service.upvoteQuestion('s1', 'q1', 'c1');
+
+      expect(result.viewerHasUpvoted).toBe(true);
+      expect(messageRepository.increment).toHaveBeenCalledWith({ id: 'q1' }, 'upvotes', 1);
+    });
+
+    it('toggles an upvote off when already voted', async () => {
+      streamingService.findById.mockResolvedValue(liveStream);
+      const updateQb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue(undefined),
+      };
+      messageRepository.createQueryBuilder.mockReturnValue(updateQb);
+      messageRepository.findOne
+        .mockResolvedValueOnce({ id: 'q1', streamId: 's1', messageType: 'question', deletedAt: null })
+        .mockResolvedValueOnce({ id: 'q1', streamId: 's1', upvotes: 0, questionStatus: 'pending', user: {} });
+      redis.sadd.mockResolvedValue(0);
+
+      const result = await service.upvoteQuestion('s1', 'q1', 'c1');
+
+      expect(result.viewerHasUpvoted).toBe(false);
+      expect(redis.srem).toHaveBeenCalledWith('stream:qa:votes:q1', 'c1');
+      expect(updateQb.execute).toHaveBeenCalled();
+    });
+
+    it('lets a moderator mark a question answered', async () => {
+      streamLiveService.canModerate.mockResolvedValue(true);
+      messageRepository.findOne
+        .mockResolvedValueOnce({ id: 'q1', streamId: 's1', messageType: 'question' })
+        .mockResolvedValueOnce({ id: 'q1', streamId: 's1', questionStatus: 'answered', upvotes: 3, user: {} });
+
+      const result = await service.setQuestionStatus('s1', 'q1', 'answered' as never, 'mod-1', null);
+
+      expect(result.status).toBe('answered');
+      expect(messageRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ questionStatus: 'answered' }),
+      );
+    });
+
+    it('rejects status changes from non-moderators', async () => {
+      streamLiveService.canModerate.mockResolvedValue(false);
+      await expect(
+        service.setQuestionStatus('s1', 'q1', 'dismissed' as never, 'viewer-1', null),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('lists questions sorted by upvotes for the owner', async () => {
+      streamingService.findById.mockResolvedValue(liveStream);
+      const listQb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([
+          { id: 'q1', streamId: 's1', upvotes: 5, questionStatus: 'pending', user: {} },
+        ]),
+      };
+      messageRepository.createQueryBuilder.mockReturnValue(listQb);
+
+      const result = await service.listQuestions('s1', undefined, 'c1', null);
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].upvotes).toBe(5);
+      expect(listQb.orderBy).toHaveBeenCalledWith('m.upvotes', 'DESC');
     });
   });
 });

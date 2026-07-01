@@ -9,6 +9,7 @@ import { ANALYTICS_INGEST_QUEUE } from './analytics-ingest.constants';
 import { ANALYTICS_RETENTION_QUEUE } from './analytics-retention.constants';
 import { AnalyticsRetentionService } from './analytics-retention.service';
 import { AnalyticsRetentionScheduler } from './analytics-retention.scheduler';
+import { KpiService } from './kpi.service';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { AnalyticsRetentionScheduler } from './analytics-retention.scheduler';
     BullModule.registerQueue({ name: ANALYTICS_RETENTION_QUEUE }),
   ],
   controllers: [AnalyticsController],
-  providers: [AnalyticsService, AnalyticsRetentionService, AnalyticsRetentionScheduler],
-  exports: [AnalyticsService, AnalyticsRetentionService],
+  providers: [AnalyticsService, AnalyticsRetentionService, AnalyticsRetentionScheduler, KpiService],
+  exports: [AnalyticsService, AnalyticsRetentionService, KpiService],
 })
 export class AnalyticsModule {}

@@ -12,7 +12,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ChannelType } from '../../entitlements/entities/channel-type.enum';
-import { CommunityVisibility } from '../entities/community.entity';
+import { CommunityType, CommunityVisibility } from '../entities/community.entity';
 import { CommunityRoleType } from '../entities/community-role.entity';
 
 export class CreateCommunityDto {
@@ -32,6 +32,14 @@ export class CreateCommunityDto {
   @IsOptional()
   @IsEnum(CommunityVisibility)
   visibility?: CommunityVisibility;
+
+  @ApiPropertyOptional({
+    enum: CommunityType,
+    description: 'Community classification. Only STANDARD or EVENT may be set by creators.',
+  })
+  @IsOptional()
+  @IsEnum(CommunityType)
+  communityType?: CommunityType;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -57,6 +65,14 @@ export class UpdateCommunityDto {
   @IsOptional()
   @IsEnum(CommunityVisibility)
   visibility?: CommunityVisibility;
+
+  @ApiPropertyOptional({
+    enum: CommunityType,
+    description: 'Community classification. Only STANDARD or EVENT may be set by creators.',
+  })
+  @IsOptional()
+  @IsEnum(CommunityType)
+  communityType?: CommunityType;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -204,8 +220,15 @@ export class CreateReportDto {
 
   @ApiPropertyOptional()
   @ValidateIf((o) => (o.targetType ?? 'message') === CommunityReportTargetType.MESSAGE)
+  @IsOptional()
   @IsUUID()
   channelId?: string;
+
+  @ApiPropertyOptional()
+  @ValidateIf((o) => (o.targetType ?? 'message') === CommunityReportTargetType.MESSAGE)
+  @IsOptional()
+  @IsUUID()
+  roomId?: string;
 
   @ApiPropertyOptional()
   @ValidateIf((o) => (o.targetType ?? 'message') === CommunityReportTargetType.MESSAGE)
@@ -259,4 +282,10 @@ export class AssignRoleDto {
   @ApiProperty({ enum: CommunityRoleType })
   @IsEnum(CommunityRoleType)
   role: CommunityRoleType;
+}
+
+export class TransferOwnershipDto {
+  @ApiProperty({ description: 'UUID of the member who will become the new owner' })
+  @IsUUID()
+  newOwnerId: string;
 }

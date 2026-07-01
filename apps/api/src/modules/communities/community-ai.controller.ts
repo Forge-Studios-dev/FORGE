@@ -1,12 +1,15 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AiCommunityService } from './ai-community.service';
+import { AiBudgetService } from './ai-budget.service';
 import { CreatorAuditService } from './creator-audit.service';
 import { CommunitiesService } from './communities.service';
 import { CommunityRoomMessagesService } from './community-room-messages.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
 
 @ApiTags('Community AI')
 @Controller()
@@ -16,6 +19,7 @@ export class CommunityAiController {
     private readonly auditService: CreatorAuditService,
     private readonly roomMessagesService: CommunityRoomMessagesService,
     private readonly communitiesService: CommunitiesService,
+    private readonly aiBudget: AiBudgetService,
   ) {}
 
   @Post('creators/me/ai/moderation/score')
@@ -71,6 +75,32 @@ export class CommunityAiController {
       data.map((m) => m.body),
     );
     return { data: { summary } };
+  }
+
+  @Get('admin/ai/budget')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Daily AI/LLM budget usage (admin)' })
+  async budgetUsage() {
+    return { data: await this.aiBudget.usage() };
+  }
+
+  @Post('creators/me/copilot/insights')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Claude-powered creator analytics insights and recommendations' })
+  async creatorInsights(
+    @Body()
+    body: {
+      totalSubscribers: number;
+      mrr: number;
+      churnRate?: number;
+      videoViews: number;
+      lessonCompletionRate?: number;
+      communityEngagement?: number;
+      topContentTitles?: string[];
+    },
+  ) {
+    const insights = await this.aiCommunityService.generateCreatorInsights(body);
+    return { data: insights };
   }
 
   @Get('creators/me/audit-logs')

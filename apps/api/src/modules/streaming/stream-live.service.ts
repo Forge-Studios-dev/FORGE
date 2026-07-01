@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
+import { StreamAudienceRequest, AudienceRequestStatus, AudienceRequestType } from './entities/stream-audience-request.entity';
 import { StreamModerator } from './entities/stream-moderator.entity';
 import { StreamRsvp } from './entities/stream-rsvp.entity';
 import { StreamPoll } from './entities/stream-poll.entity';
@@ -37,6 +38,8 @@ export class StreamLiveService {
     private readonly clipRepository: Repository<StreamClip>,
     @InjectRepository(StreamCaption)
     private readonly captionRepository: Repository<StreamCaption>,
+    @InjectRepository(StreamAudienceRequest)
+    private readonly audienceRequestRepository: Repository<StreamAudienceRequest>,
     private readonly streamingService: StreamingService,
     private readonly configService: ConfigService,
     private readonly entitlementsService: EntitlementsService,
@@ -421,5 +424,100 @@ export class StreamLiveService {
       userId: uid,
       raisedAt: new Date(Number(ts)),
     }));
+  }
+
+  // ── Audience Requests (P07-T027, P07-T031) ──────────────────────────────────
+
+  async createAudienceRequest(
+    streamId: string,
+    userId: string,
+    requestType: AudienceRequestType,
+    message?: string,
+  ): Promise<StreamAudienceRequest> {
+    const stream = await this.streamRepository.findOne({ where: { id: streamId } });
+    if (!stream) throw new NotFoundException('Stream not found');
+    if (stream.status !== StreamStatus.LIVE) throw new BadRequestException('Stream is not live');
+    if (stream.userId === userId) throw new BadRequestException('Creator cannot request own stream');
+
+    const existing = await this.audienceRequestRepository.findOne({
+      where: { streamId, userId },
+    });
+    if (existing && existing.status === AudienceRequestStatus.PENDING) {
+      return existing;
+    }
+    if (existing) {
+      existing.status = AudienceRequestStatus.PENDING;
+      existing.requestType = requestType;
+      existing.message = message ?? null;
+      return this.audienceRequestRepository.save(existing);
+    }
+
+    const request = this.audienceRequestRepository.create({
+      streamId,
+      userId,
+      requestType,
+      message: message ?? null,
+      status: AudienceRequestStatus.PENDING,
+    });
+    const saved = await this.audienceRequestRepository.save(request);
+
+    this.eventEmitter.emit('stream.audience_request', {
+      streamId,
+      creatorId: stream.userId,
+      requestId: saved.id,
+      userId,
+      requestType,
+    });
+    return saved;
+  }
+
+  async respondToAudienceRequest(
+    streamId: string,
+    requestId: string,
+    creatorId: string,
+    approve: boolean,
+  ): Promise<StreamAudienceRequest> {
+    const stream = await this.streamRepository.findOne({ where: { id: streamId } });
+    if (!stream) throw new NotFoundException('Stream not found');
+    if (stream.userId !== creatorId) throw new ForbiddenException();
+
+    const request = await this.audienceRequestRepository.findOne({
+      where: { id: requestId, streamId },
+    });
+    if (!request) throw new NotFoundException('Request not found');
+    if (request.status !== AudienceRequestStatus.PENDING) {
+      throw new BadRequestException('Request already processed');
+    }
+
+    request.status = approve
+      ? AudienceRequestStatus.APPROVED
+      : AudienceRequestStatus.REJECTED;
+    return this.audienceRequestRepository.save(request);
+  }
+
+  async listAudienceRequests(
+    streamId: string,
+    creatorId: string,
+    status?: AudienceRequestStatus,
+  ): Promise<StreamAudienceRequest[]> {
+    const stream = await this.streamRepository.findOne({ where: { id: streamId } });
+    if (!stream) throw new NotFoundException('Stream not found');
+    if (stream.userId !== creatorId) throw new ForbiddenException();
+
+    return this.audienceRequestRepository.find({
+      where: { streamId, ...(status ? { status } : {}) },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async withdrawAudienceRequest(streamId: string, userId: string): Promise<void> {
+    const request = await this.audienceRequestRepository.findOne({
+      where: { streamId, userId },
+    });
+    if (!request) return;
+    if (request.status === AudienceRequestStatus.PENDING) {
+      request.status = AudienceRequestStatus.WITHDRAWN;
+      await this.audienceRequestRepository.save(request);
+    }
   }
 }

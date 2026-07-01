@@ -322,6 +322,52 @@ describe('EntitlementsService', () => {
     });
   });
 
+  it('expireDueSubscriptions ends trials past their end date (safety net)', async () => {
+    const expiredTrial = {
+      id: 'sub-trial',
+      userId: 'user-2',
+      creatorId: 'creator-1',
+      communityId: null,
+      status: MemberSubscriptionStatus.TRIAL,
+      expiresAt: new Date('2020-01-01'),
+    };
+    subscriptionRepository.find.mockResolvedValue([expiredTrial]);
+
+    const count = await service.expireDueSubscriptions();
+
+    expect(count).toBe(1);
+    // Query must consider ACTIVE, TRIAL, and RENEWAL_PENDING subscriptions.
+    const whereArg = subscriptionRepository.find.mock.calls[0][0].where;
+    expect(whereArg.status.value).toEqual([
+      MemberSubscriptionStatus.ACTIVE,
+      MemberSubscriptionStatus.TRIAL,
+      MemberSubscriptionStatus.RENEWAL_PENDING,
+    ]);
+    expect(subscriptionRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: MemberSubscriptionStatus.EXPIRED }),
+    );
+  });
+
+  it('expireDueSubscriptions ends cancel-at-period-end (renewal_pending) subs at period end', async () => {
+    subscriptionRepository.find.mockResolvedValue([
+      {
+        id: 'sub-renewal',
+        userId: 'user-3',
+        creatorId: 'creator-1',
+        communityId: null,
+        status: MemberSubscriptionStatus.RENEWAL_PENDING,
+        expiresAt: new Date('2020-01-01'),
+      },
+    ]);
+
+    const count = await service.expireDueSubscriptions();
+
+    expect(count).toBe(1);
+    expect(subscriptionRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: MemberSubscriptionStatus.EXPIRED }),
+    );
+  });
+
   it('cancelByExternalRef suspends scoped community members', async () => {
     subscriptionRepository.findOne.mockResolvedValue({
       id: 'sub-1',
@@ -389,6 +435,7 @@ describe('EntitlementsService', () => {
     expect(eventEmitter.emit).toHaveBeenCalledWith('community.member.provision', {
       userId: 'user-1',
       communityId: 'comm-1',
+      creatorId: 'creator-1',
     });
   });
 

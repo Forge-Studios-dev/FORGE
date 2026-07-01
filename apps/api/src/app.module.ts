@@ -37,9 +37,13 @@ import { StreamChatModule } from './modules/stream-chat/stream-chat.module';
 import { CommunitiesModule } from './modules/communities/communities.module';
 import { CoursesModule } from './modules/courses/courses.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
+import { ChannelPointsModule } from './modules/channel-points/channel-points.module';
+import { FraudDetectionModule } from './modules/fraud-detection/fraud-detection.module';
 import { AccessSessionsModule } from './modules/access-sessions/access-sessions.module';
 import { DirectMessagesModule } from './modules/direct-messages/direct-messages.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { CreatorResourcesModule } from './modules/creator-resources/creator-resources.module';
+import { ReferralModule } from './modules/referral/referral.module';
 import { forgeClsSetup } from './common/cls/forge-cls.setup';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -268,7 +272,11 @@ function sentryFilterProviders() {
     StreamChatModule,
     CommunitiesModule,
     CoursesModule,
+    CreatorResourcesModule,
     GamificationModule,
+    ChannelPointsModule,
+    FraudDetectionModule,
+    ReferralModule,
     AccessSessionsModule,
     DirectMessagesModule,
     ...(shouldLoadWorkersModule() ? [WorkersModule] : []),

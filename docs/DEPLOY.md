@@ -163,3 +163,28 @@ Run locally, expose with [ngrok](https://ngrok.com): `ngrok http 3000` / `3001` 
 ## CI/CD
 
 Push feature branch → PR → merge `main` once (triggers CI then release). Never push directly to `main`. Details: [CI_CD.md](./CI_CD.md).
+
+---
+
+## Horizontal scaling
+
+The API is stateless and horizontally scalable:
+
+| Concern | Implementation |
+|---------|----------------|
+| Sessions | JWT (stateless) + Redis refresh token store — no sticky sessions required |
+| Socket.IO | `@socket.io/redis-adapter` with pub/sub — events fan-out across all API replicas |
+| Queues | BullMQ backed by Redis — worker pods consume from shared queues; scale worker replicas independently |
+| Database | Neon pooled connection URL — shared across all API replicas; connection pool managed per-process |
+| Cache | Redis shared layer for feeds, rate limits, XP velocity guards, access sessions |
+
+**Scaling the API on Fly:**
+```bash
+fly scale count 3 --app forge-studios-api   # 3 API replicas
+fly scale count 2 --app forge-studios-worker # 2 worker replicas
+```
+
+**What breaks at scale if misconfigured:**
+- `REDIS_URL` missing → Socket.IO falls back to in-memory (single-replica only; warned at startup)
+- `DATABASE_URL` without pooler → connection exhaustion at 10+ replicas; use Neon pooled URL (`pgbouncer=true`)
+- BullMQ `WORKER_ONLY=true` must be set on worker machines to avoid double-processing

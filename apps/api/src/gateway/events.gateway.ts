@@ -392,6 +392,16 @@ export class EventsGateway
     this.server.to(`stream:${payload.streamId}`).emit('stream:poll:updated', payload);
   }
 
+  @OnEvent('stream.qa.created')
+  handleStreamQaCreated(payload: { streamId: string; question: unknown }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:qa:created', payload.question);
+  }
+
+  @OnEvent('stream.qa.updated')
+  handleStreamQaUpdated(payload: { streamId: string; question: unknown }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:qa:updated', payload.question);
+  }
+
   @OnEvent('channel.message')
   handleChannelMessage(payload: { channelId: string; message: unknown }) {
     this.server.to(`channel:${payload.channelId}`).emit('channel:message', payload.message);
@@ -570,6 +580,111 @@ export class EventsGateway
   @SubscribeMessage('leave-room')
   handleLeaveRoom(@MessageBody() data: { roomId: string }, @ConnectedSocket() client: Socket) {
     client.leave(`room:${data.roomId}`);
+  }
+
+  @SubscribeMessage('join-stream-vip')
+  async handleJoinStreamVip(
+    @MessageBody() data: { streamId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { userId, role } = this.requireAuth(client);
+    await this.streamingService.assertVipAccess(data.streamId, userId, role);
+    client.join(`stream:${data.streamId}:vip`);
+    return { event: 'joined-stream-vip', data: { streamId: data.streamId } };
+  }
+
+  @SubscribeMessage('leave-stream-vip')
+  handleLeaveStreamVip(@MessageBody() data: { streamId: string }, @ConnectedSocket() client: Socket) {
+    client.leave(`stream:${data.streamId}:vip`);
+  }
+
+  @OnEvent('stream.breakout.started')
+  handleBreakoutStarted(payload: { streamId: string; communityId: string; rooms: unknown[]; endsAt: string }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:breakout:started', payload);
+  }
+
+  @OnEvent('stream.breakout.assigned')
+  handleBreakoutAssigned(payload: {
+    streamId: string;
+    communityId: string;
+    assignments: Array<{ userId: string; roomId: string }>;
+  }) {
+    for (const { userId, roomId } of payload.assignments) {
+      this.server.to(`user:${userId}`).emit('stream:breakout:join', { roomId, streamId: payload.streamId });
+    }
+  }
+
+  @OnEvent('stream.breakout.ended')
+  handleBreakoutEnded(payload: { streamId: string; communityId: string }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:breakout:ended', payload);
+  }
+
+  @OnEvent('channel_points.redeemed')
+  handleChannelPointsRedeemed(payload: {
+    communityId: string;
+    rewardId: string;
+    userId: string;
+    redemptionId: string;
+    requiresApproval: boolean;
+  }) {
+    this.server.to(`community:${payload.communityId}:mods`).emit('channel_points:redemption', payload);
+    if (!payload.requiresApproval) {
+      this.server.to(`user:${payload.userId}`).emit('channel_points:fulfilled', { redemptionId: payload.redemptionId });
+    }
+  }
+
+  @OnEvent('stream.cohost.added')
+  handleCoHostAdded(payload: { streamId: string; creatorId: string; coHostId: string }) {
+    this.server.to(`user:${payload.coHostId}`).emit('stream:cohost:invited', {
+      streamId: payload.streamId,
+      creatorId: payload.creatorId,
+    });
+  }
+
+  @SubscribeMessage('join-creator-analytics')
+  handleJoinCreatorAnalytics(@ConnectedSocket() client: Socket) {
+    const { userId } = this.requireAuth(client);
+    client.join(`analytics:creator:${userId}`);
+    return { event: 'joined-creator-analytics', data: { creatorId: userId } };
+  }
+
+  @SubscribeMessage('leave-creator-analytics')
+  handleLeaveCreatorAnalytics(@ConnectedSocket() client: Socket) {
+    const { userId } = this.requireAuth(client);
+    client.leave(`analytics:creator:${userId}`);
+  }
+
+  @OnEvent('follow.created')
+  handleFollowCreated(payload: { followerId: string; followingId: string }) {
+    this.server
+      .to(`analytics:creator:${payload.followingId}`)
+      .emit('analytics:update', { type: 'new_follower', followerId: payload.followerId });
+  }
+
+  @OnEvent('community.member.provision')
+  handleCommunityMemberProvision(payload: { userId: string; communityId: string; creatorId?: string }) {
+    if (!payload.creatorId) return;
+    this.server
+      .to(`analytics:creator:${payload.creatorId}`)
+      .emit('analytics:update', {
+        type: 'new_community_member',
+        communityId: payload.communityId,
+        userId: payload.userId,
+      });
+  }
+
+  @OnEvent('community.ownership.transferred')
+  handleOwnershipTransferred(payload: {
+    communityId: string;
+    previousOwnerId: string;
+    newOwnerId: string;
+  }) {
+    this.server
+      .to(`user:${payload.previousOwnerId}`)
+      .emit('community:ownership:transferred', payload);
+    this.server
+      .to(`user:${payload.newOwnerId}`)
+      .emit('community:ownership:transferred', payload);
   }
 
   emitToRoom(room: string, event: string, data: unknown) {

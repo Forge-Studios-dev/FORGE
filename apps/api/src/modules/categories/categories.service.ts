@@ -80,6 +80,56 @@ export class CategoriesService {
     return result;
   }
 
+  /**
+   * AI content tagging: rank a category's curated skill tags by relevance to
+   * the supplied title/description. Deterministic and bounded by the number of
+   * tags in the category (no external LLM cost). Suggestions are advisory — the
+   * upload flow still validates the chosen tag IDs.
+   */
+  async suggestSkillTags(
+    categoryId: string,
+    title: string,
+    description?: string,
+    limit = 5,
+  ): Promise<Array<{ id: string; name: string; slug: string; score: number }>> {
+    const tags = await this.getSkillTagsForCategory(categoryId);
+    if (!tags.length) return [];
+
+    const text = `${title ?? ''} ${description ?? ''}`.toLowerCase();
+    const textTokens = new Set(text.split(/[^a-z0-9]+/).filter((t) => t.length >= 3));
+    if (!textTokens.size) return [];
+
+    const scored = tags.map((tag) => {
+      const name = tag.name.toLowerCase();
+      const nameTokens = [
+        ...new Set(
+          `${name} ${tag.slug.replace(/-/g, ' ')}`
+            .split(/[^a-z0-9]+/)
+            .filter((t) => t.length >= 3),
+        ),
+      ];
+      let score = 0;
+      // Strong signal: the full tag name appears as a phrase in the content.
+      if (name.length >= 3 && text.includes(name)) score += 1;
+      // Token overlap: fraction of tag tokens present in the content.
+      if (nameTokens.length) {
+        const hits = nameTokens.filter((t) => textTokens.has(t)).length;
+        score += hits / nameTokens.length;
+      }
+      return {
+        id: tag.id,
+        name: tag.name,
+        slug: tag.slug,
+        score: Math.round(score * 100) / 100,
+      };
+    });
+
+    return scored
+      .filter((s) => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  }
+
   async create(dto: CreateCategoryDto): Promise<Category> {
     const existing = await this.categoryRepository.findOne({
       where: [{ slug: dto.slug }, { name: dto.name }],

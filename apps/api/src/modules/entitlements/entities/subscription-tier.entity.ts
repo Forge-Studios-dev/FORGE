@@ -69,6 +69,10 @@ export class SubscriptionTier {
   @Column({ name: 'max_concurrent_devices', type: 'int', default: 1 })
   maxConcurrentDevices: number;
 
+  /** Null = unlimited seats. Set to cap enrollment on this tier. */
+  @Column({ name: 'max_members', type: 'int', nullable: true })
+  maxMembers: number | null;
+
   @OneToMany(() => TierEntitlement, (ent) => ent.tier)
   entitlements: TierEntitlement[];
 

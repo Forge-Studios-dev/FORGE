@@ -121,6 +121,12 @@ export class CommunityModerationController {
     return this.moderationService.listBans(user.sub, communityId, user.role);
   }
 
+  @Get('creators/me/moderation/inbox')
+  @ApiOperation({ summary: 'Unified moderation inbox across all creator communities' })
+  unifiedInbox(@CurrentUser() user: JwtPayload, @Query('status') status = 'open') {
+    return this.moderationService.listUnifiedReportsForCreator(user.sub, status);
+  }
+
   @Get('creators/me/communities/:communityId/reports')
   @UseGuards(CommunityRoleGuard)
   @CommunityRoles(

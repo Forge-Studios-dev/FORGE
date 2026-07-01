@@ -13,6 +13,8 @@ export function toPublicCommunity(community: Community) {
     name: community.name,
     slug: community.slug,
     visibility: community.visibility,
+    communityType: community.communityType,
+    linkedCourseId: community.linkedCourseId,
     settings: community.settings,
     createdAt: community.createdAt,
   };

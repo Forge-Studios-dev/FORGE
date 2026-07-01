@@ -2,7 +2,7 @@
 
 Creator-controlled tiers, Stripe recurring checkout, entitlements, and access sessions.
 
-**Implementation tracker:** [COMMUNITY-2.0-IMPLEMENTATION.md](./COMMUNITY-2.0-IMPLEMENTATION.md)
+**Implementation tracker:** [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md) (Phase 5 — `CEOS-P05-*`)
 
 ## Providers
 
@@ -12,6 +12,8 @@ Creator-controlled tiers, Stripe recurring checkout, entitlements, and access se
 | Stripe | `BILLING_PROVIDER=stripe` + keys | Checkout sessions + webhooks |
 
 Web checkout: `NEXT_PUBLIC_BILLING_ENABLED=true`
+
+**Production cutover:** [operations/STRIPE_PRODUCTION_ENABLEMENT.md](./operations/STRIPE_PRODUCTION_ENABLEMENT.md)
 
 ## API
 
@@ -56,6 +58,22 @@ Web: Settings → My memberships (tier change UI can call this endpoint).
 `EntitlementsService` gates VOD, live, community channels, and tier-scoped resources via `tier_entitlements`.
 
 Visibility values: `public`, `followers`, `subscribers`, `tier`, `private`, `paid_event` — see `@forge/shared-types`.
+
+## Subscription lifecycle
+
+`MemberSubscriptionStatus` transitions. Access-granting statuses: `active`, `trial`, `grace_period`, `renewal_pending`.
+
+```
+trialing ──(Stripe sub.updated → active)──▶ active ──(expiresAt passes)──▶ expired
+    │                                          │
+    └──(expiresAt passes, no conversion)──┐    └──(cancel / payment fail / refund)──▶ canceled / failed_payment / refunded
+                                          ▼
+                                       expired
+```
+
+- **Trial → active**: driven by the Stripe `customer.subscription.updated` webhook (`billing.service` → `grantSubscription`).
+- **Expiry safety net**: `entitlementsService.expireDueSubscriptions()` (hourly `subscription-maintenance` worker) transitions any `active`, `trial`, or `renewal_pending` subscription whose `expiresAt` has passed to `expired`, revokes access, busts the entitlement cache, and suspends scoped community membership. This is the only end-of-trial mechanism for non-Stripe (mock/admin) trials, and a backstop for missed Stripe webhooks (e.g. a `cancel-at-period-end` `subscription.deleted` event that never arrives). The Stripe webhook forward-dates `expiresAt` on each renewal, so live subscriptions are never caught here. `grace_period` is **excluded** — its `expiresAt` is the already-past period end, so time-expiring it would collapse the dunning window; it exits only via Stripe webhooks (recovered → `active`, final failure → `canceled`).
+- **Trial-ending reminders**: `getExpiringSubscriptions()` includes `trial` subscriptions; the maintenance service emits trial-specific copy (`trial_ending` push, "free trial ends in N day(s)") vs. membership-expiry copy, deduped per subscription via Redis.
 
 ## Access sessions
 

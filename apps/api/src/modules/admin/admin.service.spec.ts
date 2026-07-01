@@ -1,0 +1,241 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { DataSource } from 'typeorm';
+import { AdminService } from './admin.service';
+import { User, UserRole } from '../users/entities/user.entity';
+import {
+  ModerationStatus,
+  Video,
+  VideoStatus,
+  VideoVisibility,
+} from '../content/entities/video.entity';
+import { Report } from '../reports/entities/report.entity';
+import { Stream } from '../streaming/entities/stream.entity';
+import { Community } from '../communities/entities/community.entity';
+import { CommunityReport } from '../communities/entities/community-moderation.entity';
+import { UsersService } from '../users/users.service';
+import { PlaylistsService } from '../playlists/playlists.service';
+import { AuthService } from '../auth/auth.service';
+import { AnalyticsService } from '../analytics/analytics.service';
+import { VideosService } from '../content/videos.service';
+import { AuthUserCacheService } from '../auth/auth-user-cache.service';
+import { StreamingService } from '../streaming/streaming.service';
+import { StreamLiveService } from '../streaming/stream-live.service';
+import { StreamChatService } from '../stream-chat/stream-chat.service';
+import { StripeConnectService } from '../billing/stripe-connect.service';
+
+describe('AdminService security', () => {
+  let service: AdminService;
+
+  const userRepository = {
+    findOne: jest.fn(),
+    update: jest.fn(),
+    save: jest.fn(async (user: User) => user),
+    createQueryBuilder: jest.fn(),
+  };
+  const videoRepository = {
+    findOne: jest.fn(),
+    save: jest.fn(async (video: Video) => video),
+    createQueryBuilder: jest.fn(),
+  };
+  const reportRepository = { createQueryBuilder: jest.fn() };
+  const streamRepository = { findOne: jest.fn(), createQueryBuilder: jest.fn() };
+  const communityRepository = { findOne: jest.fn(), save: jest.fn(), createQueryBuilder: jest.fn() };
+  const communityReportRepository = { count: jest.fn() };
+  const dataSource = { query: jest.fn() };
+  const usersService = { getWatchHistory: jest.fn(), resolveUserId: jest.fn() };
+  const playlistsService = { listByUser: jest.fn() };
+  const authService = {
+    logoutAll: jest.fn(),
+    resendVerification: jest.fn(),
+    createImpersonationToken: jest.fn(),
+  };
+  const authUserCache = { bust: jest.fn() };
+  const analyticsService = { ingest: jest.fn() };
+  const videosService = { bustVideoDetailCache: jest.fn() };
+  const eventEmitter = { emit: jest.fn() };
+  const streamingService = { endStream: jest.fn(), grantStreamEventAccess: jest.fn() };
+  const streamLiveService = { backfillMuxPlaybackIds: jest.fn() };
+  const streamChatService = { getMessages: jest.fn(), deleteMessage: jest.fn() };
+  const stripeConnectService = { getConnectStatus: jest.fn() };
+
+  const regularUser: User = {
+    id: 'user-1',
+    email: 'user@example.com',
+    username: 'userone',
+    displayName: 'User One',
+    role: UserRole.USER,
+    isVerified: true,
+    isActive: true,
+    deletedAt: null,
+    followerCount: 0,
+    followingCount: 0,
+    videoCount: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as User;
+
+  const adminUser: User = {
+    ...regularUser,
+    id: 'admin-1',
+    email: 'admin@example.com',
+    username: 'admin',
+    displayName: 'Admin',
+    role: UserRole.ADMIN,
+  } as User;
+
+  const video: Video = {
+    id: 'video-1',
+    userId: regularUser.id,
+    status: VideoStatus.READY,
+    visibility: VideoVisibility.PUBLIC,
+    moderationStatus: ModerationStatus.NONE,
+    user: regularUser,
+  } as Video;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    userRepository.findOne.mockImplementation(async ({ where }: { where: { id: string } }) => {
+      if (where.id === regularUser.id) return { ...regularUser };
+      if (where.id === adminUser.id) return { ...adminUser };
+      return null;
+    });
+    videoRepository.findOne.mockResolvedValue({ ...video });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AdminService,
+        { provide: getRepositoryToken(User), useValue: userRepository },
+        { provide: getRepositoryToken(Video), useValue: videoRepository },
+        { provide: getRepositoryToken(Report), useValue: reportRepository },
+        { provide: getRepositoryToken(Stream), useValue: streamRepository },
+        { provide: getRepositoryToken(Community), useValue: communityRepository },
+        { provide: getRepositoryToken(CommunityReport), useValue: communityReportRepository },
+        { provide: DataSource, useValue: dataSource },
+        { provide: UsersService, useValue: usersService },
+        { provide: PlaylistsService, useValue: playlistsService },
+        { provide: AuthService, useValue: authService },
+        { provide: AuthUserCacheService, useValue: authUserCache },
+        { provide: AnalyticsService, useValue: analyticsService },
+        { provide: VideosService, useValue: videosService },
+        { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: StreamingService, useValue: streamingService },
+        { provide: StreamLiveService, useValue: streamLiveService },
+        { provide: StreamChatService, useValue: streamChatService },
+        { provide: StripeConnectService, useValue: stripeConnectService },
+      ],
+    }).compile();
+
+    service = module.get(AdminService);
+  });
+
+  describe('deleteUser', () => {
+    it('blocks deletion of platform admin accounts', async () => {
+      await expect(service.deleteUser(adminUser.id)).rejects.toBeInstanceOf(BadRequestException);
+      expect(userRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('soft-deletes user, scrubs PII, and revokes sessions', async () => {
+      const result = await service.deleteUser(regularUser.id);
+      expect(result).toEqual({ ok: true });
+      expect(userRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: regularUser.id,
+          isActive: false,
+          isVerified: false,
+          email: expect.stringContaining('deleted+'),
+          username: expect.stringMatching(/^deleted_/),
+          displayName: 'Deleted user',
+        }),
+      );
+      expect(authService.logoutAll).toHaveBeenCalledWith(regularUser.id);
+    });
+  });
+
+  describe('findUserById', () => {
+    it('hides soft-deleted users', async () => {
+      userRepository.findOne.mockResolvedValue({
+        ...regularUser,
+        deletedAt: new Date(),
+      });
+      await expect(service.findUserById(regularUser.id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('updateUser', () => {
+    it('busts auth cache and revokes sessions when deactivating', async () => {
+      await service.updateUser(regularUser.id, { isActive: false });
+      expect(userRepository.update).toHaveBeenCalledWith(regularUser.id, { isActive: false });
+      expect(authUserCache.bust).toHaveBeenCalledWith(regularUser.id);
+      expect(authService.logoutAll).toHaveBeenCalledWith(regularUser.id);
+    });
+  });
+
+  describe('moderateVideo', () => {
+    it('forces private visibility when moderation blocks content', async () => {
+      const result = await service.moderateVideo('video-1', 'admin-1', {
+        moderationStatus: ModerationStatus.BLOCKED,
+        moderationNote: 'policy violation',
+      });
+      expect(videoRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          moderationStatus: ModerationStatus.BLOCKED,
+          visibility: VideoVisibility.PRIVATE,
+          moderatedBy: 'admin-1',
+        }),
+      );
+      expect(videosService.bustVideoDetailCache).toHaveBeenCalledWith('video-1');
+      expect(result.moderationStatus).toBe(ModerationStatus.BLOCKED);
+    });
+  });
+
+  describe('createImpersonation', () => {
+    it('creates token and records audit analytics event', async () => {
+      authService.createImpersonationToken.mockResolvedValue({
+        url: 'https://forgestudios.net/impersonate?token=abc',
+        targetUser: { username: regularUser.username },
+      });
+      const result = await service.createImpersonation('admin-1', regularUser.id);
+      expect(authService.createImpersonationToken).toHaveBeenCalledWith('admin-1', regularUser.id);
+      expect(analyticsService.ingest).toHaveBeenCalledWith('admin-1', {
+        eventName: 'admin.impersonate',
+        properties: { targetUserId: regularUser.id, targetUsername: regularUser.username },
+      });
+      expect(result.url).toContain('impersonate');
+    });
+  });
+
+  describe('stream chat moderation', () => {
+    it('requires ADMIN role to read stream chat', async () => {
+      await expect(
+        service.getStreamChat('stream-1', 'user-1', UserRole.USER, 50),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(streamChatService.getMessages).not.toHaveBeenCalled();
+    });
+
+    it('allows ADMIN to read stream chat', async () => {
+      streamChatService.getMessages.mockResolvedValue([{ id: 'msg-1' }]);
+      await service.getStreamChat('stream-1', 'admin-1', UserRole.ADMIN, 50);
+      expect(streamChatService.getMessages).toHaveBeenCalledWith(
+        'stream-1',
+        50,
+        undefined,
+        'admin-1',
+        UserRole.ADMIN,
+      );
+    });
+
+    it('requires ADMIN role to delete stream chat messages', async () => {
+      await expect(
+        service.deleteStreamChatMessage('stream-1', 'msg-1', 'user-1', UserRole.CREATOR),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(streamChatService.deleteMessage).not.toHaveBeenCalled();
+    });
+  });
+});

@@ -17,6 +17,7 @@ export enum CommunityPostType {
   POLL = 'poll',
   ARTICLE = 'article',
   RESOURCE = 'resource',
+  QA = 'qa',
 }
 
 @Entity('community_posts')
@@ -50,6 +51,10 @@ export class CommunityPost {
 
   @Column({ name: 'is_pinned', default: false })
   isPinned: boolean;
+
+  /** For QA-type posts: the comment ID that was accepted as the best answer. */
+  @Column({ name: 'accepted_answer_id', type: 'uuid', nullable: true })
+  acceptedAnswerId: string | null;
 
   @Column({ name: 'media_urls', type: 'jsonb', default: [] })
   mediaUrls: string[];

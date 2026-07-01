@@ -49,3 +49,22 @@ jobs:
           exit 1
         env:
           STAGING_API_URL: ${{ vars.STAGING_API_URL }}
+
+      # RBAC / permission verification (CEOS-P16-T017). Opt-in: requires demo
+      # users seeded in staging (bash scripts/reset-demo-users.sh). Never run
+      # against production — demo credentials must not exist there.
+      - name: Verify platform roles (RBAC)
+        if: ${{ vars.STAGING_VERIFY_ROLES == 'true' }}
+        run: |
+          FORGE_SMOKE_API="${STAGING_API_BASE:-https://forge-studios-api-staging.fly.dev/api/v1}" \
+            bash scripts/verify-platform-roles.sh
+        env:
+          STAGING_API_BASE: ${{ vars.STAGING_API_BASE }}
+
+      - name: Verify channel sunset (when flag enabled)
+        if: ${{ vars.STAGING_VERIFY_CHANNEL_SUNSET == 'true' }}
+        run: |
+          FORGE_SMOKE_API="${STAGING_API_BASE:-https://forge-studios-api-staging.fly.dev/api/v1}" \
+            bash scripts/smoke-channel-sunset.sh
+        env:
+          STAGING_API_BASE: ${{ vars.STAGING_API_BASE }}

@@ -93,6 +93,10 @@ FORGE_SMOKE_API=https://forge-studios-api-staging.fly.dev/api/v1 \
 
 FORGE_SMOKE_API=https://forge-studios-api-staging.fly.dev/api/v1 \
   bash scripts/smoke-community-2.0.sh
+
+# After enabling community_channels_deprecated (see CHANNEL_SUNSET.md):
+FORGE_SMOKE_API=https://forge-studios-api-staging.fly.dev/api/v1 \
+  bash scripts/smoke-channel-sunset.sh
 ```
 
 ---

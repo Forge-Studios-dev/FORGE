@@ -12,6 +12,7 @@ export type CommunityAccessChangedEvent = {
 export type CommunityMemberProvisionEvent = {
   userId: string;
   communityId: string;
+  creatorId?: string;
 };
 
 export type CommunityMemberSuspendEvent = {

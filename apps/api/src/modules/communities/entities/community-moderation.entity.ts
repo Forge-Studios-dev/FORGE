@@ -58,6 +58,9 @@ export class CommunityReport {
   @Column({ name: 'channel_id', type: 'uuid', nullable: true })
   channelId: string | null;
 
+  @Column({ name: 'room_id', type: 'uuid', nullable: true })
+  roomId: string | null;
+
   @Column({ name: 'message_id', type: 'uuid', nullable: true })
   messageId: string | null;
 

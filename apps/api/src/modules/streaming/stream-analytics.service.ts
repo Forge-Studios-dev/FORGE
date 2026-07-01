@@ -55,6 +55,18 @@ export class StreamAnalyticsService {
     requesterId: string,
     requesterRole?: UserRole | null,
   ) {
+    // SECURITY: authorize BEFORE reading the cache. The cache key is scoped per
+    // stream (not per requester), so returning cached analytics before the
+    // ownership check would let any approved creator read another creator's
+    // revenue/viewer data via a known streamId (IDOR). The ownership lookup is a
+    // single indexed PK read — cheap even on cache hits.
+    const stream = await this.streamRepository.findOne({ where: { id: streamId } });
+    if (!stream) throw new NotFoundException('Stream not found');
+    if (stream.userId !== creatorId) throw new NotFoundException('Stream not found');
+    if (requesterId !== creatorId && requesterRole !== UserRole.ADMIN) {
+      throw new ForbiddenException();
+    }
+
     const cacheKey = `stream:analytics:${streamId}`;
     const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
     if (cached) {
@@ -63,13 +75,6 @@ export class StreamAnalyticsService {
       } catch {
         await this.redis.del(cacheKey);
       }
-    }
-
-    const stream = await this.streamRepository.findOne({ where: { id: streamId } });
-    if (!stream) throw new NotFoundException('Stream not found');
-    if (stream.userId !== creatorId) throw new NotFoundException('Stream not found');
-    if (requesterId !== creatorId && requesterRole !== UserRole.ADMIN) {
-      throw new ForbiddenException();
     }
 
     const agg = await this.snapshotRepository
@@ -148,5 +153,20 @@ export class StreamAnalyticsService {
       this.logger,
     );
     return result;
+  }
+
+  /** Fetch recent chat messages for AI summary generation (up to 200, non-system). */
+  async getStreamChatMessages(streamId: string, limit = 200): Promise<string[]> {
+    const messages = await this.messageRepository
+      .createQueryBuilder('m')
+      .where('m.stream_id = :streamId', { streamId })
+      .andWhere('m.deleted_at IS NULL')
+      .andWhere('m.message_type IN (:...types)', {
+        types: [StreamMessageType.CHAT, StreamMessageType.SUPER_CHAT],
+      })
+      .orderBy('m.created_at', 'DESC')
+      .take(limit)
+      .getMany();
+    return messages.reverse().map((m) => m.body ?? '').filter(Boolean);
   }
 }
