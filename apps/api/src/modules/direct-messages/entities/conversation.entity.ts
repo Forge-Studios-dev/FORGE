@@ -19,7 +19,7 @@ export class Conversation {
   isGroup: boolean;
 
   /** Optional display name for group conversations */
-  @Column({ length: 100, nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   name: string | null;
 
   /** Creator of the group conversation (null for 1:1 DMs) */
