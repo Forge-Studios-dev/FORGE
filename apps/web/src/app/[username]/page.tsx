@@ -6,6 +6,8 @@ import { serverApi } from '@/lib/api';
 import { User, PaginatedResponse, Video } from '@/types';
 import { ProfileHeader } from '@/components/ProfileHeader/ProfileHeader';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
+import { CreatorProgramsPanel } from '@/components/Programs/CreatorProgramsPanel';
+import { CreatorCoursesPanel } from '@/components/Courses/CreatorCoursesPanel';
 import { FeedGrid } from '@/components/FeedCard/FeedGrid';
 
 interface Props {
@@ -57,6 +59,14 @@ export default async function ProfilePage({ params }: Props) {
 
       <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <MembershipPanel creatorId={user.id} />
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <CreatorCoursesPanel creatorId={user.id} username={user.username} />
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <CreatorProgramsPanel creatorId={user.id} username={user.username} />
       </section>
 
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">

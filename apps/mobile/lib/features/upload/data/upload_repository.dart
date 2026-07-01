@@ -22,7 +22,9 @@ class UploadRepository {
     required int fileSizeBytes,
     required String title,
     required String description,
-    String? skillTagName,
+    required String categoryId,
+    required List<String> skillTagIds,
+    required String visibility,
     void Function(int percent)? onProgress,
   }) async {
     final presignRes = await _client.dio.post('/videos/presigned-url', data: {
@@ -62,8 +64,9 @@ class UploadRepository {
     await _client.dio.post('/videos/$videoId/complete', data: {
       'title': title.trim(),
       if (description.trim().isNotEmpty) 'description': description.trim(),
-      if (skillTagName != null && skillTagName.trim().isNotEmpty)
-        'skillTagName': skillTagName.trim(),
+      'visibility': visibility,
+      'categoryId': categoryId,
+      'skillTagIds': skillTagIds,
     });
 
     return videoId;

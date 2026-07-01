@@ -7,7 +7,14 @@ import '../../../core/network/api_client.dart';
 import '../../../core/platform/platform_config.dart';
 
 class StudioRoomsScreen extends ConsumerStatefulWidget {
-  const StudioRoomsScreen({super.key});
+  const StudioRoomsScreen({
+    super.key,
+    this.embedded = false,
+    this.fixedCommunityId,
+  });
+
+  final bool embedded;
+  final String? fixedCommunityId;
 
   @override
   ConsumerState<StudioRoomsScreen> createState() => _StudioRoomsScreenState();
@@ -66,6 +73,11 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
   Future<void> _loadCommunities() async {
     setState(() => _loading = true);
     try {
+      if (widget.fixedCommunityId != null) {
+        setState(() => _communityId = widget.fixedCommunityId);
+        await _loadRooms();
+        return;
+      }
       final client = ref.read(apiClientProvider);
       final me = await client.dio.get('/users/me');
       final creatorId = me.data['data']?['id'] as String?;
@@ -143,14 +155,19 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Community rooms')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
+    if (_loading) {
+      final loading = const Center(child: CircularProgressIndicator());
+      if (widget.embedded) return loading;
+      return Scaffold(appBar: AppBar(title: const Text('Community rooms')), body: loading);
+    }
+    if (widget.embedded && _communityId == null) {
+      return const Center(child: Text('Create a community in Settings first'));
+    }
+
+    final body = ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                if (_communities.length > 1)
+                if (!widget.embedded && _communities.length > 1)
                   DropdownButtonFormField<String>(
                     value: _communityId,
                     decoration: const InputDecoration(labelText: 'Community'),
@@ -247,7 +264,9 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
                   ),
                 ],
               ],
-            ),
-    );
+            );
+
+    if (widget.embedded) return body;
+    return Scaffold(appBar: AppBar(title: const Text('Community rooms')), body: body);
   }
 }

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -166,12 +167,36 @@ class MembershipPanel extends ConsumerWidget {
         final uri = Uri.parse(checkoutUrl);
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open checkout. Try joining on the web.')),
+          );
         }
         return;
       }
+      // The checkout call succeeded but returned no hosted URL — this only
+      // happens with the stub provider in dev/staging, where mock subscriptions
+      // are enabled server-side. Use the test-membership path there.
       await _mockJoin(context, ref, tierId);
+    } on DioException catch (e) {
+      // A genuine checkout failure (e.g. creator hasn't finished payout
+      // onboarding, or the user isn't signed in) must surface — never silently
+      // grant a test membership, which would mask the real problem.
+      if (!context.mounted) return;
+      final status = e.response?.statusCode;
+      final data = e.response?.data;
+      final serverMessage = data is Map ? data['message'] : null;
+      final message = status == 401
+          ? 'Sign in to join this membership.'
+          : (serverMessage is String && serverMessage.isNotEmpty
+              ? serverMessage
+              : 'Could not start checkout. Please try again.');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } catch (_) {
-      await _mockJoin(context, ref, tierId);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not start checkout. Please try again.')),
+      );
     }
   }
 

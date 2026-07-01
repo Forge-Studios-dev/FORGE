@@ -12,6 +12,7 @@ type ReportRow = {
   id: string;
   targetType?: string;
   channelId?: string;
+  roomId?: string;
   messageId?: string;
   postId?: string;
   pollId?: string;
@@ -33,9 +34,15 @@ function ReportPreview({
   const type = report.targetType ?? 'message';
 
   const { data: messagePreview } = useQuery({
-    queryKey: ['report-message-preview', report.channelId, report.messageId],
-    enabled: type === 'message' && !!report.channelId && !!report.messageId,
+    queryKey: ['report-message-preview', communityId, report.channelId, report.roomId, report.messageId],
+    enabled: type === 'message' && !!report.messageId && (!!report.channelId || !!report.roomId),
     queryFn: async () => {
+      if (report.roomId) {
+        const { data } = await api.get<{
+          data: { data: Array<{ id: string; body: string; user?: { displayName?: string } }> };
+        }>(`/communities/${communityId}/rooms/${report.roomId}/messages?limit=100`);
+        return data.data.data.find((m) => m.id === report.messageId) ?? null;
+      }
       const { data } = await api.get<{
         data: { data: Array<{ id: string; body: string; user?: { displayName?: string } }> };
       }>(`/channels/${report.channelId}/messages?limit=100`);

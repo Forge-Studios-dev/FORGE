@@ -44,6 +44,7 @@
     "discover:grafana-cloud": "bash scripts/discover-grafana-cloud.sh",
     "create:grafana-scrape-job": "bash scripts/create-grafana-scrape-job.sh",
     "verify:production": "bash scripts/verify-production-ready.sh",
+    "check:prod-env": "npm run check:prod-env --workspace=@forge/api",
     "deploy:vercel": "bash scripts/vercel-setup.sh",
     "deploy:production": "bash scripts/deploy-production-complete.sh",
     "verify:roles": "bash scripts/verify-platform-roles.sh",
@@ -65,5 +66,10 @@
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=10.0.0"
+  },
+  "overrides": {
+    "ws": "^8.21.0",
+    "tar": "^7.5.17",
+    "qs": "^6.15.3"
   }
 }

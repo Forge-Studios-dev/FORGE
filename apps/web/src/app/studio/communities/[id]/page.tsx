@@ -7,41 +7,28 @@ import { useParams } from 'next/navigation';
 import { Button, Input, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { SubscriptionTier } from '@/types';
-import type { Community, CommunityCategory, CommunityChannel, CommunityPoll } from '@/types/community';
+import type { Community, CommunityCategory, CommunityPoll } from '@/types/community';
 import { StudioModerationPanel } from '@/components/Community/StudioModerationPanel';
-import { SubscriberPicker } from '@/components/Community/SubscriberPicker';
 import { StudioEngagementExtrasPanel } from '@/components/Community/StudioEngagementExtrasPanel';
 import { StudioCreatorOpsPanel } from '@/components/Community/StudioCreatorOpsPanel';
 import { StudioRoomsPanel } from '@/components/Community/StudioRoomsPanel';
 import { StudioCommunityMembersPanel } from '@/components/Community/StudioCommunityMembersPanel';
+import { StudioCommunityEventsPanel } from '@/components/Community/StudioCommunityEventsPanel';
 import { CommunityTrendsChart } from '@/components/Community/CommunityTrendsChart';
 
-type Tab = 'channels' | 'categories' | 'engagement' | 'rooms' | 'moderation' | 'members' | 'settings';
+type Tab = 'categories' | 'engagement' | 'health' | 'rooms' | 'moderation' | 'members' | 'settings';
 
 export default function StudioCommunityDetailPage() {
   const params = useParams();
   const communityId = typeof params.id === 'string' ? params.id : '';
   const { user, isCreator } = useAuth();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>('channels');
+  const [tab, setTab] = useState<Tab>('rooms');
   const [statusMsg, setStatusMsg] = useState('');
 
   const [categoryName, setCategoryName] = useState('');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editCategoryName, setEditCategoryName] = useState('');
-
-  const [channelName, setChannelName] = useState('');
-  const [channelType, setChannelType] = useState('public');
-  const [channelTierId, setChannelTierId] = useState('');
-  const [channelCategoryId, setChannelCategoryId] = useState('');
-  const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
-  const [editChannelName, setEditChannelName] = useState('');
-  const [editChannelType, setEditChannelType] = useState('public');
-  const [editChannelTierId, setEditChannelTierId] = useState('');
-  const [editChannelCategoryId, setEditChannelCategoryId] = useState('');
-  const [invitingChannelId, setInvitingChannelId] = useState<string | null>(null);
-  const [inviteUserId, setInviteUserId] = useState('');
 
   const [communityName, setCommunityName] = useState('');
   const [communitySlug, setCommunitySlug] = useState('');
@@ -90,17 +77,8 @@ export default function StudioCommunityDetailPage() {
     enabled: !!communityId && !!user?.id && isCreator,
     queryFn: async () => {
       const { data } = await api.get<{
-        data: { community: Community; categories: CommunityCategory[]; channels: CommunityChannel[] };
+        data: { community: Community; categories: CommunityCategory[] };
       }>(`/communities/id/${communityId}`);
-      return data.data;
-    },
-  });
-
-  const { data: tiers } = useQuery({
-    queryKey: ['my-tiers', user?.id],
-    enabled: !!user?.id && isCreator,
-    queryFn: async () => {
-      const { data } = await api.get<{ data: SubscriptionTier[] }>(`/creators/${user!.id}/tiers`);
       return data.data;
     },
   });
@@ -124,6 +102,21 @@ export default function StudioCommunityDetailPage() {
         `/communities/${communityId}/polls/active`,
       );
       return data.data ?? null;
+    },
+  });
+
+  const { data: businessKpis } = useQuery({
+    queryKey: ['studio-community-business-kpis'],
+    enabled: !!user?.id && isCreator && tab === 'health',
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: {
+          membership: { active: number; trial: number; totalRevenue30d: number };
+          kpis: { churnRate30d: number; canceledLast30Days: number; engagementScore: number };
+          revenue: { mrr: number; arr: number };
+        };
+      }>('/communities/creators/me/business-analytics');
+      return data.data;
     },
   });
 
@@ -235,79 +228,6 @@ export default function StudioCommunityDetailPage() {
     onError: () => showStatus('Failed to delete category'),
   });
 
-  const createChannelMutation = useMutation({
-    mutationFn: async () => {
-      await api.post(`/creators/me/communities/${communityId}/channels`, {
-        name: channelName.trim(),
-        type: channelType,
-        requiredTierId: channelTierId || undefined,
-        categoryId: channelCategoryId || undefined,
-      });
-    },
-    onSuccess: () => {
-      setChannelName('');
-      invalidateDetail();
-      showStatus('Channel created');
-    },
-    onError: () => showStatus('Failed to create channel'),
-  });
-
-  const updateChannelMutation = useMutation({
-    mutationFn: async ({
-      channelId,
-      payload,
-    }: {
-      channelId: string;
-      payload: {
-        name?: string;
-        type?: string;
-        requiredTierId?: string | null;
-        categoryId?: string | null;
-      };
-    }) => {
-      await api.patch(`/creators/me/channels/${channelId}`, payload);
-    },
-    onSuccess: () => {
-      setEditingChannelId(null);
-      invalidateDetail();
-      showStatus('Channel updated');
-    },
-    onError: () => showStatus('Failed to update channel'),
-  });
-
-  const reorderChannelsMutation = useMutation({
-    mutationFn: async (channelIds: string[]) => {
-      await api.patch(`/creators/me/communities/${communityId}/channels/reorder`, { channelIds });
-    },
-    onSuccess: () => {
-      invalidateDetail();
-      showStatus('Channel order updated');
-    },
-    onError: () => showStatus('Failed to reorder channels'),
-  });
-
-  const moveChannel = (index: number, direction: -1 | 1) => {
-    const channels = payload?.channels ?? [];
-    const target = index + direction;
-    if (target < 0 || target >= channels.length) return;
-    const ids = channels.map((c) => c.id);
-    const [removed] = ids.splice(index, 1);
-    ids.splice(target, 0, removed);
-    reorderChannelsMutation.mutate(ids);
-  };
-
-  const inviteMutation = useMutation({
-    mutationFn: async ({ channelId, userId }: { channelId: string; userId: string }) => {
-      await api.post(`/creators/me/channels/${channelId}/invite`, { userId });
-    },
-    onSuccess: () => {
-      setInviteUserId('');
-      setInvitingChannelId(null);
-      showStatus('Invite sent');
-    },
-    onError: () => showStatus('Failed to send invite'),
-  });
-
   const updateCommunityMutation = useMutation({
     mutationFn: async () => {
       await api.patch(`/creators/me/communities/${communityId}`, {
@@ -404,49 +324,6 @@ export default function StudioCommunityDetailPage() {
     );
   }
 
-  const channelTypeSelect = (value: string, onChange: (v: string) => void) => (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
-    >
-      <option value="public">Public</option>
-      <option value="subscribers">Members only</option>
-      <option value="tier">Tier gated</option>
-      <option value="invite">Invite only</option>
-    </select>
-  );
-
-  const tierSelect = (value: string, onChange: (v: string) => void) => (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
-    >
-      <option value="">Tier (optional)</option>
-      {(tiers ?? []).map((t) => (
-        <option key={t.id} value={t.id}>
-          {t.name}
-        </option>
-      ))}
-    </select>
-  );
-
-  const categorySelect = (value: string, onChange: (v: string) => void) => (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
-    >
-      <option value="">No category</option>
-      {(payload?.categories ?? []).map((cat) => (
-        <option key={cat.id} value={cat.id}>
-          {cat.name}
-        </option>
-      ))}
-    </select>
-  );
-
   return (
     <main className="mx-auto max-w-4xl px-5 py-8 md:px-12">
       <PageHeader
@@ -459,7 +336,7 @@ export default function StudioCommunityDetailPage() {
       ) : null}
 
       <nav className="mb-6 flex flex-wrap gap-2">
-        {(['channels', 'categories', 'engagement', 'rooms', 'members', 'moderation', 'settings'] as Tab[]).map((t) => (
+        {(['categories', 'health', 'engagement', 'rooms', 'members', 'moderation', 'settings'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -474,133 +351,6 @@ export default function StudioCommunityDetailPage() {
           </button>
         ))}
       </nav>
-
-      {tab === 'channels' ? (
-        <div className="space-y-6">
-          <section className="glass-panel space-y-3 rounded-xl p-6">
-            <h2 className="font-label-caps text-outline">New channel</h2>
-            <Input
-              value={channelName}
-              onChange={(e) => setChannelName(e.target.value)}
-              placeholder="Channel name"
-            />
-            {channelTypeSelect(channelType, setChannelType)}
-            {tierSelect(channelTierId, setChannelTierId)}
-            {categorySelect(channelCategoryId, setChannelCategoryId)}
-            <Button
-              disabled={!channelName.trim() || createChannelMutation.isPending}
-              onClick={() => createChannelMutation.mutate()}
-            >
-              Create channel
-            </Button>
-          </section>
-          <ul className="space-y-2">
-            {(payload?.channels ?? []).map((ch, index, channels) => (
-              <li key={ch.id} className="glass-panel rounded-xl p-4">
-                {editingChannelId === ch.id ? (
-                  <div className="space-y-2">
-                    <Input value={editChannelName} onChange={(e) => setEditChannelName(e.target.value)} />
-                    {channelTypeSelect(editChannelType, setEditChannelType)}
-                    {tierSelect(editChannelTierId, setEditChannelTierId)}
-                    {categorySelect(editChannelCategoryId, setEditChannelCategoryId)}
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() =>
-                          updateChannelMutation.mutate({
-                            channelId: ch.id,
-                            payload: {
-                              name: editChannelName,
-                              type: editChannelType,
-                              requiredTierId: editChannelTierId || null,
-                              categoryId: editChannelCategoryId || null,
-                            },
-                          })
-                        }
-                        disabled={updateChannelMutation.isPending}
-                      >
-                        Save
-                      </Button>
-                      <Button variant="ghost" onClick={() => setEditingChannelId(null)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-medium">{ch.name}</p>
-                      <p className="text-xs capitalize text-on-surface-variant">
-                        {ch.type} · #{ch.slug}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="ghost"
-                        className="text-xs"
-                        disabled={index === 0 || reorderChannelsMutation.isPending}
-                        onClick={() => moveChannel(index, -1)}
-                      >
-                        ↑
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="text-xs"
-                        disabled={index === channels.length - 1 || reorderChannelsMutation.isPending}
-                        onClick={() => moveChannel(index, 1)}
-                      >
-                        ↓
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="text-xs"
-                        onClick={() => {
-                          setEditingChannelId(ch.id);
-                          setEditChannelName(ch.name);
-                          setEditChannelType(ch.type);
-                          setEditChannelTierId(ch.requiredTierId ?? '');
-                          setEditChannelCategoryId(ch.categoryId ?? '');
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      {ch.type === 'invite' ? (
-                        <Button
-                          variant="outline"
-                          className="text-xs"
-                          onClick={() =>
-                            setInvitingChannelId(invitingChannelId === ch.id ? null : ch.id)
-                          }
-                        >
-                          Invite
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
-                {invitingChannelId === ch.id ? (
-                  <form
-                    className="mt-3 space-y-2"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (!inviteUserId.trim()) return;
-                      inviteMutation.mutate({ channelId: ch.id, userId: inviteUserId.trim() });
-                    }}
-                  >
-                    <SubscriberPicker
-                      value={inviteUserId}
-                      onChange={setInviteUserId}
-                      placeholder="Search subscribers to invite"
-                    />
-                    <Button type="submit" disabled={inviteMutation.isPending || !inviteUserId} className="text-xs">
-                      Send invite
-                    </Button>
-                  </form>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
 
       {tab === 'categories' ? (
         <div className="space-y-6">
@@ -674,6 +424,76 @@ export default function StudioCommunityDetailPage() {
               </li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {tab === 'health' ? (
+        <div className="space-y-6">
+          {businessKpis ? (
+            <>
+              <section className="glass-panel grid gap-4 rounded-xl p-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <p className="text-xs text-on-surface-variant">Active subscribers</p>
+                  <p className="text-2xl font-semibold">{businessKpis.membership.active}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-on-surface-variant">Trial members</p>
+                  <p className="text-2xl font-semibold">{businessKpis.membership.trial}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-on-surface-variant">Revenue (30d)</p>
+                  <p className="text-2xl font-semibold">
+                    ${(businessKpis.membership.totalRevenue30d / 100).toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-on-surface-variant">MRR</p>
+                  <p className="text-2xl font-semibold">
+                    ${(businessKpis.revenue.mrr / 100).toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-on-surface-variant">ARR</p>
+                  <p className="text-2xl font-semibold">
+                    ${(businessKpis.revenue.arr / 100).toFixed(2)}
+                  </p>
+                </div>
+              </section>
+              <section className="glass-panel grid gap-4 rounded-xl p-6 sm:grid-cols-3">
+                <div>
+                  <p className="text-xs text-on-surface-variant">Churn rate (30d)</p>
+                  <p className="text-2xl font-semibold">{businessKpis.kpis.churnRate30d}%</p>
+                  <p className="mt-0.5 text-xs text-on-surface-variant">
+                    {businessKpis.kpis.canceledLast30Days} cancellations
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-on-surface-variant">Engagement score</p>
+                  <div className="mt-1 flex items-end gap-2">
+                    <p className="text-2xl font-semibold">{businessKpis.kpis.engagementScore}</p>
+                    <p className="mb-0.5 text-sm text-on-surface-variant">/ 100</p>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full rounded-full bg-outline-variant">
+                    <div
+                      className="h-1.5 rounded-full bg-primary transition-all"
+                      style={{ width: `${businessKpis.kpis.engagementScore}%` }}
+                    />
+                  </div>
+                </div>
+              </section>
+              <div className="flex justify-end">
+                <a
+                  href="/communities/creators/me/business-analytics/export"
+                  className="text-sm text-primary hover:underline"
+                  download
+                >
+                  Export CSV
+                </a>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-on-surface-variant">Loading health KPIs…</p>
+          )}
         </div>
       ) : null}
 
@@ -870,6 +690,7 @@ export default function StudioCommunityDetailPage() {
             )}
           </section>
           <StudioEngagementExtrasPanel communityId={communityId} />
+          <StudioCommunityEventsPanel communityId={communityId} onCreated={() => showStatus('Event created')} />
         </div>
       ) : null}
 

@@ -118,6 +118,13 @@ export function TopBar() {
             {canEngage && (
               <>
                 <Link
+                  href="/updates"
+                  className="hidden h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 md:flex"
+                  aria-label="Updates"
+                >
+                  <Icon name="campaign" />
+                </Link>
+                <Link
                   href="/messages"
                   className="hidden h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 md:flex"
                   aria-label="Messages"

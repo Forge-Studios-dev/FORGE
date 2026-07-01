@@ -27,10 +27,6 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
   String? _expandedTierId;
   String _entResourceType = 'community';
   String _entResourceId = '';
-  final _bundleNameCtrl = TextEditingController();
-  String? _bundleTierId;
-  String? _bundleCommunityId;
-  List<Map<String, dynamic>> _bundles = [];
   bool _loading = true;
   String? _creatorId;
 
@@ -53,10 +49,6 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
       try {
         final connectRes = await client.dio.get('/billing/connect/status');
         _connectStatus = connectRes.data['data'] as Map<String, dynamic>?;
-      } catch (_) {}
-      try {
-        final bundlesRes = await client.dio.get('/creators/me/bundles');
-        _bundles = (bundlesRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
       } catch (_) {}
       setState(() {
         _tiers = (tiersRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -144,42 +136,6 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
     }
   }
 
-  Future<void> _createBundle() async {
-    if (_bundleNameCtrl.text.trim().isEmpty || _bundleTierId == null) return;
-    final communityId = _bundleCommunityId ?? (_communities.isNotEmpty ? _communities.first['id'] as String? : null);
-    if (communityId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Create a community first for bundle items')),
-        );
-      }
-      return;
-    }
-    try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/creators/me/bundles', data: {
-        'name': _bundleNameCtrl.text.trim(),
-        'tierId': _bundleTierId,
-        'items': [
-          {'resourceType': 'community', 'resourceId': communityId},
-        ],
-      });
-      _bundleNameCtrl.clear();
-      await _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bundle created')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not create bundle')),
-        );
-      }
-    }
-  }
-
   @override
   void dispose() {
     _nameCtrl.dispose();
@@ -187,7 +143,6 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
     _benefitsCtrl.dispose();
     _trialDaysCtrl.dispose();
     _maxDevicesCtrl.dispose();
-    _bundleNameCtrl.dispose();
     super.dispose();
   }
 
@@ -335,55 +290,12 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
                     ),
                   );
                 }),
-                const SizedBox(height: 24),
-                const Text('Product bundles', style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _bundleNameCtrl,
-                  decoration: const InputDecoration(labelText: 'Bundle name'),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/studio/bundles'),
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  label: const Text('Manage product bundles'),
                 ),
-                if (_tiers.isNotEmpty)
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Linked tier'),
-                    value: _bundleTierId,
-                    items: _tiers
-                        .map(
-                          (t) => DropdownMenuItem(
-                            value: t['id'] as String,
-                            child: Text(t['name'] as String? ?? 'Tier'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setState(() => _bundleTierId = v),
-                  ),
-                if (_communities.isNotEmpty)
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Included community'),
-                    value: _bundleCommunityId ?? _communities.first['id'] as String?,
-                    items: _communities
-                        .map(
-                          (c) => DropdownMenuItem(
-                            value: c['id'] as String,
-                            child: Text(c['name'] as String? ?? ''),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setState(() => _bundleCommunityId = v),
-                  ),
-                ForgeButton(label: 'Create bundle', onPressed: _createBundle),
-                if (_bundles.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  ..._bundles.map(
-                    (b) => ListTile(
-                      dense: true,
-                      title: Text(b['name'] as String? ?? 'Bundle'),
-                      subtitle: Text(
-                        (b['isActive'] == true) ? 'Active' : 'Inactive',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ),
-                ],
                 TextButton(onPressed: () => context.pop(), child: const Text('← Back to Studio')),
               ],
             ),

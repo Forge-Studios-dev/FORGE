@@ -159,6 +159,7 @@ class WatchScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               _ReportVideoButton(videoId: videoId),
               const SizedBox(height: 24),
+              _RelatedVideosSection(videoId: videoId),
               _WatchCommentsSection(videoId: videoId),
             ],
           );
@@ -525,6 +526,138 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> {
                 child: Center(child: CircularProgressIndicator(color: ForgeTokens.primary)),
               ),
       ),
+    );
+  }
+}
+
+/// "Up next" rail backed by the content-based related recommendations endpoint
+/// (`GET /videos/:id/related`). Best-effort: silently hides if nothing relevant.
+class _RelatedVideosSection extends ConsumerStatefulWidget {
+  final String videoId;
+  const _RelatedVideosSection({required this.videoId});
+
+  @override
+  ConsumerState<_RelatedVideosSection> createState() => _RelatedVideosSectionState();
+}
+
+class _RelatedVideosSectionState extends ConsumerState<_RelatedVideosSection> {
+  List<dynamic> _items = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RelatedVideosSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.videoId != widget.videoId) {
+      setState(() {
+        _items = [];
+        _loading = true;
+      });
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    try {
+      final client = ref.read(apiClientProvider);
+      final res = await client.dio.get(
+        '/videos/${widget.videoId}/related',
+        queryParameters: const {'limit': 8},
+      );
+      final payload = res.data['data'] as Map<String, dynamic>;
+      final data = payload['data'] as List<dynamic>? ?? [];
+      if (!mounted) return;
+      setState(() {
+        _items = data;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading || _items.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Up next', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        ..._items.map((raw) {
+          final v = raw as Map<String, dynamic>;
+          final id = v['id'] as String?;
+          final user = v['user'] as Map<String, dynamic>?;
+          final thumb = v['thumbnailUrl'] as String?;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: ForgeCard(
+              onTap: id == null ? null : () => context.push('/watch/$id'),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 96,
+                      height: 54,
+                      child: thumb != null && thumb.isNotEmpty
+                          ? Image.network(
+                              thumb,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const ColoredBox(
+                                color: ForgeTokens.surfaceContainerHigh,
+                                child: Icon(Icons.play_circle_outline,
+                                    color: ForgeTokens.outline),
+                              ),
+                            )
+                          : const ColoredBox(
+                              color: ForgeTokens.surfaceContainerHigh,
+                              child: Icon(Icons.play_circle_outline,
+                                  color: ForgeTokens.outline),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          v['title'] as String? ?? 'Lesson',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: ForgeTokens.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '@${user?['username'] ?? 'creator'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: ForgeTokens.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+        const SizedBox(height: 24),
+      ],
     );
   }
 }

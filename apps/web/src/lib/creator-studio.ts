@@ -7,6 +7,52 @@ export async function getStudioVideos(): Promise<Video[]> {
   return data.data?.data ?? [];
 }
 
+export type StudioVideoSort = 'recent' | 'oldest' | 'views' | 'title';
+
+export interface StudioLibraryParams {
+  search?: string;
+  sort?: StudioVideoSort;
+  status?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface StudioLibraryPagination {
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+}
+
+export interface StudioLibraryPage {
+  items: Video[];
+  pagination: StudioLibraryPagination;
+}
+
+/**
+ * Paginated, server-filtered Studio content library. Lets creators reach their
+ * full library (beyond the legacy 100-row cap) and search/sort server-side.
+ */
+export async function fetchStudioLibrary(
+  params: StudioLibraryParams = {},
+): Promise<StudioLibraryPage> {
+  const qs = new URLSearchParams();
+  if (params.search?.trim()) qs.set('search', params.search.trim());
+  if (params.sort) qs.set('sort', params.sort);
+  if (params.status) qs.set('status', params.status);
+  if (params.page) qs.set('page', String(params.page));
+  if (params.limit) qs.set('limit', String(params.limit));
+  const query = qs.toString();
+  const { data } = await api.get<{
+    data: { data: Video[]; pagination?: StudioLibraryPagination };
+  }>(`/videos/studio${query ? `?${query}` : ''}`);
+  return {
+    items: data.data?.data ?? [],
+    pagination:
+      data.data?.pagination ?? { page: 1, limit: 0, total: 0, hasMore: false },
+  };
+}
+
 /** @deprecated use getStudioVideos */
 export async function getMyVideos(userId: string | undefined): Promise<Video[]> {
   if (!userId) return [];

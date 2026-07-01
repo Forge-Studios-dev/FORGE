@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Input } from '@forge/design-system';
+import { Button } from '@forge/design-system';
 import { api } from '@/lib/api';
 
 interface Props {
@@ -19,11 +19,24 @@ type AuditLog = {
 
 type Room = { id: string; name: string; roomType: string };
 
+type CopilotInsights = {
+  summary: string;
+  recommendations: string[];
+  growthFocus: string;
+  provider: 'claude' | 'deterministic';
+};
+
+type BusinessAnalytics = {
+  membership: { activeSubscribers: number; mrrCents: number; churnRate: number };
+  engagement: { engagementScore: number };
+};
+
 export function StudioCreatorOpsPanel({ communityId }: Props) {
   const [moderationText, setModerationText] = useState('');
   const [moderationResult, setModerationResult] = useState<string | null>(null);
   const [summaryRoomId, setSummaryRoomId] = useState('');
   const [roomSummary, setRoomSummary] = useState<string | null>(null);
+  const [copilotInsights, setCopilotInsights] = useState<CopilotInsights | null>(null);
 
   const { data: auditLogs, isLoading: auditLoading } = useQuery({
     queryKey: ['creator-audit-logs'],
@@ -65,8 +78,65 @@ export function StudioCreatorOpsPanel({ communityId }: Props) {
     onSuccess: (summary) => setRoomSummary(summary),
   });
 
+  const copilotMutation = useMutation({
+    mutationFn: async () => {
+      const bizRes = await api.get<{ data: BusinessAnalytics }>(
+        '/communities/creators/me/business-analytics',
+      );
+      const biz = bizRes.data.data;
+      const { data } = await api.post<{ data: CopilotInsights }>(
+        '/creators/me/copilot/insights',
+        {
+          totalSubscribers: biz.membership.activeSubscribers,
+          mrr: biz.membership.mrrCents / 100,
+          churnRate: biz.membership.churnRate,
+          videoViews: 0,
+          communityEngagement: biz.engagement.engagementScore,
+        },
+      );
+      return data.data;
+    },
+    onSuccess: (insights) => setCopilotInsights(insights),
+  });
+
   return (
     <div className="space-y-6">
+      <section className="glass-panel space-y-3 rounded-xl p-6">
+        <h2 className="font-label-caps text-xs text-outline">Creator copilot</h2>
+        <p className="text-xs text-on-surface-variant">
+          AI-powered insights and growth recommendations based on your current metrics.
+        </p>
+        <Button disabled={copilotMutation.isPending} onClick={() => copilotMutation.mutate()}>
+          {copilotMutation.isPending ? 'Analyzing…' : 'Get AI insights'}
+        </Button>
+        {copilotMutation.isError ? (
+          <p className="text-xs text-error">Failed to load insights. Try again.</p>
+        ) : null}
+        {copilotInsights ? (
+          <div className="space-y-3 rounded-lg bg-surface-container-low p-4">
+            <p className="text-sm text-on-surface">{copilotInsights.summary}</p>
+            {copilotInsights.growthFocus ? (
+              <p className="rounded-md bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+                Focus: {copilotInsights.growthFocus}
+              </p>
+            ) : null}
+            {copilotInsights.recommendations.length > 0 ? (
+              <ul className="space-y-1">
+                {copilotInsights.recommendations.map((rec, i) => (
+                  <li key={i} className="flex gap-2 text-xs text-on-surface-variant">
+                    <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                    {rec}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <p className="text-right text-[10px] text-outline">
+              via {copilotInsights.provider === 'claude' ? 'Claude AI' : 'FORGE analytics'}
+            </p>
+          </div>
+        ) : null}
+      </section>
+
       <section className="glass-panel space-y-3 rounded-xl p-6">
         <h2 className="font-label-caps text-xs text-outline">AI moderation preview</h2>
         <textarea

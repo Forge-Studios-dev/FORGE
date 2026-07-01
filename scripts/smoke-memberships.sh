@@ -60,4 +60,15 @@ if [[ -n "$creator_id" ]]; then
   fi
 fi
 
+if [[ "${FORGE_SMOKE_BILLING:-}" == "true" ]]; then
+  connect_code="$(curl_smoke -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer ${token}" \
+    "${BASE}/billing/connect/status" || true)"
+  if [[ "$connect_code" == "200" ]]; then
+    echo "OK: GET /billing/connect/status ($connect_code)"
+  else
+    echo "WARN: GET /billing/connect/status returned ${connect_code} (creator role may be required)" >&2
+  fi
+fi
+
 echo "== Memberships smoke passed =="

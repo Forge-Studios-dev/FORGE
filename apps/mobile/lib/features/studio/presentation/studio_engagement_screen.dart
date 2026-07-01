@@ -11,7 +11,14 @@ import '../../../core/widgets/forge_button.dart';
 import '../../auth/data/auth_repository.dart';
 
 class StudioEngagementScreen extends ConsumerStatefulWidget {
-  const StudioEngagementScreen({super.key});
+  const StudioEngagementScreen({
+    super.key,
+    this.embedded = false,
+    this.fixedCommunityId,
+  });
+
+  final bool embedded;
+  final String? fixedCommunityId;
 
   @override
   ConsumerState<StudioEngagementScreen> createState() => _StudioEngagementScreenState();
@@ -34,6 +41,13 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
   List<Map<String, dynamic>> _wikiPages = [];
   List<Map<String, dynamic>> _challenges = [];
   List<Map<String, dynamic>> _surveys = [];
+  List<Map<String, dynamic>> _events = [];
+  final _eventTitleCtrl = TextEditingController();
+  final _eventDescCtrl = TextEditingController();
+  final _eventStartsCtrl = TextEditingController();
+  String _eventType = 'one_off';
+  String _recurrenceRule = 'weekly';
+  String? _editingEventId;
   String? _editingWikiId;
   String? _editingChallengeId;
   String? _editingSurveyId;
@@ -59,11 +73,23 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
     _challengeDescCtrl.dispose();
     _surveyTitleCtrl.dispose();
     _surveyQuestionsCtrl.dispose();
+    _eventTitleCtrl.dispose();
+    _eventDescCtrl.dispose();
+    _eventStartsCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
     try {
+      if (widget.fixedCommunityId != null) {
+        setState(() {
+          _communityId = widget.fixedCommunityId;
+          _loading = false;
+        });
+        await _loadAnalytics(widget.fixedCommunityId!);
+        await _loadEngagementLists(widget.fixedCommunityId!);
+        return;
+      }
       final user =
           await ref.read(authRepositoryProvider).refreshStoredUser() ??
           await ref.read(authRepositoryProvider).getStoredUser();
@@ -90,11 +116,16 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
       final wikiRes = await client.dio.get('/communities/$communityId/wiki');
       final challengeRes = await client.dio.get('/communities/$communityId/challenges');
       final surveyRes = await client.dio.get('/communities/$communityId/surveys');
+      final eventsRes = await client.dio.get(
+        '/communities/$communityId/events',
+        queryParameters: {'seriesOnly': '1'},
+      );
       setState(() {
         _wikiPages = (wikiRes.data['data']?['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _challenges =
             (challengeRes.data['data']?['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _surveys = (surveyRes.data['data']?['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _events = (eventsRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
       });
     } catch (_) {}
   }
@@ -288,6 +319,60 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
     } catch (_) {}
   }
 
+  Future<void> _createEvent() async {
+    if (_communityId == null || _eventTitleCtrl.text.trim().isEmpty || _eventStartsCtrl.text.trim().isEmpty) {
+      return;
+    }
+    try {
+      final client = ref.read(apiClientProvider);
+      final startsAt = DateTime.parse(_eventStartsCtrl.text.trim()).toUtc().toIso8601String();
+      final payload = <String, dynamic>{
+        'title': _eventTitleCtrl.text.trim(),
+        'description': _eventDescCtrl.text.trim().isEmpty ? null : _eventDescCtrl.text.trim(),
+        'startsAt': startsAt,
+        'isOnline': true,
+        'eventType': _eventType,
+        if (_eventType == 'recurring') 'recurrenceRule': _recurrenceRule,
+      };
+      if (_editingEventId != null) {
+        await client.dio.patch(
+          '/creators/me/communities/$_communityId/events/$_editingEventId',
+          data: payload,
+        );
+      } else {
+        await client.dio.post('/creators/me/communities/$_communityId/events', data: payload);
+      }
+      _eventTitleCtrl.clear();
+      _eventDescCtrl.clear();
+      _eventStartsCtrl.clear();
+      setState(() {
+        _editingEventId = null;
+        _eventType = 'one_off';
+      });
+      await _loadEngagementLists(_communityId!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Event saved')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save event')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteEvent(String eventId) async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.delete('/creators/me/communities/$_communityId/events/$eventId');
+      await _loadEngagementLists(_communityId!);
+    } catch (_) {}
+  }
+
   Future<void> _createSurvey() async {
     if (_communityId == null || _surveyTitleCtrl.text.trim().isEmpty) return;
     final questions = _surveyQuestionsCtrl.text
@@ -321,14 +406,19 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Community engagement')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
+    if (_loading) {
+      final loading = const Center(child: CircularProgressIndicator());
+      if (widget.embedded) return loading;
+      return Scaffold(appBar: AppBar(title: const Text('Community engagement')), body: loading);
+    }
+    if (widget.embedded && _communityId == null) {
+      return const Center(child: Text('Create a community in Settings first'));
+    }
+
+    final body = ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                if (_communities.length > 1)
+                if (!widget.embedded && _communities.length > 1)
                   DropdownButtonFormField<String>(
                     value: _communityId,
                     decoration: const InputDecoration(labelText: 'Community'),
@@ -407,6 +497,77 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
                   maxLines: 4,
                 ),
                 ForgeButton(label: 'Create poll', onPressed: _createPoll),
+                const Divider(height: 32),
+                const Text('Events', style: TextStyle(fontWeight: FontWeight.w600)),
+                TextField(
+                  controller: _eventTitleCtrl,
+                  decoration: const InputDecoration(labelText: 'Event title'),
+                ),
+                TextField(
+                  controller: _eventDescCtrl,
+                  decoration: const InputDecoration(labelText: 'Description (optional)'),
+                  maxLines: 2,
+                ),
+                TextField(
+                  controller: _eventStartsCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Starts at (ISO 8601)',
+                    hintText: '2026-07-01T18:00:00Z',
+                  ),
+                ),
+                DropdownButtonFormField<String>(
+                  value: _eventType,
+                  decoration: const InputDecoration(labelText: 'Event type'),
+                  items: const [
+                    DropdownMenuItem(value: 'one_off', child: Text('One-off')),
+                    DropdownMenuItem(value: 'recurring', child: Text('Recurring')),
+                  ],
+                  onChanged: (v) => setState(() => _eventType = v ?? 'one_off'),
+                ),
+                if (_eventType == 'recurring')
+                  DropdownButtonFormField<String>(
+                    value: _recurrenceRule,
+                    decoration: const InputDecoration(labelText: 'Recurrence'),
+                    items: const [
+                      DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
+                      DropdownMenuItem(value: 'biweekly', child: Text('Biweekly')),
+                      DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                    ],
+                    onChanged: (v) => setState(() => _recurrenceRule = v ?? 'weekly'),
+                  ),
+                ForgeButton(
+                  label: _editingEventId == null ? 'Create event' : 'Save event',
+                  onPressed: _createEvent,
+                ),
+                ..._events.map(
+                  (event) => ListTile(
+                    dense: true,
+                    title: Text(event['title'] as String? ?? ''),
+                    subtitle: Text(event['startsAt'] as String? ?? ''),
+                    trailing: Wrap(
+                      spacing: 4,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, size: 18),
+                          onPressed: () {
+                            _eventTitleCtrl.text = event['title'] as String? ?? '';
+                            _eventDescCtrl.text = event['description'] as String? ?? '';
+                            _eventStartsCtrl.text = event['startsAt'] as String? ?? '';
+                            setState(() {
+                              _editingEventId = event['id'] as String?;
+                              _eventType = event['eventType'] as String? ?? 'one_off';
+                              _recurrenceRule = event['recurrenceRule'] as String? ?? 'weekly';
+                            });
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          onPressed: () => _deleteEvent(event['id'] as String),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 const Divider(height: 32),
                 const Text('Wiki page', style: TextStyle(fontWeight: FontWeight.w600)),
                 TextField(
@@ -526,9 +687,12 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
                     ),
                   ),
                 ),
-                TextButton(onPressed: () => context.pop(), child: const Text('← Back to Studio')),
+                if (!widget.embedded)
+                  TextButton(onPressed: () => context.pop(), child: const Text('← Back to Studio')),
               ],
-            ),
-    );
+            );
+
+    if (widget.embedded) return body;
+    return Scaffold(appBar: AppBar(title: const Text('Community engagement')), body: body);
   }
 }

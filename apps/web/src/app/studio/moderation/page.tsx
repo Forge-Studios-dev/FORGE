@@ -18,6 +18,16 @@ type ModeratedCommunity = {
   } | null;
 };
 
+type UnifiedReport = {
+  id: string;
+  communityId: string;
+  communityName?: string;
+  targetType?: string;
+  status: string;
+  reason?: string;
+  createdAt: string;
+};
+
 export default function StudioModerationHubPage() {
   const { user, isGuest } = useAuth();
 
@@ -27,6 +37,17 @@ export default function StudioModerationHubPage() {
     queryFn: async () => {
       const { data: res } = await api.get<{ data: { data: ModeratedCommunity[] } }>(
         '/creators/me/moderated-communities',
+      );
+      return res.data.data;
+    },
+  });
+
+  const { data: inbox } = useQuery({
+    queryKey: ['unified-mod-inbox', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data: res } = await api.get<{ data: { data: UnifiedReport[] } }>(
+        '/creators/me/moderation/inbox',
       );
       return res.data.data;
     },
@@ -46,6 +67,33 @@ export default function StudioModerationHubPage() {
         title="Community moderation"
         subtitle="Communities where you have moderator, admin, or coach access"
       />
+
+      {(inbox ?? []).length > 0 ? (
+        <section className="mb-8 space-y-3">
+          <h2 className="font-label-caps text-sm text-outline">Unified inbox — open reports</h2>
+          <ul className="space-y-2">
+            {(inbox ?? []).slice(0, 20).map((r) => (
+              <li
+                key={r.id}
+                className="glass-panel flex items-center justify-between rounded-xl px-4 py-3 text-sm"
+              >
+                <div>
+                  <p className="font-medium">{r.communityName ?? r.communityId}</p>
+                  <p className="text-xs text-on-surface-variant">
+                    {r.targetType ?? 'content'} · {r.reason ?? 'Reported'}
+                  </p>
+                </div>
+                <Link
+                  href={`/studio/moderation/${r.communityId}`}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Open →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {isLoading ? (
         <p className="text-sm text-on-surface-variant">Loading…</p>

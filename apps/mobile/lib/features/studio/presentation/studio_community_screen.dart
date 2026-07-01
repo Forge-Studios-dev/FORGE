@@ -3,49 +3,52 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/utils/csv_export_util.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../auth/data/auth_repository.dart';
 
+import 'studio_rooms_screen.dart';
+import 'studio_engagement_screen.dart';
+import 'studio_moderation_screen.dart';
+
 class StudioCommunityScreen extends ConsumerStatefulWidget {
-  const StudioCommunityScreen({super.key});
+  const StudioCommunityScreen({super.key, this.initialTabIndex = 0});
+
+  final int initialTabIndex;
 
   @override
   ConsumerState<StudioCommunityScreen> createState() => _StudioCommunityScreenState();
 }
 
-class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
-  final _nameCtrl = TextEditingController();
+class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   final _communityNameCtrl = TextEditingController();
   final _editCommunityNameCtrl = TextEditingController();
   final _editCommunitySlugCtrl = TextEditingController();
   final _categoryNameCtrl = TextEditingController();
   final _editCategoryNameCtrl = TextEditingController();
-  final _editChannelNameCtrl = TextEditingController();
-  final _inviteUserIdCtrl = TextEditingController();
-  String _type = 'public';
-  String? _channelCategoryId;
-  String? _editChannelCategoryId;
-  String? _editChannelType;
-  String? _editChannelTierId;
   String? _editingCategoryId;
-  String? _editingChannelId;
+  List<Map<String, dynamic>> _categories = [];
   String _communityVisibility = 'public';
   String _editCommunityVisibility = 'public';
-  String? _requiredTierId;
   String? _creatorId;
-  String? _invitingChannelId;
-  List<Map<String, dynamic>> _channels = [];
-  List<Map<String, dynamic>> _categories = [];
-  List<Map<String, dynamic>> _tiers = [];
-  List<Map<String, dynamic>> _communities = [];
-  List<Map<String, dynamic>> _subscribers = [];
-  List<Map<String, dynamic>> _pendingMembers = [];
   String? _communityId;
+  List<Map<String, dynamic>> _communities = [];
+  List<Map<String, dynamic>> _pendingMembers = [];
+  List<Map<String, dynamic>> _activeMembers = [];
+  List<Map<String, dynamic>> _suspendedMembers = [];
   bool _loading = true;
+  bool _exportingMembers = false;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(
+      length: 5,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 4),
+    );
     _load();
   }
 
@@ -69,8 +72,6 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
       final communityRes = slug != null
           ? await client.dio.get('/creators/$_creatorId/communities/$slug')
           : communitiesRes;
-      final tiersRes = await client.dio.get('/creators/$_creatorId/tiers');
-      final subsRes = await client.dio.get('/creators/me/subscribers');
       List<Map<String, dynamic>> pending = [];
       if (_communityId != null) {
         try {
@@ -83,14 +84,12 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
       setState(() {
         _communities = communities;
         final data = communityRes.data['data'] as Map<String, dynamic>;
-        _channels = (data['channels'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _categories = (data['categories'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-        _tiers = (tiersRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-        _subscribers = (subsRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _pendingMembers = pending;
         _loading = false;
       });
       _syncCommunityEditFields(_communityId);
+      await _loadMemberRoster();
     } catch (_) {
       setState(() => _loading = false);
     }
@@ -120,34 +119,6 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not start community live')),
-        );
-      }
-    }
-  }
-
-  Future<void> _createChannel() async {
-    if (_nameCtrl.text.trim().isEmpty || _communityId == null) return;
-    try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/creators/me/communities/$_communityId/channels', data: {
-        'name': _nameCtrl.text.trim(),
-        'type': _type,
-        if (_requiredTierId != null && _requiredTierId!.isNotEmpty)
-          'requiredTierId': _requiredTierId,
-        if (_channelCategoryId != null && _channelCategoryId!.isNotEmpty)
-          'categoryId': _channelCategoryId,
-      });
-      _nameCtrl.clear();
-      await _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Channel created')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not create channel')),
         );
       }
     }
@@ -190,36 +161,6 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
       });
       setState(() => _editingCategoryId = null);
       await _selectCommunity(_communityId!, null);
-    } catch (_) {}
-  }
-
-  Future<void> _updateChannel(String channelId) async {
-    if (_editChannelNameCtrl.text.trim().isEmpty) return;
-    try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.patch('/creators/me/channels/$channelId', data: {
-        'name': _editChannelNameCtrl.text.trim(),
-        if (_editChannelType != null) 'type': _editChannelType,
-        'requiredTierId': _editChannelTierId?.isEmpty == true ? null : _editChannelTierId,
-        'categoryId': _editChannelCategoryId?.isEmpty == true ? null : _editChannelCategoryId,
-      });
-      setState(() => _editingChannelId = null);
-      await _selectCommunity(_communityId!, null);
-    } catch (_) {}
-  }
-
-  Future<void> _reorderChannels(int fromIndex, int toIndex) async {
-    if (_communityId == null || fromIndex == toIndex) return;
-    final reordered = [..._channels];
-    final item = reordered.removeAt(fromIndex);
-    reordered.insert(toIndex, item);
-    final ids = reordered.map((c) => c['id'] as String).toList();
-    try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.patch('/creators/me/communities/$_communityId/channels/reorder', data: {
-        'channelIds': ids,
-      });
-      setState(() => _channels = reordered);
     } catch (_) {}
   }
 
@@ -275,30 +216,6 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
     }
   }
 
-  Future<void> _inviteToChannel(String channelId) async {
-    final userId = _inviteUserIdCtrl.text.trim();
-    if (userId.isEmpty) return;
-    try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/creators/me/channels/$channelId/invite', data: {
-        'userId': userId,
-      });
-      _inviteUserIdCtrl.clear();
-      setState(() => _invitingChannelId = null);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invite sent')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not send invite')),
-        );
-      }
-    }
-  }
-
   Future<void> _loadPendingMembers() async {
     if (_communityId == null) return;
     try {
@@ -313,6 +230,46 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
     } catch (_) {}
   }
 
+  Future<void> _loadMemberRoster() async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      final activeRes = await client.dio.get(
+        '/creators/me/communities/$_communityId/members?status=active',
+      );
+      final suspendedRes = await client.dio.get(
+        '/creators/me/communities/$_communityId/members?status=suspended',
+      );
+      setState(() {
+        _activeMembers =
+            (activeRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _suspendedMembers =
+            (suspendedRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _exportMembersCsv() async {
+    if (_communityId == null) return;
+    setState(() => _exportingMembers = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      await CsvExportUtil.downloadAndShare(
+        dio: client.dio,
+        apiPath: '/creators/me/communities/$_communityId/members/export',
+        filename: 'community-$_communityId-members.csv',
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not export members')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportingMembers = false);
+    }
+  }
+
   Future<void> _approveMember(String userId) async {
     if (_communityId == null) return;
     try {
@@ -321,6 +278,7 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
         '/creators/me/communities/$_communityId/members/$userId/approve',
       );
       await _loadPendingMembers();
+      await _loadMemberRoster();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -347,6 +305,52 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
     }
   }
 
+  Future<void> _suspendMember(String userId) async {
+    if (_communityId == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Suspend member?'),
+        content: const Text('They will lose community access until restored.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Suspend')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.patch(
+        '/creators/me/communities/$_communityId/members/$userId/suspend',
+      );
+      await _loadMemberRoster();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not suspend member')),
+        );
+      }
+    }
+  }
+
+  Future<void> _unsuspendMember(String userId) async {
+    if (_communityId == null) return;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.patch(
+        '/creators/me/communities/$_communityId/members/$userId/unsuspend',
+      );
+      await _loadMemberRoster();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not restore member')),
+        );
+      }
+    }
+  }
+
   String _memberLabel(Map<String, dynamic> row) {
     final user = row['user'] as Map<String, dynamic>?;
     return user?['displayName'] as String? ??
@@ -357,14 +361,12 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
+    _tabController.dispose();
     _communityNameCtrl.dispose();
     _editCommunityNameCtrl.dispose();
     _editCommunitySlugCtrl.dispose();
     _categoryNameCtrl.dispose();
     _editCategoryNameCtrl.dispose();
-    _editChannelNameCtrl.dispose();
-    _inviteUserIdCtrl.dispose();
     super.dispose();
   }
 
@@ -379,381 +381,296 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen> {
       setState(() {
         _communityId = communityId;
         final data = communityRes.data['data'] as Map<String, dynamic>;
-        _channels = (data['channels'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _categories = (data['categories'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _loading = false;
       });
       _syncCommunityEditFields(communityId);
       await _loadPendingMembers();
+      await _loadMemberRoster();
     } catch (_) {
       setState(() => _loading = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Community channels')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                if (_communities.length > 1) ...[
-                  const Text(
-                    'Your communities',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  ..._communities.map((c) {
-                    final id = c['id'] as String?;
-                    final selected = id == _communityId;
-                    return ListTile(
-                      selected: selected,
-                      title: Text(c['name'] as String? ?? 'Community'),
-                      subtitle: Text('/${c['slug'] ?? ''}'),
-                      onTap: id == null
-                          ? null
-                          : () => _selectCommunity(id, c['slug'] as String?),
-                    );
-                  }),
-                  const Divider(height: 32),
-                ],
-                const Divider(height: 32),
-                const Text('Create community', style: TextStyle(fontWeight: FontWeight.w600)),
-                TextField(
-                  controller: _communityNameCtrl,
-                  decoration: const InputDecoration(labelText: 'Community name'),
-                ),
-                DropdownButtonFormField<String>(
-                  value: _communityVisibility,
-                  decoration: const InputDecoration(labelText: 'Visibility'),
-                  items: const [
-                    DropdownMenuItem(value: 'public', child: Text('Public')),
-                    DropdownMenuItem(value: 'private', child: Text('Private')),
-                    DropdownMenuItem(value: 'paid', child: Text('Paid')),
-                    DropdownMenuItem(value: 'invite', child: Text('Invite only')),
-                  ],
-                  onChanged: (v) => setState(() => _communityVisibility = v ?? 'public'),
-                ),
-                ForgeButton(label: 'Create community', onPressed: _createCommunity),
-                if (_communityId != null) ...[
-                  const Divider(height: 32),
-                  const Text('Community settings', style: TextStyle(fontWeight: FontWeight.w600)),
-                  TextField(
-                    controller: _editCommunityNameCtrl,
-                    decoration: const InputDecoration(labelText: 'Community name'),
-                  ),
-                  TextField(
-                    controller: _editCommunitySlugCtrl,
-                    decoration: const InputDecoration(labelText: 'Slug'),
-                  ),
-                  DropdownButtonFormField<String>(
-                    value: _editCommunityVisibility,
-                    decoration: const InputDecoration(labelText: 'Visibility'),
-                    items: const [
-                      DropdownMenuItem(value: 'public', child: Text('Public')),
-                      DropdownMenuItem(value: 'private', child: Text('Private')),
-                      DropdownMenuItem(value: 'paid', child: Text('Paid')),
-                      DropdownMenuItem(value: 'invite', child: Text('Invite only')),
-                    ],
-                    onChanged: (v) => setState(() => _editCommunityVisibility = v ?? 'public'),
-                  ),
-                  ForgeButton(label: 'Save community settings', onPressed: _saveCommunitySettings),
-                  const Divider(height: 32),
-                  const Text('Join requests', style: TextStyle(fontWeight: FontWeight.w600)),
-                  if (_pendingMembers.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text('No pending join requests'),
+  Widget _buildMembersTab() {
+    if (_communityId == null) {
+      return const Center(child: Text('Create a community in Settings first'));
+    }
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        const Text('Join requests', style: TextStyle(fontWeight: FontWeight.w600)),
+        if (_pendingMembers.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('No pending join requests'),
+          )
+        else
+          ..._pendingMembers.map((row) {
+            final userId = row['userId'] as String?;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                title: Text(_memberLabel(row)),
+                subtitle: Text(row['source'] as String? ?? ''),
+                trailing: userId == null
+                    ? null
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: () => _approveMember(userId),
+                            child: const Text('Approve'),
+                          ),
+                          TextButton(
+                            onPressed: () => _rejectMember(userId),
+                            child: const Text('Reject'),
+                          ),
+                        ],
+                      ),
+              ),
+            );
+          }),
+        const Divider(height: 32),
+        Row(
+          children: [
+            const Expanded(
+              child: Text('Active members', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            TextButton.icon(
+              onPressed: _exportingMembers ? null : _exportMembersCsv,
+              icon: _exportingMembers
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  else
-                    ..._pendingMembers.map((row) {
-                      final userId = row['userId'] as String?;
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          title: Text(_memberLabel(row)),
-                          trailing: userId == null
-                              ? null
-                              : Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    TextButton(
-                                      onPressed: () => _approveMember(userId),
-                                      child: const Text('Approve'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => _rejectMember(userId),
-                                      child: const Text('Reject'),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                      );
-                    }),
-                ],
-                const Divider(height: 32),
-                const Text('Categories', style: TextStyle(fontWeight: FontWeight.w600)),
-                ..._categories.map(
-                  (cat) {
-                    final catId = cat['id'] as String?;
-                    final editing = catId != null && catId == _editingCategoryId;
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: editing
-                          ? Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: Column(
-                                children: [
-                                  TextField(
-                                    controller: _editCategoryNameCtrl,
-                                    decoration: const InputDecoration(labelText: 'Category name'),
-                                  ),
-                                  Row(
-                                    children: [
-                                      TextButton(
-                                        onPressed: () => _updateCategory(catId),
-                                        child: const Text('Save'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () => setState(() => _editingCategoryId = null),
-                                        child: const Text('Cancel'),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListTile(
-                              dense: true,
-                              title: Text(cat['name'] as String? ?? ''),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, size: 20),
-                                    onPressed: catId == null
-                                        ? null
-                                        : () {
-                                            setState(() {
-                                              _editingCategoryId = catId;
-                                              _editCategoryNameCtrl.text = cat['name'] as String? ?? '';
-                                            });
-                                          },
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete_outline, size: 20),
-                                    onPressed: catId == null ? null : () => _deleteCategory(catId),
-                                  ),
-                                ],
-                              ),
-                            ),
-                    );
-                  },
-                ),
-                TextField(
-                  controller: _categoryNameCtrl,
-                  decoration: const InputDecoration(labelText: 'New category name'),
-                ),
-                ForgeButton(label: 'Add category', onPressed: _createCategory),
-                const Divider(height: 32),
-                const Text(
-                  'Manage your creator community rooms',
-                  style: TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 13),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Channel name'),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: _type,
-                  decoration: const InputDecoration(labelText: 'Channel type'),
-                  items: const [
-                    DropdownMenuItem(value: 'public', child: Text('Public')),
-                    DropdownMenuItem(value: 'subscribers', child: Text('Members only')),
-                    DropdownMenuItem(value: 'tier', child: Text('Tier gated')),
-                    DropdownMenuItem(value: 'invite', child: Text('Invite only')),
-                  ],
-                  onChanged: (v) => setState(() => _type = v ?? 'public'),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String?>(
-                  value: _requiredTierId,
-                  decoration: const InputDecoration(labelText: 'Required tier (optional)'),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('None')),
-                    ..._tiers.map(
-                      (t) => DropdownMenuItem(
-                        value: t['id'] as String,
-                        child: Text(t['name'] as String? ?? ''),
-                      ),
-                    ),
-                  ],
-                  onChanged: (v) => setState(() => _requiredTierId = v),
-                ),
-                if (_categories.isNotEmpty)
-                  DropdownButtonFormField<String?>(
-                    value: _channelCategoryId,
-                    decoration: const InputDecoration(labelText: 'Category (optional)'),
-                    items: [
-                      const DropdownMenuItem(value: null, child: Text('Uncategorized')),
-                      ..._categories.map(
-                        (c) => DropdownMenuItem(
-                          value: c['id'] as String,
-                          child: Text(c['name'] as String? ?? ''),
+                  : const Icon(Icons.download_outlined, size: 18),
+              label: Text(_exportingMembers ? 'Exporting…' : 'Export CSV'),
+            ),
+          ],
+        ),
+        if (_activeMembers.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('No active community members yet'),
+          )
+        else
+          ..._activeMembers.map((row) {
+            final userId = row['userId'] as String?;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                title: Text(_memberLabel(row)),
+                subtitle: Text(row['source'] as String? ?? ''),
+                trailing: userId == null
+                    ? null
+                    : TextButton(
+                        onPressed: () => _suspendMember(userId),
+                        child: const Text(
+                          'Suspend',
+                          style: TextStyle(color: ForgeTokens.error),
                         ),
                       ),
-                    ],
-                    onChanged: (v) => setState(() => _channelCategoryId = v),
-                  ),
-                const SizedBox(height: 12),
-                ForgeButton(label: 'Create channel', onPressed: _createChannel),
-                if (_communityId != null) ...[
-                  const SizedBox(height: 12),
-                  ForgeButton(
-                    label: 'Go live in community',
-                    onPressed: _goLiveInCommunity,
-                  ),
-                ],
-                const SizedBox(height: 24),
-                ..._channels.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final ch = entry.value;
-                  final channelId = ch['id'] as String?;
-                  final channelType = ch['type'] as String? ?? '';
-                  final isInvite = channelType == 'invite';
-                  final editing = channelId != null && channelId == _editingChannelId;
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: Padding(
+              ),
+            );
+          }),
+        const SizedBox(height: 16),
+        const Text('Suspended members', style: TextStyle(fontWeight: FontWeight.w600)),
+        if (_suspendedMembers.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('No suspended members'),
+          )
+        else
+          ..._suspendedMembers.map((row) {
+            final userId = row['userId'] as String?;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                title: Text(_memberLabel(row)),
+                subtitle: Text(row['source'] as String? ?? ''),
+                trailing: userId == null
+                    ? null
+                    : TextButton(
+                        onPressed: () => _unsuspendMember(userId),
+                        child: const Text('Restore'),
+                      ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildSettingsTab() {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        if (_communities.length > 1) ...[
+          const Text('Your communities', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ..._communities.map((c) {
+            final id = c['id'] as String?;
+            final selected = id == _communityId;
+            return ListTile(
+              selected: selected,
+              title: Text(c['name'] as String? ?? 'Community'),
+              subtitle: Text('/${c['slug'] ?? ''}'),
+              onTap: id == null ? null : () => _selectCommunity(id, c['slug'] as String?),
+            );
+          }),
+          const Divider(height: 32),
+        ],
+        const Text('Create community', style: TextStyle(fontWeight: FontWeight.w600)),
+        TextField(
+          controller: _communityNameCtrl,
+          decoration: const InputDecoration(labelText: 'Community name'),
+        ),
+        DropdownButtonFormField<String>(
+          value: _communityVisibility,
+          decoration: const InputDecoration(labelText: 'Visibility'),
+          items: const [
+            DropdownMenuItem(value: 'public', child: Text('Public')),
+            DropdownMenuItem(value: 'private', child: Text('Private')),
+            DropdownMenuItem(value: 'paid', child: Text('Paid')),
+            DropdownMenuItem(value: 'invite', child: Text('Invite only')),
+          ],
+          onChanged: (v) => setState(() => _communityVisibility = v ?? 'public'),
+        ),
+        ForgeButton(label: 'Create community', onPressed: _createCommunity),
+        if (_communityId != null) ...[
+          const Divider(height: 32),
+          const Text('Community settings', style: TextStyle(fontWeight: FontWeight.w600)),
+          TextField(
+            controller: _editCommunityNameCtrl,
+            decoration: const InputDecoration(labelText: 'Community name'),
+          ),
+          TextField(
+            controller: _editCommunitySlugCtrl,
+            decoration: const InputDecoration(labelText: 'Slug'),
+          ),
+          DropdownButtonFormField<String>(
+            value: _editCommunityVisibility,
+            decoration: const InputDecoration(labelText: 'Visibility'),
+            items: const [
+              DropdownMenuItem(value: 'public', child: Text('Public')),
+              DropdownMenuItem(value: 'private', child: Text('Private')),
+              DropdownMenuItem(value: 'paid', child: Text('Paid')),
+              DropdownMenuItem(value: 'invite', child: Text('Invite only')),
+            ],
+            onChanged: (v) => setState(() => _editCommunityVisibility = v ?? 'public'),
+          ),
+          ForgeButton(label: 'Save community settings', onPressed: _saveCommunitySettings),
+          const Divider(height: 32),
+          const Text('Categories', style: TextStyle(fontWeight: FontWeight.w600)),
+          ..._categories.map((cat) {
+            final catId = cat['id'] as String?;
+            final editing = catId != null && catId == _editingCategoryId;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: editing
+                  ? Padding(
                       padding: const EdgeInsets.all(8),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (editing) ...[
-                            TextField(
-                              controller: _editChannelNameCtrl,
-                              decoration: const InputDecoration(labelText: 'Channel name'),
-                            ),
-                            DropdownButtonFormField<String>(
-                              value: _editChannelType ?? channelType,
-                              decoration: const InputDecoration(labelText: 'Type'),
-                              items: const [
-                                DropdownMenuItem(value: 'public', child: Text('Public')),
-                                DropdownMenuItem(value: 'subscribers', child: Text('Members only')),
-                                DropdownMenuItem(value: 'tier', child: Text('Tier gated')),
-                                DropdownMenuItem(value: 'invite', child: Text('Invite only')),
-                              ],
-                              onChanged: (v) => setState(() => _editChannelType = v),
-                            ),
-                            if (_categories.isNotEmpty)
-                              DropdownButtonFormField<String?>(
-                                value: _editChannelCategoryId,
-                                decoration: const InputDecoration(labelText: 'Category'),
-                                items: [
-                                  const DropdownMenuItem(value: null, child: Text('Uncategorized')),
-                                  ..._categories.map(
-                                    (c) => DropdownMenuItem(
-                                      value: c['id'] as String,
-                                      child: Text(c['name'] as String? ?? ''),
-                                    ),
-                                  ),
-                                ],
-                                onChanged: (v) => setState(() => _editChannelCategoryId = v),
-                              ),
-                            Row(
-                              children: [
-                                TextButton(
-                                  onPressed: () => _updateChannel(channelId),
-                                  child: const Text('Save'),
-                                ),
-                                TextButton(
-                                  onPressed: () => setState(() => _editingChannelId = null),
-                                  child: const Text('Cancel'),
-                                ),
-                              ],
-                            ),
-                          ] else ...[
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(ch['name'] as String? ?? ''),
-                            subtitle: Text('$channelType · #${ch['slug']}'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (index > 0)
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_upward, size: 18),
-                                    onPressed: () => _reorderChannels(index, index - 1),
-                                  ),
-                                if (index < _channels.length - 1)
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_downward, size: 18),
-                                    onPressed: () => _reorderChannels(index, index + 1),
-                                  ),
-                                IconButton(
-                                  icon: const Icon(Icons.edit, size: 18),
-                                  onPressed: channelId == null
-                                      ? null
-                                      : () {
-                                          setState(() {
-                                            _editingChannelId = channelId;
-                                            _editChannelNameCtrl.text = ch['name'] as String? ?? '';
-                                            _editChannelType = channelType;
-                                            _editChannelTierId = ch['requiredTierId'] as String?;
-                                            _editChannelCategoryId = ch['categoryId'] as String?;
-                                          });
-                                        },
-                                ),
-                              ],
-                            ),
+                          TextField(
+                            controller: _editCategoryNameCtrl,
+                            decoration: const InputDecoration(labelText: 'Category name'),
                           ),
-                          ],
-                          if (isInvite && channelId != null) ...[
-                            TextButton(
-                              onPressed: () => setState(() {
-                                _invitingChannelId =
-                                    _invitingChannelId == channelId ? null : channelId;
-                              }),
-                              child: Text(
-                                _invitingChannelId == channelId ? 'Cancel invite' : 'Invite member',
+                          Row(
+                            children: [
+                              TextButton(
+                                onPressed: () => _updateCategory(catId),
+                                child: const Text('Save'),
                               ),
-                            ),
-                            if (_invitingChannelId == channelId)
-                              DropdownButtonFormField<String>(
-                                decoration: const InputDecoration(labelText: 'Subscriber'),
-                                items: _subscribers
-                                    .map(
-                                      (s) => DropdownMenuItem(
-                                        value: s['userId'] as String? ?? s['id'] as String?,
-                                        child: Text(
-                                          s['displayName'] as String? ??
-                                              s['username'] as String? ??
-                                              'Member',
-                                        ),
-                                      ),
-                                    )
-                                    .where((item) => item.value != null)
-                                    .toList(),
-                                onChanged: (v) {
-                                  if (v != null) _inviteUserIdCtrl.text = v;
-                                },
+                              TextButton(
+                                onPressed: () => setState(() => _editingCategoryId = null),
+                                child: const Text('Cancel'),
                               ),
-                            if (_invitingChannelId == channelId)
-                              ForgeButton(
-                                label: 'Send invite',
-                                onPressed: () => _inviteToChannel(channelId),
-                              ),
-                          ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListTile(
+                      dense: true,
+                      title: Text(cat['name'] as String? ?? ''),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 20),
+                            onPressed: catId == null
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _editingCategoryId = catId;
+                                      _editCategoryNameCtrl.text = cat['name'] as String? ?? '';
+                                    });
+                                  },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 20),
+                            onPressed: catId == null ? null : () => _deleteCategory(catId),
+                          ),
                         ],
                       ),
                     ),
-                  );
-                }),
-                TextButton(onPressed: () => context.pop(), child: const Text('← Back to Studio')),
+            );
+          }),
+          TextField(
+            controller: _categoryNameCtrl,
+            decoration: const InputDecoration(labelText: 'New category name'),
+          ),
+          ForgeButton(label: 'Add category', onPressed: _createCategory),
+          const Divider(height: 32),
+          ForgeButton(label: 'Go live in community', onPressed: _goLiveInCommunity),
+        ],
+        TextButton(onPressed: () => context.pop(), child: const Text('← Back to Studio')),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Community'),
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabs: const [
+            Tab(text: 'Rooms'),
+            Tab(text: 'Members'),
+            Tab(text: 'Engagement'),
+            Tab(text: 'Moderation'),
+            Tab(text: 'Settings'),
+          ],
+        ),
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                StudioRoomsScreen(
+                  key: ValueKey('rooms-$_communityId'),
+                  embedded: true,
+                  fixedCommunityId: _communityId,
+                ),
+                _buildMembersTab(),
+                StudioEngagementScreen(
+                  key: ValueKey('engagement-$_communityId'),
+                  embedded: true,
+                  fixedCommunityId: _communityId,
+                ),
+                StudioModerationScreen(
+                  key: ValueKey('moderation-$_communityId'),
+                  embedded: true,
+                  fixedCommunityId: _communityId,
+                ),
+                _buildSettingsTab(),
               ],
             ),
     );

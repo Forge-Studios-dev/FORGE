@@ -25,8 +25,8 @@ export function CommunityWelcomeModal({ communityName, onDismiss }: Props) {
       <div className="w-full max-w-md rounded-2xl border border-outline-variant/30 bg-surface p-6 shadow-xl">
         <h2 className="text-lg font-semibold">Welcome to {communityName}</h2>
         <p className="mt-2 text-sm text-on-surface-variant">
-          You now have member access. Explore channels, join challenges, and connect in voice or text
-          rooms from the Engage tab.
+          You now have member access. Explore text and voice rooms, join events and challenges, and
+          connect with the community from the Rooms tab.
         </p>
         <Button
           className="mt-4 w-full"

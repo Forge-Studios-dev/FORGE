@@ -40,6 +40,8 @@ export default function StudioCourseDetailPage() {
   const [lessonTitle, setLessonTitle] = useState('');
   const [lessonContent, setLessonContent] = useState('');
   const [cohortName, setCohortName] = useState('');
+  const [cohortStart, setCohortStart] = useState('');
+  const [cohortEnd, setCohortEnd] = useState('');
 
   const { data: courses } = useQuery({
     queryKey: ['studio-courses', user?.id],
@@ -87,9 +89,9 @@ export default function StudioCourseDetailPage() {
     queryKey: ['course-cohorts', courseId],
     enabled: !!courseId && !!user?.id && isCreator,
     queryFn: async () => {
-      const { data } = await api.get<{ data: Array<{ id: string; name: string }> }>(
-        `/creators/me/courses/${courseId}/cohorts`,
-      );
+      const { data } = await api.get<{
+        data: Array<{ id: string; name: string; startsAt?: string | null; endsAt?: string | null }>;
+      }>(`/creators/me/courses/${courseId}/cohorts`);
       return data.data;
     },
   });
@@ -142,10 +144,14 @@ export default function StudioCourseDetailPage() {
     mutationFn: async () => {
       await api.post(`/creators/me/courses/${courseId}/cohorts`, {
         name: cohortName.trim(),
+        ...(cohortStart ? { startsAt: new Date(cohortStart).toISOString() } : {}),
+        ...(cohortEnd ? { endsAt: new Date(cohortEnd).toISOString() } : {}),
       });
     },
     onSuccess: () => {
       setCohortName('');
+      setCohortStart('');
+      setCohortEnd('');
       void qc.invalidateQueries({ queryKey: ['course-cohorts', courseId] });
     },
   });
@@ -263,8 +269,36 @@ export default function StudioCourseDetailPage() {
           onChange={(e) => setCohortName(e.target.value)}
           placeholder="Cohort name (e.g. Spring 2026)"
         />
+        <div className="flex flex-wrap gap-3">
+          <label className="flex-1 text-xs text-on-surface-variant">
+            Starts (optional)
+            <input
+              type="datetime-local"
+              value={cohortStart}
+              onChange={(e) => setCohortStart(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface"
+            />
+          </label>
+          <label className="flex-1 text-xs text-on-surface-variant">
+            Ends (optional)
+            <input
+              type="datetime-local"
+              value={cohortEnd}
+              min={cohortStart || undefined}
+              onChange={(e) => setCohortEnd(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface"
+            />
+          </label>
+        </div>
+        {cohortStart && cohortEnd && new Date(cohortEnd) <= new Date(cohortStart) ? (
+          <p className="text-xs text-error">End must be after start.</p>
+        ) : null}
         <Button
-          disabled={!cohortName.trim() || createCohortMutation.isPending}
+          disabled={
+            !cohortName.trim() ||
+            createCohortMutation.isPending ||
+            (!!cohortStart && !!cohortEnd && new Date(cohortEnd) <= new Date(cohortStart))
+          }
           onClick={() => createCohortMutation.mutate()}
         >
           Add cohort
@@ -273,7 +307,14 @@ export default function StudioCourseDetailPage() {
           <ul className="space-y-1 text-sm">
             {(cohorts ?? []).map((c) => (
               <li key={c.id} className="rounded-lg border border-outline-variant/30 px-3 py-2">
-                {c.name}
+                <span className="font-medium">{c.name}</span>
+                {c.startsAt || c.endsAt ? (
+                  <span className="ml-2 text-xs text-on-surface-variant">
+                    {c.startsAt ? new Date(c.startsAt).toLocaleDateString() : '—'}
+                    {' → '}
+                    {c.endsAt ? new Date(c.endsAt).toLocaleDateString() : '—'}
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>

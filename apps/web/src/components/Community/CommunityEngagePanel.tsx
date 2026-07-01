@@ -12,6 +12,21 @@ type Challenge = { id: string; title: string; description?: string | null };
 type SurveyQuestion = { question: string; type?: string; options?: string[] };
 type Survey = { id: string; title: string; questions: SurveyQuestion[] };
 type Room = { id: string; name: string; roomType: string; description?: string | null; settings?: { requiredTierId?: string } };
+type CommunityEvent = {
+  id: string;
+  seriesEventId: string;
+  title: string;
+  description?: string | null;
+  startsAt?: string;
+  occurrenceStartsAt: string;
+  occurrenceEndsAt?: string | null;
+  endsAt?: string | null;
+  location?: string | null;
+  isOnline?: boolean;
+  eventType?: string;
+  recurrenceRule?: string | null;
+  isRecurrenceInstance?: boolean;
+};
 
 const LIVEKIT_ENABLED = !!process.env.NEXT_PUBLIC_LIVEKIT_URL;
 
@@ -59,8 +74,28 @@ export function CommunityEngagePanel({ communityId }: Props) {
     },
   });
 
+  const { data: events } = useQuery({
+    queryKey: ['community-events', communityId],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: CommunityEvent[] }>(
+        `/communities/${communityId}/events`,
+      );
+      const payload = data.data;
+      return Array.isArray(payload) ? payload : [];
+    },
+  });
+
   const voiceRooms = (rooms ?? []).filter((r) => r.roomType !== 'text');
   const textRooms = (rooms ?? []).filter((r) => r.roomType === 'text');
+
+  const rsvpMutation = useMutation({
+    mutationFn: async (eventId: string) => {
+      await api.post(`/communities/${communityId}/events/${eventId}/rsvp`, { status: 'going' });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['community-events', communityId] });
+    },
+  });
 
   const joinMutation = useMutation({
     mutationFn: async (challengeId: string) => {
@@ -97,19 +132,64 @@ export function CommunityEngagePanel({ communityId }: Props) {
     (wikiPages ?? []).length > 0 ||
     (challenges ?? []).length > 0 ||
     (surveys ?? []).length > 0 ||
+    (events ?? []).length > 0 ||
     voiceRooms.length > 0 ||
     textRooms.length > 0;
 
   if (!hasContent) {
     return (
       <p className="text-sm text-on-surface-variant">
-        No wiki pages, challenges, surveys, or voice rooms yet — check back soon.
+        No rooms, events, wiki pages, challenges, or surveys yet — check back soon.
       </p>
     );
   }
 
   return (
     <div className="space-y-6">
+      {(events ?? []).length > 0 ? (
+        <section className="space-y-2">
+          <h3 className="font-label-caps text-xs text-outline">Events</h3>
+          <ul className="space-y-2">
+            {(events ?? []).map((event) => (
+              <li
+                key={`${event.seriesEventId}:${event.occurrenceStartsAt}`}
+                className="rounded-xl border border-outline-variant/30 px-4 py-3"
+              >
+                <p className="font-medium text-sm">
+                  {event.title}
+                  {event.eventType === 'recurring' ? (
+                    <span className="ml-2 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      Recurring
+                    </span>
+                  ) : null}
+                </p>
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  {new Date(event.occurrenceStartsAt).toLocaleString(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })}
+                  {event.isOnline ? ' · Online' : event.location ? ` · ${event.location}` : ''}
+                </p>
+                {event.description ? (
+                  <p className="mt-2 text-xs text-on-surface-variant">{event.description}</p>
+                ) : null}
+                {user ? (
+                  <Button
+                    variant="secondary"
+                    className="mt-2 text-xs"
+                    disabled={rsvpMutation.isPending}
+                    onClick={() => rsvpMutation.mutate(event.seriesEventId)}
+                  >
+                    RSVP
+                  </Button>
+                ) : (
+                  <p className="mt-2 text-xs text-on-surface-variant">Sign in to RSVP.</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {textRooms.length > 0 ? (
         <section className="space-y-2">
           <h3 className="font-label-caps text-xs text-outline">Text rooms</h3>

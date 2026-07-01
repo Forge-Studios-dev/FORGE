@@ -128,7 +128,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
           ),
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () => context.go('/explore'),
+            onPressed: () => context.push('/search'),
           ),
         ],
       ),

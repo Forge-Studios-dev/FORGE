@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/utils/csv_export_util.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../auth/data/auth_repository.dart';
 
@@ -22,6 +23,7 @@ class _StudioSubscribersScreenState extends ConsumerState<StudioSubscribersScree
   String? _grantCommunityId;
   final _grantDaysCtrl = TextEditingController(text: '30');
   bool _loading = true;
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -98,10 +100,45 @@ class _StudioSubscribersScreenState extends ConsumerState<StudioSubscribersScree
     }
   }
 
+  Future<void> _exportCsv() async {
+    setState(() => _exporting = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      await CsvExportUtil.downloadAndShare(
+        dio: client.dio,
+        apiPath: '/creators/me/subscribers/export',
+        filename: 'subscribers.csv',
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not export subscribers')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Subscribers')),
+      appBar: AppBar(
+        title: const Text('Subscribers'),
+        actions: [
+          TextButton.icon(
+            onPressed: _loading || _exporting ? null : _exportCsv,
+            icon: _exporting
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download_outlined, size: 18),
+            label: Text(_exporting ? 'Exporting…' : 'Export CSV'),
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

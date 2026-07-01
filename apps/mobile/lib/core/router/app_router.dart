@@ -17,6 +17,10 @@ import '../../features/live/presentation/live_screen.dart';
 import '../../features/live/presentation/live_watch_screen.dart';
 import '../../features/community/presentation/community_screen.dart';
 import '../../features/community/presentation/community_text_room_screen.dart';
+import '../../features/community/presentation/community_updates_screen.dart';
+import '../../features/playlists/presentation/playlists_screen.dart';
+import '../../features/playlists/presentation/playlist_detail_screen.dart';
+import '../../features/community/presentation/community_voice_room_screen.dart';
 import '../../features/watch/presentation/watch_screen.dart';
 import '../../features/explore/presentation/explore_screen.dart';
 import '../../features/studio/presentation/studio_screen.dart';
@@ -29,13 +33,15 @@ import '../../features/studio/presentation/studio_tiers_screen.dart';
 import '../../features/studio/presentation/studio_brands_screen.dart';
 import '../../features/studio/presentation/studio_subscribers_screen.dart';
 import '../../features/studio/presentation/studio_community_screen.dart';
-import '../../features/studio/presentation/studio_moderation_screen.dart';
 import '../../features/studio/presentation/studio_courses_screen.dart';
 import '../../features/studio/presentation/studio_course_detail_screen.dart';
 import '../../features/studio/presentation/course_viewer_screen.dart';
+import '../../features/courses/presentation/discover_courses_screen.dart';
 import '../../features/community/presentation/discover_communities_screen.dart';
-import '../../features/studio/presentation/studio_engagement_screen.dart';
-import '../../features/studio/presentation/studio_rooms_screen.dart';
+import '../../features/studio/presentation/studio_bundles_screen.dart';
+import '../../features/studio/presentation/studio_programs_screen.dart';
+import '../../features/studio/presentation/studio_copilot_screen.dart';
+import '../../features/profile/presentation/program_viewer_screen.dart';
 import '../../features/profile/presentation/my_memberships_screen.dart';
 import '../../features/profile/presentation/profile_settings_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
@@ -50,7 +56,7 @@ import 'auth_redirect.dart';
 import 'navigation_key.dart';
 
 const _storage = FlutterSecureStorage();
-const _protected = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/library', '/profile'];
+const _protected = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/library', '/profile', '/updates', '/playlists'];
 
 Future<String?> _redirect(BuildContext context, GoRouterState state) async {
   final path = state.matchedLocation;
@@ -61,6 +67,22 @@ Future<String?> _redirect(BuildContext context, GoRouterState state) async {
     return '/login?next=${Uri.encodeComponent(path)}';
   }
   return creatorRouteRedirect(path);
+}
+
+int _studioCommunityTabIndex(String? tab) {
+  switch (tab) {
+    case 'members':
+      return 1;
+    case 'engagement':
+      return 2;
+    case 'moderation':
+      return 3;
+    case 'settings':
+      return 4;
+    case 'rooms':
+    default:
+      return 0;
+  }
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -96,12 +118,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/studio/live', builder: (_, __) => const StudioLiveScreen()),
       GoRoute(path: '/studio/analytics', builder: (_, __) => const StudioAnalyticsScreen()),
       GoRoute(path: '/studio/tiers', builder: (_, __) => const StudioTiersScreen()),
+      GoRoute(path: '/studio/bundles', builder: (_, __) => const StudioBundlesScreen()),
       GoRoute(path: '/studio/brands', builder: (_, __) => const StudioBrandsScreen()),
       GoRoute(path: '/studio/subscribers', builder: (_, __) => const StudioSubscribersScreen()),
-      GoRoute(path: '/studio/community', builder: (_, __) => const StudioCommunityScreen()),
-      GoRoute(path: '/studio/engagement', builder: (_, __) => const StudioEngagementScreen()),
-      GoRoute(path: '/studio/rooms', builder: (_, __) => const StudioRoomsScreen()),
-      GoRoute(path: '/studio/moderation', builder: (_, __) => const StudioModerationScreen()),
+      GoRoute(
+        path: '/studio/community',
+        builder: (_, state) => StudioCommunityScreen(
+          initialTabIndex: _studioCommunityTabIndex(state.uri.queryParameters['tab']),
+        ),
+      ),
+      GoRoute(
+        path: '/studio/rooms',
+        redirect: (_, __) => '/studio/community?tab=rooms',
+      ),
+      GoRoute(
+        path: '/studio/engagement',
+        redirect: (_, __) => '/studio/community?tab=engagement',
+      ),
+      GoRoute(
+        path: '/studio/moderation',
+        redirect: (_, __) => '/studio/community?tab=moderation',
+      ),
+      GoRoute(path: '/studio/programs', builder: (_, __) => const StudioProgramsScreen()),
       GoRoute(path: '/studio/courses', builder: (_, __) => const StudioCoursesScreen()),
       GoRoute(
         path: '/studio/courses/:id',
@@ -112,12 +150,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => CourseViewerScreen(courseId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/discover/communities', builder: (_, __) => const DiscoverCommunitiesScreen()),
+      GoRoute(path: '/discover/courses', builder: (_, __) => const DiscoverCoursesScreen()),
       GoRoute(path: '/studio/settings', builder: (_, __) => const StudioSettingsScreen()),
+      GoRoute(path: '/studio/copilot', builder: (_, __) => const StudioCopilotScreen()),
       GoRoute(path: '/profile/settings', builder: (_, __) => const ProfileSettingsScreen()),
       GoRoute(path: '/settings/memberships', builder: (_, __) => const MyMembershipsScreen()),
       GoRoute(path: '/upload', builder: (_, __) => const UploadScreen()),
       GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
       GoRoute(path: '/messages', builder: (_, __) => const MessagesScreen()),
+      GoRoute(path: '/updates', builder: (_, __) => const CommunityUpdatesScreen()),
+      GoRoute(path: '/playlists', builder: (_, __) => const PlaylistsScreen()),
+      GoRoute(
+        path: '/playlists/:id',
+        builder: (_, state) => PlaylistDetailScreen(playlistId: state.pathParameters['id']!),
+      ),
       ShellRoute(
         builder: (context, state, child) => MainScaffold(child: child),
         routes: [
@@ -140,6 +186,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               following: true,
             ),
           ),
+          GoRoute(
+            path: '/profile/:username/programs/:slug',
+            builder: (_, state) => ProgramViewerScreen(
+              username: state.pathParameters['username']!,
+              slug: state.pathParameters['slug']!,
+            ),
+          ),
           GoRoute(path: '/live', builder: (_, __) => const LiveScreen()),
           GoRoute(
             path: '/live/:id',
@@ -148,6 +201,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/community/:communityId/text/:roomId',
             builder: (_, state) => CommunityTextRoomScreen(
+              communityId: state.pathParameters['communityId']!,
+              roomId: state.pathParameters['roomId']!,
+            ),
+          ),
+          GoRoute(
+            path: '/community/:communityId/voice/:roomId',
+            builder: (_, state) => CommunityVoiceRoomScreen(
               communityId: state.pathParameters['communityId']!,
               roomId: state.pathParameters['roomId']!,
             ),
@@ -164,6 +224,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(path: '/explore', builder: (_, __) => const ExploreScreen()),
+          GoRoute(
+            path: '/search',
+            builder: (_, state) => ExploreScreen(
+              initialQuery: state.uri.queryParameters['q'],
+              autofocusSearch: true,
+            ),
+          ),
           GoRoute(
             path: '/watch/:id',
             builder: (_, state) => WatchScreen(videoId: state.pathParameters['id']!),

@@ -22,21 +22,20 @@ fi
 
 NODE_ENV="${NODE_ENV:-development}"
 if [[ "$NODE_ENV" == "production" ]]; then
-  for var in JWT_SECRET JWT_REFRESH_SECRET MUX_WEBHOOK_SECRET DATABASE_URL; do
-    if [[ -z "${!var:-}" ]]; then
-      fail "production missing $var"
-    fi
-  done
-  if [[ "${JWT_SECRET:-}" == *change-this* ]] || [[ "${JWT_SECRET:-}" == your-super-secret* ]]; then
-    fail "JWT_SECRET still uses example placeholder"
+  # Authoritative env validation — runs the SAME schema the API enforces at boot
+  # (validateProductionEnv) so this gate can never diverge from runtime.
+  if ( cd "$ROOT/apps/api" && NODE_ENV=production npm run --silent check:prod-env ); then
+    ok "environment validation passed (authoritative schema)"
+  else
+    fail "environment validation failed (see errors above)"
   fi
+  # Infra/topology checks not expressible in the env schema:
   if [[ "${ENABLE_VIDEO_WORKER:-false}" == "true" && "${WORKER_ONLY:-false}" != "true" ]]; then
     fail "ENABLE_VIDEO_WORKER on API in production — use separate worker app"
   fi
   if [[ "${ALLOW_PROXY_UPLOAD:-false}" == "true" ]]; then
     warn "ALLOW_PROXY_UPLOAD=true in production (large uploads through API)"
   fi
-  ok "production env vars present"
 else
   ok "NODE_ENV=$NODE_ENV (skipping strict production secret checks)"
 fi
