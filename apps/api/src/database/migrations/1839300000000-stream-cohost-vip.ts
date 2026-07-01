@@ -8,7 +8,7 @@ export class StreamCohostVip1839300000000 implements MigrationInterface {
       `ALTER TABLE streams ADD COLUMN IF NOT EXISTS co_host_ids JSONB NOT NULL DEFAULT '[]'`,
     );
     await queryRunner.query(
-      `ALTER TABLE streams ADD COLUMN IF NOT EXISTS vip_tier_id UUID REFERENCES membership_tiers(id) ON DELETE SET NULL`,
+      `ALTER TABLE streams ADD COLUMN IF NOT EXISTS vip_tier_id UUID REFERENCES subscription_tiers(id) ON DELETE SET NULL`,
     );
   }
 
