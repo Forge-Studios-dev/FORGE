@@ -21,6 +21,7 @@ primary_region = 'bom'
   NODE_ENV = 'production'
   PORT = '3001'
   BILLING_PROVIDER = 'stripe'
+  MOCK_SUBSCRIPTIONS_ENABLED = 'true'
 
 [http_service]
   internal_port = 3001
