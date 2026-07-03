@@ -67,19 +67,19 @@ describe('billingProviderFactory', () => {
     ).toThrow(/not allowed in production/i);
   });
 
-  it('refuses to boot with stripe provider but missing secret key in real production', () => {
-    expect(() =>
-      billingProviderFactory(
-        makeConfig({
-          nodeEnv: 'production',
-          'entitlements.mockSubscriptionsEnabled': false,
-          'billing.provider': 'stripe',
-          'billing.stripeSecretKey': '   ',
-        }),
-        stub,
-        stripe,
-      ),
-    ).toThrow(/STRIPE_SECRET_KEY is not set/i);
+  it('boots with stripe provider but missing secret key — warns, does not throw', () => {
+    // Factory warns instead of throwing; StripePaymentProvider.client() throws at call time.
+    const provider = billingProviderFactory(
+      makeConfig({
+        nodeEnv: 'production',
+        'entitlements.mockSubscriptionsEnabled': false,
+        'billing.provider': 'stripe',
+        'billing.stripeSecretKey': '   ',
+      }),
+      stub,
+      stripe,
+    );
+    expect(provider).toBe(stripe);
   });
 
   it('boots with stripe provider and secret key in real production', () => {
