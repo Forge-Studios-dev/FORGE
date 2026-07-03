@@ -13,14 +13,14 @@ import { Stream } from '../streaming/entities/stream.entity';
 const billingProviderLogger = new Logger('BillingProvider');
 
 /**
- * Selects the active payment provider, failing fast on unsafe real-production config.
+ * Selects the active payment provider.
  *
- * The stub provider fakes successful payments (granting paid entitlements without
- * charging), so it must NEVER run in real production. The stub is only permitted
- * where mock subscriptions are enabled (`entitlements.mockSubscriptionsEnabled` —
- * true in dev and in staging via MOCK_SUBSCRIPTIONS_ENABLED=true). In real
- * production that flag is false, so we require BILLING_PROVIDER=stripe with a
- * secret key and refuse to boot otherwise rather than silently bypass billing.
+ * The stub provider fakes successful payments and must NEVER run in real production.
+ * It is only permitted where mock subscriptions are enabled (dev/staging). In
+ * production (MOCK_SUBSCRIPTIONS_ENABLED absent/false), BILLING_PROVIDER=stripe is
+ * required. If STRIPE_SECRET_KEY is missing the app still boots but billing calls
+ * fail at runtime (StripePaymentProvider.client() throws NotImplementedException).
+ * Configure via scripts/set-stripe-secrets-fly.sh.
  */
 export function billingProviderFactory(
   config: ConfigService,
@@ -41,8 +41,11 @@ export function billingProviderFactory(
     }
     const stripeKey = config.get<string>('billing.stripeSecretKey')?.trim();
     if (!stripeKey) {
-      throw new Error(
-        'Unsafe billing configuration: BILLING_PROVIDER=stripe but STRIPE_SECRET_KEY is not set.',
+      // StripePaymentProvider.client() throws NotImplementedException at call time
+      // when the key is absent — no need to crash at startup. Log loudly so ops can act on it.
+      billingProviderLogger.warn(
+        'BILLING_PROVIDER=stripe but STRIPE_SECRET_KEY is not set. ' +
+          'Billing calls will fail until configured. Run scripts/set-stripe-secrets-fly.sh.',
       );
     }
   }
