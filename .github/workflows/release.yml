@@ -136,11 +136,27 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
+      - name: Force-start worker machine (reset exhausted retry counter)
+        # fly deploy updates config but won't restart a machine stopped due to exhausted retries.
+        # Explicit restart resets the retry counter so the new [restart] policy takes effect.
+        run: |
+          MACHINE_ID=$(flyctl machines list -a forge-studios-worker --json 2>/dev/null \
+            | jq -r '.[0].id // empty')
+          if [ -n "$MACHINE_ID" ]; then
+            echo "Restarting machine $MACHINE_ID to reset retry counter"
+            flyctl machine restart "$MACHINE_ID" -a forge-studios-worker --skip-health-checks 2>&1 || \
+              flyctl machine start "$MACHINE_ID" -a forge-studios-worker 2>&1 || true
+          else
+            echo "No machine found — skipping restart"
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
       - name: Wait and check worker machine state
         if: always()
         run: |
-          echo "=== Waiting 15s for worker process to stabilise ==="
-          sleep 15
+          echo "=== Waiting 30s for worker process to stabilise ==="
+          sleep 30
           echo "=== Worker machine status ==="
           flyctl machines list -a forge-studios-worker --json 2>/dev/null \
             | jq -r '.[] | "id=\(.id) state=\(.state) updated=\(.updated_at)"' \
@@ -151,8 +167,8 @@ jobs:
       - name: Capture worker logs
         if: always()
         run: |
-          echo "=== forge-studios-worker logs (last 100 lines) ==="
-          flyctl logs -a forge-studios-worker --no-tail 2>&1 | tail -100 || true
+          echo "=== forge-studios-worker logs (most recent 80 lines) ==="
+          flyctl logs -a forge-studios-worker --no-tail 2>&1 | tail -80 || true
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
