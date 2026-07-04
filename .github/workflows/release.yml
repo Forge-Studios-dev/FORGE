@@ -136,6 +136,26 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
+      - name: Wait and check worker machine state
+        if: always()
+        run: |
+          echo "=== Waiting 15s for worker process to stabilise ==="
+          sleep 15
+          echo "=== Worker machine status ==="
+          flyctl machines list -a forge-studios-worker --json 2>/dev/null \
+            | jq -r '.[] | "id=\(.id) state=\(.state) updated=\(.updated_at)"' \
+            || flyctl machines list -a forge-studios-worker 2>/dev/null || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Capture worker logs
+        if: always()
+        run: |
+          echo "=== forge-studios-worker logs (last 100 lines) ==="
+          flyctl logs -a forge-studios-worker --no-tail 2>&1 | tail -100 || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
       - name: Rollback worker on deploy failure
         if: failure()
         run: |
