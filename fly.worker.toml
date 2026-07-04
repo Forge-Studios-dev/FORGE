@@ -15,7 +15,7 @@ primary_region = 'bom'
   BILLING_PROVIDER = 'stripe'
   VIDEO_TRANSCODE_PROVIDER = 'mux'
 
-[restart]
+[[restart]]
   policy = 'always'
   max_retries = 10
 
