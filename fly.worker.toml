@@ -12,6 +12,8 @@ primary_region = 'bom'
   NODE_ENV = 'production'
   WORKER_ONLY = 'true'
   PORT = '3001'
+  BILLING_PROVIDER = 'stripe'
+  VIDEO_TRANSCODE_PROVIDER = 'mux'
 
 [[vm]]
   memory = '2048mb'
