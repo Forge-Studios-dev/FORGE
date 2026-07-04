@@ -15,9 +15,11 @@ import { httpMetricsMiddleware } from './common/metrics/http-metrics.middleware'
 import { productionCorsOrigins } from './config/cors-origins';
 
 async function bootstrapWorker() {
+  // Use visible logging during DI so crashes appear in flyctl logs.
+  // bufferLogs=false ensures errors emit immediately even if DI fails mid-way.
   const app = await NestFactory.createApplicationContext(AppModule, {
-    logger: false,
-    bufferLogs: true,
+    logger: ['error', 'warn', 'log'],
+    bufferLogs: false,
   });
   validateProductionConfig(app.get(ConfigService));
   app.useLogger(app.get(Logger));
