@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
+import '../../../core/widgets/forge_card.dart';
 import '../data/upload_repository.dart';
 
 /// Categories with their selectable skill tags, used to satisfy the required
@@ -32,7 +33,7 @@ class UploadScreen extends ConsumerStatefulWidget {
   ConsumerState<UploadScreen> createState() => _UploadScreenState();
 }
 
-class _UploadScreenState extends ConsumerState<UploadScreen> {
+class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBindingObserver {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   PlatformFile? _file;
@@ -42,9 +43,34 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   bool _uploading = false;
   int _progress = 0;
   String? _error;
+  PendingUpload? _pendingResume;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkForResumableUpload();
+  }
+
+  Future<void> _checkForResumableUpload() async {
+    final pending = await ref.read(uploadRepositoryProvider).getPendingUpload();
+    if (mounted) setState(() => _pendingResume = pending);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Best-effort only: this does not keep the transfer running while
+    // backgrounded — it just records that it was interrupted so the UI can
+    // surface a clear "paused" state (and a resume path) instead of the
+    // upload silently failing. See UploadRepository.markBackgrounded.
+    if (state == AppLifecycleState.paused && _uploading) {
+      ref.read(uploadRepositoryProvider).markBackgrounded();
+    }
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _titleCtrl.dispose();
     _descCtrl.dispose();
     super.dispose();
@@ -116,15 +142,46 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
             },
           );
       if (!mounted) return;
+      setState(() => _pendingResume = null);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Upload complete — processing started.')),
       );
       context.go('/watch/$videoId');
     } catch (e) {
-      setState(() => _error = 'Upload failed. Check connection and try again.');
+      if (mounted) setState(() => _error = 'Upload failed. Check connection and try again.');
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
+  }
+
+  Future<void> _resumeUpload() async {
+    setState(() {
+      _uploading = true;
+      _error = null;
+      _progress = 0;
+    });
+    try {
+      final videoId = await ref.read(uploadRepositoryProvider).resumePendingUpload(
+            onProgress: (p) {
+              if (mounted) setState(() => _progress = p);
+            },
+          );
+      if (!mounted) return;
+      setState(() => _pendingResume = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Upload complete — processing started.')),
+      );
+      context.go('/watch/$videoId');
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Resume failed. Check connection and try again.');
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _discardResumableUpload() async {
+    await ref.read(uploadRepositoryProvider).clearResumableUpload();
+    if (mounted) setState(() => _pendingResume = null);
   }
 
   @override
@@ -140,6 +197,47 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Text(_error!, style: const TextStyle(color: ForgeTokens.error)),
+              ),
+            if (_pendingResume != null && !_uploading)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: ForgeCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _pendingResume!.backgrounded
+                            ? 'Upload paused — reopen the app to continue.'
+                            : 'You have an unfinished upload.',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: ForgeTokens.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _pendingResume!.title,
+                        style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ForgeButton(
+                              label: 'Resume upload',
+                              onPressed: _resumeUpload,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton(
+                            onPressed: _discardResumableUpload,
+                            child: const Text('Discard'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
             OutlinedButton.icon(
               onPressed: _uploading ? null : _pickFile,
