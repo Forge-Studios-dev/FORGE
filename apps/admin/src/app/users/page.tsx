@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@forge/design-system';
+import { DataTable, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { AdminSearchInput } from '@/components/admin/AdminSearchInput';
-import { AdminDataTable } from '@/components/admin/AdminDataTable';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import type { AdminUser } from '@/lib/admin-user-types';
 
@@ -24,7 +25,9 @@ export default function UsersPage() {
   const [activeFilter, setActiveFilter] = useState('');
   const [verifiedFilter, setVerifiedFilter] = useState('');
   const [reportedFilter, setReportedFilter] = useState('');
+  const [selected, setSelected] = useState<AdminUser[]>([]);
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-users', page, search, roleFilter, creatorFilter, activeFilter, verifiedFilter, reportedFilter],
@@ -42,12 +45,140 @@ export default function UsersPage() {
   });
 
   const updateRole = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: string }) =>
-      api.patch(`/admin/users/${id}`, { role }),
+    mutationFn: ({ id, role }: { id: string; role: string }) => api.patch(`/admin/users/${id}`, { role }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
   });
 
+  const bulkUpdate = useMutation({
+    mutationFn: (payload: { ids: string[]; role?: string; isActive?: boolean }) =>
+      api.patch('/admin/users/bulk', payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
+  });
+
+  /** Reverts each row to its own captured prior value — a bulk change isn't one value, so undo can't be either. */
+  async function undoBulk(snapshot: Array<{ id: string; role: string; isActive?: boolean }>) {
+    await Promise.all(
+      snapshot.map((row) => api.patch(`/admin/users/${row.id}`, { role: row.role, isActive: row.isActive })),
+    );
+    qc.invalidateQueries({ queryKey: ['admin-users'] });
+  }
+
+  function runBulk(action: { role?: string; isActive?: boolean; label: string }) {
+    const snapshot = selected.map((u) => ({ id: u.id, role: u.role, isActive: u.isActive }));
+    const ids = snapshot.map((s) => s.id);
+    bulkUpdate.mutate(
+      { ids, role: action.role, isActive: action.isActive },
+      {
+        onSuccess: () => {
+          toast({
+            title: `${action.label} — ${ids.length} user${ids.length === 1 ? '' : 's'}`,
+            variant: 'success',
+            action: { label: 'Undo', onClick: () => undoBulk(snapshot) },
+          });
+          setSelected([]);
+        },
+        onError: () => toast({ title: 'Bulk update failed', variant: 'critical' }),
+      },
+    );
+  }
+
   const users = data?.data as AdminUser[] | undefined;
+
+  const columns = useMemo<ColumnDef<AdminUser, unknown>[]>(
+    () => [
+      {
+        id: 'user',
+        header: 'User',
+        cell: ({ row }) => (
+          <Link href={`/users/${row.original.id}`} className="group block">
+            <p className="font-medium text-on-surface group-hover:text-primary">{row.original.displayName}</p>
+            <p className="text-xs text-outline">@{row.original.username}</p>
+          </Link>
+        ),
+      },
+      {
+        accessorKey: 'email',
+        header: 'Email',
+        cell: ({ getValue }) => <span className="text-on-surface-variant">{getValue<string>()}</span>,
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        cell: ({ row }) => {
+          const u = row.original;
+          if (u.isActive === false) return <span className="text-xs text-error">Blocked</span>;
+          if (u.isVerified) return <span className="text-xs text-secondary">Verified</span>;
+          return <span className="text-xs text-warning">Unverified</span>;
+        },
+      },
+      {
+        id: 'role',
+        header: 'Role',
+        cell: ({ row }) => {
+          const u = row.original;
+          return (
+            <div className="flex items-center gap-1">
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ROLE_CLASS[u.role] ?? ROLE_CLASS.user}`}>
+                {u.role}
+              </span>
+              {u.creatorStatus ? <span className="text-[10px] text-outline">({u.creatorStatus})</span> : null}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'stats',
+        header: 'Stats',
+        cell: ({ row }) => (
+          <span className="text-xs text-on-surface-variant">
+            {row.original.followerCount} followers · {row.original.videoCount} videos
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'createdAt',
+        header: 'Joined',
+        cell: ({ getValue }) => (
+          <span className="text-on-surface-variant">{new Date(getValue<string>()).toLocaleDateString()}</span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => {
+          const u = row.original;
+          return (
+            <select
+              value={u.role}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                const role = e.target.value;
+                if (role === u.role) return;
+                const prevRole = u.role;
+                updateRole.mutate(
+                  { id: u.id, role },
+                  {
+                    onSuccess: () =>
+                      toast({
+                        title: `@${u.username} role changed to ${role}`,
+                        variant: 'success',
+                        action: { label: 'Undo', onClick: () => updateRole.mutate({ id: u.id, role: prevRole }) },
+                      }),
+                  },
+                );
+              }}
+              className="rounded-lg border border-outline-variant bg-surface-container-low px-2 py-1 text-xs"
+            >
+              <option value="user">user</option>
+              <option value="creator">creator</option>
+              <option value="admin">admin</option>
+            </select>
+          );
+        },
+      },
+    ],
+    [updateRole, toast],
+  );
 
   if (isError) {
     return (
@@ -139,91 +270,57 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <AdminDataTable
-        headers={['User', 'Email', 'Status', 'Role', 'Stats', 'Joined', '']}
-        colCount={7}
-        isLoading={isLoading}
-        isEmpty={!isLoading && !users?.length}
-        emptyMessage="No users found."
-        footer={
-          data?.meta ? (
-            <AdminPagination
-              page={data.meta.page}
-              totalPages={data.meta.totalPages}
-              total={data.meta.total}
-              label="users"
-              onPrev={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => p + 1)}
-            />
-          ) : undefined
-        }
-      >
-        {users?.map((user) => (
-          <tr key={user.id} className="hover:bg-surface-container-high/30">
-            <td className="px-4 py-3">
-              <Link href={`/users/${user.id}`} className="group block">
-                <p className="font-medium text-on-surface group-hover:text-primary">{user.displayName}</p>
-                <p className="text-xs text-outline">@{user.username}</p>
-              </Link>
-            </td>
-            <td className="px-4 py-3 text-on-surface-variant">{user.email}</td>
-            <td className="px-4 py-3 text-xs">
-              {user.isActive === false ? (
-                <span className="text-error">Blocked</span>
-              ) : user.isVerified ? (
-                <span className="text-secondary">Verified</span>
-              ) : (
-                <span className="text-amber-700">Unverified</span>
-              )}
-            </td>
-            <td className="px-4 py-3">
-              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ROLE_CLASS[user.role] ?? ROLE_CLASS.user}`}>
-                {user.role}
-              </span>
-              {user.creatorStatus ? (
-                <span className="ml-1 text-[10px] text-outline">({user.creatorStatus})</span>
-              ) : null}
-            </td>
-            <td className="px-4 py-3 text-xs text-on-surface-variant">
-              {user.followerCount} followers · {user.videoCount} videos
-            </td>
-            <td className="px-4 py-3 text-on-surface-variant">
-              {new Date(user.createdAt).toLocaleDateString()}
-            </td>
-            <td className="px-4 py-3">
-              <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
-                <Link
-                  href={`/users/${user.id}`}
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  View profile
-                </Link>
-                <select
-                  value={user.role}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => {
-                    const role = e.target.value;
-                    if (role === 'admin' && !window.confirm(`Grant admin role to @${user.username}?`)) {
-                      e.target.value = user.role;
-                      return;
-                    }
-                    if (role !== user.role && !window.confirm(`Change @${user.username} role to ${role}?`)) {
-                      e.target.value = user.role;
-                      return;
-                    }
-                    updateRole.mutate({ id: user.id, role });
-                  }}
-                  className="rounded-lg border border-outline-variant bg-surface-container-low px-2 py-1 text-xs"
-                >
-                  <option value="user">user</option>
-                  <option value="creator">creator</option>
-                  <option value="admin">admin</option>
-                </select>
-              </div>
-            </td>
-          </tr>
-        ))}
-      </AdminDataTable>
+      <DataTable
+        columns={columns}
+        data={users ?? []}
+        getRowId={(u) => u.id}
+        loading={isLoading}
+        selectable
+        onSelectionChange={setSelected}
+        emptyState={{ title: 'No users found', description: 'Try adjusting your search or filters.' }}
+        bulkActions={() => (
+          <>
+            <button
+              type="button"
+              onClick={() => runBulk({ isActive: false, label: 'Blocked' })}
+              className="rounded-full border border-outline-variant px-3 py-1 text-xs font-semibold hover:border-critical hover:text-critical"
+            >
+              Block
+            </button>
+            <button
+              type="button"
+              onClick={() => runBulk({ isActive: true, label: 'Unblocked' })}
+              className="rounded-full border border-outline-variant px-3 py-1 text-xs font-semibold hover:border-success hover:text-success"
+            >
+              Unblock
+            </button>
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                runBulk({ role: e.target.value, label: `Role set to ${e.target.value}` });
+                e.target.value = '';
+              }}
+              className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-1 text-xs font-semibold"
+            >
+              <option value="">Set role…</option>
+              <option value="user">user</option>
+              <option value="creator">creator</option>
+              <option value="admin">admin</option>
+            </select>
+          </>
+        )}
+      />
+      {data?.meta ? (
+        <AdminPagination
+          page={data.meta.page}
+          totalPages={data.meta.totalPages}
+          total={data.meta.total}
+          label="users"
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => p + 1)}
+        />
+      ) : null}
     </section>
   );
 }

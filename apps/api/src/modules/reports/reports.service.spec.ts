@@ -1,6 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { In } from 'typeorm';
 import { ReportsService } from './reports.service';
 import { Report, ReportStatus, ReportTargetType } from './entities/report.entity';
 import { Video } from '../content/entities/video.entity';
@@ -167,6 +168,25 @@ describe('ReportsService', () => {
         reviewedAt: expect.any(Date),
       });
       expect(result).toEqual({ ok: true });
+    });
+  });
+
+  describe('bulkUpdateStatus', () => {
+    it('updates all ids in a single call', async () => {
+      const result = await service.bulkUpdateStatus(['r1', 'r2', 'r3'], ReportStatus.DISMISSED);
+
+      expect(reportRepository.update).toHaveBeenCalledTimes(1);
+      expect(reportRepository.update).toHaveBeenCalledWith(
+        { id: In(['r1', 'r2', 'r3']) },
+        { status: ReportStatus.DISMISSED, reviewedAt: expect.any(Date) },
+      );
+      expect(result).toEqual({ ok: true, updated: 3 });
+    });
+
+    it('no-ops on an empty id list', async () => {
+      const result = await service.bulkUpdateStatus([], ReportStatus.DISMISSED);
+      expect(reportRepository.update).not.toHaveBeenCalled();
+      expect(result).toEqual({ ok: true, updated: 0 });
     });
   });
 });

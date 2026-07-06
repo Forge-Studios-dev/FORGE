@@ -25,6 +25,7 @@ import { CategoriesService } from '../categories/categories.service';
 import { CreateCategoryDto } from '../categories/dto/create-category.dto';
 import { UpdateCategoryDto } from '../categories/dto/update-category.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
+import { BulkIdsDto, BulkRejectCreatorsDto, BulkUpdateReportsDto, BulkUpdateUsersDto } from './dto/bulk-admin.dto';
 import { AdminService } from './admin.service';
 import { DatabaseObservabilityService } from '../../database/database-observability.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -130,6 +131,13 @@ export class AdminController {
     return this.adminService.createImpersonation(admin.sub, id);
   }
 
+  @Patch('users/bulk')
+  @ApiOperation({ summary: 'Update role/status for multiple users at once (admin)' })
+  bulkUpdateUsers(@Body() dto: BulkUpdateUsersDto) {
+    const { ids, ...rest } = dto;
+    return this.adminService.bulkUpdateUsers(ids, rest);
+  }
+
   @Patch('users/:id')
   @ApiOperation({ summary: 'Update user role or status (admin)' })
   updateUser(@Param('id') id: string, @Body() dto: UpdateAdminUserDto) {
@@ -177,6 +185,18 @@ export class AdminController {
       data,
       meta: { total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) },
     };
+  }
+
+  @Post('creators/bulk-approve')
+  @ApiOperation({ summary: 'Approve multiple pending creator requests at once' })
+  bulkApproveCreators(@Body() dto: BulkIdsDto) {
+    return this.adminService.bulkApproveCreators(dto.ids);
+  }
+
+  @Post('creators/bulk-reject')
+  @ApiOperation({ summary: 'Reject multiple pending creator requests at once' })
+  bulkRejectCreators(@Body() dto: BulkRejectCreatorsDto) {
+    return this.adminService.bulkRejectCreators(dto.ids, dto.note);
   }
 
   @Post('creators/:id/approve')
@@ -266,6 +286,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Get a single report (admin)' })
   getReport(@Param('id') id: string) {
     return this.reportsService.findById(id);
+  }
+
+  @Patch('reports/bulk')
+  @ApiOperation({ summary: 'Update status for multiple reports at once (admin)' })
+  bulkUpdateReports(@Body() dto: BulkUpdateReportsDto) {
+    return this.reportsService.bulkUpdateStatus(dto.ids, dto.status);
   }
 
   @Patch('reports/:id')

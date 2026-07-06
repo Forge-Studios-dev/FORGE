@@ -34,12 +34,14 @@ export function StatCard({
   value,
   icon,
   trend,
+  hint,
   className = '',
 }: {
   label: string;
   value: ReactNode;
   icon?: string;
   trend?: Trend;
+  hint?: ReactNode;
   className?: string;
 }) {
   return (
@@ -52,6 +54,7 @@ export function StatCard({
         <span className="font-display-forge text-3xl font-bold tabular-nums leading-none">{value}</span>
         {trend ? <TrendPill trend={trend} /> : null}
       </div>
+      {hint ? <span className="text-xs text-secondary">{hint}</span> : null}
     </Card>
   );
 }

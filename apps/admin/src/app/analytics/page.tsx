@@ -2,8 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { PageHeader } from '@forge/design-system';
-import { AdminStatCard } from '@/components/AdminStatCard';
+import { PageHeader, StatCard } from '@forge/design-system';
 import { api } from '@/lib/api';
 
 export default function AnalyticsPage() {
@@ -41,10 +40,10 @@ export default function AnalyticsPage() {
       ) : (
         <>
           <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <AdminStatCard label="Total users" value={stats?.userCount ?? 0} icon="group" />
-            <AdminStatCard label="Total videos" value={stats?.videoCount ?? 0} icon="video_library" />
-            <AdminStatCard label="Published" value={stats?.readyVideoCount ?? 0} icon="visibility" />
-            <AdminStatCard
+            <StatCard label="Total users" value={stats?.userCount ?? 0} icon="group" />
+            <StatCard label="Total videos" value={stats?.videoCount ?? 0} icon="video_library" />
+            <StatCard label="Published" value={stats?.readyVideoCount ?? 0} icon="visibility" />
+            <StatCard
               label="Events ingested"
               value={analytics?.totalEvents ?? 0}
               icon="analytics"
