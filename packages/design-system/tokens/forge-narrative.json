@@ -24,7 +24,13 @@
     "tertiary": "#ffb869",
     "error": "#ffb4ab",
     "errorContainer": "#93000a",
-    "live": "#ff453a"
+    "live": "#ff453a",
+    "success": "#3ee6a4",
+    "onSuccess": "#003921",
+    "warning": "#f2b33d",
+    "onWarning": "#402d00",
+    "critical": "#ff453a",
+    "onCritical": "#3c0002"
   },
   "typography": {
     "displayForge": { "fontFamily": "Space Grotesk", "fontSize": "48px", "fontWeight": "700" },
