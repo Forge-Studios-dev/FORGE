@@ -145,7 +145,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/approval-rejected', builder: (_, __) => const ApprovalRejectedScreen()),
       GoRoute(path: '/offline', builder: (_, __) => const OfflineScreen()),
       GoRoute(path: '/maintenance', builder: (_, __) => const MaintenanceScreen()),
-      GoRoute(path: '/studio', builder: (_, __) => const StudioScreen()),
       GoRoute(path: '/studio/videos', builder: (_, __) => const StudioVideosScreen()),
       GoRoute(path: '/studio/comments', builder: (_, __) => const StudioCommentsScreen()),
       GoRoute(path: '/studio/live', builder: (_, __) => const StudioLiveScreen()),
@@ -201,6 +200,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => MainScaffold(child: child),
         routes: [
           GoRoute(path: '/feed', builder: (_, __) => const FeedScreen()),
+          // Studio root only — sub-screens (`/studio/videos`, etc.) stay as
+          // full-screen pushes outside the shell (see MainScaffold nav).
+          GoRoute(path: '/studio', builder: (_, __) => const StudioScreen()),
           GoRoute(
             path: '/profile/:username',
             builder: (_, state) => ProfileScreen(username: state.pathParameters['username']!),
