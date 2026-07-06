@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import Redis from 'ioredis';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import {
@@ -224,19 +224,31 @@ export class GamificationService {
   }
 
   private async maybeAwardLevelBadges(userId: string, communityId: string, level: number) {
-    for (const [threshold, key] of Object.entries(LEVEL_BADGES)) {
-      if (level >= Number(threshold)) {
-        await this.awardBadge(userId, communityId, key);
-      }
-    }
+    const qualifying = Object.entries(LEVEL_BADGES)
+      .filter(([threshold]) => level >= Number(threshold))
+      .map(([, key]) => key);
+    await this.awardBadgesBatch(userId, communityId, qualifying);
   }
 
   private async maybeAwardStreakBadges(userId: string, communityId: string, streak: number) {
-    for (const [threshold, key] of Object.entries(STREAK_BADGES)) {
-      if (streak >= Number(threshold)) {
-        await this.awardBadge(userId, communityId, key);
-      }
-    }
+    const qualifying = Object.entries(STREAK_BADGES)
+      .filter(([threshold]) => streak >= Number(threshold))
+      .map(([, key]) => key);
+    await this.awardBadgesBatch(userId, communityId, qualifying);
+  }
+
+  /** Awards all not-yet-held badges from `keys` in one read + one bulk insert instead of N sequential round-trips. */
+  private async awardBadgesBatch(userId: string, communityId: string, keys: string[]) {
+    if (keys.length === 0) return;
+    const existing = await this.badgeRepository.find({
+      where: { userId, communityId, badgeKey: In(keys) },
+    });
+    const existingKeys = new Set(existing.map((b) => b.badgeKey));
+    const missing = keys.filter((key) => !existingKeys.has(key));
+    if (missing.length === 0) return;
+    await this.badgeRepository.insert(
+      missing.map((badgeKey) => ({ userId, communityId, badgeKey })),
+    );
   }
 
   /**

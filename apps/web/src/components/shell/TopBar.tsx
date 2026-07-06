@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
@@ -150,8 +151,7 @@ export function TopBar() {
               className="ml-1 h-10 w-10 overflow-hidden rounded-full border border-subtle hover:border-primary bg-surface-container-high flex items-center justify-center"
             >
               {user?.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+                <Image src={user.avatarUrl} alt="" width={40} height={40} className="h-full w-full object-cover" />
               ) : (
                 <Icon name="person" className="text-on-surface-variant" />
               )}

@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { PageHeader } from '@forge/design-system';
+import { ListSkeleton, PageHeader } from '@forge/design-system';
 import { EmptyState } from '@/components/EmptyState';
-import { ListSkeleton } from '@/components/LoadingSkeleton';
 import { getRecentCommentsOnMyVideos } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
 import { timeAgo } from '@/lib/utils';

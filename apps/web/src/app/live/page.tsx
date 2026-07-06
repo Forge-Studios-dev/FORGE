@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState } from 'react';
-import { PageHeader } from '@forge/design-system';
+import { FeedGridSkeleton, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { Stream, User } from '@/types';
 import { resolveStreamPoster } from '@/lib/stream-poster';
 import { useAuth } from '@/lib/auth';
 import { EmptyState } from '@/components/EmptyState';
-import { FeedGridSkeleton } from '@/components/LoadingSkeleton';
 import { getApiErrorMessage } from '@/lib/api-message';
 import { useLiveStreamsQuery, useUpcomingStreamsQuery } from '@/hooks/useLiveStreamsQuery';
 
@@ -140,8 +140,13 @@ export default function LiveDirectoryPage() {
               >
                 <div className="relative aspect-video bg-surface-container-lowest">
                   {poster ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={poster} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                    <Image
+                      src={poster}
+                      alt=""
+                      fill
+                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                      className="object-cover"
+                    />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-sm text-outline">
                       Live

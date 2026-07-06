@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { FeedGrid } from '@/components/FeedCard/FeedGrid';
-import { FeedGridSkeleton } from '@/components/LoadingSkeleton';
+import { FeedGridSkeleton } from '@forge/design-system';
 import { CategoryFilter } from '@/components/CategoryFilter';
 import { HomeFeedSections } from '@/components/home/HomeFeedSections';
 import { LiveNowRail } from '@/components/home/LiveNowRail';

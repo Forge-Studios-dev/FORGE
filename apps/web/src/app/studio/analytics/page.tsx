@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { PageHeader } from '@forge/design-system';
+import { PageHeader, StatCardsSkeleton } from '@forge/design-system';
 import { EmptyState } from '@/components/EmptyState';
-import { StatCardsSkeleton } from '@/components/LoadingSkeleton';
 import { getMyVideos } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
 import { formatCount } from '@/lib/utils';
