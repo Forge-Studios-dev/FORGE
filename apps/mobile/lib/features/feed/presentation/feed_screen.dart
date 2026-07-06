@@ -6,6 +6,7 @@ import '../data/feed_repository.dart';
 import '../../history/data/history_repository.dart';
 import '../../../shared/models/video.dart';
 import '../../../core/widgets/forge_skeleton.dart';
+import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/motion/forge_motion.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -31,6 +32,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
   bool _hasMore = true;
   late TabController _tabController;
   int _tabIndex = 0;
+  bool _loadError = false;
 
   @override
   void initState() {
@@ -60,8 +62,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
           ..addAll(page.videos);
         _nextCursor = page.nextCursor;
         _hasMore = page.nextCursor != null;
+        _loadError = false;
       });
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _loadError = true);
+    }
   }
 
   Future<void> _loadMore() async {
@@ -133,7 +138,15 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
         ],
       ),
       body: _videos.isEmpty
-          ? const FeedSkeletonList(count: 2)
+          ? (_loadError
+              ? ForgeEmptyState(
+                  icon: Icons.wifi_off,
+                  title: 'Could not load feed',
+                  description: 'Check your connection and try again.',
+                  actionLabel: 'Retry',
+                  onAction: _loadInitial,
+                )
+              : const FeedSkeletonList(count: 2))
           : Column(
               children: [
                 cwAsync.when(
