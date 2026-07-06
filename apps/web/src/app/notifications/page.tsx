@@ -2,11 +2,10 @@
 
 import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PageHeader } from '@forge/design-system';
+import { ListSkeleton, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { Notification } from '@/types';
 import { EmptyState } from '@/components/EmptyState';
-import { ListSkeleton } from '@/components/LoadingSkeleton';
 import { useAuth } from '@/lib/auth';
 
 type NotificationsPage = {

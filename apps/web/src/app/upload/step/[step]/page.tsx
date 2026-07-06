@@ -349,6 +349,8 @@ export default function UploadStepPage() {
                   }}
                 />
                 {thumbnailPreview ? (
+                  // next/image can't optimize blob: object URLs (local file preview, never fetched over the network)
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={thumbnailPreview}
                     alt="Thumbnail preview"

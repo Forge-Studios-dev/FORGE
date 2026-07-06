@@ -52,6 +52,11 @@ describe('GamificationService', () => {
       badgeStore.push({ ...entity, id: entity.id ?? `badge-${badgeStore.length}` });
       return badgeStore[badgeStore.length - 1];
     }),
+    insert: jest.fn(async (entities: Partial<MemberBadge>[]) => {
+      for (const entity of entities) {
+        badgeStore.push({ ...entity, id: entity.id ?? `badge-${badgeStore.length}` } as MemberBadge);
+      }
+    }),
     create: jest.fn((dto: Partial<MemberXp>) => ({
       ...dto,
       id: 'xp-1',

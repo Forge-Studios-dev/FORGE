@@ -6,7 +6,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { DataSource } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import { AdminService } from './admin.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import {
@@ -174,6 +174,56 @@ describe('AdminService security', () => {
       expect(userRepository.update).toHaveBeenCalledWith(regularUser.id, { isActive: false });
       expect(authUserCache.bust).toHaveBeenCalledWith(regularUser.id);
       expect(authService.logoutAll).toHaveBeenCalledWith(regularUser.id);
+    });
+  });
+
+  describe('bulkUpdateUsers', () => {
+    it('issues one update for all ids, busts each cache, and revokes sessions on deactivation', async () => {
+      const result = await service.bulkUpdateUsers(['user-1', 'user-2'], { isActive: false });
+      expect(userRepository.update).toHaveBeenCalledTimes(1);
+      expect(userRepository.update).toHaveBeenCalledWith(
+        { id: In(['user-1', 'user-2']) },
+        { isActive: false },
+      );
+      expect(authUserCache.bust).toHaveBeenCalledWith('user-1');
+      expect(authUserCache.bust).toHaveBeenCalledWith('user-2');
+      expect(authService.logoutAll).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ ok: true, updated: 2 });
+    });
+
+    it('no-ops on an empty id list without touching the repository', async () => {
+      const result = await service.bulkUpdateUsers([], { role: UserRole.CREATOR });
+      expect(userRepository.update).not.toHaveBeenCalled();
+      expect(result).toEqual({ ok: true, updated: 0 });
+    });
+  });
+
+  describe('bulkApproveCreators', () => {
+    it('approves all ids in one update and emits a creator.approved event per id', async () => {
+      const result = await service.bulkApproveCreators(['creator-1', 'creator-2']);
+      expect(userRepository.update).toHaveBeenCalledTimes(1);
+      expect(userRepository.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ role: UserRole.CREATOR, isVerified: true }),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith('creator.approved', { userId: 'creator-1' });
+      expect(eventEmitter.emit).toHaveBeenCalledWith('creator.approved', { userId: 'creator-2' });
+      expect(result).toEqual({ ok: true, updated: 2 });
+    });
+  });
+
+  describe('bulkRejectCreators', () => {
+    it('rejects all ids in one update with a shared review note', async () => {
+      const result = await service.bulkRejectCreators(['creator-1'], 'Incomplete profile');
+      expect(userRepository.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ creatorReviewNote: 'Incomplete profile' }),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith('creator.rejected', {
+        userId: 'creator-1',
+        note: 'Incomplete profile',
+      });
+      expect(result).toEqual({ ok: true, updated: 1 });
     });
   });
 

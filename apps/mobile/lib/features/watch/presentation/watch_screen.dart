@@ -4,19 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:video_player/video_player.dart';
 
-import '../../../core/network/api_client.dart';
 import '../../../core/socket/forge_socket.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/widgets/forge_skeleton.dart';
 import '../../../shared/models/video.dart';
+import '../data/watch_repository.dart';
 
 final videoDetailProvider = FutureProvider.family.autoDispose<VideoModel, String>((ref, id) async {
-  final client = ref.read(apiClientProvider);
-  final response = await client.dio.get('/videos/$id');
-  final payload = response.data['data'] as Map<String, dynamic>;
-  return VideoModel.fromJson(payload);
+  return ref.read(watchRepositoryProvider).getVideo(id);
 });
 
 String _accessMessage(String? reason) {
@@ -189,12 +186,10 @@ class _ReportVideoButtonState extends ConsumerState<_ReportVideoButton> {
       return;
     }
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/reports', data: {
-        'targetType': 'video',
-        'targetId': widget.videoId,
-        'reason': reason,
-      });
+      await ref.read(watchRepositoryProvider).reportVideo(
+            videoId: widget.videoId,
+            reason: reason,
+          );
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -286,22 +281,19 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
 
   Future<void> _load({String? cursor}) async {
     try {
-      final client = ref.read(apiClientProvider);
-      final params = <String, dynamic>{'limit': 20};
-      if (cursor != null) params['cursor'] = cursor;
-      final res = await client.dio.get('/videos/${widget.videoId}/comments', queryParameters: params);
-      final payload = res.data['data'] as Map<String, dynamic>;
-      final data = payload['data'] as List<dynamic>? ?? [];
-      final meta = payload['meta'] as Map<String, dynamic>? ?? {};
+      final page = await ref.read(watchRepositoryProvider).getComments(
+            widget.videoId,
+            cursor: cursor,
+          );
       if (!mounted) return;
       setState(() {
         if (cursor != null) {
-          _comments = [..._comments, ...data];
+          _comments = [..._comments, ...page.comments];
         } else {
-          _comments = data;
+          _comments = page.comments;
         }
-        _nextCursor = meta['cursor'] as String?;
-        _hasMore = meta['hasMore'] == true;
+        _nextCursor = page.nextCursor;
+        _hasMore = page.hasMore;
         _loading = false;
       });
     } catch (_) {
@@ -322,10 +314,11 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
     try {
-      final client = ref.read(apiClientProvider);
-      final body = <String, dynamic>{'content': text};
-      if (_replyToId != null) body['parentId'] = _replyToId;
-      await client.dio.post('/videos/${widget.videoId}/comments', data: body);
+      await ref.read(watchRepositoryProvider).postComment(
+            widget.videoId,
+            content: text,
+            parentId: _replyToId,
+          );
       _ctrl.clear();
       setState(() => _replyToId = null);
       await _load();
@@ -342,12 +335,11 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
     final id = comment['id'] as String;
     final liked = comment['viewerLiked'] == true;
     try {
-      final client = ref.read(apiClientProvider);
-      if (liked) {
-        await client.dio.delete('/videos/${widget.videoId}/comments/$id/like');
-      } else {
-        await client.dio.post('/videos/${widget.videoId}/comments/$id/like');
-      }
+      await ref.read(watchRepositoryProvider).setCommentLiked(
+            widget.videoId,
+            id,
+            liked: liked,
+          );
       await _load();
     } catch (_) {}
   }
@@ -490,11 +482,10 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> {
 
   Future<void> _recordWatch({int progressSeconds = 0}) async {
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post(
-        '/videos/${widget.videoId}/watch',
-        data: {'progressSeconds': progressSeconds},
-      );
+      await ref.read(watchRepositoryProvider).recordWatch(
+            widget.videoId,
+            progressSeconds: progressSeconds,
+          );
     } catch (_) {}
   }
 
@@ -564,13 +555,7 @@ class _RelatedVideosSectionState extends ConsumerState<_RelatedVideosSection> {
 
   Future<void> _load() async {
     try {
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.get(
-        '/videos/${widget.videoId}/related',
-        queryParameters: const {'limit': 8},
-      );
-      final payload = res.data['data'] as Map<String, dynamic>;
-      final data = payload['data'] as List<dynamic>? ?? [];
+      final data = await ref.read(watchRepositoryProvider).getRelated(widget.videoId);
       if (!mounted) return;
       setState(() {
         _items = data;

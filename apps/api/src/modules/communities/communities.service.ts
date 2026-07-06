@@ -133,14 +133,10 @@ export class CommunitiesService {
         manager.create(Community, { creatorId, name: 'Community', slug: 'community' }),
       );
 
-      for (const def of DEFAULT_CHANNELS) {
-        await manager.save(
-          manager.create(Channel, {
-            communityId: community.id,
-            ...def,
-          }),
-        );
-      }
+      await manager.insert(
+        Channel,
+        DEFAULT_CHANNELS.map((def) => ({ communityId: community.id, ...def })),
+      );
 
       return community;
     });
@@ -329,14 +325,10 @@ export class CommunitiesService {
         }),
       );
 
-      for (const def of DEFAULT_CHANNELS) {
-        await manager.save(
-          manager.create(Channel, {
-            communityId: created.id,
-            ...def,
-          }),
-        );
-      }
+      await manager.insert(
+        Channel,
+        DEFAULT_CHANNELS.map((def) => ({ communityId: created.id, ...def })),
+      );
 
       return created;
     });

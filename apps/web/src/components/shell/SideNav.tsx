@@ -27,7 +27,10 @@ export function SideNav() {
           : '/studio';
 
   return (
-    <nav className="fixed left-0 top-16 z-40 hidden h-[calc(100vh-64px)] w-64 flex-col gap-2 border-r border-outline-variant/10 bg-surface-container-low/40 py-6 backdrop-blur-[20px] md:flex">
+    <nav
+      aria-label="Primary"
+      className="fixed left-0 top-16 z-40 hidden h-[calc(100vh-64px)] w-64 flex-col gap-2 border-r border-outline-variant/10 bg-surface-container-low/40 py-6 backdrop-blur-[20px] md:flex"
+    >
       <p className="font-label-caps mb-4 mt-2 px-6 text-outline">Navigation</p>
       {NAV.map((item) => {
         const href =
@@ -37,6 +40,7 @@ export function SideNav() {
           <Link
             key={item.href}
             href={href}
+            aria-current={active ? 'page' : undefined}
             className={`group flex items-center gap-4 px-6 py-3 transition-all ${
               active
                 ? 'border-r-2 border-primary bg-primary/5 text-primary'
@@ -50,6 +54,7 @@ export function SideNav() {
       })}
       <Link
         href={studioHref}
+        aria-current={pathname.startsWith('/studio') ? 'page' : undefined}
         className={`mt-auto flex items-center gap-4 px-6 py-3 transition-all ${
           pathname.startsWith('/studio')
             ? 'border-r-2 border-primary bg-primary/5 text-primary'

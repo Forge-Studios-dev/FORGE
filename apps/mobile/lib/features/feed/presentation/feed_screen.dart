@@ -6,8 +6,10 @@ import '../data/feed_repository.dart';
 import '../../history/data/history_repository.dart';
 import '../../../shared/models/video.dart';
 import '../../../core/widgets/forge_skeleton.dart';
+import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/motion/forge_motion.dart';
+import '../../gamification/data/gamification_repository.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 final feedProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) async {
@@ -31,6 +33,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
   bool _hasMore = true;
   late TabController _tabController;
   int _tabIndex = 0;
+  bool _loadError = false;
 
   @override
   void initState() {
@@ -60,8 +63,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
           ..addAll(page.videos);
         _nextCursor = page.nextCursor;
         _hasMore = page.nextCursor != null;
+        _loadError = false;
       });
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _loadError = true);
+    }
   }
 
   Future<void> _loadMore() async {
@@ -133,9 +139,18 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
         ],
       ),
       body: _videos.isEmpty
-          ? const FeedSkeletonList(count: 2)
+          ? (_loadError
+              ? ForgeEmptyState(
+                  icon: Icons.wifi_off,
+                  title: 'Could not load feed',
+                  description: 'Check your connection and try again.',
+                  actionLabel: 'Retry',
+                  onAction: _loadInitial,
+                )
+              : const FeedSkeletonList(count: 2))
           : Column(
               children: [
+                const _StreakXpChip(),
                 cwAsync.when(
                   loading: () => const SizedBox.shrink(),
                   error: (_, __) => const SizedBox.shrink(),
@@ -380,6 +395,56 @@ class _ActionButton extends StatelessWidget {
             style: const TextStyle(color: Colors.white, fontSize: 12),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Persistent streak/XP chip fed by the existing platform-wide gamification
+/// endpoint (GET /platform/gamification/me — apps/api gamification
+/// module), reused here rather than a new backend contract. Best-effort:
+/// hides silently on loading/error (e.g. guest browsing without a session),
+/// same pattern as the other feed sections below.
+class _StreakXpChip extends ConsumerWidget {
+  const _StreakXpChip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final xpAsync = ref.watch(platformXpProvider);
+    return xpAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (profile) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: ForgeTokens.surfaceContainer.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: ForgeTokens.outlineVariant.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.local_fire_department, size: 16, color: ForgeTokens.tertiary),
+                const SizedBox(width: 4),
+                Text(
+                  '${profile.streak}d streak',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.onSurface),
+                ),
+                const SizedBox(width: 10),
+                const Icon(Icons.bolt, size: 16, color: ForgeTokens.secondary),
+                const SizedBox(width: 4),
+                Text(
+                  '${profile.xp} XP · Lvl ${profile.level}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.onSurface),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

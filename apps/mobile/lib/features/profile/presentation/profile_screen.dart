@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/access/creator_status_provider.dart';
 import '../../../core/network/api_client.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../../shared/models/video.dart';
@@ -276,6 +277,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                     try {
                       await ref.read(authRepositoryProvider).requestCreator();
                       ref.invalidate(userProfileProvider('me'));
+                      ref.invalidate(creatorTierProvider);
                       if (context.mounted) context.go('/waiting-approval');
                     } catch (_) {
                       if (context.mounted) {

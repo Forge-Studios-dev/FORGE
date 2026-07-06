@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PageHeader } from '@forge/design-system';
+import type { ColumnDef } from '@tanstack/react-table';
+import { Button, PageHeader } from '@forge/design-system';
+import { DataTable, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { AdminSearchInput } from '@/components/admin/AdminSearchInput';
-import { AdminDataTable } from '@/components/admin/AdminDataTable';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 
 interface PendingCreator {
@@ -21,7 +22,10 @@ interface PendingCreator {
 export default function CreatorApprovalsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<PendingCreator[]>([]);
+  const [rejectNote, setRejectNote] = useState('');
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-creators-pending', page, search],
@@ -42,12 +46,117 @@ export default function CreatorApprovalsPage() {
   });
 
   const reject = useMutation({
-    mutationFn: ({ id, note }: { id: string; note?: string }) =>
-      api.post(`/admin/creators/${id}/reject`, { note }),
+    mutationFn: ({ id, note }: { id: string; note?: string }) => api.post(`/admin/creators/${id}/reject`, { note }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-creators-pending'] }),
   });
 
+  const bulkApprove = useMutation({
+    mutationFn: (ids: string[]) => api.post('/admin/creators/bulk-approve', { ids }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-creators-pending'] }),
+  });
+
+  const bulkReject = useMutation({
+    mutationFn: ({ ids, note }: { ids: string[]; note?: string }) =>
+      api.post('/admin/creators/bulk-reject', { ids, note }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-creators-pending'] }),
+  });
+
+  function runBulkApprove() {
+    const ids = selected.map((c) => c.id);
+    bulkApprove.mutate(ids, {
+      onSuccess: () => {
+        toast({ title: `Approved ${ids.length} creator${ids.length === 1 ? '' : 's'}`, variant: 'success' });
+        setSelected([]);
+      },
+      onError: () => toast({ title: 'Bulk approve failed', variant: 'critical' }),
+    });
+  }
+
+  function runBulkReject() {
+    const ids = selected.map((c) => c.id);
+    bulkReject.mutate(
+      { ids, note: rejectNote || undefined },
+      {
+        onSuccess: () => {
+          toast({ title: `Rejected ${ids.length} creator${ids.length === 1 ? '' : 's'}`, variant: 'success' });
+          setSelected([]);
+          setRejectNote('');
+        },
+        onError: () => toast({ title: 'Bulk reject failed', variant: 'critical' }),
+      },
+    );
+  }
+
   const creators = data?.data;
+
+  const columns = useMemo<ColumnDef<PendingCreator, unknown>[]>(
+    () => [
+      {
+        id: 'user',
+        header: 'User',
+        cell: ({ row }) => (
+          <Link href={`/users/${row.original.id}`} className="group block">
+            <p className="font-medium group-hover:text-primary">{row.original.displayName}</p>
+            <p className="text-xs text-outline">@{row.original.username}</p>
+          </Link>
+        ),
+      },
+      {
+        accessorKey: 'email',
+        header: 'Email',
+        cell: ({ getValue }) => <span className="text-on-surface-variant">{getValue<string>()}</span>,
+      },
+      {
+        accessorKey: 'creatorRequestedAt',
+        header: 'Requested',
+        cell: ({ getValue }) => {
+          const v = getValue<string | null>();
+          return <span className="text-on-surface-variant">{v ? new Date(v).toLocaleString() : '—'}</span>;
+        },
+      },
+      {
+        accessorKey: 'isVerified',
+        header: 'Verified',
+        cell: ({ getValue }) => (
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              getValue<boolean>() ? 'bg-secondary/10 text-secondary' : 'bg-surface-container-high text-outline'
+            }`}
+          >
+            {getValue<boolean>() ? 'verified' : 'unverified'}
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => {
+          const user = row.original;
+          return (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => approve.mutate(user.id)}
+                disabled={approve.isPending || reject.isPending}
+                className="rounded-full border border-secondary/40 bg-secondary/10 px-3 py-1 text-xs text-secondary hover:bg-secondary/20 disabled:opacity-50"
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                onClick={() => reject.mutate({ id: user.id, note: rejectNote || undefined })}
+                disabled={approve.isPending || reject.isPending}
+                className="rounded-full border border-error/40 px-3 py-1 text-xs text-error hover:bg-error/10 disabled:opacity-50"
+              >
+                Reject
+              </button>
+            </div>
+          );
+        },
+      },
+    ],
+    [approve, reject, rejectNote],
+  );
 
   return (
     <section>
@@ -63,72 +172,45 @@ export default function CreatorApprovalsPage() {
         />
       </div>
 
-      <AdminDataTable
-        headers={['User', 'Email', 'Requested', 'Verified', 'Actions']}
-        colCount={5}
-        isLoading={isLoading}
-        isEmpty={!isLoading && !creators?.length}
-        emptyMessage="No pending creator requests."
-        footer={
-          data?.meta ? (
-            <AdminPagination
-              page={data.meta.page}
-              totalPages={data.meta.totalPages}
-              total={data.meta.total}
-              label="pending"
-              onPrev={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => p + 1)}
+      <DataTable
+        columns={columns}
+        data={creators ?? []}
+        getRowId={(c) => c.id}
+        loading={isLoading}
+        selectable
+        onSelectionChange={setSelected}
+        emptyState={{ title: 'No pending creator requests', description: 'New applications will show up here.' }}
+        bulkActions={() => (
+          <>
+            <input
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              placeholder="Rejection note (optional, applies to reject actions)"
+              className="w-64 rounded-full border border-outline-variant bg-surface-container-low px-3 py-1 text-xs"
             />
-          ) : undefined
-        }
-      >
-        {creators?.map((user) => (
-          <tr key={user.id} className="hover:bg-surface-container-high/30">
-            <td className="px-4 py-3">
-              <Link href={`/users/${user.id}`} className="group block">
-                <p className="font-medium group-hover:text-primary">{user.displayName}</p>
-                <p className="text-xs text-outline">@{user.username}</p>
-              </Link>
-            </td>
-            <td className="px-4 py-3 text-on-surface-variant">{user.email}</td>
-            <td className="px-4 py-3 text-on-surface-variant">
-              {user.creatorRequestedAt ? new Date(user.creatorRequestedAt).toLocaleString() : '—'}
-            </td>
-            <td className="px-4 py-3">
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                  user.isVerified ? 'bg-secondary/10 text-secondary' : 'bg-surface-container-high text-outline'
-                }`}
-              >
-                {user.isVerified ? 'verified' : 'unverified'}
-              </span>
-            </td>
-            <td className="px-4 py-3">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => approve.mutate(user.id)}
-                  disabled={approve.isPending || reject.isPending}
-                  className="rounded-full border border-secondary/40 bg-secondary/10 px-3 py-1 text-xs text-secondary hover:bg-secondary/20 disabled:opacity-50"
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const note = window.prompt('Reason for rejection (optional):') || undefined;
-                    reject.mutate({ id: user.id, note });
-                  }}
-                  disabled={approve.isPending || reject.isPending}
-                  className="rounded-full border border-error/40 px-3 py-1 text-xs text-error hover:bg-error/10 disabled:opacity-50"
-                >
-                  Reject
-                </button>
-              </div>
-            </td>
-          </tr>
-        ))}
-      </AdminDataTable>
+            <Button variant="secondary" onClick={runBulkApprove} className="!px-3 !py-1 text-xs">
+              Approve
+            </Button>
+            <button
+              type="button"
+              onClick={runBulkReject}
+              className="rounded-full border border-outline-variant px-3 py-1 text-xs font-semibold hover:border-critical hover:text-critical"
+            >
+              Reject
+            </button>
+          </>
+        )}
+      />
+      {data?.meta ? (
+        <AdminPagination
+          page={data.meta.page}
+          totalPages={data.meta.totalPages}
+          total={data.meta.total}
+          label="pending"
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => p + 1)}
+        />
+      ) : null}
     </section>
   );
 }

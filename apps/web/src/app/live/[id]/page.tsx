@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -12,7 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
 import { EmptyState } from '@/components/EmptyState';
-import { SkeletonBlock } from '@/components/LoadingSkeleton';
+import { SkeletonBlock } from '@forge/design-system';
 import { resolveStreamPoster } from '@/lib/stream-poster';
 import { AgeGateModal } from '@/components/live/AgeGateModal';
 import { StreamCountdownLobby } from '@/components/live/StreamCountdownLobby';
@@ -231,8 +232,7 @@ export default function LiveWatchPage() {
     return (
       <div className="glass-panel relative aspect-video overflow-hidden">
         {posterUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={posterUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" />
+          <Image src={posterUrl} alt="" fill sizes="100vw" className="object-cover opacity-60" />
         ) : null}
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/50 px-6 text-center">
           <p className="text-sm font-medium text-on-surface">

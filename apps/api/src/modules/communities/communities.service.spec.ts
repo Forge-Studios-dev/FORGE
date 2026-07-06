@@ -108,16 +108,19 @@ describe('CommunitiesService', () => {
         }
         return x;
       });
+      const insert = jest.fn();
       const manager = {
         findOne: jest.fn().mockResolvedValue(null),
         save,
+        insert,
         create: jest.fn((_entity, x) => x),
       };
       const result = await work(manager);
-      (dataSource as { lastSave?: jest.Mock }).lastSave = save;
+      (dataSource as { lastSave?: jest.Mock; lastInsert?: jest.Mock }).lastSave = save;
+      (dataSource as { lastSave?: jest.Mock; lastInsert?: jest.Mock }).lastInsert = insert;
       return result;
     }),
-  } as { transaction: jest.Mock; lastSave?: jest.Mock };
+  } as { transaction: jest.Mock; lastSave?: jest.Mock; lastInsert?: jest.Mock };
 
   beforeEach(async () => {
     entitlementsService = {
@@ -181,9 +184,11 @@ describe('CommunitiesService', () => {
     await service.ensureCommunity('creator-1');
 
     expect(dataSource.transaction).toHaveBeenCalled();
-    expect(dataSource.lastSave).toHaveBeenCalledTimes(5);
-    expect(dataSource.lastSave).toHaveBeenCalledWith(
-      expect.objectContaining({ slug: 'premium-content', type: ChannelType.SUBSCRIBERS }),
+    expect(dataSource.lastSave).toHaveBeenCalledTimes(1);
+    expect(dataSource.lastInsert).toHaveBeenCalledTimes(1);
+    expect(dataSource.lastInsert).toHaveBeenCalledWith(
+      Channel,
+      expect.arrayContaining([expect.objectContaining({ slug: 'premium-content', type: ChannelType.SUBSCRIBERS })]),
     );
   });
 

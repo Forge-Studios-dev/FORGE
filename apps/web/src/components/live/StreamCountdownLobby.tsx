@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Stream } from '@/types';
@@ -60,10 +61,7 @@ export function StreamCountdownLobby({ stream }: Props) {
 
   return (
     <div className="glass-panel relative aspect-video overflow-hidden">
-      {poster ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={poster} alt="" className="absolute inset-0 h-full w-full object-cover opacity-50" />
-      ) : null}
+      {poster ? <Image src={poster} alt="" fill sizes="100vw" className="object-cover opacity-50" /> : null}
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/60 px-6 text-center">
         <p className="font-label-caps text-secondary">Scheduled session</p>
         <h2 className="font-display-forge text-xl font-semibold">{stream.title}</h2>

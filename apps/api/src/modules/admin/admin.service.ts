@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { CreatorStatus, User, UserRole } from '../users/entities/user.entity';
 import {
   ModerationStatus,
@@ -118,6 +118,58 @@ export class AdminService {
       await this.authService.logoutAll(id);
     }
     return this.findUserById(id);
+  }
+
+  /** Bulk role/status change — one UPDATE for all rows, then per-user cache bust (unavoidable, cache is keyed per user). */
+  async bulkUpdateUsers(ids: string[], dto: UpdateAdminUserDto) {
+    if (ids.length === 0) return { ok: true, updated: 0 };
+    await this.userRepository.update({ id: In(ids) }, dto);
+    await Promise.all(ids.map((id) => this.authUserCache.bust(id)));
+    if (dto.isActive === false) {
+      await Promise.all(ids.map((id) => this.authService.logoutAll(id)));
+    }
+    return { ok: true, updated: ids.length };
+  }
+
+  async bulkApproveCreators(ids: string[]) {
+    if (ids.length === 0) return { ok: true, updated: 0 };
+    await this.userRepository.update(
+      { id: In(ids) },
+      {
+        role: UserRole.CREATOR,
+        creatorStatus: CreatorStatus.APPROVED,
+        creatorReviewedAt: new Date(),
+        creatorReviewNote: null,
+        isVerified: true,
+      },
+    );
+    await Promise.all(
+      ids.map(async (id) => {
+        await this.authUserCache.bust(id);
+        this.eventEmitter.emit('creator.approved', { userId: id });
+      }),
+    );
+    return { ok: true, updated: ids.length };
+  }
+
+  async bulkRejectCreators(ids: string[], note?: string) {
+    if (ids.length === 0) return { ok: true, updated: 0 };
+    await this.userRepository.update(
+      { id: In(ids) },
+      {
+        role: UserRole.CREATOR,
+        creatorStatus: CreatorStatus.REJECTED,
+        creatorReviewedAt: new Date(),
+        creatorReviewNote: note ?? null,
+      },
+    );
+    await Promise.all(
+      ids.map(async (id) => {
+        await this.authUserCache.bust(id);
+        this.eventEmitter.emit('creator.rejected', { userId: id, note: note ?? null });
+      }),
+    );
+    return { ok: true, updated: ids.length };
   }
 
   async createImpersonation(adminId: string, targetUserId: string) {

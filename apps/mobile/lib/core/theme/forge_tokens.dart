@@ -20,4 +20,16 @@ abstract final class ForgeTokens {
   static const tertiary = Color(0xFFFFB869);
   static const error = Color(0xFFFFB4AB);
   static const live = Color(0xFFFF453A);
+
+  // Semantic status colors — separate from brand accent colors, mirroring
+  // packages/design-system/tokens/forge-narrative.json (added on the
+  // design-system-phase1 branch alongside the shared Card/DataTable/Toast
+  // components) so mobile stays visually consistent with web/admin once
+  // that work lands here too.
+  static const success = Color(0xFF3EE6A4);
+  static const onSuccess = Color(0xFF003921);
+  static const warning = Color(0xFFF2B33D);
+  static const onWarning = Color(0xFF402D00);
+  static const critical = Color(0xFFFF453A);
+  static const onCritical = Color(0xFF3C0002);
 }

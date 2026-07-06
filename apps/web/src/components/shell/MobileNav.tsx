@@ -27,7 +27,10 @@ export function MobileNav() {
   const nav = [...BASE_NAV, lastItem];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-outline-variant/20 bg-surface-container-low/90 backdrop-blur-[30px] md:hidden">
+    <nav
+      aria-label="Primary"
+      className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-outline-variant/20 bg-surface-container-low/90 backdrop-blur-[30px] md:hidden"
+    >
       {nav.map((item) => {
         const href =
           'guestHref' in item && isGuest ? item.guestHref : item.href;
@@ -40,6 +43,7 @@ export function MobileNav() {
           <Link
             key={item.href}
             href={href}
+            aria-current={active ? 'page' : undefined}
             className={className}
           >
             <Icon name={item.icon} filled={active} className="text-xl" />

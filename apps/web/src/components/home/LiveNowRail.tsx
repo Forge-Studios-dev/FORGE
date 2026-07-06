@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { LiveBadge } from '@forge/design-system';
 import { User } from '@/types';
 import { resolveStreamPoster } from '@/lib/stream-poster';
@@ -31,8 +32,13 @@ export function LiveNowRail() {
             >
               <div className="relative aspect-video bg-surface-container-high">
                 {poster ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={poster} alt="" className="h-full w-full object-cover" />
+                  <Image
+                    src={poster}
+                    alt=""
+                    fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                    className="object-cover"
+                  />
                 ) : null}
                 <span className="absolute left-3 top-3">
                   <LiveBadge />

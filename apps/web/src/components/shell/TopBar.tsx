@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
@@ -40,6 +41,16 @@ export function TopBar() {
     },
   });
 
+  const { data: streak } = useQuery({
+    queryKey: ['platform-gamification-me'],
+    enabled: !!accessToken && canEngage,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: { streak: number } }>('/platform/gamification/me');
+      return data.data.streak;
+    },
+  });
+
   useEffect(() => {
     if (!accessToken || !canEngage) return;
     const socket = getSocket(accessToken);
@@ -73,6 +84,7 @@ export function TopBar() {
         <Icon name="search" className="absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary" />
         <input
           name="q"
+          aria-label="Search skills, creators, or topics"
           className="w-full rounded-full border border-subtle bg-surface-container-low py-2 pl-12 pr-4 text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           placeholder="Search skills, creators, or topics..."
         />
@@ -111,9 +123,24 @@ export function TopBar() {
               </Link>
             )}
             {canUpload && (
-              <Link href="/upload" className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50" title="Upload">
+              <Link
+                href="/upload"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50"
+                title="Upload"
+                aria-label="Upload"
+              >
                 <Icon name="add_circle" />
               </Link>
+            )}
+            {canEngage && !!streak && streak > 0 && (
+              <span
+                className="hidden items-center gap-1 rounded-full border border-outline-variant/40 px-3 py-1.5 text-xs font-semibold text-tertiary md:flex"
+                title={`${streak}-day streak`}
+                aria-label={`${streak}-day streak`}
+              >
+                <Icon name="local_fire_department" className="text-sm" />
+                {streak}
+              </span>
             )}
             {canEngage && (
               <>
@@ -147,11 +174,11 @@ export function TopBar() {
             )}
             <Link
               href={user?.username ? `/${user.username}` : '/profile'}
+              aria-label="Your profile"
               className="ml-1 h-10 w-10 overflow-hidden rounded-full border border-subtle hover:border-primary bg-surface-container-high flex items-center justify-center"
             >
               {user?.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+                <Image src={user.avatarUrl} alt="" width={40} height={40} className="h-full w-full object-cover" />
               ) : (
                 <Icon name="person" className="text-on-surface-variant" />
               )}
@@ -161,7 +188,11 @@ export function TopBar() {
             </button>
           </>
         )}
-        <Link href="/search" className="flex h-10 w-10 items-center justify-center text-on-surface-variant md:hidden">
+        <Link
+          href="/search"
+          aria-label="Search"
+          className="flex h-10 w-10 items-center justify-center text-on-surface-variant md:hidden"
+        >
           <Icon name="search" />
         </Link>
       </div>

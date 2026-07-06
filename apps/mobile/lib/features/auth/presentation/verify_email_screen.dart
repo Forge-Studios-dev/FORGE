@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/access/creator_status_provider.dart';
 import '../../../core/network/api_client.dart';
 import '../data/auth_repository.dart';
 import '../../profile/presentation/profile_screen.dart';
@@ -38,6 +39,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       await client.dio.get('/auth/verify-email', queryParameters: {'token': token});
       await ref.read(authRepositoryProvider).refreshStoredUser();
       ref.invalidate(userProfileProvider('me'));
+      ref.invalidate(creatorTierProvider);
       if (!mounted) return;
       setState(() {
         _status = 'ok';

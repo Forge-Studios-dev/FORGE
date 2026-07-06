@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { isImageMediaUrl, isVideoEmbedUrl, toVideoEmbedSrc } from '@/lib/community-media';
 
 type Props = {
@@ -50,10 +51,9 @@ export function CommunityPostMedia({ urls }: Props) {
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="block overflow-hidden rounded-lg border border-outline-variant/30"
+              className="relative block h-48 w-full overflow-hidden rounded-lg border border-outline-variant/30"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt="" className="max-h-48 w-full object-cover" />
+              <Image src={url} alt="" fill sizes="(min-width: 640px) 50vw, 100vw" className="object-cover" />
             </a>
           );
         }

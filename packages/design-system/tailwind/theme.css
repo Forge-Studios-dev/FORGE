@@ -23,6 +23,12 @@
   --color-error: #ffb4ab;
   --color-error-container: #93000a;
   --color-live: #ff453a;
+  --color-success: #3ee6a4;
+  --color-on-success: #003921;
+  --color-warning: #f2b33d;
+  --color-on-warning: #402d00;
+  --color-critical: #ff453a;
+  --color-on-critical: #3c0002;
   --font-display-forge: var(--font-space-grotesk, 'Space Grotesk'), system-ui, sans-serif;
   --font-body: var(--font-inter, 'Inter'), system-ui, sans-serif;
   --font-label: var(--font-geist, 'Geist'), ui-monospace, monospace;

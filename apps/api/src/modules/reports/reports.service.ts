@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Report, ReportStatus, ReportTargetType } from './entities/report.entity';
 import { CreateReportDto } from './dto/create-report.dto';
 import { Video } from '../content/entities/video.entity';
@@ -87,5 +87,11 @@ export class ReportsService {
       reviewedAt: new Date(),
     });
     return { ok: true };
+  }
+
+  async bulkUpdateStatus(ids: string[], status: ReportStatus) {
+    if (ids.length === 0) return { ok: true, updated: 0 };
+    await this.reportRepository.update({ id: In(ids) }, { status, reviewedAt: new Date() });
+    return { ok: true, updated: ids.length };
   }
 }

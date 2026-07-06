@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Video } from '@/types';
 import { FeedCard } from '@/components/FeedCard/FeedCard';
-import { HorizontalCardSkeleton } from '@/components/LoadingSkeleton';
+import { HorizontalCardSkeleton } from '@forge/design-system';
 
 export function ContinueWatching() {
   const { user, isGuest, isLoading: authLoading } = useAuth();
