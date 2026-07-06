@@ -10,6 +10,8 @@ import '../../features/auth/presentation/reset_password_screen.dart';
 import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/auth/presentation/waiting_approval_screen.dart';
 import '../../features/auth/presentation/approval_rejected_screen.dart';
+import '../../features/onboarding/presentation/splash_screen.dart';
+import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/feed/presentation/feed_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
@@ -58,15 +60,44 @@ import 'navigation_key.dart';
 const _storage = FlutterSecureStorage();
 const _protected = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/library', '/profile', '/updates', '/playlists'];
 
+// Screens a first-time signed-in user must still be able to reach even
+// before completing onboarding (auth flows, the onboarding screen itself,
+// and status/utility screens). Everything else funnels through
+// `/onboarding` once, right after auth and before landing on `/feed`.
+const _onboardingExempt = [
+  '/splash',
+  '/onboarding',
+  '/login',
+  '/signup',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
+  '/waiting-approval',
+  '/approval-rejected',
+  '/offline',
+  '/maintenance',
+];
+
 Future<String?> _redirect(BuildContext context, GoRouterState state) async {
   final path = state.matchedLocation;
   final needsAuth = _protected.any((p) => path == p || path.startsWith('$p/'));
-  if (!needsAuth) return null;
   final token = await _storage.read(key: AppConstants.accessTokenKey);
-  if (token == null || token.isEmpty) {
+  final hasSession = token != null && token.isNotEmpty;
+
+  if (needsAuth && !hasSession) {
     return '/login?next=${Uri.encodeComponent(path)}';
   }
-  return creatorRouteRedirect(path);
+
+  if (hasSession &&
+      !_onboardingExempt.any((p) => path == p || path.startsWith('$p/'))) {
+    final onboardingDone = await _storage.read(key: AppConstants.onboardingCompleteKey);
+    if (onboardingDone != 'true') {
+      return '/onboarding';
+    }
+  }
+
+  if (needsAuth) return creatorRouteRedirect(path);
+  return null;
 }
 
 int _studioCommunityTabIndex(String? tab) {
@@ -88,9 +119,11 @@ int _studioCommunityTabIndex(String? tab) {
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: '/feed',
+    initialLocation: '/splash',
     redirect: _redirect,
     routes: [
+      GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
+      GoRoute(path: '/onboarding', builder: (_, __) => const OnboardingScreen()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/signup', builder: (_, __) => const SignupScreen()),
       GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
