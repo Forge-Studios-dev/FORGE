@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
-import { ConfirmDialog, DataTable, Tabs } from '@forge/design-system/client';
+import { ConfirmDialog, DataTable, Tabs, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import type {
@@ -41,6 +41,7 @@ export default function AdminUserDetailPage() {
   const tab = (searchParams.get('tab') as TabId) || 'overview';
   const qc = useQueryClient();
   const webBase = process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000';
+  const { toast } = useToast();
 
   const [videoPage, setVideoPage] = useState(1);
   const [videoStatus, setVideoStatus] = useState('');
@@ -77,7 +78,7 @@ export default function AdminUserDetailPage() {
   const resendVerification = useMutation({
     mutationFn: () => api.post(`/admin/users/${userId}/resend-verification`),
     onSuccess: () => {
-      window.alert('Verification email sent (if SMTP is configured).');
+      toast({ title: 'Verification email sent', description: '(if SMTP is configured)', variant: 'success' });
     },
   });
 
