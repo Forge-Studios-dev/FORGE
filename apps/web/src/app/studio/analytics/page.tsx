@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { PageHeader, StatCardsSkeleton } from '@forge/design-system';
-import { EmptyState } from '@/components/EmptyState';
+import { EmptyState, PageHeader, StatCardsSkeleton, StatusPill, type StatusTone } from '@forge/design-system';
 import { getMyVideos } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
 import { formatCount } from '@/lib/utils';
@@ -63,6 +62,11 @@ export default function StudioAnalyticsPage() {
       const { data } = await api.get<{
         data: {
           periodDays: number;
+          kpis: {
+            churnRate30d: number;
+            canceledLast30Days: number;
+            engagementScore: number;
+          };
           funnel: Array<{
             stage: string;
             label: string;
@@ -96,6 +100,13 @@ export default function StudioAnalyticsPage() {
       return data.data;
     },
   });
+
+  // Thresholds mirror docs/CREATOR_KPI_DEFINITIONS.md §9 (KPI alert thresholds) —
+  // keep in sync if those thresholds change.
+  const churnStatus = (rate: number): { label: string; tone: StatusTone } =>
+    rate > 15 ? { label: 'Critical', tone: 'critical' } : rate > 8 ? { label: 'Watch', tone: 'warning' } : { label: 'Healthy', tone: 'success' };
+  const engagementStatus = (score: number): { label: string; tone: StatusTone } =>
+    score < 15 ? { label: 'Critical', tone: 'critical' } : score < 30 ? { label: 'Watch', tone: 'warning' } : { label: 'Healthy', tone: 'success' };
 
   const exportMutation = useMutation({
     mutationFn: async () => {
@@ -140,6 +151,42 @@ export default function StudioAnalyticsPage() {
           <article className="glass-panel rounded-xl p-5">
             <p className="text-sm text-on-surface-variant">Canceled</p>
             <p className="font-display-forge mt-1 text-2xl font-bold">{subscriberStats.canceled}</p>
+          </article>
+        </div>
+      ) : null}
+
+      {businessAnalytics?.kpis ? (
+        <div className="mb-8 grid gap-4 sm:grid-cols-2">
+          <article className="glass-panel rounded-xl p-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-on-surface-variant">Churn (30d)</p>
+              <StatusPill
+                tone={churnStatus(businessAnalytics.kpis.churnRate30d).tone}
+                label={churnStatus(businessAnalytics.kpis.churnRate30d).label}
+              />
+            </div>
+            <p className="font-display-forge mt-1 text-2xl font-bold">
+              {businessAnalytics.kpis.churnRate30d}%
+            </p>
+            <p className="mt-1 text-xs text-on-surface-variant">
+              {businessAnalytics.kpis.canceledLast30Days} cancellation
+              {businessAnalytics.kpis.canceledLast30Days === 1 ? '' : 's'} in the last 30 days
+            </p>
+          </article>
+          <article className="glass-panel rounded-xl p-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-on-surface-variant">Engagement score</p>
+              <StatusPill
+                tone={engagementStatus(businessAnalytics.kpis.engagementScore).tone}
+                label={engagementStatus(businessAnalytics.kpis.engagementScore).label}
+              />
+            </div>
+            <p className="font-display-forge mt-1 text-2xl font-bold">
+              {businessAnalytics.kpis.engagementScore}/100
+            </p>
+            <p className="mt-1 text-xs text-on-surface-variant">
+              Active chatters, post authors &amp; course enrollments vs. member base
+            </p>
           </article>
         </div>
       ) : null}

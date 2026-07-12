@@ -11,3 +11,6 @@ export { FeedGridSkeleton, HorizontalCardSkeleton, ListSkeleton, SkeletonBlock, 
 export { Card, StatCard, ProfileCard } from './react/Card';
 export { StatusPill } from './react/StatusPill';
 export type { StatusTone } from './react/StatusPill';
+export { PaywallCard } from './react/PaywallCard';
+export { AlertStrip } from './react/AlertStrip';
+export type { AlertStripItem } from './react/AlertStrip';

@@ -4,16 +4,16 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { PageHeader } from '@forge/design-system';
+import { PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { DataTable, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import type { AdminReport } from '@/lib/admin-user-types';
 
-const STATUS_CLASS: Record<string, string> = {
-  pending: 'bg-warning/15 text-warning',
-  reviewed: 'bg-success/15 text-success',
-  dismissed: 'bg-surface-container-high text-on-surface-variant',
+const STATUS_TONE: Record<string, StatusTone> = {
+  pending: 'warning',
+  reviewed: 'success',
+  dismissed: 'neutral',
 };
 
 export default function ReportsPage() {
@@ -91,11 +91,7 @@ export default function ReportsPage() {
         header: 'Status',
         cell: ({ getValue }) => {
           const status = getValue<string>();
-          return (
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[status] ?? STATUS_CLASS.pending}`}>
-              {status}
-            </span>
-          );
+          return <StatusPill tone={STATUS_TONE[status] ?? STATUS_TONE.pending} label={status} />;
         },
       },
       {

@@ -16,6 +16,7 @@ const NAV = [
   { href: '/categories', label: 'Categories', icon: 'category' },
   { href: '/live', label: 'Live', icon: 'sensors' },
   { href: '/fraud', label: 'Fraud', icon: 'security' },
+  { href: '/billing', label: 'Billing', icon: 'receipt_long' },
   { href: '/analytics', label: 'Analytics', icon: 'analytics' },
   { href: '/search', label: 'Search', icon: 'search' },
   { href: '/settings', label: 'Settings', icon: 'settings' },
@@ -52,6 +53,24 @@ function NavLinks({
   );
 }
 
+function SidebarFooter({ onLogout, onNavigate }: { onLogout: () => void; onNavigate?: () => void }) {
+  return (
+    <div className="border-t border-outline-variant/20 p-4">
+      <Link
+        href={process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000'}
+        className="mb-2 flex items-center gap-2 text-xs text-outline hover:text-on-surface"
+        onClick={onNavigate}
+      >
+        <Icon name="open_in_new" className="text-sm" />
+        View public site
+      </Link>
+      <button type="button" onClick={onLogout} className="text-xs text-error hover:underline">
+        Sign out
+      </button>
+    </div>
+  );
+}
+
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -77,18 +96,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <nav className="flex flex-1 flex-col gap-1 p-4">
           <NavLinks pathname={pathname} />
         </nav>
-        <div className="border-t border-outline-variant/20 p-4">
-          <Link
-            href={process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000'}
-            className="mb-2 flex items-center gap-2 text-xs text-outline hover:text-on-surface"
-          >
-            <Icon name="open_in_new" className="text-sm" />
-            View public site
-          </Link>
-          <button type="button" onClick={logout} className="text-xs text-error hover:underline">
-            Sign out
-          </button>
-        </div>
+        <SidebarFooter onLogout={logout} />
       </aside>
 
       {/* Mobile header + drawer */}
@@ -120,19 +128,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4 pt-6">
                 <NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} />
               </nav>
-              <div className="border-t border-outline-variant/20 p-4">
-                <Link
-                  href={process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000'}
-                  className="mb-2 flex items-center gap-2 text-xs text-outline hover:text-on-surface"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  <Icon name="open_in_new" className="text-sm" />
-                  View public site
-                </Link>
-                <button type="button" onClick={logout} className="text-xs text-error hover:underline">
-                  Sign out
-                </button>
-              </div>
+              <SidebarFooter onLogout={logout} onNavigate={() => setMobileOpen(false)} />
             </aside>
           </>
         )}

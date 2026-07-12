@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { getSessionId } from '@/lib/auth-storage';
 import { useAuth } from '@/lib/auth';
-import { Button } from '@forge/design-system';
+import { Button, StatusPill } from '@forge/design-system';
 
 type SessionRow = {
   id: string;
@@ -57,11 +57,7 @@ export function ActiveSessions() {
               <div>
                 <p className="text-sm font-medium text-on-surface">
                   {label}
-                  {isCurrent ? (
-                    <span className="ml-2 rounded-full bg-secondary/20 px-2 py-0.5 text-xs text-secondary">
-                      This device
-                    </span>
-                  ) : null}
+                  {isCurrent ? <StatusPill tone="primary" label="This device" className="ml-2" /> : null}
                 </p>
                 <p className="text-xs text-on-surface-variant">
                   Started {new Date(s.createdAt).toLocaleString()}

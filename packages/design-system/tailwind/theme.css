@@ -35,4 +35,20 @@
   --spacing-margin-mobile: 20px;
   --spacing-margin-desktop: 48px;
   --spacing-container-max: 1440px;
+
+  /**
+   * Elevation scale — neutral depth shadows, dark-surface tuned. Distinct from
+   * the colored "glow" effects in utilities.css (.primary-button, .live-glow),
+   * which signal brand/live state rather than stacking order.
+   *   xs  resting card / list row
+   *   sm  raised control (focused input, dropdown trigger)
+   *   md  hovered card, inline menu (matches the pre-existing .forge-card-hover value)
+   *   lg  popover, dropdown panel
+   *   xl  modal, dialog, toast — top of the stack
+   */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.16);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.32);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.4);
 }

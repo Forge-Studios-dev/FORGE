@@ -33,9 +33,10 @@ describe('CommunitiesService', () => {
     getMembershipForViewer: jest.Mock;
     listActiveSubscriptionsForCreator: jest.Mock;
     subscriptionCoversCommunity: jest.Mock;
+    getSubscriberAnalytics: jest.Mock;
   };
   let accessSessionsService: { requirePremiumSession: jest.Mock };
-  let moderationService: { isBanned: jest.Mock };
+  let moderationService: { isBanned: jest.Mock; listUnifiedReportsForCreator: jest.Mock };
   let aiModerationService: { scoreSpam: jest.Mock };
   let aiCommunityService: { scoreContent: jest.Mock };
 
@@ -120,7 +121,8 @@ describe('CommunitiesService', () => {
       (dataSource as { lastSave?: jest.Mock; lastInsert?: jest.Mock }).lastInsert = insert;
       return result;
     }),
-  } as { transaction: jest.Mock; lastSave?: jest.Mock; lastInsert?: jest.Mock };
+    query: jest.fn().mockResolvedValue([]),
+  } as { transaction: jest.Mock; query: jest.Mock; lastSave?: jest.Mock; lastInsert?: jest.Mock };
 
   beforeEach(async () => {
     entitlementsService = {
@@ -129,9 +131,20 @@ describe('CommunitiesService', () => {
       getMembershipForViewer: jest.fn().mockResolvedValue({ active: false }),
       listActiveSubscriptionsForCreator: jest.fn().mockResolvedValue([]),
       subscriptionCoversCommunity: jest.fn().mockReturnValue(false),
+      getSubscriberAnalytics: jest.fn().mockResolvedValue({
+        active: 0,
+        trial: 0,
+        canceled: 0,
+        total: 0,
+        mrrCents: 0,
+        byStatus: {},
+      }),
     };
     accessSessionsService = { requirePremiumSession: jest.fn().mockResolvedValue(undefined) };
-    moderationService = { isBanned: jest.fn().mockResolvedValue(false) };
+    moderationService = {
+      isBanned: jest.fn().mockResolvedValue(false),
+      listUnifiedReportsForCreator: jest.fn().mockResolvedValue({ data: [] }),
+    };
     aiModerationService = { scoreSpam: jest.fn().mockReturnValue({ flagged: false, score: 0, reasons: [] }) };
     aiCommunityService = { scoreContent: jest.fn().mockReturnValue({ flagged: false, score: 0, reasons: [] }) };
 
@@ -402,5 +415,73 @@ describe('CommunitiesService', () => {
 
     expect(meta.canRequestJoin).toBe(true);
     expect(meta.communityId).toBe('comm-private');
+  });
+
+  describe('getCreatorAttention', () => {
+    it('returns empty items and zero counts when nothing needs action', async () => {
+      dataSource.query.mockResolvedValueOnce([]);
+
+      const result = await service.getCreatorAttention('creator-1');
+
+      expect(result.counts).toEqual({ commentsNeedingReply: 0, pendingModeration: 0, failedPayments: 0 });
+      expect(result.items).toEqual([]);
+    });
+
+    it('surfaces unreplied comments with the total count from the window function', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        {
+          id: 'comment-1',
+          video_id: 'video-1',
+          video_title: 'Intro to FORGE',
+          content: 'Great lesson!',
+          created_at: '2026-07-01T00:00:00.000Z',
+          total_count: '3',
+        },
+      ]);
+
+      const result = await service.getCreatorAttention('creator-1');
+
+      expect(result.counts.commentsNeedingReply).toBe(3);
+      expect(result.items[0]).toMatchObject({
+        id: 'comment-comment-1',
+        kind: 'comment',
+        href: '/studio/comments',
+        tone: 'primary',
+      });
+    });
+
+    it('includes open moderation reports scoped to the creator', async () => {
+      moderationService.listUnifiedReportsForCreator.mockResolvedValue({
+        data: [
+          { id: 'report-1', reason: 'Spam', communityName: 'Main', createdAt: new Date('2026-07-02') },
+        ],
+      });
+
+      const result = await service.getCreatorAttention('creator-1');
+
+      expect(result.counts.pendingModeration).toBe(1);
+      expect(result.items).toContainEqual(
+        expect.objectContaining({ id: 'moderation-report-1', kind: 'moderation', tone: 'warning' }),
+      );
+    });
+
+    it('ranks failed payments above moderation and comments, and omits the item when there are none', async () => {
+      entitlementsService.getSubscriberAnalytics.mockResolvedValue({
+        active: 10,
+        trial: 0,
+        canceled: 0,
+        total: 12,
+        mrrCents: 50000,
+        byStatus: { failed_payment: 2 },
+      });
+      moderationService.listUnifiedReportsForCreator.mockResolvedValue({
+        data: [{ id: 'report-1', reason: 'Spam', communityName: 'Main', createdAt: new Date('2026-07-02') }],
+      });
+
+      const result = await service.getCreatorAttention('creator-1');
+
+      expect(result.counts.failedPayments).toBe(2);
+      expect(result.items[0]).toMatchObject({ id: 'billing-failed-payments', kind: 'billing', tone: 'critical' });
+    });
   });
 });

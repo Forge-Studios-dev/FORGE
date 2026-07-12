@@ -2,12 +2,11 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { FeedGridSkeleton, PageHeader } from '@forge/design-system';
+import { EmptyState, FeedGridSkeleton, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { ContinueWatching } from '@/components/ContinueWatching';
 import { FeedCard } from '@/components/FeedCard/FeedCard';
-import { EmptyState } from '@/components/EmptyState';
 import { Video, Playlist } from '@/types';
 
 export default function LibraryPage() {
