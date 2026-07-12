@@ -7,7 +7,6 @@ import '../../../core/network/api_client.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../../shared/models/video.dart';
 import 'membership_panel.dart';
-import 'creator_programs_panel.dart';
 import 'creator_courses_panel.dart';
 
 final userVideosProvider = FutureProvider.autoDispose.family<List<VideoModel>, String>((ref, userId) async {
@@ -48,10 +47,6 @@ class ProfileScreen extends ConsumerWidget {
               if (username != 'me')
                 SliverToBoxAdapter(
                   child: CreatorCoursesPanel(creatorId: user.id, username: username),
-                ),
-              if (username != 'me')
-                SliverToBoxAdapter(
-                  child: CreatorProgramsPanel(creatorId: user.id, username: username),
                 ),
               videosAsync.when(
                 loading: () => const SliverToBoxAdapter(

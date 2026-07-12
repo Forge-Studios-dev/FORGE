@@ -639,4 +639,107 @@ export class AdminService {
       },
     };
   }
+
+  /**
+   * Read-only, cross-creator transaction ledger for support/dispute lookups —
+   * unions member subscriptions (recurring) and paid stream-event purchases
+   * (one-off), the two sources of real money movement on the platform today.
+   * No refund/write action here; that stays a separate, deliberate step.
+   */
+  async getBillingLedger(options: { page?: number; limit?: number; search?: string }) {
+    const safePage = clampPage(options.page);
+    const safeLimit = clampLimit(options.limit, 20);
+    const offset = (safePage - 1) * safeLimit;
+    const search = options.search?.trim();
+
+    const ledgerCte = `
+      WITH ledger AS (
+        SELECT
+          s.id::text AS id,
+          'subscription' AS type,
+          s.user_id AS user_id,
+          u.username AS username,
+          u.display_name AS display_name,
+          s.creator_id AS creator_id,
+          c.username AS creator_username,
+          t.price_cents AS amount_cents,
+          t.currency AS currency,
+          s.status AS status,
+          s.created_at AS created_at
+        FROM member_subscriptions s
+        INNER JOIN users u ON u.id = s.user_id
+        INNER JOIN users c ON c.id = s.creator_id
+        INNER JOIN subscription_tiers t ON t.id = s.tier_id
+        UNION ALL
+        SELECT
+          p.id::text AS id,
+          'event_purchase' AS type,
+          p.user_id AS user_id,
+          u.username AS username,
+          u.display_name AS display_name,
+          st.user_id AS creator_id,
+          c.username AS creator_username,
+          p.amount_cents AS amount_cents,
+          p.currency AS currency,
+          p.status AS status,
+          p.purchased_at AS created_at
+        FROM stream_event_purchases p
+        INNER JOIN users u ON u.id = p.user_id
+        INNER JOIN streams st ON st.id = p.stream_id
+        INNER JOIN users c ON c.id = st.user_id
+      )
+      SELECT * FROM ledger
+      ${search ? 'WHERE username ILIKE $1 OR creator_username ILIKE $1' : ''}
+    `;
+
+    const params: unknown[] = search ? [`%${search}%`] : [];
+    const limitParamIndex = params.length + 1;
+    const offsetParamIndex = params.length + 2;
+
+    const [rows, countRows] = await Promise.all([
+      this.dataSource.query<
+        Array<{
+          id: string;
+          type: string;
+          user_id: string;
+          username: string;
+          display_name: string;
+          creator_id: string;
+          creator_username: string;
+          amount_cents: string;
+          currency: string;
+          status: string;
+          created_at: string;
+        }>
+      >(
+        `${ledgerCte} ORDER BY created_at DESC LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
+        [...params, safeLimit, offset],
+      ),
+      this.dataSource.query<{ count: string }[]>(`SELECT COUNT(*)::int AS count FROM (${ledgerCte}) t`, params),
+    ]);
+
+    const total = Number(countRows[0]?.count ?? 0);
+
+    return {
+      data: rows.map((r) => ({
+        id: r.id,
+        type: r.type as 'subscription' | 'event_purchase',
+        userId: r.user_id,
+        username: r.username,
+        displayName: r.display_name,
+        creatorId: r.creator_id,
+        creatorUsername: r.creator_username,
+        amountCents: Number(r.amount_cents),
+        currency: r.currency,
+        status: r.status,
+        createdAt: r.created_at,
+      })),
+      meta: {
+        total,
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.ceil(total / safeLimit),
+      },
+    };
+  }
 }

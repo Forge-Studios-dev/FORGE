@@ -41,7 +41,6 @@ import '../../features/studio/presentation/course_viewer_screen.dart';
 import '../../features/courses/presentation/discover_courses_screen.dart';
 import '../../features/community/presentation/discover_communities_screen.dart';
 import '../../features/studio/presentation/studio_bundles_screen.dart';
-import '../../features/studio/presentation/studio_programs_screen.dart';
 import '../../features/studio/presentation/studio_copilot_screen.dart';
 import '../../features/profile/presentation/program_viewer_screen.dart';
 import '../../features/profile/presentation/my_memberships_screen.dart';
@@ -171,7 +170,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/studio/moderation',
         redirect: (_, __) => '/studio/community?tab=moderation',
       ),
-      GoRoute(path: '/studio/programs', builder: (_, __) => const StudioProgramsScreen()),
+      // Programs are now the "Programs" tab inside Studio Courses — a program
+      // is a Course row with isBundle=true. Kept as a redirect for old links.
+      GoRoute(
+        path: '/studio/programs',
+        redirect: (_, __) => '/studio/courses',
+      ),
       GoRoute(path: '/studio/courses', builder: (_, __) => const StudioCoursesScreen()),
       GoRoute(
         path: '/studio/courses/:id',

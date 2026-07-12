@@ -11,7 +11,7 @@
 |-----|-----------|-----------|-------|
 | **MRR** | Monthly Recurring Revenue — sum of active subscription prices (cents) for current month | `revenue.mrr` | From `getCreatorBusinessAnalytics` |
 | **ARR** | Annual Recurring Revenue — MRR × 12 | `revenue.arr` | |
-| **Revenue (30d)** | Total paid subscription revenue collected in last 30 days (cents) | `membership.totalRevenue30d` | Stripe-sourced |
+| **Revenue (30d)** | Live event ticket revenue collected in last 30 days (cents), from `stream_event_purchases` | `membership.totalRevenue30d` | Stripe-sourced |
 | **Trial Conversion** | Percentage of trial members who convert to paid within 14 days | Not yet tracked server-side | Future |
 
 ---
@@ -74,8 +74,12 @@
 | Streak | Bonus XP | Badge |
 |--------|----------|-------|
 | 7 days | +50 XP | Week Warrior |
-| 30 days | +200 XP | Monthly Dedication |
+| 14 days | +75 XP | — |
+| 30 days | +150 XP | Monthly Dedication |
+| 60 days | +300 XP | — |
 | 100 days | +500 XP | Centurion |
+| 180 days | +1000 XP | — |
+| 365 days | +2000 XP | — |
 
 ---
 

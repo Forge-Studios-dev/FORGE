@@ -84,7 +84,7 @@ curl -s https://api.forgestudios.net/api/v1/health/live
 curl -s https://api.forgestudios.net/api/v1/health
 ```
 
-API runs **2 machines** (`min_machines_running=2` in `fly.toml`) — see [operations/FLY_SLO.md](./operations/FLY_SLO.md).
+API runs **2 machines** (`min_machines_running=2` in `fly.toml`) — see [operations/FLY_SLO.md](./operations/FLY_SLO.md). Production release deploys with `--primary-region sin --regions bom`, overriding `fly.toml`'s `primary_region = 'bom'`.
 
 **Do not** set `ENABLE_VIDEO_WORKER` on API. Deploy worker separately:
 
@@ -156,7 +156,7 @@ Run locally, expose with [ngrok](https://ngrok.com): `ngrok http 3000` / `3001` 
 
 **Rollback:** `fly releases rollback` · Vercel promote previous deployment.
 
-**Automatic rollback (Release workflow):** If post-deploy smoke or metrics verification fails, GitHub Actions runs `flyctl releases rollback` on the API (and worker if its deploy job fails). This reverts the **app image only** — not database migrations. Failed `release_command` migrations block deploy before traffic shifts; if smoke fails after a successful migration, assess whether schema rollback is needed separately (`npm run migration:revert -w @forge/api` — see [DISASTER_RECOVERY.md](./operations/DISASTER_RECOVERY.md)).
+**Automatic rollback (Release workflow):** If post-deploy smoke or metrics verification fails, GitHub Actions looks up the previous Fly image (`flyctl releases --json --image`, second-most-recent entry) and redeploys it directly (`flyctl deploy --image <prev>`) on the API (and worker if its deploy job fails) — **not** `flyctl releases rollback`. This reverts the **app image only** — not database migrations. Failed `release_command` migrations block deploy before traffic shifts; if smoke fails after a successful migration, assess whether schema rollback is needed separately (`npm run migration:revert -w @forge/api` — see [DISASTER_RECOVERY.md](./operations/DISASTER_RECOVERY.md)).
 
 ---
 

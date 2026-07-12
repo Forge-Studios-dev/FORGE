@@ -28,8 +28,8 @@
 | Score | Action |
 |-------|--------|
 | 0–29 | Approve (no action) |
-| 30–59 | Queue for moderator review (`ModerationQueueStatus.PENDING`) |
-| 60–79 | Auto-hold (`ModerationQueueStatus.HELD`) + notify creator mod team |
+| 30–59 | Create a report for moderator review (`community-moderation.service.ts`) |
+| 60–79 | Auto-hold + notify creator mod team |
 | 80–100 | Auto-block + escalate to platform ops |
 
 ### Fallback (AI unavailable)
@@ -41,7 +41,7 @@
 ## 3. Human Escalation Paths
 
 ### Community-level moderators
-- Can approve/reject queue items via `POST /communities/:id/moderation/queue/:id/action`
+- Can resolve reports via `PATCH /creators/me/communities/:communityId/reports/:reportId/resolve`, viewed via `GET /creators/me/moderation/inbox` and `GET /creators/me/communities/:communityId/reports`
 - Cannot permanently ban users (creator or admin only)
 - Can mute users for up to 7 days
 
@@ -78,7 +78,7 @@
 
 | Resource | Location |
 |----------|----------|
-| Moderation queue | `POST /communities/:id/moderation/queue/:id/action` |
-| Audit log (admin) | `GET /admin/audit-log` |
+| Reports (admin-wide) | `GET /admin/community-reports` · `PATCH /admin/community-reports/:reportId/resolve` |
+| Creator audit log | `GET /creators/me/audit-logs` |
 | AI moderation metrics | Prometheus `ai_llm_call_total{feature="moderation"}` |
-| Budget status | `GET /creators/me/ai-budget` |
+| Budget status (admin) | `GET /admin/ai/budget` |

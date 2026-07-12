@@ -58,9 +58,14 @@ export class CoursesService {
     private readonly accessSessionsService: AccessSessionsService,
   ) {}
 
+  // isBundle: false everywhere below — bundle-wrapper courses (formerly
+  // CreatorProgram rows, see migration 1839800000000) surface only through
+  // CreatorProgramsService's own endpoints, never in the plain course
+  // catalog/search/discovery a learner or creator browses here.
+
   async listForCreator(creatorId: string) {
     return this.courseRepository.find({
-      where: { creatorId },
+      where: { creatorId, isBundle: false },
       order: { createdAt: 'DESC' },
     });
   }
@@ -68,7 +73,7 @@ export class CoursesService {
   async listFeaturedCourses(limit = 12) {
     const take = Math.min(limit, 24);
     const courses = await this.courseRepository.find({
-      where: { isPublished: true },
+      where: { isPublished: true, isBundle: false },
       order: { createdAt: 'DESC' },
       take,
     });
@@ -82,6 +87,7 @@ export class CoursesService {
     const courses = await this.courseRepository
       .createQueryBuilder('c')
       .where('c.is_published = true')
+      .andWhere('c.is_bundle = false')
       .andWhere(
         '(c.title ILIKE :pattern OR c.slug ILIKE :pattern OR COALESCE(c.description, \'\') ILIKE :pattern)',
         { pattern },
@@ -94,7 +100,7 @@ export class CoursesService {
 
   async listPublishedForCreator(creatorId: string, viewerId?: string | null) {
     const courses = await this.courseRepository.find({
-      where: { creatorId, isPublished: true },
+      where: { creatorId, isPublished: true, isBundle: false },
       order: { createdAt: 'DESC' },
     });
     return { data: await this.mapPublicCourses(courses, viewerId) };
@@ -102,7 +108,7 @@ export class CoursesService {
 
   async getPublicCourse(courseId: string, viewerId?: string | null) {
     const course = await this.courseRepository.findOne({
-      where: { id: courseId, isPublished: true },
+      where: { id: courseId, isPublished: true, isBundle: false },
     });
     if (!course) throw new NotFoundException('Course not found');
     const [mapped] = await this.mapPublicCourses([course], viewerId);
