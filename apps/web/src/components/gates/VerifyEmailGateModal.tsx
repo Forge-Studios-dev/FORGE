@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Icon } from '@forge/design-system';
+import { Dialog } from '@forge/design-system/client';
 
 export function VerifyEmailGateModal({
   open,
@@ -12,21 +13,21 @@ export function VerifyEmailGateModal({
   onClose: () => void;
   message?: string;
 }) {
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
-      <div className="glass-panel relative w-full max-w-md rounded-2xl p-8 text-center">
+    <Dialog open={open} onClose={onClose} labelledBy="verify-email-gate-title">
+      <div className="relative text-center">
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 text-outline hover:text-on-surface"
+          className="absolute -right-2 -top-2 text-outline hover:text-on-surface"
           aria-label="Close"
         >
           <Icon name="close" />
         </button>
         <Icon name="mail" className="mb-4 text-4xl text-primary" />
-        <h2 className="font-display-forge mb-2 text-xl font-bold">Verify your email</h2>
+        <h2 id="verify-email-gate-title" className="font-display-forge mb-2 text-xl font-bold">
+          Verify your email
+        </h2>
         <p className="mb-6 text-on-surface-variant">{message}</p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link
@@ -44,6 +45,6 @@ export function VerifyEmailGateModal({
           </button>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
