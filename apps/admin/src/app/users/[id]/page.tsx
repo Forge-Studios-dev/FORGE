@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
-import { DataTable, Tabs } from '@forge/design-system/client';
+import { ConfirmDialog, DataTable, Tabs } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import type {
@@ -45,6 +45,7 @@ export default function AdminUserDetailPage() {
   const [videoPage, setVideoPage] = useState(1);
   const [videoStatus, setVideoStatus] = useState('');
   const [reportPage, setReportPage] = useState(1);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: summary, isLoading, isError } = useQuery({
     queryKey: ['admin-user-summary', userId],
@@ -211,16 +212,7 @@ export default function AdminUserDetailPage() {
           }
           updateUser.mutate({ isActive: !block });
         }}
-        onDelete={() => {
-          if (
-            !window.confirm(
-              `Permanently remove @${user.username}? This soft-deletes the account and frees the email for a new signup.`,
-            )
-          ) {
-            return;
-          }
-          deleteUser.mutate();
-        }}
+        onDelete={() => setConfirmDelete(true)}
         onResendVerification={() => resendVerification.mutate()}
         onApprove={() => approveCreator.mutate()}
         onReject={() => {
@@ -231,6 +223,17 @@ export default function AdminUserDetailPage() {
         isImpersonating={impersonate.isPending}
         isDeleting={deleteUser.isPending}
         isResending={resendVerification.isPending}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete account"
+        description={`Permanently remove @${user.username}? This soft-deletes the account and frees the email for a new signup.`}
+        confirmLabel="Delete account"
+        variant="danger"
+        loading={deleteUser.isPending}
+        onConfirm={() => deleteUser.mutate()}
+        onCancel={() => setConfirmDelete(false)}
       />
 
       <Tabs tabs={[...TABS]} value={tab} onChange={setTab} />
