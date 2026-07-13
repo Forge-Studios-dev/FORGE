@@ -27,6 +27,10 @@ dependencies:
   # Connectivity (drives the offline screen — see core/connectivity)
   connectivity_plus: ^6.0.5
 
+  # Offline-first local cache for feed/watch-history/video-detail (HIGH-07)
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
   # Video player
   video_player: ^2.8.3
   chewie: ^1.7.4
@@ -39,6 +43,7 @@ dependencies:
   # Utils
   intl: ^0.19.0
   equatable: ^2.0.5
+  crypto: ^3.0.3
   freezed_annotation: ^2.4.1
   json_annotation: ^4.9.0
   uuid: ^4.3.3
@@ -52,6 +57,9 @@ dependencies:
   socket_io_client: ^3.0.2
   livekit_client: ^2.3.6
 
+  # Crash reporting (CRIT-02) — enabled via --dart-define=SENTRY_DSN=...
+  sentry_flutter: ^8.14.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -60,6 +68,10 @@ dev_dependencies:
   riverpod_generator: ^2.4.0
   freezed: ^2.5.2
   json_serializable: ^6.8.0
+  # Test-only fake platform for FlutterSecureStorage (HIGH-09) — already a
+  # transitive dep via flutter_secure_storage; declared explicitly since
+  # test code imports it directly.
+  flutter_secure_storage_platform_interface: ^1.1.2
 
 flutter:
   uses-material-design: true

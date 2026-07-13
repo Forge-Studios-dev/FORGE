@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { isAxiosError } from 'axios';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@forge/design-system';
+import { ConfirmDialog, Dialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { AdminTabs } from '@/components/admin/AdminTabs';
 import { AdminDataTable } from '@/components/admin/AdminDataTable';
@@ -26,6 +28,12 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
+
+type PendingConfirm =
+  | { kind: 'role'; role: string }
+  | { kind: 'block'; nextActive: boolean }
+  | { kind: 'delete' }
+  | { kind: 'impersonate'; url: string; targetName: string; expiresInSeconds: number };
 
 const ROLE_CLASS: Record<string, string> = {
   admin: 'bg-error/10 text-error',
@@ -52,6 +60,10 @@ export default function AdminUserDetailPage() {
   const [videoPage, setVideoPage] = useState(1);
   const [videoStatus, setVideoStatus] = useState('');
   const [reportPage, setReportPage] = useState(1);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [grantAdminOpen, setGrantAdminOpen] = useState(false);
+  const [grantAdminError, setGrantAdminError] = useState<string | null>(null);
 
   const { data: summary, isLoading, isError } = useQuery({
     queryKey: ['admin-user-summary', userId],
@@ -64,11 +76,16 @@ export default function AdminUserDetailPage() {
   const user = summary?.user;
 
   const updateUser = useMutation({
-    mutationFn: (body: { role?: string; isVerified?: boolean; isActive?: boolean }) =>
-      api.patch(`/admin/users/${userId}`, body),
+    mutationFn: (body: {
+      role?: string;
+      isVerified?: boolean;
+      isActive?: boolean;
+      currentAdminPassword?: string;
+    }) => api.patch(`/admin/users/${userId}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-user-summary', userId] });
       qc.invalidateQueries({ queryKey: ['admin-users'] });
+      setPendingConfirm(null);
     },
   });
 
@@ -105,14 +122,12 @@ export default function AdminUserDetailPage() {
       return data.data;
     },
     onSuccess: (result) => {
-      if (
-        !window.confirm(
-          `Open web as ${result.targetUser.displayName}? Link expires in ${result.expiresInSeconds}s.`,
-        )
-      ) {
-        return;
-      }
-      window.open(result.url, '_blank', 'noopener,noreferrer');
+      setPendingConfirm({
+        kind: 'impersonate',
+        url: result.url,
+        targetName: result.targetUser.displayName,
+        expiresInSeconds: result.expiresInSeconds,
+      });
     },
   });
 
@@ -200,44 +215,94 @@ export default function AdminUserDetailPage() {
         summary={summary}
         webBase={webBase}
         onRoleChange={(role) => {
-          if (role === 'admin' && !window.confirm(`Grant admin to @${user.username}?`)) return;
-          if (!window.confirm(`Change @${user.username} role to ${role}?`)) return;
-          updateUser.mutate({ role });
+          if (role === 'admin') {
+            setGrantAdminError(null);
+            setGrantAdminOpen(true);
+            return;
+          }
+          setPendingConfirm({ kind: 'role', role });
         }}
         onVerifyToggle={() => updateUser.mutate({ isVerified: !user.isVerified })}
-        onBlockToggle={() => {
-          const block = user.isActive !== false;
-          if (
-            !window.confirm(
-              block
-                ? `Block @${user.username}? They will be signed out and cannot log in.`
-                : `Unblock @${user.username}?`,
-            )
-          ) {
-            return;
-          }
-          updateUser.mutate({ isActive: !block });
-        }}
-        onDelete={() => {
-          if (
-            !window.confirm(
-              `Permanently remove @${user.username}? This soft-deletes the account and frees the email for a new signup.`,
-            )
-          ) {
-            return;
-          }
-          deleteUser.mutate();
-        }}
+        onBlockToggle={() =>
+          setPendingConfirm({ kind: 'block', nextActive: user.isActive === false })
+        }
+        onDelete={() => setPendingConfirm({ kind: 'delete' })}
         onResendVerification={() => resendVerification.mutate()}
         onApprove={() => approveCreator.mutate()}
-        onReject={() => {
-          const note = window.prompt('Rejection note (optional):') ?? undefined;
-          rejectCreator.mutate(note);
-        }}
+        onReject={() => setShowRejectDialog(true)}
         onImpersonate={() => impersonate.mutate()}
         isImpersonating={impersonate.isPending}
         isDeleting={deleteUser.isPending}
         isResending={resendVerification.isPending}
+      />
+
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        title={
+          pendingConfirm?.kind === 'role'
+            ? `Change @${user.username} role to ${pendingConfirm.role}?`
+            : pendingConfirm?.kind === 'block'
+              ? pendingConfirm.nextActive
+                ? `Unblock @${user.username}?`
+                : `Block @${user.username}? They will be signed out and cannot log in.`
+              : pendingConfirm?.kind === 'delete'
+                ? `Permanently remove @${user.username}? This soft-deletes the account and frees the email for a new signup.`
+                : pendingConfirm?.kind === 'impersonate'
+                  ? `Open web as ${pendingConfirm.targetName}? Link expires in ${pendingConfirm.expiresInSeconds}s.`
+                  : ''
+        }
+        confirmLabel={pendingConfirm?.kind === 'impersonate' ? 'Open' : 'Confirm'}
+        variant="danger"
+        loading={updateUser.isPending || deleteUser.isPending}
+        onConfirm={() => {
+          if (!pendingConfirm) return;
+          if (pendingConfirm.kind === 'role') updateUser.mutate({ role: pendingConfirm.role });
+          else if (pendingConfirm.kind === 'block')
+            updateUser.mutate({ isActive: pendingConfirm.nextActive });
+          else if (pendingConfirm.kind === 'delete') deleteUser.mutate();
+          else if (pendingConfirm.kind === 'impersonate') {
+            window.open(pendingConfirm.url, '_blank', 'noopener,noreferrer');
+            setPendingConfirm(null);
+          }
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
+
+      <RejectNoteDialog
+        open={showRejectDialog}
+        loading={rejectCreator.isPending}
+        onCancel={() => setShowRejectDialog(false)}
+        onConfirm={(note) => {
+          rejectCreator.mutate(note, { onSuccess: () => setShowRejectDialog(false) });
+        }}
+      />
+
+      <GrantAdminDialog
+        open={grantAdminOpen}
+        username={user.username}
+        loading={updateUser.isPending}
+        error={grantAdminError}
+        onCancel={() => {
+          setGrantAdminOpen(false);
+          setGrantAdminError(null);
+        }}
+        onConfirm={(password) => {
+          setGrantAdminError(null);
+          updateUser.mutate(
+            { role: 'admin', currentAdminPassword: password },
+            {
+              onSuccess: () => setGrantAdminOpen(false),
+              onError: (err) => {
+                const message =
+                  isAxiosError<{ message?: string | string[] }>(err) &&
+                  err.response?.data?.message
+                    ? err.response.data.message
+                    : 'Could not grant admin role.';
+                setGrantAdminError(Array.isArray(message) ? message[0] : message);
+              },
+            },
+          );
+        }}
       />
 
       <AdminTabs tabs={[...TABS]} active={tab} onChange={setTab} />
@@ -447,6 +512,125 @@ function UserHeader({
   );
 }
 
+function RejectNoteDialog({
+  open,
+  loading,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  loading?: boolean;
+  onCancel: () => void;
+  onConfirm: (note: string | undefined) => void;
+}) {
+  const [note, setNote] = useState('');
+
+  return (
+    <Dialog open={open} onClose={onCancel} labelledBy="reject-note-title" size="sm">
+      <h2 id="reject-note-title" className="font-display-forge mb-4 text-lg font-semibold">
+        Reject creator application
+      </h2>
+      <label className="block">
+        <span className="font-label-caps text-outline">Rejection note (optional)</span>
+        <textarea
+          className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+          rows={3}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </label>
+      <div className="mt-4 flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setNote('');
+            onCancel();
+          }}
+          disabled={loading}
+          className="rounded-full border border-outline-variant px-4 py-2 text-sm disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onConfirm(note.trim() || undefined);
+            setNote('');
+          }}
+          disabled={loading}
+          className="rounded-full border border-error/40 px-4 py-2 text-sm text-error hover:bg-error/10 disabled:opacity-50"
+        >
+          {loading ? 'Rejecting…' : 'Reject'}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+function GrantAdminDialog({
+  open,
+  username,
+  loading,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  username: string;
+  loading?: boolean;
+  error?: string | null;
+  onCancel: () => void;
+  onConfirm: (password: string) => void;
+}) {
+  const [password, setPassword] = useState('');
+
+  return (
+    <Dialog open={open} onClose={onCancel} labelledBy="grant-admin-title" size="sm" role="alertdialog">
+      <h2 id="grant-admin-title" className="font-display-forge mb-2 text-lg font-semibold">
+        Grant admin to @{username}?
+      </h2>
+      <p className="mb-4 text-sm text-on-surface-variant">
+        This grants full platform privileges. Re-enter your password to confirm.
+      </p>
+      <label className="block">
+        <span className="font-label-caps text-outline">Your password</span>
+        <input
+          type="password"
+          autoComplete="current-password"
+          className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </label>
+      {error ? <p className="mt-2 text-sm text-error">{error}</p> : null}
+      <div className="mt-4 flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setPassword('');
+            onCancel();
+          }}
+          disabled={loading}
+          className="rounded-full border border-outline-variant px-4 py-2 text-sm disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onConfirm(password);
+            setPassword('');
+          }}
+          disabled={loading || !password}
+          className="rounded-full border border-error/40 px-4 py-2 text-sm text-error hover:bg-error/10 disabled:opacity-50"
+        >
+          {loading ? 'Granting…' : 'Grant admin'}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
 function OverviewTab({
   user,
   summary,
@@ -562,6 +746,12 @@ function VideosTab({
   isModerating?: boolean;
   onUpdateVideo: (id: string, patch: { status?: string; visibility?: string }) => void;
 }) {
+  const [pendingVideoAction, setPendingVideoAction] = useState<
+    | { kind: 'status'; id: string; title: string; status: string }
+    | { kind: 'remove'; id: string; title: string }
+    | null
+  >(null);
+
   return (
     <div className="space-y-4">
       <select
@@ -605,11 +795,7 @@ function VideosTab({
                 onChange={(e) => {
                   const status = e.target.value;
                   if (status === v.status) return;
-                  if (!window.confirm(`Change "${v.title}" status to ${status}?`)) {
-                    e.target.value = v.status;
-                    return;
-                  }
-                  onUpdateVideo(v.id, { status });
+                  setPendingVideoAction({ kind: 'status', id: v.id, title: v.title, status });
                 }}
                 className="rounded-lg border border-outline-variant bg-surface-container-low px-2 py-1 text-xs capitalize"
               >
@@ -654,10 +840,7 @@ function VideosTab({
                   <button
                     type="button"
                     disabled={isModerating}
-                    onClick={() => {
-                      if (!window.confirm(`Remove "${v.title}" from the platform?`)) return;
-                      onUpdateVideo(v.id, { status: 'failed' });
-                    }}
+                    onClick={() => setPendingVideoAction({ kind: 'remove', id: v.id, title: v.title })}
                     className="text-left text-xs text-error hover:underline disabled:opacity-50"
                   >
                     Remove
@@ -668,6 +851,30 @@ function VideosTab({
           </tr>
         ))}
       </AdminDataTable>
+
+      <ConfirmDialog
+        open={pendingVideoAction !== null}
+        title={
+          pendingVideoAction?.kind === 'status'
+            ? `Change "${pendingVideoAction.title}" status to ${pendingVideoAction.status}?`
+            : pendingVideoAction?.kind === 'remove'
+              ? `Remove "${pendingVideoAction.title}" from the platform?`
+              : ''
+        }
+        confirmLabel="Confirm"
+        variant="danger"
+        loading={isModerating}
+        onConfirm={() => {
+          if (!pendingVideoAction) return;
+          if (pendingVideoAction.kind === 'status') {
+            onUpdateVideo(pendingVideoAction.id, { status: pendingVideoAction.status });
+          } else {
+            onUpdateVideo(pendingVideoAction.id, { status: 'failed' });
+          }
+          setPendingVideoAction(null);
+        }}
+        onCancel={() => setPendingVideoAction(null)}
+      />
     </div>
   );
 }

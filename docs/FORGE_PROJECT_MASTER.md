@@ -466,6 +466,18 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 **Mentorship:** `PUT communities/:communityId/mentorship/profile` · `GET communities/:communityId/mentorship/mentors` · `POST communities/:communityId/mentorship/run-matching` (creator) · `GET communities/:communityId/mentorship/my-matches` · `POST communities/:communityId/mentorship/matches/:matchId/respond` · `POST communities/:communityId/mentorship/matches/:matchId/complete`
 
+**Wiki, challenges & surveys:** `GET communities/:communityId/wiki` · `POST/PATCH/DELETE creators/me/communities/:communityId/wiki(/:wikiId)` · `GET communities/:communityId/challenges` · `POST/PATCH/DELETE creators/me/communities/:communityId/challenges(/:challengeId)` · `POST communities/:communityId/challenges/:challengeId/join` · `PATCH …/challenges/:challengeId/progress` · `GET communities/:communityId/surveys` · `POST/PATCH/DELETE creators/me/communities/:communityId/surveys(/:surveyId)` · `GET …/surveys/:surveyId/analytics` · `POST communities/:communityId/surveys/:surveyId/respond`
+
+**Events:** `GET communities/:communityId/events` · `GET communities/:communityId/office-hours` · `POST creators/me/communities/:communityId/events` · `POST communities/:communityId/events/:eventId/rsvp` · `GET creators/me/communities/:communityId/events/:eventId/rsvps` · `PATCH/DELETE creators/me/communities/:communityId/events/:eventId`
+
+**Groups:** `POST/GET communities/:communityId/groups` · `GET groups/:groupId` · `POST groups/:groupId/join` · `DELETE groups/:groupId/leave` · `GET groups/:groupId/members` · `DELETE groups/:groupId`
+
+**Member management (creator):** `POST communities/:communityId/join-request` · `GET creators/me/communities/:communityId/members` · `PATCH creators/me/communities/:communityId/members/:userId/approve|reject|suspend|unsuspend` · `GET creators/me/communities/:communityId/members/export`
+
+**Voice/text/stage rooms:** `GET communities/:communityId/rooms(/:roomId)` · `POST/PATCH/DELETE creators/me/communities/:communityId/rooms(/:roomId)` · `POST communities/:communityId/rooms/:roomId/token` (LiveKit) · raise-hand: `POST/DELETE communities/:communityId/rooms/:roomId/raise-hand` · `GET …/raise-hands` · `POST …/raise-hand/:targetUserId/approve` · room chat: `GET/POST communities/:communityId/rooms/:roomId/messages` · `DELETE …/messages/:messageId` · room permissions: `GET/POST creators/me/communities/:communityId/rooms/:roomId/permissions` · `DELETE …/permissions/:targetUserId`
+
+**AI moderation, copilot & audit:** `POST creators/me/ai/moderation/score` · `GET creators/me/communities/:communityId/copilot/health` · `GET creators/me/communities/:communityId/rooms/:roomId/summary` · `GET admin/ai/budget` · `POST creators/me/copilot/insights` · `GET creators/me/audit-logs`
+
 ### Channel Points (root)
 
 **Member:** `GET communities/:communityId/channel-points/me` (balance) · `GET communities/:communityId/channel-points/rewards` (catalog) · `POST communities/:communityId/channel-points/redeem`  

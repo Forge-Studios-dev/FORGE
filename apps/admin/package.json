@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start -p 3002",
     "lint": "next lint",
+    "test": "npm run build --workspace=@forge/shared-types && vitest run",
+    "test:watch": "vitest",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -30,13 +32,20 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4.1.4",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
     "@types/node": "^20.12.5",
     "@types/react": "^18.2.79",
     "@types/react-dom": "^18.2.25",
+    "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.2",
+    "jsdom": "^25.0.1",
     "postcss": "^8.4.38",
     "tailwindcss": "^4.1.4",
-    "typescript": "^5.4.4"
+    "typescript": "^5.4.4",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^2.1.9"
   }
 }

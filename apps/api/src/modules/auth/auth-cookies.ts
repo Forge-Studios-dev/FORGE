@@ -8,6 +8,13 @@ export const CSRF_COOKIE_NAME = 'forge_csrf';
 export const CSRF_HEADER_NAME = 'x-forge-csrf';
 /** HttpOnly session marker for middleware (not a JWT). */
 export const SESSION_COOKIE_NAME = 'forge_session';
+/**
+ * HttpOnly mirror of the access token, read by Next.js edge middleware to decode
+ * role/permission claims for route guards. Server-set only (MED-10) — client JS
+ * never writes this cookie, so an XSS payload can't read it via document.cookie.
+ * The real bearer token for Authorization headers still lives in sessionStorage.
+ */
+export const ACCESS_COOKIE_NAME = 'forge_access_token';
 
 const DEFAULT_REFRESH_TTL_DAYS = 30;
 
@@ -147,6 +154,40 @@ export function setSessionCookie(res: Response, configService: ConfigService): v
 
 export function clearSessionCookie(res: Response, configService: ConfigService): void {
   res.clearCookie(SESSION_COOKIE_NAME, sessionCookieOptions(configService));
+}
+
+export function setAccessTokenCookie(
+  res: Response,
+  accessToken: string,
+  configService: ConfigService,
+): void {
+  // Same shape as the session marker cookie (httpOnly, shared domain) — the
+  // JWT's own expiry claim is what actually gates access, not this cookie's maxAge.
+  res.cookie(ACCESS_COOKIE_NAME, accessToken, sessionCookieOptions(configService));
+}
+
+export function clearAccessTokenCookie(res: Response, configService: ConfigService): void {
+  res.clearCookie(ACCESS_COOKIE_NAME, sessionCookieOptions(configService));
+}
+
+/** Admin app's equivalent of forge_access_token/forge_session — same MED-10 fix, higher-privilege app. */
+export const ADMIN_TOKEN_COOKIE_NAME = 'forge_admin_token';
+export const ADMIN_SESSION_COOKIE_NAME = 'forge_admin_session';
+
+export function setAdminAuthCookies(
+  res: Response,
+  accessToken: string,
+  configService: ConfigService,
+): void {
+  const options = sessionCookieOptions(configService);
+  res.cookie(ADMIN_TOKEN_COOKIE_NAME, accessToken, options);
+  res.cookie(ADMIN_SESSION_COOKIE_NAME, '1', options);
+}
+
+export function clearAdminAuthCookies(res: Response, configService: ConfigService): void {
+  const options = sessionCookieOptions(configService);
+  res.clearCookie(ADMIN_TOKEN_COOKIE_NAME, options);
+  res.clearCookie(ADMIN_SESSION_COOKIE_NAME, options);
 }
 
 export function hasSessionCookie(req: Request): boolean {

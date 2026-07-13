@@ -19,7 +19,11 @@ function metricsScrapeToken(): string | undefined {
 
 function assertMetricsScrapeAuthorized(req: Request): void {
   const expected = metricsScrapeToken();
-  if (!expected) return;
+  if (!expected) {
+    // Fail closed in production: an unset token must never mean "open scrape".
+    if (process.env.NODE_ENV === 'production') throw new UnauthorizedException();
+    return;
+  }
   const auth = req.headers.authorization?.trim();
   // Grafana Cloud Bearer field: paste token only; client sends `Bearer <token>`.
   // Also accept raw token for scrapers that set Authorization without the prefix.

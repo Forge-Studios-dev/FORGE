@@ -4,9 +4,13 @@ import 'package:dio/dio.dart';
 
 /// S3 multipart upload for large lessons (API flag `multipart_upload`, >= 50MB).
 class MultipartVideoUpload {
-  MultipartVideoUpload(this._dio);
+  /// [createUploadDio] is a test seam (HIGH-09) for the per-part S3 PUT —
+  /// real callers never pass it, so production behavior is unchanged.
+  MultipartVideoUpload(this._dio, {Dio Function()? createUploadDio})
+      : _createUploadDio = createUploadDio ?? (() => Dio());
 
   final Dio _dio;
+  final Dio Function() _createUploadDio;
   static const partUrlBatch = 10;
   static const concurrency = 3;
 
@@ -89,7 +93,7 @@ class MultipartVideoUpload {
       final end = start + partSize > fileLen ? fileLen : start + partSize;
       final stream = file.openRead(start, end);
 
-      final res = await Dio().put(
+      final res = await _createUploadDio().put(
         uploadUrl,
         data: stream,
         options: Options(

@@ -1,6 +1,9 @@
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import {
+  ACCESS_COOKIE_NAME,
+  ADMIN_SESSION_COOKIE_NAME,
+  ADMIN_TOKEN_COOKIE_NAME,
   CSRF_COOKIE_NAME,
   CSRF_HEADER_NAME,
   REFRESH_COOKIE_NAME,
@@ -11,6 +14,10 @@ import {
   clearRefreshTokenCookie,
   setSessionCookie,
   clearSessionCookie,
+  setAccessTokenCookie,
+  clearAccessTokenCookie,
+  setAdminAuthCookies,
+  clearAdminAuthCookies,
   hasSessionCookie,
 } from './auth-cookies';
 
@@ -112,5 +119,43 @@ describe('auth-cookies', () => {
     const res = { cookie: jest.fn(), clearCookie: jest.fn() } as unknown as Response;
     clearSessionCookie(res, config);
     expect(res.clearCookie).toHaveBeenCalledWith(SESSION_COOKIE_NAME, expect.any(Object));
+  });
+
+  it('setAccessTokenCookie sets forge_access_token as httpOnly (MED-10: server-set, not client JS)', () => {
+    const res = { cookie: jest.fn(), clearCookie: jest.fn() } as unknown as Response;
+    setAccessTokenCookie(res, 'jwt-value', config);
+    expect(res.cookie).toHaveBeenCalledWith(
+      ACCESS_COOKIE_NAME,
+      'jwt-value',
+      expect.objectContaining({ httpOnly: true, path: '/' }),
+    );
+  });
+
+  it('clearAccessTokenCookie clears forge_access_token', () => {
+    const res = { cookie: jest.fn(), clearCookie: jest.fn() } as unknown as Response;
+    clearAccessTokenCookie(res, config);
+    expect(res.clearCookie).toHaveBeenCalledWith(ACCESS_COOKIE_NAME, expect.any(Object));
+  });
+
+  it('setAdminAuthCookies sets httpOnly forge_admin_token and forge_admin_session', () => {
+    const res = { cookie: jest.fn(), clearCookie: jest.fn() } as unknown as Response;
+    setAdminAuthCookies(res, 'admin-jwt', config);
+    expect(res.cookie).toHaveBeenCalledWith(
+      ADMIN_TOKEN_COOKIE_NAME,
+      'admin-jwt',
+      expect.objectContaining({ httpOnly: true }),
+    );
+    expect(res.cookie).toHaveBeenCalledWith(
+      ADMIN_SESSION_COOKIE_NAME,
+      '1',
+      expect.objectContaining({ httpOnly: true }),
+    );
+  });
+
+  it('clearAdminAuthCookies clears both admin cookies', () => {
+    const res = { cookie: jest.fn(), clearCookie: jest.fn() } as unknown as Response;
+    clearAdminAuthCookies(res, config);
+    expect(res.clearCookie).toHaveBeenCalledWith(ADMIN_TOKEN_COOKIE_NAME, expect.any(Object));
+    expect(res.clearCookie).toHaveBeenCalledWith(ADMIN_SESSION_COOKIE_NAME, expect.any(Object));
   });
 });

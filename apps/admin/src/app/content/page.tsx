@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { AdminDataTable } from '@/components/admin/AdminDataTable';
 import { AdminPagination } from '@/components/admin/AdminPagination';
@@ -51,6 +52,11 @@ function ContentPageInner() {
   const moderationFilter = searchParams.get('moderationStatus') ?? '';
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
+  const [pendingAction, setPendingAction] = useState<{
+    id: string;
+    patch: ModerationPatch;
+    message: string;
+  } | null>(null);
   const qc = useQueryClient();
 
   useEffect(() => {
@@ -72,13 +78,19 @@ function ContentPageInner() {
   const updateVideo = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: ModerationPatch }) =>
       api.patch(`/admin/videos/${id}`, patch),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-videos'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-videos'] });
+      setPendingAction(null);
+    },
   });
 
   const videos = data?.data as Video[] | undefined;
 
   const act = (id: string, patch: ModerationPatch, confirm?: string) => {
-    if (confirm && !window.confirm(confirm)) return;
+    if (confirm) {
+      setPendingAction({ id, patch, message: confirm });
+      return;
+    }
     updateVideo.mutate({ id, patch });
   };
 
@@ -238,6 +250,16 @@ function ContentPageInner() {
           </tr>
         ))}
       </AdminDataTable>
+
+      <ConfirmDialog
+        open={pendingAction !== null}
+        title={pendingAction?.message ?? ''}
+        confirmLabel="Confirm"
+        variant="danger"
+        loading={updateVideo.isPending}
+        onConfirm={() => pendingAction && updateVideo.mutate({ id: pendingAction.id, patch: pendingAction.patch })}
+        onCancel={() => setPendingAction(null)}
+      />
     </section>
   );
 }

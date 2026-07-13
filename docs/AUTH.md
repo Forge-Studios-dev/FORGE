@@ -24,7 +24,7 @@ Refresh tokens: opaque, SHA-256 hashed, rotated each refresh. Reuse of revoked t
 
 | Client | Storage |
 |--------|---------|
-| **Web** | Access in memory/`sessionStorage`; `forge_access_token` cookie for middleware; HttpOnly refresh on API host |
+| **Web** | Access in memory/`sessionStorage` (used for Authorization headers); `forge_access_token` HttpOnly cookie set by the API on login/refresh, read only by Next.js middleware for route guards — never written by client JS; HttpOnly refresh on API host |
 | **Admin** | `forge_admin_token` + same refresh cookie; `withCredentials` |
 | **Mobile** | `flutter_secure_storage`; refresh in JSON body |
 

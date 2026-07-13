@@ -140,8 +140,12 @@ export class AdminController {
 
   @Patch('users/:id')
   @ApiOperation({ summary: 'Update user role or status (admin)' })
-  updateUser(@Param('id') id: string, @Body() dto: UpdateAdminUserDto) {
-    return this.adminService.updateUser(id, dto);
+  updateUser(
+    @Param('id') id: string,
+    @Body() dto: UpdateAdminUserDto,
+    @CurrentUser() admin: JwtPayload,
+  ) {
+    return this.adminService.updateUser(id, dto, admin.sub);
   }
 
   @Delete('users/:id')

@@ -1,5 +1,6 @@
 import './instrument';
 import 'reflect-metadata';
+import { createServer } from 'http';
 import { NestFactory } from '@nestjs/core';
 import { ClassSerializerInterceptor, ValidationPipe, RequestMethod } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -12,7 +13,7 @@ import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { validateProductionConfig } from './config/validate-production-config';
 import { httpMetricsMiddleware } from './common/metrics/http-metrics.middleware';
-import { productionCorsOrigins } from './config/cors-origins';
+import { devCorsOrigins, productionCorsOrigins } from './config/cors-origins';
 
 async function bootstrapWorker() {
   // Use visible logging during DI so crashes appear in flyctl logs.
@@ -26,6 +27,22 @@ async function bootstrapWorker() {
   app.enableShutdownHooks();
   const logger = app.get(Logger);
   logger.log('FORGE worker process started (BullMQ consumers; no HTTP listener)');
+
+  // MED-08: a bare http.Server (not routed through Nest/Express) purely so
+  // Fly has a real functional liveness check for the worker, instead of only
+  // checking machine state. Reachable only after the Nest application
+  // context above has fully booted (DI + config validation succeeded), so
+  // its absence is itself the correct failure signal for Fly to act on.
+  const port = Number(process.env.PORT) || 3001;
+  createServer((req, res) => {
+    if (req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok' }));
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  }).listen(port, () => logger.log(`Worker health endpoint listening on :${port}`));
 }
 
 async function bootstrap() {
@@ -67,7 +84,7 @@ async function bootstrap() {
   }
 
   app.enableCors({
-    origin: nodeEnv === 'production' ? (prodOrigins.length > 0 ? prodOrigins : []) : '*',
+    origin: nodeEnv === 'production' ? (prodOrigins.length > 0 ? prodOrigins : []) : devCorsOrigins(),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   });

@@ -1,5 +1,3 @@
-import { setAuthCookie, clearAuthCookie } from '@/lib/auth-cookies';
-
 export const AUTH_SESSION_EVENT = 'forge:auth-session-changed';
 
 const USER_KEY = 'forge_user';
@@ -54,7 +52,8 @@ export function persistAuthSession(
   }
   if (userJson) localStorage.setItem(USER_KEY, userJson);
   if (sessionId) localStorage.setItem(SESSION_ID_KEY, sessionId);
-  setAuthCookie(accessToken);
+  // forge_access_token is now set HttpOnly by the API on login/refresh (MED-10) —
+  // client JS no longer mirrors it into a JS-readable cookie.
   notifyAuthSessionChanged();
 }
 
@@ -68,12 +67,6 @@ export function clearAuthSession() {
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(SESSION_ID_KEY);
   localStorage.removeItem('forge_refresh_token');
-  clearAuthCookie();
+  // forge_access_token cookie is cleared server-side by /auth/logout.
   notifyAuthSessionChanged();
-}
-
-/** Keep middleware cookie in sync with in-memory / sessionStorage access token. */
-export function syncAuthCookieFromStorage() {
-  const token = getAccessToken();
-  if (token) setAuthCookie(token);
 }

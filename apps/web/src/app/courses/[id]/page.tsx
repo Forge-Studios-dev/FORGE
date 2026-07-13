@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import { Button, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -88,11 +88,13 @@ export default function CourseViewerPage() {
     );
   }
 
-  const accessDenied =
-    error &&
-    typeof error === 'object' &&
-    'response' in error &&
-    (error as { response?: { status?: number } }).response?.status === 403;
+  const errorStatus =
+    error && typeof error === 'object' && 'response' in error
+      ? (error as { response?: { status?: number } }).response?.status
+      : undefined;
+  const accessDenied = errorStatus === 403;
+
+  if (errorStatus === 404) notFound();
 
   return (
     <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">

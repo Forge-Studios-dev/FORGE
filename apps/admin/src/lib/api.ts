@@ -1,12 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { env } from '@/env';
 import { csrfRequestHeaders } from '@/lib/csrf';
-import {
-  clearAdminSession,
-  getAdminAccessToken,
-  persistAdminSession,
-  setAdminAccessCookie,
-} from '@/lib/auth-storage';
+import { clearAdminSession, getAdminAccessToken, persistAdminSession } from '@/lib/auth-storage';
 
 const API_URL = env.NEXT_PUBLIC_API_URL;
 
@@ -58,6 +53,3 @@ export async function adminLogout(options?: { allDevices?: boolean }) {
   }
   clearAdminSession();
 }
-
-/** @deprecated use persistAdminSession */
-export { setAdminAccessCookie };

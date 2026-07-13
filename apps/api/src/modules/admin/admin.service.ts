@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
@@ -111,13 +112,41 @@ export class AdminService {
     return toAdminVideo(saved);
   }
 
-  async updateUser(id: string, dto: UpdateAdminUserDto) {
-    await this.userRepository.update(id, dto);
+  async updateUser(id: string, dto: UpdateAdminUserDto, adminId?: string) {
+    const { currentAdminPassword, ...patch } = dto;
+
+    if (patch.role === UserRole.ADMIN) {
+      await this.assertAdminEscalationAllowed(id, adminId, currentAdminPassword);
+    }
+
+    await this.userRepository.update(id, patch);
     await this.authUserCache.bust(id);
     if (dto.isActive === false) {
       await this.authService.logoutAll(id);
     }
     return this.findUserById(id);
+  }
+
+  /**
+   * Step-up auth (MED-13): granting the admin role requires the calling admin
+   * to re-enter their own current password. No-op if the target is already admin.
+   */
+  private async assertAdminEscalationAllowed(
+    targetId: string,
+    adminId: string | undefined,
+    currentAdminPassword: string | undefined,
+  ): Promise<void> {
+    const target = await this.userRepository.findOne({ where: { id: targetId } });
+    if (target?.role === UserRole.ADMIN) return;
+
+    if (!adminId || !currentAdminPassword) {
+      throw new ForbiddenException('Current password required to grant admin role');
+    }
+    const caller = await this.userRepository.findOne({ where: { id: adminId } });
+    const valid = caller ? await bcrypt.compare(currentAdminPassword, caller.passwordHash) : false;
+    if (!valid) {
+      throw new ForbiddenException('Incorrect password');
+    }
   }
 
   /** Bulk role/status change — one UPDATE for all rows, then per-user cache bust (unavoidable, cache is keyed per user). */

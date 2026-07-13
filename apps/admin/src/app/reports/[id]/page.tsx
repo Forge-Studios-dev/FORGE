@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PageHeader } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 
 type Report = {
@@ -23,6 +24,8 @@ export default function ReportDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [actionPending, setActionPending] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<'dismiss' | 'block-video' | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -41,13 +44,37 @@ export default function ReportDetailPage() {
     void load();
   }, [id]);
 
-  const updateStatus = async (status: 'reviewed' | 'dismissed') => {
-    if (status === 'dismissed' && !window.confirm('Dismiss this report without further action?')) return;
+  const runUpdateStatus = async (status: 'reviewed' | 'dismissed') => {
+    setActionPending(true);
     try {
       await api.patch(`/admin/reports/${id}`, { status });
       setDone(true);
     } catch {
       setError('Could not update report. Please try again.');
+    } finally {
+      setActionPending(false);
+    }
+  };
+
+  const updateStatus = (status: 'reviewed' | 'dismissed') => {
+    if (status === 'dismissed') {
+      setPendingConfirm('dismiss');
+      return;
+    }
+    void runUpdateStatus(status);
+  };
+
+  const blockVideoAndReview = async () => {
+    setActionPending(true);
+    try {
+      await api.patch(`/admin/videos/${report!.targetId}`, {
+        moderationStatus: 'blocked',
+        visibility: 'private',
+      });
+      await runUpdateStatus('reviewed');
+    } catch {
+      setError('Could not block video. Please try again.');
+      setActionPending(false);
     }
   };
 
@@ -132,17 +159,11 @@ export default function ReportDetailPage() {
           <>
             <button
               type="button"
-              onClick={async () => {
-                if (!window.confirm('Block this video and mark report reviewed?')) return;
-                await api.patch(`/admin/videos/${report.targetId}`, {
-                  moderationStatus: 'blocked',
-                  visibility: 'private',
-                });
-                await updateStatus('reviewed');
-              }}
-              className="rounded-full border border-error/40 px-6 py-2 text-sm text-error hover:bg-error/10"
+              disabled={actionPending}
+              onClick={() => setPendingConfirm('block-video')}
+              className="rounded-full border border-error/40 px-6 py-2 text-sm text-error hover:bg-error/10 disabled:opacity-40"
             >
-              Block video
+              {actionPending ? 'Working…' : 'Block video'}
             </button>
             <Link
               href="/content?moderationStatus=held"
@@ -154,21 +175,40 @@ export default function ReportDetailPage() {
         ) : null}
         <button
           type="button"
-          disabled={report.status !== 'pending'}
-          onClick={() => void updateStatus('reviewed')}
+          disabled={report.status !== 'pending' || actionPending}
+          onClick={() => updateStatus('reviewed')}
           className="primary-button rounded-full px-6 py-2 text-sm font-semibold text-on-primary disabled:opacity-40"
         >
-          Mark reviewed
+          {actionPending ? 'Working…' : 'Mark reviewed'}
         </button>
         <button
           type="button"
-          disabled={report.status !== 'pending'}
-          onClick={() => void updateStatus('dismissed')}
-          className="rounded-full border border-outline-variant px-6 py-2 text-sm hover:border-primary"
+          disabled={report.status !== 'pending' || actionPending}
+          onClick={() => updateStatus('dismissed')}
+          className="rounded-full border border-outline-variant px-6 py-2 text-sm hover:border-primary disabled:opacity-40"
         >
-          Dismiss report
+          {actionPending ? 'Working…' : 'Dismiss report'}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        title={
+          pendingConfirm === 'block-video'
+            ? 'Block this video and mark report reviewed?'
+            : 'Dismiss this report without further action?'
+        }
+        confirmLabel={pendingConfirm === 'block-video' ? 'Block video' : 'Dismiss'}
+        variant="danger"
+        loading={actionPending}
+        onConfirm={() => {
+          const action = pendingConfirm;
+          setPendingConfirm(null);
+          if (action === 'block-video') void blockVideoAndReview();
+          else if (action === 'dismiss') void runUpdateStatus('dismissed');
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
     </section>
   );
 }

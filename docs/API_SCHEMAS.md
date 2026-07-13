@@ -136,6 +136,10 @@ Playback URLs are **null** unless `status === ready` and access is allowed.
 | `recordEnabled` | no | `true` |
 | `ageRestricted` | no | `false` |
 | `requiredTierId` | no | Tier-gated stream |
+| `scheduledAt` | no | ISO date-string; schedule for future start |
+| `ticketPriceCents` | no | Min 100; paid/ticketed event when set |
+| `dvrEnabled` | no | `false` |
+| `communityId` | no | Scopes the live event to a specific community |
 
 ---
 
