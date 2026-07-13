@@ -12,8 +12,7 @@ import { StreamChatPanel } from '@/components/StreamChat/StreamChatPanel';
 import { useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
-import { EmptyState } from '@/components/EmptyState';
-import { SkeletonBlock } from '@forge/design-system';
+import { EmptyState, PaywallCard, SkeletonBlock } from '@forge/design-system';
 import { resolveStreamPoster } from '@/lib/stream-poster';
 import { AgeGateModal } from '@/components/live/AgeGateModal';
 import { StreamCountdownLobby } from '@/components/live/StreamCountdownLobby';
@@ -161,11 +160,10 @@ export default function LiveWatchPage() {
     if (stream.accessDenied) {
       const isPaid = stream.accessReason === 'paid_event';
       return (
-        <div className="glass-panel flex aspect-video flex-col items-center justify-center gap-3 px-6 text-center">
-          <p className="font-medium">Stream access restricted</p>
-          <p className="text-sm text-on-surface-variant">
-            {ACCESS_MESSAGES[stream.accessReason ?? ''] ?? 'You cannot watch this stream.'}
-          </p>
+        <PaywallCard
+          title="Stream access restricted"
+          message={ACCESS_MESSAGES[stream.accessReason ?? ''] ?? 'You cannot watch this stream.'}
+        >
           {isPaid && stream.ticketPriceCents ? (
             <p className="text-xs text-on-surface-variant">
               Ticket: ${(stream.ticketPriceCents / 100).toFixed(2)} · contact the creator if you need access
@@ -175,7 +173,7 @@ export default function LiveWatchPage() {
               Sign in to check your access
             </Link>
           ) : null}
-        </div>
+        </PaywallCard>
       );
     }
 

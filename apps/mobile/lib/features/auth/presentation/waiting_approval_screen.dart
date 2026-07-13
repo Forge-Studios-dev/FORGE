@@ -24,6 +24,11 @@ class WaitingApprovalScreen extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             FilledButton(
+              onPressed: () => context.go('/explore'),
+              child: const Text('Explore skills while you wait'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
               onPressed: () => context.go('/feed'),
               child: const Text('Go to feed'),
             ),

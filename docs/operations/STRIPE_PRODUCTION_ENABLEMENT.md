@@ -2,7 +2,9 @@
 
 **Tracker:** `CEOS-P05-T026` · **Related:** [MEMBERSHIPS.md](../MEMBERSHIPS.md) · [DEPLOY.md](../DEPLOY.md) · F-1101 (deferred signed Mux URLs)
 
-Enable real membership billing, paid live events, and super chat on production. Default is `BILLING_PROVIDER=stub` (no card charges).
+Enable real membership billing, paid live events, and super chat on production. `fly.toml` already bakes `BILLING_PROVIDER=stripe` into the production env by default — this runbook sets the remaining `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` keys, not the provider itself.
+
+**Graceful degradation:** if `STRIPE_SECRET_KEY` is unset, the API still boots successfully — `billingProviderFactory` logs a loud warning at startup and billing calls fail softly at call time (`StripePaymentProvider.client()` throws `NotImplementedException`) instead of crash-looping the app.
 
 ---
 

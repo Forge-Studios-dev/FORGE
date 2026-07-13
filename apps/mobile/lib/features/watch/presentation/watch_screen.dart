@@ -439,14 +439,23 @@ class _HlsPlayerBlock extends ConsumerStatefulWidget {
   ConsumerState<_HlsPlayerBlock> createState() => _HlsPlayerBlockState();
 }
 
-class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> {
+class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBindingObserver {
   VideoPlayerController? _video;
   ChewieController? _chewie;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _bootstrap();
+  }
+
+  /// HIGH-08: pause decoding/buffering when the app is backgrounded.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _video?.pause();
+    }
   }
 
   @override
@@ -498,6 +507,7 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     final pos = _video?.value.position.inSeconds ?? 0;
     _recordWatch(progressSeconds: pos);
     _disposeControllers();

@@ -16,7 +16,6 @@ import {
   clearAuthSession,
   getAccessToken,
   persistAuthSession,
-  syncAuthCookieFromStorage,
 } from '@/lib/auth-storage';
 import { getStoredUser } from '@/lib/permissions';
 import {
@@ -110,7 +109,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   useEffect(() => {
-    syncAuthCookieFromStorage();
     refresh();
     setHydrated(true);
     fetchMe();
@@ -123,7 +121,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (e.key === 'forge_user' || e.key === 'forge_session_id') onSessionChange();
     };
     const onFocus = () => {
-      syncAuthCookieFromStorage();
       onSessionChange();
     };
 

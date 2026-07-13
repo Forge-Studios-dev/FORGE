@@ -5,12 +5,11 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import { FeedGridSkeleton, Icon, Input, PageHeader } from '@forge/design-system';
+import { EmptyState, FeedGridSkeleton, Icon, Input, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { trackSearchQuery } from '@/lib/analytics';
 import { User, Video } from '@/types';
 import { FeedCard } from '@/components/FeedCard/FeedCard';
-import { EmptyState } from '@/components/EmptyState';
 
 type SearchPayload = {
   videos: Video[];

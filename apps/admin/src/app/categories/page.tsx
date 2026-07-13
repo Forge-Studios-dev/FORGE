@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Icon, Input, PageHeader } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 
 interface Category {
@@ -27,6 +28,7 @@ export default function CategoriesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', slug: '', sortOrder: '0', description: '' });
   const [error, setError] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<Category | null>(null);
 
   const { data, isLoading } = useQuery<Category[]>({
     queryKey: ['admin-categories'],
@@ -62,8 +64,14 @@ export default function CategoriesPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/admin/categories/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-categories'] }),
-    onError: () => setError('Cannot delete — remove subcategories first.'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-categories'] });
+      setPendingDelete(null);
+    },
+    onError: () => {
+      setError('Cannot delete — remove subcategories first.');
+      setPendingDelete(null);
+    },
   });
 
   const openCreate = () => {
@@ -185,9 +193,7 @@ export default function CategoriesPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm(`Delete "${cat.name}"?`)) remove.mutate(cat.id);
-                  }}
+                  onClick={() => setPendingDelete(cat)}
                   className="text-xs text-error hover:underline"
                 >
                   Delete
@@ -197,6 +203,16 @@ export default function CategoriesPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`Delete "${pendingDelete?.name}"?`}
+        confirmLabel="Delete"
+        variant="danger"
+        loading={remove.isPending}
+        onConfirm={() => pendingDelete && remove.mutate(pendingDelete.id)}
+        onCancel={() => setPendingDelete(null)}
+      />
     </section>
   );
 }

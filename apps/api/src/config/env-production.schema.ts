@@ -28,6 +28,9 @@ export function validateProductionEnv(env: NodeJS.ProcessEnv = process.env): voi
     VIDEO_TRANSCODE_PROVIDER: z.enum(['mux'], {
       message: 'Production requires VIDEO_TRANSCODE_PROVIDER=mux',
     }),
+    METRICS_SCRAPE_TOKEN: z
+      .string()
+      .min(1, 'METRICS_SCRAPE_TOKEN is required in production (/metrics fails closed without it)'),
   });
 
   const parsed = base.safeParse(env);

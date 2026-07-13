@@ -60,6 +60,21 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm audit --audit-level=critical
+      # HIGH-05: high-severity findings (multer, nodemailer, ws, next, etc.)
+      # were previously invisible — critical-only gate showed 0 findings while
+      # dozens of high-severity ones accumulated. Non-blocking for now since
+      # several fixes are major-version bumps (@nestjs/platform-express,
+      # nodemailer, next@16) that need their own tested upgrade PRs, not a
+      # blind dependency bump here. Tracks the count so it can't go unnoticed.
+      - name: High-severity audit report (non-blocking)
+        if: always()
+        run: |
+          npm audit --audit-level=high --json > audit-high.json || true
+          HIGH_COUNT=$(node -e "const r=require('./audit-high.json'); console.log((r.metadata?.vulnerabilities?.high||0)+(r.metadata?.vulnerabilities?.critical||0))")
+          echo "## High/critical severity dependency findings: $HIGH_COUNT" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$HIGH_COUNT" -gt 0 ]; then
+            echo "Non-blocking — see \`npm audit --audit-level=high\` locally for details. Known accepted-risk majors: multer (needs @nestjs/platform-express v11), nodemailer v9, next v16." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   build-packages:
     name: Build shared packages
@@ -232,7 +247,11 @@ jobs:
   ci-ok:
     name: CI passed
     runs-on: ubuntu-latest
-    needs: [api, web, admin, mobile]
+    # security-audit added (MED-05) — was previously independent of this gate,
+    # so a PR could merge while it failed. CodeQL runs as a separate workflow
+    # file and can't be added to `needs:` here; require it via GitHub branch
+    # protection (Settings -> Branches -> required status checks) instead.
+    needs: [api, web, admin, mobile, security-audit]
     if: always()
     steps:
       - name: Require jobs
@@ -241,7 +260,8 @@ jobs:
           test "${{ needs.web.result }}" = "success" || test "${{ needs.web.result }}" = "skipped"
           test "${{ needs.admin.result }}" = "success" || test "${{ needs.admin.result }}" = "skipped"
           test "${{ needs.mobile.result }}" = "success" || test "${{ needs.mobile.result }}" = "skipped"
-          if [ "${{ needs.api.result }}" = "failure" ] || [ "${{ needs.web.result }}" = "failure" ] || [ "${{ needs.admin.result }}" = "failure" ] || [ "${{ needs.mobile.result }}" = "failure" ]; then
+          test "${{ needs.security-audit.result }}" = "success" || test "${{ needs.security-audit.result }}" = "skipped"
+          if [ "${{ needs.api.result }}" = "failure" ] || [ "${{ needs.web.result }}" = "failure" ] || [ "${{ needs.admin.result }}" = "failure" ] || [ "${{ needs.mobile.result }}" = "failure" ] || [ "${{ needs.security-audit.result }}" = "failure" ]; then
             echo "One or more CI jobs failed"
             exit 1
           fi

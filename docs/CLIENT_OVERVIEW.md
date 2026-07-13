@@ -14,7 +14,7 @@ Skill-first platform: tutorial video, live teaching, expertise-based audiences. 
 | Trusted creators | Admin approval before publish/live |
 | Video | S3 upload → Mux HLS; Shorts (≤60s auto-classified) |
 | Live | Mux + stream chat, polls, clips, AI summaries |
-| Engagement | Likes, comments, follows, playlists, platform XP/gamification, streaks |
+| Engagement | Likes, comments, follows, playlists, platform XP/gamification, streaks, first-run onboarding + splash (mobile) |
 | Community | Creator channels (tier-gated), RBAC, room messages, polls, events |
 | Monetization | Stripe memberships + paid events + super chat + program pricing |
 | AI | LLM moderation, discussion summaries, stream summaries, copilot, multi-provider routing |
@@ -33,9 +33,9 @@ Guest → user → creator (approved) · admin on separate admin app.
 | Feed / search / recommendations | ✅ | ✅ | ✅ | — |
 | VOD / live / Shorts | ✅ | ✅ | ✅ | — |
 | Memberships / billing | ✅ | ✅ | ✅ | — |
-| Community / RBAC / rooms | ✅ | ✅ | ✅ | — |
+| Community / RBAC / rooms | ✅ | ✅ | ✅ | ✅ |
 | Gamification / XP / achievements | ✅ | ✅ | ✅ | — |
-| AI (moderation, summaries, copilot) | ✅ | ✅ | — | — |
+| AI (moderation, summaries, copilot) | ✅ | ✅ | ✅ | — |
 | Creator analytics / KPI dashboard | ✅ | ✅ | ✅ | ✅ |
 | Courses / programs | ✅ | ✅ | ✅ | — |
 

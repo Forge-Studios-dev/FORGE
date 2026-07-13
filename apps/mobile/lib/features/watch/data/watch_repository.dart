@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/cache/local_cache.dart';
 import '../../../core/network/api_client.dart';
 import '../../../shared/models/video.dart';
 
@@ -28,10 +31,21 @@ class WatchRepository {
   final ApiClient _client;
   WatchRepository(this._client);
 
+  /// Cache-then-network (HIGH-07): a previously-viewed video's metadata still
+  /// renders when offline instead of an error screen. Playback itself still
+  /// needs a live HLS connection — this only covers the detail/metadata view.
   Future<VideoModel> getVideo(String id) async {
-    final response = await _client.dio.get('/videos/$id');
-    final payload = response.data['data'] as Map<String, dynamic>;
-    return VideoModel.fromJson(payload);
+    try {
+      final response = await _client.dio.get('/videos/$id');
+      final payload = response.data['data'] as Map<String, dynamic>;
+      final video = VideoModel.fromJson(payload);
+      await LocalCache.writeWatchedVideo(id, jsonEncode(video.toJson()));
+      return video;
+    } catch (e) {
+      final cached = LocalCache.readWatchedVideo(id);
+      if (cached != null) return VideoModel.fromJson(jsonDecode(cached) as Map<String, dynamic>);
+      rethrow;
+    }
   }
 
   Future<void> reportVideo({required String videoId, required String reason}) async {

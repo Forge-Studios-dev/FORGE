@@ -41,7 +41,6 @@ import '../../features/studio/presentation/course_viewer_screen.dart';
 import '../../features/courses/presentation/discover_courses_screen.dart';
 import '../../features/community/presentation/discover_communities_screen.dart';
 import '../../features/studio/presentation/studio_bundles_screen.dart';
-import '../../features/studio/presentation/studio_programs_screen.dart';
 import '../../features/studio/presentation/studio_copilot_screen.dart';
 import '../../features/profile/presentation/program_viewer_screen.dart';
 import '../../features/profile/presentation/my_memberships_screen.dart';
@@ -58,13 +57,17 @@ import 'auth_redirect.dart';
 import 'navigation_key.dart';
 
 const _storage = FlutterSecureStorage();
-const _protected = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/library', '/profile', '/updates', '/playlists'];
+
+/// Routes that require a live session. Exported (not `_`-prefixed) so tests
+/// exercise this real list instead of a hand-copied duplicate (HIGH-09) —
+/// a future edit here is caught by auth_redirect_test.dart automatically.
+const protectedRoutes = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/library', '/profile', '/updates', '/playlists'];
 
 // Screens a first-time signed-in user must still be able to reach even
 // before completing onboarding (auth flows, the onboarding screen itself,
 // and status/utility screens). Everything else funnels through
 // `/onboarding` once, right after auth and before landing on `/feed`.
-const _onboardingExempt = [
+const onboardingExemptRoutes = [
   '/splash',
   '/onboarding',
   '/login',
@@ -78,26 +81,43 @@ const _onboardingExempt = [
   '/maintenance',
 ];
 
-Future<String?> _redirect(BuildContext context, GoRouterState state) async {
-  final path = state.matchedLocation;
-  final needsAuth = _protected.any((p) => path == p || path.startsWith('$p/'));
-  final token = await _storage.read(key: AppConstants.accessTokenKey);
-  final hasSession = token != null && token.isNotEmpty;
+/// Routing decision, factored out of `_redirect` so tests can drive it
+/// directly with explicit session/onboarding state instead of mocking
+/// FlutterSecureStorage's platform channel. Only the creator-tier check
+/// (`/studio`, `/upload`) still reads storage internally, via
+/// `creatorRouteRedirect` -> `readStoredUser`.
+Future<String?> resolveRedirect({
+  required String path,
+  required bool hasSession,
+  required bool onboardingDone,
+}) async {
+  final needsAuth = protectedRoutes.any((p) => path == p || path.startsWith('$p/'));
 
   if (needsAuth && !hasSession) {
     return '/login?next=${Uri.encodeComponent(path)}';
   }
 
   if (hasSession &&
-      !_onboardingExempt.any((p) => path == p || path.startsWith('$p/'))) {
-    final onboardingDone = await _storage.read(key: AppConstants.onboardingCompleteKey);
-    if (onboardingDone != 'true') {
-      return '/onboarding';
-    }
+      !onboardingExemptRoutes.any((p) => path == p || path.startsWith('$p/')) &&
+      !onboardingDone) {
+    return '/onboarding';
   }
 
   if (needsAuth) return creatorRouteRedirect(path);
   return null;
+}
+
+Future<String?> _redirect(BuildContext context, GoRouterState state) async {
+  final path = state.matchedLocation;
+  final token = await _storage.read(key: AppConstants.accessTokenKey);
+  final hasSession = token != null && token.isNotEmpty;
+  final onboardingDone = await _storage.read(key: AppConstants.onboardingCompleteKey);
+
+  return resolveRedirect(
+    path: path,
+    hasSession: hasSession,
+    onboardingDone: onboardingDone == 'true',
+  );
 }
 
 int _studioCommunityTabIndex(String? tab) {
@@ -171,7 +191,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/studio/moderation',
         redirect: (_, __) => '/studio/community?tab=moderation',
       ),
-      GoRoute(path: '/studio/programs', builder: (_, __) => const StudioProgramsScreen()),
+      // Programs are now the "Programs" tab inside Studio Courses — a program
+      // is a Course row with isBundle=true. Kept as a redirect for old links.
+      GoRoute(
+        path: '/studio/programs',
+        redirect: (_, __) => '/studio/courses',
+      ),
       GoRoute(path: '/studio/courses', builder: (_, __) => const StudioCoursesScreen()),
       GoRoute(
         path: '/studio/courses/:id',

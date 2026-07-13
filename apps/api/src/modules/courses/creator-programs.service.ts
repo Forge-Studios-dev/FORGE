@@ -6,20 +6,26 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { CreatorProgram, CreatorProgramCourse } from './entities/creator-program.entity';
-import { Course } from './entities/course.entity';
+import { Course, CourseBundleItem } from './entities/course.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CoursesService } from './courses.service';
 
+/**
+ * "Programs" are bundle courses — Course rows with isBundle=true whose content
+ * is other courses (via CourseBundleItem) instead of their own lessons. This
+ * service used to operate on separate CreatorProgram/CreatorProgramCourse
+ * tables; migration 1839800000000-merge-programs-into-courses folded that data
+ * into courses/course_bundle_items. Method signatures and response shapes are
+ * kept identical on purpose so the existing controller routes (and every web/
+ * mobile consumer of them) don't need to change for this data-model merge.
+ */
 @Injectable()
 export class CreatorProgramsService {
   constructor(
-    @InjectRepository(CreatorProgram)
-    private readonly programRepository: Repository<CreatorProgram>,
-    @InjectRepository(CreatorProgramCourse)
-    private readonly programCourseRepository: Repository<CreatorProgramCourse>,
     @InjectRepository(Course)
     private readonly courseRepository: Repository<Course>,
+    @InjectRepository(CourseBundleItem)
+    private readonly bundleItemRepository: Repository<CourseBundleItem>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
     private readonly coursesService: CoursesService,
@@ -34,12 +40,19 @@ export class CreatorProgramsService {
       .slice(0, 120);
   }
 
-  private async mapProgram(program: CreatorProgram, options?: { consumerView?: boolean }) {
-    const courseRows = await this.programCourseRepository.find({
-      where: { programId: program.id },
+  private async getBundleOrThrow(creatorId: string | undefined, programId: string): Promise<Course> {
+    const where = creatorId ? { id: programId, creatorId, isBundle: true } : { id: programId, isBundle: true };
+    const bundle = await this.courseRepository.findOne({ where });
+    if (!bundle) throw new NotFoundException('Program not found');
+    return bundle;
+  }
+
+  private async mapProgram(program: Course, options?: { consumerView?: boolean }) {
+    const itemRows = await this.bundleItemRepository.find({
+      where: { bundleCourseId: program.id },
       order: { sortOrder: 'ASC' },
     });
-    const courseIds = courseRows.map((r) => r.courseId);
+    const courseIds = itemRows.map((r) => r.itemCourseId);
     const courses =
       courseIds.length === 0
         ? []
@@ -49,7 +62,7 @@ export class CreatorProgramsService {
     return {
       id: program.id,
       creatorId: program.creatorId,
-      name: program.name,
+      name: program.title,
       slug: program.slug,
       description: program.description,
       communityId: program.communityId,
@@ -57,14 +70,14 @@ export class CreatorProgramsService {
       priceCents: program.priceCents,
       isFree: program.priceCents === 0,
       stripePriceId: program.stripePriceId,
-      sortOrder: program.sortOrder,
-      courses: courseRows
+      sortOrder: 0,
+      courses: itemRows
         .map((row) => {
-          const course = courseById.get(row.courseId);
+          const course = courseById.get(row.itemCourseId);
           if (consumerView && (!course || !course.isPublished)) return null;
           return {
             id: row.id,
-            courseId: row.courseId,
+            courseId: row.itemCourseId,
             sortOrder: row.sortOrder,
             course: course
               ? { id: course.id, title: course.title, slug: course.slug, isPublished: course.isPublished }
@@ -78,9 +91,9 @@ export class CreatorProgramsService {
   }
 
   async listPublishedForCreator(creatorId: string, viewerId?: string | null) {
-    const programs = await this.programRepository.find({
-      where: { creatorId, isPublished: true },
-      order: { sortOrder: 'ASC', createdAt: 'DESC' },
+    const programs = await this.courseRepository.find({
+      where: { creatorId, isBundle: true, isPublished: true },
+      order: { createdAt: 'DESC' },
     });
     const consumerView = viewerId !== creatorId;
     const data = await Promise.all(
@@ -90,8 +103,8 @@ export class CreatorProgramsService {
   }
 
   async getPublishedBySlug(creatorId: string, slug: string, viewerId?: string | null) {
-    const program = await this.programRepository.findOne({
-      where: { creatorId, slug, isPublished: true },
+    const program = await this.courseRepository.findOne({
+      where: { creatorId, slug, isBundle: true, isPublished: true },
     });
     if (!program) throw new NotFoundException('Program not found');
     return {
@@ -100,8 +113,8 @@ export class CreatorProgramsService {
   }
 
   async enrollInProgram(userId: string, programId: string) {
-    const program = await this.programRepository.findOne({
-      where: { id: programId, isPublished: true },
+    const program = await this.courseRepository.findOne({
+      where: { id: programId, isBundle: true, isPublished: true },
     });
     if (!program) throw new NotFoundException('Program not found');
     if (program.priceCents > 0) {
@@ -129,9 +142,9 @@ export class CreatorProgramsService {
   }
 
   async listForCreator(creatorId: string) {
-    const programs = await this.programRepository.find({
-      where: { creatorId },
-      order: { sortOrder: 'ASC', createdAt: 'DESC' },
+    const programs = await this.courseRepository.find({
+      where: { creatorId, isBundle: true },
+      order: { createdAt: 'DESC' },
     });
     const data = await Promise.all(programs.map((p) => this.mapProgram(p)));
     return { data };
@@ -148,7 +161,7 @@ export class CreatorProgramsService {
     },
   ) {
     const slug = this.slugify(input.name);
-    const existing = await this.programRepository.findOne({ where: { creatorId, slug } });
+    const existing = await this.courseRepository.findOne({ where: { creatorId, slug } });
     if (existing) throw new BadRequestException('Program slug already exists');
 
     if (input.communityId) {
@@ -158,14 +171,15 @@ export class CreatorProgramsService {
       if (!community) throw new BadRequestException('Community not found');
     }
 
-    const program = await this.programRepository.save(
-      this.programRepository.create({
+    const program = await this.courseRepository.save(
+      this.courseRepository.create({
         creatorId,
-        name: input.name.trim(),
+        title: input.name.trim(),
         slug,
         description: input.description?.trim() ?? null,
         communityId: input.communityId ?? null,
         isPublished: input.isPublished ?? false,
+        isBundle: true,
       }),
     );
 
@@ -189,11 +203,10 @@ export class CreatorProgramsService {
       courseIds?: string[];
     },
   ) {
-    const program = await this.programRepository.findOne({ where: { id: programId, creatorId } });
-    if (!program) throw new NotFoundException('Program not found');
+    const program = await this.getBundleOrThrow(creatorId, programId);
 
     if (input.name !== undefined) {
-      program.name = input.name.trim();
+      program.title = input.name.trim();
       program.slug = this.slugify(input.name);
     }
     if (input.description !== undefined) program.description = input.description?.trim() ?? null;
@@ -215,7 +228,7 @@ export class CreatorProgramsService {
     }
     if (input.stripePriceId !== undefined) program.stripePriceId = input.stripePriceId ?? null;
 
-    await this.programRepository.save(program);
+    await this.courseRepository.save(program);
 
     if (input.courseIds) {
       await this.setProgramCourses(creatorId, programId, input.courseIds);
@@ -225,25 +238,25 @@ export class CreatorProgramsService {
   }
 
   async deleteProgram(creatorId: string, programId: string) {
-    const program = await this.programRepository.findOne({ where: { id: programId, creatorId } });
-    if (!program) throw new NotFoundException('Program not found');
-    await this.programCourseRepository.delete({ programId });
-    await this.programRepository.delete(programId);
+    await this.getBundleOrThrow(creatorId, programId);
+    await this.bundleItemRepository.delete({ bundleCourseId: programId });
+    await this.courseRepository.delete(programId);
     return { deleted: true, id: programId };
   }
 
   private async setProgramCourses(creatorId: string, programId: string, courseIds: string[]) {
     const uniqueIds = [...new Set(courseIds)];
+    // isBundle: false — a bundle can only contain real courses, not other bundles.
     const owned = await this.courseRepository.find({
-      where: uniqueIds.map((id) => ({ id, creatorId })),
+      where: uniqueIds.map((id) => ({ id, creatorId, isBundle: false })),
     });
     if (owned.length !== uniqueIds.length) {
       throw new BadRequestException('One or more courses not found');
     }
-    await this.programCourseRepository.delete({ programId });
-    await this.programCourseRepository.save(
+    await this.bundleItemRepository.delete({ bundleCourseId: programId });
+    await this.bundleItemRepository.save(
       uniqueIds.map((courseId, index) =>
-        this.programCourseRepository.create({ programId, courseId, sortOrder: index }),
+        this.bundleItemRepository.create({ bundleCourseId: programId, itemCourseId: courseId, sortOrder: index }),
       ),
     );
   }

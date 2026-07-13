@@ -21,22 +21,41 @@ class StudioScreen extends StatelessWidget {
           const SizedBox(height: 16),
           ForgeButton(label: 'Upload lesson', onPressed: () => context.push('/upload')),
           const SizedBox(height: 24),
+          _zoneLabel('Content'),
           _link(context, 'Videos', 'Manage uploads', Icons.video_library, '/studio/videos'),
-          _link(context, 'Comments', 'Community feedback', Icons.forum, '/studio/comments'),
+          _link(context, 'Courses', 'Lessons & multi-course programs', Icons.school, '/studio/courses'),
           _link(context, 'Go live', 'Start a session', Icons.sensors, '/studio/live'),
-          _link(context, 'Memberships', 'Configure tiers', Icons.workspace_premium, '/studio/tiers'),
-          _link(context, 'Bundles', 'Package tier resources', Icons.inventory_2, '/studio/bundles'),
+          _link(context, 'Comments', 'Community feedback', Icons.forum, '/studio/comments'),
+          _zoneLabel('Community'),
+          _link(context, 'Community', 'Rooms, members & moderation', Icons.groups, '/studio/communities'),
           _link(context, 'Brands', 'Organize communities', Icons.branding_watermark, '/studio/brands'),
-          _link(context, 'Subscribers', 'Manage members', Icons.people, '/studio/subscribers'),
-          _link(context, 'Community', 'Rooms, members & moderation', Icons.groups, '/studio/community'),
-          _link(context, 'Courses', 'Lessons & enrollments', Icons.school, '/studio/courses'),
-          _link(context, 'Programs', 'Multi-course learning paths', Icons.auto_stories, '/studio/programs'),
-          _link(context, 'Discover', 'Find communities', Icons.explore, '/discover/communities'),
-          _link(context, 'Learn', 'Discover courses', Icons.menu_book, '/discover/courses'),
+          _zoneLabel('Grow'),
           _link(context, 'Analytics', 'Performance insights', Icons.analytics, '/studio/analytics'),
+          _link(context, 'Memberships', 'Configure tiers', Icons.workspace_premium, '/studio/tiers'),
+          _link(context, 'Subscribers', 'Manage members', Icons.people, '/studio/subscribers'),
+          _link(context, 'Bundles', 'Package tier resources', Icons.inventory_2, '/studio/bundles'),
+          _zoneLabel('Settings'),
           _link(context, 'AI Copilot', 'Personalized growth insights', Icons.psychology, '/studio/copilot'),
           _link(context, 'Settings', 'Channel preferences', Icons.settings, '/studio/settings'),
+          _zoneLabel('Discover'),
+          _link(context, 'Discover', 'Find communities', Icons.explore, '/discover/communities'),
+          _link(context, 'Learn', 'Discover courses', Icons.menu_book, '/discover/courses'),
         ],
+      ),
+    );
+  }
+
+  Widget _zoneLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 4),
+      child: Text(
+        label.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.1,
+          color: ForgeTokens.outline,
+        ),
       ),
     );
   }

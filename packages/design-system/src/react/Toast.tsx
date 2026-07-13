@@ -61,8 +61,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            role="status"
-            className="glass-panel pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl p-4 forge-fade-in"
+            role={t.variant === 'critical' ? 'alert' : 'status'}
+            className="glass-panel shadow-lg pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl p-4 forge-fade-in"
           >
             <Icon name={VARIANT_ICON[t.variant ?? 'default']} className={`text-xl ${VARIANT_COLOR[t.variant ?? 'default']}`} />
             <div className="min-w-0 flex-1">

@@ -1530,6 +1530,108 @@ export class CommunitiesService {
   }
 
   /**
+   * Studio home "today" strip — merges the things a creator actually needs to
+   * act on (unread comments, open moderation reports, failed-payment members)
+   * into one severity-ranked list, mirroring the admin dashboard's attention
+   * queue (apps/admin/src/app/dashboard/page.tsx) but scoped to one creatorId.
+   * Deliberately excludes revenue/MRR — that's a KPI to *read*, not an item to
+   * *act on*, and (unlike the three signals below) there's no historized
+   * snapshot to compute a real period-over-period delta from yet.
+   */
+  async getCreatorAttention(creatorId: string) {
+    const [commentRows, moderation, subscriberAnalytics] = await Promise.all([
+      this.dataSource.query<
+        Array<{
+          id: string;
+          video_id: string;
+          video_title: string;
+          content: string;
+          created_at: string;
+          total_count: string;
+        }>
+      >(
+        `SELECT c.id, c.video_id, v.title AS video_title, c.content, c.created_at,
+                COUNT(*) OVER()::int AS total_count
+         FROM comments c
+         INNER JOIN videos v ON v.id = c.video_id
+         WHERE v.user_id = $1
+           AND c.parent_id IS NULL
+           AND c.deleted_at IS NULL
+           AND c.user_id != $1
+           AND NOT EXISTS (
+             SELECT 1 FROM comments r
+             WHERE r.parent_id = c.id AND r.user_id = $1 AND r.deleted_at IS NULL
+           )
+         ORDER BY c.created_at DESC
+         LIMIT 5`,
+        [creatorId],
+      ),
+      this.moderationService.listUnifiedReportsForCreator(creatorId, 'open'),
+      this.entitlementsService.getSubscriberAnalytics(creatorId),
+    ]);
+
+    const commentsNeedingReply = Number(commentRows[0]?.total_count ?? 0);
+    const pendingModeration = moderation.data.length;
+    const failedPayments = subscriberAnalytics.byStatus['failed_payment'] ?? 0;
+
+    type AttentionItem = {
+      id: string;
+      kind: 'comment' | 'moderation' | 'billing';
+      label: string;
+      detail: string;
+      href: string;
+      tone: 'primary' | 'warning' | 'critical';
+      createdAt: string;
+    };
+
+    const items: AttentionItem[] = [
+      ...commentRows.map(
+        (c): AttentionItem => ({
+          id: `comment-${c.id}`,
+          kind: 'comment',
+          label: `Comment on "${c.video_title}"`,
+          detail: c.content.length > 80 ? `${c.content.slice(0, 80)}…` : c.content,
+          href: '/studio/comments',
+          tone: 'primary',
+          createdAt: c.created_at,
+        }),
+      ),
+      ...moderation.data.slice(0, 5).map(
+        (r): AttentionItem => ({
+          id: `moderation-${r.id}`,
+          kind: 'moderation',
+          label: `Report in ${r.communityName}`,
+          detail: r.reason ?? 'Awaiting review',
+          href: '/studio/moderation',
+          tone: 'warning',
+          createdAt: new Date(r.createdAt).toISOString(),
+        }),
+      ),
+      ...(failedPayments > 0
+        ? [
+            {
+              id: 'billing-failed-payments',
+              kind: 'billing' as const,
+              label: `${failedPayments} member${failedPayments === 1 ? '' : 's'} with a failed payment`,
+              detail: 'Payment retry in progress via Stripe dunning — no action required unless it persists.',
+              href: '/studio/subscribers',
+              tone: 'critical' as const,
+              createdAt: new Date().toISOString(),
+            },
+          ]
+        : []),
+    ];
+
+    const TONE_RANK: Record<AttentionItem['tone'], number> = { critical: 0, warning: 1, primary: 2 };
+    items.sort((a, b) => TONE_RANK[a.tone] - TONE_RANK[b.tone] || b.createdAt.localeCompare(a.createdAt));
+
+    return {
+      counts: { commentsNeedingReply, pendingModeration, failedPayments },
+      items: items.slice(0, 8),
+    };
+  }
+
+  /**
    * Long-format (section,key,value) CSV of the creator business analytics.
    * Reuses getCreatorBusinessAnalytics so the export always matches the
    * dashboard. Field serialization is CSV-injection hardened via csv.util.

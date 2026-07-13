@@ -51,9 +51,13 @@ echo ""
 echo "[1/4] Wiping PostgreSQL data..."
 node -e "
 const { Client } = require('pg');
+// Verify the server cert by default (LOW-10); only disable for a managed provider
+// with a custom CA by explicitly setting DATABASE_SSL_REJECT_UNAUTHORIZED=false,
+// matching apps/api/src/database/parse-database-config.ts.
+const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false';
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL.includes('localhost') ? undefined : { rejectUnauthorized: false },
+  ssl: process.env.DATABASE_URL.includes('localhost') ? undefined : { rejectUnauthorized },
 });
 (async () => {
   await client.connect();

@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { isAxiosError } from 'axios';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PageHeader } from '@forge/design-system';
+import type { ColumnDef } from '@tanstack/react-table';
+import { StatusPill, type StatusTone } from '@forge/design-system';
+import { ConfirmDialog, DataTable, Dialog, Tabs, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
-import { AdminTabs } from '@/components/admin/AdminTabs';
-import { AdminDataTable } from '@/components/admin/AdminDataTable';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import type {
   AdminPlaylist,
@@ -27,17 +28,16 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id'];
 
-const ROLE_CLASS: Record<string, string> = {
-  admin: 'bg-error/10 text-error',
-  creator: 'bg-primary/10 text-primary',
-  user: 'bg-surface-container-high text-on-surface-variant',
-};
+type PendingConfirm =
+  | { kind: 'role'; role: string }
+  | { kind: 'block'; nextActive: boolean }
+  | { kind: 'delete' }
+  | { kind: 'impersonate'; url: string; targetName: string; expiresInSeconds: number };
 
-const STATUS_CLASS: Record<string, string> = {
-  ready: 'bg-secondary/10 text-secondary',
-  processing: 'bg-tertiary/10 text-tertiary',
-  pending: 'bg-surface-container-high text-outline',
-  failed: 'bg-error/10 text-error',
+const ROLE_TONE: Record<string, StatusTone> = {
+  admin: 'critical',
+  creator: 'primary',
+  user: 'neutral',
 };
 
 export default function AdminUserDetailPage() {
@@ -48,10 +48,15 @@ export default function AdminUserDetailPage() {
   const tab = (searchParams.get('tab') as TabId) || 'overview';
   const qc = useQueryClient();
   const webBase = process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000';
+  const { toast } = useToast();
 
   const [videoPage, setVideoPage] = useState(1);
   const [videoStatus, setVideoStatus] = useState('');
   const [reportPage, setReportPage] = useState(1);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [grantAdminOpen, setGrantAdminOpen] = useState(false);
+  const [grantAdminError, setGrantAdminError] = useState<string | null>(null);
 
   const { data: summary, isLoading, isError } = useQuery({
     queryKey: ['admin-user-summary', userId],
@@ -64,11 +69,16 @@ export default function AdminUserDetailPage() {
   const user = summary?.user;
 
   const updateUser = useMutation({
-    mutationFn: (body: { role?: string; isVerified?: boolean; isActive?: boolean }) =>
-      api.patch(`/admin/users/${userId}`, body),
+    mutationFn: (body: {
+      role?: string;
+      isVerified?: boolean;
+      isActive?: boolean;
+      currentAdminPassword?: string;
+    }) => api.patch(`/admin/users/${userId}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-user-summary', userId] });
       qc.invalidateQueries({ queryKey: ['admin-users'] });
+      setPendingConfirm(null);
     },
   });
 
@@ -83,7 +93,7 @@ export default function AdminUserDetailPage() {
   const resendVerification = useMutation({
     mutationFn: () => api.post(`/admin/users/${userId}/resend-verification`),
     onSuccess: () => {
-      window.alert('Verification email sent (if SMTP is configured).');
+      toast({ title: 'Verification email sent', description: '(if SMTP is configured)', variant: 'success' });
     },
   });
 
@@ -105,14 +115,12 @@ export default function AdminUserDetailPage() {
       return data.data;
     },
     onSuccess: (result) => {
-      if (
-        !window.confirm(
-          `Open web as ${result.targetUser.displayName}? Link expires in ${result.expiresInSeconds}s.`,
-        )
-      ) {
-        return;
-      }
-      window.open(result.url, '_blank', 'noopener,noreferrer');
+      setPendingConfirm({
+        kind: 'impersonate',
+        url: result.url,
+        targetName: result.targetUser.displayName,
+        expiresInSeconds: result.expiresInSeconds,
+      });
     },
   });
 
@@ -200,47 +208,97 @@ export default function AdminUserDetailPage() {
         summary={summary}
         webBase={webBase}
         onRoleChange={(role) => {
-          if (role === 'admin' && !window.confirm(`Grant admin to @${user.username}?`)) return;
-          if (!window.confirm(`Change @${user.username} role to ${role}?`)) return;
-          updateUser.mutate({ role });
+          if (role === 'admin') {
+            setGrantAdminError(null);
+            setGrantAdminOpen(true);
+            return;
+          }
+          setPendingConfirm({ kind: 'role', role });
         }}
         onVerifyToggle={() => updateUser.mutate({ isVerified: !user.isVerified })}
-        onBlockToggle={() => {
-          const block = user.isActive !== false;
-          if (
-            !window.confirm(
-              block
-                ? `Block @${user.username}? They will be signed out and cannot log in.`
-                : `Unblock @${user.username}?`,
-            )
-          ) {
-            return;
-          }
-          updateUser.mutate({ isActive: !block });
-        }}
-        onDelete={() => {
-          if (
-            !window.confirm(
-              `Permanently remove @${user.username}? This soft-deletes the account and frees the email for a new signup.`,
-            )
-          ) {
-            return;
-          }
-          deleteUser.mutate();
-        }}
+        onBlockToggle={() =>
+          setPendingConfirm({ kind: 'block', nextActive: user.isActive === false })
+        }
+        onDelete={() => setPendingConfirm({ kind: 'delete' })}
         onResendVerification={() => resendVerification.mutate()}
         onApprove={() => approveCreator.mutate()}
-        onReject={() => {
-          const note = window.prompt('Rejection note (optional):') ?? undefined;
-          rejectCreator.mutate(note);
-        }}
+        onReject={() => setShowRejectDialog(true)}
         onImpersonate={() => impersonate.mutate()}
         isImpersonating={impersonate.isPending}
         isDeleting={deleteUser.isPending}
         isResending={resendVerification.isPending}
       />
 
-      <AdminTabs tabs={[...TABS]} active={tab} onChange={setTab} />
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        title={
+          pendingConfirm?.kind === 'role'
+            ? `Change @${user.username} role to ${pendingConfirm.role}?`
+            : pendingConfirm?.kind === 'block'
+              ? pendingConfirm.nextActive
+                ? `Unblock @${user.username}?`
+                : `Block @${user.username}? They will be signed out and cannot log in.`
+              : pendingConfirm?.kind === 'delete'
+                ? `Permanently remove @${user.username}? This soft-deletes the account and frees the email for a new signup.`
+                : pendingConfirm?.kind === 'impersonate'
+                  ? `Open web as ${pendingConfirm.targetName}? Link expires in ${pendingConfirm.expiresInSeconds}s.`
+                  : ''
+        }
+        confirmLabel={pendingConfirm?.kind === 'impersonate' ? 'Open' : 'Confirm'}
+        variant="danger"
+        loading={updateUser.isPending || deleteUser.isPending}
+        onConfirm={() => {
+          if (!pendingConfirm) return;
+          if (pendingConfirm.kind === 'role') updateUser.mutate({ role: pendingConfirm.role });
+          else if (pendingConfirm.kind === 'block')
+            updateUser.mutate({ isActive: pendingConfirm.nextActive });
+          else if (pendingConfirm.kind === 'delete') deleteUser.mutate();
+          else if (pendingConfirm.kind === 'impersonate') {
+            window.open(pendingConfirm.url, '_blank', 'noopener,noreferrer');
+            setPendingConfirm(null);
+          }
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
+
+      <RejectNoteDialog
+        open={showRejectDialog}
+        loading={rejectCreator.isPending}
+        onCancel={() => setShowRejectDialog(false)}
+        onConfirm={(note) => {
+          rejectCreator.mutate(note, { onSuccess: () => setShowRejectDialog(false) });
+        }}
+      />
+
+      <GrantAdminDialog
+        open={grantAdminOpen}
+        username={user.username}
+        loading={updateUser.isPending}
+        error={grantAdminError}
+        onCancel={() => {
+          setGrantAdminOpen(false);
+          setGrantAdminError(null);
+        }}
+        onConfirm={(password) => {
+          setGrantAdminError(null);
+          updateUser.mutate(
+            { role: 'admin', currentAdminPassword: password },
+            {
+              onSuccess: () => setGrantAdminOpen(false),
+              onError: (err) => {
+                const message =
+                  isAxiosError<{ message?: string | string[] }>(err) &&
+                  err.response?.data?.message
+                    ? err.response.data.message
+                    : 'Could not grant admin role.';
+                setGrantAdminError(Array.isArray(message) ? message[0] : message);
+              },
+            },
+          );
+        }}
+      />
+
+      <Tabs tabs={[...TABS]} value={tab} onChange={setTab} />
 
       {tab === 'overview' && (
         <OverviewTab user={user} summary={summary} webBase={webBase} onNavigateTab={setTab} />
@@ -328,23 +386,15 @@ function UserHeader({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-display-forge text-2xl font-bold">{user.displayName}</h1>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ROLE_CLASS[user.role] ?? ROLE_CLASS.user}`}>
-              {user.role}
-            </span>
+            <StatusPill tone={ROLE_TONE[user.role] ?? ROLE_TONE.user} label={user.role} />
             {user.creatorStatus ? (
-              <span className="rounded-full bg-tertiary/10 px-2 py-0.5 text-xs text-tertiary">
-                creator: {user.creatorStatus}
-              </span>
+              <StatusPill tone="reward" label={`creator: ${user.creatorStatus}`} />
             ) : null}
-            {user.isActive === false ? (
-              <span className="rounded-full bg-error/10 px-2 py-0.5 text-xs text-error">blocked</span>
-            ) : null}
+            {user.isActive === false ? <StatusPill tone="critical" label="blocked" /> : null}
             {user.isVerified ? (
-              <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-xs text-secondary">email verified</span>
+              <StatusPill tone="success" label="email verified" />
             ) : (
-              <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700">
-                email not verified
-              </span>
+              <StatusPill tone="warning" label="email not verified" />
             )}
           </div>
           <p className="mt-1 text-on-surface-variant">@{user.username} · {user.email}</p>
@@ -444,6 +494,125 @@ function UserHeader({
         </div>
       </div>
     </div>
+  );
+}
+
+function RejectNoteDialog({
+  open,
+  loading,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  loading?: boolean;
+  onCancel: () => void;
+  onConfirm: (note: string | undefined) => void;
+}) {
+  const [note, setNote] = useState('');
+
+  return (
+    <Dialog open={open} onClose={onCancel} labelledBy="reject-note-title" size="sm">
+      <h2 id="reject-note-title" className="font-display-forge mb-4 text-lg font-semibold">
+        Reject creator application
+      </h2>
+      <label className="block">
+        <span className="font-label-caps text-outline">Rejection note (optional)</span>
+        <textarea
+          className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+          rows={3}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </label>
+      <div className="mt-4 flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setNote('');
+            onCancel();
+          }}
+          disabled={loading}
+          className="rounded-full border border-outline-variant px-4 py-2 text-sm disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onConfirm(note.trim() || undefined);
+            setNote('');
+          }}
+          disabled={loading}
+          className="rounded-full border border-error/40 px-4 py-2 text-sm text-error hover:bg-error/10 disabled:opacity-50"
+        >
+          {loading ? 'Rejecting…' : 'Reject'}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+function GrantAdminDialog({
+  open,
+  username,
+  loading,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  username: string;
+  loading?: boolean;
+  error?: string | null;
+  onCancel: () => void;
+  onConfirm: (password: string) => void;
+}) {
+  const [password, setPassword] = useState('');
+
+  return (
+    <Dialog open={open} onClose={onCancel} labelledBy="grant-admin-title" size="sm" role="alertdialog">
+      <h2 id="grant-admin-title" className="font-display-forge mb-2 text-lg font-semibold">
+        Grant admin to @{username}?
+      </h2>
+      <p className="mb-4 text-sm text-on-surface-variant">
+        This grants full platform privileges. Re-enter your password to confirm.
+      </p>
+      <label className="block">
+        <span className="font-label-caps text-outline">Your password</span>
+        <input
+          type="password"
+          autoComplete="current-password"
+          className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </label>
+      {error ? <p className="mt-2 text-sm text-error">{error}</p> : null}
+      <div className="mt-4 flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setPassword('');
+            onCancel();
+          }}
+          disabled={loading}
+          className="rounded-full border border-outline-variant px-4 py-2 text-sm disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onConfirm(password);
+            setPassword('');
+          }}
+          disabled={loading || !password}
+          className="rounded-full border border-error/40 px-4 py-2 text-sm text-error hover:bg-error/10 disabled:opacity-50"
+        >
+          {loading ? 'Granting…' : 'Grant admin'}
+        </button>
+      </div>
+    </Dialog>
   );
 }
 
@@ -562,6 +731,112 @@ function VideosTab({
   isModerating?: boolean;
   onUpdateVideo: (id: string, patch: { status?: string; visibility?: string }) => void;
 }) {
+  const [pendingVideoAction, setPendingVideoAction] = useState<
+    | { kind: 'status'; id: string; title: string; status: string }
+    | { kind: 'remove'; id: string; title: string }
+    | null
+  >(null);
+
+  const columns = useMemo<ColumnDef<AdminVideo, unknown>[]>(
+    () => [
+      {
+        accessorKey: 'title',
+        header: 'Title',
+        cell: ({ getValue }) => <span className="block max-w-xs truncate font-medium">{getValue<string>()}</span>,
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        cell: ({ row }) => {
+          const v = row.original;
+          return (
+            <select
+              value={v.status}
+              disabled={isModerating}
+              onChange={(e) => {
+                const status = e.target.value;
+                if (status === v.status) return;
+                setPendingVideoAction({ kind: 'status', id: v.id, title: v.title, status });
+              }}
+              className="rounded-lg border border-outline-variant bg-surface-container-low px-2 py-1 text-xs capitalize"
+            >
+              <option value="ready">ready</option>
+              <option value="uploading">uploading</option>
+              <option value="processing">processing</option>
+              <option value="pending">pending</option>
+              <option value="failed">failed</option>
+            </select>
+          );
+        },
+      },
+      {
+        id: 'visibility',
+        header: 'Visibility',
+        cell: ({ row }) => {
+          const v = row.original;
+          return (
+            <select
+              value={v.visibility}
+              disabled={isModerating}
+              onChange={(e) => {
+                const visibility = e.target.value;
+                if (visibility === v.visibility) return;
+                onUpdateVideo(v.id, { visibility });
+              }}
+              className="rounded-lg border border-outline-variant bg-surface-container-low px-2 py-1 text-xs"
+            >
+              <option value="public">public</option>
+              <option value="unlisted">unlisted</option>
+              <option value="private">private</option>
+            </select>
+          );
+        },
+      },
+      {
+        accessorKey: 'viewCount',
+        header: 'Views',
+        cell: ({ getValue }) => <span className="text-on-surface-variant">{getValue<number>()}</span>,
+      },
+      {
+        accessorKey: 'createdAt',
+        header: 'Uploaded',
+        cell: ({ getValue }) => (
+          <span className="text-on-surface-variant">{new Date(getValue<string>()).toLocaleDateString()}</span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        cell: ({ row }) => {
+          const v = row.original;
+          return (
+            <div className="flex flex-col gap-1">
+              <a
+                href={`${webBase}/watch/${v.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline"
+              >
+                Open
+              </a>
+              {v.status !== 'failed' ? (
+                <button
+                  type="button"
+                  disabled={isModerating}
+                  onClick={() => setPendingVideoAction({ kind: 'remove', id: v.id, title: v.title })}
+                  className="text-left text-xs text-error hover:underline disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+          );
+        },
+      },
+    ],
+    [isModerating, onUpdateVideo, webBase],
+  );
+
   return (
     <div className="space-y-4">
       <select
@@ -576,98 +851,47 @@ function VideosTab({
         <option value="pending">Pending</option>
         <option value="failed">Failed</option>
       </select>
-      <AdminDataTable
-        headers={['Title', 'Status', 'Visibility', 'Views', 'Uploaded', 'Actions']}
-        colCount={6}
-        isLoading={isLoading}
-        isEmpty={!isLoading && !videos?.length}
-        emptyMessage="No videos for this user."
-        footer={
-          meta ? (
-            <AdminPagination
-              page={meta.page}
-              totalPages={meta.totalPages}
-              total={meta.total}
-              label="videos"
-              onPrev={() => onPageChange(Math.max(1, page - 1))}
-              onNext={() => onPageChange(page + 1)}
-            />
-          ) : undefined
+      <DataTable
+        columns={columns}
+        data={videos ?? []}
+        getRowId={(v) => v.id}
+        loading={isLoading}
+        emptyState={{ title: 'No videos for this user' }}
+      />
+      {meta ? (
+        <AdminPagination
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          label="videos"
+          onPrev={() => onPageChange(Math.max(1, page - 1))}
+          onNext={() => onPageChange(page + 1)}
+        />
+      ) : null}
+
+      <ConfirmDialog
+        open={pendingVideoAction !== null}
+        title={
+          pendingVideoAction?.kind === 'status'
+            ? `Change "${pendingVideoAction.title}" status to ${pendingVideoAction.status}?`
+            : pendingVideoAction?.kind === 'remove'
+              ? `Remove "${pendingVideoAction.title}" from the platform?`
+              : ''
         }
-      >
-        {videos?.map((v) => (
-          <tr key={v.id} className="hover:bg-surface-container-high/30">
-            <td className="max-w-xs truncate px-4 py-3 font-medium">{v.title}</td>
-            <td className="px-4 py-3">
-              <select
-                value={v.status}
-                disabled={isModerating}
-                onChange={(e) => {
-                  const status = e.target.value;
-                  if (status === v.status) return;
-                  if (!window.confirm(`Change "${v.title}" status to ${status}?`)) {
-                    e.target.value = v.status;
-                    return;
-                  }
-                  onUpdateVideo(v.id, { status });
-                }}
-                className="rounded-lg border border-outline-variant bg-surface-container-low px-2 py-1 text-xs capitalize"
-              >
-                <option value="ready">ready</option>
-                <option value="uploading">uploading</option>
-                <option value="processing">processing</option>
-                <option value="pending">pending</option>
-                <option value="failed">failed</option>
-              </select>
-            </td>
-            <td className="px-4 py-3">
-              <select
-                value={v.visibility}
-                disabled={isModerating}
-                onChange={(e) => {
-                  const visibility = e.target.value;
-                  if (visibility === v.visibility) return;
-                  onUpdateVideo(v.id, { visibility });
-                }}
-                className="rounded-lg border border-outline-variant bg-surface-container-low px-2 py-1 text-xs"
-              >
-                <option value="public">public</option>
-                <option value="unlisted">unlisted</option>
-                <option value="private">private</option>
-              </select>
-            </td>
-            <td className="px-4 py-3 text-on-surface-variant">{v.viewCount}</td>
-            <td className="px-4 py-3 text-on-surface-variant">
-              {new Date(v.createdAt).toLocaleDateString()}
-            </td>
-            <td className="px-4 py-3">
-              <div className="flex flex-col gap-1">
-                <a
-                  href={`${webBase}/watch/${v.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
-                >
-                  Open
-                </a>
-                {v.status !== 'failed' ? (
-                  <button
-                    type="button"
-                    disabled={isModerating}
-                    onClick={() => {
-                      if (!window.confirm(`Remove "${v.title}" from the platform?`)) return;
-                      onUpdateVideo(v.id, { status: 'failed' });
-                    }}
-                    className="text-left text-xs text-error hover:underline disabled:opacity-50"
-                  >
-                    Remove
-                  </button>
-                ) : null}
-              </div>
-            </td>
-          </tr>
-        ))}
-      </AdminDataTable>
+        confirmLabel="Confirm"
+        variant="danger"
+        loading={isModerating}
+        onConfirm={() => {
+          if (!pendingVideoAction) return;
+          if (pendingVideoAction.kind === 'status') {
+            onUpdateVideo(pendingVideoAction.id, { status: pendingVideoAction.status });
+          } else {
+            onUpdateVideo(pendingVideoAction.id, { status: 'failed' });
+          }
+          setPendingVideoAction(null);
+        }}
+        onCancel={() => setPendingVideoAction(null)}
+      />
     </div>
   );
 }
@@ -689,79 +913,111 @@ function ReportsTab({
   onPageChange: (p: number) => void;
   webBase: string;
 }) {
-  return (
-    <AdminDataTable
-      headers={['Reason', 'Target', 'Reporter', 'Status', 'Date', '']}
-      colCount={6}
-      isLoading={isLoading}
-      isEmpty={!isLoading && !reports?.length}
-      emptyMessage="No reports involving this user."
-      footer={
-        meta ? (
-          <AdminPagination
-            page={meta.page}
-            totalPages={meta.totalPages}
-            total={meta.total}
-            label="reports"
-            onPrev={() => onPageChange(Math.max(1, page - 1))}
-            onNext={() => onPageChange(page + 1)}
-          />
-        ) : undefined
-      }
-    >
-      {reports?.map((r) => (
-        <tr key={r.id} className="hover:bg-surface-container-high/30">
-          <td className="max-w-xs truncate px-4 py-3">{r.reason}</td>
-          <td className="px-4 py-3 text-xs text-on-surface-variant">
-            {r.targetType} · {r.targetId.slice(0, 8)}…
-          </td>
-          <td className="px-4 py-3 text-on-surface-variant">
-            {r.reporter?.id ? (
-              <Link href={`/users/${r.reporter.id}`} className="text-primary hover:underline">
-                @{r.reporter.username}
+  const columns = useMemo<ColumnDef<AdminReport, unknown>[]>(
+    () => [
+      {
+        accessorKey: 'reason',
+        header: 'Reason',
+        cell: ({ getValue }) => <span className="block max-w-xs truncate">{getValue<string>()}</span>,
+      },
+      {
+        id: 'target',
+        header: 'Target',
+        cell: ({ row }) => (
+          <span className="text-xs text-on-surface-variant">
+            {row.original.targetType} · {row.original.targetId.slice(0, 8)}…
+          </span>
+        ),
+      },
+      {
+        id: 'reporter',
+        header: 'Reporter',
+        cell: ({ row }) => {
+          const reporter = row.original.reporter;
+          if (reporter?.id) {
+            return (
+              <Link href={`/users/${reporter.id}`} className="text-primary hover:underline">
+                @{reporter.username}
               </Link>
-            ) : r.reporter ? (
-              `@${r.reporter.username}`
-            ) : (
-              '—'
-            )}
-          </td>
-          <td className="px-4 py-3 capitalize">{r.status}</td>
-          <td className="px-4 py-3 text-on-surface-variant">
-            {new Date(r.createdAt).toLocaleDateString()}
-          </td>
-          <td className="px-4 py-3">
-            <Link href={`/reports/${r.id}`} className="text-xs text-primary hover:underline">
-              Review
-            </Link>
-            {r.targetType === 'video' ? (
-              <>
-                {' · '}
-                <a
-                  href={`${webBase}/watch/${r.targetId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
-                >
-                  Watch
-                </a>
-                {' · '}
-                <Link href={`/content?userId=${userId}`} className="text-xs text-primary hover:underline">
-                  All videos
-                </Link>
-              </>
-            ) : r.targetType === 'user' ? (
-              <>
-                {' · '}
-                <Link href={`/users/${r.targetId}`} className="text-xs text-primary hover:underline">
-                  Profile
-                </Link>
-              </>
-            ) : null}
-          </td>
-        </tr>
-      ))}
-    </AdminDataTable>
+            );
+          }
+          return <span className="text-on-surface-variant">{reporter ? `@${reporter.username}` : '—'}</span>;
+        },
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        cell: ({ getValue }) => <span className="capitalize">{getValue<string>()}</span>,
+      },
+      {
+        accessorKey: 'createdAt',
+        header: 'Date',
+        cell: ({ getValue }) => (
+          <span className="text-on-surface-variant">{new Date(getValue<string>()).toLocaleDateString()}</span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <span className="text-xs">
+              <Link href={`/reports/${r.id}`} className="text-primary hover:underline">
+                Review
+              </Link>
+              {r.targetType === 'video' ? (
+                <>
+                  {' · '}
+                  <a
+                    href={`${webBase}/watch/${r.targetId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Watch
+                  </a>
+                  {' · '}
+                  <Link href={`/content?userId=${userId}`} className="text-primary hover:underline">
+                    All videos
+                  </Link>
+                </>
+              ) : r.targetType === 'user' ? (
+                <>
+                  {' · '}
+                  <Link href={`/users/${r.targetId}`} className="text-primary hover:underline">
+                    Profile
+                  </Link>
+                </>
+              ) : null}
+            </span>
+          );
+        },
+      },
+    ],
+    [userId, webBase],
+  );
+
+  return (
+    <div className="space-y-4">
+      <DataTable
+        columns={columns}
+        data={reports ?? []}
+        getRowId={(r) => r.id}
+        loading={isLoading}
+        emptyState={{ title: 'No reports involving this user' }}
+      />
+      {meta ? (
+        <AdminPagination
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          label="reports"
+          onPrev={() => onPageChange(Math.max(1, page - 1))}
+          onNext={() => onPageChange(page + 1)}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -828,4 +1084,3 @@ function PlaylistsTab({
     </ul>
   );
 }
-

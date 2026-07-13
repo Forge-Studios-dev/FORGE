@@ -20,7 +20,8 @@ const nextConfig = {
     return [
       {
         source: '/(.*)',
-        headers: buildSecurityHeaders(isProduction),
+        // CSP is set per-request (with a nonce) by middleware.ts, not here.
+        headers: buildSecurityHeaders(isProduction, { includeCsp: false }),
       },
     ];
   },

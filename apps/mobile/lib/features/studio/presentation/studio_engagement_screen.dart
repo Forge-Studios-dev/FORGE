@@ -154,7 +154,13 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
       final client = ref.read(apiClientProvider);
       await client.dio.delete('/creators/me/communities/$_communityId/wiki/$wikiId');
       await _loadEngagementLists(_communityId!);
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete wiki page')),
+        );
+      }
+    }
   }
 
   Future<void> _deleteChallenge(String challengeId) async {
@@ -163,7 +169,13 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
       final client = ref.read(apiClientProvider);
       await client.dio.delete('/creators/me/communities/$_communityId/challenges/$challengeId');
       await _loadEngagementLists(_communityId!);
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete challenge')),
+        );
+      }
+    }
   }
 
   Future<void> _deleteSurvey(String surveyId) async {
@@ -172,7 +184,13 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
       final client = ref.read(apiClientProvider);
       await client.dio.delete('/creators/me/communities/$_communityId/surveys/$surveyId');
       await _loadEngagementLists(_communityId!);
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete survey')),
+        );
+      }
+    }
   }
 
   Future<void> _loadAnalytics(String communityId) async {
@@ -234,7 +252,13 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
           const SnackBar(content: Text('Announcement posted')),
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not post announcement')),
+        );
+      }
+    }
   }
 
   Future<void> _createPoll() async {
@@ -257,7 +281,13 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
           const SnackBar(content: Text('Poll created')),
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not create poll')),
+        );
+      }
+    }
   }
 
   Future<void> _createWiki() async {
@@ -284,7 +314,13 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
           const SnackBar(content: Text('Wiki page added')),
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save wiki page')),
+        );
+      }
+    }
   }
 
   Future<void> _createChallenge() async {
@@ -316,7 +352,13 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
           const SnackBar(content: Text('Challenge launched')),
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save challenge')),
+        );
+      }
+    }
   }
 
   Future<void> _createEvent() async {
@@ -370,7 +412,13 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
       final client = ref.read(apiClientProvider);
       await client.dio.delete('/creators/me/communities/$_communityId/events/$eventId');
       await _loadEngagementLists(_communityId!);
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete event')),
+        );
+      }
+    }
   }
 
   Future<void> _createSurvey() async {
@@ -401,7 +449,13 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
           const SnackBar(content: Text('Survey published')),
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not publish survey')),
+        );
+      }
+    }
   }
 
   @override

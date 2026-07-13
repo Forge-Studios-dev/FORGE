@@ -108,7 +108,7 @@
 
         ### 5.5 Component vocabulary
 
-        Buttons, Inputs, page headers, **skill-tag chips** (uppercase pill), **LIVE badge** (red pill), empty states, status pages, icons, loading skeletons, confirm dialogs. Cards are the dominant container. Use chips for skills/categories everywhere discovery happens.
+        Buttons, Inputs, page headers, **skill-tag chips** (uppercase pill), **LIVE badge** (red pill), empty states, status pages, icons, loading skeletons, confirm dialogs, dialogs, tabs, data tables, charts (sparkline/trend), toasts. Cards are the dominant container. Use chips for skills/categories everywhere discovery happens.
 
         ### 5.6 Stitch global style prompt (copy / paste)
 

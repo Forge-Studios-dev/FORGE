@@ -1,6 +1,16 @@
 # Community Permission Matrix
 
-**Canonical source (code):** `apps/api/src/modules/communities/community-permissions.constants.ts`
+**Display-only (MED-14) — not the enforcement source.** This matrix drives
+`GET /api/v1/communities/:communityId/permissions/matrix` only (an
+informational endpoint, e.g. for client UI to show "what can I do here").
+Real ban/role-assignment/moderation endpoints do **not** consult it — they
+gate on coarser role-tier checks (`assertModeratorAccess` /
+`assertAdminAccess` in `community-moderation.service.ts`), not these
+individual permission keys. Editing this matrix's constants changes what the
+matrix *displays*, not what a request is actually allowed to do.
+
+**Matrix source (code):** `apps/api/src/modules/communities/community-permissions.constants.ts`
+**Actual enforcement (code):** `apps/api/src/modules/communities/community-moderation.service.ts` (`assertModeratorAccess`, `assertAdminAccess`)
 
 **API:** `GET /api/v1/communities/:communityId/permissions/matrix`
 

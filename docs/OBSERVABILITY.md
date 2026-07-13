@@ -22,7 +22,7 @@ Optional bearer protection for production scrapers:
 METRICS_SCRAPE_TOKEN=your-long-random-token
 ```
 
-When set, scrapers must send `Authorization: Bearer <token>`. Leave unset for open scrape (current production default).
+When set, scrapers must send `Authorization: Bearer <token>`. In production, `/metrics` fails closed (401) if the token is unset — set it via `npm run setup:fly:metrics-token` before deploying. Outside production, leaving it unset keeps scraping open for local/dev convenience.
 
 | Metric | Description |
 |--------|-------------|

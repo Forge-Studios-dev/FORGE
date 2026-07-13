@@ -5,7 +5,8 @@ build/
 .turbo/
 .env
 .env.local
-secrets/auth-deploy.env
+secrets/*
+!secrets/*.example
 .env.*.local
 .env.production
 .aws-forge-output.env
@@ -30,13 +31,17 @@ coverage/
 *.tsbuildinfo
 *.zip
 
+# Local CodeGraph index/daemon cache (not source, machine-local)
+.codegraph/
+
 # Flutter
 apps/mobile/.dart_tool/
 apps/mobile/.flutter-plugins
 apps/mobile/.flutter-plugins-dependencies
 apps/mobile/build/
 apps/mobile/.packages
-apps/mobile/pubspec.lock
+# pubspec.lock is intentionally tracked (LOW-12) — apps (not packages) should
+# commit their lockfile for reproducible builds; do not re-add this ignore.
 apps/mobile/android/.gradle/
 apps/mobile/ios/Pods/
 apps/mobile/ios/.symlinks/

@@ -4,6 +4,42 @@ import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 
+/// Icon + color per notification type — mirrors
+/// apps/web/src/lib/notification-category.ts and
+/// apps/api/.../notification.entity.ts NotificationType, so a member can tell
+/// social vs. live vs. billing vs. reward notifications apart at a glance
+/// instead of every row looking identical.
+class _NotificationMeta {
+  final IconData icon;
+  final Color color;
+  const _NotificationMeta(this.icon, this.color);
+}
+
+const _defaultNotificationMeta = _NotificationMeta(Icons.notifications, ForgeTokens.outline);
+
+const Map<String, _NotificationMeta> _notificationMetaByType = {
+  'creator_approved': _NotificationMeta(Icons.verified, ForgeTokens.success),
+  'creator_rejected': _NotificationMeta(Icons.block, ForgeTokens.critical),
+  'video_ready': _NotificationMeta(Icons.video_library, ForgeTokens.primary),
+  'stream_started': _NotificationMeta(Icons.sensors, ForgeTokens.live),
+  'stream_started_followed': _NotificationMeta(Icons.sensors, ForgeTokens.live),
+  'premium_content_new': _NotificationMeta(Icons.workspace_premium, ForgeTokens.primary),
+  'subscription_expiring': _NotificationMeta(Icons.schedule, ForgeTokens.warning),
+  'comment_on_video': _NotificationMeta(Icons.forum, ForgeTokens.outline),
+  'comment_reply': _NotificationMeta(Icons.reply, ForgeTokens.outline),
+  'new_follower': _NotificationMeta(Icons.person_add, ForgeTokens.outline),
+  'video_liked': _NotificationMeta(Icons.favorite, ForgeTokens.outline),
+  'direct_message': _NotificationMeta(Icons.mail, ForgeTokens.outline),
+  'community_role_assigned': _NotificationMeta(Icons.shield, ForgeTokens.primary),
+  'community_banned': _NotificationMeta(Icons.gavel, ForgeTokens.critical),
+  'community_post_new': _NotificationMeta(Icons.campaign, ForgeTokens.outline),
+  'achievement_unlocked': _NotificationMeta(Icons.emoji_events, ForgeTokens.tertiary),
+  'xp_level_up': _NotificationMeta(Icons.trending_up, ForgeTokens.tertiary),
+};
+
+_NotificationMeta _metaFor(String? type) =>
+    _notificationMetaByType[type] ?? _defaultNotificationMeta;
+
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -114,10 +150,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     }
                     final n = _items[i] as Map<String, dynamic>;
                     final read = n['readAt'] != null;
+                    final meta = _metaFor(n['type']?.toString());
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: ForgeCard(
                         child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: meta.color.withValues(alpha: 0.12),
+                            child: Icon(meta.icon, color: meta.color, size: 20),
+                          ),
                           title: Text(
                             n['title']?.toString() ?? 'Notification',
                             style: TextStyle(fontWeight: read ? FontWeight.normal : FontWeight.bold),

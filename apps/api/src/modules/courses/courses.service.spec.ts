@@ -33,6 +33,9 @@ describe('CoursesService', () => {
     description: null,
     isPublished: false,
     communityId: null,
+    priceCents: 0,
+    stripePriceId: null,
+    isBundle: false,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

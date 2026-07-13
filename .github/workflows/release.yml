@@ -45,25 +45,43 @@ jobs:
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Audit Fly secrets (advisory — does not block deploy)
+      - name: Audit Fly secrets (MED-07 — required secrets block the deploy)
         run: |
           # Use both --json and text-format fallback to handle flyctl version differences.
-          # Errors suppressed — migration runner success already proves DATABASE_URL is set.
-          # Any startup crash from missing secrets will appear in the fly logs capture below.
           SECRETS=$(flyctl secrets list -a forge-studios-api --json 2>/dev/null \
             | jq -r '.[] | (.Name // .name // "") | select(. != "")' 2>/dev/null \
             || flyctl secrets list -a forge-studios-api 2>/dev/null | awk 'NR>1 && NF>0 {print $1}' \
             || echo "")
           if [ -z "$SECRETS" ]; then
-            echo "::notice::Could not retrieve Fly secrets list (flyctl version or permission issue) — proceeding with deploy"
-          else
-            for name in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET DATABASE_URL REDIS_URL JWT_SECRET JWT_REFRESH_SECRET MUX_TOKEN_ID MUX_TOKEN_SECRET MUX_WEBHOOK_SECRET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY S3_BUCKET_NAME WEB_URL ADMIN_URL; do
-              if ! echo "$SECRETS" | grep -qx "$name"; then
-                echo "::warning::Fly secret not found: $name (run scripts/set-stripe-secrets-fly.sh if billing is missing)"
-              fi
-            done
+            echo "::error::Could not retrieve Fly secrets list (flyctl version or permission issue) — refusing to deploy blind"
+            exit 1
           fi
-          echo "Secret audit complete — proceeding with deploy regardless"
+
+          # Matches apps/api/src/config/env-production.schema.ts — these are
+          # the secrets the app itself refuses to boot without in production,
+          # so a deploy missing any of them would just crash-loop on Fly.
+          REQUIRED="DATABASE_URL REDIS_URL JWT_SECRET JWT_REFRESH_SECRET WEB_URL ADMIN_URL MUX_TOKEN_ID MUX_TOKEN_SECRET MUX_WEBHOOK_SECRET METRICS_SCRAPE_TOKEN"
+          # Not enforced at boot, but a broken checkout/upload path in
+          # production is bad enough to warn loudly without hard-blocking.
+          ADVISORY="STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY S3_BUCKET_NAME"
+
+          missing=0
+          for name in $REQUIRED; do
+            if ! echo "$SECRETS" | grep -qx "$name"; then
+              echo "::error::Required Fly secret not found: $name — this would crash the API on boot"
+              missing=1
+            fi
+          done
+          for name in $ADVISORY; do
+            if ! echo "$SECRETS" | grep -qx "$name"; then
+              echo "::warning::Fly secret not found: $name (run scripts/set-stripe-secrets-fly.sh if billing is missing)"
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            echo "::error::Refusing to deploy — one or more required secrets are missing on forge-studios-api"
+            exit 1
+          fi
+          echo "Required secret audit passed"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -162,6 +180,27 @@ jobs:
           flyctl machines list -a forge-studios-worker --json 2>/dev/null \
             | jq -r '.[] | "id=\(.id) state=\(.state) updated=\(.updated_at)"' \
             || flyctl machines list -a forge-studios-worker 2>/dev/null || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Verify worker functional health check (MED-08)
+        if: always()
+        run: |
+          # checks.worker_health has a 30s grace_period + 30s interval; wait
+          # long enough for at least one real result before gating on it.
+          echo "=== Waiting up to 90s for the worker_health check to report ==="
+          for i in $(seq 1 9); do
+            RESULT=$(flyctl checks list -a forge-studios-worker --json 2>/dev/null \
+              | jq -r '[.[] | select(.name == "worker_health")][0].status // empty')
+            echo "attempt $i: worker_health=$RESULT"
+            if [ "$RESULT" = "passing" ]; then
+              echo "Worker health check passing"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Worker health check did not report passing within 90s — worker is not functionally healthy"
+          exit 1
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 

@@ -3,12 +3,11 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
-import { FeedGridSkeleton, PageHeader } from '@forge/design-system';
+import { EmptyState, FeedGridSkeleton, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { Stream, User } from '@/types';
 import { resolveStreamPoster } from '@/lib/stream-poster';
 import { useAuth } from '@/lib/auth';
-import { EmptyState } from '@/components/EmptyState';
 import { getApiErrorMessage } from '@/lib/api-message';
 import { useLiveStreamsQuery, useUpcomingStreamsQuery } from '@/hooks/useLiveStreamsQuery';
 

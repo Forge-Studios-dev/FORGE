@@ -18,10 +18,14 @@ import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { AuthService, ClientSessionMeta } from './auth.service';
 import {
+  clearAccessTokenCookie,
+  clearAdminAuthCookies,
   clearRefreshTokenCookie,
   clearSessionCookie,
   assertCookieRefreshCsrf,
   readRefreshTokenFromRequest,
+  setAccessTokenCookie,
+  setAdminAuthCookies,
   setRefreshTokenCookie,
   setSessionCookie,
 } from './auth-cookies';
@@ -69,9 +73,21 @@ export class AuthController {
     private readonly oauthExchangeService: AuthOAuthExchangeService,
   ) {}
 
-  private applyAuthCookies(res: Response, refreshToken: string) {
+  private applyAuthCookies(
+    res: Response,
+    accessToken: string,
+    refreshToken: string,
+    role?: string,
+  ) {
     setRefreshTokenCookie(res, refreshToken, this.configService);
     setSessionCookie(res, this.configService);
+    setAccessTokenCookie(res, accessToken, this.configService);
+    // Admin app reads its own cookie names (forge_admin_token/forge_admin_session);
+    // only issue them for an actual admin-role login, mirroring the prior
+    // client-side behavior without ever handing a non-admin an admin-shaped cookie.
+    if (role === 'admin') {
+      setAdminAuthCookies(res, accessToken, this.configService);
+    }
   }
 
   @Public()
@@ -82,7 +98,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Register a new user' })
   async signup(@Body() dto: SignupDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const tokens = await this.authService.signup(dto, sessionMeta(req));
-    this.applyAuthCookies(res, tokens.refreshToken);
+    this.applyAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user?.role);
     return tokens;
   }
 
@@ -95,7 +111,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Login with email and password' })
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const tokens = await this.authService.login(dto, sessionMeta(req));
-    this.applyAuthCookies(res, tokens.refreshToken);
+    this.applyAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user?.role);
     return tokens;
   }
 
@@ -118,7 +134,7 @@ export class AuthController {
     @Res() res: Response,
   ) {
     const tokens = await this.authService.loginWithGoogle(req.user, sessionMeta(req));
-    this.applyAuthCookies(res, tokens.refreshToken);
+    this.applyAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user?.role);
     const code = await this.oauthExchangeService.createExchangeCode(
       this.oauthExchangeService.payloadFromTokens({
         accessToken: tokens.accessToken,
@@ -152,7 +168,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const tokens = await this.authService.consumeImpersonationToken(dto.token, sessionMeta(req));
-    this.applyAuthCookies(res, tokens.refreshToken);
+    this.applyAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user?.role);
     return tokens;
   }
 
@@ -172,7 +188,7 @@ export class AuthController {
       throw new UnauthorizedException('Refresh token required');
     }
     const tokens = await this.authService.refreshWithToken(raw, sessionMeta(req));
-    this.applyAuthCookies(res, tokens.refreshToken);
+    this.applyAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user?.role);
     return tokens;
   }
 
@@ -195,6 +211,9 @@ export class AuthController {
     }
     clearRefreshTokenCookie(res, this.configService);
     clearSessionCookie(res, this.configService);
+    clearAccessTokenCookie(res, this.configService);
+    // Harmless no-op if this session never had admin cookies set.
+    clearAdminAuthCookies(res, this.configService);
   }
 
   @Get('sessions')

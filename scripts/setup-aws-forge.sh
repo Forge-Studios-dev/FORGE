@@ -265,3 +265,14 @@ echo "  3. Test creator upload on forgestudios.net"
 echo ""
 echo "  SECURITY: rotate/delete this file after copying secrets."
 echo "=============================================="
+
+# CRIT-03: this file holds a live AWS access key in cleartext — don't let it
+# linger on disk past the copy step. Auto-delete once the operator confirms
+# they've copied it; skip the prompt (with a loud reminder) in non-interactive runs.
+if [ -t 0 ]; then
+  read -r -p "  Press Enter once secrets are copied to delete $OUTPUT_FILE (Ctrl+C to keep it)... " _
+  rm -f "$OUTPUT_FILE"
+  echo "  Deleted $OUTPUT_FILE"
+else
+  echo "  Non-interactive run — remember to delete $OUTPUT_FILE manually after copying secrets."
+fi

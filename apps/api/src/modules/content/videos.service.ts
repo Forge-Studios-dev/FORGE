@@ -6,7 +6,7 @@ import {
   BadRequestException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { createReadStream } from 'fs';
+import { createReadStream, promises as fsPromises } from 'fs';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -577,15 +577,25 @@ export class VideosService {
 
     const body = file.buffer?.length ? file.buffer : createReadStream(file.path);
 
-    await this.s3.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: video.s3Key,
-        Body: body,
-        ContentType: video.uploadContentType || file.mimetype || 'video/mp4',
-        ContentLength: file.size,
-      }),
-    );
+    try {
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: video.s3Key,
+          Body: body,
+          ContentType: video.uploadContentType || file.mimetype || 'video/mp4',
+          ContentLength: file.size,
+        }),
+      );
+    } finally {
+      // diskStorage() writes the proxy-upload multer temp file to os.tmpdir() (LOW-04);
+      // always clean it up so a stream of uploads doesn't fill the container's disk.
+      if (file.path) {
+        await fsPromises.unlink(file.path).catch((err) =>
+          this.logger.warn(`Failed to remove proxy-upload temp file ${file.path}: ${err.message}`),
+        );
+      }
+    }
 
     return { ok: true };
   }

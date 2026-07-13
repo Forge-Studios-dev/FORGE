@@ -1,5 +1,6 @@
 import { IsOptional, IsUrl, IsUUID } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsAllowedRedirectUrl } from '../../../common/validators/is-allowed-redirect-url.validator';
 
 export class CreateCheckoutDto {
   @IsUUID()
@@ -15,8 +16,10 @@ export class CreateCheckoutDto {
   communityId?: string;
 
   @IsUrl()
+  @IsAllowedRedirectUrl()
   successUrl: string;
 
   @IsUrl()
+  @IsAllowedRedirectUrl()
   cancelUrl: string;
 }

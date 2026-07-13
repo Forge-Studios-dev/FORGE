@@ -6,6 +6,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import * as bcrypt from 'bcrypt';
 import { DataSource, In } from 'typeorm';
 import { AdminService } from './admin.service';
 import { User, UserRole } from '../users/entities/user.entity';
@@ -88,6 +89,7 @@ describe('AdminService security', () => {
     username: 'admin',
     displayName: 'Admin',
     role: UserRole.ADMIN,
+    passwordHash: bcrypt.hashSync('correct-password', 4),
   } as User;
 
   const video: Video = {
@@ -174,6 +176,43 @@ describe('AdminService security', () => {
       expect(userRepository.update).toHaveBeenCalledWith(regularUser.id, { isActive: false });
       expect(authUserCache.bust).toHaveBeenCalledWith(regularUser.id);
       expect(authService.logoutAll).toHaveBeenCalledWith(regularUser.id);
+    });
+  });
+
+  describe('updateUser — admin escalation step-up (MED-13)', () => {
+    it('blocks granting admin role without the caller current password', async () => {
+      await expect(
+        service.updateUser(regularUser.id, { role: UserRole.ADMIN }, adminUser.id),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(userRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('blocks granting admin role with the wrong password', async () => {
+      await expect(
+        service.updateUser(
+          regularUser.id,
+          { role: UserRole.ADMIN, currentAdminPassword: 'wrong-password' },
+          adminUser.id,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(userRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('allows granting admin role with the correct password, and strips it from the persisted patch', async () => {
+      await service.updateUser(
+        regularUser.id,
+        { role: UserRole.ADMIN, currentAdminPassword: 'correct-password' },
+        adminUser.id,
+      );
+      expect(userRepository.update).toHaveBeenCalledWith(regularUser.id, { role: UserRole.ADMIN });
+    });
+
+    it('does not require a password when the target is already admin', async () => {
+      await service.updateUser(adminUser.id, { role: UserRole.ADMIN, isVerified: true }, adminUser.id);
+      expect(userRepository.update).toHaveBeenCalledWith(adminUser.id, {
+        role: UserRole.ADMIN,
+        isVerified: true,
+      });
     });
   });
 

@@ -286,7 +286,13 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           const SnackBar(content: Text('Joined challenge')),
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not join challenge')),
+        );
+      }
+    }
   }
 
   Future<void> _respondSurvey(String surveyId) async {
@@ -341,7 +347,13 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           const SnackBar(content: Text('Report submitted')),
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not submit report')),
+        );
+      }
+    }
   }
 
   Future<void> _reportPost(String postId) async {
@@ -358,7 +370,13 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           const SnackBar(content: Text('Report submitted')),
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not submit report')),
+        );
+      }
+    }
   }
 
   Future<void> _loadGamificationProfile() async {
@@ -417,7 +435,13 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       final client = ref.read(apiClientProvider);
       await client.dio.post('/communities/$_communityId/posts/$postId/reactions');
       await _loadPosts();
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not like post')),
+        );
+      }
+    }
   }
 
   Future<void> _addComment(String postId) async {
@@ -437,7 +461,13 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       });
       await _loadPosts();
       await _loadPostComments(postId);
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not post comment')),
+        );
+      }
+    }
   }
 
   Widget _buildRoomsTab() {

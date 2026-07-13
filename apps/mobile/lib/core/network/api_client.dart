@@ -6,22 +6,30 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import '../constants/app_constants.dart';
 import '../router/navigation_key.dart';
+import 'certificate_pinning.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 
 class ApiClient {
   late final Dio _dio;
-  final _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage;
+  final Dio Function() _createRefreshDio;
 
-  ApiClient() {
-    _dio = Dio(
-      BaseOptions(
-        baseUrl: AppConstants.apiBaseUrl,
-        connectTimeout: AppConstants.connectionTimeout,
-        receiveTimeout: AppConstants.receiveTimeout,
-        headers: {'Content-Type': 'application/json'},
-      ),
-    );
+  /// [dio], [storage], and [createRefreshDio] are test seams (HIGH-09) — real
+  /// callers never pass them, so production behavior is unchanged.
+  ApiClient({Dio? dio, FlutterSecureStorage? storage, Dio Function()? createRefreshDio})
+      : _storage = storage ?? const FlutterSecureStorage(),
+        _createRefreshDio = createRefreshDio ?? (() => Dio()) {
+    _dio = dio ??
+        Dio(
+          BaseOptions(
+            baseUrl: AppConstants.apiBaseUrl,
+            connectTimeout: AppConstants.connectionTimeout,
+            receiveTimeout: AppConstants.receiveTimeout,
+            headers: {'Content-Type': 'application/json'},
+          ),
+        );
+    applyCertificatePinning(_dio);
 
     _dio.interceptors.add(
       InterceptorsWrapper(
@@ -53,7 +61,13 @@ class ApiClient {
       final refreshToken = await _storage.read(key: AppConstants.refreshTokenKey);
       if (refreshToken == null) return false;
 
-      final response = await Dio().post(
+      // Deliberately a separate Dio instance (not _dio): reusing _dio here
+      // would let a 401 on /auth/refresh itself re-trigger this same
+      // interceptor recursively. Still pinned — this call carries the
+      // refresh token, so it needs the same TLS protection as everything else.
+      final refreshDio = _createRefreshDio();
+      applyCertificatePinning(refreshDio);
+      final response = await refreshDio.post(
         '${AppConstants.apiBaseUrl}/auth/refresh',
         data: {'refreshToken': refreshToken},
       );

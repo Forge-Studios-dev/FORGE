@@ -15,6 +15,7 @@ const validProdEnv: NodeJS.ProcessEnv = {
   AWS_ACCESS_KEY_ID: 'AKIA',
   AWS_SECRET_ACCESS_KEY: 'secret',
   S3_BUCKET_NAME: 'forge-media',
+  METRICS_SCRAPE_TOKEN: 'metrics-scrape-token',
 };
 
 describe('validateProductionEnv', () => {

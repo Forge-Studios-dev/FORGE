@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Button, Input, PageHeader } from '@forge/design-system';
+import { Button, Input, PageHeader, StatusPill } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SubscriptionTier } from '@/types';
@@ -269,13 +269,7 @@ export default function StudioBundlesPage() {
                       : ''}
                   </p>
                 </div>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs ${
-                    bundle.isActive ? 'bg-primary/10 text-primary' : 'bg-outline/10 text-outline'
-                  }`}
-                >
-                  {bundle.isActive ? 'Active' : 'Inactive'}
-                </span>
+                <StatusPill tone={bundle.isActive ? 'primary' : 'neutral'} label={bundle.isActive ? 'Active' : 'Inactive'} />
               </div>
               <ul className="mt-3 space-y-1 text-xs text-on-surface-variant">
                 {bundle.items.map((item) => (

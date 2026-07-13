@@ -12,6 +12,7 @@ import { safeReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
 import { AuthSetupNotice } from '@/components/auth/AuthSetupNotice';
 import { FirebaseSetupNotice } from '@/components/auth/FirebaseSetupNotice';
+import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter';
 import { LegalLinks } from '@/components/legal/LegalLinks';
 import { isGoogleOAuthEnabled, loadPlatformConfig } from '@/lib/platform-config';
 import type { PlatformPublicConfig } from '@forge/shared-types';
@@ -119,15 +120,17 @@ export function SignupForm({
         )}
         {error && <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{error}</p>}
         {FIELDS.map((field) => (
-          <input
-            key={field.key}
-            type={field.type}
-            required
-            placeholder={field.placeholder}
-            value={form[field.key]}
-            onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
-            className={authFieldClass}
-          />
+          <div key={field.key} className={field.key === 'password' ? 'space-y-2' : undefined}>
+            <input
+              type={field.type}
+              required
+              placeholder={field.placeholder}
+              value={form[field.key]}
+              onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
+              className={authFieldClass}
+            />
+            {field.key === 'password' && <PasswordStrengthMeter password={form.password} />}
+          </div>
         ))}
         <label className="flex cursor-pointer items-start gap-3 text-sm text-on-surface-variant">
           <input

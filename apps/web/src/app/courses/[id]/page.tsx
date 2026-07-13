@@ -2,8 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { Button, PageHeader } from '@forge/design-system';
+import { notFound, useParams } from 'next/navigation';
+import { Button, PageHeader, PaywallCard } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useAccessSession } from '@/lib/access-session';
@@ -88,25 +88,28 @@ export default function CourseViewerPage() {
     );
   }
 
-  const accessDenied =
-    error &&
-    typeof error === 'object' &&
-    'response' in error &&
-    (error as { response?: { status?: number } }).response?.status === 403;
+  const errorStatus =
+    error && typeof error === 'object' && 'response' in error
+      ? (error as { response?: { status?: number } }).response?.status
+      : undefined;
+  const accessDenied = errorStatus === 403;
+
+  if (errorStatus === 404) notFound();
 
   return (
     <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
       <PageHeader title="Course" subtitle="Structured lessons for members" />
 
       {accessDenied ? (
-        <div className="glass-panel space-y-3 rounded-xl p-6">
-          <p className="text-sm text-on-surface-variant">
-            You need membership access to view this course.
-          </p>
+        <PaywallCard
+          title="Course access restricted"
+          message="You need membership access to view this course."
+          aspectVideo={false}
+        >
           <Button disabled={enrollMutation.isPending} onClick={() => enrollMutation.mutate()}>
             Enroll (requires membership)
           </Button>
-        </div>
+        </PaywallCard>
       ) : isLoading ? (
         <p className="text-sm text-on-surface-variant">Loading…</p>
       ) : (

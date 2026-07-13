@@ -9,6 +9,13 @@ import '../router/navigation_key.dart';
 /// Screens where an automatic redirect to `/offline` would be actively
 /// harmful (auth forms mid-entry, the offline screen itself, etc.) — these
 /// are left alone even if connectivity drops while the user is on them.
+///
+/// `/feed`, `/history`, `/library`, and `/watch` are also exempt (HIGH-07):
+/// their repositories now serve a local cache on network failure, so a
+/// connectivity blip should let them keep showing that cached content
+/// instead of force-navigating away and losing scroll position / state.
+/// Each of these screens already has its own graceful empty/error state for
+/// the genuine first-time-offline-with-no-cache case.
 const _connectivityExempt = [
   '/splash',
   '/login',
@@ -18,6 +25,10 @@ const _connectivityExempt = [
   '/verify-email',
   '/offline',
   '/maintenance',
+  '/feed',
+  '/history',
+  '/library',
+  '/watch',
 ];
 
 /// Root-level connectivity watcher. Wraps `MaterialApp.router` in `main.dart`

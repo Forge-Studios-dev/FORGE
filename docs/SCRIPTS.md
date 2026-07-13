@@ -22,6 +22,7 @@ Run from **repository root** unless noted.
 | `smoke-api.sh` | `smoke:api` / `smoke:api:prod` | Health + auth smoke against API |
 | `smoke-memberships.sh` | `smoke:memberships` / `smoke:memberships:prod` | Membership tier + mock subscribe smoke |
 | `smoke-community-2.0.sh` | `smoke:community-2.0` | Community 2.0: multi-community, brands, business analytics (funnel + cohorts), courses, gamification, access sessions |
+| `smoke-channel-sunset.sh` | — | Channel-sunset flow smoke (staging/prod) — see [operations/CHANNEL_SUNSET.md](./operations/CHANNEL_SUNSET.md) |
 | `generate-ceos-tracker.py` | — | Regenerate `docs/FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md` (668 tasks) |
 | `check-production.sh` | `check:production` | Prod smoke + metrics + Grafana ingest |
 | `verify-production-ready.sh` | `verify:production` | Pre-deploy gate: runs authoritative env schema (`check:prod-env`) + infra/topology checks |
@@ -91,6 +92,8 @@ Run from **repository root** unless noted.
 |--------|-----------|---------|
 | `set-mux-secrets-fly.sh` | — | Set Mux credentials on Fly |
 | `set-resend-api-key-fly.sh` | — | Set Resend SMTP API key on Fly |
+| `set-stripe-secrets-fly.sh` | — | Set `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` on Fly — see [operations/STRIPE_PRODUCTION_ENABLEMENT.md](./operations/STRIPE_PRODUCTION_ENABLEMENT.md) |
+| `set-channel-sunset-fly.sh` | — | Set channel-sunset feature flags/secrets on Fly — see [operations/CHANNEL_SUNSET.md](./operations/CHANNEL_SUNSET.md) |
 | `setup-aws-forge.sh` | — | AWS S3 bucket + IAM setup |
 | `fix-s3-cors.sh` | — | Fix S3 CORS for upload origins |
 
