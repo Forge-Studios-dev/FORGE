@@ -84,7 +84,7 @@ private scheduleViewerCountBroadcast(streamId: string) {
   if (this.viewerCountTimers.has(streamId)) return;
   this.viewerCountTimers.set(streamId, setTimeout(async () => {
     const count = await this.redis.get(`stream:viewers:${streamId}`);
-    this.server.to(`stream:${streamId}`).emit('viewer_count', { count: Number(count) });
+    this.server.to(`stream:${streamId}`).emit('stream:viewer-count', { count: Number(count) });
     this.viewerCountTimers.delete(streamId);
   }, 5000));
 }

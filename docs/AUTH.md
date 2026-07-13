@@ -8,13 +8,22 @@ Identity: **custom JWT + Postgres refresh sessions** — not Firebase Auth. Sche
 
 | Endpoint | Notes |
 |----------|--------|
+| `POST /auth/signup` | Create account with email/password |
 | `POST /auth/login` | `{ accessToken, refreshToken, sessionId, user }` + HttpOnly `forge_refresh` |
+| `GET /auth/google` | Start Google OAuth redirect flow |
 | `POST /auth/oauth/exchange` | Exchange one-time Google OAuth `code` (60s TTL) for `{ accessToken, sessionId, user }`; refresh via HttpOnly cookie |
 | `GET /auth/google/callback` | Sets refresh cookie; redirects to web with `?code=` only (no tokens in URL) |
+| `POST /auth/impersonate` | Admin-only: mint a scoped token for support/debugging as another user |
 | `POST /auth/refresh` | Body `{ refreshToken }` or cookie |
 | `POST /auth/logout` | `{ allDevices?: boolean }` — default: current device only |
 | `GET /auth/sessions` | List devices |
+| `GET /auth/login-history` | List recent login events for current user |
 | `DELETE /auth/sessions/:id` | Revoke one |
+| `POST /auth/forgot-password` | Send password reset email |
+| `POST /auth/reset-password` | Complete password reset with token |
+| `POST /auth/verify-email/resend` | Resend email verification link |
+| `GET /auth/verify-email` | Verify email via link token |
+| `POST /auth/verify-email/otp` | Verify email via OTP code |
 
 Refresh tokens: opaque, SHA-256 hashed, rotated each refresh. Reuse of revoked token revokes **all** sessions.
 

@@ -21,6 +21,7 @@
     "test": "npm run test --workspaces --if-present",
     "ci": "bash scripts/ci-local.sh",
     "ci:local": "bash scripts/ci-local.sh",
+    "check:token-parity": "node scripts/check-token-parity.js",
     "gh:secrets": "bash scripts/print-github-secrets.sh",
     "gh:secrets:set": "bash scripts/setup-github-secrets.sh",
     "smoke:api": "bash scripts/smoke-api.sh",

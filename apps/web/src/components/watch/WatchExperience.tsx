@@ -17,10 +17,12 @@ import {
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
+import { PaywallCard } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
 import { useAccessSession } from '@/lib/access-session';
 import { AccessSessionConflict } from '@/components/Community/AccessSessionConflict';
 import { api } from '@/lib/api';
+import { SubscriptionTier } from '@/types';
 
 const ACCESS_MESSAGES: Record<string, string> = {
   login_required: 'Sign in to watch this lesson.',
@@ -69,6 +71,20 @@ export function WatchExperience({
     sessionEnabled,
   );
 
+  const { data: creatorTiers } = useQuery({
+    // Same queryKey MembershipPanel uses for this creator — react-query dedupes
+    // the request instead of firing a second one for the same tier list.
+    queryKey: ['tiers', video.userId],
+    enabled: !!video.accessDenied && !!video.requiredTierId,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: SubscriptionTier[] }>(
+        `/creators/${video.userId}/tiers`,
+      );
+      return data.data;
+    },
+  });
+  const requiredTier = creatorTiers?.find((t) => t.id === video.requiredTierId) ?? null;
+
   if (isPrivate && (isGuest || !isOwner)) {
     return (
       <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
@@ -87,14 +103,20 @@ export function WatchExperience({
   if (video.accessDenied) {
     return (
       <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
-        <div className="glass-panel mb-6 flex aspect-video flex-col items-center justify-center gap-3 px-6 text-center">
-          <p className="font-medium">Lesson access restricted</p>
-          <p className="text-sm text-on-surface-variant">
-            {ACCESS_MESSAGES[video.accessReason ?? ''] ?? 'You cannot watch this lesson.'}
-          </p>
+        <div className="mb-6">
+          <PaywallCard
+            title="Lesson access restricted"
+            message={ACCESS_MESSAGES[video.accessReason ?? ''] ?? 'You cannot watch this lesson.'}
+            tierName={requiredTier?.name}
+            priceLabel={
+              requiredTier
+                ? `${requiredTier.currency} ${(requiredTier.priceCents / 100).toFixed(0)}/${requiredTier.billingInterval ?? 'mo'}`
+                : undefined
+            }
+          />
         </div>
         <h1 className="font-display-forge mb-4 text-2xl font-bold">{video.title}</h1>
-        <MembershipPanel creatorId={video.userId} />
+        <MembershipPanel creatorId={video.userId} highlightTierId={video.requiredTierId} />
       </main>
     );
   }

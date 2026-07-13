@@ -10,6 +10,7 @@ import { HomeFeedSections } from '@/components/home/HomeFeedSections';
 import { LiveNowRail } from '@/components/home/LiveNowRail';
 import { HomeHero } from '@/components/home/HomeHero';
 import { TrendingSkills } from '@/components/home/TrendingSkills';
+import { NewFromFollowing } from '@/components/home/NewFromFollowing';
 import { ContinueWatching } from '@/components/ContinueWatching';
 import { VerifyEmailBanner } from '@/components/VerifyEmailBanner';
 import { Category, PaginatedResponse, Video } from '@/types';
@@ -50,6 +51,12 @@ export function HomePageContent({ feed, trending, categories }: Props) {
       <HomeHero />
       <LiveNowRail />
       <ContinueWatching />
+      <NewFromFollowing
+        onViewAll={() => {
+          setTab('following');
+          document.getElementById('discover')?.scrollIntoView({ behavior: 'smooth' });
+        }}
+      />
       <TrendingSkills videos={trending.data.length > 0 ? trending.data : feed.data} />
 
       <section id="discover" data-testid="discover-section" className="mt-4">

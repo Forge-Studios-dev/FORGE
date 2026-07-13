@@ -2,11 +2,11 @@
 
 import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ListSkeleton, PageHeader } from '@forge/design-system';
+import { EmptyState, Icon, ListSkeleton, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { Notification } from '@/types';
-import { EmptyState } from '@/components/EmptyState';
 import { useAuth } from '@/lib/auth';
+import { CATEGORY_LABEL, notificationMeta, type NotificationCategory } from '@/lib/notification-category';
 
 type NotificationsPage = {
   data: Notification[];
@@ -17,6 +17,7 @@ export default function NotificationsPage() {
   const qc = useQueryClient();
   const { isGuest } = useAuth();
   const [loadingMore, setLoadingMore] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<NotificationCategory | 'all'>('all');
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['notifications'],
@@ -74,6 +75,12 @@ export default function NotificationsPage() {
 
   const items = data?.data ?? [];
 
+  const presentCategories = (Object.keys(CATEGORY_LABEL) as NotificationCategory[]).filter((cat) =>
+    items.some((n) => notificationMeta(n.type).category === cat),
+  );
+  const visibleItems =
+    categoryFilter === 'all' ? items : items.filter((n) => notificationMeta(n.type).category === categoryFilter);
+
   return (
     <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -108,32 +115,79 @@ export default function NotificationsPage() {
         />
       ) : (
         <>
-          <ul className="space-y-3">
-            {items.map((n) => (
-              <li key={n.id}>
+          {presentCategories.length > 1 && (
+            <div className="hide-scrollbar mb-4 flex gap-2 overflow-x-auto pb-1">
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('all')}
+                className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                  categoryFilter === 'all'
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                All
+              </button>
+              {presentCategories.map((cat) => (
                 <button
+                  key={cat}
                   type="button"
-                  onClick={() => {
-                    if (!n.readAt) markRead.mutate(n.id);
-                  }}
-                  disabled={markRead.isPending}
-                  className={`glass-panel w-full rounded-xl p-4 text-left transition hover:border-primary/30 ${
-                    n.readAt ? 'opacity-70' : 'border-primary/20'
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                    categoryFilter === cat
+                      ? 'bg-primary text-on-primary'
+                      : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-semibold text-on-surface">{n.title}</p>
-                      {n.body ? <p className="mt-1 text-sm text-on-surface-variant">{n.body}</p> : null}
-                    </div>
-                    <span className="shrink-0 text-xs text-outline">
-                      {new Date(n.createdAt).toLocaleString()}
-                    </span>
-                  </div>
+                  {CATEGORY_LABEL[cat]}
                 </button>
-              </li>
-            ))}
-          </ul>
+              ))}
+            </div>
+          )}
+
+          {!visibleItems.length ? (
+            <p className="py-8 text-center text-sm text-on-surface-variant">
+              No {CATEGORY_LABEL[categoryFilter as NotificationCategory]?.toLowerCase()} notifications.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {visibleItems.map((n) => {
+                const meta = notificationMeta(n.type);
+                return (
+                  <li key={n.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!n.readAt) markRead.mutate(n.id);
+                      }}
+                      disabled={markRead.isPending}
+                      className={`glass-panel w-full rounded-xl p-4 text-left transition hover:border-primary/30 ${
+                        n.readAt ? 'opacity-70' : 'border-primary/20'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${meta.className}`}
+                            aria-hidden
+                          >
+                            <Icon name={meta.icon} className="text-lg" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-on-surface">{n.title}</p>
+                            {n.body ? <p className="mt-1 text-sm text-on-surface-variant">{n.body}</p> : null}
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-xs text-outline">
+                          {new Date(n.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
           {data?.meta.hasMore && (
             <button
               type="button"

@@ -1,9 +1,19 @@
 'use client';
 
 import Link from 'next/link';
+import { useMemo, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { PageHeader, StatCard } from '@forge/design-system';
+import { AlertStrip, PageHeader, StatCard, StatusPill, type StatusTone } from '@forge/design-system';
 import { api } from '@/lib/api';
+
+/** Adapts next/link to AlertStrip's plain `{ href, className, children }` link contract. */
+function AttentionLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
+  return (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
 
 interface Stats {
   userCount: number;
@@ -16,6 +26,36 @@ interface PendingCreator {
   displayName: string;
   username: string;
   creatorRequestedAt: string | null;
+}
+
+interface FraudAlertPreview {
+  id: string;
+  userId: string;
+  signal: string;
+  riskScore: number;
+  createdAt: string;
+}
+
+/** One row in the unified triage queue below — merges approvals, reports, and fraud
+ *  alerts (three separate admin pages) into a single severity-ranked list, so an
+ *  operator's first screen answers "what needs me right now" without visiting each
+ *  queue separately to find out. */
+type AttentionItem = {
+  id: string;
+  kind: 'approval' | 'report' | 'fraud';
+  label: string;
+  detail: string;
+  href: string;
+  severity: number;
+  tone: StatusTone;
+  toneLabel: string;
+  createdAt: string;
+};
+
+function fraudTone(riskScore: number): { tone: StatusTone; label: string } {
+  if (riskScore >= 80) return { tone: 'critical', label: 'high risk' };
+  if (riskScore >= 50) return { tone: 'warning', label: 'medium risk' };
+  return { tone: 'neutral', label: 'low risk' };
 }
 
 interface PlatformChurnKpi {
@@ -36,17 +76,17 @@ interface PlatformKpiDashboard {
 }
 
 /** Thresholds from docs/CREATOR_KPI_DEFINITIONS.md — churn >8% warns, >15% is critical. */
-function churnStatus(churnRate: number): { label: string; className: string } {
-  if (churnRate > 0.15) return { label: 'critical', className: 'bg-critical/15 text-critical' };
-  if (churnRate > 0.08) return { label: 'elevated', className: 'bg-warning/15 text-warning' };
-  return { label: 'healthy', className: 'bg-success/15 text-success' };
+function churnStatus(churnRate: number): { label: string; tone: StatusTone } {
+  if (churnRate > 0.15) return { label: 'critical', tone: 'critical' };
+  if (churnRate > 0.08) return { label: 'elevated', tone: 'warning' };
+  return { label: 'healthy', tone: 'success' };
 }
 
-const ENGAGEMENT_LABEL_CLASS: Record<EngagementScoreKpi['label'], string> = {
-  high: 'bg-success/15 text-success',
-  medium: 'bg-secondary/15 text-secondary',
-  low: 'bg-warning/15 text-warning',
-  inactive: 'bg-critical/15 text-critical',
+const ENGAGEMENT_LABEL_TONE: Record<EngagementScoreKpi['label'], StatusTone> = {
+  high: 'success',
+  medium: 'primary',
+  low: 'warning',
+  inactive: 'critical',
 };
 
 export default function DashboardPage() {
@@ -73,6 +113,65 @@ export default function DashboardPage() {
       return data.data as { data: { id: string; reason: string; createdAt: string }[] };
     },
   });
+
+  const { data: fraudAlerts } = useQuery({
+    queryKey: ['admin-fraud-preview'],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: FraudAlertPreview[] }>('/admin/fraud/alerts?status=open&limit=5');
+      return data.data ?? [];
+    },
+  });
+
+  const attentionQueue = useMemo<AttentionItem[]>(() => {
+    const items: AttentionItem[] = [];
+
+    for (const alert of fraudAlerts ?? []) {
+      const { tone, label } = fraudTone(alert.riskScore);
+      items.push({
+        id: `fraud-${alert.id}`,
+        kind: 'fraud',
+        label: `Fraud signal — ${alert.signal.replace(/_/g, ' ')}`,
+        detail: `Risk score ${alert.riskScore}`,
+        href: '/fraud',
+        severity: alert.riskScore,
+        tone,
+        toneLabel: label,
+        createdAt: alert.createdAt,
+      });
+    }
+
+    for (const report of reports?.data ?? []) {
+      items.push({
+        id: `report-${report.id}`,
+        kind: 'report',
+        label: `Report #${report.id.slice(0, 8)}…`,
+        detail: report.reason,
+        href: `/reports/${report.id}`,
+        severity: 60,
+        tone: 'warning',
+        toneLabel: 'report',
+        createdAt: report.createdAt,
+      });
+    }
+
+    for (const creator of pending?.data ?? []) {
+      items.push({
+        id: `approval-${creator.id}`,
+        kind: 'approval',
+        label: creator.displayName || creator.username,
+        detail: 'Creator approval requested',
+        href: `/users/${creator.id}`,
+        severity: 40,
+        tone: 'primary',
+        toneLabel: 'approval',
+        createdAt: creator.creatorRequestedAt ?? '',
+      });
+    }
+
+    return items
+      .sort((a, b) => b.severity - a.severity || a.createdAt.localeCompare(b.createdAt))
+      .slice(0, 8);
+  }, [fraudAlerts, reports, pending]);
 
   const { data: kpi } = useQuery<PlatformKpiDashboard>({
     queryKey: ['admin-kpi-dashboard'],
@@ -117,13 +216,25 @@ export default function DashboardPage() {
         </Link>
       </div>
 
+      <div className="mb-10">
+        <AlertStrip
+          items={attentionQueue.map((item) => ({
+            id: item.id,
+            label: item.label,
+            detail: item.detail,
+            href: item.href,
+            tone: item.tone,
+            toneLabel: item.toneLabel,
+          }))}
+          linkComponent={AttentionLink}
+        />
+      </div>
+
       <div className="mb-10 grid gap-4 sm:grid-cols-2">
         <div className="glass-panel flex flex-col gap-3 rounded-xl p-5">
           <div className="flex items-center justify-between">
             <span className="font-label-caps text-on-surface-variant">30-day churn</span>
-            {churn ? (
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${churn.className}`}>{churn.label}</span>
-            ) : null}
+            {churn ? <StatusPill tone={churn.tone} label={churn.label} /> : null}
           </div>
           <span className="font-display-forge text-3xl font-bold tabular-nums">
             {kpi?.churn ? `${Math.round(kpi.churn.churnRate * 1000) / 10}%` : '—'}
@@ -147,9 +258,7 @@ export default function DashboardPage() {
                 </Link>
                 <div className="flex items-center gap-2">
                   <span className="tabular-nums text-sm text-on-surface">{u.score}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ENGAGEMENT_LABEL_CLASS[u.label]}`}>
-                    {u.label}
-                  </span>
+                  <StatusPill tone={ENGAGEMENT_LABEL_TONE[u.label]} label={u.label} />
                 </div>
               </li>
             ))}

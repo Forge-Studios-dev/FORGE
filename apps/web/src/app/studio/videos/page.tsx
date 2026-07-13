@@ -4,7 +4,7 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getActiveUpload, subscribeActiveUpload } from '@/lib/upload-manager';
-import { Icon, PageHeader } from '@forge/design-system';
+import { Icon, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { fetchStudioLibrary, type StudioVideoSort } from '@/lib/creator-studio';
 import { fetchCategorySkillTags, type UploadSkillTag } from '@/lib/categories';
 import { useAuth } from '@/lib/auth';
@@ -21,11 +21,11 @@ const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending',
 };
 
-function statusClass(status: string) {
-  if (status === 'ready') return 'bg-secondary/10 text-secondary';
-  if (status === 'processing' || status === 'uploading') return 'bg-tertiary/10 text-tertiary';
-  if (status === 'failed') return 'bg-error/10 text-error';
-  return 'bg-surface-container-high text-outline';
+function statusTone(status: string): StatusTone {
+  if (status === 'ready') return 'success';
+  if (status === 'processing' || status === 'uploading') return 'warning';
+  if (status === 'failed') return 'critical';
+  return 'neutral';
 }
 
 function VideoRow({
@@ -53,9 +53,11 @@ function VideoRow({
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{video.title}</p>
         <p className="text-sm text-on-surface-variant">
-          <span className={`mr-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(video.status)}`}>
-            {STATUS_LABEL[video.status] ?? video.status}
-          </span>
+          <StatusPill
+            tone={statusTone(video.status)}
+            label={STATUS_LABEL[video.status] ?? video.status}
+            className="mr-2"
+          />
           {video.visibility}
           {video.scheduledPublishAt
             ? ` · scheduled ${new Date(video.scheduledPublishAt).toLocaleString()}`

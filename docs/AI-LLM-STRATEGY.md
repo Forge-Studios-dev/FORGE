@@ -144,7 +144,7 @@ community-moderation.worker.ts
 | `ai.moderationLlmEnabled` | `AI_MODERATION_LLM_ENABLED` | ✅ | Wired in `configuration.ts`; activates async LLM judge tail |
 | `ai.moderationReviewThreshold` | `AI_MODERATION_REVIEW_THRESHOLD` | ✅ | Cost guard — borderline-only LLM tail (default 0.25) |
 | `ai.copilotEnabled` / `ai.copilotModel` | `AI_COPILOT_ENABLED` / `AI_COPILOT_MODEL` | ✅ | Discussion summary LLM path |
-| `ai.*` provider keys | — | ❌ | Anthropic, Google not configured |
+| `ai.anthropic.apiKey` | `ANTHROPIC_API_KEY` | ✅ | Wired in `llm-router.service.ts` — routes `creator_insights`, `course_outline`, `content_strategy` to Claude (`ai-community.service.ts` also calls Anthropic directly for creator insights). Google/Gemini still not configured. |
 | `ai.dailyLlmBudget` | `AI_DAILY_LLM_BUDGET` | ✅ | Daily cost ceiling — Redis-counted OpenAI calls/UTC-day across all AI features (0 = unlimited). Enforced at the shared `AiModerationService.scoreContent` chokepoint + copilot summary; fail-open on Redis outage. Usage via `GET /admin/ai/budget` |
 
 ### 2.5 API Routes (Community AI)
@@ -665,7 +665,9 @@ Add corresponding entries to `apps/api/src/config/configuration.ts` under an `ai
 
 **Trigger:** J-1 in deferred backlog OR product priority. **Provider:** OpenAI embed + Gemini/Sonnet gen.
 
-### Phase 4 — Multi-Provider Router (When justified)
+### Phase 4 — Multi-Provider Failover Router (When justified)
+
+Note: task-based multi-provider routing already ships (`llm-router.service.ts` sends specific features to OpenAI vs Anthropic by design). This phase is about *failover* — falling back to a second provider on outage/rate-limit, not the initial routing.
 
 | Task | Detail |
 |------|--------|
@@ -686,7 +688,7 @@ Add corresponding entries to `apps/api/src/config/configuration.ts` under an `ai
 | 3 | Community posts lack OpenAI Moderation | `community-posts.service.ts` | P0 |
 | 4 | ~~Moderation worker does not call LLM~~ — LLM judge tail active (`judgeFlaggedContent`) | `community-moderation.worker.ts` | ✅ Done |
 | 5 | ~~Summaries are deterministic stub~~ — `summarizeDiscussionAsync()` real OpenAI call (budget-guarded) + deterministic fallback | `ai-community.service.ts` | ✅ Done |
-| 6 | No Anthropic/Google keys or config | `configuration.ts` | P1 |
+| 6 | ~~No Anthropic keys or config~~ — `ANTHROPIC_API_KEY` wired, routes creator insights/course outline/content strategy (`llm-router.service.ts`) — Google/Gemini still not configured | `configuration.ts` | ✅ Done (Anthropic) / P1 (Google) |
 | 7 | No per-creator token budget | New | P1 |
 | 8 | ~~No AI-specific observability metrics~~ — `forge_ai_llm_calls_total{feature,result}` Prometheus counter wired at moderation + summary chokepoints | `common/metrics/forge-metrics.ts` | ✅ Done |
 | 9 | No `ai_decision_logs` table | New migration | P2 |

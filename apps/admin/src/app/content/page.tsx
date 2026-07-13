@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useMemo, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PageHeader } from '@forge/design-system';
-import { ConfirmDialog } from '@forge/design-system/client';
+import type { ColumnDef } from '@tanstack/react-table';
+import { PageHeader, StatusPill } from '@forge/design-system';
+import { ConfirmDialog, DataTable, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
-import { AdminDataTable } from '@/components/admin/AdminDataTable';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 
 interface Video {
@@ -23,11 +23,11 @@ interface Video {
   user: { id?: string; displayName: string; username: string };
 }
 
-const STATUS_CLASS: Record<string, string> = {
-  ready: 'bg-secondary/10 text-secondary',
-  processing: 'bg-tertiary/10 text-tertiary',
-  pending: 'bg-surface-container-high text-outline',
-  failed: 'bg-error/10 text-error',
+const STATUS_TONE: Record<string, 'success' | 'warning' | 'critical' | 'neutral'> = {
+  ready: 'success',
+  processing: 'warning',
+  pending: 'neutral',
+  failed: 'critical',
 };
 
 type ModerationPatch = {
@@ -57,7 +57,10 @@ function ContentPageInner() {
     patch: ModerationPatch;
     message: string;
   } | null>(null);
+  const [selected, setSelected] = useState<Video[]>([]);
+  const [bulkRemoveConfirmOpen, setBulkRemoveConfirmOpen] = useState(false);
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   useEffect(() => {
     setPage(1);
@@ -93,6 +96,125 @@ function ContentPageInner() {
     }
     updateVideo.mutate({ id, patch });
   };
+
+  // No dedicated bulk-moderate endpoint exists yet for videos (unlike
+  // users/reports/creators, which have PATCH .../bulk) — apply the same patch
+  // to each selected video individually and refresh once, so the UX is bulk
+  // even though the wire calls aren't.
+  const bulkPatch = async (patch: ModerationPatch, label: string) => {
+    const ids = selected.map((v) => v.id);
+    if (!ids.length) return;
+    try {
+      await Promise.all(ids.map((id) => api.patch(`/admin/videos/${id}`, patch)));
+      toast({ title: `${label} — ${ids.length} video${ids.length === 1 ? '' : 's'}`, variant: 'success' });
+      setSelected([]);
+      void qc.invalidateQueries({ queryKey: ['admin-videos'] });
+    } catch {
+      toast({ title: 'Bulk action failed', variant: 'critical' });
+    }
+  };
+
+  const columns = useMemo<ColumnDef<Video, unknown>[]>(
+    () => [
+      {
+        id: 'title',
+        header: 'Title',
+        cell: ({ row }) => <span className="line-clamp-1 max-w-xs font-medium">{row.original.title}</span>,
+      },
+      {
+        id: 'creator',
+        header: 'Creator',
+        cell: ({ row }) => (
+          <Link
+            href={`/users/${row.original.userId || row.original.user?.id}`}
+            className="group block"
+          >
+            <p className="group-hover:text-primary">{row.original.user?.displayName}</p>
+            <p className="text-xs text-outline group-hover:text-primary">@{row.original.user?.username}</p>
+          </Link>
+        ),
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        cell: ({ getValue }) => {
+          const status = getValue<string>();
+          return <StatusPill tone={STATUS_TONE[status] ?? 'neutral'} label={status} />;
+        },
+      },
+      {
+        accessorKey: 'moderationStatus',
+        header: 'Mod',
+        cell: ({ getValue }) => (
+          <span className="text-xs text-on-surface-variant">{getValue<string>() ?? 'none'}</span>
+        ),
+      },
+      {
+        accessorKey: 'viewCount',
+        header: 'Views',
+        cell: ({ getValue }) => <span className="tabular-nums text-on-surface-variant">{getValue<number>()}</span>,
+      },
+      {
+        accessorKey: 'createdAt',
+        header: 'Date',
+        cell: ({ getValue }) => (
+          <span className="text-on-surface-variant">{new Date(getValue<string>()).toLocaleDateString()}</span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => {
+          const video = row.original;
+          return (
+            <div className="flex flex-col gap-1 text-xs">
+              <button
+                type="button"
+                onClick={() => act(video.id, { moderationStatus: 'held' }, `Hold "${video.title}" for review?`)}
+                className="text-left text-tertiary hover:underline"
+              >
+                Hold
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  act(video.id, { moderationStatus: 'blocked', visibility: 'private' }, `Block "${video.title}"?`)
+                }
+                className="text-left text-error hover:underline"
+              >
+                Block
+              </button>
+              {video.moderationStatus === 'held' ? (
+                <button
+                  type="button"
+                  onClick={() => act(video.id, { moderationStatus: 'none' })}
+                  className="text-left text-secondary hover:underline"
+                >
+                  Approve
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => act(video.id, { status: 'failed' }, `Remove "${video.title}" from the platform?`)}
+                className="text-left text-error hover:underline"
+              >
+                Remove
+              </button>
+              <button
+                type="button"
+                onClick={() => act(video.id, { clearScheduledPublish: true })}
+                className="text-left text-outline hover:underline"
+              >
+                Clear schedule
+              </button>
+            </div>
+          );
+        },
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   if (isError) {
     return (
@@ -151,105 +273,50 @@ function ContentPageInner() {
         </div>
       </div>
 
-      <AdminDataTable
-        headers={['Title', 'Creator', 'Status', 'Mod', 'Views', 'Date', 'Actions']}
-        colCount={7}
-        isLoading={isLoading}
-        isEmpty={!isLoading && !videos?.length}
-        emptyMessage="No videos match this filter."
-        footer={
-          data?.meta ? (
-            <AdminPagination
-              page={data.meta.page}
-              totalPages={data.meta.totalPages}
-              total={data.meta.total}
-              label="videos"
-              onPrev={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => p + 1)}
-            />
-          ) : undefined
-        }
-      >
-        {videos?.map((video) => (
-          <tr key={video.id} className="hover:bg-surface-container-high/30">
-            <td className="max-w-xs truncate px-4 py-3 font-medium">{video.title}</td>
-            <td className="px-4 py-3 text-on-surface-variant">
-              <Link
-                href={`/users/${video.userId || video.user?.id}`}
-                className="group block hover:text-primary"
-              >
-                <p>{video.user?.displayName}</p>
-                <p className="text-xs text-outline group-hover:text-primary">@{video.user?.username}</p>
-              </Link>
-            </td>
-            <td className="px-4 py-3">
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[video.status] ?? STATUS_CLASS.pending}`}
-              >
-                {video.status}
-              </span>
-            </td>
-            <td className="px-4 py-3 text-xs text-on-surface-variant">
-              {video.moderationStatus ?? 'none'}
-            </td>
-            <td className="px-4 py-3 text-on-surface-variant">{video.viewCount}</td>
-            <td className="px-4 py-3 text-on-surface-variant">
-              {new Date(video.createdAt).toLocaleDateString()}
-            </td>
-            <td className="px-4 py-3">
-              <div className="flex flex-col gap-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() =>
-                    act(video.id, { moderationStatus: 'held' }, `Hold "${video.title}" for review?`)
-                  }
-                  className="text-left text-tertiary hover:underline"
-                >
-                  Hold
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    act(
-                      video.id,
-                      { moderationStatus: 'blocked', visibility: 'private' },
-                      `Block "${video.title}"?`,
-                    )
-                  }
-                  className="text-left text-error hover:underline"
-                >
-                  Block
-                </button>
-                {video.moderationStatus === 'held' ? (
-                  <button
-                    type="button"
-                    onClick={() => act(video.id, { moderationStatus: 'none' })}
-                    className="text-left text-secondary hover:underline"
-                  >
-                    Approve
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() =>
-                    act(video.id, { status: 'failed' }, `Remove "${video.title}" from the platform?`)
-                  }
-                  className="text-left text-error hover:underline"
-                >
-                  Remove
-                </button>
-                <button
-                  type="button"
-                  onClick={() => act(video.id, { clearScheduledPublish: true })}
-                  className="text-left text-outline hover:underline"
-                >
-                  Clear schedule
-                </button>
-              </div>
-            </td>
-          </tr>
-        ))}
-      </AdminDataTable>
+      <DataTable
+        columns={columns}
+        data={videos ?? []}
+        getRowId={(v) => v.id}
+        loading={isLoading}
+        selectable
+        onSelectionChange={setSelected}
+        emptyState={{ title: 'No videos match this filter', description: 'Try a different status or clear filters.' }}
+        bulkActions={() => (
+          <>
+            <button
+              type="button"
+              onClick={() => void bulkPatch({ moderationStatus: 'held' }, 'Held')}
+              className="rounded-full border border-outline-variant px-3 py-1 text-xs font-semibold hover:border-tertiary hover:text-tertiary"
+            >
+              Hold
+            </button>
+            <button
+              type="button"
+              onClick={() => void bulkPatch({ moderationStatus: 'blocked', visibility: 'private' }, 'Blocked')}
+              className="rounded-full border border-outline-variant px-3 py-1 text-xs font-semibold hover:border-critical hover:text-critical"
+            >
+              Block
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkRemoveConfirmOpen(true)}
+              className="rounded-full border border-outline-variant px-3 py-1 text-xs font-semibold hover:border-critical hover:text-critical"
+            >
+              Remove
+            </button>
+          </>
+        )}
+      />
+      {data?.meta ? (
+        <AdminPagination
+          page={data.meta.page}
+          totalPages={data.meta.totalPages}
+          total={data.meta.total}
+          label="videos"
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => p + 1)}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={pendingAction !== null}
@@ -259,6 +326,18 @@ function ContentPageInner() {
         loading={updateVideo.isPending}
         onConfirm={() => pendingAction && updateVideo.mutate({ id: pendingAction.id, patch: pendingAction.patch })}
         onCancel={() => setPendingAction(null)}
+      />
+
+      <ConfirmDialog
+        open={bulkRemoveConfirmOpen}
+        title={`Remove ${selected.length} video(s) from the platform?`}
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={() => {
+          setBulkRemoveConfirmOpen(false);
+          void bulkPatch({ status: 'failed' }, 'Removed');
+        }}
+        onCancel={() => setBulkRemoveConfirmOpen(false)}
       />
     </section>
   );

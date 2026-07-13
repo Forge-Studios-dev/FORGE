@@ -118,7 +118,7 @@
 │  2. Schedule a live session to re-engage inactive members       │
 │  3. Send a milestone email to members at 6-month anniversary    │
 │                                                                  │
-│  Powered by claude-sonnet-4-6                                   │
+│  Powered by claude-haiku-4-5 (configurable via AI_CLAUDE_MODEL)  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

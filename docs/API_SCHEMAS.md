@@ -190,11 +190,11 @@ Response: `PaginatedFeedPayload<PublicVideo>` — `{ data, meta: { cursor, hasMo
 
 ## Socket.IO (`/events`)
 
-**Client → server:** `join-video`, `leave-video`, `join-stream`, `leave-stream`, `join-live-feed`
+**Client → server:** `join-video`, `leave-video`, `join-stream`, `leave-stream`, `join-live-feed`, `leave-live-feed`, `stream:react`, `join-conversation`, `leave-conversation`, `join-stream-chat`, `leave-stream-chat`, `join-community`, `leave-community`, `join-channel`, `leave-channel`, `join-room`, `leave-room`, `join-stream-vip`, `leave-stream-vip`, `join-creator-analytics`, `leave-creator-analytics`
 
 **Server → client** (`SocketEvents` in shared-types):
 
-`video:ready`, `stream:started`, `stream:ended`, `comment:new`, `stream:chat:message`, `stream:chat:delete`, `stream:chat:slow-mode`, `channel:message`, `channel:message:delete`, `stream:viewer-count`
+`video:ready`, `stream:started`, `stream:ended`, `comment:new`, `stream:chat:message`, `stream:chat:delete`, `stream:chat:slow-mode`, `stream:chat:pinned`, `stream:chat:settings`, `stream:poll:updated`, `stream:qa:created`, `stream:qa:updated`, `channel:message`, `channel:message:delete`, `room:message`, `room:message:delete`, `stream:viewer-count`
 
 Auth: JWT in handshake `auth.token` (not client-supplied `userId`).
 

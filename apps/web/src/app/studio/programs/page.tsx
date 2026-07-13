@@ -1,203 +1,26 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Input, PageHeader } from '@forge/design-system';
-import { api } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-type ProgramCourse = {
-  id: string;
-  courseId: string;
-  course?: { id: string; title: string; slug: string; isPublished: boolean } | null;
-};
+/**
+ * Programs are now managed as the "Programs" tab inside Studio Courses — a
+ * program is a Course row with isBundle=true (see
+ * apps/api/.../1839800000000-merge-programs-into-courses.ts). Named "Programs",
+ * not "Bundles", to avoid colliding with the separate, pre-existing
+ * /studio/bundles feature (tier-entitlement resource bundles). This route
+ * stays only to send old bookmarks/links to the right place.
+ */
+export default function StudioProgramsRedirectPage() {
+  const router = useRouter();
 
-type Program = {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string | null;
-  communityId?: string | null;
-  isPublished: boolean;
-  courses: ProgramCourse[];
-};
-
-export default function StudioProgramsPage() {
-  const { user, isCreator } = useAuth();
-  const qc = useQueryClient();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [communityId, setCommunityId] = useState('');
-  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
-
-  const { data: programs } = useQuery({
-    queryKey: ['my-programs', user?.id],
-    enabled: !!user?.id && isCreator,
-    queryFn: async () => {
-      const { data } = await api.get<{ data: Program[] }>('/creators/me/programs');
-      return data.data;
-    },
-  });
-
-  const { data: myCommunities } = useQuery({
-    queryKey: ['my-communities-picker', user?.id],
-    enabled: !!user?.id && isCreator,
-    queryFn: async () => {
-      const { data } = await api.get<{ data: Array<{ id: string; name: string }> }>(
-        `/creators/${user!.id}/communities`,
-      );
-      return data.data;
-    },
-  });
-
-  const { data: myCourses } = useQuery({
-    queryKey: ['my-courses-picker', user?.id],
-    enabled: !!user?.id && isCreator,
-    queryFn: async () => {
-      const { data } = await api.get<{ data: Array<{ id: string; title: string }> }>(
-        '/creators/me/courses',
-      );
-      return data.data;
-    },
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      await api.post('/creators/me/programs', {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        communityId: communityId || undefined,
-        courseIds: selectedCourseIds,
-        isPublished: false,
-      });
-    },
-    onSuccess: () => {
-      setName('');
-      setDescription('');
-      setCommunityId('');
-      setSelectedCourseIds([]);
-      void qc.invalidateQueries({ queryKey: ['my-programs', user?.id] });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (programId: string) => {
-      await api.delete(`/creators/me/programs/${programId}`);
-    },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['my-programs', user?.id] }),
-  });
-
-  const toggleCourse = (courseId: string) => {
-    setSelectedCourseIds((prev) =>
-      prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId],
-    );
-  };
-
-  if (!isCreator) {
-    return (
-      <main className="mx-auto max-w-3xl px-5 py-8">
-        <p className="text-sm text-on-surface-variant">Creator access required.</p>
-      </main>
-    );
-  }
+  useEffect(() => {
+    router.replace('/studio/courses?tab=programs');
+  }, [router]);
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
-      <Link href="/studio" className="mb-4 inline-block text-sm text-primary">
-        ← Back to studio
-      </Link>
-      <PageHeader
-        title="Programs"
-        subtitle="Group multiple courses into a structured learning program (Kajabi-style)"
-      />
-
-      <section className="glass-panel mb-8 space-y-3 rounded-xl p-6">
-        <h2 className="font-label-caps text-outline">Create program</h2>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Program name" />
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Description (optional)"
-          rows={3}
-          className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
-        />
-        <select
-          value={communityId}
-          onChange={(e) => setCommunityId(e.target.value)}
-          className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
-        >
-          <option value="">No linked community</option>
-          {(myCommunities ?? []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        {(myCourses ?? []).length > 0 ? (
-          <div className="space-y-2">
-            <p className="text-xs text-on-surface-variant">Courses in program</p>
-            {(myCourses ?? []).map((course) => (
-              <label key={course.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={selectedCourseIds.includes(course.id)}
-                  onChange={() => toggleCourse(course.id)}
-                />
-                {course.title}
-              </label>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-on-surface-variant">
-            Create courses first to add them to a program.
-          </p>
-        )}
-        <Button
-          disabled={!name.trim() || createMutation.isPending}
-          onClick={() => createMutation.mutate()}
-        >
-          {createMutation.isPending ? 'Creating…' : 'Create program'}
-        </Button>
-      </section>
-
-      <section className="glass-panel space-y-3 rounded-xl p-6">
-        <h2 className="font-label-caps text-outline">Your programs</h2>
-        {(programs ?? []).length === 0 ? (
-          <p className="text-sm text-on-surface-variant">No programs yet.</p>
-        ) : (
-          <ul className="space-y-3">
-            {(programs ?? []).map((program) => (
-              <li
-                key={program.id}
-                className="rounded-lg border border-outline-variant/30 p-4 text-sm"
-              >
-                <p className="font-medium">{program.name}</p>
-                {program.description ? (
-                  <p className="mt-1 text-xs text-on-surface-variant">{program.description}</p>
-                ) : null}
-                <p className="mt-1 text-xs text-on-surface-variant">
-                  {program.courses.length} course{program.courses.length === 1 ? '' : 's'}
-                  {program.isPublished ? ' · Published' : ' · Draft'}
-                </p>
-                <ul className="mt-2 space-y-1 text-xs text-on-surface-variant">
-                  {program.courses.map((row) => (
-                    <li key={row.id}>· {row.course?.title ?? row.courseId}</li>
-                  ))}
-                </ul>
-                <Button
-                  variant="ghost"
-                  className="mt-2 px-0 text-xs text-error"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => deleteMutation.mutate(program.id)}
-                >
-                  Delete
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+    <main className="mx-auto max-w-3xl px-5 py-8">
+      <p className="text-sm text-on-surface-variant">Redirecting to Courses → Programs…</p>
     </main>
   );
 }

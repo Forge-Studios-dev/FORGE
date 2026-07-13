@@ -87,7 +87,7 @@ export function Dialog({
     >
       <div
         ref={panelRef}
-        className={`glass-panel w-full ${widths[size]} rounded-2xl p-6 forge-fade-in`}
+        className={`glass-panel shadow-xl w-full ${widths[size]} rounded-2xl p-6 forge-fade-in`}
         role={role}
         aria-modal="true"
         aria-labelledby={labelledBy}

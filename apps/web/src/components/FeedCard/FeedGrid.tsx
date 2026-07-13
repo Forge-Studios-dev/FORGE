@@ -10,8 +10,8 @@ import { useFeedScrollRestore } from '@/lib/use-feed-scroll-restore';
 import { chunkFeedRows, estimateFeedRowHeight, useFeedColumns } from '@/lib/use-feed-columns';
 import { PaginatedResponse, Video } from '@/types';
 import { FeedCard } from './FeedCard';
-import { EmptyState } from '@/components/EmptyState';
 import { preloadHlsManifests } from '@/lib/hls-preload';
+import { EmptyState } from '@forge/design-system';
 
 /** With row virtualization, allow more cached pages; DOM stays bounded. */
 const MAX_FEED_PAGES = 10;

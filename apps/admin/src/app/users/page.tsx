@@ -4,17 +4,17 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { PageHeader } from '@forge/design-system';
+import { PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { DataTable, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { AdminSearchInput } from '@/components/admin/AdminSearchInput';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import type { AdminUser } from '@/lib/admin-user-types';
 
-const ROLE_CLASS: Record<string, string> = {
-  admin: 'bg-error/10 text-error',
-  creator: 'bg-primary/10 text-primary',
-  user: 'bg-surface-container-high text-on-surface-variant',
+const ROLE_TONE: Record<string, StatusTone> = {
+  admin: 'critical',
+  creator: 'primary',
+  user: 'neutral',
 };
 
 export default function UsersPage() {
@@ -118,9 +118,7 @@ export default function UsersPage() {
           const u = row.original;
           return (
             <div className="flex items-center gap-1">
-              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ROLE_CLASS[u.role] ?? ROLE_CLASS.user}`}>
-                {u.role}
-              </span>
+              <StatusPill tone={ROLE_TONE[u.role] ?? ROLE_TONE.user} label={u.role} />
               {u.creatorStatus ? <span className="text-[10px] text-outline">({u.creatorStatus})</span> : null}
             </div>
           );

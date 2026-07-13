@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button } from '@forge/design-system';
+import { Button, StatusPill } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { SubscriptionTier } from '@/types';
@@ -10,6 +10,8 @@ interface Props {
   creatorId: string;
   /** When set, checkout creates a community-scoped subscription. */
   communityId?: string;
+  /** Tier that unlocks the content the viewer just hit a paywall on — sorted first, badged. */
+  highlightTierId?: string | null;
 }
 
 type ProductBundle = {
@@ -21,7 +23,7 @@ type ProductBundle = {
   tier?: { name: string; priceCents: number; currency: string; billingInterval: string };
 };
 
-export function MembershipPanel({ creatorId, communityId }: Props) {
+export function MembershipPanel({ creatorId, communityId, highlightTierId }: Props) {
   const { user, isGuest } = useAuth();
   const qc = useQueryClient();
 
@@ -88,9 +90,7 @@ export function MembershipPanel({ creatorId, communityId }: Props) {
           {membership.subscription?.tier?.name ?? 'Member'}
         </span>
         {membership.isTestMembership ? (
-          <span className="ml-2 rounded-full bg-tertiary/20 px-2 py-0.5 text-xs text-tertiary">
-            Test membership
-          </span>
+          <StatusPill tone="reward" label="Test membership" className="ml-2" />
         ) : null}
       </div>
     );
@@ -99,15 +99,28 @@ export function MembershipPanel({ creatorId, communityId }: Props) {
   if (isGuest || !tiers?.length) return null;
 
   const useStripe = process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
+  const sortedTiers = highlightTierId
+    ? [...tiers].sort((a, b) =>
+        a.id === highlightTierId ? -1 : b.id === highlightTierId ? 1 : 0,
+      )
+    : tiers;
 
   return (
     <div className="glass-panel w-full max-w-md space-y-3 rounded-xl p-4">
       <p className="text-sm font-medium">Become a member</p>
       <ul className="space-y-2">
-        {tiers.map((tier) => (
-          <li key={tier.id} className="flex items-center justify-between text-sm">
+        {sortedTiers.map((tier) => (
+          <li
+            key={tier.id}
+            className={`flex items-center justify-between rounded-lg text-sm ${
+              tier.id === highlightTierId ? 'border border-primary/40 bg-primary/5 p-2' : ''
+            }`}
+          >
             <span>
               {tier.name} — {tier.currency} {(tier.priceCents / 100).toFixed(0)}/mo
+              {tier.id === highlightTierId ? (
+                <StatusPill tone="primary" label="Unlocks this lesson" className="ml-2" />
+              ) : null}
             </span>
             {useStripe ? (
               <Button

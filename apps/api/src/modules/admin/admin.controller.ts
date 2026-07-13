@@ -329,6 +329,16 @@ export class AdminController {
     return this.categoriesService.remove(id);
   }
 
+  @Get('billing/transactions')
+  @ApiOperation({ summary: 'Cross-creator billing ledger — subscriptions + event purchases (admin, read-only)' })
+  getBillingLedger(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.getBillingLedger({ page, limit, search });
+  }
+
   @Get('stats')
   @ApiOperation({ summary: 'Platform stats (admin)' })
   async getStats() {

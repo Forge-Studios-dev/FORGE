@@ -24,11 +24,13 @@ Self-hosted Docker (GHCR image workflows) was removed; production uses Fly + Ver
 
 ### Release order (`release.yml`)
 
-1. **deploy-api** — `flyctl deploy --primary-region sin --regions bom` → health + public smoke + `verify-metrics-scrape.sh`
-2. **deploy-worker** — `scripts/sync-fly-worker-secrets.sh` (uses `flyctl` + `FLY_API_TOKEN` in CI) → `flyctl deploy -c fly.worker.toml`
+1. **deploy-api** — `flyctl deploy --remote-only --primary-region sin --regions bom` (overrides `fly.toml`'s `primary_region`) → health + public smoke + `verify-metrics-scrape.sh` → on failure, capture Fly logs and roll back to the previous image
+2. **deploy-worker** — `scripts/sync-fly-worker-secrets.sh` → `flyctl deploy -c fly.worker.toml -a forge-studios-worker --remote-only --ha=false` → **force-start the worker machine** (`if: always()`, resets Fly's exhausted-retries counter so a crash-looping machine doesn't stay dead after a bad deploy) → wait + check machine state → capture worker logs → on failure, roll back to the previous image
 3. **deploy-web** / **deploy-admin** — Vercel production
 
 Worker sync reads secrets from a running API machine (`flyctl ssh console`). It does **not** use your local `apps/api/.env`.
+
+**Rollback mechanism:** both `deploy-api` and `deploy-worker` roll back on failure by looking up the previous image (`flyctl releases --json --image`, second-most-recent entry) and redeploying it directly (`flyctl deploy --image <prev>`) — this is **not** `flyctl releases rollback`.
 
 ---
 
