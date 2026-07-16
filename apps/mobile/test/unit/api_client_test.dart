@@ -8,6 +8,8 @@ import 'package:forge_mobile/core/network/api_client.dart';
 import 'test_support/fakes.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late Map<String, String> storageData;
   late FlutterSecureStorage storage;
 
