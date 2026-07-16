@@ -54,7 +54,7 @@ dependencies:
   firebase_app_check: ^0.3.1+4
   url_launcher: ^6.3.0
   share_plus: ^10.0.2
-  socket_io_client: ^3.0.2
+  socket_io_client: ^3.1.6
   livekit_client: ^2.3.6
 
   # Crash reporting (CRIT-02) — enabled via --dart-define=SENTRY_DSN=...
