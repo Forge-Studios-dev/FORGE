@@ -19,11 +19,22 @@ function clearAdminSession(response: NextResponse) {
 }
 
 /**
- * Applies a per-request nonce-based CSP to every response this middleware returns.
- * Falls back to a nonce-less CSP (old behavior) if nonce generation ever throws in
- * a runtime without Web Crypto/Buffer, rather than failing the whole request.
+ * Threads the nonce through the request headers (not just the response CSP
+ * header) so Next's own script-tag injection picks it up via `headers()` in
+ * the root layout — see Next's CSP guide. A response-header-only nonce
+ * silently breaks every page: Next never learns the nonce, so its own
+ * bootstrap scripts render without a matching `nonce` attribute and the
+ * browser blocks them outright.
  */
-function withCsp(response: NextResponse): NextResponse {
+function nextWithNonceRequest(request: NextRequest, nonce: string | undefined): NextResponse {
+  if (!nonce) return NextResponse.next();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
   const isProduction = process.env.NODE_ENV === 'production';
   let nonce: string | undefined;
   try {
@@ -31,43 +42,39 @@ function withCsp(response: NextResponse): NextResponse {
   } catch {
     nonce = undefined;
   }
-  response.headers.set(
-    'Content-Security-Policy',
-    buildContentSecurityPolicy(isProduction, {
-      nonce,
-      apiUrl: process.env.NEXT_PUBLIC_API_URL,
-    }),
-  );
-  return response;
-}
-
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const csp = buildContentSecurityPolicy(isProduction, {
+    nonce,
+    apiUrl: process.env.NEXT_PUBLIC_API_URL,
+  });
+  const applyCsp = (response: NextResponse): NextResponse => {
+    response.headers.set('Content-Security-Policy', csp);
+    return response;
+  };
 
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    return withCsp(NextResponse.next());
+    return applyCsp(nextWithNonceRequest(request, nonce));
   }
 
   const token = request.cookies.get('forge_admin_token')?.value;
   const hasSessionMarker = request.cookies.get(SESSION_MARKER)?.value === '1';
 
   if (token && isValidAdminToken(token)) {
-    return withCsp(NextResponse.next());
+    return applyCsp(nextWithNonceRequest(request, nonce));
   }
 
   if (hasSessionMarker && token) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', pathname);
-    return withCsp(NextResponse.redirect(loginUrl));
+    return applyCsp(NextResponse.redirect(loginUrl));
   }
 
   if (token) {
-    return withCsp(clearAdminSession(NextResponse.redirect(new URL('/unauthorized', request.url))));
+    return applyCsp(clearAdminSession(NextResponse.redirect(new URL('/unauthorized', request.url))));
   }
 
   const loginUrl = new URL('/login', request.url);
   loginUrl.searchParams.set('next', pathname);
-  return withCsp(NextResponse.redirect(loginUrl));
+  return applyCsp(NextResponse.redirect(loginUrl));
 }
 
 export const config = {

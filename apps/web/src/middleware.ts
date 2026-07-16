@@ -9,19 +9,20 @@ import {
 import { buildContentSecurityPolicy } from '@forge/shared-types/security-headers';
 import { MAX_RETURN_PATH_LEN } from '@/lib/safe-return-path';
 
-/**
- * Applies a per-request nonce-based CSP to every response this middleware returns.
- * Falls back to a nonce-less CSP (old behavior) if nonce generation ever throws in
- * a runtime without Web Crypto/Buffer, rather than failing the whole request.
- */
-function withCsp(response: NextResponse): NextResponse {
-  const isProduction = process.env.NODE_ENV === 'production';
-  let nonce: string | undefined;
+function generateNonce(): string | undefined {
   try {
-    nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+    return Buffer.from(crypto.randomUUID()).toString('base64');
   } catch {
-    nonce = undefined;
+    return undefined;
   }
+}
+
+/**
+ * Applies the CSP header for a given nonce (or no nonce, on the Web
+ * Crypto/Buffer-unavailable fallback path).
+ */
+function applyCsp(response: NextResponse, nonce: string | undefined): NextResponse {
+  const isProduction = process.env.NODE_ENV === 'production';
   response.headers.set(
     'Content-Security-Policy',
     buildContentSecurityPolicy(isProduction, {
@@ -30,6 +31,21 @@ function withCsp(response: NextResponse): NextResponse {
     }),
   );
   return response;
+}
+
+/**
+ * `NextResponse.next()`, but threading the nonce through the request headers
+ * too — not just the response CSP header — so Next's own script-tag
+ * injection can read it via `headers()` in the root layout (see Next's CSP
+ * guide). Without this, Next never learns the nonce, so its own bootstrap
+ * scripts render without a matching `nonce` attribute and the browser blocks
+ * them outright, breaking hydration on every page.
+ */
+function nextWithNonceRequest(request: NextRequest, nonce: string | undefined): NextResponse {
+  if (!nonce) return NextResponse.next();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 const PROTECTED_PREFIXES = [
@@ -72,6 +88,9 @@ function hasSessionMarker(request: NextRequest): boolean {
 }
 
 export function middleware(request: NextRequest) {
+  const nonce = generateNonce();
+  const withCsp = (response: NextResponse) => applyCsp(response, nonce);
+
   const host = request.headers.get('host') ?? '';
   if (host.startsWith('www.')) {
     const apexHost = host.slice(4);
@@ -129,7 +148,7 @@ export function middleware(request: NextRequest) {
     return withCsp(NextResponse.redirect(new URL('/verify-email', request.url)));
   }
 
-  return withCsp(NextResponse.next());
+  return withCsp(nextWithNonceRequest(request, nonce));
 }
 
 export const config = {

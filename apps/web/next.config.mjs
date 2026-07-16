@@ -4,7 +4,7 @@ import { buildSecurityHeaders } from '@forge/shared-types/security-headers';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  transpilePackages: ['@forge/design-system'],
+  transpilePackages: ['@forge/design-system', '@forge/shared-types'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.amazonaws.com' },

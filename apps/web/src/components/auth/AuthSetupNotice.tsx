@@ -1,7 +1,7 @@
 'use client';
 
-import type { PlatformPublicConfig } from '@forge/shared-types';
-import { isMailConfigured } from '@forge/shared-types';
+import type { PlatformPublicConfig } from '@forge/shared-types/platform-public-config';
+import { isMailConfigured } from '@forge/shared-types/platform-public-config';
 
 function isLocalDevApi(): boolean {
   const base = process.env.NEXT_PUBLIC_API_URL ?? '';

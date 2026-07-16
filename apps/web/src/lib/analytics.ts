@@ -1,4 +1,4 @@
-import { isAllowedAnalyticsEvent, type AnalyticsEventName } from '@forge/shared-types';
+import { isAllowedAnalyticsEvent, type AnalyticsEventName } from '@forge/shared-types/analytics';
 import { api } from '@/lib/api';
 import { getAppCheckToken } from '@/lib/app-check';
 

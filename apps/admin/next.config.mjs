@@ -4,7 +4,7 @@ import { buildSecurityHeaders } from '@forge/shared-types/security-headers';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  transpilePackages: ['@forge/design-system'],
+  transpilePackages: ['@forge/design-system', '@forge/shared-types'],
   async headers() {
     const isProduction = process.env.NODE_ENV === 'production';
     return [
