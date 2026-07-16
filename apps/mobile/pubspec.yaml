@@ -19,7 +19,7 @@ dependencies:
   go_router: ^13.2.1
 
   # HTTP
-  dio: ^5.4.3
+  dio: ^5.10.0
 
   # Secure storage
   flutter_secure_storage: ^9.0.0
