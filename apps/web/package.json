@@ -23,7 +23,7 @@
     "@tanstack/react-virtual": "^3.13.24",
     "axios": "^1.6.8",
     "clsx": "^2.1.0",
-    "firebase": "^11.10.0",
+    "firebase": "^12.16.0",
     "hls.js": "^1.5.7",
     "livekit-client": "^2.19.1",
     "next": "^14.2.2",
