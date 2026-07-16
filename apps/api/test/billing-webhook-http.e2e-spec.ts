@@ -18,7 +18,9 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
+import { ClsService } from 'nestjs-cls';
 import request from 'supertest';
+import { UsersService } from '../src/modules/users/users.service';
 import { BillingController } from '../src/modules/billing/billing.controller';
 import { BillingService } from '../src/modules/billing/billing.service';
 import { StripeConnectService } from '../src/modules/billing/stripe-connect.service';
@@ -56,10 +58,15 @@ describe('POST /billing/webhook -> entitlement grant (HIGH-01)', () => {
   };
 
   const subscriptionRepository = {
-    findOne: jest.fn(async ({ where }: { where: { id: string } }) =>
-      savedSubscription && where.id === savedSubscription.id
-        ? { ...savedSubscription, tier: undefined }
-        : null,
+    findOne: jest.fn(
+      async ({
+        where,
+      }: {
+        where: { id: string };
+      }): Promise<Record<string, unknown> | null> =>
+        savedSubscription && where.id === savedSubscription.id
+          ? { ...savedSubscription, tier: undefined }
+          : null,
     ),
     save: jest.fn(),
   };
@@ -118,6 +125,11 @@ describe('POST /billing/webhook -> entitlement grant (HIGH-01)', () => {
         { provide: SubscriptionChangeService, useValue: {} },
         { provide: EngagementService, useValue: {} },
         { provide: ConfigService, useValue: { get: jest.fn() } },
+        // Webhook route isn't guarded, but CreatorApprovedGuard is referenced via
+        // @UseGuards on other controller routes, so Nest still constructs it at module
+        // init — it's never invoked for /billing/webhook, so stub constructor deps.
+        { provide: UsersService, useValue: {} },
+        { provide: ClsService, useValue: {} },
       ],
     }).compile();
 
