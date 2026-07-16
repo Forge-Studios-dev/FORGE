@@ -38,5 +38,12 @@ void main() {
       expect(AppConstants.connectionTimeout.inSeconds, greaterThan(0));
       expect(AppConstants.receiveTimeout.inSeconds, greaterThan(0));
     });
+
+    // kReleaseMode is always false under `flutter test`, so this only exercises
+    // the debug-mode no-op path; the release-mode throw (LOW-13) is exercised
+    // by actually building with --release and a non-https API_BASE_URL.
+    test('assertValidForRelease is a no-op outside release mode', () {
+      expect(AppConstants.assertValidForRelease, returnsNormally);
+    });
   });
 }

@@ -16,7 +16,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
+import { diskStorage } from 'multer';
+import * as os from 'node:os';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { VideosService } from './videos.service';
 import { CreateVideoDto } from './dto/create-video.dto';
@@ -91,7 +92,9 @@ export class VideosController {
   @Permissions(Permission.UPLOAD_VIDEO)
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: memoryStorage(),
+      // Disk-backed, not memoryStorage() — this is a fallback for up-to-500MB
+      // uploads and must not buffer the whole file in API process memory (LOW-04).
+      storage: diskStorage({ destination: os.tmpdir() }),
       limits: { fileSize: 500 * 1024 * 1024 },
     }),
   )

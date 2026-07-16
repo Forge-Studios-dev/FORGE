@@ -32,8 +32,12 @@ const Redis = require('ioredis');
     process.exit(1);
   }
 
+  // Verify the server cert by default (LOW-10); only disable for a managed provider
+  // with a custom CA by explicitly setting REDIS_TLS_REJECT_UNAUTHORIZED=false,
+  // matching apps/api/src/common/redis/redis-tls.util.ts.
+  const rejectUnauthorized = process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== 'false';
   const redis = new Redis(url, {
-    tls: url.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+    tls: url.startsWith('rediss://') ? { rejectUnauthorized } : undefined,
     maxRetriesPerRequest: 1,
     connectTimeout: 15_000,
   });

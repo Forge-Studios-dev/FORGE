@@ -41,6 +41,16 @@
       "types": "./dist/cors-origins.d.ts",
       "require": "./dist/cors-origins.js",
       "default": "./dist/cors-origins.js"
+    },
+    "./analytics": {
+      "types": "./dist/analytics.d.ts",
+      "require": "./dist/analytics.js",
+      "default": "./dist/analytics.js"
+    },
+    "./platform-public-config": {
+      "types": "./dist/platform-public-config.d.ts",
+      "require": "./dist/platform-public-config.js",
+      "default": "./dist/platform-public-config.js"
     }
   },
   "scripts": {

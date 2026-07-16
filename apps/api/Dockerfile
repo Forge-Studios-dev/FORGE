@@ -33,14 +33,18 @@ COPY packages/shared-types/package.json ./packages/shared-types/
 
 RUN npm ci --workspace=apps/api --omit=dev
 
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/packages/shared-types/dist ./packages/shared-types/dist
+RUN addgroup -g 1001 -S nodejs && adduser -S -u 1001 -G nodejs nestjs
+
+COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
+COPY --from=builder --chown=nestjs:nodejs /app/packages/shared-types/dist ./packages/shared-types/dist
 
 # Nest monorepo build emits dist/apps/api/src/main.js (not dist/main.js).
 RUN test -f apps/api/dist/apps/api/src/main.js
 
-COPY apps/api/docker-entrypoint.sh ./apps/api/docker-entrypoint.sh
+COPY --chown=nestjs:nodejs apps/api/docker-entrypoint.sh ./apps/api/docker-entrypoint.sh
 RUN chmod +x apps/api/docker-entrypoint.sh
+
+USER nestjs
 
 EXPOSE 3001
 

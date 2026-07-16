@@ -8,6 +8,9 @@ import { StripeConnectService } from './stripe-connect.service';
 import { SubscriptionChangeService } from './subscription-change.service';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { CreateEventCheckoutDto } from './dto/create-event-checkout.dto';
+import { ChangeTierDto } from './dto/change-tier.dto';
+import { CreatePortalSessionDto } from './dto/create-portal-session.dto';
+import { ConnectOnboardQueryDto } from './dto/connect-onboard.dto';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { UseGuards } from '@nestjs/common';
 
@@ -38,28 +41,18 @@ export class BillingController {
 
   @Post('connect/onboard')
   @UseGuards(CreatorApprovedGuard)
-  connectOnboard(@CurrentUser() user: { sub: string }, @Query('returnUrl') returnUrl: string) {
-    return this.connectService.createOnboardingLink(user.sub, returnUrl);
+  connectOnboard(@CurrentUser() user: { sub: string }, @Query() query: ConnectOnboardQueryDto) {
+    return this.connectService.createOnboardingLink(user.sub, query.returnUrl);
   }
 
   @Post('subscriptions/change-tier')
-  changeTier(
-    @CurrentUser() user: { sub: string },
-    @Body() body: { creatorId: string; tierId: string },
-  ) {
-    return this.subscriptionChangeService.changeTier(user.sub, body.creatorId, body.tierId);
+  changeTier(@CurrentUser() user: { sub: string }, @Body() dto: ChangeTierDto) {
+    return this.subscriptionChangeService.changeTier(user.sub, dto.creatorId, dto.tierId);
   }
 
   @Post('portal')
-  createPortal(
-    @CurrentUser() user: { sub: string },
-    @Body() body: { returnUrl: string; creatorId?: string },
-  ) {
-    return this.billingService.createBillingPortalSession(
-      user.sub,
-      body.returnUrl,
-      body.creatorId,
-    );
+  createPortal(@CurrentUser() user: { sub: string }, @Body() dto: CreatePortalSessionDto) {
+    return this.billingService.createBillingPortalSession(user.sub, dto.returnUrl, dto.creatorId);
   }
 
   @Public()

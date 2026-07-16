@@ -1,12 +1,11 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { FeedGridSkeleton, PageHeader } from '@forge/design-system';
+import { EmptyState, FeedGridSkeleton, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Video } from '@/types';
 import { FeedCard } from '@/components/FeedCard/FeedCard';
-import { EmptyState } from '@/components/EmptyState';
 
 export default function HistoryPage() {
   const { user, isGuest } = useAuth();

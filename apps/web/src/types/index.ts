@@ -126,10 +126,30 @@ export interface Comment {
   createdAt: string;
 }
 
+/** Mirrors apps/api/src/modules/notifications/entities/notification.entity.ts NotificationType. */
+export type NotificationType =
+  | 'creator_approved'
+  | 'creator_rejected'
+  | 'video_ready'
+  | 'stream_started'
+  | 'stream_started_followed'
+  | 'premium_content_new'
+  | 'subscription_expiring'
+  | 'comment_on_video'
+  | 'comment_reply'
+  | 'new_follower'
+  | 'video_liked'
+  | 'direct_message'
+  | 'community_role_assigned'
+  | 'community_banned'
+  | 'community_post_new'
+  | 'achievement_unlocked'
+  | 'xp_level_up';
+
 export interface Notification {
   id: string;
   userId: string;
-  type: 'creator_approved' | 'creator_rejected' | 'video_ready' | 'stream_started';
+  type: NotificationType;
   title: string;
   body?: string | null;
   readAt?: string | null;

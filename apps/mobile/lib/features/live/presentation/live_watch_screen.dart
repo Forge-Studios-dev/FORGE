@@ -19,7 +19,7 @@ class LiveWatchScreen extends ConsumerStatefulWidget {
   ConsumerState<LiveWatchScreen> createState() => _LiveWatchScreenState();
 }
 
-class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
+class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _stream;
   Map<String, dynamic>? _replay;
   Map<String, dynamic>? _health;
@@ -45,8 +45,23 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadStream();
     _setupSocket();
+  }
+
+  /// HIGH-08 (partial — video only): pause decoding/buffering when
+  /// backgrounded. Not disconnecting ForgeSocket here: it's a global
+  /// singleton also bound independently by StreamChatPanel/StreamPollPanel/
+  /// StreamQaPanel with no shared reconnect coordination, so a forced
+  /// disconnect+reconnect here would silently break their listeners after a
+  /// background/foreground cycle. That needs a coordinated fix across all
+  /// four widgets plus real-device verification, not a blind one-file patch.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _videoController?.pause();
+    }
   }
 
   Future<void> _loadStream() async {
@@ -275,6 +290,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
     if (_onViewerCount != null) ForgeSocket.off('stream:viewer-count', _onViewerCount);
     if (_onChatMessage != null) ForgeSocket.off('stream:chat:message', _onChatMessage);

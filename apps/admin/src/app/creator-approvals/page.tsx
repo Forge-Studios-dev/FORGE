@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Button, PageHeader } from '@forge/design-system';
+import { Button, PageHeader, StatusPill } from '@forge/design-system';
 import { DataTable, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { AdminSearchInput } from '@/components/admin/AdminSearchInput';
@@ -118,13 +118,7 @@ export default function CreatorApprovalsPage() {
         accessorKey: 'isVerified',
         header: 'Verified',
         cell: ({ getValue }) => (
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              getValue<boolean>() ? 'bg-secondary/10 text-secondary' : 'bg-surface-container-high text-outline'
-            }`}
-          >
-            {getValue<boolean>() ? 'verified' : 'unverified'}
-          </span>
+          <StatusPill tone={getValue<boolean>() ? 'success' : 'neutral'} label={getValue<boolean>() ? 'verified' : 'unverified'} />
         ),
       },
       {

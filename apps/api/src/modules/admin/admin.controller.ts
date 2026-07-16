@@ -140,8 +140,12 @@ export class AdminController {
 
   @Patch('users/:id')
   @ApiOperation({ summary: 'Update user role or status (admin)' })
-  updateUser(@Param('id') id: string, @Body() dto: UpdateAdminUserDto) {
-    return this.adminService.updateUser(id, dto);
+  updateUser(
+    @Param('id') id: string,
+    @Body() dto: UpdateAdminUserDto,
+    @CurrentUser() admin: JwtPayload,
+  ) {
+    return this.adminService.updateUser(id, dto, admin.sub);
   }
 
   @Delete('users/:id')
@@ -323,6 +327,16 @@ export class AdminController {
   @ApiOperation({ summary: 'Delete a category (admin)' })
   deleteCategory(@Param('id') id: string) {
     return this.categoriesService.remove(id);
+  }
+
+  @Get('billing/transactions')
+  @ApiOperation({ summary: 'Cross-creator billing ledger — subscriptions + event purchases (admin, read-only)' })
+  getBillingLedger(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.getBillingLedger({ page, limit, search });
   }
 
   @Get('stats')

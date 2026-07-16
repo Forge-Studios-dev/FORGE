@@ -53,6 +53,27 @@ class VideoModel {
         user: UserModel.fromJson(json['user'] as Map<String, dynamic>),
         createdAt: DateTime.parse(json['createdAt'] as String),
       );
+
+  /// Round-trips through [fromJson] — used for the offline cache (HIGH-07),
+  /// not sent back to the API.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'userId': userId,
+        'title': title,
+        'description': description,
+        'status': status,
+        'hlsUrl': hlsUrl,
+        'accessDenied': accessDenied,
+        'accessReason': accessReason,
+        'thumbnailUrl': thumbnailUrl,
+        'durationSeconds': durationSeconds,
+        'viewCount': viewCount,
+        'likeCount': likeCount,
+        'commentCount': commentCount,
+        'viewerLiked': viewerLiked,
+        'user': user.toJson(),
+        'createdAt': createdAt.toIso8601String(),
+      };
 }
 
 class UserModel {
@@ -98,4 +119,19 @@ class UserModel {
         videoCount: (json['videoCount'] as num?)?.toInt() ?? 0,
         viewerFollowing: json['viewerFollowing'] as bool? ?? false,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'username': username,
+        'displayName': displayName,
+        'avatarUrl': avatarUrl,
+        'role': role,
+        'isVerified': isVerified,
+        'creatorStatus': creatorStatus,
+        'creatorReviewNote': creatorReviewNote,
+        'followerCount': followerCount,
+        'followingCount': followingCount,
+        'videoCount': videoCount,
+        'viewerFollowing': viewerFollowing,
+      };
 }

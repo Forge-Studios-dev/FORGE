@@ -41,6 +41,17 @@ export function ProfileHeader({ user }: Props) {
     initialData: user.viewerFollowing,
   });
 
+  const { data: myXp } = useQuery({
+    queryKey: ['my-platform-xp'],
+    enabled: isOwnProfile,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: { xp: number; level: number; streak: number } }>(
+        '/platform/gamification/me',
+      );
+      return data.data;
+    },
+  });
+
   const [followingState, setFollowingState] = useState(following);
 
   useEffect(() => {
@@ -179,6 +190,14 @@ export function ProfileHeader({ user }: Props) {
             <p className="font-bold text-lg">{formatCount(user.videoCount)}</p>
             <p className="text-on-surface-variant">Videos</p>
           </div>
+          {isOwnProfile && myXp ? (
+            <div className="text-center">
+              <p className="font-bold text-lg">Level {myXp.level}</p>
+              <p className="text-on-surface-variant">
+                {formatCount(myXp.xp)} XP{myXp.streak > 0 ? ` · ${myXp.streak}d streak` : ''}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         {user.bio && (

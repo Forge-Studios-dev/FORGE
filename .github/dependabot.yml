@@ -1,0 +1,26 @@
+version: 2
+updates:
+  # Single npm workspace tree (root + apps/api, apps/web, apps/admin,
+  # packages/*) sharing one package-lock.json — Dependabot understands npm
+  # workspaces natively from the root directory (MED-06).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "pub"
+    directory: "/apps/mobile"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

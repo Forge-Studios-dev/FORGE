@@ -2,30 +2,28 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CreatorProgramsService } from './creator-programs.service';
-import { CreatorProgram, CreatorProgramCourse } from './entities/creator-program.entity';
-import { Course } from './entities/course.entity';
+import { Course, CourseBundleItem } from './entities/course.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CoursesService } from './courses.service';
 
 describe('CreatorProgramsService', () => {
   let service: CreatorProgramsService;
 
-  const program = {
+  // A "program" is now a Course row with isBundle: true.
+  const program: Course = {
     id: 'prog-1',
     creatorId: 'creator-1',
-    name: 'Full Stack',
+    title: 'Full Stack',
     slug: 'full-stack',
     description: 'Learn end to end',
     communityId: null,
-    community: null,
     isPublished: true,
-    sortOrder: 0,
-    courses: [],
     priceCents: 0,
     stripePriceId: null,
+    isBundle: true,
     createdAt: new Date(),
     updatedAt: new Date(),
-  } as CreatorProgram;
+  } as Course;
 
   const course: Course = {
     id: 'course-1',
@@ -35,34 +33,34 @@ describe('CreatorProgramsService', () => {
     description: null,
     isPublished: true,
     communityId: null,
+    priceCents: 0,
+    stripePriceId: null,
+    isBundle: false,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 
-  const programCourse: CreatorProgramCourse = {
+  const bundleItem: CourseBundleItem = {
     id: 'pc-1',
-    programId: program.id,
-    courseId: course.id,
+    bundleCourseId: program.id,
+    itemCourseId: course.id,
     sortOrder: 0,
-    program,
+    bundleCourse: program,
+    itemCourse: course,
   };
 
-  const programRepository = {
-    find: jest.fn(),
-    findOne: jest.fn(),
-    save: jest.fn(async (entity: CreatorProgram) => entity),
-    create: jest.fn((dto: Partial<CreatorProgram>) => dto),
-    delete: jest.fn(),
-  };
-  const programCourseRepository = {
-    find: jest.fn().mockResolvedValue([programCourse]),
+  const bundleItemRepository = {
+    find: jest.fn().mockResolvedValue([bundleItem]),
     save: jest.fn(),
-    create: jest.fn((dto: Partial<CreatorProgramCourse>) => dto),
+    create: jest.fn((dto: Partial<CourseBundleItem>) => dto),
     delete: jest.fn(),
   };
   const courseRepository = {
-    find: jest.fn().mockResolvedValue([course]),
+    find: jest.fn(),
     findOne: jest.fn(),
+    save: jest.fn(async (entity: Course) => entity),
+    create: jest.fn((dto: Partial<Course>) => dto),
+    delete: jest.fn(),
   };
   const communityRepository = {
     findOne: jest.fn(),
@@ -75,23 +73,26 @@ describe('CreatorProgramsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    programRepository.find.mockResolvedValue([program]);
-    programRepository.findOne.mockImplementation(
-      async ({ where }: { where: Partial<CreatorProgram> }) => {
-        if (where.id === program.id && where.isPublished === true) return program;
-        if (where.creatorId === program.creatorId && where.slug === program.slug) return program;
-        return null;
-      },
-    );
-    programCourseRepository.find.mockResolvedValue([programCourse]);
-    courseRepository.find.mockResolvedValue([course]);
+    // courseRepository.find is used both to list bundle (program) rows and to
+    // resolve bundle-item course ids — keyed on whether isBundle is requested.
+    courseRepository.find.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+      if (where.isBundle === true) return [program];
+      return [course];
+    });
+    courseRepository.findOne.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+      if (where.id === program.id && where.isPublished === true && where.isBundle === true) return program;
+      if (where.creatorId === program.creatorId && where.slug === program.slug && where.isBundle === true) {
+        return program;
+      }
+      return null;
+    });
+    bundleItemRepository.find.mockResolvedValue([bundleItem]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CreatorProgramsService,
-        { provide: getRepositoryToken(CreatorProgram), useValue: programRepository },
-        { provide: getRepositoryToken(CreatorProgramCourse), useValue: programCourseRepository },
         { provide: getRepositoryToken(Course), useValue: courseRepository },
+        { provide: getRepositoryToken(CourseBundleItem), useValue: bundleItemRepository },
         { provide: getRepositoryToken(Community), useValue: communityRepository },
         { provide: CoursesService, useValue: coursesService },
       ],
@@ -113,7 +114,7 @@ describe('CreatorProgramsService', () => {
   });
 
   it('throws when published program not found', async () => {
-    programRepository.findOne.mockResolvedValue(null);
+    courseRepository.findOne.mockResolvedValue(null);
     await expect(service.getPublishedBySlug('creator-1', 'missing', 'user-1')).rejects.toBeInstanceOf(
       NotFoundException,
     );
@@ -126,7 +127,7 @@ describe('CreatorProgramsService', () => {
   });
 
   it('rejects enroll when program has no published courses', async () => {
-    courseRepository.find.mockResolvedValue([]);
+    bundleItemRepository.find.mockResolvedValue([]);
     await expect(service.enrollInProgram('user-1', program.id)).rejects.toBeInstanceOf(
       BadRequestException,
     );

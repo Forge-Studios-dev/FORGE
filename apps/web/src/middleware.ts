@@ -6,7 +6,47 @@ import {
   accessTokenIsEmailVerified,
   isValidConsumerAccessToken,
 } from '@forge/shared-types/consumer-session';
+import { buildContentSecurityPolicy } from '@forge/shared-types/security-headers';
 import { MAX_RETURN_PATH_LEN } from '@/lib/safe-return-path';
+
+function generateNonce(): string | undefined {
+  try {
+    return Buffer.from(crypto.randomUUID()).toString('base64');
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Applies the CSP header for a given nonce (or no nonce, on the Web
+ * Crypto/Buffer-unavailable fallback path).
+ */
+function applyCsp(response: NextResponse, nonce: string | undefined): NextResponse {
+  const isProduction = process.env.NODE_ENV === 'production';
+  response.headers.set(
+    'Content-Security-Policy',
+    buildContentSecurityPolicy(isProduction, {
+      nonce,
+      apiUrl: process.env.NEXT_PUBLIC_API_URL,
+    }),
+  );
+  return response;
+}
+
+/**
+ * `NextResponse.next()`, but threading the nonce through the request headers
+ * too — not just the response CSP header — so Next's own script-tag
+ * injection can read it via `headers()` in the root layout (see Next's CSP
+ * guide). Without this, Next never learns the nonce, so its own bootstrap
+ * scripts render without a matching `nonce` attribute and the browser blocks
+ * them outright, breaking hydration on every page.
+ */
+function nextWithNonceRequest(request: NextRequest, nonce: string | undefined): NextResponse {
+  if (!nonce) return NextResponse.next();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
 
 const PROTECTED_PREFIXES = [
   '/studio',
@@ -48,17 +88,20 @@ function hasSessionMarker(request: NextRequest): boolean {
 }
 
 export function middleware(request: NextRequest) {
+  const nonce = generateNonce();
+  const withCsp = (response: NextResponse) => applyCsp(response, nonce);
+
   const host = request.headers.get('host') ?? '';
   if (host.startsWith('www.')) {
     const apexHost = host.slice(4);
     const dest = new URL(request.nextUrl.pathname + request.nextUrl.search, `https://${apexHost}`);
-    return NextResponse.redirect(dest, 308);
+    return withCsp(NextResponse.redirect(dest, 308));
   }
 
   const { pathname } = request.nextUrl;
 
   if (ADMIN_ROUTE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    return NextResponse.redirect(new URL('/', request.url));
+    return withCsp(NextResponse.redirect(new URL('/', request.url)));
   }
 
   const token = request.cookies.get('forge_access_token')?.value;
@@ -69,7 +112,7 @@ export function middleware(request: NextRequest) {
   if (tokenValid && payload?.role === 'admin') {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('error', 'platform_admin');
-    return clearConsumerSession(NextResponse.redirect(loginUrl));
+    return withCsp(clearConsumerSession(NextResponse.redirect(loginUrl)));
   }
 
   // Treat the HttpOnly session marker as the source of truth for "this browser has a live session".
@@ -79,7 +122,7 @@ export function middleware(request: NextRequest) {
   if (token && !tokenValid && !hasSession) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', buildReturnPath(request));
-    return clearConsumerSession(NextResponse.redirect(loginUrl));
+    return withCsp(clearConsumerSession(NextResponse.redirect(loginUrl)));
   }
 
   const isProtected =
@@ -89,11 +132,11 @@ export function middleware(request: NextRequest) {
   if (isProtected && !sessionPresent) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', buildReturnPath(request));
-    return NextResponse.redirect(loginUrl);
+    return withCsp(NextResponse.redirect(loginUrl));
   }
 
   if (requiresCreatorRole(pathname) && tokenValid && !accessTokenAllowsCreatorUpload(token!)) {
-    return NextResponse.redirect(new URL('/upload/become-creator', request.url));
+    return withCsp(NextResponse.redirect(new URL('/upload/become-creator', request.url)));
   }
 
   if (
@@ -102,10 +145,10 @@ export function middleware(request: NextRequest) {
     accessTokenAllowsCreatorUpload(token!) &&
     !accessTokenIsEmailVerified(token!)
   ) {
-    return NextResponse.redirect(new URL('/verify-email', request.url));
+    return withCsp(NextResponse.redirect(new URL('/verify-email', request.url)));
   }
 
-  return NextResponse.next();
+  return withCsp(nextWithNonceRequest(request, nonce));
 }
 
 export const config = {

@@ -3,8 +3,38 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../network/api_client.dart';
+import '../router/navigation_key.dart';
+
+/// Route to open when a push notification is tapped, based on the `data.type`
+/// the backend sends (see apps/api notifications.listener.ts). Falls back to
+/// the notifications list for types with no dedicated screen, rather than
+/// guessing at an unknown payload shape.
+String _routeForMessage(RemoteMessage message) {
+  final data = message.data;
+  switch (data['type']) {
+    case 'video_ready':
+    case 'comment_reply':
+    case 'comment_on_video':
+      final videoId = data['videoId'];
+      return videoId != null ? '/watch/$videoId' : '/notifications';
+    case 'stream_reminder':
+    case 'stream_started':
+      final streamId = data['streamId'];
+      return streamId != null ? '/live/$streamId' : '/notifications';
+    default:
+      return '/notifications';
+  }
+}
+
+void _handleNotificationTap(RemoteMessage message) {
+  final ctx = rootNavigatorKey.currentContext;
+  if (ctx == null || !ctx.mounted) return;
+  GoRouter.of(ctx).push(_routeForMessage(message));
+}
 
 /// Registers FCM token with API after Firebase is configured (`flutterfire configure`).
 class ForgePush {
@@ -38,9 +68,40 @@ class ForgePush {
           });
         } catch (_) {}
       });
+      _bindMessageHandlers();
     } catch (_) {
       _started = false;
     }
+  }
+
+  bool _handlersBound = false;
+
+  /// Foreground messages don't auto-display a system banner (only
+  /// background/terminated ones do) — show an in-app SnackBar instead, and
+  /// wire tap-to-navigate for both the foreground and cold-start cases.
+  void _bindMessageHandlers() {
+    if (_handlersBound) return;
+    _handlersBound = true;
+
+    FirebaseMessaging.onMessage.listen((message) {
+      final title = message.notification?.title;
+      final body = message.notification?.body;
+      if (title == null && body == null) return;
+      final ctx = rootNavigatorKey.currentContext;
+      if (ctx == null || !ctx.mounted) return;
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(
+          content: Text([title, body].whereType<String>().join(': ')),
+          action: SnackBarAction(label: 'View', onPressed: () => _handleNotificationTap(message)),
+        ),
+      );
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+
+    FirebaseMessaging.instance.getInitialMessage().then((message) {
+      if (message != null) _handleNotificationTap(message);
+    });
   }
 
   /// Revoke this device's push token on sign-out so a logged-out (or re-assigned)
@@ -76,3 +137,11 @@ class ForgePush {
     }
   }
 }
+
+/// Background/terminated-state message handler. Must be a top-level function
+/// (Dart isolate entry-point requirement) and is registered in main.dart
+/// before runApp. No UI work here — the OS already shows the system
+/// notification for messages with a `notification` payload; this isolate is
+/// only for data-only background processing, which FORGE doesn't need yet.
+@pragma('vm:entry-point')
+Future<void> forgePushBackgroundHandler(RemoteMessage message) async {}

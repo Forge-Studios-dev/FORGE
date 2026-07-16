@@ -6,7 +6,9 @@ import {
   BadRequestException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { createReadStream } from 'fs';
+import { createReadStream, promises as fsPromises } from 'fs';
+import { tmpdir } from 'os';
+import { resolve as resolvePath, sep as pathSep } from 'path';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -577,15 +579,34 @@ export class VideosService {
 
     const body = file.buffer?.length ? file.buffer : createReadStream(file.path);
 
-    await this.s3.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: video.s3Key,
-        Body: body,
-        ContentType: video.uploadContentType || file.mimetype || 'video/mp4',
-        ContentLength: file.size,
-      }),
-    );
+    try {
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: video.s3Key,
+          Body: body,
+          ContentType: video.uploadContentType || file.mimetype || 'video/mp4',
+          ContentLength: file.size,
+        }),
+      );
+    } finally {
+      // diskStorage() writes the proxy-upload multer temp file to os.tmpdir() (LOW-04);
+      // always clean it up so a stream of uploads doesn't fill the container's disk.
+      // Multer generates this filename itself (no user-supplied filename callback is
+      // configured), but the containment check below makes that guarantee explicit
+      // instead of implicit, so unlink() can never be pointed outside the temp dir.
+      if (file.path) {
+        const resolvedTmpDir = resolvePath(tmpdir()) + pathSep;
+        const resolvedFilePath = resolvePath(file.path);
+        if (resolvedFilePath.startsWith(resolvedTmpDir)) {
+          await fsPromises.unlink(resolvedFilePath).catch((err) =>
+            this.logger.warn(`Failed to remove proxy-upload temp file ${resolvedFilePath}: ${err.message}`),
+          );
+        } else {
+          this.logger.warn(`Refused to remove proxy-upload temp file outside tmpdir: ${file.path}`);
+        }
+      }
+    }
 
     return { ok: true };
   }

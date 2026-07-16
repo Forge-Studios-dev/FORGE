@@ -341,6 +341,13 @@ export class CommunitiesController {
     return this.communitiesService.getCreatorBusinessAnalytics(user.sub);
   }
 
+  @Get('creators/me/attention')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Studio home "today" strip — comments, moderation & billing needing action' })
+  attention(@CurrentUser() user: JwtPayload) {
+    return this.communitiesService.getCreatorAttention(user.sub);
+  }
+
   @Get('creators/me/business-analytics/export')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Export creator business analytics as CSV' })

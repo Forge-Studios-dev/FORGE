@@ -30,8 +30,10 @@ if command -v fly >/dev/null 2>&1 && fly auth whoami >/dev/null 2>&1; then
       printf '%s' "$FLY_TOKEN" | pbcopy
       echo "Fly token copied to clipboard → paste as GitHub secret FLY_API_TOKEN"
     else
-      echo "Fly token (paste as FLY_API_TOKEN):"
-      echo "$FLY_TOKEN"
+      # Don't print the raw token to stdout (LOW-11) — it can leak into terminal
+      # scrollback or a screen share. Install pbcopy, or run `fly auth token` yourself.
+      echo "pbcopy unavailable — cannot copy the Fly token automatically."
+      echo "Run 'fly auth token' yourself and paste the result as GitHub secret FLY_API_TOKEN."
     fi
   else
     echo "Could not read Fly token. Create one: https://fly.io/user/personal_access_tokens"

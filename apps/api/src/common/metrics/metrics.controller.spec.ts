@@ -11,10 +11,12 @@ describe('MetricsController', () => {
 
   const originalEnabled = process.env.METRICS_ENABLED;
   const originalToken = process.env.METRICS_SCRAPE_TOKEN;
+  const originalNodeEnv = process.env.NODE_ENV;
 
   afterEach(() => {
     process.env.METRICS_ENABLED = originalEnabled;
     process.env.METRICS_SCRAPE_TOKEN = originalToken;
+    process.env.NODE_ENV = originalNodeEnv;
   });
 
   it('returns 404 when metrics disabled', async () => {
@@ -31,6 +33,15 @@ describe('MetricsController', () => {
     await controller.metrics({ headers: {} } as import('express').Request, res);
     const body = (res.send as jest.Mock).mock.calls[0][0] as string;
     expect(body).toContain('forge_http_requests_total');
+  });
+
+  it('fails closed in production when METRICS_SCRAPE_TOKEN is unset', async () => {
+    process.env.METRICS_ENABLED = 'true';
+    process.env.NODE_ENV = 'production';
+    delete process.env.METRICS_SCRAPE_TOKEN;
+    await expect(
+      controller.metrics({ headers: {} } as import('express').Request, res),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('requires bearer token when METRICS_SCRAPE_TOKEN is set', async () => {

@@ -17,7 +17,9 @@
   .primary-button {
     background: linear-gradient(135deg, #a078ff 0%, #4cd7f6 100%);
     box-shadow: 0 0 32px 0 rgba(208, 188, 255, 0.2);
-    transition: box-shadow 0.2s, transform 0.2s;
+    transition:
+      box-shadow var(--duration-normal) var(--ease-forge),
+      transform var(--duration-normal) var(--ease-forge);
   }
 
   .primary-button:hover:not(:disabled) {

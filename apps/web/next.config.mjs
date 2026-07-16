@@ -4,7 +4,7 @@ import { buildSecurityHeaders } from '@forge/shared-types/security-headers';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  transpilePackages: ['@forge/design-system'],
+  transpilePackages: ['@forge/design-system', '@forge/shared-types'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.amazonaws.com' },
@@ -20,7 +20,8 @@ const nextConfig = {
     return [
       {
         source: '/(.*)',
-        headers: buildSecurityHeaders(isProduction),
+        // CSP is set per-request (with a nonce) by middleware.ts, not here.
+        headers: buildSecurityHeaders(isProduction, { includeCsp: false }),
       },
     ];
   },

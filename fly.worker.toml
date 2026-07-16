@@ -19,6 +19,20 @@ primary_region = 'bom'
   policy = 'always'
   max_retries = 10
 
+# MED-08: internal-only functional liveness check (not a public service —
+# no [http_service]/[[services]] block, so this isn't exposed via Fly's edge
+# proxy). Polls the bare health listener added in main.ts's bootstrapWorker,
+# which only comes up after the Nest application context has fully booted.
+[checks]
+  [checks.worker_health]
+    port = 3001
+    type = 'http'
+    interval = '30s'
+    timeout = '10s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/health'
+
 [[vm]]
   memory = '2048mb'
   cpu_kind = 'shared'

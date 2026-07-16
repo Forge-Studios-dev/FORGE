@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Course, CourseCohort } from './entities/course.entity';
-import { CreatorProgram, CreatorProgramCourse } from './entities/creator-program.entity';
+import { Course, CourseBundleItem, CourseCohort } from './entities/course.entity';
 import { Community } from '../communities/entities/community.entity';
 import { User } from '../users/entities/user.entity';
 import {
@@ -31,8 +30,7 @@ import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard
     TypeOrmModule.forFeature([
       Course,
       CourseCohort,
-      CreatorProgram,
-      CreatorProgramCourse,
+      CourseBundleItem,
       CourseLesson,
       CourseEnrollment,
       CourseLessonProgress,

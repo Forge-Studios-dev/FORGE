@@ -1,10 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import {
-  clearAuthSession,
-  getAccessToken,
-  persistAuthSession,
-  syncAuthCookieFromStorage,
-} from '@/lib/auth-storage';
+import { clearAuthSession, getAccessToken, persistAuthSession } from '@/lib/auth-storage';
 import { currentReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
 import { csrfRequestHeaders } from '@/lib/csrf';
@@ -22,7 +17,6 @@ export const api = axios.create({
 
 api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   if (typeof window !== 'undefined') {
-    syncAuthCookieFromStorage();
     const token = getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;

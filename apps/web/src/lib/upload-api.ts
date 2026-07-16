@@ -1,10 +1,5 @@
 import axios from 'axios';
-import {
-  clearAuthSession,
-  getAccessToken,
-  persistAuthSession,
-  syncAuthCookieFromStorage,
-} from '@/lib/auth-storage';
+import { clearAuthSession, getAccessToken, persistAuthSession } from '@/lib/auth-storage';
 import { currentReturnPath } from '@/lib/safe-return-path';
 import { csrfRequestHeaders } from '@/lib/csrf';
 
@@ -21,7 +16,6 @@ export const uploadApi = axios.create({
 
 uploadApi.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    syncAuthCookieFromStorage();
     const token = getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;

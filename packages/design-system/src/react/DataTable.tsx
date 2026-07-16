@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { ColumnDef, RowSelectionState, SortingState } from '@tanstack/react-table';
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
 import { Icon } from './Icon';
@@ -38,6 +38,8 @@ export function DataTable<T>({
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [activeRow, setActiveRow] = useState(0);
+  const rowRefs = useRef<Array<HTMLTableRowElement | null>>([]);
 
   const table = useReactTable({
     data,
@@ -137,11 +139,31 @@ export function DataTable<T>({
                     </td>
                   </tr>
                 ))
-              : table.getRowModel().rows.map((row) => (
+              : table.getRowModel().rows.map((row, index) => (
                   <tr
                     key={row.id}
+                    ref={(el) => {
+                      rowRefs.current[index] = el;
+                    }}
                     data-state={row.getIsSelected() ? 'selected' : undefined}
-                    className="border-b border-subtle transition-colors last:border-b-0 hover:bg-surface-container-high/60 data-[state=selected]:bg-primary/10"
+                    tabIndex={index === activeRow ? 0 : -1}
+                    onFocus={() => setActiveRow(index)}
+                    onKeyDown={(e: KeyboardEvent<HTMLTableRowElement>) => {
+                      const rows = table.getRowModel().rows;
+                      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        const next =
+                          e.key === 'ArrowDown'
+                            ? Math.min(index + 1, rows.length - 1)
+                            : Math.max(index - 1, 0);
+                        setActiveRow(next);
+                        rowRefs.current[next]?.focus();
+                      } else if ((e.key === 'Enter' || e.key === ' ') && selectable) {
+                        e.preventDefault();
+                        row.toggleSelected();
+                      }
+                    }}
+                    className="border-b border-subtle transition-colors last:border-b-0 hover:bg-surface-container-high/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2 data-[state=selected]:bg-primary/10"
                   >
                     {selectable ? (
                       <td className="w-10 px-4 py-2.5">

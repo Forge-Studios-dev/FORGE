@@ -114,6 +114,9 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | **AdminModule** | `admin` | users, creators, videos, reports, categories, stats, impersonate, grant subscription | Operator APIs (`MANAGE_PLATFORM`) |
 | **PlatformModule** | `platform` | `config` | Feature flags, auth/firebase/legal public config |
 | **ChannelPointsModule** | root | `communities/:communityId/channel-points/*`, `creators/me/communities/:communityId/channel-points/*` | Twitch-style channel points: earn, redeem, reward CRUD, approve/reject redemptions |
+| **CoursesModule** | root | `courses/discover`, `creators/me/courses`, `courses/:courseId/catalog`, cohorts, lessons (CRUD + reorder), enroll, progress, certificates, quizzes, assignments + grading | Creator courses: catalog, cohorts, lesson content, progress tracking, quizzes/assignments, certificates |
+| **GamificationModule** | root | `communities/:communityId/leaderboard`, `communities/:communityId/gamification/*`, `platform/gamification/*` (me, check-in, leaderboard, achievements, reputation, analytics), `users/:userId/reputation`, `creators/me/communities/:communityId/badge-config` | Platform + per-community XP, streaks, achievements, reputation, leaderboards |
+| **CreatorResourcesModule** | root | `creators/me/resources` (CRUD + `upload-url`), `creators/:creatorId/resources`, `resources/:resourceId/download-url` | Creator-uploaded downloadable resources (S3-backed) |
 | **FraudDetectionModule** | `admin/fraud` | alerts, user risk, manual check | Billing fraud rules engine (velocity, chargeback, rapid cancel, new-account spend) |
 | **FirebaseModule** | — | — | FCM admin SDK, optional App Check |
 | **MailModule** | — | — | SMTP / console mail for verification & reset |
@@ -185,8 +188,8 @@ Helpers: `@forge/shared-types` `parseFeatureFlags`, `isFeatureEnabled`.
 
 - **Tokens:** `packages/design-system/tokens/forge-narrative.css` (+ JSON)
 - **Tailwind:** `@import '@forge/design-system/tailwind'` in web/admin
-- **React (server):** `Button`, `Input`, `PageHeader`, `SkillChip`, `LiveBadge`, `EmptyState`, `StatusPage`, `Icon`, `LoadingSkeleton` (`FeedGridSkeleton`, `ListSkeleton`, …)
-- **React (client):** `ConfirmDialog`, `FadeIn`, `PageEnter`, `StaggerGrid` — import from `@forge/design-system/client`
+- **React (server):** `Button`, `Input`, `PageHeader`, `SkillChip`, `LiveBadge`, `EmptyState`, `StatusPage`, `Icon`, `LoadingSkeleton` (`FeedGridSkeleton`, `ListSkeleton`, …), `Card`, `StatCard`, `ProfileCard`
+- **React (client):** `ConfirmDialog`, `FadeIn`, `PageEnter`, `StaggerGrid`, `Dialog`, `Tabs`/`TabPanel`, `DataTable`, `Sparkline`/`TrendChart`, `ToastProvider`/`useToast` — import from `@forge/design-system/client`
 - **Mobile tokens:** `apps/mobile/lib/core/theme/forge_tokens.dart`
 
 Product rule: familiar video IA, **distinct** visual identity (not a YouTube clone) — see `.cursor/rules/forge-frontend-ux.mdc`.
@@ -466,6 +469,18 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 **Mentorship:** `PUT communities/:communityId/mentorship/profile` · `GET communities/:communityId/mentorship/mentors` · `POST communities/:communityId/mentorship/run-matching` (creator) · `GET communities/:communityId/mentorship/my-matches` · `POST communities/:communityId/mentorship/matches/:matchId/respond` · `POST communities/:communityId/mentorship/matches/:matchId/complete`
 
+**Wiki, challenges & surveys:** `GET communities/:communityId/wiki` · `POST/PATCH/DELETE creators/me/communities/:communityId/wiki(/:wikiId)` · `GET communities/:communityId/challenges` · `POST/PATCH/DELETE creators/me/communities/:communityId/challenges(/:challengeId)` · `POST communities/:communityId/challenges/:challengeId/join` · `PATCH …/challenges/:challengeId/progress` · `GET communities/:communityId/surveys` · `POST/PATCH/DELETE creators/me/communities/:communityId/surveys(/:surveyId)` · `GET …/surveys/:surveyId/analytics` · `POST communities/:communityId/surveys/:surveyId/respond`
+
+**Events:** `GET communities/:communityId/events` · `GET communities/:communityId/office-hours` · `POST creators/me/communities/:communityId/events` · `POST communities/:communityId/events/:eventId/rsvp` · `GET creators/me/communities/:communityId/events/:eventId/rsvps` · `PATCH/DELETE creators/me/communities/:communityId/events/:eventId`
+
+**Groups:** `POST/GET communities/:communityId/groups` · `GET groups/:groupId` · `POST groups/:groupId/join` · `DELETE groups/:groupId/leave` · `GET groups/:groupId/members` · `DELETE groups/:groupId`
+
+**Member management (creator):** `POST communities/:communityId/join-request` · `GET creators/me/communities/:communityId/members` · `PATCH creators/me/communities/:communityId/members/:userId/approve|reject|suspend|unsuspend` · `GET creators/me/communities/:communityId/members/export`
+
+**Voice/text/stage rooms:** `GET communities/:communityId/rooms(/:roomId)` · `POST/PATCH/DELETE creators/me/communities/:communityId/rooms(/:roomId)` · `POST communities/:communityId/rooms/:roomId/token` (LiveKit) · raise-hand: `POST/DELETE communities/:communityId/rooms/:roomId/raise-hand` · `GET …/raise-hands` · `POST …/raise-hand/:targetUserId/approve` · room chat: `GET/POST communities/:communityId/rooms/:roomId/messages` · `DELETE …/messages/:messageId` · room permissions: `GET/POST creators/me/communities/:communityId/rooms/:roomId/permissions` · `DELETE …/permissions/:targetUserId`
+
+**AI moderation, copilot & audit:** `POST creators/me/ai/moderation/score` · `GET creators/me/communities/:communityId/copilot/health` · `GET creators/me/communities/:communityId/rooms/:roomId/summary` · `GET admin/ai/budget` · `POST creators/me/copilot/insights` · `GET creators/me/audit-logs`
+
 ### Channel Points (root)
 
 **Member:** `GET communities/:communityId/channel-points/me` (balance) · `GET communities/:communityId/channel-points/rewards` (catalog) · `POST communities/:communityId/channel-points/redeem`  
@@ -482,7 +497,21 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 ### Courses (root)
 
-`GET/POST creators/me/courses` · `POST creators/me/courses/:courseId/cohorts` · `GET creators/:creatorId/programs` · `GET creators/:creatorId/programs/:slug` · `POST programs/:programId/enroll` · `GET/POST creators/me/programs`
+**Discovery:** `GET courses/discover/featured` · `GET courses/discover` · `GET courses/:courseId/catalog` · `GET creators/:creatorId/courses`  
+**Creator authoring:** `GET/POST creators/me/courses` · `PATCH creators/me/courses/:courseId` · cohorts: `POST/PATCH/GET creators/me/courses/:courseId/cohorts[/:cohortId]` · `POST creators/me/courses/:courseId/bind-community` · lessons: `POST/PATCH/DELETE creators/me/courses/:courseId/lessons[/:lessonId]` · `PATCH creators/me/courses/:courseId/lessons/reorder`  
+**Learner:** `GET courses/:courseId/lessons` · `POST courses/:courseId/enroll` · `GET courses/:courseId/progress` · `POST courses/:courseId/lessons/:lessonId/progress` · `POST courses/:courseId/certificate` · `GET me/certificates` · `GET certificates/:certificateId`  
+**Quizzes/assignments:** `POST/GET courses/:courseId/quizzes` · `POST quizzes/:quizId/submit` · `GET quizzes/:quizId/my-attempts` · `POST/GET courses/:courseId/assignments` · `POST assignments/:assignmentId/submit` · `PATCH …/submissions/:submissionId/grade` · `GET …/submissions`  
+(Legacy programs endpoints also exist: `GET creators/:creatorId/programs[/:slug]` · `POST programs/:programId/enroll` · `GET/POST creators/me/programs`)
+
+### Creator Resources (root)
+
+`POST creators/me/resources/upload-url` · `POST/GET creators/me/resources` · `PATCH/DELETE creators/me/resources/:resourceId` · `GET creators/:creatorId/resources` · `GET resources/:resourceId/download-url`
+
+### Gamification (platform-level, root)
+
+`GET platform/gamification/me` · `POST platform/gamification/check-in` · `GET platform/gamification/leaderboard` · `GET platform/gamification/achievements` · `POST platform/gamification/achievements/:key/unlock` · `GET platform/gamification/reputation` · `GET platform/gamification/analytics` · `GET users/:userId/reputation` · `GET creators/me/communities/:communityId/badge-config`
+
+(Community-scoped gamification — `communities/:communityId/gamification/*`, `communities/:communityId/leaderboard` — listed under Communities above.)
 
 ### Entitlements (extended)
 
