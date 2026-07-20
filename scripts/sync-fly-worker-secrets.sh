@@ -39,6 +39,9 @@ keys = {
     "MUX_SIGNING_KEY_ID", "MUX_SIGNING_PRIVATE_KEY",
     "MUX_IDLE_GRACE_SEC", "MUX_SIGNED_PLAYBACK_TTL_SEC",
     "STREAM_CHAT_ASYNC", "STREAM_SNAPSHOT_RETENTION_DAYS",
+    # Required by validateProductionEnv() on every process, including the worker —
+    # missing here means the worker fails closed at boot (env-production.schema.ts).
+    "METRICS_SCRAPE_TOKEN",
     # Keep worker DB pool aligned with API (Neon cost + connection budget)
     "DB_POOL_MAX", "DB_CONNECT_TIMEOUT_MS", "DB_POOL_IDLE_TIMEOUT_MS", "DB_SLOW_QUERY_MS",
 }
