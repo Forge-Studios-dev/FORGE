@@ -190,8 +190,13 @@ jobs:
           # long enough for at least one real result before gating on it.
           echo "=== Waiting up to 90s for the worker_health check to report ==="
           for i in $(seq 1 9); do
+            # `flyctl checks list --json` output is keyed by machine ID (object of
+            # arrays), not a flat array, and newer flyctl versions report the
+            # toml-defined check under an auto-generated name (e.g.
+            # servicecheck-00-http-3001) rather than "worker_health" — so search
+            # recursively for any check object instead of relying on a fixed shape/name.
             RESULT=$(flyctl checks list -a forge-studios-worker --json 2>/dev/null \
-              | jq -r '[.[] | select(.name == "worker_health")][0].status // empty')
+              | jq -r '[.. | objects | select(has("name") and has("status"))][0].status // empty')
             echo "attempt $i: worker_health=$RESULT"
             if [ "$RESULT" = "passing" ]; then
               echo "Worker health check passing"
