@@ -245,7 +245,7 @@ export class DirectMessagesService {
     });
   }
 
-  private async assertMember(userId: string, conversationId: string) {
+  async assertMember(userId: string, conversationId: string) {
     const member = await this.memberRepository.findOne({ where: { userId, conversationId } });
     if (!member) throw new ForbiddenException('Not a member of this conversation');
     return member;
