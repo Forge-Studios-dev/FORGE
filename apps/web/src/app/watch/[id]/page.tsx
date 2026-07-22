@@ -3,9 +3,19 @@ import { notFound } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 import { serverApi } from '@/lib/api';
+import { SITE_URL } from '@/lib/site';
 import { Video } from '@/types';
 import { WatchPageClient } from '@/components/watch/WatchPageClient';
 import { RelatedVideos } from '@/components/watch/RelatedVideos';
+import { JsonLd } from '@/components/seo/JsonLd';
+
+/** Seconds -> ISO 8601 duration (schema.org VideoObject.duration format). */
+function toIso8601Duration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `PT${h > 0 ? `${h}H` : ''}${m > 0 ? `${m}M` : ''}${s}S`;
+}
 
 interface Props {
   params: { id: string };
@@ -48,15 +58,35 @@ export default async function WatchPage({ params }: Props) {
 
   const skillTag = video.skillTags?.[0]?.name;
   return (
-    <WatchPageClient
-      video={video}
-      sidebar={
-        <RelatedVideos
-          videoId={video.id}
-          creatorId={video.userId}
-          skillTag={skillTag}
-        />
-      }
-    />
+    <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'VideoObject',
+          name: video.title,
+          description: video.description || video.title,
+          thumbnailUrl: video.thumbnailUrl ? [video.thumbnailUrl] : undefined,
+          uploadDate: video.publishedAt || video.createdAt,
+          duration: video.durationSeconds ? toIso8601Duration(video.durationSeconds) : undefined,
+          contentUrl: video.hlsUrl,
+          embedUrl: `${SITE_URL}/watch/${video.id}`,
+          interactionStatistic: {
+            '@type': 'InteractionCounter',
+            interactionType: 'https://schema.org/WatchAction',
+            userInteractionCount: video.viewCount,
+          },
+        }}
+      />
+      <WatchPageClient
+        video={video}
+        sidebar={
+          <RelatedVideos
+            videoId={video.id}
+            creatorId={video.userId}
+            skillTag={skillTag}
+          />
+        }
+      />
+    </>
   );
 }
