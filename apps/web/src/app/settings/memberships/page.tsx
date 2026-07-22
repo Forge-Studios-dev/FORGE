@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { getApiErrorMessage } from '@/lib/api-message';
+import { trackEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
 
 type Subscription = {
@@ -61,6 +63,7 @@ function TierChangeSelect({
       // The backend either applies an immediate (prorated) tier change or, when a
       // new checkout is required, returns a hosted checkout URL — follow it.
       if (result?.checkoutUrl) {
+        void trackEvent('billing.checkout_started', { creatorId: subscription.creatorId });
         window.location.href = result.checkoutUrl;
         return;
       }
@@ -124,6 +127,16 @@ function TierChangeSelect({
 export default function MembershipsPage() {
   const { user, isGuest } = useAuth();
   const qc = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('billing_return') !== '1') return;
+    void trackEvent('billing.checkout_returned', {});
+    // Strip the marker so a page refresh doesn't re-fire the event.
+    router.replace('/settings/memberships');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on the return redirect only
+  }, []);
 
   const { data: subscriptions, isLoading } = useQuery({
     queryKey: ['my-subscriptions', user?.id],
@@ -145,14 +158,18 @@ export default function MembershipsPage() {
       const qs = cancelAtPeriodEnd ? '?cancelAtPeriodEnd=true' : '';
       await api.delete(`/subscriptions/me/${creatorId}${qs}`);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      void trackEvent('billing.subscription_canceled', {
+        creatorId: variables.creatorId,
+        cancelAtPeriodEnd: !!variables.cancelAtPeriodEnd,
+      });
       void qc.invalidateQueries({ queryKey: ['my-subscriptions', user?.id] });
     },
   });
 
   const portalMutation = useMutation({
     mutationFn: async () => {
-      const returnUrl = `${window.location.origin}/settings/memberships`;
+      const returnUrl = `${window.location.origin}/settings/memberships?billing_return=1`;
       const { data } = await api.post<{ data: { url: string } }>('/billing/portal', {
         returnUrl,
       });

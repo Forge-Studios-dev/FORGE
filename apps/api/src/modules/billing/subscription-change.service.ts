@@ -60,7 +60,10 @@ export class SubscriptionChangeService {
     return this.billingService.createCheckout(userId, {
       creatorId,
       tierId: newTierId,
-      successUrl: `${process.env.WEB_URL ?? 'http://localhost:3000'}/settings/memberships`,
+      // billing_return marker lets the client fire billing.checkout_returned
+      // on the way back in, instead of having no signal that this was a
+      // Stripe redirect round-trip at all.
+      successUrl: `${process.env.WEB_URL ?? 'http://localhost:3000'}/settings/memberships?billing_return=1`,
       cancelUrl: `${process.env.WEB_URL ?? 'http://localhost:3000'}/settings/memberships`,
     });
   }
