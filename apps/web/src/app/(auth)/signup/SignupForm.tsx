@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { persistAuthSession } from '@/lib/auth-storage';
+import { trackEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
 import { AuthScreen, authFieldClass } from '@/components/auth/AuthScreen';
 import { AuthTokens } from '@/types';
@@ -85,6 +86,7 @@ export function SignupForm({
         JSON.stringify(data.data.user),
         data.data.sessionId,
       );
+      void trackEvent('auth.signup', { method: 'password' });
       refresh();
       if (!data.data.user.isVerified) {
         router.push('/verify-email?welcome=1');

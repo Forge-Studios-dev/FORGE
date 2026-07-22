@@ -37,6 +37,9 @@ describe('EventsGateway room authorization', () => {
   const communityRoomsService = {
     assertRoomAccess: jest.fn(),
   };
+  const directMessagesService = {
+    assertMember: jest.fn(),
+  };
 
   let gateway: EventsGateway;
 
@@ -68,6 +71,7 @@ describe('EventsGateway room authorization', () => {
       videosService as never,
       communitiesService as never,
       communityRoomsService as never,
+      directMessagesService as never,
     );
     (gateway as unknown as { server: unknown }).server = {
       to: jest.fn().mockReturnValue({ emit: jest.fn() }),
@@ -125,5 +129,28 @@ describe('EventsGateway room authorization', () => {
     );
     expect(client.join).toHaveBeenCalledWith('room:room-1');
     expect(result).toEqual({ event: 'joined-room', data: { roomId: 'room-1' } });
+  });
+
+  it('denies join-conversation when not a member', async () => {
+    directMessagesService.assertMember.mockRejectedValue(new ForbiddenException());
+    const client = authedClient();
+    await expect(
+      gateway.handleJoinConversation({ conversationId: 'conv-1' }, client as never),
+    ).rejects.toThrow(WsException);
+    expect(client.join).not.toHaveBeenCalled();
+  });
+
+  it('allows join-conversation when a member', async () => {
+    directMessagesService.assertMember.mockResolvedValue({ id: 'member-1' });
+    const client = authedClient();
+    const result = await gateway.handleJoinConversation(
+      { conversationId: 'conv-1' },
+      client as never,
+    );
+    expect(client.join).toHaveBeenCalledWith('conversation:conv-1');
+    expect(result).toEqual({
+      event: 'joined-conversation',
+      data: { conversationId: 'conv-1', userId: 'user-1' },
+    });
   });
 });

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { persistAuthSession } from '@/lib/auth-storage';
+import { trackEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
 import { AuthScreen, authFieldClass, authLabelClass } from '@/components/auth/AuthScreen';
 import { AuthTokens } from '@/types';
@@ -74,6 +75,7 @@ export function LoginForm({
         JSON.stringify(data.data.user),
         data.data.sessionId,
       );
+      void trackEvent('auth.login', { method: 'password' });
       refresh();
       if (data.data.user.role === 'creator' && data.data.user.creatorStatus && data.data.user.creatorStatus !== 'approved') {
         router.push(

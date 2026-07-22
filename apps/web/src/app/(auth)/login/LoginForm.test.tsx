@@ -19,23 +19,31 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-vi.mock('@/lib/api', () => ({
+// All of these are mocked by relative path, not the `@/` alias: vi.mock's
+// specifier matching runs before vite-tsconfig-paths resolves the alias, so
+// an aliased specifier here never matches LoginForm.tsx's `@/lib/*` imports
+// at the resolved module id and silently falls through to the real module.
+vi.mock('../../../lib/api', () => ({
   api: { post: (...args: unknown[]) => apiPost(...args) },
 }));
 
-vi.mock('@/lib/auth-storage', () => ({
+vi.mock('../../../lib/auth-storage', () => ({
   persistAuthSession: (...args: unknown[]) => persistAuthSession(...args),
 }));
 
-vi.mock('@/lib/auth', () => ({
+vi.mock('../../../lib/auth', () => ({
   useAuth: () => ({ refresh }),
 }));
 
-vi.mock('@/lib/app-check', () => ({
+vi.mock('../../../lib/analytics', () => ({
+  trackEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../../lib/app-check', () => ({
   getAppCheckToken: vi.fn().mockResolvedValue(null),
 }));
 
-vi.mock('@/lib/platform-config', () => ({
+vi.mock('../../../lib/platform-config', () => ({
   loadPlatformConfig: vi.fn().mockResolvedValue(null),
   isGoogleOAuthEnabled: () => false,
 }));

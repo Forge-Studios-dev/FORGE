@@ -27,6 +27,7 @@ import { StreamReactionService } from '../modules/streaming/stream-reaction.serv
 import { VideosService } from '../modules/content/videos.service';
 import { CommunitiesService } from '../modules/communities/communities.service';
 import { CommunityRoomsService } from '../modules/communities/community-rooms.service';
+import { DirectMessagesService } from '../modules/direct-messages/direct-messages.service';
 import { recordSocketJoinDenial } from '../common/metrics/forge-metrics';
 import { JwtPayload } from '../modules/auth/strategies/jwt.strategy';
 import { UserRole } from '../modules/users/entities/user.entity';
@@ -70,6 +71,7 @@ export class EventsGateway
     private readonly videosService: VideosService,
     private readonly communitiesService: CommunitiesService,
     private readonly communityRoomsService: CommunityRoomsService,
+    private readonly directMessagesService: DirectMessagesService,
   ) {}
 
   async afterInit() {
@@ -231,6 +233,17 @@ export class EventsGateway
           '0',
           this.logger,
         );
+        this.denyAccess();
+      }
+      throw err;
+    }
+  }
+
+  private async assertConversationAccess(conversationId: string, userId: string): Promise<void> {
+    try {
+      await this.directMessagesService.assertMember(userId, conversationId);
+    } catch (err) {
+      if (err instanceof ForbiddenException) {
         this.denyAccess();
       }
       throw err;
@@ -479,7 +492,7 @@ export class EventsGateway
     @ConnectedSocket() client: Socket,
   ) {
     const { userId } = this.requireAuth(client);
-    // Membership verified on REST; socket join is best-effort for realtime
+    await this.assertConversationAccess(data.conversationId, userId);
     client.join(`conversation:${data.conversationId}`);
     return { event: 'joined-conversation', data: { conversationId: data.conversationId, userId } };
   }

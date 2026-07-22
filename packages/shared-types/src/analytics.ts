@@ -9,6 +9,9 @@ export const ANALYTICS_EVENTS = [
   'search.query',
   'navigation.page',
   'studio.publish',
+  'billing.checkout_started',
+  'billing.checkout_returned',
+  'billing.subscription_canceled',
 ] as const;
 
 export type AnalyticsEventName = (typeof ANALYTICS_EVENTS)[number];

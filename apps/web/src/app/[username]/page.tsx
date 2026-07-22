@@ -3,11 +3,13 @@ import { notFound } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 import { serverApi } from '@/lib/api';
+import { SITE_URL } from '@/lib/site';
 import { User, PaginatedResponse, Video } from '@/types';
 import { ProfileHeader } from '@/components/ProfileHeader/ProfileHeader';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
 import { CreatorCoursesPanel } from '@/components/Courses/CreatorCoursesPanel';
 import { FeedGrid } from '@/components/FeedCard/FeedGrid';
+import { JsonLd } from '@/components/seo/JsonLd';
 
 interface Props {
   params: { username: string };
@@ -54,6 +56,20 @@ export default async function ProfilePage({ params }: Props) {
 
   return (
     <main className="min-h-screen">
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'ProfilePage',
+          mainEntity: {
+            '@type': 'Person',
+            name: user.displayName,
+            alternateName: user.username,
+            description: user.bio || undefined,
+            image: user.avatarUrl || undefined,
+            url: `${SITE_URL}/${user.username}`,
+          },
+        }}
+      />
       <ProfileHeader user={user} />
 
       <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">

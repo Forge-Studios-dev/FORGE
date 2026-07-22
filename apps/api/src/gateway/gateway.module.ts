@@ -5,6 +5,7 @@ import { EventsGateway } from './events.gateway';
 import { StreamingModule } from '../modules/streaming/streaming.module';
 import { ContentModule } from '../modules/content/content.module';
 import { CommunitiesModule } from '../modules/communities/communities.module';
+import { DirectMessagesModule } from '../modules/direct-messages/direct-messages.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { CommunitiesModule } from '../modules/communities/communities.module';
     forwardRef(() => StreamingModule),
     forwardRef(() => ContentModule),
     forwardRef(() => CommunitiesModule),
+    forwardRef(() => DirectMessagesModule),
   ],
   providers: [EventsGateway],
   exports: [EventsGateway],

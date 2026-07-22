@@ -23,6 +23,7 @@ import {
 import { getStudioVideos } from '@/lib/creator-studio';
 import { fetchUploadOptions, type UploadCategoryOption } from '@/lib/categories';
 import { uploadLesson, validateUploadFile, type UploadPhase } from '@/lib/upload-lesson';
+import { trackEvent } from '@/lib/analytics';
 
 const TOTAL = 3;
 
@@ -194,7 +195,7 @@ export default function UploadStepPage() {
           ? new Date(draft.scheduledAt).toISOString()
           : undefined;
 
-      await uploadLesson(
+      const videoId = await uploadLesson(
         activeFile,
         draft.title,
         draft.description,
@@ -209,6 +210,11 @@ export default function UploadStepPage() {
           scheduledPublishAt,
           playlistIds: draft.playlistIds,
         },
+      );
+      void trackEvent(
+        'studio.publish',
+        { visibility: draft.visibility, scheduled: !!scheduledPublishAt },
+        videoId,
       );
       clearUploadDraft();
       clearUploadFile();

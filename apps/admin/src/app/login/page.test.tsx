@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AdminLoginPage from './page';
 
@@ -12,15 +12,19 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-vi.mock('@/lib/api', () => ({
+// Mocked by relative path, not the `@/` alias: vi.mock's specifier matching
+// runs before vite-tsconfig-paths resolves the alias, so an aliased specifier
+// here never matches page.tsx's `@/lib/*` imports at the resolved module id
+// and silently falls through to the real module.
+vi.mock('../../lib/api', () => ({
   api: { post: (...args: unknown[]) => apiPost(...args) },
 }));
 
-vi.mock('@/lib/auth-storage', () => ({
+vi.mock('../../lib/auth-storage', () => ({
   persistAdminSession: (...args: unknown[]) => persistAdminSession(...args),
 }));
 
-vi.mock('@/lib/app-check', () => ({
+vi.mock('../../lib/app-check', () => ({
   getAppCheckToken: vi.fn().mockResolvedValue(null),
 }));
 
@@ -74,7 +78,13 @@ describe('AdminLoginPage', () => {
 
     await user.type(emailInput, 'not-an-email');
     await user.type(passwordInput, 'longenoughpassword');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    // fireEvent.submit bypasses the browser's native constraint validation
+    // (type="email" + required), which would otherwise block the submit
+    // event before handleSubmit's own validation ever runs — a real user
+    // clicking "Sign in" with this value never reaches our custom message
+    // either, but that's the browser's native tooltip doing its job; this
+    // proves the fallback JS validation behind it also works correctly.
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement);
 
     expect(await screen.findByText(/enter a valid email address/i)).toBeInTheDocument();
     expect(apiPost).not.toHaveBeenCalled();
