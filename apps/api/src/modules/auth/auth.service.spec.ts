@@ -170,4 +170,140 @@ describe('AuthService', () => {
     expect(refreshRepoMock.update).toHaveBeenCalled();
     expect(refreshRepoMock.save).toHaveBeenCalled();
   });
+
+  describe('verifyEmail (token link)', () => {
+    it('marks the user verified for a valid, unexpired token', async () => {
+      const user = {
+        id: 'u1',
+        isVerified: false,
+        emailVerificationTokenHash: 'hash',
+        emailVerificationExpiresAt: new Date(Date.now() + 60_000),
+      } as unknown as User;
+      userRepoMock.findOne.mockResolvedValue(user);
+      userRepoMock.save.mockResolvedValue(user);
+
+      const svc = await setupService();
+      const result = await svc.verifyEmail('raw-token');
+
+      expect(result).toEqual({ ok: true });
+      expect(userRepoMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isVerified: true,
+          emailVerificationTokenHash: null,
+          emailVerificationExpiresAt: null,
+        }),
+      );
+    });
+
+    it('rejects an expired token', async () => {
+      userRepoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        isVerified: false,
+        emailVerificationTokenHash: 'hash',
+        emailVerificationExpiresAt: new Date(Date.now() - 60_000),
+      } as unknown as User);
+
+      const svc = await setupService();
+      await expect(svc.verifyEmail('raw-token')).rejects.toThrow(
+        'Invalid or expired verification link',
+      );
+      expect(userRepoMock.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects a reused or unknown token (no user has that hash)', async () => {
+      // markEmailVerified clears the hash on first use, so a replayed token
+      // simply won't match any user — same code path as "invalid".
+      userRepoMock.findOne.mockResolvedValue(null);
+
+      const svc = await setupService();
+      await expect(svc.verifyEmail('already-used-token')).rejects.toThrow(
+        'Invalid or expired verification link',
+      );
+      expect(userRepoMock.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('verifyEmailWithOtp', () => {
+    it('marks the user verified for a correct code', async () => {
+      const user = { id: 'u1', email: 'a@b.com', isVerified: false } as unknown as User;
+      userRepoMock.findOne.mockResolvedValue(user);
+      userRepoMock.save.mockResolvedValue(user);
+      emailOtpMock.verifyOtp.mockResolvedValue(true);
+
+      const svc = await setupService();
+      const result = await svc.verifyEmailWithOtp('a@b.com', '123456');
+
+      expect(result).toEqual({ ok: true });
+      expect(emailOtpMock.verifyOtp).toHaveBeenCalledWith('a@b.com', '123456');
+      expect(userRepoMock.save).toHaveBeenCalledWith(
+        expect.objectContaining({ isVerified: true }),
+      );
+    });
+
+    it('short-circuits without consuming the OTP when already verified', async () => {
+      userRepoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        isVerified: true,
+      } as unknown as User);
+
+      const svc = await setupService();
+      const result = await svc.verifyEmailWithOtp('a@b.com', '123456');
+
+      expect(result).toEqual({ ok: true, alreadyVerified: true });
+      expect(emailOtpMock.verifyOtp).not.toHaveBeenCalled();
+      expect(userRepoMock.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unknown email', async () => {
+      userRepoMock.findOne.mockResolvedValue(null);
+
+      const svc = await setupService();
+      await expect(svc.verifyEmailWithOtp('missing@example.com', '123456')).rejects.toThrow(
+        'Invalid verification code',
+      );
+      expect(emailOtpMock.verifyOtp).not.toHaveBeenCalled();
+    });
+
+    it('propagates rejection for an invalid/expired code', async () => {
+      userRepoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        isVerified: false,
+      } as unknown as User);
+      emailOtpMock.verifyOtp.mockRejectedValue(new Error('Invalid or expired code'));
+
+      const svc = await setupService();
+      await expect(svc.verifyEmailWithOtp('a@b.com', '000000')).rejects.toThrow(
+        'Invalid or expired code',
+      );
+      expect(userRepoMock.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resendVerification', () => {
+    it('is a no-op when already verified', async () => {
+      userRepoMock.findOne.mockResolvedValue({ id: 'u1', isVerified: true } as unknown as User);
+
+      const svc = await setupService();
+      const result = await svc.resendVerification('u1');
+
+      expect(result).toEqual({ ok: true, alreadyVerified: true });
+      expect(mailMock.sendMail).not.toHaveBeenCalled();
+    });
+
+    it('sends a new verification email when unverified', async () => {
+      userRepoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        isVerified: false,
+      } as unknown as User);
+
+      const svc = await setupService();
+      const result = await svc.resendVerification('u1');
+
+      expect(result).toEqual({ ok: true });
+      expect(mailMock.sendMail).toHaveBeenCalled();
+    });
+  });
 });
