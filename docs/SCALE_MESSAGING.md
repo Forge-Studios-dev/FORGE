@@ -1,5 +1,7 @@
 # FORGE — Millions-Messages Scale Design
 
+> **Status: PROPOSED — not yet implemented.** This is a forward-looking design, not current architecture. Section 1 below describes what's actually shipped today; everything after it (including the `message_persist`/`persist_chat_message` queue and message-table partitioning) is roadmap.
+>
 > Architecture for scaling real-time and persistent messaging to millions of messages across communities, live streams, and DMs.
 > Related: [DEPLOY.md §Horizontal scaling](./DEPLOY.md), [LIVE.md](./LIVE.md)
 

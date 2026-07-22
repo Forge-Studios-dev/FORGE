@@ -39,11 +39,13 @@ All project documentation lives in `docs/`. Start with **[FORGE_PROJECT_MASTER.m
 | Doc | Use |
 |-----|-----|
 | [operations/README.md](./operations/README.md) | Runbooks index |
+| [operations/DISASTER_RECOVERY.md](./operations/DISASTER_RECOVERY.md) | Restore drill log, rollback procedures |
 | [audits/DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md) | Tracked post-audit items |
 | [audits/NEON_COST.md](./audits/NEON_COST.md) | Neon billing audit — monitoring & connection budget |
 | [audits/INFRASTRUCTURE_COST_AUDIT_2026-06.md](./audits/INFRASTRUCTURE_COST_AUDIT_2026-06.md) | Full infra/cost audit + shipped optimizations |
 | [audits/SOCIAL_PLATFORM_AUDIT_2026-06.md](./audits/SOCIAL_PLATFORM_AUDIT_2026-06.md) | Social features audit + implementation |
 | [audits/EXECUTIVE_SUMMARY.md](./audits/EXECUTIVE_SUMMARY.md) | Closed 2026-06 enterprise audit summary |
+| `../FORGE_Production_Readiness_Audit.docx` (repo root, untracked) | External production-readiness audit, 2026-07-12 (score 65/100). All 4 Critical findings resolved as of 2026-07-22: mobile Android/iOS scaffolding shipped, exposed AWS/Google OAuth credentials rotated, Neon PITR restore drill executed and logged. |
 
 Enterprise audit **closed** 2026-06-05. Re-audit **2026-09-04** or 50K MAU.
 

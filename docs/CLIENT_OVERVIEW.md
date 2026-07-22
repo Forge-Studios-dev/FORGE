@@ -25,19 +25,21 @@ Skill-first platform: tutorial video, live teaching, expertise-based audiences. 
 
 Guest → user → creator (approved) · admin on separate admin app.
 
-## Status (V3.0 — 87%+ complete)
+## Status (task-level tracker: 96.6% — see [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md); this table is a simplified per-surface snapshot, see [FORGE_PROJECT_MASTER.md §16](./FORGE_PROJECT_MASTER.md#16-feature-status-matrix) for the authoritative version)
 
 | Area | API | Web | Mobile | Admin |
 |------|:---:|:---:|:------:|:-----:|
 | Auth | ✅ | ✅ | ✅ | ✅ |
-| Feed / search / recommendations | ✅ | ✅ | ✅ | — |
-| VOD / live / Shorts | ✅ | ✅ | ✅ | — |
-| Memberships / billing | ✅ | ✅ | ✅ | — |
-| Community / RBAC / rooms | ✅ | ✅ | ✅ | ✅ |
-| Gamification / XP / achievements | ✅ | ✅ | ✅ | — |
-| AI (moderation, summaries, copilot) | ✅ | ✅ | ✅ | — |
-| Creator analytics / KPI dashboard | ✅ | ✅ | ✅ | ✅ |
-| Courses / programs | ✅ | ✅ | ✅ | — |
+| Feed / search / recommendations | ✅ | ✅ | ⚠️ | — |
+| VOD / live / Shorts | ✅ | ✅ | ⚠️ | — |
+| Memberships / billing | ✅ | ✅ | ⚠️ | — |
+| Community / RBAC / rooms | ✅ | ✅ | ⚠️ | ✅ |
+| Gamification / XP / achievements | ✅ | ✅ | ⚠️ | — |
+| AI (moderation, summaries, copilot) | ⚠️ | ⚠️ | ⏳ | — |
+| Creator analytics / KPI dashboard | ✅ | ⚠️ | ⚠️ | ✅ |
+| Courses / programs | ⚠️ | ⚠️ | ⚠️ | — |
+
+✅ MVP-ready · ⚠️ partial or config-dependent · ⏳ not started
 
 ### Playback parity (VOD / live)
 

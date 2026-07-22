@@ -32,7 +32,7 @@
 | AI / LLM rollout | [AI-LLM-STRATEGY.md](./AI-LLM-STRATEGY.md) |
 | Deferred items | [audits/DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md) |
 | Community permission matrix (code) | `apps/api/src/modules/communities/community-permissions.constants.ts` |
-| Archived Community 2.0/3.0 trackers | Redirect stubs in `docs/COMMUNITY-*.md` → this file |
+| Community permission matrix (docs, display-only) | [COMMUNITY-PERMISSION-MATRIX.md](./COMMUNITY-PERMISSION-MATRIX.md) |
 
 ---
 
@@ -49,8 +49,8 @@
 | **Pending ⏳** | 3 |
 | **Blocked 🚫** | 17 |
 
-> **Note:** The V3.0 blueprint §Implementation Status Tracker (~98%) is **aspirational**. This tracker (94.7% ✅) is the **authoritative** evidence-based score.
-> **Last updated:** 2026-06-30 — Session 2 implementation cycle.
+> **Note:** The V3.0 blueprint §Implementation Status Tracker (~98%) is **aspirational**. This tracker (96.6% ✅) is the **authoritative** evidence-based score.
+> **Last updated:** 2026-07-22 — CRIT-01/03/04 audit remediation (mobile scaffolding, credential rotation, DB restore drill).
 
 ### Completion by domain (phase-weighted)
 

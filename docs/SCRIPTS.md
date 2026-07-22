@@ -23,7 +23,7 @@ Run from **repository root** unless noted.
 | `smoke-memberships.sh` | `smoke:memberships` / `smoke:memberships:prod` | Membership tier + mock subscribe smoke |
 | `smoke-community-2.0.sh` | `smoke:community-2.0` | Community 2.0: multi-community, brands, business analytics (funnel + cohorts), courses, gamification, access sessions |
 | `smoke-channel-sunset.sh` | — | Channel-sunset flow smoke (staging/prod) — see [operations/CHANNEL_SUNSET.md](./operations/CHANNEL_SUNSET.md) |
-| `generate-ceos-tracker.py` | — | Regenerate `docs/FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md` (668 tasks) |
+| `generate-ceos-tracker.py` | — | Regenerate `docs/FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md` (684 tasks) |
 | `check-production.sh` | `check:production` | Prod smoke + metrics + Grafana ingest |
 | `verify-production-ready.sh` | `verify:production` | Pre-deploy gate: runs authoritative env schema (`check:prod-env`) + infra/topology checks |
 | `apps/api/scripts/check-production-env.ts` | `check:prod-env` | Authoritative prod env validation (same `validateProductionEnv` the API runs at boot) |

@@ -118,6 +118,7 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | **GamificationModule** | root | `communities/:communityId/leaderboard`, `communities/:communityId/gamification/*`, `platform/gamification/*` (me, check-in, leaderboard, achievements, reputation, analytics), `users/:userId/reputation`, `creators/me/communities/:communityId/badge-config` | Platform + per-community XP, streaks, achievements, reputation, leaderboards |
 | **CreatorResourcesModule** | root | `creators/me/resources` (CRUD + `upload-url`), `creators/:creatorId/resources`, `resources/:resourceId/download-url` | Creator-uploaded downloadable resources (S3-backed) |
 | **FraudDetectionModule** | `admin/fraud` | alerts, user risk, manual check | Billing fraud rules engine (velocity, chargeback, rapid cancel, new-account spend) |
+| **ReferralModule** | root | `me/referral`, `me/referral/reward/:referredUserId`, `platform/ambassadors` | Referral tracking, reward payout, ambassador leaderboard |
 | **FirebaseModule** | — | — | FCM admin SDK, optional App Check |
 | **MailModule** | — | — | SMTP / console mail for verification & reset |
 | **WorkersModule** | — | — | BullMQ processors (see §5) |
@@ -445,7 +446,7 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 ### `billing`
 
-`POST checkout` · `POST checkout/event` · `POST webhook` (Stripe when `BILLING_PROVIDER=stripe`)
+`POST checkout` · `POST checkout/event` · `GET connect/status` · `POST connect/onboard` · `POST subscriptions/change-tier` · `POST portal` · `POST webhook` (Stripe when `BILLING_PROVIDER=stripe`)
 
 ### `playlists`
 
@@ -480,6 +481,10 @@ Full live deploy: [LIVE.md](./LIVE.md)
 **Voice/text/stage rooms:** `GET communities/:communityId/rooms(/:roomId)` · `POST/PATCH/DELETE creators/me/communities/:communityId/rooms(/:roomId)` · `POST communities/:communityId/rooms/:roomId/token` (LiveKit) · raise-hand: `POST/DELETE communities/:communityId/rooms/:roomId/raise-hand` · `GET …/raise-hands` · `POST …/raise-hand/:targetUserId/approve` · room chat: `GET/POST communities/:communityId/rooms/:roomId/messages` · `DELETE …/messages/:messageId` · room permissions: `GET/POST creators/me/communities/:communityId/rooms/:roomId/permissions` · `DELETE …/permissions/:targetUserId`
 
 **AI moderation, copilot & audit:** `POST creators/me/ai/moderation/score` · `GET creators/me/communities/:communityId/copilot/health` · `GET creators/me/communities/:communityId/rooms/:roomId/summary` · `GET admin/ai/budget` · `POST creators/me/copilot/insights` · `GET creators/me/audit-logs`
+
+**Discovery, layout & permissions:** `GET communities/search` · `GET communities/discover/featured` · `GET communities/:communityId/layout` · `GET communities/:communityId/permissions/matrix` (display-only, see [COMMUNITY-PERMISSION-MATRIX.md](./COMMUNITY-PERMISSION-MATRIX.md)) · `GET communities/:communityId/live` (linked live streams) · `POST creators/me/channels/:channelId/invite`
+
+**Creator business tools:** `POST creators/me/communities/:communityId/transfer-ownership` · `GET creators/me/moderated-communities` · `GET creators/me/communities/:communityId/analytics` · `GET creators/me/business-analytics` (+ `/export`) · `GET creators/me/attention` · `GET creators/me/ecosystem-tree`
 
 ### Channel Points (root)
 
@@ -517,6 +522,10 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 `GET creators/me/subscribers/analytics` (subscriber counts + MRR snapshot)
 
+### Referral (root)
+
+`GET me/referral` (my referral code + stats) · `POST me/referral/reward/:referredUserId` (claim reward for a referred signup) · `GET platform/ambassadors` (top-referrer leaderboard)
+
 ### `reports`
 
 `POST /` (create report)
@@ -541,4 +550,4 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 ---
 
-*Last updated: 2026-06-30*
+*Last updated: 2026-07-22*

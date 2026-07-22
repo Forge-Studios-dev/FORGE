@@ -1,5 +1,7 @@
 # FORGE — 100K Concurrent Live Viewers Scale Design
 
+> **Status: PROPOSED — not yet implemented.** This is a forward-looking design, not current architecture. Section 1 below describes what's actually shipped today; everything after it is roadmap.
+>
 > Architecture for scaling live streaming to 100,000+ concurrent viewers.
 > Related: [LIVE.md](./LIVE.md), [SCALE_MESSAGING.md](./SCALE_MESSAGING.md), [DEPLOY.md](./DEPLOY.md)
 
