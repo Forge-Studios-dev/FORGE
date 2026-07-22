@@ -203,7 +203,7 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
 
   Future<void> _pickAnnouncementImage() async {
     if (_communityId == null || _uploadingMedia) return;
-    final picked = await FilePicker.platform.pickFiles(type: FileType.image);
+    final picked = await FilePicker.pickFiles(type: FileType.image);
     final path = picked?.files.single.path;
     if (path == null) return;
     setState(() => _uploadingMedia = true);
