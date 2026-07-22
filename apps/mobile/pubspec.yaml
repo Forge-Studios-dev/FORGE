@@ -38,7 +38,7 @@ dependencies:
   # Image
   cached_network_image: ^3.3.1
 
-  google_fonts: ^6.2.1
+  google_fonts: ^8.2.0
 
   # Utils
   intl: ^0.19.0
