@@ -28,7 +28,7 @@ FORGE is a **production-viable modular monolith** with HTTP on Fly API and async
 | Risk | Status |
 |------|--------|
 | Mux COGS without Stripe revenue | Deferred F-1101 |
-| Neon restore drill not exercised | Ops cadence in backlog |
+| Neon restore drill not exercised | Resolved 2026-07-22 — see [DISASTER_RECOVERY.md](../operations/DISASTER_RECOVERY.md#restore-drill-log); quarterly cadence in backlog |
 | Search at 500K+ videos | Deferred F-1302 |
 | Analytics table growth | Resolved F-504 |
 
