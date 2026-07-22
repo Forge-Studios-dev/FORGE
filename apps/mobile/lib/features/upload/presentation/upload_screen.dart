@@ -77,7 +77,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.video,
       allowMultiple: false,
     );
