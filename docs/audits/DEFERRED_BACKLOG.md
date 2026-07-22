@@ -20,7 +20,7 @@
 
 | Item | Trigger | Reference |
 |------|---------|-----------|
-| **Neon restore drill** | Annual (next: 2027-06) or after major schema migration | [DISASTER_RECOVERY.md](../operations/DISASTER_RECOVERY.md) |
+| **Neon restore drill** | Quarterly (first executed 2026-07-22; next: 2026-10-22) or after major schema migration | [DISASTER_RECOVERY.md](../operations/DISASTER_RECOVERY.md) |
 | **Mux monthly cost review** | First week of each month | [MUX_COST_OPS.md](../operations/MUX_COST_OPS.md) |
 | **npm audit fix-all** | 55 transitive vulns; CI reports high+ non-blocking | Separate security hygiene epic |
 
