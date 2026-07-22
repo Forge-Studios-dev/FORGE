@@ -154,6 +154,7 @@ jobs:
       - run: npm run test --workspace=@forge/shared-types
       - run: npm run build --workspace=@forge/design-system
       - run: npm run lint --workspace=@forge/web
+      - run: npm run test --workspace=@forge/web
       - run: npm run build --workspace=@forge/web
         env:
           NEXT_PUBLIC_API_URL: https://api.forgestudios.net/api/v1
@@ -226,6 +227,7 @@ jobs:
       - run: npm run test --workspace=@forge/shared-types
       - run: npm run build --workspace=@forge/design-system
       - run: npm run lint --workspace=@forge/admin
+      - run: npm run test --workspace=@forge/admin
       - run: npm run build --workspace=@forge/admin
         env:
           NEXT_PUBLIC_API_URL: https://api.forgestudios.net/api/v1
