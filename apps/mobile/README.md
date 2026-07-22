@@ -1,17 +1,20 @@
-# forge_mobile
+# FORGE mobile (`apps/mobile`)
 
-A new Flutter project.
+Flutter app for the FORGE creator platform. See [../../docs/FORGE_PROJECT_MASTER.md §11](../../docs/FORGE_PROJECT_MASTER.md#11-mobile-app-appsmobile) for architecture (router, upload, FCM) and [../../docs/GETTING_STARTED.md#mobile](../../docs/GETTING_STARTED.md#mobile) for local setup.
 
-## Getting Started
+## Build
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get
+flutter run --dart-define=API_BASE_URL=http://YOUR_IP:3001/api/v1
+flutter build apk --debug   # Android
+flutter build ios --debug   # iOS (requires Xcode + a signing team)
+```
 
-A few resources to get you started if this is your first Flutter project:
+`android/` and `ios/` platform projects are checked in (generated via `flutter create .`, then customized — bundle ID `com.forgestudios.app`, permissions, AGP/Kotlin pins). Notably, Android Gradle Plugin is pinned to 8.9.1 (not the Flutter-default 9.x) because several plugins in `pubspec.yaml` (`connectivity_plus`, `device_info_plus`, `flutter_webrtc`, `livekit_client`, `package_info_plus`, `share_plus`, `wakelock_plus`) don't yet support AGP 9's "Built-in Kotlin" — see `android/settings.gradle.kts` for details before bumping AGP.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Tests
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter test
+```

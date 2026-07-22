@@ -87,11 +87,11 @@
 
 | Endpoint | Auth | Description |
 |----------|------|-------------|
-| `GET /communities/creators/me/business-analytics` | Creator | Full KPI dashboard |
-| `GET /communities/creators/me/business-analytics/export` | Creator | CSV export |
+| `GET /creators/me/business-analytics` | Creator | Full KPI dashboard |
+| `GET /creators/me/business-analytics/export` | Creator | CSV export |
 | `GET /creators/me/communities/:id/analytics` | Creator | Community engagement analytics |
-| `GET /platform/profile` | Any | User XP, level, streak |
-| `GET /platform/leaderboard` | Any | Top users by XP |
+| `GET /platform/gamification/me` | Any | User XP, level, streak |
+| `GET /platform/gamification/leaderboard` | Any | Top users by XP |
 
 ---
 
