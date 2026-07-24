@@ -116,13 +116,19 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
       });
 
       // Seed the reconnect overlay from the REST snapshot (first paint, or a
-      // refetch after stream:ended) when no socket event has set it yet —
-      // viewers without host-health access get a display-only estimate; the
-      // server remains authoritative regardless of this local countdown.
-      if (stream['reconnecting'] == true) {
-        _setReconnectDeadline(DateTime.now().millisecondsSinceEpoch + 60000, force: false);
-      } else {
-        _setReconnectDeadline(null);
+      // refetch after stream:started/ended) using the server-computed
+      // deadline — never a client-side guess, since the grace window is
+      // configurable. Deliberately one-directional: only set, never clear,
+      // here — `stream` can reflect a fetch that started just before a
+      // stream:reconnecting socket event landed, so clearing on a stale
+      // "not reconnecting" snapshot would race with (and undo) that event.
+      // Only the authoritative stream:reconnected/stream:ended handlers clear it.
+      final reconnectDeadline = stream['reconnectDeadline'] as String?;
+      if (stream['reconnecting'] == true && reconnectDeadline != null) {
+        final deadline = DateTime.tryParse(reconnectDeadline);
+        if (deadline != null) {
+          _setReconnectDeadline(deadline.millisecondsSinceEpoch, force: false);
+        }
       }
 
       _startCountdown(stream);

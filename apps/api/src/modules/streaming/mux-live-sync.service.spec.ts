@@ -196,9 +196,10 @@ describe('MuxLiveSyncService idle grace finalization', () => {
       muxIdleSince: new Date(),
       thumbnailUrl: 'https://example.com/thumb.jpg',
     } as Stream;
-    streamRepositoryWithCount.findOne
-      .mockResolvedValueOnce(reconnecting)
-      .mockResolvedValueOnce(reconnecting);
+    // handleWebhookActive only calls findOne a second time when the first
+    // lookup returns null (`stream ?? await findOne(...)`) — queuing a second
+    // Once value here would go unconsumed and leak into the next test.
+    streamRepositoryWithCount.findOne.mockResolvedValueOnce(reconnecting);
 
     await service.handleWebhookActive('mux-live-5');
 
@@ -207,5 +208,44 @@ describe('MuxLiveSyncService idle grace finalization', () => {
       expect.objectContaining({ streamId: 'stream-5' }),
     );
     expect(eventEmitter.emit).not.toHaveBeenCalledWith('stream.started', expect.anything());
+  });
+
+  it('does not resurrect a stream already auto-terminated (late/out-of-order Mux active webhook)', async () => {
+    const ended = {
+      id: 'stream-6',
+      userId: 'creator-1',
+      status: StreamStatus.ENDED,
+      endedAt: new Date(),
+      muxIdleSince: null,
+    } as Stream;
+    streamRepositoryWithCount.findOne.mockResolvedValue(ended);
+
+    await service.handleWebhookActive('mux-live-6');
+
+    expect(streamRepository.update).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
+  });
+
+  it('skips finalizing a stream a sibling replica already claimed via the per-stream lock', async () => {
+    const stale = {
+      id: 'stream-7',
+      userId: 'creator-1',
+      title: 'Stale live',
+      status: StreamStatus.LIVE,
+      muxIdleSince: new Date(Date.now() - 120_000),
+    } as Stream;
+    streamRepositoryWithCount.count.mockResolvedValueOnce(1).mockResolvedValue(0);
+    redis.get.mockResolvedValue(null);
+    redis.scard.mockResolvedValue(1);
+    streamRepository.find.mockResolvedValueOnce([stale]).mockResolvedValueOnce([]);
+    redis.set.mockResolvedValue(null); // another replica already holds the lock
+
+    const result = await service.runPeriodicScan();
+
+    expect(result.finalized).toBe(0);
+    expect(streamRepository.update).not.toHaveBeenCalledWith(
+      'stream-7',
+      expect.objectContaining({ status: StreamStatus.ENDED }),
+    );
   });
 });

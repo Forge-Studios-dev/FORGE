@@ -333,6 +333,7 @@ export class StreamingService {
       playbackUrl: hidePlayback
         ? null
         : this.resolvePlaybackUrlForViewer(stream, isOwner || isAdmin),
+      reconnectGraceSec: this.configService.get<number>('mux.idleGraceSec') ?? 60,
     });
   }
 

@@ -30,6 +30,7 @@ export class MuxLiveSyncService {
   private static readonly MUX_SYNC_TTL_IDLE_SEC = 15;
   private static readonly MUX_SYNC_TTL_LIVE_SEC = 60;
   private static readonly LIVE_GRACE_SCAN_LIMIT = 50;
+  private static readonly FINALIZE_LOCK_TTL_SEC = 60;
   /** @deprecated Use PLATFORM_DORMANT_KEY from platform-dormant.util */
   static readonly PLATFORM_DORMANT_KEY = PLATFORM_DORMANT_KEY;
   private static readonly PLATFORM_DORMANT_TTL_SEC = 1200;
@@ -142,6 +143,9 @@ export class MuxLiveSyncService {
   async handleWebhookActive(muxLiveStreamId: string): Promise<void> {
     await this.clearPlatformDormant();
     const stream = await this.streamRepository.findOne({ where: { muxLiveStreamId } });
+    // A late/out-of-order "active" webhook can arrive after the reconnect grace
+    // period already auto-terminated this stream — never resurrect an ENDED row.
+    if (!stream || stream.status === StreamStatus.ENDED) return;
     const isFirstGoLive = stream && !stream.startedAt;
     const wasReconnecting = !!stream?.muxIdleSince;
     const thumbnailPatch =
@@ -299,10 +303,19 @@ export class MuxLiveSyncService {
           void this.bustStreamDetailCache(stream.id);
           await this.emitReconnecting(stream, idleSince);
         } else if (Date.now() - idleSince.getTime() >= this.idleGraceMs()) {
-          this.logger.warn(
-            `Reconnection timeout expired for stream ${stream.id} — auto-terminating (connection lost)`,
+          const acquired = await this.redis.set(
+            this.finalizeLockKey(stream.id),
+            '1',
+            'EX',
+            MuxLiveSyncService.FINALIZE_LOCK_TTL_SEC,
+            'NX',
           );
-          await this.finalizeStreamEnded(stream, StreamEndReason.CONNECTION_LOST);
+          if (acquired === 'OK') {
+            this.logger.warn(
+              `Reconnection timeout expired for stream ${stream.id} — auto-terminating (connection lost)`,
+            );
+            await this.finalizeStreamEnded(stream, StreamEndReason.CONNECTION_LOST);
+          }
         }
       }
     } catch (err) {
@@ -396,13 +409,33 @@ export class MuxLiveSyncService {
       take: MuxLiveSyncService.LIVE_GRACE_SCAN_LIMIT,
     });
 
+    let finalized = 0;
     for (const stream of candidates) {
+      // Per-stream (not batch-wide) lock: another replica's periodic scan can
+      // select the same grace-expired row concurrently — without this, both
+      // would double-finalize (duplicate stream.ended emit, and the second
+      // finalizeUniqueViewers call would overwrite the correct count with 0
+      // since the Redis HLL key is already deleted by the first).
+      const acquired = await this.redis.set(
+        this.finalizeLockKey(stream.id),
+        '1',
+        'EX',
+        MuxLiveSyncService.FINALIZE_LOCK_TTL_SEC,
+        'NX',
+      );
+      if (acquired !== 'OK') continue;
+
       this.logger.warn(
         `Reconnection timeout expired for stream ${stream.id} — auto-terminating (connection lost)`,
       );
       await this.finalizeStreamEnded(stream, StreamEndReason.CONNECTION_LOST);
+      finalized += 1;
     }
-    return candidates.length;
+    return finalized;
+  }
+
+  private finalizeLockKey(streamId: string): string {
+    return `stream:finalize:lock:${streamId}`;
   }
 
   private async syncIdleCandidateStreams(): Promise<number> {

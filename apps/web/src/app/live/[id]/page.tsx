@@ -174,19 +174,23 @@ export default function LiveWatchPage() {
     };
   }, [accessToken, id, qc]);
 
-  // Fallback seed from the REST payload (covers first paint / query refetch
-  // before any socket event has arrived) and ticks the visible countdown.
+  // Seed from the REST payload (covers first paint / a page refresh mid-reconnect,
+  // before any socket event has arrived) using the server-computed deadline —
+  // never a client-side guess, since the grace window is configurable.
+  //
+  // Deliberately one-directional: this effect only ever *sets* the deadline,
+  // never clears it. `stream` here can be a stale react-query snapshot (e.g.
+  // fetched just before a stream:reconnecting event landed), so clearing based
+  // on `!stream.reconnecting` raced with the socket handler above — it would
+  // fire again right after `onReconnecting` set the deadline and immediately
+  // wipe it out. Only the authoritative socket events (stream:reconnected /
+  // stream:ended) or a REST payload that now agrees a reconnect is in progress
+  // are allowed to touch this state.
   useEffect(() => {
-    if (stream?.reconnecting && reconnectDeadlineMs === null) {
-      // No exact deadline from REST (viewers don't have host-health access) —
-      // fall back to the platform default grace window as a display estimate;
-      // the server remains authoritative and will emit stream:reconnected /
-      // stream:ended regardless of what this countdown shows.
-      setReconnectDeadlineMs(Date.now() + 60_000);
-    } else if (stream && !stream.reconnecting) {
-      setReconnectDeadlineMs(null);
+    if (stream?.reconnecting && stream.reconnectDeadline) {
+      setReconnectDeadlineMs(new Date(stream.reconnectDeadline).getTime());
     }
-  }, [stream, reconnectDeadlineMs]);
+  }, [stream?.reconnecting, stream?.reconnectDeadline]);
 
   useEffect(() => {
     if (reconnectDeadlineMs === null) {

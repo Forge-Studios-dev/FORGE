@@ -144,6 +144,28 @@ describe('toPublicStream', () => {
     ).toBe(false);
   });
 
+  it('computes reconnectDeadline from the real configured grace period, not a hardcoded guess', () => {
+    const idleSince = new Date('2026-01-01T00:00:00.000Z');
+    const result = toPublicStream(
+      makeStream({ status: StreamStatus.LIVE, muxIdleSince: idleSince } as Partial<Stream>),
+      false,
+      { reconnectGraceSec: 45 },
+    );
+    expect(result.reconnectDeadline).toBe('2026-01-01T00:00:45.000Z');
+  });
+
+  it('falls back to the platform default grace period when the caller omits reconnectGraceSec', () => {
+    const idleSince = new Date('2026-01-01T00:00:00.000Z');
+    const result = toPublicStream(
+      makeStream({ status: StreamStatus.LIVE, muxIdleSince: idleSince } as Partial<Stream>),
+    );
+    expect(result.reconnectDeadline).toBe('2026-01-01T00:01:00.000Z');
+  });
+
+  it('reconnectDeadline is null when not reconnecting', () => {
+    expect(toPublicStream(makeStream({ status: StreamStatus.LIVE })).reconnectDeadline).toBeNull();
+  });
+
   it('surfaces endReason when set', () => {
     const result = toPublicStream(
       makeStream({ status: StreamStatus.ENDED, endReason: StreamEndReason.CONNECTION_LOST } as Partial<Stream>),

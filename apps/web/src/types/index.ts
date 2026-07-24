@@ -77,6 +77,8 @@ export interface Stream {
   endReason?: 'host_ended' | 'connection_lost' | null;
   /** True while status is 'live' but the host's ingest has gone idle within the reconnect grace period. */
   reconnecting?: boolean;
+  /** ISO timestamp the stream auto-ends at if the host doesn't reconnect (server-computed, null unless reconnecting). */
+  reconnectDeadline?: string | null;
   createdAt: string;
 }
 
