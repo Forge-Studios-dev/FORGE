@@ -293,6 +293,9 @@ export class StreamChatService {
     if (stream.status !== StreamStatus.LIVE) {
       throw new BadRequestException('Super chat is only available during live streams');
     }
+    if (stream.muxIdleSince) {
+      throw new BadRequestException('Super chat is paused while the host is reconnecting');
+    }
 
     const isOwner = userId === stream.userId;
     const isAdmin = viewerRole === UserRole.ADMIN;

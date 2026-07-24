@@ -15,7 +15,7 @@ import Redis from 'ioredis';
 import { Repository, MoreThan } from 'typeorm';
 import Mux from '@mux/mux-node';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Stream, StreamStatus, StreamVisibility, StreamChatMode } from './entities/stream.entity';
+import { Stream, StreamEndReason, StreamStatus, StreamVisibility, StreamChatMode } from './entities/stream.entity';
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { Video, VideoStatus, VideoVisibility, PublishStatus } from '../content/entities/video.entity';
 import { MuxVodService } from '../content/mux-vod.service';
@@ -492,14 +492,17 @@ export class StreamingService {
 
     stream.status = StreamStatus.ENDED;
     stream.endedAt = new Date();
+    stream.endReason = StreamEndReason.HOST_ENDED;
     stream.uniqueViewerCount = await this.streamViewerService.finalizeUniqueViewers(streamId);
     const saved = await this.streamRepository.save(stream);
     await this.streamViewerService.trackStreamEnded(saved.id);
+    this.logger.log(`Stream ${saved.id} ended by host — cleanup completed`);
     this.eventEmitter.emit('stream.ended', {
       streamId: saved.id,
       userId: saved.userId,
       title: saved.title,
       communityId: saved.communityId ?? null,
+      endReason: StreamEndReason.HOST_ENDED,
     });
     void this.invalidateStreamListCache();
     void this.bustStreamDetailCache(saved.id);

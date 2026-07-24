@@ -48,6 +48,9 @@ export default function LiveWatchPage() {
   const [broadcastMode, setBroadcastMode] = useState<'obs' | 'browser' | null>(null);
   const [showObsPanel, setShowObsPanel] = useState(true);
   const [theaterMode, setTheaterMode] = useState(false);
+  const [reconnectDeadlineMs, setReconnectDeadlineMs] = useState<number | null>(null);
+  const [lastEndReason, setLastEndReason] = useState<Stream['endReason']>(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
 
   const checkoutSuccess = searchParams.get('checkout') === 'success';
 
@@ -124,26 +127,79 @@ export default function LiveWatchPage() {
     if (!accessToken || !id) return;
     const socket = getSocket(accessToken);
     if (!socket) return;
-    socket.emit('join-stream', { streamId: id });
+    socket.emit(
+      'join-stream',
+      { streamId: id },
+      (ack?: { reconnecting?: boolean; since?: string | null; timeoutSec?: number | null }) => {
+        // Seeds overlay state for a viewer who (re)joins mid-reconnect — e.g. a
+        // page refresh during the grace window — without waiting for the next
+        // stream:reconnecting broadcast.
+        if (ack?.reconnecting && ack.since && ack.timeoutSec) {
+          setReconnectDeadlineMs(new Date(ack.since).getTime() + ack.timeoutSec * 1000);
+        }
+      },
+    );
     const onViewerCount = (payload: { streamId: string; viewerCount: number }) => {
       if (payload.streamId === id) setViewerCount(payload.viewerCount);
     };
     const onStreamStarted = (payload: { streamId: string }) => {
       if (payload.streamId === id) void qc.invalidateQueries({ queryKey: ['stream', id] });
     };
-    const onStreamEnded = (payload: { streamId: string }) => {
-      if (payload.streamId === id) void qc.invalidateQueries({ queryKey: ['stream', id] });
+    const onStreamEnded = (payload: { streamId: string; endReason?: Stream['endReason'] }) => {
+      if (payload.streamId !== id) return;
+      setReconnectDeadlineMs(null);
+      setLastEndReason(payload.endReason ?? null);
+      void qc.invalidateQueries({ queryKey: ['stream', id] });
+    };
+    const onReconnecting = (payload: { streamId: string; since: string; timeoutSec: number }) => {
+      if (payload.streamId === id) {
+        setReconnectDeadlineMs(new Date(payload.since).getTime() + payload.timeoutSec * 1000);
+      }
+    };
+    const onReconnected = (payload: { streamId: string }) => {
+      if (payload.streamId === id) setReconnectDeadlineMs(null);
     };
     socket.on(SocketEvents.STREAM_VIEWER_COUNT, onViewerCount);
     socket.on(SocketEvents.STREAM_STARTED, onStreamStarted);
     socket.on(SocketEvents.STREAM_ENDED, onStreamEnded);
+    socket.on(SocketEvents.STREAM_RECONNECTING, onReconnecting);
+    socket.on(SocketEvents.STREAM_RECONNECTED, onReconnected);
     return () => {
       socket.emit('leave-stream', { streamId: id });
       socket.off(SocketEvents.STREAM_VIEWER_COUNT, onViewerCount);
       socket.off(SocketEvents.STREAM_STARTED, onStreamStarted);
       socket.off(SocketEvents.STREAM_ENDED, onStreamEnded);
+      socket.off(SocketEvents.STREAM_RECONNECTING, onReconnecting);
+      socket.off(SocketEvents.STREAM_RECONNECTED, onReconnected);
     };
   }, [accessToken, id, qc]);
+
+  // Fallback seed from the REST payload (covers first paint / query refetch
+  // before any socket event has arrived) and ticks the visible countdown.
+  useEffect(() => {
+    if (stream?.reconnecting && reconnectDeadlineMs === null) {
+      // No exact deadline from REST (viewers don't have host-health access) —
+      // fall back to the platform default grace window as a display estimate;
+      // the server remains authoritative and will emit stream:reconnected /
+      // stream:ended regardless of what this countdown shows.
+      setReconnectDeadlineMs(Date.now() + 60_000);
+    } else if (stream && !stream.reconnecting) {
+      setReconnectDeadlineMs(null);
+    }
+  }, [stream, reconnectDeadlineMs]);
+
+  useEffect(() => {
+    if (reconnectDeadlineMs === null) {
+      setSecondsLeft(0);
+      return;
+    }
+    const tick = () => setSecondsLeft(Math.max(0, Math.round((reconnectDeadlineMs - Date.now()) / 1000)));
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [reconnectDeadlineMs]);
+
+  const isReconnecting = reconnectDeadlineMs !== null;
 
   const displayViewers = viewerCount ?? stream?.viewerCount ?? 0;
   const posterUrl = stream ? resolveStreamPoster(stream) : null;
@@ -212,6 +268,16 @@ export default function LiveWatchPage() {
               isLive
               dvrEnabled={stream.dvrEnabled}
             />
+            {isReconnecting ? (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/80 text-center backdrop-blur-sm">
+                <p className="text-sm font-semibold text-on-surface">
+                  Host connection lost. Waiting for reconnection…
+                </p>
+                <p className="text-xs text-on-surface-variant">
+                  Live will end automatically in {secondsLeft}s if the host doesn&apos;t return.
+                </p>
+              </div>
+            ) : null}
             <StreamReactionPanel streamId={id} />
           </div>
           {!theaterMode ? (
@@ -238,9 +304,11 @@ export default function LiveWatchPage() {
           </p>
           <p className="text-sm text-on-surface-variant">
             {stream.status === 'ended'
-              ? replay && !replay.accessDenied
-                ? 'Watch the replay below.'
-                : 'This live session has ended. Replay may appear shortly.'
+              ? (stream.endReason ?? lastEndReason) === 'connection_lost'
+                ? 'Live has ended due to connection loss.'
+                : replay && !replay.accessDenied
+                  ? 'Watch the replay below.'
+                  : 'This live session has ended. Replay may appear shortly.'
               : isOwner
                 ? 'Start broadcasting with OBS or your browser below.'
                 : 'The creator has not started broadcasting yet. Check back in a moment.'}

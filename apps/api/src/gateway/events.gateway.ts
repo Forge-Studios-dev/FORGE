@@ -23,6 +23,7 @@ import { redisTlsOptions } from '../common/redis/redis-tls.util';
 import { socketIoCorsOptions } from './socket-cors.util';
 import { StreamViewerService } from '../modules/streaming/stream-viewer.service';
 import { StreamingService } from '../modules/streaming/streaming.service';
+import { MuxLiveSyncService } from '../modules/streaming/mux-live-sync.service';
 import { StreamReactionService } from '../modules/streaming/stream-reaction.service';
 import { VideosService } from '../modules/content/videos.service';
 import { CommunitiesService } from '../modules/communities/communities.service';
@@ -31,6 +32,7 @@ import { DirectMessagesService } from '../modules/direct-messages/direct-message
 import { recordSocketJoinDenial } from '../common/metrics/forge-metrics';
 import { JwtPayload } from '../modules/auth/strategies/jwt.strategy';
 import { UserRole } from '../modules/users/entities/user.entity';
+import { StreamEndReason, StreamStatus } from '../modules/streaming/entities/stream.entity';
 
 type SocketAuthData = {
   userId?: string;
@@ -67,6 +69,7 @@ export class EventsGateway
     private readonly jwtService: JwtService,
     private readonly streamViewerService: StreamViewerService,
     private readonly streamingService: StreamingService,
+    private readonly muxLiveSyncService: MuxLiveSyncService,
     private readonly streamReactionService: StreamReactionService,
     private readonly videosService: VideosService,
     private readonly communitiesService: CommunitiesService,
@@ -296,7 +299,27 @@ export class EventsGateway
     this.server
       .to(`stream:${data.streamId}`)
       .emit('stream:viewer-count', { streamId: data.streamId, viewerCount: count });
-    return { event: 'joined-stream', data: { streamId: data.streamId, viewerCount: count } };
+
+    // Late joiners (page refresh, viewer reconnect) must see host-reconnect state
+    // immediately rather than waiting for the next stream:reconnecting broadcast.
+    let reconnecting = false;
+    let since: string | null = null;
+    let timeoutSec: number | null = null;
+    try {
+      const stream = await this.streamingService.findById(data.streamId);
+      reconnecting = stream.status === StreamStatus.LIVE && !!stream.muxIdleSince;
+      if (reconnecting) {
+        since = stream.muxIdleSince!.toISOString();
+        timeoutSec = this.muxLiveSyncService.reconnectGraceSec();
+      }
+    } catch {
+      // stream lookup best-effort here — assertStreamAccess already validated it exists
+    }
+
+    return {
+      event: 'joined-stream',
+      data: { streamId: data.streamId, viewerCount: count, reconnecting, since, timeoutSec },
+    };
   }
 
   @SubscribeMessage('join-video')
@@ -359,11 +382,34 @@ export class EventsGateway
   }
 
   @OnEvent('stream.ended')
-  handleStreamEnded(payload: { streamId: string; userId: string; title: string }) {
+  handleStreamEnded(payload: {
+    streamId: string;
+    userId: string;
+    title: string;
+    endReason?: StreamEndReason;
+  }) {
     void this.streamingService.invalidateStreamListCache();
     this.server.to('streams:live').emit('stream:ended', payload);
     this.server.to(`stream:${payload.streamId}`).emit('stream:ended', payload);
     this.server.to(`user:${payload.userId}`).emit('stream:ended', payload);
+  }
+
+  /** Host disconnected — grace period started. Stream stays LIVE; viewers see a reconnecting overlay. */
+  @OnEvent('stream.reconnecting')
+  handleStreamReconnecting(payload: {
+    streamId: string;
+    userId: string;
+    since: string;
+    timeoutSec: number;
+    attempt: number;
+  }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:reconnecting', payload);
+  }
+
+  /** Host resumed ingest before the grace period expired — clears the reconnecting overlay. */
+  @OnEvent('stream.reconnected')
+  handleStreamReconnected(payload: { streamId: string; userId: string }) {
+    this.server.to(`stream:${payload.streamId}`).emit('stream:reconnected', payload);
   }
 
   @OnEvent('comment.created')

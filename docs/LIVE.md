@@ -76,6 +76,28 @@ Design notes:
   (`transaction = false` because Postgres disallows `ALTER TYPE ... ADD VALUE`
   inside a transaction).
 
+### Host disconnect / auto-termination & recovery
+
+The host's RTMP ingest (OBS, mobile encoder, or LiveKit browser egress — all
+paths terminate at Mux) is the source of truth for connectivity. There is no
+separate app-level heartbeat: Mux's `video.live_stream.idle`/`active` webhooks
+(`StreamingService.handleMuxWebhook` → `MuxLiveSyncService`) plus a poll
+fallback (`stream-mux-sync` worker) detect disconnects within seconds and are
+authoritative even if a webhook is dropped or the API restarts mid-session.
+
+| Step | Behavior |
+|------|----------|
+| Host disconnects | Stream stays `LIVE`; `muxIdleSince` is set; `stream.reconnecting` → `stream:reconnecting` (streamId, since, timeoutSec, attempt) fans out to the `stream:{id}` room |
+| Host reconnects in time | `muxIdleSince` cleared; `stream.reconnected` → `stream:reconnected`; no new stream/session is created |
+| Grace period expires (`MUX_IDLE_GRACE_SEC`, default 60s) | `MuxLiveSyncService.finalizeStreamEnded` sets `status=ENDED`, `endReason=connection_lost`, `endedAt`, finalizes `uniqueViewerCount`; `stream.ended` includes `endReason` |
+| Host manually ends | `StreamingService.endStream` sets `endReason=host_ended` |
+
+Viewers: `GET /streams/:id` and `stream:viewer-count`/`stream:reconnecting` payloads expose `reconnecting`/`endReason` so a refreshed page or a viewer who (re)joins mid-reconnect sees the correct overlay immediately (`join-stream` ack includes `reconnecting`/`since`/`timeoutSec`) without waiting for the next broadcast. Super chat is blocked with a 400 while `muxIdleSince` is set (`StreamChatService.sendSuperChat`).
+
+Host: `GET /creators/me/streams/:id/health` adds `reconnectDeadline`, `reconnectGraceSec`, `reconnectAttempts` (soft-capped by `MUX_MAX_RECONNECT_ATTEMPTS`, logged — not enforced, to avoid punishing a flaky-network host) for dashboard display.
+
+Env: `MUX_IDLE_GRACE_SEC` (reconnection timeout), `MUX_MAX_RECONNECT_ATTEMPTS` (default 20, observability only).
+
 ---
 
 ## Worker queues (production)

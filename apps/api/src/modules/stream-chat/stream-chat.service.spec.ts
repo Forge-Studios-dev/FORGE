@@ -324,6 +324,24 @@ describe('StreamChatService', () => {
     });
   });
 
+  describe('sendSuperChat', () => {
+    it('blocks super chat while the host is reconnecting (idle grace period)', async () => {
+      streamingService.findById.mockResolvedValue({
+        id: 's1',
+        userId: 'c1',
+        chatEnabled: true,
+        status: 'live',
+        muxIdleSince: new Date(),
+        visibility: StreamVisibility.PUBLIC,
+        requiredTierId: null,
+      } as unknown as Stream);
+
+      await expect(
+        service.sendSuperChat('s1', 'viewer-1', { amountCents: 500 } as never),
+      ).rejects.toThrow('Super chat is paused while the host is reconnecting');
+    });
+  });
+
   describe('Live Q&A', () => {
     const liveStream = {
       id: 's1',

@@ -1,4 +1,4 @@
-import { Stream, StreamChatMode, StreamStatus, StreamVisibility } from './entities/stream.entity';
+import { Stream, StreamChatMode, StreamEndReason, StreamStatus, StreamVisibility } from './entities/stream.entity';
 import { toPublicUser, PublicUser } from '../users/user.mapper';
 import { resolveStreamThumbnailUrl } from '../../common/media/mux-playback.util';
 
@@ -27,6 +27,9 @@ export type PublicStream = {
   dvrEnabled: boolean;
   startedAt: Date | null;
   endedAt: Date | null;
+  endReason: StreamEndReason | null;
+  /** True while status is LIVE but the host's ingest has gone idle within the reconnect grace period. */
+  reconnecting: boolean;
   createdAt: Date;
   streamKey?: string | null;
   rtmpUrl?: string | null;
@@ -74,6 +77,8 @@ export function toPublicStream(
     dvrEnabled: stream.dvrEnabled ?? false,
     startedAt: stream.startedAt ?? null,
     endedAt: stream.endedAt ?? null,
+    endReason: stream.endReason ?? null,
+    reconnecting: stream.status === StreamStatus.LIVE && !!stream.muxIdleSince,
     createdAt: stream.createdAt,
     streamKey: includeIngest ? stream.streamKey : null,
     rtmpUrl: includeIngest ? stream.rtmpUrl : null,

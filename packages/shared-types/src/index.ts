@@ -51,6 +51,10 @@ export const SocketEvents = {
   NOTIFICATION_NEW: 'notification:new',
   DM_MESSAGE: 'dm:message',
   STREAM_REACTION: 'stream:reaction',
+  /** Host ingest went idle — grace-period countdown started, stream stays LIVE. */
+  STREAM_RECONNECTING: 'stream:reconnecting',
+  /** Host ingest resumed before the grace period expired. */
+  STREAM_RECONNECTED: 'stream:reconnected',
 } as const;
 
 export type SocketEventName = (typeof SocketEvents)[keyof typeof SocketEvents];

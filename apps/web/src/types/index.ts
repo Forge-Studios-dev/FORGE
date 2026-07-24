@@ -74,6 +74,9 @@ export interface Stream {
   dvrEnabled?: boolean;
   startedAt?: string;
   endedAt?: string;
+  endReason?: 'host_ended' | 'connection_lost' | null;
+  /** True while status is 'live' but the host's ingest has gone idle within the reconnect grace period. */
+  reconnecting?: boolean;
   createdAt: string;
 }
 

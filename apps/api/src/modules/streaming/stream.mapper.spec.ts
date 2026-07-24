@@ -2,6 +2,7 @@ import { toPublicStream, serializeStreamForCache } from './stream.mapper';
 import {
   Stream,
   StreamChatMode,
+  StreamEndReason,
   StreamStatus,
   StreamVisibility,
 } from './entities/stream.entity';
@@ -125,6 +126,29 @@ describe('toPublicStream', () => {
     expect(result.thumbnailUrl).toBe(
       'https://image.mux.com/abc123/thumbnail.jpg?width=1280&height=720&fit_mode=smartcrop',
     );
+  });
+
+  it('marks reconnecting when LIVE with muxIdleSince set', () => {
+    const result = toPublicStream(
+      makeStream({ status: StreamStatus.LIVE, muxIdleSince: new Date() } as Partial<Stream>),
+    );
+    expect(result.reconnecting).toBe(true);
+  });
+
+  it('is not reconnecting when muxIdleSince is unset or stream is not LIVE', () => {
+    expect(toPublicStream(makeStream({ status: StreamStatus.LIVE })).reconnecting).toBe(false);
+    expect(
+      toPublicStream(
+        makeStream({ status: StreamStatus.ENDED, muxIdleSince: new Date() } as Partial<Stream>),
+      ).reconnecting,
+    ).toBe(false);
+  });
+
+  it('surfaces endReason when set', () => {
+    const result = toPublicStream(
+      makeStream({ status: StreamStatus.ENDED, endReason: StreamEndReason.CONNECTION_LOST } as Partial<Stream>),
+    );
+    expect(result.endReason).toBe('connection_lost');
   });
 });
 
