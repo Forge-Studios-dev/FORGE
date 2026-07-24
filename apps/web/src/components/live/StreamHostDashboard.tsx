@@ -29,6 +29,8 @@ type Analytics = {
 type Health = {
   muxStatus: string | null;
   reconnecting: boolean;
+  reconnectDeadline: string | null;
+  reconnectAttempts: number;
   status: string;
   viewerCount: number;
 };
@@ -246,6 +248,12 @@ export function StreamHostDashboard({ stream, displayViewers, broadcastMode }: P
               Mux: {health.muxStatus ?? '—'}
               {health.reconnecting ? ' · reconnecting' : ''}
             </p>
+            {health.reconnecting && health.reconnectDeadline ? (
+              <p className="text-xs text-error">
+                Auto-ends at {new Date(health.reconnectDeadline).toLocaleTimeString()} if your
+                connection doesn&apos;t resume. Reconnect now to keep this session alive.
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>

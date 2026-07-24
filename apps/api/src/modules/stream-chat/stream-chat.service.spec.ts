@@ -324,6 +324,89 @@ describe('StreamChatService', () => {
     });
   });
 
+  describe('sendSuperChat', () => {
+    it('blocks super chat while the host is reconnecting (idle grace period)', async () => {
+      streamingService.findById.mockResolvedValue({
+        id: 's1',
+        userId: 'c1',
+        chatEnabled: true,
+        status: 'live',
+        muxIdleSince: new Date(),
+        visibility: StreamVisibility.PUBLIC,
+        requiredTierId: null,
+      } as unknown as Stream);
+
+      await expect(
+        service.sendSuperChat('s1', 'viewer-1', { amountCents: 500 } as never),
+      ).rejects.toThrow('Super chat is paused while the host is reconnecting');
+    });
+  });
+
+  describe('handleSuperChatPaid', () => {
+    it('does not persist a checkout-fulfilled super chat once the stream has ended', async () => {
+      streamingService.findById.mockResolvedValue({
+        id: 's1',
+        userId: 'c1',
+        status: 'ended',
+        muxIdleSince: null,
+      } as unknown as Stream);
+
+      await service.handleSuperChatPaid({
+        streamId: 's1',
+        userId: 'viewer-1',
+        body: 'hi',
+        amountCents: 500,
+      });
+
+      expect(messageRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('does not persist while the host is mid-reconnect, even if status is still live', async () => {
+      streamingService.findById.mockResolvedValue({
+        id: 's1',
+        userId: 'c1',
+        status: 'live',
+        muxIdleSince: new Date(),
+      } as unknown as Stream);
+
+      await service.handleSuperChatPaid({
+        streamId: 's1',
+        userId: 'viewer-1',
+        body: 'hi',
+        amountCents: 500,
+      });
+
+      expect(messageRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('persists normally when the stream is live and not reconnecting', async () => {
+      streamingService.findById.mockResolvedValue({
+        id: 's1',
+        userId: 'c1',
+        status: 'live',
+        muxIdleSince: null,
+      } as unknown as Stream);
+      messageRepository.save.mockResolvedValue({ id: 'm1', streamId: 's1', userId: 'viewer-1', body: 'hi' });
+      messageRepository.findOne.mockResolvedValue({
+        id: 'm1',
+        streamId: 's1',
+        userId: 'viewer-1',
+        body: 'hi',
+        createdAt: new Date(),
+        user: { displayName: 'Viewer' },
+      });
+
+      await service.handleSuperChatPaid({
+        streamId: 's1',
+        userId: 'viewer-1',
+        body: 'hi',
+        amountCents: 500,
+      });
+
+      expect(messageRepository.save).toHaveBeenCalled();
+    });
+  });
+
   describe('Live Q&A', () => {
     const liveStream = {
       id: 's1',

@@ -14,8 +14,14 @@ import { UsersService } from '../users/users.service';
 import { StreamClip } from './entities/stream-clip.entity';
 import { StreamCaption } from './entities/stream-caption.entity';
 import { StreamAudienceRequest } from './entities/stream-audience-request.entity';
+import { MuxLiveSyncService } from './mux-live-sync.service';
 import { ConfigService } from '@nestjs/config';
 import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
+
+const muxLiveSyncServiceMock = {
+  getReconnectAttempts: jest.fn().mockResolvedValue(0),
+  reconnectGraceSec: jest.fn().mockReturnValue(60),
+};
 
 const redisMock = {
   get: jest.fn(),
@@ -61,6 +67,7 @@ describe('StreamLiveService votePoll', () => {
         { provide: EntitlementsService, useValue: entitlementsService },
         { provide: UsersService, useValue: usersService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: MuxLiveSyncService, useValue: muxLiveSyncServiceMock },
         { provide: getRedisConnectionToken(), useValue: redisMock },
       ],
     }).compile();
@@ -117,6 +124,7 @@ describe('StreamLiveService poll aggregation', () => {
         { provide: EntitlementsService, useValue: {} },
         { provide: UsersService, useValue: {} },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: MuxLiveSyncService, useValue: muxLiveSyncServiceMock },
         { provide: getRedisConnectionToken(), useValue: redisMock },
       ],
     }).compile();
@@ -148,5 +156,79 @@ describe('StreamLiveService poll aggregation', () => {
     expect(pollVoteRepository.createQueryBuilder).toHaveBeenCalled();
     expect(result?.counts).toEqual([3, 0, 1]);
     expect(result?.totalVotes).toBe(4);
+  });
+});
+
+describe('StreamLiveService getStreamHealth', () => {
+  let service: StreamLiveService;
+  const streamingService = { findById: jest.fn() };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    muxLiveSyncServiceMock.getReconnectAttempts.mockResolvedValue(2);
+    muxLiveSyncServiceMock.reconnectGraceSec.mockReturnValue(60);
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        StreamLiveService,
+        { provide: getRepositoryToken(StreamModerator), useValue: {} },
+        { provide: getRepositoryToken(StreamRsvp), useValue: {} },
+        { provide: getRepositoryToken(StreamPoll), useValue: {} },
+        { provide: getRepositoryToken(StreamPollVote), useValue: {} },
+        { provide: getRepositoryToken(Stream), useValue: {} },
+        { provide: getRepositoryToken(StreamClip), useValue: {} },
+        { provide: getRepositoryToken(StreamCaption), useValue: {} },
+        { provide: getRepositoryToken(StreamAudienceRequest), useValue: {} },
+        { provide: StreamingService, useValue: streamingService },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: EntitlementsService, useValue: {} },
+        { provide: UsersService, useValue: {} },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: MuxLiveSyncService, useValue: muxLiveSyncServiceMock },
+        { provide: getRedisConnectionToken(), useValue: redisMock },
+      ],
+    }).compile();
+    service = module.get(StreamLiveService);
+  });
+
+  it('reports reconnecting with a computed deadline while host ingest is idle', async () => {
+    const idleSince = new Date('2026-01-01T00:00:00Z');
+    streamingService.findById.mockResolvedValue({
+      id: 'stream-1',
+      userId: 'creator-1',
+      status: 'live',
+      muxIdleSince: idleSince,
+      viewerCount: 5,
+      livekitEgressId: null,
+      startedAt: new Date('2025-12-31T23:00:00Z'),
+      muxPlaybackId: null,
+      playbackUrl: null,
+      endReason: null,
+    });
+
+    const health = await service.getStreamHealth('stream-1', 'creator-1');
+
+    expect(health.reconnecting).toBe(true);
+    expect(health.reconnectDeadline).toBe('2026-01-01T00:01:00.000Z');
+    expect(health.reconnectAttempts).toBe(2);
+  });
+
+  it('reports not reconnecting with a null deadline once the host is active', async () => {
+    streamingService.findById.mockResolvedValue({
+      id: 'stream-1',
+      userId: 'creator-1',
+      status: 'live',
+      muxIdleSince: null,
+      viewerCount: 5,
+      livekitEgressId: null,
+      startedAt: new Date(),
+      muxPlaybackId: null,
+      playbackUrl: null,
+      endReason: null,
+    });
+
+    const health = await service.getStreamHealth('stream-1', 'creator-1');
+
+    expect(health.reconnecting).toBe(false);
+    expect(health.reconnectDeadline).toBeNull();
   });
 });

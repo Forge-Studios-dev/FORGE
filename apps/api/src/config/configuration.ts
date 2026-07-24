@@ -65,8 +65,10 @@ export default () => ({
     signingPrivateKey: process.env.MUX_SIGNING_PRIVATE_KEY || '',
     /** Signed playback token TTL (seconds). */
     signedPlaybackTtlSec: parseInt(process.env.MUX_SIGNED_PLAYBACK_TTL_SEC || '3600', 10),
-    /** Grace period before treating Mux idle as stream ended (seconds). */
+    /** Reconnection grace period — host disconnect to auto-terminate (seconds). */
     idleGraceSec: parseInt(process.env.MUX_IDLE_GRACE_SEC || '60', 10),
+    /** Soft cap on idle→active cycles per stream before logging a rapid-reconnect warning. */
+    maxReconnectAttempts: parseInt(process.env.MUX_MAX_RECONNECT_ATTEMPTS || '20', 10),
   },
 
   video: {

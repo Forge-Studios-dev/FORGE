@@ -6,7 +6,7 @@ import Redis from 'ioredis';
 import { Repository, IsNull, Not, LessThanOrEqual } from 'typeorm';
 import Mux from '@mux/mux-node';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Stream, StreamStatus } from './entities/stream.entity';
+import { Stream, StreamEndReason, StreamStatus } from './entities/stream.entity';
 import { StreamViewerService } from './stream-viewer.service';
 import {
   muxPlaybackIdFromHlsUrl,
@@ -30,6 +30,7 @@ export class MuxLiveSyncService {
   private static readonly MUX_SYNC_TTL_IDLE_SEC = 15;
   private static readonly MUX_SYNC_TTL_LIVE_SEC = 60;
   private static readonly LIVE_GRACE_SCAN_LIMIT = 50;
+  private static readonly FINALIZE_LOCK_TTL_SEC = 60;
   /** @deprecated Use PLATFORM_DORMANT_KEY from platform-dormant.util */
   static readonly PLATFORM_DORMANT_KEY = PLATFORM_DORMANT_KEY;
   private static readonly PLATFORM_DORMANT_TTL_SEC = 1200;
@@ -142,7 +143,11 @@ export class MuxLiveSyncService {
   async handleWebhookActive(muxLiveStreamId: string): Promise<void> {
     await this.clearPlatformDormant();
     const stream = await this.streamRepository.findOne({ where: { muxLiveStreamId } });
+    // A late/out-of-order "active" webhook can arrive after the reconnect grace
+    // period already auto-terminated this stream — never resurrect an ENDED row.
+    if (!stream || stream.status === StreamStatus.ENDED) return;
     const isFirstGoLive = stream && !stream.startedAt;
+    const wasReconnecting = !!stream?.muxIdleSince;
     const thumbnailPatch =
       stream && !stream.thumbnailUrl && stream.playbackUrl
         ? (() => {
@@ -169,12 +174,19 @@ export class MuxLiveSyncService {
     void this.bustStreamDetailCache(updated.id);
 
     if (isFirstGoLive) {
+      await this.resetReconnectAttempts(updated.id);
       this.eventEmitter.emit('stream.started', {
         streamId: updated.id,
         userId: updated.userId,
         title: updated.title,
         visibility: updated.visibility,
         requiredTierId: updated.requiredTierId,
+      });
+    } else if (wasReconnecting) {
+      this.logger.log(`Reconnection successful — host resumed ingest for stream ${updated.id}`);
+      this.eventEmitter.emit('stream.reconnected', {
+        streamId: updated.id,
+        userId: updated.userId,
       });
     }
   }
@@ -184,11 +196,78 @@ export class MuxLiveSyncService {
     const stream = await this.streamRepository.findOne({ where: { muxLiveStreamId } });
     if (!stream || stream.status !== StreamStatus.LIVE) return;
 
-    await this.streamRepository.update(
-      { muxLiveStreamId },
-      { muxIdleSince: stream.muxIdleSince ?? new Date() },
-    );
+    const wasAlreadyIdle = !!stream.muxIdleSince;
+    const idleSince = stream.muxIdleSince ?? new Date();
+    await this.streamRepository.update({ muxLiveStreamId }, { muxIdleSince: idleSince });
     void this.bustStreamDetailCache(stream.id);
+
+    if (!wasAlreadyIdle) {
+      await this.emitReconnecting(stream, idleSince);
+    }
+  }
+
+  /** First transition into idle — starts the reconnect grace period and notifies viewers. */
+  private async emitReconnecting(stream: Stream, idleSince: Date): Promise<void> {
+    const timeoutSec = this.idleGraceMs() / 1000;
+    const attempt = await this.incrementReconnectAttempts(stream.id);
+    this.logger.warn(
+      `Host disconnected for stream ${stream.id} — reconnection started (attempt ${attempt}, window ${timeoutSec}s)`,
+    );
+    if (attempt === this.maxReconnectAttempts() + 1) {
+      this.logger.warn(
+        `Stream ${stream.id} has exceeded ${this.maxReconnectAttempts()} reconnect attempts — possible rapid connect/disconnect loop`,
+      );
+    }
+    this.eventEmitter.emit('stream.reconnecting', {
+      streamId: stream.id,
+      userId: stream.userId,
+      since: idleSince.toISOString(),
+      timeoutSec,
+      attempt,
+    });
+  }
+
+  private reconnectAttemptsKey(streamId: string): string {
+    return `stream:reconnect:attempts:${streamId}`;
+  }
+
+  /** Reconnect (idle→active) cycle count for the current stream lifetime — for health/observability. */
+  async getReconnectAttempts(streamId: string): Promise<number> {
+    try {
+      const raw = await this.redis.get(this.reconnectAttemptsKey(streamId));
+      return raw ? parseInt(raw, 10) : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** Reconnect grace-period config (seconds) — surfaced to clients so they can render a countdown. */
+  reconnectGraceSec(): number {
+    return this.idleGraceMs() / 1000;
+  }
+
+  private async incrementReconnectAttempts(streamId: string): Promise<number> {
+    try {
+      const key = this.reconnectAttemptsKey(streamId);
+      const count = await this.redis.incr(key);
+      await this.redis.expire(key, 86_400);
+      return count;
+    } catch (err) {
+      this.logger.warn(`Reconnect attempt counter failed for ${streamId}: ${(err as Error).message}`);
+      return 1;
+    }
+  }
+
+  private async resetReconnectAttempts(streamId: string): Promise<void> {
+    try {
+      await this.redis.del(this.reconnectAttemptsKey(streamId));
+    } catch {
+      // non-fatal
+    }
+  }
+
+  private maxReconnectAttempts(): number {
+    return this.configService.get<number>('mux.maxReconnectAttempts') ?? 20;
   }
 
   async syncStream(stream: Stream): Promise<Stream> {
@@ -222,8 +301,21 @@ export class MuxLiveSyncService {
           await this.streamRepository.update(stream.id, { muxIdleSince: idleSince });
           stream.muxIdleSince = idleSince;
           void this.bustStreamDetailCache(stream.id);
+          await this.emitReconnecting(stream, idleSince);
         } else if (Date.now() - idleSince.getTime() >= this.idleGraceMs()) {
-          await this.finalizeStreamEnded(stream);
+          const acquired = await this.redis.set(
+            this.finalizeLockKey(stream.id),
+            '1',
+            'EX',
+            MuxLiveSyncService.FINALIZE_LOCK_TTL_SEC,
+            'NX',
+          );
+          if (acquired === 'OK') {
+            this.logger.warn(
+              `Reconnection timeout expired for stream ${stream.id} — auto-terminating (connection lost)`,
+            );
+            await this.finalizeStreamEnded(stream, StreamEndReason.CONNECTION_LOST);
+          }
         }
       }
     } catch (err) {
@@ -237,25 +329,40 @@ export class MuxLiveSyncService {
     return stream;
   }
 
-  async finalizeStreamEnded(stream: Stream): Promise<void> {
+  /**
+   * Auto-terminate path: reconnect grace period expired with no host reconnect.
+   * `endReason` defaults to CONNECTION_LOST since every current caller is a
+   * timeout finalize (poll-based or periodic-scan sweep) — see finalizeStreamsPastIdleGrace.
+   */
+  async finalizeStreamEnded(
+    stream: Stream,
+    endReason: StreamEndReason = StreamEndReason.CONNECTION_LOST,
+  ): Promise<void> {
     if (stream.status === StreamStatus.ENDED) return;
+    const uniqueViewerCount = await this.streamViewerService.finalizeUniqueViewers(stream.id);
     await this.streamRepository.update(stream.id, {
       status: StreamStatus.ENDED,
       endedAt: new Date(),
+      endReason,
       muxIdleSince: null,
+      uniqueViewerCount,
     });
     await this.streamViewerService.trackStreamEnded(stream.id);
+    await this.resetReconnectAttempts(stream.id);
     void this.bustStreamDetailCache(stream.id);
+    this.logger.log(`Live auto-ended for stream ${stream.id} (reason=${endReason}) — cleanup completed`);
     this.eventEmitter.emit('stream.ended', {
       streamId: stream.id,
       userId: stream.userId,
       title: stream.title,
       communityId: stream.communityId ?? null,
+      endReason,
     });
   }
 
   private async applyActiveState(stream: Stream): Promise<void> {
     const isFirstGoLive = !stream.startedAt;
+    const wasReconnecting = !!stream.muxIdleSince;
     const thumbnailPatch =
       !stream.thumbnailUrl && stream.playbackUrl
         ? (() => {
@@ -275,12 +382,19 @@ export class MuxLiveSyncService {
     void this.bustStreamDetailCache(stream.id);
 
     if (isFirstGoLive) {
+      await this.resetReconnectAttempts(stream.id);
       this.eventEmitter.emit('stream.started', {
         streamId: stream.id,
         userId: stream.userId,
         title: stream.title,
         visibility: stream.visibility,
         requiredTierId: stream.requiredTierId,
+      });
+    } else if (wasReconnecting) {
+      this.logger.log(`Reconnection successful — host resumed ingest for stream ${stream.id}`);
+      this.eventEmitter.emit('stream.reconnected', {
+        streamId: stream.id,
+        userId: stream.userId,
       });
     }
   }
@@ -295,10 +409,33 @@ export class MuxLiveSyncService {
       take: MuxLiveSyncService.LIVE_GRACE_SCAN_LIMIT,
     });
 
+    let finalized = 0;
     for (const stream of candidates) {
-      await this.finalizeStreamEnded(stream);
+      // Per-stream (not batch-wide) lock: another replica's periodic scan can
+      // select the same grace-expired row concurrently — without this, both
+      // would double-finalize (duplicate stream.ended emit, and the second
+      // finalizeUniqueViewers call would overwrite the correct count with 0
+      // since the Redis HLL key is already deleted by the first).
+      const acquired = await this.redis.set(
+        this.finalizeLockKey(stream.id),
+        '1',
+        'EX',
+        MuxLiveSyncService.FINALIZE_LOCK_TTL_SEC,
+        'NX',
+      );
+      if (acquired !== 'OK') continue;
+
+      this.logger.warn(
+        `Reconnection timeout expired for stream ${stream.id} — auto-terminating (connection lost)`,
+      );
+      await this.finalizeStreamEnded(stream, StreamEndReason.CONNECTION_LOST);
+      finalized += 1;
     }
-    return candidates.length;
+    return finalized;
+  }
+
+  private finalizeLockKey(streamId: string): string {
+    return `stream:finalize:lock:${streamId}`;
   }
 
   private async syncIdleCandidateStreams(): Promise<number> {

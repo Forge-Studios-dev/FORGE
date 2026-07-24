@@ -293,6 +293,9 @@ export class StreamChatService {
     if (stream.status !== StreamStatus.LIVE) {
       throw new BadRequestException('Super chat is only available during live streams');
     }
+    if (stream.muxIdleSince) {
+      throw new BadRequestException('Super chat is paused while the host is reconnecting');
+    }
 
     const isOwner = userId === stream.userId;
     const isAdmin = viewerRole === UserRole.ADMIN;
@@ -352,7 +355,21 @@ export class StreamChatService {
     body: string;
     amountCents: number;
   }) {
+    // Checkout can complete after the stream ended or entered the reconnect
+    // grace window (payment already captured by Stripe before this event
+    // fires). Posting the message into a dead/paused room would be visibly
+    // wrong, so skip persisting it and flag for manual reconciliation rather
+    // than silently attaching a "super chat" to nothing. Full automated
+    // refund/reconciliation routing is tracked as a follow-up — this codebase
+    // has no standalone payment-intent refund path yet (billing.service.ts
+    // only handles subscription refund webhooks).
     const stream = await this.streamingService.findById(payload.streamId);
+    if (stream.status !== StreamStatus.LIVE || stream.muxIdleSince) {
+      this.logger.warn(
+        `Super chat paid for stream ${payload.streamId} but stream is ${stream.status}${stream.muxIdleSince ? ' (reconnecting)' : ''} — payment captured but message not posted; needs manual reconciliation (user=${payload.userId}, amountCents=${payload.amountCents})`,
+      );
+      return;
+    }
     const profanityEnabled =
       this.configService.get<string>('stream.profanityFilterEnabled') !== 'false';
     const body = maskProfanity(payload.body.trim(), profanityEnabled);

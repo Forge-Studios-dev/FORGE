@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { StreamingService } from './streaming.service';
-import { Stream, StreamStatus, StreamVisibility } from './entities/stream.entity';
+import { Stream, StreamEndReason, StreamStatus, StreamVisibility } from './entities/stream.entity';
 import { Video, VideoVisibility } from '../content/entities/video.entity';
 import { MuxVodService } from '../content/mux-vod.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
@@ -310,7 +310,11 @@ describe('StreamingService endStream', () => {
 
     expect(emit).toHaveBeenCalledWith(
       'stream.ended',
-      expect.objectContaining({ streamId: 'stream-1', userId: 'creator-1' }),
+      expect.objectContaining({
+        streamId: 'stream-1',
+        userId: 'creator-1',
+        endReason: StreamEndReason.HOST_ENDED,
+      }),
     );
   });
 });

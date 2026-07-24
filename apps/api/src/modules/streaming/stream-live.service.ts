@@ -18,6 +18,7 @@ import { StreamingService } from './streaming.service';
 import { muxPlaybackIdFromHlsUrl } from '../../common/media/mux-playback.util';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { UsersService } from '../users/users.service';
+import { MuxLiveSyncService } from './mux-live-sync.service';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 
@@ -45,6 +46,7 @@ export class StreamLiveService {
     private readonly entitlementsService: EntitlementsService,
     private readonly usersService: UsersService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly muxLiveSyncService: MuxLiveSyncService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
@@ -285,11 +287,20 @@ export class StreamLiveService {
       muxStatus = 'disabled';
     }
 
+    const reconnectGraceSec = this.muxLiveSyncService.reconnectGraceSec();
+    const reconnectDeadline = reconnecting
+      ? new Date(stream.muxIdleSince!.getTime() + reconnectGraceSec * 1000).toISOString()
+      : null;
+
     return {
       streamId,
       status: stream.status,
       muxStatus,
       reconnecting,
+      reconnectDeadline,
+      reconnectGraceSec,
+      reconnectAttempts: await this.muxLiveSyncService.getReconnectAttempts(streamId),
+      endReason: stream.endReason ?? null,
       livekitEgressId: stream.livekitEgressId,
       viewerCount: stream.viewerCount,
       startedAt: stream.startedAt,

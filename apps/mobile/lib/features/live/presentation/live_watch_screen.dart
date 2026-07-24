@@ -36,11 +36,20 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   bool _handRaised = false;
   bool _raisingHand = false;
 
+  /// Host disconnect grace-period deadline (epoch ms) — non-null while the
+  /// "Host connection lost, waiting for reconnection" overlay should show.
+  int? _reconnectDeadlineMs;
+  int _reconnectSecondsLeft = 0;
+  Timer? _reconnectTimer;
+  String? _lastEndReason;
+
   void Function(dynamic)? _onViewerCount;
   void Function(dynamic)? _onChatMessage;
   void Function(dynamic)? _onStreamStarted;
   void Function(dynamic)? _onStreamEnded;
   void Function(dynamic)? _onReaction;
+  void Function(dynamic)? _onReconnecting;
+  void Function(dynamic)? _onReconnected;
 
   @override
   void initState() {
@@ -106,6 +115,22 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         _viewerCount = stream['viewerCount'] as int? ?? 0;
       });
 
+      // Seed the reconnect overlay from the REST snapshot (first paint, or a
+      // refetch after stream:started/ended) using the server-computed
+      // deadline — never a client-side guess, since the grace window is
+      // configurable. Deliberately one-directional: only set, never clear,
+      // here — `stream` can reflect a fetch that started just before a
+      // stream:reconnecting socket event landed, so clearing on a stale
+      // "not reconnecting" snapshot would race with (and undo) that event.
+      // Only the authoritative stream:reconnected/stream:ended handlers clear it.
+      final reconnectDeadline = stream['reconnectDeadline'] as String?;
+      if (stream['reconnecting'] == true && reconnectDeadline != null) {
+        final deadline = DateTime.tryParse(reconnectDeadline);
+        if (deadline != null) {
+          _setReconnectDeadline(deadline.millisecondsSinceEpoch, force: false);
+        }
+      }
+
       _startCountdown(stream);
       await _initPlayer(stream);
     } catch (e) {
@@ -114,6 +139,31 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         _loading = false;
       });
     }
+  }
+
+  /// `force: false` won't overwrite an existing deadline that a
+  /// `stream:reconnecting` socket event already set more precisely.
+  void _setReconnectDeadline(int? deadlineMs, {bool force = true}) {
+    if (deadlineMs == null) {
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
+      if (mounted) setState(() => _reconnectDeadlineMs = null);
+      return;
+    }
+    if (!force && _reconnectDeadlineMs != null) return;
+
+    _reconnectTimer?.cancel();
+    void tick() {
+      if (!mounted) return;
+      setState(() {
+        _reconnectDeadlineMs = deadlineMs;
+        _reconnectSecondsLeft = ((deadlineMs - DateTime.now().millisecondsSinceEpoch) / 1000)
+            .ceil()
+            .clamp(0, 1 << 30);
+      });
+    }
+    tick();
+    _reconnectTimer = Timer.periodic(const Duration(seconds: 1), (_) => tick());
   }
 
   void _startCountdown(Map<String, dynamic> stream) {
@@ -184,6 +234,8 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
     };
     _onStreamEnded = (payload) {
       if (payload is Map && payload['streamId'] == widget.streamId && mounted) {
+        _lastEndReason = payload['endReason'] as String?;
+        _setReconnectDeadline(null);
         _loadStream();
       }
     };
@@ -194,12 +246,26 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
       if (reaction == null || count == null) return;
       setState(() => _reactionCounts[reaction] = count);
     };
+    _onReconnecting = (payload) {
+      if (payload is! Map || payload['streamId'] != widget.streamId) return;
+      final since = DateTime.tryParse(payload['since'] as String? ?? '');
+      final timeoutSec = payload['timeoutSec'] as int?;
+      if (since == null || timeoutSec == null) return;
+      _setReconnectDeadline(since.millisecondsSinceEpoch + timeoutSec * 1000);
+    };
+    _onReconnected = (payload) {
+      if (payload is Map && payload['streamId'] == widget.streamId) {
+        _setReconnectDeadline(null);
+      }
+    };
 
     ForgeSocket.on('stream:viewer-count', _onViewerCount!);
     ForgeSocket.on('stream:chat:message', _onChatMessage!);
     ForgeSocket.on('stream:started', _onStreamStarted!);
     ForgeSocket.on('stream:ended', _onStreamEnded!);
     ForgeSocket.on('stream:reaction', _onReaction!);
+    ForgeSocket.on('stream:reconnecting', _onReconnecting!);
+    ForgeSocket.on('stream:reconnected', _onReconnected!);
   }
 
   Future<void> _endStream() async {
@@ -292,11 +358,14 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
+    _reconnectTimer?.cancel();
     if (_onViewerCount != null) ForgeSocket.off('stream:viewer-count', _onViewerCount);
     if (_onChatMessage != null) ForgeSocket.off('stream:chat:message', _onChatMessage);
     if (_onStreamStarted != null) ForgeSocket.off('stream:started', _onStreamStarted);
     if (_onStreamEnded != null) ForgeSocket.off('stream:ended', _onStreamEnded);
     if (_onReaction != null) ForgeSocket.off('stream:reaction', _onReaction);
+    if (_onReconnecting != null) ForgeSocket.off('stream:reconnecting', _onReconnecting);
+    if (_onReconnected != null) ForgeSocket.off('stream:reconnected', _onReconnected);
     ForgeSocket.leaveStream(widget.streamId);
     ForgeSocket.leaveStreamChat(widget.streamId);
     _chewieController?.dispose();
@@ -429,6 +498,31 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                                   bottom: 8,
                                   child: _buildReactionBar(),
                                 ),
+                              if (_reconnectDeadlineMs != null)
+                                Container(
+                                  color: Colors.black87,
+                                  padding: const EdgeInsets.all(16),
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const CircularProgressIndicator(color: Colors.white70),
+                                        const SizedBox(height: 12),
+                                        const Text(
+                                          'Host connection lost. Waiting for reconnection…',
+                                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Live will end automatically in ${_reconnectSecondsLeft}s if the host doesn\'t return.',
+                                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                             ],
                           )
                         : Container(
@@ -439,8 +533,13 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    status == 'ended' ? 'Stream ended' : 'Waiting for broadcast…',
+                                    status == 'ended'
+                                        ? ((_stream!['endReason'] ?? _lastEndReason) == 'connection_lost'
+                                            ? 'Live has ended due to connection loss.'
+                                            : 'Stream ended')
+                                        : 'Waiting for broadcast…',
                                     style: const TextStyle(color: Colors.white70),
+                                    textAlign: TextAlign.center,
                                   ),
                                   if (status == 'ended' && hasReplay) ...[
                                     const SizedBox(height: 12),

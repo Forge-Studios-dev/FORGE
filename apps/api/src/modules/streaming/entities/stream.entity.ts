@@ -18,6 +18,12 @@ export enum StreamStatus {
   ENDED = 'ended',
 }
 
+/** Why a stream transitioned to ENDED — surfaced to viewers/host for correct messaging. */
+export enum StreamEndReason {
+  HOST_ENDED = 'host_ended',
+  CONNECTION_LOST = 'connection_lost',
+}
+
 export enum StreamVisibility {
   PUBLIC = 'public',
   FOLLOWERS = 'followers',
@@ -160,6 +166,10 @@ export class Stream {
 
   @Column({ name: 'ended_at', nullable: true })
   endedAt: Date;
+
+  /** Set when status transitions to ENDED — see StreamEndReason. Null while live/idle. */
+  @Column({ name: 'end_reason', type: 'varchar', length: 32, nullable: true })
+  endReason: StreamEndReason | null;
 
   @Column({ name: 'community_id', type: 'uuid', nullable: true })
   communityId: string | null;

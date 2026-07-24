@@ -23,6 +23,11 @@ describe('EventsGateway room authorization', () => {
   };
   const streamingService = {
     assertStreamSocketAccess: jest.fn(),
+    findById: jest.fn(),
+    invalidateStreamListCache: jest.fn().mockResolvedValue(undefined),
+  };
+  const muxLiveSyncService = {
+    reconnectGraceSec: jest.fn().mockReturnValue(60),
   };
   const videosService = {
     getVideoForViewer: jest.fn(),
@@ -67,6 +72,7 @@ describe('EventsGateway room authorization', () => {
       jwtService as unknown as JwtService,
       streamViewerService as never,
       streamingService as never,
+      muxLiveSyncService as never,
       streamReactionService as never,
       videosService as never,
       communitiesService as never,
@@ -94,6 +100,42 @@ describe('EventsGateway room authorization', () => {
     await expect(
       gateway.handleJoinStream({ streamId: 'stream-1' }, authedClient() as never),
     ).rejects.toThrow(WsException);
+  });
+
+  it('tells a late joiner the host is mid-reconnect so the UI can show the overlay immediately', async () => {
+    streamingService.assertStreamSocketAccess.mockResolvedValue(true);
+    streamingService.findById.mockResolvedValue({ status: 'live', muxIdleSince: new Date() });
+    const result = await gateway.handleJoinStream(
+      { streamId: 'stream-1' },
+      authedClient() as never,
+    );
+    expect(result.data.reconnecting).toBe(true);
+  });
+
+  it('reports reconnecting=false once the host is active again', async () => {
+    streamingService.assertStreamSocketAccess.mockResolvedValue(true);
+    streamingService.findById.mockResolvedValue({ status: 'live', muxIdleSince: null });
+    const result = await gateway.handleJoinStream(
+      { streamId: 'stream-1' },
+      authedClient() as never,
+    );
+    expect(result.data.reconnecting).toBe(false);
+  });
+
+  it('relays stream.reconnecting to the stream room', () => {
+    const emit = jest.fn();
+    (gateway as unknown as { server: unknown }).server = { to: jest.fn().mockReturnValue({ emit }) };
+    const payload = { streamId: 'stream-1', userId: 'creator-1', since: new Date().toISOString(), timeoutSec: 60, attempt: 1 };
+    gateway.handleStreamReconnecting(payload);
+    expect(emit).toHaveBeenCalledWith('stream:reconnecting', payload);
+  });
+
+  it('relays stream.reconnected to the stream room', () => {
+    const emit = jest.fn();
+    (gateway as unknown as { server: unknown }).server = { to: jest.fn().mockReturnValue({ emit }) };
+    const payload = { streamId: 'stream-1', userId: 'creator-1' };
+    gateway.handleStreamReconnected(payload);
+    expect(emit).toHaveBeenCalledWith('stream:reconnected', payload);
   });
 
   it('denies join-video when forbidden', async () => {

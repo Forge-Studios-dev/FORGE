@@ -76,6 +76,41 @@ Design notes:
   (`transaction = false` because Postgres disallows `ALTER TYPE ... ADD VALUE`
   inside a transaction).
 
+### Host disconnect / auto-termination & recovery
+
+The host's RTMP ingest (OBS, mobile encoder, or LiveKit browser egress — all
+paths terminate at Mux) is the source of truth for connectivity. There is no
+separate app-level heartbeat: Mux's `video.live_stream.idle`/`active` webhooks
+(`StreamingService.handleMuxWebhook` → `MuxLiveSyncService`) plus a poll
+fallback (`stream-mux-sync` worker) detect disconnects within seconds and are
+authoritative even if a webhook is dropped or the API restarts mid-session.
+
+| Step | Behavior |
+|------|----------|
+| Host disconnects | Stream stays `LIVE`; `muxIdleSince` is set; `stream.reconnecting` → `stream:reconnecting` fans out to the `stream:{id}` room |
+| Host reconnects in time | `muxIdleSince` cleared; `stream.reconnected` → `stream:reconnected`; no new stream/session is created |
+| Grace period expires (`MUX_IDLE_GRACE_SEC`, default 60s) | `MuxLiveSyncService.finalizeStreamEnded` sets `status=ENDED`, `endReason=connection_lost`, `endedAt`, finalizes `uniqueViewerCount`; `stream.ended` includes `endReason` |
+| Host manually ends | `StreamingService.endStream` sets `endReason=host_ended` |
+
+A late/out-of-order Mux "active" webhook can arrive after the grace period already auto-terminated a stream — `handleWebhookActive` no-ops on an `ENDED` row rather than resurrecting it. Finalization itself (`finalizeStreamsPastIdleGrace` and the equivalent branch in `syncStream`) is guarded by a per-stream Redis `SET NX` lock (`stream:finalize:lock:{id}`) so two replicas racing the same periodic scan can't double-finalize the same stream.
+
+**Socket event payload contract** (each event carries only its own fields — they don't share a shape):
+
+| Event | Payload |
+|-------|---------|
+| `stream:viewer-count` | `{ streamId, viewerCount }` |
+| `stream:reconnecting` | `{ streamId, userId, since, timeoutSec, attempt }` |
+| `stream:reconnected` | `{ streamId, userId }` |
+| `stream:ended` | `{ streamId, userId, title, communityId, endReason }` |
+
+Viewers: `GET /streams/:id` exposes `reconnecting`/`reconnectDeadline`/`endReason` (deadline computed server-side from the real `MUX_IDLE_GRACE_SEC`, never client-guessed) so a refreshed page or a viewer who (re)joins mid-reconnect sees the correct overlay/countdown immediately — `join-stream`'s ack carries the same `reconnecting`/`since`/`timeoutSec`. Super chat is blocked with a 400 while `muxIdleSince` is set, both at creation (`StreamChatService.sendSuperChat`) and at Stripe-checkout fulfillment (`handleSuperChatPaid` — a checkout started while live can complete mid-reconnect or post-end; the payment is already captured, so this only skips posting the message and logs a warning for manual reconciliation, it does not refund).
+
+Host: `GET /creators/me/streams/:id/health` adds `reconnectDeadline`, `reconnectGraceSec`, `reconnectAttempts` (soft-capped by `MUX_MAX_RECONNECT_ATTEMPTS`, logged — not enforced, to avoid punishing a flaky-network host) for dashboard display.
+
+Env: `MUX_IDLE_GRACE_SEC` (reconnection timeout), `MUX_MAX_RECONNECT_ATTEMPTS` (default 20, observability only).
+
+**Rollback:** the only schema change is the additive, nullable `streams.end_reason` column (migration `1839900000000-stream-end-reason`) — safe to leave in place even if the API is rolled back to a pre-feature release (old code simply never reads/writes it), so no special migration-down step is required during a code rollback. If a full rollback (including the column) is ever needed, run its `down()` after the API is already back on the previous release, never before — dropping the column while the new code is still running would break `finalizeStreamEnded`/`endStream`. Rolling back the API alone is a normal deploy of the previous image; no worker/queue changes are involved.
+
 ---
 
 ## Worker queues (production)
