@@ -88,7 +88,7 @@ class MembershipPanel extends ConsumerWidget {
           error: (_, __) => const SizedBox.shrink(),
           data: (tiers) {
             final bundlesAsync = ref.watch(creatorBundlesProvider(creatorId));
-            if (tiers.isEmpty && (bundlesAsync.valueOrNull ?? []).isEmpty) {
+            if (tiers.isEmpty && (bundlesAsync.value ?? []).isEmpty) {
               return const SizedBox.shrink();
             }
             return Padding(
