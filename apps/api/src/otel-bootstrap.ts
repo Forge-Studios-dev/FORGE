@@ -10,7 +10,7 @@ export async function bootstrapOpenTelemetry(): Promise<void> {
 
   const { NodeSDK } = await import('@opentelemetry/sdk-node');
   const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http');
-  const { Resource } = await import('@opentelemetry/resources');
+  const { resourceFromAttributes } = await import('@opentelemetry/resources');
   const { ATTR_SERVICE_NAME } = await import('@opentelemetry/semantic-conventions');
   const { HttpInstrumentation } = await import('@opentelemetry/instrumentation-http');
   const { NestInstrumentation } = await import('@opentelemetry/instrumentation-nestjs-core');
@@ -25,7 +25,7 @@ export async function bootstrapOpenTelemetry(): Promise<void> {
   }
 
   const sdk = new NodeSDK({
-    resource: new Resource({
+    resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: serviceName,
     }),
     traceExporter: new OTLPTraceExporter({
