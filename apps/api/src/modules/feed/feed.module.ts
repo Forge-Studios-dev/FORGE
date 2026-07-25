@@ -14,7 +14,7 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Video, Follow, WatchHistory, Category]),
-    ContentModule,
+    forwardRef(() => ContentModule),
     EngagementModule,
     forwardRef(() => EntitlementsModule),
   ],
