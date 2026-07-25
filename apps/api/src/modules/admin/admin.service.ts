@@ -430,7 +430,7 @@ export class AdminService {
     const qb = this.streamRepository
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.user', 'user')
-      .orderBy('s.created_at', 'DESC')
+      .orderBy('s.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
 

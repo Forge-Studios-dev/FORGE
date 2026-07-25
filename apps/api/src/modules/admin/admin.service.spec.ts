@@ -327,4 +327,34 @@ describe('AdminService security', () => {
       expect(streamChatService.deleteMessage).not.toHaveBeenCalled();
     });
   });
+
+  describe('listStreams', () => {
+    it('orders by the entity property name, not the raw DB column — TypeORM QueryBuilder resolves alias.property paths against entity metadata, not SQL column names', async () => {
+      const qb: {
+        leftJoinAndSelect: jest.Mock;
+        orderBy: jest.Mock;
+        andWhere: jest.Mock;
+        skip: jest.Mock;
+        take: jest.Mock;
+        getManyAndCount: jest.Mock;
+      } = {
+        leftJoinAndSelect: jest.fn(),
+        orderBy: jest.fn(),
+        andWhere: jest.fn(),
+        skip: jest.fn(),
+        take: jest.fn(),
+        getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      };
+      qb.leftJoinAndSelect.mockReturnValue(qb);
+      qb.orderBy.mockReturnValue(qb);
+      qb.andWhere.mockReturnValue(qb);
+      qb.skip.mockReturnValue(qb);
+      qb.take.mockReturnValue(qb);
+      streamRepository.createQueryBuilder.mockReturnValue(qb);
+
+      await service.listStreams({});
+
+      expect(qb.orderBy).toHaveBeenCalledWith('s.createdAt', 'DESC');
+    });
+  });
 });
