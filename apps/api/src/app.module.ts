@@ -262,9 +262,15 @@ function sentryFilterProviders() {
     AuthModule,
     UsersModule,
     CategoriesModule,
+    // FeedModule must register before ContentModule: FeedController's static
+    // /videos/feed, /videos/public, /videos/by-skills routes need to match
+    // before VideosController's unconstrained /videos/:id (path-to-regexp v7
+    // dropped inline regex param constraints, see hotfix/videos-route-path-to-regexp),
+    // otherwise Express tries the earlier-registered :id catch-all first and
+    // these single-segment feed routes become unreachable (404/shadowed).
+    FeedModule,
     ContentModule,
     EngagementModule,
-    FeedModule,
     StreamingModule,
     LiveBroadcastModule,
     EntitlementsModule,
