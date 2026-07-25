@@ -14,6 +14,8 @@ describe('RedisThrottlerStorage', () => {
     await expect(storage.increment('throttle:key', 60_000)).resolves.toEqual({
       totalHits: 0,
       timeToExpire: 60_000,
+      isBlocked: false,
+      timeToBlockExpire: 0,
     });
   });
 });
