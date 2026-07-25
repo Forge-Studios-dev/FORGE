@@ -6,9 +6,21 @@ set -euo pipefail
 BASE="${FORGE_SMOKE_API:-http://localhost:3001/api/v1}"
 MODE="${FORGE_SMOKE_MODE:-full}"
 
-# Transient TLS/network flakes on Fly smoke (SSL_ERROR_SYSCALL) — retry in CI release.
+# Transient TLS/network flakes on Fly smoke (SSL_ERROR_SYSCALL), plus brief
+# connection gaps during rolling deploys (Fly's edge proxy re-checks machine
+# health only every 60s per fly.toml, so a machine mid-restart can still get
+# routed a request for a few seconds) — curl's own --retry doesn't reliably
+# fire for the resulting instant "empty reply" failures, so retry at the
+# shell level with a real sleep between attempts instead.
 curl_smoke() {
-  curl -sS --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 20 "$@"
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    if curl -sS --connect-timeout 20 --max-time 30 "$@"; then
+      return 0
+    fi
+    [[ "$attempt" -lt 5 ]] && sleep 3
+  done
+  return 1
 }
 
 code="$(curl_smoke -o /tmp/forge-smoke-health.json -w "%{http_code}" "${BASE}/health" || true)"
