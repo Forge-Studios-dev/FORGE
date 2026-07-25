@@ -18,8 +18,9 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import * as os from 'node:os';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { VideosService } from './videos.service';
+import { FeedService, FeedSort } from '../feed/feed.service';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { PresignedUrlDto } from './dto/presigned-url.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
@@ -43,6 +44,11 @@ import { StudioVideosQueryDto } from './dto/studio-videos-query.dto';
 import { RecommendationsService } from './recommendations.service';
 import { ContentLibraryService, ContentType } from './content-library.service';
 
+function parseListParam(value?: string): string[] | undefined {
+  if (!value?.trim()) return undefined;
+  return value.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 @ApiTags('Videos')
 @Controller('videos')
 export class VideosController {
@@ -50,6 +56,7 @@ export class VideosController {
     private readonly videosService: VideosService,
     private readonly recommendationsService: RecommendationsService,
     private readonly contentLibraryService: ContentLibraryService,
+    private readonly feedService: FeedService,
   ) {}
 
   @Public()
@@ -94,6 +101,86 @@ export class VideosController {
   // Express 5 / @nestjs/platform-express v11, dropped support for inline
   // regex param constraints like `:id([0-9a-fA-F-]{36})`, which previously
   // made this ordering unnecessary).
+  //
+  // `feed`, `public`, and `by-skills` specifically live HERE rather than in
+  // FeedController: FeedModule imports ContentModule (for VideosService), so
+  // Nest's dependency-first module resolution always initializes
+  // ContentModule before FeedModule regardless of app.module.ts import
+  // order — meaning VideosController's routes always register first no
+  // matter what. Declaring these single-segment literals in FeedController
+  // would be silently unreachable, shadowed by `:id` below. See
+  // route-shadow-order.spec.ts.
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('feed')
+  @ApiOperation({ summary: 'Get paginated public video feed' })
+  @ApiQuery({ name: 'categoryId', required: false })
+  @ApiQuery({ name: 'categorySlug', required: false })
+  @ApiQuery({ name: 'skillTagIds', required: false, description: 'Comma-separated UUIDs' })
+  @ApiQuery({ name: 'skillTagSlugs', required: false, description: 'Comma-separated slugs' })
+  @ApiQuery({ name: 'cursor', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'sort', required: false, enum: ['latest', 'popular', 'forYou'] })
+  getFeed(
+    @Query('categoryId') categoryId?: string,
+    @Query('categorySlug') categorySlug?: string,
+    @Query('skillTagIds') skillTagIds?: string,
+    @Query('skillTagSlugs') skillTagSlugs?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number,
+    @Query('sort') sort?: FeedSort,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.feedService.getFeed({
+      categoryId,
+      categorySlug,
+      skillTagIds: parseListParam(skillTagIds),
+      skillTagSlugs: parseListParam(skillTagSlugs),
+      cursor,
+      limit,
+      sort,
+      userId: user?.sub,
+    });
+  }
+
+  @Public()
+  @Get('public')
+  @ApiOperation({ summary: 'List discoverable public videos (latest feed)' })
+  getPublicVideos(
+    @Query('categorySlug') categorySlug?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.feedService.getFeed({
+      categorySlug,
+      cursor,
+      limit,
+      sort: 'latest',
+    });
+  }
+
+  @Public()
+  @Get('by-skills')
+  @ApiOperation({ summary: 'Videos matching skill tags' })
+  @ApiQuery({ name: 'skillTagIds', required: false })
+  @ApiQuery({ name: 'skillTagSlugs', required: false })
+  @ApiQuery({ name: 'cursor', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  getBySkills(
+    @Query('skillTagIds') skillTagIds?: string,
+    @Query('skillTagSlugs') skillTagSlugs?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.feedService.getFeed({
+      skillTagIds: parseListParam(skillTagIds),
+      skillTagSlugs: parseListParam(skillTagSlugs),
+      cursor,
+      limit,
+      sort: 'latest',
+    });
+  }
 
   @Public()
   @UseGuards(OptionalJwtAuthGuard)

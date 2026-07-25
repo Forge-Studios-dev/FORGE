@@ -4,15 +4,10 @@ import { FeedController } from './feed.controller';
 
 describe('FeedController security', () => {
   it('exposes public feed routes', () => {
-    const publicRoutes = [
-      'getFeed',
-      'getTrending',
-      'getFollowingFeed',
-      'getRecommended',
-      'getPublicVideos',
-      'getByCategory',
-      'getBySkills',
-    ] as const;
+    // `getFeed`/`getPublicVideos`/`getBySkills` moved to VideosController —
+    // see videos.controller.ts and route-shadow-order.spec.ts. Covered by
+    // the equivalent check in videos.controller.spec.ts.
+    const publicRoutes = ['getTrending', 'getFollowingFeed', 'getRecommended', 'getByCategory'] as const;
 
     for (const name of publicRoutes) {
       const handler = (FeedController.prototype as unknown as Record<string, unknown>)[name] as object;

@@ -24,6 +24,7 @@ import { PodcastsService } from './podcasts.service';
 import { PodcastsController } from './podcasts.controller';
 import { RecommendationsService } from './recommendations.service';
 import { ContentLibraryService } from './content-library.service';
+import { FeedModule } from '../feed/feed.module';
 
 @Module({
   imports: [
@@ -41,6 +42,11 @@ import { ContentLibraryService } from './content-library.service';
     forwardRef(() => EntitlementsModule),
     EngagementModule,
     forwardRef(() => AccessSessionsModule),
+    // VideosController now serves FeedController's `feed`/`public`/`by-skills`
+    // routes directly (route-shadow fix — see videos.controller.ts), which
+    // means ContentModule needs FeedService. FeedModule already imports
+    // ContentModule for VideosService, so this is a genuine cycle.
+    forwardRef(() => FeedModule),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
       defaultJobOptions: {
