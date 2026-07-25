@@ -24,13 +24,13 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
         timeToExpire = ttl;
       }
 
-      return { totalHits, timeToExpire };
+      return { totalHits, timeToExpire, isBlocked: false, timeToBlockExpire: 0 };
     } catch (err) {
       this.logger.warn(
         `redis throttler increment failed (${key}): ${err instanceof Error ? err.message : err}`,
       );
       // Fail-open: do not block traffic when Redis is unavailable.
-      return { totalHits: 0, timeToExpire: ttl };
+      return { totalHits: 0, timeToExpire: ttl, isBlocked: false, timeToBlockExpire: 0 };
     }
   }
 }
