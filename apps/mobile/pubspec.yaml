@@ -22,7 +22,7 @@ dependencies:
   dio: ^5.4.3
 
   # Secure storage
-  flutter_secure_storage: ^9.0.0
+  flutter_secure_storage: ^10.3.1
 
   # Connectivity (drives the offline screen — see core/connectivity)
   connectivity_plus: ^7.3.0
@@ -71,7 +71,7 @@ dev_dependencies:
   # Test-only fake platform for FlutterSecureStorage (HIGH-09) — already a
   # transitive dep via flutter_secure_storage; declared explicitly since
   # test code imports it directly.
-  flutter_secure_storage_platform_interface: ^1.1.2
+  flutter_secure_storage_platform_interface: ^2.0.1
 
 flutter:
   uses-material-design: true
