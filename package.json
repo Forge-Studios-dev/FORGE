@@ -60,6 +60,9 @@
     "auth:verify": "bash scripts/verify-production-auth.sh",
     "firebase:check": "bash scripts/check-firebase-connection.sh"
   },
+  "dependencies": {
+    "class-validator": "^0.14.1"
+  },
   "devDependencies": {
     "vite": "^6.2.0",
     "typescript": "^5.4.4"
