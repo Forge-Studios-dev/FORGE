@@ -36,9 +36,10 @@ function importOrderIndex(moduleName: string): number {
 interface RouteEntry {
   method: string;
   path: string;
+  controller: string;
 }
 
-function extractRoutes(file: string, controllerPrefix: string): RouteEntry[] {
+function extractRoutes(file: string, controllerPrefix: string, controller: string): RouteEntry[] {
   const source = readFileSync(file, 'utf8');
   const prefixMatch = source.match(/@Controller\(\s*(['"`])((?:(?!\1).)*)\1\s*\)/);
   expect(prefixMatch?.[2]).toBe(controllerPrefix);
@@ -47,18 +48,22 @@ function extractRoutes(file: string, controllerPrefix: string): RouteEntry[] {
   const pattern = new RegExp(`@(${routeDecorators.join('|')})\\(\\s*(?:(['"\`])((?:(?!\\2).)*)\\2)?\\s*\\)`, 'g');
   const routes: RouteEntry[] = [];
   for (const match of source.matchAll(pattern)) {
-    routes.push({ method: match[1], path: match[3] ?? '' });
+    routes.push({ method: match[1], path: match[3] ?? '', controller });
   }
   return routes;
 }
 
-/** ':id' matches any single segment; a literal path with no slash is single-segment. */
-function isSingleSegment(path: string): boolean {
-  return path.length > 0 && !path.includes('/');
+/** Express-style single-segment match: literal must match exactly, ':param' matches any one segment. */
+function matchesPath(routePath: string, testPath: string): boolean {
+  const routeSegments = routePath.split('/');
+  const testSegments = testPath.split('/');
+  if (routeSegments.length !== testSegments.length) return false;
+  return routeSegments.every((seg, i) => seg.startsWith(':') || seg === testSegments[i]);
 }
 
-function isUnconstrainedSingleSegmentParam(path: string): boolean {
-  return /^:\w+$/.test(path);
+/** First route (in effective registration order) whose pattern matches testPath, or undefined. */
+function resolve(routes: RouteEntry[], method: string, testPath: string): RouteEntry | undefined {
+  return routes.find((r) => r.method === method && matchesPath(r.path, testPath));
 }
 
 describe('videos/feed route registration order (regression: PR #151 route shadow)', () => {
@@ -66,31 +71,26 @@ describe('videos/feed route registration order (regression: PR #151 route shadow
     expect(importOrderIndex('FeedModule')).toBeLessThan(importOrderIndex('ContentModule'));
   });
 
-  it('VideosController has no unconstrained single-segment GET route ahead of FeedController literals in effective order', () => {
+  it('GET /videos/feed, /videos/public, /videos/by-skills resolve to FeedController, not VideosController\'s :id catch-all', () => {
     const videosRoutes = extractRoutes(
       join(API_SRC, 'modules', 'content', 'videos.controller.ts'),
       'videos',
+      'VideosController',
     );
-    const feedRoutes = extractRoutes(join(API_SRC, 'modules', 'feed', 'feed.controller.ts'), 'videos');
-
-    const feedLiteralSingleSegments = feedRoutes
-      .filter((r) => r.method === 'Get' && isSingleSegment(r.path))
-      .map((r) => r.path);
-    expect(feedLiteralSingleSegments).toEqual(expect.arrayContaining(['feed', 'public', 'by-skills']));
-
-    const videosUnconstrainedCatchAlls = videosRoutes.filter(
-      (r) => r.method === 'Get' && isUnconstrainedSingleSegmentParam(r.path),
+    const feedRoutes = extractRoutes(
+      join(API_SRC, 'modules', 'feed', 'feed.controller.ts'),
+      'videos',
+      'FeedController',
     );
 
-    // With FeedModule registering first (asserted above), any GET :param in
-    // VideosController is safe *only* because Feed's literals already won —
-    // but if that import-order guard is ever removed/reverted, a bare :id
-    // here would silently swallow every literal above. Fail loud instead.
-    for (const catchAll of videosUnconstrainedCatchAlls) {
-      expect(feedLiteralSingleSegments).not.toContain(catchAll.path);
-      // structural guard: FeedModule-before-ContentModule (tested above) is
-      // what actually keeps this safe — this loop documents which literals
-      // depend on that invariant holding.
+    // Mirror real registration order: whichever module imports first in
+    // app.module.ts has its controller's routes registered first.
+    const feedFirst = importOrderIndex('FeedModule') < importOrderIndex('ContentModule');
+    const effectiveOrder = feedFirst ? [...feedRoutes, ...videosRoutes] : [...videosRoutes, ...feedRoutes];
+
+    for (const testPath of ['feed', 'public', 'by-skills']) {
+      const winner = resolve(effectiveOrder, 'Get', testPath);
+      expect(winner?.controller).toBe('FeedController');
     }
   });
 });
