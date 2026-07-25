@@ -87,191 +87,13 @@ export class VideosController {
     return this.videosService.getPresignedUploadUrl(user.sub, dto);
   }
 
-  @Put(':id([0-9a-fA-F-]{36})/upload')
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      // Disk-backed, not memoryStorage() — this is a fallback for up-to-500MB
-      // uploads and must not buffer the whole file in API process memory (LOW-04).
-      storage: diskStorage({ destination: os.tmpdir() }),
-      limits: { fileSize: 500 * 1024 * 1024 },
-    }),
-  )
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'Upload video file via API (fallback when direct S3 PUT fails)',
-  })
-  proxyUpload(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    return this.videosService.receiveProxyUpload(user.sub, id, file);
-  }
-
-  @Post()
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @ApiOperation({ summary: 'Register video after upload' })
-  create(@CurrentUser() user: JwtPayload, @Body() dto: CreateVideoDto) {
-    return this.videosService.create(user.sub, dto);
-  }
-
-  @Post(':id([0-9a-fA-F-]{36})/thumbnail/presigned-url')
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Get presigned S3 URL for custom thumbnail image' })
-  getThumbnailPresigned(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: ThumbnailPresignedDto,
-  ) {
-    return this.videosService.getThumbnailPresignedUrl(user.sub, id, dto.contentType);
-  }
-
-  @Get(':id([0-9a-fA-F-]{36})/multipart/progress')
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @ApiOperation({ summary: 'Multipart upload progress (server checkpoint)' })
-  getMultipartProgress(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.videosService.getMultipartProgress(user.sub, id);
-  }
-
-  @Post(':id([0-9a-fA-F-]{36})/multipart/checkpoint')
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @Throttle({ default: { limit: 120, ttl: 60_000 } })
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Record completed S3 parts for resume' })
-  checkpointMultipart(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: MultipartCheckpointDto,
-  ) {
-    return this.videosService.checkpointMultipart(user.sub, id, dto);
-  }
-
-  @Post(':id([0-9a-fA-F-]{36})/multipart/parts')
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Presigned URLs for S3 multipart upload parts' })
-  signMultipartParts(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: MultipartPartUrlsDto,
-  ) {
-    return this.videosService.signMultipartPartUrls(user.sub, id, dto);
-  }
-
-  @Post(':id([0-9a-fA-F-]{36})/multipart/complete')
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Complete S3 multipart upload (assemble object)' })
-  completeMultipart(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: MultipartCompletePartsDto,
-  ) {
-    return this.videosService.completeMultipartParts(user.sub, id, dto);
-  }
-
-  @Post(':id([0-9a-fA-F-]{36})/complete')
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Complete an upload and start processing' })
-  complete(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: CompleteUploadDto,
-  ) {
-    return this.videosService.completeUpload(user.sub, id, dto);
-  }
-
-  @Post(':id([0-9a-fA-F-]{36})/cancel-upload')
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Cancel/remove uploading, processing, or failed video' })
-  cancelUpload(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.videosService.cancelUpload(user.sub, id);
-  }
-
-  @Public()
-  @UseGuards(OptionalJwtAuthGuard)
-  @Post(':id([0-9a-fA-F-]{36})/view')
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @ApiOperation({
-    summary: 'Record a qualified view after watch-time threshold (YouTube-style)',
-  })
-  recordView(
-    @Param('id') id: string,
-    @Body() dto: RecordViewDto,
-    @Req() req: Request,
-    @CurrentUser() user?: JwtPayload,
-  ) {
-    const forwarded = req.headers['x-forwarded-for'];
-    const ip =
-      (typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : undefined) ||
-      req.ip ||
-      'anon';
-    const viewerKey = user?.sub ?? ip;
-    return this.videosService.recordQualifiedView(id, viewerKey, dto, user?.sub);
-  }
-
-  @Post(':id([0-9a-fA-F-]{36})/watch')
-  @Permissions(Permission.USE_LIBRARY)
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Record watch / continue watching' })
-  recordWatch(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: RecordWatchDto,
-  ) {
-    return this.videosService.recordWatch(user.sub, id, dto);
-  }
-
-  @Patch(':id([0-9a-fA-F-]{36})')
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @ApiOperation({ summary: 'Update own video (title, visibility, schedule)' })
-  patchVideo(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() dto: UpdateVideoDto) {
-    return this.videosService.updateVideo(user.sub, id, dto);
-  }
-
-  @Public()
-  @UseGuards(OptionalJwtAuthGuard)
-  @Get(':id([0-9a-fA-F-]{36})')
-  @ApiOperation({ summary: 'Get video by ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
-    return this.videosService.getVideoForViewer(id, user?.sub, user?.role);
-  }
-
-  @Post(':id([0-9a-fA-F-]{36})/retry-transcode')
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Retry Mux transcode after failure' })
-  retryTranscode(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.videosService.retryTranscode(user.sub, id);
-  }
-
-  @Delete(':id([0-9a-fA-F-]{36})')
-  @UseGuards(CreatorApprovedGuard)
-  @Permissions(Permission.UPLOAD_VIDEO)
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete video' })
-  delete(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.videosService.delete(user.sub, id);
-  }
-
   // ── P01-T025: Personalized feed & semantic recommendations ────────────────
+  // Static-segment routes below must stay ahead of the `:id` routes further
+  // down — Express/NestJS match routes in registration order, and `:id` is
+  // an unconstrained single-segment wildcard (path-to-regexp v7+, used by
+  // Express 5 / @nestjs/platform-express v11, dropped support for inline
+  // regex param constraints like `:id([0-9a-fA-F-]{36})`, which previously
+  // made this ordering unnecessary).
 
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
@@ -296,13 +118,6 @@ export class VideosController {
   @ApiOperation({ summary: 'Trending videos by recent view velocity' })
   trending(@Query('limit') limit?: number) {
     return this.recommendationsService.getTrending(undefined, limit ? Number(limit) : 20);
-  }
-
-  @Public()
-  @Get(':id([0-9a-fA-F-]{36})/similar')
-  @ApiOperation({ summary: 'Videos similar to a given video (same category ranking)' })
-  similarVideos(@Param('id') id: string, @Query('limit') limit?: number) {
-    return this.recommendationsService.getSimilarVideos(id, limit ? Number(limit) : 10);
   }
 
   // ── P06-T044: Unified content library (Netflix-style) ─────────────────────
@@ -347,5 +162,196 @@ export class VideosController {
       limit: limit ? Number(limit) : 24,
       offset: offset ? Number(offset) : 0,
     });
+  }
+
+  @Put(':id/upload')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      // Disk-backed, not memoryStorage() — this is a fallback for up-to-500MB
+      // uploads and must not buffer the whole file in API process memory (LOW-04).
+      storage: diskStorage({ destination: os.tmpdir() }),
+      limits: { fileSize: 500 * 1024 * 1024 },
+    }),
+  )
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Upload video file via API (fallback when direct S3 PUT fails)',
+  })
+  proxyUpload(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.videosService.receiveProxyUpload(user.sub, id, file);
+  }
+
+  @Post()
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @ApiOperation({ summary: 'Register video after upload' })
+  create(@CurrentUser() user: JwtPayload, @Body() dto: CreateVideoDto) {
+    return this.videosService.create(user.sub, dto);
+  }
+
+  @Post(':id/thumbnail/presigned-url')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Get presigned S3 URL for custom thumbnail image' })
+  getThumbnailPresigned(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: ThumbnailPresignedDto,
+  ) {
+    return this.videosService.getThumbnailPresignedUrl(user.sub, id, dto.contentType);
+  }
+
+  @Get(':id/multipart/progress')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @ApiOperation({ summary: 'Multipart upload progress (server checkpoint)' })
+  getMultipartProgress(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.videosService.getMultipartProgress(user.sub, id);
+  }
+
+  @Post(':id/multipart/checkpoint')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Record completed S3 parts for resume' })
+  checkpointMultipart(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: MultipartCheckpointDto,
+  ) {
+    return this.videosService.checkpointMultipart(user.sub, id, dto);
+  }
+
+  @Post(':id/multipart/parts')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Presigned URLs for S3 multipart upload parts' })
+  signMultipartParts(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: MultipartPartUrlsDto,
+  ) {
+    return this.videosService.signMultipartPartUrls(user.sub, id, dto);
+  }
+
+  @Post(':id/multipart/complete')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Complete S3 multipart upload (assemble object)' })
+  completeMultipart(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: MultipartCompletePartsDto,
+  ) {
+    return this.videosService.completeMultipartParts(user.sub, id, dto);
+  }
+
+  @Post(':id/complete')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Complete an upload and start processing' })
+  complete(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CompleteUploadDto,
+  ) {
+    return this.videosService.completeUpload(user.sub, id, dto);
+  }
+
+  @Post(':id/cancel-upload')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel/remove uploading, processing, or failed video' })
+  cancelUpload(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.videosService.cancelUpload(user.sub, id);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Post(':id/view')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Record a qualified view after watch-time threshold (YouTube-style)',
+  })
+  recordView(
+    @Param('id') id: string,
+    @Body() dto: RecordViewDto,
+    @Req() req: Request,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip =
+      (typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : undefined) ||
+      req.ip ||
+      'anon';
+    const viewerKey = user?.sub ?? ip;
+    return this.videosService.recordQualifiedView(id, viewerKey, dto, user?.sub);
+  }
+
+  @Post(':id/watch')
+  @Permissions(Permission.USE_LIBRARY)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Record watch / continue watching' })
+  recordWatch(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RecordWatchDto,
+  ) {
+    return this.videosService.recordWatch(user.sub, id, dto);
+  }
+
+  @Patch(':id')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @ApiOperation({ summary: 'Update own video (title, visibility, schedule)' })
+  patchVideo(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() dto: UpdateVideoDto) {
+    return this.videosService.updateVideo(user.sub, id, dto);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get(':id')
+  @ApiOperation({ summary: 'Get video by ID' })
+  async findOne(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
+    return this.videosService.getVideoForViewer(id, user?.sub, user?.role);
+  }
+
+  @Post(':id/retry-transcode')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Retry Mux transcode after failure' })
+  retryTranscode(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.videosService.retryTranscode(user.sub, id);
+  }
+
+  @Delete(':id')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete video' })
+  delete(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.videosService.delete(user.sub, id);
+  }
+
+  @Public()
+  @Get(':id/similar')
+  @ApiOperation({ summary: 'Videos similar to a given video (same category ranking)' })
+  similarVideos(@Param('id') id: string, @Query('limit') limit?: number) {
+    return this.recommendationsService.getSimilarVideos(id, limit ? Number(limit) : 10);
   }
 }
