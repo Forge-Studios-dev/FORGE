@@ -62,7 +62,7 @@ export function billingProviderFactory(
 
 import { WebhookIdempotencyModule } from '../../common/webhooks/webhook-idempotency.module';
 import { StreamingModule } from '../streaming/streaming.module';
-import { StripeTierSyncService } from './stripe-tier-sync.service';
+import { StripeTierSyncModule } from './stripe-tier-sync.module';
 import { StripeConnectService } from './stripe-connect.service';
 import { SubscriptionChangeService } from './subscription-change.service';
 import { UsersModule } from '../users/users.module';
@@ -72,17 +72,20 @@ import { User } from '../users/entities/user.entity';
 @Module({
   imports: [
     ConfigModule,
-    forwardRef(() => EntitlementsModule),
+    // EntitlementsModule no longer imports BillingModule back (see
+    // stripe-tier-sync.module.ts) — this is now a genuine one-way edge, so
+    // no forwardRef is needed on either side.
+    EntitlementsModule,
     WebhookIdempotencyModule,
     forwardRef(() => StreamingModule),
     UsersModule,
+    StripeTierSyncModule,
     TypeOrmModule.forFeature([StreamEventPurchase, Stream, User]),
   ],
   controllers: [BillingController],
   providers: [
     StubPaymentProvider,
     StripePaymentProvider,
-    StripeTierSyncService,
     StripeConnectService,
     SubscriptionChangeService,
     BillingService,
@@ -93,6 +96,6 @@ import { User } from '../users/entities/user.entity';
       useFactory: billingProviderFactory,
     },
   ],
-  exports: [PAYMENT_PROVIDER, BillingService, StubPaymentProvider, StripePaymentProvider, StripeTierSyncService, StripeConnectService, SubscriptionChangeService],
+  exports: [PAYMENT_PROVIDER, BillingService, StubPaymentProvider, StripePaymentProvider, StripeConnectService, SubscriptionChangeService],
 })
 export class BillingModule {}

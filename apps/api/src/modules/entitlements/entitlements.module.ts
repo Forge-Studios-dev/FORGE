@@ -12,7 +12,7 @@ import { EngagementModule } from '../engagement/engagement.module';
 import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
-import { BillingModule } from '../billing/billing.module';
+import { StripeTierSyncModule } from '../billing/stripe-tier-sync.module';
 
 @Module({
   imports: [
@@ -26,7 +26,11 @@ import { BillingModule } from '../billing/billing.module';
     ]),
     forwardRef(() => EngagementModule),
     forwardRef(() => UsersModule),
-    forwardRef(() => BillingModule),
+    // Previously forwardRef(() => BillingModule) purely to reach
+    // StripeTierSyncService — that service now lives in its own leaf
+    // module (see stripe-tier-sync.module.ts), which removes the
+    // Billing<->Entitlements module cycle entirely.
+    StripeTierSyncModule,
   ],
   controllers: [EntitlementsController],
   providers: [EntitlementsService, CreatorBundlesService, CreatorApprovedGuard, OptionalJwtAuthGuard],

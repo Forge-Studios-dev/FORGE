@@ -1,11 +1,9 @@
 import {
   BadRequestException,
   ForbiddenException,
-  Inject,
   Injectable,
   NotFoundException,
   Optional,
-  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -98,8 +96,7 @@ export class EntitlementsService {
     @InjectRedis() private readonly redis: Redis,
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
-    @Optional() @Inject(forwardRef(() => StripeTierSyncService))
-    private readonly stripeTierSync?: StripeTierSyncService,
+    @Optional() private readonly stripeTierSync?: StripeTierSyncService,
   ) {}
 
   private normalizedMonthlyMrrCents(priceCents: number, interval?: BillingInterval | null): number {
