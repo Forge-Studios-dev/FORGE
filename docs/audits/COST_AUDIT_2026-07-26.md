@@ -26,6 +26,19 @@ No new infra was added this audit. One config-drift bug was found and fixed (Fly
 
 ---
 
+## Re-run confirmation (2026-07-26, ~10h after initial audit)
+
+Re-pulled live state after the incident-chain fixes (#151–#154) and this report (#155) were all merged and deployed, to confirm the findings below still hold against current production rather than a stale snapshot:
+
+- **Fly machines**: `fly status` shows the same pattern predicted in finding #1 — machine `891243f65d7e08` `started`/passing, machine `874dd7b046d128` `stopped` (autostop reclaimed it again on its own). Confirms this isn't a one-off; it's the steady-state behavior, so the "not a flat 2× cost" read in finding #1 holds.
+- **Deploy stability**: last 2 production releases (`30171588865`, `30172414794` — the real routing fix and this audit's own docs merge) both **succeeded with no rollback**, versus the 3 failures immediately before them in the same run history. The `#153`/`#154` fix is durable, not a fluke.
+- **Neon connection churn (finding #3)**: `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"` call count is now **1,981** (up from 1,906 at first audit, ~10h earlier) — averaging roughly **+7.5 calls/hour**, consistent with ongoing connection churn at the same rate. Confirms this is a live, continuing pattern worth fixing, not noise from a single burst.
+- **Redis connections**: still 4 per sampled machine, unchanged, within budget.
+
+No findings changed. Fresh numbers folded into the table/findings below rather than duplicating the report.
+
+---
+
 ## Findings
 
 | # | Area | Issue | Cost impact | Fix | Est. savings | Risk if unfixed |
