@@ -1,5 +1,9 @@
 # Audits
 
+## Audit continuation & optimization pass — 2026-07-26
+
+Verified every open Critical/High finding from the master audit below against current code; 2 were already fixed (DM socket membership check, web/admin CI test execution), 4 more fixed this session (wipe-script blast radius, guard order, ipHash HMAC, S3 versioning). See [AUDIT_CONTINUATION_2026-07-26.md](./AUDIT_CONTINUATION_2026-07-26.md).
+
 ## Delta audit — 2026-07-22
 
 Re-verifies every Critical/High finding from the external 2026-07-12 production-readiness audit (`FORGE_Production_Readiness_Audit.docx`, repo root) against current code. 11 of 13 Critical/High items confirmed resolved; overall score moved ~65 → ~74/100. See [DELTA_AUDIT_2026-07-22.md](./DELTA_AUDIT_2026-07-22.md).

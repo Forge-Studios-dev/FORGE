@@ -57,6 +57,13 @@ aws s3api put-public-access-block \
   --public-access-block-configuration \
   "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
 
+# Versioning gives a recovery path for the unscoped DeleteObject grant below
+# (audit finding: no versioning + broad DeleteObject = unrecoverable deletes).
+echo "==> Enable versioning"
+aws s3api put-bucket-versioning \
+  --bucket "$BUCKET_NAME" \
+  --versioning-configuration Status=Enabled
+
 echo "==> CORS"
 CORS_FILE="$(mktemp)"
 cat >"$CORS_FILE" <<'EOF'
@@ -81,7 +88,7 @@ EOF
 aws s3api put-bucket-cors --bucket "$BUCKET_NAME" --cors-configuration "file://$CORS_FILE"
 rm -f "$CORS_FILE"
 
-echo "==> Lifecycle rule: abort incomplete multipart uploads after 7 days"
+echo "==> Lifecycle rules: abort incomplete multipart uploads after 7 days, expire noncurrent versions after 30 days"
 LIFECYCLE_FILE="$(mktemp)"
 cat >"$LIFECYCLE_FILE" <<'EOF'
 {
@@ -92,6 +99,14 @@ cat >"$LIFECYCLE_FILE" <<'EOF'
       "Filter": {},
       "AbortIncompleteMultipartUpload": {
         "DaysAfterInitiation": 7
+      }
+    },
+    {
+      "ID": "expire-noncurrent-versions",
+      "Status": "Enabled",
+      "Filter": {},
+      "NoncurrentVersionExpiration": {
+        "NoncurrentDays": 30
       }
     }
   ]

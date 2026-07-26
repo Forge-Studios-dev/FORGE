@@ -12,7 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { StringValue } from 'ms';
 import { DataSource, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, createHmac, randomBytes } from 'crypto';
 import { User, UserRole } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
@@ -499,7 +499,7 @@ export class AuthService {
     expiresAt.setDate(expiresAt.getDate() + parseInt(refreshExpiresIn, 10));
 
     const deviceLabel = this.deriveDeviceLabel(meta?.userAgent);
-    const ipHash = meta?.ip ? this.hashToken(meta.ip).slice(0, 128) : null;
+    const ipHash = meta?.ip ? this.hashIp(meta.ip).slice(0, 128) : null;
 
     const session = await this.refreshTokenRepository.save(
       this.refreshTokenRepository.create({
@@ -541,7 +541,7 @@ export class AuthService {
     meta: ClientSessionMeta | undefined,
     method: 'email' | 'google',
   ): Promise<void> {
-    const ipHash = meta?.ip ? this.hashToken(meta.ip).slice(0, 128) : null;
+    const ipHash = meta?.ip ? this.hashIp(meta.ip).slice(0, 128) : null;
     if (!ipHash) return;
 
     const prior = await this.refreshTokenRepository.find({
@@ -566,5 +566,15 @@ export class AuthService {
 
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  /**
+   * IPs are low-entropy (unlike refresh tokens), so a plain SHA-256 is
+   * brute-forceable via a precomputed table. HMAC with the server-only
+   * JWT secret closes that gap without a new env var.
+   */
+  private hashIp(ip: string): string {
+    const secret = this.configService.get<string>('jwt.secret') || '';
+    return createHmac('sha256', secret).update(ip).digest('hex');
   }
 }
