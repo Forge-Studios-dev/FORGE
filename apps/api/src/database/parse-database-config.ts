@@ -99,7 +99,13 @@ export function parseDatabaseConfig(
   const isNeon = isNeonDatabaseUrl(url);
   const poolMax = readInt(env.DB_POOL_MAX, isNeon ? 5 : 20);
   const connectTimeoutMs = readInt(env.DB_CONNECT_TIMEOUT_MS, 10_000);
-  const idleTimeoutMs = readInt(env.DB_POOL_IDLE_TIMEOUT_MS, isNeon ? 30_000 : 10_000);
+  // Neon default was 30s — shorter than several background job cadences (mux
+  // sync 45-90s), so the pool was closing and reopening a connection almost
+  // every job run. Each reconnect re-triggers TypeORM's CREATE EXTENSION
+  // uuid-ossp check (cost audit 2026-07-26: 1,906 calls in ~2 weeks, growing
+  // ~7.5/hour). 120s covers that cadence while staying well under Neon's
+  // 300s suspend_timeout_seconds, so true overnight autosuspend is unaffected.
+  const idleTimeoutMs = readInt(env.DB_POOL_IDLE_TIMEOUT_MS, isNeon ? 120_000 : 10_000);
   const slowQueryMs = readInt(env.DB_SLOW_QUERY_MS, 2000);
   const ssl = buildSslConfig(env, url, nodeEnv);
 
