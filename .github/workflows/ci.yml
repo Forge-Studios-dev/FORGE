@@ -59,7 +59,32 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npm audit --audit-level=critical
+      - name: Critical-severity audit gate
+        # npm's registry has been intermittently retiring/erroring the audit
+        # endpoints (both the legacy "quick" audit and the "bulk advisory"
+        # one) independent of any actual vulnerability data — `npm audit`
+        # exits 1 either way, so a bare `npm audit --audit-level=critical`
+        # can't distinguish "found a real critical vuln" (must block) from
+        # "npm's registry audit API is down" (must not block unrelated PRs).
+        # The JSON output shape differs: a registry-side failure has a
+        # top-level `.message`/`.error` and no `.metadata`; a real audit
+        # result always has `.metadata.vulnerabilities`. Only hard-fail on
+        # the latter shape reporting critical count > 0.
+        run: |
+          npm audit --audit-level=critical --json > audit-critical.json || true
+          if node -e "const r=require('./audit-critical.json'); process.exit(r.metadata ? 0 : 1)"; then
+            CRITICAL_COUNT=$(node -e "const r=require('./audit-critical.json'); console.log(r.metadata?.vulnerabilities?.critical||0)")
+            echo "Critical severity dependency findings: $CRITICAL_COUNT"
+            if [ "$CRITICAL_COUNT" -gt 0 ]; then
+              echo "::error::$CRITICAL_COUNT critical-severity vulnerabilities found — see npm audit --audit-level=critical locally"
+              exit 1
+            fi
+            exit 0
+          else
+            echo "::warning::npm audit endpoint unavailable (registry-side error, not a dependency finding) — see audit-critical.json. Not blocking; re-run locally once the registry recovers."
+            cat audit-critical.json
+            exit 0
+          fi
       # HIGH-05: high-severity findings (multer, nodemailer, ws, next, etc.)
       # were previously invisible — critical-only gate showed 0 findings while
       # dozens of high-severity ones accumulated. Non-blocking for now since
