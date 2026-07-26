@@ -29,18 +29,28 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   exit 1
 fi
 
-# Block accidental production wipes
-PROD_DB_MARKERS='neon.tech forgestudios.net production'
-for marker in $PROD_DB_MARKERS; do
-  if [[ "$DATABASE_URL" == *"$marker"* ]]; then
-    if [[ "${FORGE_WIPE_ALLOW_PRODUCTION:-}" != "yes" ]]; then
-      echo "ERROR: DATABASE_URL looks like production (matched: $marker)."
-      echo "  To override: FORGE_WIPE_ALLOW_PRODUCTION=yes FORGE_WIPE_CONFIRM=yes ..."
-      exit 1
+# Block accidental production wipes. Each destructive target (DB, S3) is
+# checked independently against its own naming convention — a stale prod
+# S3_BUCKET_NAME in the same .env as a local DATABASE_URL must not slip
+# through on the DB check alone. Redis has no reliable hostname convention
+# to match here, so it's gated instead by NOT forcing a bypass of
+# flush-redis.sh's own isLocal check below (see step 3/4).
+check_not_production() {
+  local label="$1" value="$2" markers="$3"
+  for marker in $markers; do
+    if [[ "$value" == *"$marker"* ]]; then
+      if [[ "${FORGE_WIPE_ALLOW_PRODUCTION:-}" != "yes" ]]; then
+        echo "ERROR: $label looks like production (matched: $marker)."
+        echo "  To override: FORGE_WIPE_ALLOW_PRODUCTION=yes FORGE_WIPE_CONFIRM=yes ..."
+        exit 1
+      fi
+      return
     fi
-    break
-  fi
-done
+  done
+}
+
+check_not_production "DATABASE_URL" "$DATABASE_URL" 'neon.tech forgestudios.net production'
+[[ -n "${S3_BUCKET_NAME:-}" ]] && check_not_production "S3_BUCKET_NAME" "$S3_BUCKET_NAME" 'forge-media-prod forge-media-staging'
 
 echo "=============================================="
 echo "  FORGE platform wipe (database + S3 + Redis)"
@@ -121,9 +131,14 @@ else
 fi
 
 # --- Redis (feed cache, video detail, BullMQ queues, rate limits) ---
+# Do NOT hardcode FORGE_FLUSH_CONFIRM=yes here: that used to unconditionally
+# bypass flush-redis.sh's own isLocal safety check, so a stale prod REDIS_URL
+# left in this .env would get FLUSHALL'd even when DATABASE_URL/S3_BUCKET_NAME
+# both correctly looked local. Only propagate the bypass when the operator
+# has already explicitly accepted production risk for this whole wipe.
 echo ""
 echo "[3/4] Flushing Redis..."
-FORGE_FLUSH_CONFIRM=yes bash "$ROOT/scripts/flush-redis.sh"
+FORGE_FLUSH_CONFIRM="${FORGE_WIPE_ALLOW_PRODUCTION:-}" bash "$ROOT/scripts/flush-redis.sh"
 
 # --- Re-seed ---
 echo ""

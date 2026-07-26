@@ -299,10 +299,13 @@ function sentryFilterProviders() {
     { provide: APP_INTERCEPTOR, useClass: ClsUserInterceptor },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // Throttle immediately after auth identifies the request, before the
+    // Roles/ConsumerOnly/Permissions chain spends CPU on a request that's
+    // about to be rejected anyway (audit finding, forge-performance.md).
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: ConsumerOnlyGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useExisting: EmailVerifiedGuard },
   ],
 })
