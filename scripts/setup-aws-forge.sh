@@ -81,6 +81,25 @@ EOF
 aws s3api put-bucket-cors --bucket "$BUCKET_NAME" --cors-configuration "file://$CORS_FILE"
 rm -f "$CORS_FILE"
 
+echo "==> Lifecycle rule: abort incomplete multipart uploads after 7 days"
+LIFECYCLE_FILE="$(mktemp)"
+cat >"$LIFECYCLE_FILE" <<'EOF'
+{
+  "Rules": [
+    {
+      "ID": "abort-incomplete-multipart-uploads",
+      "Status": "Enabled",
+      "Filter": {},
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 7
+      }
+    }
+  ]
+}
+EOF
+aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET_NAME" --lifecycle-configuration "file://$LIFECYCLE_FILE"
+rm -f "$LIFECYCLE_FILE"
+
 # --- IAM ---
 POLICY_DOC="$(mktemp)"
 cat >"$POLICY_DOC" <<EOF
