@@ -42,63 +42,67 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
 
   Future<void> _createPlaylist() async {
     final titleCtrl = TextEditingController();
-    var visibility = 'public';
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('New playlist'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleCtrl,
-                autofocus: true,
-                maxLength: 200,
-                decoration: const InputDecoration(hintText: 'Playlist title'),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Text('Visibility'),
-                  const Spacer(),
-                  DropdownButton<String>(
-                    value: visibility,
-                    items: const [
-                      DropdownMenuItem(value: 'public', child: Text('Public')),
-                      DropdownMenuItem(value: 'private', child: Text('Private')),
-                    ],
-                    onChanged: (v) => setLocal(() => visibility = v ?? 'public'),
-                  ),
-                ],
-              ),
+    try {
+      var visibility = 'public';
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            title: const Text('New playlist'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleCtrl,
+                  autofocus: true,
+                  maxLength: 200,
+                  decoration: const InputDecoration(hintText: 'Playlist title'),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Text('Visibility'),
+                    const Spacer(),
+                    DropdownButton<String>(
+                      value: visibility,
+                      items: const [
+                        DropdownMenuItem(value: 'public', child: Text('Public')),
+                        DropdownMenuItem(value: 'private', child: Text('Private')),
+                      ],
+                      onChanged: (v) => setLocal(() => visibility = v ?? 'public'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create')),
             ],
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create')),
-          ],
         ),
-      ),
-    );
+      );
 
-    if (result != true) return;
-    final title = titleCtrl.text.trim();
-    if (title.isEmpty) return;
+      if (result != true) return;
+      final title = titleCtrl.text.trim();
+      if (title.isEmpty) return;
 
-    setState(() => _creating = true);
-    try {
-      final api = ref.read(apiClientProvider);
-      await api.dio.post('/playlists', data: {'title': title, 'visibility': visibility});
-      await _load();
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not create playlist')),
-        );
+      setState(() => _creating = true);
+      try {
+        final api = ref.read(apiClientProvider);
+        await api.dio.post('/playlists', data: {'title': title, 'visibility': visibility});
+        await _load();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not create playlist')),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _creating = false);
       }
     } finally {
-      if (mounted) setState(() => _creating = false);
+      titleCtrl.dispose();
     }
   }
 

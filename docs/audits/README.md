@@ -1,5 +1,9 @@
 # Audits
 
+## Fresh full enterprise audit — 2026-07-26
+
+From-scratch 8-domain audit (architecture, backend/DB/API, security, web+admin frontend, mobile, DevOps/AWS, QA/testing, product/competitive) per `MASTERPROJECTAUDITPROMPT.md` + `prompt.md`, run as 7 independent parallel passes with no reliance on prior audit docs. 6 Critical / 23 High / 37 Medium / 22 Low findings (88 total). Overall score 6.9/10 (B-). See [FRESH_AUDIT_2026-07-26_MASTER.md](./FRESH_AUDIT_2026-07-26_MASTER.md) (synthesis + roadmap + scorecard + final verdict) and its 7 linked domain reports (`FRESH_AUDIT_2026-07-26_*.md`).
+
 ## Audit continuation & optimization pass — 2026-07-26
 
 Verified every open Critical/High finding from the master audit below against current code; 2 were already fixed (DM socket membership check, web/admin CI test execution), 4 more fixed this session (wipe-script blast radius, guard order, ipHash HMAC, S3 versioning). See [AUDIT_CONTINUATION_2026-07-26.md](./AUDIT_CONTINUATION_2026-07-26.md).
