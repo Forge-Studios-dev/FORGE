@@ -16,8 +16,8 @@ Legend: ⬜ not started · 🔄 in progress · ✅ done · ⏸️ blocked/deferr
 | C1 | `main` has no GitHub branch protection | ⬜ | Live GitHub-settings change — will confirm with user before applying (affects shared team workflow, not just local code) |
 | C2 | `CommunitiesService` god object (2,035 lines) | ⬜ | Large refactor, staged |
 | C3 | `Billing ⇄ Entitlements` circular dependency | ⬜ | Depends on understanding C2's extraction first (shared surface) |
-| C4 | Course pages client-only, missing SEO/sitemap | ⬜ | |
-| C5 | Mobile `TextEditingController` leak | ⬜ | Trivial, doing first |
+| C4 | Course pages client-only, missing SEO/sitemap | ✅ | `courses/[id]/page.tsx` + `discover/courses/page.tsx` converted to async Server Components with `generateMetadata`/static `metadata`, JSON-LD `Course` schema added; interactive parts extracted to `CourseViewerClient`/`CourseCatalogClient`. `sitemap.ts` now emits course routes (bounded via existing `courses/discover/featured?limit=24` — no bulk course-list endpoint exists yet, same bounded-fetch pattern as videos). Verified: `tsc --noEmit` clean, ESLint clean, full `next build` succeeds, both routes render. |
+| C5 | Mobile `TextEditingController` leak | ✅ | `playlists_screen.dart:44` — controller now created/disposed in try/finally. Verified: `flutter analyze` clean. |
 | C6 | No live/manual QA on flagship flows | ⬜ | Process item — will produce a manual verification checklist; actual click-through requires a running app + human/browser session, flagged explicitly |
 
 ## High (23) — tracked per domain, filled in as reached
