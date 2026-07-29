@@ -74,7 +74,7 @@ Legend: ⬜ not started · 🔄 in progress · ✅ done · ⚠️ partial · ⏸
 | M-Q2 | Cold-start onboarding | ✅ | /onboarding/interests |
 | M-M1 | Localization scaffolding | ✅ | flutter_localizations + arb |
 | M-M3 | Router errorBuilder | ✅ |
-| M-I1 | Mux/Neon/Redis WIP | ⚠️ | Code on branch (5m/15m + installExtensions:false); **not prod-deployed** |
+| M-I1 | Mux/Neon/Redis WIP | ✅ | Prod 2026-07-29: API+worker on main; Mux backup **300s→900s dormant** verified in worker logs; migration `1840000000000` recorded; `installExtensions:false` shipped |
 
 ---
 
