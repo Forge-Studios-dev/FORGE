@@ -82,7 +82,7 @@ class _StudioChannelPointsScreenState
       backgroundColor: ForgeTokens.background,
       appBar: AppBar(
         title: const Text('Channel points'),
-        backgroundColor: ForgeTokens.surface,
+        backgroundColor: ForgeTokens.surfaceContainer,
         foregroundColor: ForgeTokens.onSurface,
       ),
       body: _loading

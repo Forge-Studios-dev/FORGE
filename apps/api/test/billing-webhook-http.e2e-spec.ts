@@ -29,6 +29,7 @@ import { SubscriptionChangeService } from '../src/modules/billing/subscription-c
 import { PAYMENT_PROVIDER } from '../src/modules/billing/payment-provider.interface';
 import { WebhookIdempotencyService } from '../src/common/webhooks/webhook-idempotency.service';
 import { EntitlementsService } from '../src/modules/entitlements/entitlements.service';
+import { EntitlementsAnalyticsService } from '../src/modules/entitlements/entitlements-analytics.service';
 import { SubscriptionTier } from '../src/modules/entitlements/entities/subscription-tier.entity';
 import {
   MemberSubscription,
@@ -125,6 +126,21 @@ describe('POST /billing/webhook -> entitlement grant (HIGH-01)', () => {
         { provide: SubscriptionChangeService, useValue: {} },
         { provide: EngagementService, useValue: {} },
         { provide: ConfigService, useValue: { get: jest.fn() } },
+        {
+          provide: EntitlementsAnalyticsService,
+          useValue: {
+            listSubscribersForCreator: jest.fn().mockResolvedValue([]),
+            exportSubscribersCsv: jest.fn().mockResolvedValue(''),
+            getSubscriberAnalytics: jest.fn().mockResolvedValue({
+              active: 0,
+              trial: 0,
+              canceled: 0,
+              total: 0,
+              mrrCents: 0,
+              byStatus: {},
+            }),
+          },
+        },
         // Webhook route isn't guarded, but CreatorApprovedGuard is referenced via
         // @UseGuards on other controller routes, so Nest still constructs it at module
         // init — it's never invoked for /billing/webhook, so stub constructor deps.
@@ -151,7 +167,7 @@ describe('POST /billing/webhook -> entitlement grant (HIGH-01)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) await app.close();
   });
 
   it('grants an active subscription (real entitlement-unlock) when Stripe reports checkout.session.completed -> active subscription', async () => {

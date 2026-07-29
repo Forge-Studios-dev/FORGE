@@ -44,6 +44,7 @@ import '../../features/community/presentation/discover_communities_screen.dart';
 import '../../features/studio/presentation/studio_bundles_screen.dart';
 import '../../features/studio/presentation/studio_channel_points_screen.dart';
 import '../../features/studio/presentation/studio_mentorship_screen.dart';
+import '../../features/studio/presentation/studio_copilot_screen.dart';
 import '../../features/profile/presentation/program_viewer_screen.dart';
 import '../../features/profile/presentation/my_memberships_screen.dart';
 import '../../features/profile/presentation/profile_settings_screen.dart';

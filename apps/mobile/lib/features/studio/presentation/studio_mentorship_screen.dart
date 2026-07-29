@@ -95,7 +95,7 @@ class _StudioMentorshipScreenState
       backgroundColor: ForgeTokens.background,
       appBar: AppBar(
         title: const Text('Mentorship'),
-        backgroundColor: ForgeTokens.surface,
+        backgroundColor: ForgeTokens.surfaceContainer,
         foregroundColor: ForgeTokens.onSurface,
       ),
       body: _loading
