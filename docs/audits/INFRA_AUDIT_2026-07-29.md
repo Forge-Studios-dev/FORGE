@@ -4,6 +4,8 @@
 **Method:** Live Fly CLI + code/config inventory. Neon / AWS / Mux / Vercel dashboards **not** available this session (credentials unset / AWS token invalid).  
 **Branch:** `fix/production-hardening-audit-2026-07-26`
 
+> **Addendum (2026-07-29 Wave 4):** Mux 5m/15m + `installExtensions: false` are **live in prod** (worker logs: backup every 300s → 900s dormant). Migration `1840000000000` recorded. Automated Release still hits intermittent `bom` `release_command` capacity — operator path in [`FLY_SLO.md`](../operations/FLY_SLO.md).
+
 ---
 
 ## Executive summary
