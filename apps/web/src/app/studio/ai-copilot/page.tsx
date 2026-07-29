@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { EmptyState, Icon, ListSkeleton, PageHeader, StatusPill } from '@forge/design-system';
