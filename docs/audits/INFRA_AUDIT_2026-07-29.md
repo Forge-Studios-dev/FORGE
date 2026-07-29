@@ -116,8 +116,12 @@ Tracker: [`IMPLEMENTATION_TRACKER_2026-07-26.md`](./IMPLEMENTATION_TRACKER_2026-
 
 Completed on branch `fix/production-hardening-audit-2026-07-26` without production deploy:
 
-- CommunitiesService split + 156 community tests previously green  
-- Entitlements analytics extraction + reports index migration authored  
+- CommunitiesService split + community tests green
+- Entitlements analytics extraction + reports index migration authored
+- Mux 5m/15m + `installExtensions: false` **committed** (PR #161); **not** on prod image yet
+- Live Neon (2026-07-29): ~40MB DB, no slow app queries; CU active_time ~2.4M s in window
+- Live Fly: API 2× bom healthy; worker 1× bom healthy
+- See [FRESH_AUDIT_2026-07-29_MASTER.md](./FRESH_AUDIT_2026-07-29_MASTER.md)
 - Gateway broadcast listener extraction; gateway specs updated  
 - Recommendations trending Redis cache + unit specs  
 - DevOps pin/CODEOWNERS/dockerignore/HEALTHCHECK/CSRF/JWT purpose  

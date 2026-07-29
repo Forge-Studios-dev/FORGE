@@ -41,12 +41,14 @@ export default function StudioTiersPage() {
 
   const { data: connectStatus } = useQuery({
     queryKey: ['stripe-connect-status', user?.id],
-    enabled: !!user?.id && isCreator && BILLING_ENABLED,
+    enabled: !!user?.id && isCreator,
     queryFn: async () => {
       const { data } = await api.get<{
         data: {
           connected: boolean;
           payoutsEnabled: boolean;
+          chargesEnabled?: boolean;
+          detailsSubmitted?: boolean;
           message?: string;
         };
       }>('/billing/connect/status');
@@ -101,14 +103,14 @@ export default function StudioTiersPage() {
 
   if (!isCreator) {
     return (
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main className="space-y-6">
         <p className="text-sm text-on-surface-variant">Creator access required.</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
+    <main className="space-y-6">
       <PageHeader
         title="Membership tiers"
         subtitle={
@@ -118,24 +120,46 @@ export default function StudioTiersPage() {
         }
       />
 
-      {BILLING_ENABLED ? (
-        <section className="glass-panel mb-8 space-y-3 rounded-xl p-6">
-          <h2 className="font-label-caps text-outline">Payouts (Stripe Connect)</h2>
-          <p className="text-sm text-on-surface-variant">
-            {connectStatus?.message ?? 'Connect your Stripe account to receive membership revenue.'}
-          </p>
-          {connectStatus?.payoutsEnabled ? (
-            <p className="text-sm font-medium text-primary">Payouts enabled</p>
-          ) : (
-            <Button
-              disabled={connectOnboardMutation.isPending}
-              onClick={() => connectOnboardMutation.mutate()}
-            >
-              {connectStatus?.connected ? 'Complete onboarding' : 'Connect Stripe'}
-            </Button>
-          )}
-        </section>
-      ) : null}
+      <section className="glass-panel mb-8 space-y-3 rounded-xl p-6">
+        <h2 className="font-label-caps text-outline">Payouts (Stripe Connect)</h2>
+        <p className="text-sm text-on-surface-variant">
+          {connectStatus?.message ??
+            (BILLING_ENABLED
+              ? 'Connect your Stripe account to receive membership revenue.'
+              : 'Stripe billing is not enabled in this environment.')}
+        </p>
+        <dl className="grid gap-1 text-sm text-on-surface-variant sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-outline">Connected</dt>
+            <dd className="font-medium text-on-surface">
+              {connectStatus?.connected ? 'Yes' : 'No'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-outline">Charges</dt>
+            <dd className="font-medium text-on-surface">
+              {connectStatus?.chargesEnabled ? 'Enabled' : 'Off'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-outline">Payouts</dt>
+            <dd className="font-medium text-on-surface">
+              {connectStatus?.payoutsEnabled ? 'Enabled' : 'Off'}
+            </dd>
+          </div>
+        </dl>
+        {BILLING_ENABLED && !connectStatus?.payoutsEnabled ? (
+          <Button
+            disabled={connectOnboardMutation.isPending}
+            onClick={() => connectOnboardMutation.mutate()}
+          >
+            {connectStatus?.connected ? 'Complete onboarding' : 'Connect Stripe'}
+          </Button>
+        ) : null}
+        {connectStatus?.payoutsEnabled ? (
+          <p className="text-sm font-medium text-primary">Ready to receive payouts</p>
+        ) : null}
+      </section>
 
       <section className="glass-panel mb-8 space-y-4 rounded-xl p-6">
         <h2 className="font-label-caps text-outline">New tier</h2>

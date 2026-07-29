@@ -42,7 +42,8 @@ import '../../features/studio/presentation/course_viewer_screen.dart';
 import '../../features/courses/presentation/discover_courses_screen.dart';
 import '../../features/community/presentation/discover_communities_screen.dart';
 import '../../features/studio/presentation/studio_bundles_screen.dart';
-import '../../features/studio/presentation/studio_copilot_screen.dart';
+import '../../features/studio/presentation/studio_channel_points_screen.dart';
+import '../../features/studio/presentation/studio_mentorship_screen.dart';
 import '../../features/profile/presentation/program_viewer_screen.dart';
 import '../../features/profile/presentation/my_memberships_screen.dart';
 import '../../features/profile/presentation/profile_settings_screen.dart';
@@ -246,6 +247,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/discover/communities', builder: (_, __) => const DiscoverCommunitiesScreen()),
       GoRoute(path: '/discover/courses', builder: (_, __) => const DiscoverCoursesScreen()),
+      GoRoute(path: '/studio/channel-points', builder: (_, __) => const StudioChannelPointsScreen()),
+      GoRoute(path: '/studio/mentorship', builder: (_, __) => const StudioMentorshipScreen()),
       GoRoute(path: '/studio/settings', builder: (_, __) => const StudioSettingsScreen()),
       GoRoute(path: '/studio/copilot', builder: (_, __) => const StudioCopilotScreen()),
       GoRoute(path: '/profile/settings', builder: (_, __) => const ProfileSettingsScreen()),

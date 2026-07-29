@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
@@ -29,6 +30,7 @@ export class StreamViewerService implements OnModuleInit, OnModuleDestroy {
     private readonly streamRepository: Repository<Stream>,
     private readonly streamAnalyticsService: StreamAnalyticsService,
     private readonly configService: ConfigService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   onModuleInit() {
@@ -68,6 +70,7 @@ export class StreamViewerService implements OnModuleInit, OnModuleDestroy {
     const key = this.uniqueViewerKey(streamId);
     await this.redis.pfadd(key, userId);
     await this.redis.expire(key, 86_400 * 7);
+    this.eventEmitter.emit('stream.viewer.joined', { streamId, userId });
   }
 
   async getUniqueViewerCount(streamId: string): Promise<number> {

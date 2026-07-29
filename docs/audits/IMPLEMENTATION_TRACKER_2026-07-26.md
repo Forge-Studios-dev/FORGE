@@ -2,7 +2,7 @@
 
 **Source of truth:** [FRESH_AUDIT_2026-07-26_MASTER.md](./FRESH_AUDIT_2026-07-26_MASTER.md) + [INFRA_AUDIT_2026-07-29.md](./INFRA_AUDIT_2026-07-29.md).  
 **Branch:** `fix/production-hardening-audit-2026-07-26`  
-**Updated:** 2026-07-29 (Wave 1 hardening commit — honest status)
+**Updated:** 2026-07-29 (Wave 1–3: hardening + live audit + Creator Economy surfaces)
 
 Legend: ⬜ not started · 🔄 in progress · ✅ done · ⚠️ partial · ⏸️ blocked/deferred · ❌ out of scope this pass
 
@@ -101,9 +101,23 @@ Legend: ⬜ not started · 🔄 in progress · ✅ done · ⚠️ partial · ⏸
 
 ---
 
+## Wave 3 Creator Economy (2026-07-29)
+
+| Item | Status |
+|------|--------|
+| Admin channel-points oversight | ✅ API + UI |
+| Admin mentorship overview | ✅ API + UI |
+| CP earn (chat + watch) | ✅ room/stream chat + viewer join |
+| Connect status productization | ✅ Studio tiers always shows status |
+| Mobile CP + mentorship | ✅ routes + screens |
+| Onboarding → recs | ✅ categories UUIDs + Redis interests |
+
+---
+
 ## Verification
 
-- Targeted API unit suites: streaming, communities, entitlements, gateway, recommendations, auth-cookies.
-- Full `ci:local` before PR merge.
+- Targeted API unit suites: streaming, communities, entitlements, gateway, recommendations, auth-cookies, channel-points, stream-viewer.
+- `shared-types` CSRF build fixed (`globalThis`).
+- Full `ci:local` re-run recommended after Wave 3 push.
 - Fly deploy of Mux-interval hardening **not** done — requires explicit user request.
-- Neon/AWS/Mux live metrics filled in Wave 2 when credentials available.
+- Neon live metrics: [FRESH_AUDIT_2026-07-29_MASTER.md](./FRESH_AUDIT_2026-07-29_MASTER.md).

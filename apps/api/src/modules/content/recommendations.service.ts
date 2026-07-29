@@ -53,7 +53,22 @@ export class RecommendationsService {
        LIMIT 5`,
       [userId],
     );
-    const categoryIds = topCategories.map((r) => r.category_id);
+    let categoryIds = topCategories.map((r) => r.category_id);
+
+    // Cold-start: seed from onboarding interests when watch history has no categories
+    if (!categoryIds.length) {
+      const raw = await safeRedisGet(this.redis, `user:interests:${userId}`, this.logger);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as unknown;
+          if (Array.isArray(parsed)) {
+            categoryIds = parsed.filter((x): x is string => typeof x === 'string').slice(0, 5);
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+    }
 
     // Get already-watched video IDs (last 200)
     const watched = await this.dataSource.query<{ video_id: string }[]>(

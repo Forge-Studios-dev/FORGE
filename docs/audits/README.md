@@ -1,5 +1,9 @@
 # Audits
 
+## Fresh audit + remediation — 2026-07-29
+
+Independent re-audit + Wave 1–3 program (hardening PR, live Neon/Fly, Creator Economy surfaces). See [FRESH_AUDIT_2026-07-29_MASTER.md](./FRESH_AUDIT_2026-07-29_MASTER.md). Tracker: [IMPLEMENTATION_TRACKER_2026-07-26.md](./IMPLEMENTATION_TRACKER_2026-07-26.md). PR: https://github.com/Forge-Studios-dev/FORGE/pull/161
+
 ## Infrastructure audit — 2026-07-29
 
 Fresh SRE/FinOps audit (high server-usage RCA) per `new_dataprompt.md`, live Fly inventory + code merge against July-26 findings. See [INFRA_AUDIT_2026-07-29.md](./INFRA_AUDIT_2026-07-29.md). Full remediation tracker: [IMPLEMENTATION_TRACKER_2026-07-26.md](./IMPLEMENTATION_TRACKER_2026-07-26.md).

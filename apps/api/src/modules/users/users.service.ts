@@ -2,10 +2,13 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { Repository, ILike } from 'typeorm';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -16,9 +19,13 @@ import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.e
 import { VideosService } from '../content/videos.service';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { ModerationStatus } from '../content/entities/video.entity';
+import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
+
+const INTERESTS_TTL_SEC = 60 * 60 * 24 * 365;
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
   private readonly s3: S3Client;
   private readonly bucket: string;
 
@@ -31,6 +38,7 @@ export class UsersService {
     private readonly watchHistoryRepository: Repository<WatchHistory>,
     private readonly videosService: VideosService,
     private readonly configService: ConfigService,
+    @InjectRedis() private readonly redis: Redis,
   ) {
     this.s3 = new S3Client({
       region: configService.get<string>('aws.region'),
@@ -219,5 +227,37 @@ export class UsersService {
     const user = await this.findById(userId);
     user.matureContentAcknowledgedAt = new Date();
     return this.userRepository.save(user);
+  }
+
+  private interestsKey(userId: string) {
+    return `user:interests:${userId}`;
+  }
+
+  async setInterestCategoryIds(userId: string, categoryIds: string[]) {
+    const cleaned = [...new Set(categoryIds.map((id) => id.trim()).filter(Boolean))].slice(0, 20);
+    const uuidRe =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (cleaned.some((id) => !uuidRe.test(id))) {
+      throw new BadRequestException('categoryIds must be valid UUIDs');
+    }
+    await safeRedisSetex(
+      this.redis,
+      this.interestsKey(userId),
+      INTERESTS_TTL_SEC,
+      JSON.stringify(cleaned),
+      this.logger,
+    );
+    return { categoryIds: cleaned };
+  }
+
+  async getInterestCategoryIds(userId: string): Promise<string[]> {
+    const raw = await safeRedisGet(this.redis, this.interestsKey(userId), this.logger);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
   }
 }
