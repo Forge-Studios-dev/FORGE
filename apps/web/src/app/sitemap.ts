@@ -31,8 +31,9 @@ async function fetchPublicVideos(): Promise<Video[]> {
         params: { limit: PAGE_SIZE, ...(cursor ? { cursor } : {}) },
       });
       const feed: PaginatedResponse<Video> = data.data;
+      if (!feed?.data || !Array.isArray(feed.data)) break;
       videos.push(...feed.data);
-      if (!feed.meta.hasMore || !feed.meta.cursor) break;
+      if (!feed.meta?.hasMore || !feed.meta?.cursor) break;
       cursor = feed.meta.cursor;
     } catch {
       break;
@@ -46,7 +47,8 @@ async function fetchPublicCourses(): Promise<SitemapCourse[]> {
     const { data } = await serverApi.get('/courses/discover/featured', {
       params: { limit: MAX_FEATURED_COURSES },
     });
-    return data.data ?? [];
+    const payload = data.data;
+    return Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
   } catch {
     return [];
   }
@@ -55,10 +57,10 @@ async function fetchPublicCourses(): Promise<SitemapCourse[]> {
 async function fetchSkillTagSlugs(): Promise<string[]> {
   try {
     const { data } = await serverApi.get('/categories/upload-options');
-    const categories: UploadCategoryOption[] = data.data ?? [];
+    const categories: UploadCategoryOption[] = Array.isArray(data.data) ? data.data : [];
     const slugs = new Set<string>();
     for (const category of categories) {
-      for (const tag of category.skillTags) slugs.add(tag.slug);
+      for (const tag of category.skillTags ?? []) slugs.add(tag.slug);
     }
     return [...slugs];
   } catch {

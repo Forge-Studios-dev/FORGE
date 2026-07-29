@@ -41,7 +41,7 @@ export function PodcastsListing() {
 
       {isLoading ? (
         <div className="mt-8">
-          <ListSkeleton count={6} />
+          <ListSkeleton rows={6} />
         </div>
       ) : !data?.length ? (
         <div className="mt-12 text-center">

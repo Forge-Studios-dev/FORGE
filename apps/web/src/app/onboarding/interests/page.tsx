@@ -15,7 +15,7 @@ type Category = { id: string; name: string; slug?: string };
 /** Cold-start interest picker — stores real category UUIDs for recommendations. */
 export default function InterestsOnboardingPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { isGuest } = useAuth();
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -45,7 +45,7 @@ export default function InterestsOnboardingPage() {
     try {
       localStorage.setItem(INTEREST_KEY, JSON.stringify(selected));
       localStorage.setItem(DONE_KEY, 'true');
-      if (isAuthenticated && selected.length) {
+      if (!isGuest && selected.length) {
         await api.put('/users/me/interests', { categoryIds: selected });
       }
       router.push('/');
