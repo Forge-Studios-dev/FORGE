@@ -13,7 +13,7 @@
 
 Wave 1 hardening is committed and in PR #161 (Mux 5m/15m backup cadence, `installExtensions: false`, Communities/gateway/entitlements extractions, JWT purpose, shared CSRF, reports index migration, DevOps pins). Tracker statuses were marked **partial** where honesty required.
 
-Live Neon shows a small ~40MB production DB with no application-query latency hotspots (slowest app queries &lt;30ms mean). Fly inventory matches prior audit: 2× API + 1× worker in `bom`, healthy. **Prod still runs old Mux poll intervals until Fly deploy.**
+Live Neon shows a small ~40MB production DB with no application-query latency hotspots (slowest app queries &lt;30ms mean). Fly inventory: 2× API + 1× worker in `bom`, healthy. **Wave 4 complete 2026-07-29:** PR #161 merged; API+worker redeployed (BOM release_command capacity required `--skip-release-command` after Neon pre-applied `1840000000000`); worker logs show Mux backup **every 300s** then adapt to **every 900s** when dormant.
 
 Wave 3 (Creator Economy surfaces) lands admin CP/mentorship oversight, earn hooks for chat/watch, Connect status clarity, mobile Studio CP/mentorship, and onboarding→recommendations via Redis interests.
 
@@ -58,8 +58,8 @@ Mux minute/cost tables · AWS Cost Explorer / live S3 versioning apply · Vercel
 |----|-------|------------|
 | C1–C5 | Mostly ✅ | Confirmed (C2 still facade ~900 LOC — ⚠️) |
 | C6 | Checklist | ⚠️ Process only |
-| H-* remediations | Claimed ✅ in WT | Committed in Wave 1; several ⚠️ partial (H-A1, H-M1, H-M2, M-I1) |
-| Mux/Neon idle | WIP | Code committed; **prod pending deploy** |
+| H-* remediations | Claimed ✅ in WT | Committed in Wave 1; several ⚠️ partial (H-A1, H-M1, H-M2); M-I1 ✅ prod |
+| Mux/Neon idle | WIP | ✅ Prod 2026-07-29 (Mux 300s→900s dormant verified) |
 | H-F4 / H-M4 / H-Q3 / F-1101 / F-1302 | Deferred | Still deferred |
 
 ---
@@ -95,8 +95,8 @@ Gaps deferred: full Connect payout ledger/tax, semantic search, concurrent-sessi
 
 | Priority | Item | Effort |
 |----------|------|--------|
-| P0 | Fly deploy API+worker after PR merge (Mux/Neon savings) | Ops |
-| P0 | Apply migration `1840000000000` on deploy | Ops |
+| P0 | ~~Fly deploy API+worker after PR merge~~ | ✅ 2026-07-29 |
+| P0 | ~~Apply migration `1840000000000`~~ | ✅ recorded + index present |
 | P1 | Operator C6 flagship checklist on staging | 1 day |
 | P2 | F-1101 Connect payouts when product trigger | Large |
 | P2 | H-F4 / H-M4 incremental | Medium |
@@ -106,4 +106,4 @@ Gaps deferred: full Connect payout ledger/tax, semantic search, concurrent-sessi
 
 ## Wave 4 gate
 
-Production deploy / merge to `main` requires **explicit user authorization** per `forge-ship` and this program plan.
+**Closed 2026-07-29** (user-authorized finish-outstanding). PR #161 merged to `main`; Fly API+worker live on merge SHA; Vercel web/admin deployed via Deploy Web & Admin workflow. Note: automated Release failed twice on `no capacity available in bom` for `release_command` — mitigated with out-of-band migration bookkeeping + `--skip-release-command` manual deploy; release.yml retries then **fails closed** (no silent schema skip).

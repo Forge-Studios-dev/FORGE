@@ -74,7 +74,7 @@ Legend: ⬜ not started · 🔄 in progress · ✅ done · ⚠️ partial · ⏸
 | M-Q2 | Cold-start onboarding | ✅ | /onboarding/interests |
 | M-M1 | Localization scaffolding | ✅ | flutter_localizations + arb |
 | M-M3 | Router errorBuilder | ✅ |
-| M-I1 | Mux/Neon/Redis WIP | ⚠️ | Code on branch (5m/15m + installExtensions:false); **not prod-deployed** |
+| M-I1 | Mux/Neon/Redis WIP | ✅ Prod 2026-07-29 (Mux 300s→900s dormant; migration 184 recorded; installExtensions:false) |
 
 ---
 
@@ -119,5 +119,5 @@ Legend: ⬜ not started · 🔄 in progress · ✅ done · ⚠️ partial · ⏸
 - Targeted API unit suites: streaming, communities, entitlements, gateway, recommendations, auth-cookies, channel-points, stream-viewer.
 - `shared-types` CSRF build fixed (`globalThis`).
 - Full `ci:local` re-run recommended after Wave 3 push.
-- Fly deploy of Mux-interval hardening **not** done — requires explicit user request.
+- Fly deploy of Mux-interval hardening: **done 2026-07-29** (API+worker; Vercel web/admin via Deploy workflow).
 - Neon live metrics: [FRESH_AUDIT_2026-07-29_MASTER.md](./FRESH_AUDIT_2026-07-29_MASTER.md).

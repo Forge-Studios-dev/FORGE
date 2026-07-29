@@ -91,7 +91,30 @@ jobs:
         # counts the primary region — a sin primary left bom VMs unprotected
         # under auto_stop and caused cold-start proxy 502s. Release VM size is
         # already reduced in fly.toml [deploy.release_command_vm] for bom capacity.
-        run: flyctl deploy --remote-only --primary-region bom --regions bom
+        # Do NOT silently --skip-release-command: that can ship an image whose
+        # schema migrations never ran. On capacity exhaustion, fail closed and
+        # require out-of-band migration + manual redeploy (see FLY_SLO / Wave 4).
+        run: |
+          set +e
+          for attempt in 1 2 3 4 5; do
+            echo "Deploy attempt $attempt"
+            OUT=$(mktemp)
+            flyctl deploy --remote-only --primary-region bom --regions bom 2>&1 | tee "$OUT"
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -eq 0 ]; then
+              exit 0
+            fi
+            if grep -qi 'no capacity available in bom' "$OUT"; then
+              if [ "$attempt" -lt 5 ]; then
+                echo "BOM release_command capacity miss — sleeping before retry"
+                sleep $((attempt * 45))
+              fi
+              continue
+            fi
+            exit "$rc"
+          done
+          echo "::error::BOM capacity exhausted for release_command VM. Apply pending TypeORM migrations out-of-band (Neon / machine run), then: flyctl deploy --remote-only --primary-region bom --regions bom --skip-release-command"
+          exit 1
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -129,7 +152,9 @@ jobs:
           PREV_IMAGE=$(flyctl releases -a forge-studios-api --json --image 2>/dev/null | jq -r 'if length > 1 then .[1].imageRef // .[1].ImageRef // empty else empty end')
           if [ -n "$PREV_IMAGE" ]; then
             echo "Rolling back to previous image: $PREV_IMAGE"
-            flyctl deploy --image "$PREV_IMAGE" -a forge-studios-api --primary-region bom --regions bom
+            # Skip release_command — schema is already at the failed attempt's
+            # migration head (or unchanged); re-running needs another bom VM.
+            flyctl deploy --image "$PREV_IMAGE" -a forge-studios-api --primary-region bom --regions bom --skip-release-command
           else
             echo "No previous release image available for rollback"
           fi
