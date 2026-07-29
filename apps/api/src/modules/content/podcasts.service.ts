@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { PodcastSeries } from './entities/podcast-series.entity';
 import { Video, VideoType } from './entities/video.entity';
+import { clampLimit, clampPage } from '../../common/utils/pagination.util';
 
 @Injectable()
 export class PodcastsService {
@@ -43,10 +44,17 @@ export class PodcastsService {
     );
   }
 
-  async listSeries(userId: string): Promise<{ data: PodcastSeries[] }> {
+  async listSeries(
+    userId: string,
+    opts: { page?: unknown; limit?: unknown } = {},
+  ): Promise<{ data: PodcastSeries[] }> {
+    const take = clampLimit(opts.limit);
+    const skip = (clampPage(opts.page) - 1) * take;
     const data = await this.seriesRepository.find({
       where: { userId },
       order: { createdAt: 'DESC' },
+      take,
+      skip,
     });
     return { data };
   }

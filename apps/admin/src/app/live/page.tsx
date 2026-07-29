@@ -39,7 +39,13 @@ export default function AdminLivePage() {
       }>('/admin/streams?limit=50');
       return res.data;
     },
-    refetchInterval: 60_000,
+    refetchInterval: (q) => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return false;
+      const streams = q.state.data ?? [];
+      const hasLive = streams.some((s) => s.status === 'live' || s.status === 'idle');
+      // No admin socket client yet — slow safety poll only while something is active.
+      return hasLive ? 90_000 : 180_000;
+    },
   });
 
   const { data: chatData, refetch: refetchChat } = useQuery({
@@ -51,7 +57,11 @@ export default function AdminLivePage() {
       }>(`/admin/streams/${chatStreamId}/chat?limit=80`);
       return res.data.data;
     },
-    refetchInterval: chatStreamId ? 60_000 : false,
+    refetchInterval: () => {
+      if (!chatStreamId) return false;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return false;
+      return 90_000;
+    },
   });
 
   const forceEnd = useMutation({
@@ -164,7 +174,22 @@ export default function AdminLivePage() {
         </div>
       ) : null}
       {isLoading ? (
-        <p className="text-on-surface-variant">Loading…</p>
+        <ul className="space-y-3" aria-busy="true" aria-label="Loading streams">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <li key={i} className="glass-panel animate-pulse rounded-xl p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-2">
+                  <div className="h-4 w-48 rounded bg-surface-container-high" />
+                  <div className="h-3 w-64 rounded bg-surface-container-high" />
+                </div>
+                <div className="flex gap-2">
+                  <div className="h-8 w-20 rounded-lg bg-surface-container-high" />
+                  <div className="h-8 w-20 rounded-lg bg-surface-container-high" />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
       ) : !data?.length ? (
         <p className="text-on-surface-variant">No streams found.</p>
       ) : (

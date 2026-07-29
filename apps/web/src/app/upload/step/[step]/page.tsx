@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { PageHeader } from '@forge/design-system';
+import { Icon, PageHeader } from '@forge/design-system';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
 import { useAuth } from '@/lib/auth';
 import {
@@ -232,8 +232,50 @@ export default function UploadStepPage() {
   };
 
   return (
-    <main className="mx-auto max-w-xl px-5 py-8 md:px-12">
-      <PageHeader title={`Upload — Step ${step} of ${TOTAL}`} subtitle="Publish a new lesson" />
+    <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
+      <PageHeader
+        title="Upload a lesson"
+        subtitle={
+          step === 1
+            ? 'Add title, category, skills, and an optional thumbnail'
+            : step === 2
+              ? 'Upload your video file'
+              : 'Review visibility and publish'
+        }
+      />
+
+      <nav aria-label="Upload steps" className="mb-6 flex flex-wrap gap-2">
+        {[
+          { n: 1, label: 'Details' },
+          { n: 2, label: 'Upload' },
+          { n: 3, label: 'Publish' },
+        ].map((item) => {
+          const active = step === item.n;
+          const done = step > item.n;
+          return (
+            <div
+              key={item.n}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${
+                active
+                  ? 'border-primary/40 bg-primary/10 text-on-surface'
+                  : done
+                    ? 'border-outline-variant/40 text-on-surface-variant'
+                    : 'border-outline-variant/20 text-outline'
+              }`}
+            >
+              <span
+                className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
+                  active || done ? 'bg-primary/20 text-primary' : 'bg-surface-container-high'
+                }`}
+              >
+                {done ? '✓' : item.n}
+              </span>
+              {item.label}
+            </div>
+          );
+        })}
+      </nav>
+
       <div className="mb-6 h-1 overflow-hidden rounded-full bg-surface-container-high">
         <div
           className="h-full bg-primary transition-all"
@@ -373,7 +415,7 @@ export default function UploadStepPage() {
         {step === 2 && (
           <>
             <span className="block font-label-caps text-outline">Video file</span>
-            <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-outline-variant p-12 text-center text-on-surface-variant hover:border-primary">
+            <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-12 text-center text-on-surface-variant hover:border-primary">
               <input
                 type="file"
                 accept="video/mp4,video/quicktime,.mp4,.mov"
@@ -386,7 +428,11 @@ export default function UploadStepPage() {
                   {file ? ` · ${(file.size / (1024 * 1024)).toFixed(1)} MB` : null}
                 </span>
               ) : (
-                <span>Drop video or click to browse (MP4/MOV, max 500MB)</span>
+                <>
+                  <Icon name="cloud_upload" className="mb-2 text-4xl text-primary" />
+                  <span className="font-medium text-on-surface">Drag video here or click to browse</span>
+                  <span className="mt-1 text-sm">MP4 / MOV · resumable upload</span>
+                </>
               )}
             </label>
           </>

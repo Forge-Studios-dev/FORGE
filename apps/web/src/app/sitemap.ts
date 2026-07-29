@@ -10,6 +10,13 @@ export const revalidate = 3600; // hourly — balances SEO freshness against API
 const MAX_VIDEO_PAGES = 10;
 const PAGE_SIZE = 50;
 
+// Courses have no bulk-paginated public endpoint yet (only featured/search) —
+// reuse the featured endpoint at its own max cap, same bounded-fetch pattern
+// as videos above. Revisit if/when a paginated `courses/discover` list ships.
+const MAX_FEATURED_COURSES = 24;
+
+type SitemapCourse = { id: string; createdAt?: string };
+
 type UploadCategoryOption = {
   slug: string;
   skillTags: Array<{ slug: string }>;
@@ -24,8 +31,9 @@ async function fetchPublicVideos(): Promise<Video[]> {
         params: { limit: PAGE_SIZE, ...(cursor ? { cursor } : {}) },
       });
       const feed: PaginatedResponse<Video> = data.data;
+      if (!feed?.data || !Array.isArray(feed.data)) break;
       videos.push(...feed.data);
-      if (!feed.meta.hasMore || !feed.meta.cursor) break;
+      if (!feed.meta?.hasMore || !feed.meta?.cursor) break;
       cursor = feed.meta.cursor;
     } catch {
       break;
@@ -34,13 +42,25 @@ async function fetchPublicVideos(): Promise<Video[]> {
   return videos;
 }
 
+async function fetchPublicCourses(): Promise<SitemapCourse[]> {
+  try {
+    const { data } = await serverApi.get('/courses/discover/featured', {
+      params: { limit: MAX_FEATURED_COURSES },
+    });
+    const payload = data.data;
+    return Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+  } catch {
+    return [];
+  }
+}
+
 async function fetchSkillTagSlugs(): Promise<string[]> {
   try {
     const { data } = await serverApi.get('/categories/upload-options');
-    const categories: UploadCategoryOption[] = data.data ?? [];
+    const categories: UploadCategoryOption[] = Array.isArray(data.data) ? data.data : [];
     const slugs = new Set<string>();
     for (const category of categories) {
-      for (const tag of category.skillTags) slugs.add(tag.slug);
+      for (const tag of category.skillTags ?? []) slugs.add(tag.slug);
     }
     return [...slugs];
   } catch {
@@ -49,7 +69,11 @@ async function fetchSkillTagSlugs(): Promise<string[]> {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [videos, skillTagSlugs] = await Promise.all([fetchPublicVideos(), fetchSkillTagSlugs()]);
+  const [videos, skillTagSlugs, courses] = await Promise.all([
+    fetchPublicVideos(),
+    fetchSkillTagSlugs(),
+    fetchPublicCourses(),
+  ]);
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, changeFrequency: 'daily', priority: 1 },
@@ -80,5 +104,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
-  return [...staticRoutes, ...skillRoutes, ...videoRoutes, ...creatorRoutes];
+  const courseRoutes: MetadataRoute.Sitemap = courses.map((course) => ({
+    url: `${SITE_URL}/courses/${course.id}`,
+    lastModified: course.createdAt,
+    changeFrequency: 'weekly',
+    priority: 0.6,
+  }));
+
+  return [...staticRoutes, ...skillRoutes, ...videoRoutes, ...creatorRoutes, ...courseRoutes];
 }

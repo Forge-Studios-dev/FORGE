@@ -13,6 +13,7 @@ export interface StudioLibraryParams {
   search?: string;
   sort?: StudioVideoSort;
   status?: string;
+  visibility?: string;
   page?: number;
   limit?: number;
 }
@@ -40,6 +41,7 @@ export async function fetchStudioLibrary(
   if (params.search?.trim()) qs.set('search', params.search.trim());
   if (params.sort) qs.set('sort', params.sort);
   if (params.status) qs.set('status', params.status);
+  if (params.visibility) qs.set('visibility', params.visibility);
   if (params.page) qs.set('page', String(params.page));
   if (params.limit) qs.set('limit', String(params.limit));
   const query = qs.toString();

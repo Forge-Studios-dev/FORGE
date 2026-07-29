@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Button, Input, PageHeader } from '@forge/design-system';
+import { Button, Input, PageHeader, StatusPill } from '@forge/design-system';
 import { Tabs, TabPanel } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -49,21 +49,21 @@ function StudioCoursesPageInner() {
 
   if (!isCreator) {
     return (
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main className="space-y-4">
         <p className="text-sm text-on-surface-variant">Creator access required.</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
+    <main className="space-y-6">
       <PageHeader
-        title="Courses"
-        subtitle="Structured lessons, plus programs that group several courses into one paid path"
+        title="Courses & programs"
+        subtitle="Build structured lessons, then group courses into paid learning paths."
       />
 
       <Tabs
-        className="mb-6"
+        className="mb-2"
         value={tab}
         onChange={setTab}
         tabs={[
@@ -112,7 +112,7 @@ function CoursesTab({ userId }: { userId?: string }) {
 
   return (
     <>
-      <section className="glass-panel mb-8 space-y-3 rounded-xl p-6">
+      <section className="glass-panel mb-8 space-y-3 rounded-2xl p-6">
         <h2 className="font-label-caps text-outline">New course</h2>
         <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Course title" />
         <textarea
@@ -135,22 +135,24 @@ function CoursesTab({ userId }: { userId?: string }) {
         {(courses ?? []).length === 0 ? (
           <p className="text-sm text-on-surface-variant">No courses yet.</p>
         ) : (
-          <ul className="space-y-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             {(courses ?? []).map((c) => (
-              <li key={c.id}>
-                <Link
-                  href={`/studio/courses/${c.id}`}
-                  className="glass-panel block rounded-xl p-4 transition-colors hover:border-primary/30"
-                >
+              <Link
+                key={c.id}
+                href={`/studio/courses/${c.id}`}
+                className="glass-panel block rounded-2xl p-5 transition-colors hover:border-primary/30"
+              >
+                <div className="mb-3 flex items-start justify-between gap-3">
                   <p className="font-semibold">{c.title}</p>
-                  <p className="text-sm text-on-surface-variant">
-                    /{c.slug}
-                    {c.isPublished ? ' · Published' : ' · Draft'}
-                  </p>
-                </Link>
-              </li>
+                  <StatusPill tone={c.isPublished ? 'success' : 'neutral'} label={c.isPublished ? 'Published' : 'Draft'} />
+                </div>
+                <p className="text-sm text-on-surface-variant">/{c.slug}</p>
+                {c.description ? (
+                  <p className="mt-2 line-clamp-2 text-sm text-on-surface-variant">{c.description}</p>
+                ) : null}
+              </Link>
             ))}
-          </ul>
+          </div>
         )}
       </section>
     </>

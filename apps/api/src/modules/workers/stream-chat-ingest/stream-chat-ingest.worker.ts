@@ -26,7 +26,7 @@ export type StreamChatIngestJob = {
   highlightSeconds?: number | null;
 };
 
-@Processor(STREAM_CHAT_INGEST_QUEUE)
+@Processor(STREAM_CHAT_INGEST_QUEUE, { concurrency: 3 })
 export class StreamChatIngestWorker extends WorkerHost {
   private readonly logger = new Logger(StreamChatIngestWorker.name);
 

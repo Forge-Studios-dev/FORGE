@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # FORGE AWS setup: S3 bucket, CORS, IAM user, CloudFront (OAC).
 # Requires: AWS CLI v2, credentials with IAM + S3 + CloudFront permissions.
 #

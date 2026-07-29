@@ -22,6 +22,7 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
   String? _communityId;
   String? _creatorId;
   List<Map<String, dynamic>> _communities = [];
+  List<Map<String, dynamic>> _recentEnded = [];
   bool _chatEnabled = true;
   bool _recordEnabled = true;
   bool _ageRestricted = false;
@@ -32,6 +33,7 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
   void initState() {
     super.initState();
     _loadCommunities();
+    _loadRecentEnded();
   }
 
   Future<void> _loadCommunities() async {
@@ -54,6 +56,18 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
       });
     } catch (_) {
       setState(() => _loadingCommunities = false);
+    }
+  }
+
+  Future<void> _loadRecentEnded() async {
+    try {
+      final client = ref.read(apiClientProvider);
+      final res = await client.dio.get('/creators/me/streams/recent');
+      final list = (res.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      if (!mounted) return;
+      setState(() => _recentEnded = list);
+    } catch (_) {
+      // Non-fatal — setup still works without history.
     }
   }
 
@@ -199,6 +213,38 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
               ],
             ),
           ),
+          if (_recentEnded.isNotEmpty) ...[
+            const SizedBox(height: 28),
+            const Text(
+              'Recent sessions',
+              style: TextStyle(fontWeight: FontWeight.w700, color: ForgeTokens.onSurface),
+            ),
+            const SizedBox(height: 10),
+            ..._recentEnded.map((stream) {
+              final id = stream['id'] as String?;
+              final title = stream['title'] as String? ?? 'Ended session';
+              if (id == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: ForgeCard(
+                  onTap: () => context.push('/studio/live/$id/debrief'),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.analytics_outlined, color: ForgeTokens.primary),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: ForgeTokens.outline),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );

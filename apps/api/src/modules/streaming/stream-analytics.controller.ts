@@ -14,6 +14,13 @@ export class StreamAnalyticsController {
     private readonly streamLiveService: StreamLiveService,
   ) {}
 
+  @Get('recent')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'List recent ended streams for Studio debrief' })
+  listRecent(@CurrentUser() user: JwtPayload) {
+    return this.streamAnalyticsService.listRecentEndedStreams(user.sub);
+  }
+
   @Get(':streamId/analytics')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Live stream analytics for creator' })

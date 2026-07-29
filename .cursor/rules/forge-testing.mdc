@@ -1,5 +1,5 @@
 ---
-description: FORGE testing standards — minimize external I/O in tests
+description: Testing standards — minimize external I/O in tests
 globs:
   - "**/*.spec.ts"
   - "**/*.test.ts"
@@ -9,35 +9,31 @@ globs:
 alwaysApply: false
 ---
 
-# FORGE — Testing Standards
+# FORGE — Testing
 
-## Minimize external calls
+## No live deps by default
 
-Tests must **not** hit production or shared staging services (API, Postgres, Redis, S3, Mux, etc.) unless explicitly marked as a manual/integration suite.
+Do not hit production or shared staging (API, Postgres, Redis, S3, Mux, etc.) unless the suite is explicitly marked manual/integration.
 
-Prefer, in order:
+Prefer:
 
-1. **Unit tests** with mocked dependencies (`jest.fn()`, Nest `Test.createTestingModule` provider overrides)
-2. **HTTP tests** via Supertest against a **slim module** with mocked DataSource/Redis/queues (see `apps/api/test/http-test.harness.ts`)
-3. **Fixtures** for DTOs, entities, and API responses
-4. **Dedicated integration jobs** (optional, scheduled) — never in default PR CI
+1. Unit tests with mocks (`jest.fn()`, Nest provider overrides)
+2. Slim HTTP tests via Supertest + `apps/api/test/http-test.harness.ts`
+3. Fixtures for DTOs/entities/responses
+4. Optional scheduled integration jobs — never default PR CI
 
 ## API
 
-- Default `npm run test` and `npm run test:e2e` must pass **without** `DATABASE_URL` or `REDIS_URL`
-- Do not import full `AppModule` in e2e tests; compose only the controllers under test
-- Migrations run in **release/deploy** only, not in CI unit/e2e gates
+- `npm run test` / `npm run test:e2e` must pass without `DATABASE_URL` or `REDIS_URL`.
+- Do not import full `AppModule` in e2e; compose controllers under test.
+- Migrations run in release/deploy only — not CI unit/e2e gates.
 
-## Frontend
+## Clients
 
-- Playwright: mock network or use static pages where possible; avoid live API unless secrets are configured
-- Prefer unit tests for auth-storage, CSRF, middleware helpers
-
-## Mobile
-
-- Use `flutter test` with mocked repositories; no live API in unit/widget tests
+- Playwright: mock network or static pages; no live API unless secrets configured.
+- Flutter: `flutter test` with mocked repositories.
 
 ## CI
 
-- PR CI should not start Postgres/Redis service containers for API tests
-- Blocking npm audit is fine; do not add steps that multiply deploy-time load
+- PR CI should not start Postgres/Redis for API unit/e2e.
+- Keep pipelines fast; avoid steps that multiply deploy-time load.

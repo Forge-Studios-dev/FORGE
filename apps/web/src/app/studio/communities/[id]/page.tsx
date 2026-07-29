@@ -11,6 +11,7 @@ import type { Community, CommunityCategory, CommunityPoll } from '@/types/commun
 import { StudioModerationPanel } from '@/components/Community/StudioModerationPanel';
 import { StudioEngagementExtrasPanel } from '@/components/Community/StudioEngagementExtrasPanel';
 import { StudioCreatorOpsPanel } from '@/components/Community/StudioCreatorOpsPanel';
+import { StudioBadgeConfigPanel } from '@/components/studio/StudioBadgeConfigPanel';
 import { StudioRoomsPanel } from '@/components/Community/StudioRoomsPanel';
 import { StudioCommunityMembersPanel } from '@/components/Community/StudioCommunityMembersPanel';
 import { StudioCommunityEventsPanel } from '@/components/Community/StudioCommunityEventsPanel';
@@ -105,18 +106,32 @@ export default function StudioCommunityDetailPage() {
     },
   });
 
-  const { data: businessKpis } = useQuery({
+  const { data: businessKpis, isError: businessKpisError } = useQuery({
     queryKey: ['studio-community-business-kpis'],
     enabled: !!user?.id && isCreator && tab === 'health',
     queryFn: async () => {
       const { data } = await api.get<{
         data: {
-          membership: { active: number; trial: number; totalRevenue30d: number };
+          membership: { active: number; trial: number; totalRevenue30d: number; mrrCents: number };
           kpis: { churnRate30d: number; canceledLast30Days: number; engagementScore: number };
           revenue: { mrr: number; arr: number };
         };
-      }>('/communities/creators/me/business-analytics');
+      }>('/creators/me/business-analytics');
       return data.data;
+    },
+  });
+
+  const exportHealthMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.get<Blob>('/creators/me/business-analytics/export', {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(data);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'business-analytics.csv';
+      anchor.click();
+      URL.revokeObjectURL(url);
     },
   });
 
@@ -186,7 +201,7 @@ export default function StudioCommunityDetailPage() {
     },
     onSuccess: (stream) => {
       showStatus('Live stream created');
-      window.location.href = `/studio/live?streamId=${stream.id}`;
+      window.location.href = `/live/${stream.id}`;
     },
     onError: () => showStatus('Failed to start community live stream'),
   });
@@ -318,14 +333,14 @@ export default function StudioCommunityDetailPage() {
 
   if (!isCreator) {
     return (
-      <main className="mx-auto max-w-4xl px-5 py-8">
+      <main className="space-y-6">
         <p className="text-sm text-on-surface-variant">Creator access required.</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-5 py-8 md:px-12">
+    <main className="space-y-6">
       <PageHeader
         title={community?.name ?? 'Community'}
         subtitle={community ? `/${community.slug}` : 'Manage community'}
@@ -482,15 +497,18 @@ export default function StudioCommunityDetailPage() {
                 </div>
               </section>
               <div className="flex justify-end">
-                <a
-                  href="/communities/creators/me/business-analytics/export"
-                  className="text-sm text-primary hover:underline"
-                  download
+                <button
+                  type="button"
+                  onClick={() => exportHealthMutation.mutate()}
+                  disabled={exportHealthMutation.isPending}
+                  className="text-sm text-primary hover:underline disabled:opacity-50"
                 >
-                  Export CSV
-                </a>
+                  {exportHealthMutation.isPending ? 'Exporting…' : 'Export CSV'}
+                </button>
               </div>
             </>
+          ) : businessKpisError ? (
+            <p className="text-sm text-error">Failed to load health KPIs.</p>
           ) : (
             <p className="text-sm text-on-surface-variant">Loading health KPIs…</p>
           )}
@@ -737,6 +755,7 @@ export default function StudioCommunityDetailPage() {
           >
             Save settings
           </Button>
+          <StudioBadgeConfigPanel communityId={communityId} />
           <StudioCreatorOpsPanel communityId={communityId} />
         </section>
       ) : null}

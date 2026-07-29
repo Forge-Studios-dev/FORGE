@@ -28,7 +28,10 @@ export function WatchPageClient({
     refetchInterval: (query) => {
       const v = query.state.data;
       if (!v || v.status === 'ready' || v.status === 'failed') return false;
-      return 5000;
+      const token = getAccessToken();
+      const socket = token ? getSocket(token) : null;
+      if (socket?.connected) return false;
+      return 30_000;
     },
   });
 

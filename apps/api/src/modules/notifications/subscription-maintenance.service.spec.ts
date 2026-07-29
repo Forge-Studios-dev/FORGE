@@ -10,7 +10,13 @@ describe('SubscriptionMaintenanceService', () => {
   };
   let notifications: { createMany: jest.Mock };
   let pushDispatch: { enqueueMany: jest.Mock };
-  let redis: { get: jest.Mock; setex: jest.Mock };
+  let redis: {
+    get: jest.Mock;
+    setex: jest.Mock;
+    mget: jest.Mock;
+    pipeline: jest.Mock;
+  };
+  let pipelineExec: jest.Mock;
 
   const inDays = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
@@ -21,7 +27,13 @@ describe('SubscriptionMaintenanceService', () => {
     };
     notifications = { createMany: jest.fn().mockResolvedValue(undefined) };
     pushDispatch = { enqueueMany: jest.fn().mockResolvedValue(undefined) };
-    redis = { get: jest.fn().mockResolvedValue(null), setex: jest.fn().mockResolvedValue('OK') };
+    pipelineExec = jest.fn().mockResolvedValue([]);
+    redis = {
+      get: jest.fn().mockResolvedValue(null),
+      setex: jest.fn().mockResolvedValue('OK'),
+      mget: jest.fn().mockResolvedValue([]),
+      pipeline: jest.fn(() => ({ setex: jest.fn().mockReturnThis(), exec: pipelineExec })),
+    };
 
     service = new SubscriptionMaintenanceService(
       entitlements as never,
@@ -52,6 +64,7 @@ describe('SubscriptionMaintenanceService', () => {
         tier: { name: 'Gold' },
       },
     ]);
+    redis.mget.mockResolvedValue([null, null]);
 
     await service.runMaintenance();
 
@@ -90,9 +103,7 @@ describe('SubscriptionMaintenanceService', () => {
         tier: { name: 'Gold' },
       },
     ]);
-    redis.get.mockImplementation((key: string) =>
-      key.startsWith('sub:expiring:notified:') ? Promise.resolve('1') : Promise.resolve(null),
-    );
+    redis.mget.mockResolvedValue(['1']);
 
     await service.runMaintenance();
 

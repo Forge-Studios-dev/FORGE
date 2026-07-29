@@ -68,6 +68,23 @@ export class UsersController {
     return toPublicUser(profile);
   }
 
+  @Get('me/interests')
+  @ApiOperation({ summary: 'Cold-start interest category IDs for recommendations' })
+  getMyInterests(@CurrentUser() user: JwtPayload) {
+    return this.usersService.getInterestCategoryIds(user.sub).then((categoryIds) => ({
+      categoryIds,
+    }));
+  }
+
+  @Put('me/interests')
+  @ApiOperation({ summary: 'Save cold-start interest category IDs' })
+  setMyInterests(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { categoryIds?: string[] },
+  ) {
+    return this.usersService.setInterestCategoryIds(user.sub, body.categoryIds ?? []);
+  }
+
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @Get('by-username/:username')

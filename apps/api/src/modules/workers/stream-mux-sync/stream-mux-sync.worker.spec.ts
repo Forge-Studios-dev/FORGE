@@ -6,6 +6,7 @@ describe('StreamMuxSyncWorker', () => {
   let worker: StreamMuxSyncWorker;
   const muxLiveSyncService = {
     syncStreamById: jest.fn().mockResolvedValue(undefined),
+    finalizeIfGraceExpired: jest.fn().mockResolvedValue(undefined),
     runPeriodicScan: jest.fn().mockResolvedValue({ synced: 0, finalized: 0 }),
     isPlatformDormant: jest.fn().mockResolvedValue(false),
     hasActiveLiveStreams: jest.fn().mockResolvedValue(false),
@@ -18,6 +19,13 @@ describe('StreamMuxSyncWorker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     worker = new StreamMuxSyncWorker(muxLiveSyncService as never, muxSyncScheduler as never);
+  });
+
+  it('runs delayed grace finalize without a periodic scan', async () => {
+    await worker.process(makeJob({ finalizeStreamId: 'stream-1' }));
+    expect(muxLiveSyncService.finalizeIfGraceExpired).toHaveBeenCalledWith('stream-1');
+    expect(muxLiveSyncService.runPeriodicScan).not.toHaveBeenCalled();
+    expect(muxLiveSyncService.syncStreamById).not.toHaveBeenCalled();
   });
 
   it('syncs a single stream when a streamId is provided and skips the periodic scan', async () => {

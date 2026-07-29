@@ -13,7 +13,7 @@ export type AnalyticsIngestJob = {
   videoId: string | null;
 };
 
-@Processor(ANALYTICS_INGEST_QUEUE)
+@Processor(ANALYTICS_INGEST_QUEUE, { concurrency: 5 })
 export class AnalyticsIngestWorker extends WorkerHost {
   private readonly logger = new Logger(AnalyticsIngestWorker.name);
 

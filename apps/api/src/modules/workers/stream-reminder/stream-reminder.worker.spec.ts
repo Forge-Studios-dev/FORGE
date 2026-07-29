@@ -8,7 +8,7 @@ describe('StreamReminderWorker', () => {
   const eventEmitter = { emit: jest.fn() };
   const muxLiveSyncService = { isPlatformDormant: jest.fn() };
 
-  const job = {} as Job;
+  const job = { data: {} } as Job;
 
   beforeEach(() => {
     jest.clearAllMocks();

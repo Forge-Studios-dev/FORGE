@@ -1,155 +1,43 @@
 ---
-description: FORGE engineering mindset, change management, and decision standards
+description: FORGE engineering defaults — proportional rigor, minimal safe change
 alwaysApply: true
 ---
 
-# FORGE — Core Engineering Standards
+# FORGE — Core
 
-FORGE is a skill-first creator platform (NestJS API, Next.js web/admin, React Native mobile, BullMQ, Socket.IO, video/feed/analytics).
+Skill-first creator platform: NestJS API (`apps/api`), Next.js web/admin (`apps/web`, `apps/admin`), Flutter mobile (`apps/mobile`), BullMQ, Socket.IO, video/feed/analytics.
 
-# Engineering & Change Management Rules
+## Defaults
 
-Before making any code, infrastructure, database, architecture, or configuration change, operate as a multidisciplinary team consisting of:
+- Read existing code and match local conventions before inventing patterns.
+- Smallest change that solves the request. No drive-by refactors or unrelated files.
+- Do not change business logic or public APIs unless asked.
+- Prefer simple, readable solutions over premature abstraction or “future-proof” layers.
+- Commits, PRs, pushes, and merges only when the user explicitly asks (see `forge-ship.mdc`).
 
-- Principal Software Architect
-- Staff+ Full-Stack Engineer
-- DevOps & Platform Architect
-- Cloud Infrastructure & Cost Optimization Specialist
-- Security Engineer
-- Database Architect
-- Mobile Architect
-- Product Scalability Consultant
-- Site Reliability Engineer (SRE)
-- Senior QA & Performance Engineer
+## Proportional rigor
 
-## Mandatory Process
+Match depth to blast radius — do not run a production ritual for a one-line fix:
 
-### 1. Research First
+| Blast radius | Expected depth |
+| --- | --- |
+| Local / cosmetic / docs | Match style; skip architecture theater |
+| Feature / API / shared module | Read callers; preserve behavior; targeted tests if critical |
+| Auth, payments, migrations, infra | Security review, rollback plan, careful validation |
 
-- Fully understand the existing codebase, architecture, dependencies, and business logic.
-- Analyze related modules, APIs, database schemas, infrastructure, and deployment pipelines.
-- Identify potential side effects before making changes.
-- Think through the problem as if working on a production system with real users.
+## Always consider (scale to risk)
 
-### 2. Think Before Changing
+- **Security**: authz, validation, injection, secrets, sensitive logs.
+- **Data**: migrations reversible where possible; no accidental data loss; no unbounded queries.
+- **Efficiency**: avoid N+1, extra network/DB calls, and unnecessary client work — without over-building for hypothetical 1000x load.
+- **Deps**: no new packages unless clearly needed and compatible.
 
-- Do not make assumptions.
-- Evaluate multiple possible solutions.
-- Choose the simplest, safest, and most maintainable approach.
-- Prefer long-term architectural quality over quick fixes.
+## Architecture
 
-### 3. Preserve Existing Functionality
+- Feature-based modules; reusable services/hooks; business logic out of presentational UI.
+- Avoid tight coupling, giant files, duplicated logic, and unbounded list queries.
+- Align with existing design system and platform patterns already in the repo — do not restate product roadmaps in code.
 
-Every change must:
+## Stack note
 
-- Not break existing features.
-- Not alter business logic unless explicitly requested.
-- Maintain backward compatibility whenever possible.
-- Avoid introducing technical debt.
-- Keep APIs and interfaces stable.
-
-### 4. Security First
-
-Always review for:
-
-- Authentication and authorization issues.
-- Input validation and sanitization.
-- SQL injection, XSS, CSRF, SSRF, RCE, and other vulnerabilities.
-- Secrets management and sensitive data exposure.
-- Secure coding best practices.
-
-### 5. Performance & Scalability
-
-Consider:
-
-- Database query efficiency.
-- API response times.
-- Memory and CPU usage.
-- Network overhead.
-- Horizontal and vertical scalability.
-- High concurrency and production workloads.
-
-### 6. Cloud & Cost Optimization
-
-Avoid unnecessary infrastructure costs by:
-
-- Reusing existing services when appropriate.
-- Minimizing compute, storage, and bandwidth usage.
-- Designing efficient caching and resource utilization.
-- Avoiding over-engineering.
-
-### 7. Database Safety
-
-Before modifying data models:
-
-- Analyze migrations and rollback strategies.
-- Preserve data integrity.
-- Prevent data loss.
-- Optimize indexes and queries.
-- Ensure compatibility with existing data.
-
-### 8. Dependency Management
-
-- Verify all package and library changes.
-- Avoid unnecessary dependencies.
-- Check compatibility and version conflicts.
-- Minimize supply chain risk.
-
-### 9. Production Readiness
-
-Ensure that changes include consideration for:
-
-- Logging
-- Monitoring
-- Error handling
-- Retry mechanisms
-- Observability
-- Failure recovery
-- Rollback capability
-
-### 10. Minimal & Safe Changes
-
-- Make the smallest change necessary to solve the problem.
-- Avoid unrelated refactoring unless required.
-- Keep code clean, readable, and maintainable.
-- Follow existing project conventions and patterns.
-
-## Before Implementing Any Change
-
-Always internally perform this checklist:
-
-1. Research the existing implementation.
-2. Analyze architecture and dependencies.
-3. Identify risks and side effects.
-4. Compare alternative solutions.
-5. Select the safest and most scalable approach.
-6. Verify security implications.
-7. Verify performance implications.
-8. Verify cloud cost implications.
-9. Verify backward compatibility.
-10. Ensure the solution aligns with project goals.
-
-## Final Principle
-
-Think like you are responsible for a mission-critical production system serving millions of users. Every modification should be intentional, thoroughly analyzed, production-safe, secure, scalable, cost-efficient, and maintainable.
-
-## FORGE — Shipping Standards
-
-- **Git**: never push directly to `main` — use a feature branch, batch meaningful work, then one PR/merge when ready (see `forge-git-branching.mdc`). Only merge to `main` for bigger/major changes; each merge triggers CI + production release and restarts servers.
-- **Docs** (major work): architecture notes, env setup, deployment/rollback, API notes, testing notes.
-- **Tests** (major/critical): unit + integration where appropriate; never ship untested critical paths (see `forge-testing.mdc`).
-- **Deploy testing**: full server/deploy validation only for major changes; targeted tests for minor work (see `forge-deployment-testing.mdc`).
-- **Commits/PRs**: only when the user explicitly asks.
-
-## FORGE — Architecture Principles
-
-- Feature-based modules, separation of concerns, reusable services/hooks/utils.
-- Avoid: tight coupling, duplicated logic, giant components/services, business logic in UI, unbounded queries.
-
-## FORGE — High-Priority Platform Direction
-
-Align new work with: custom design system (not YouTube clone), event-driven async for analytics/notifications, video pipeline (chunk/resumable/ABR), modular feed ranking + cache, semantic search/discovery, observability (Sentry/OTel/metrics), feature flags, moderation pipelines, creator analytics.
-
-## Workflow
-
-Think deeply → research → architect → optimize → validate → monitor after release.
+Mobile is **Flutter** (`apps/mobile`), not React Native.

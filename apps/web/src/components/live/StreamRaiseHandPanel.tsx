@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@forge/design-system';
+import { SocketEvents } from '@forge/shared-types';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { getSocket } from '@/lib/socket';
 
 type RaisedHand = { userId: string; raisedAt: string };
 
@@ -15,13 +17,17 @@ interface Props {
 
 export function StreamRaiseHandPanel({ streamId, isHost }: Props) {
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
   const [handRaised, setHandRaised] = useState(false);
 
   const { data: hands } = useQuery({
     queryKey: ['stream-raise-hands', streamId],
     enabled: !!streamId && (!!isHost || !!user?.id),
-    refetchInterval: isHost ? 5000 : 15000,
+    refetchInterval: () => {
+      const socket = accessToken ? getSocket(accessToken) : null;
+      if (socket?.connected) return false;
+      return isHost ? 60_000 : 90_000;
+    },
     queryFn: async () => {
       const { data } = await api.get<{ data: RaisedHand[] }>(`/streams/${streamId}/raise-hands`);
       return data.data ?? [];
@@ -32,6 +38,30 @@ export function StreamRaiseHandPanel({ streamId, isHost }: Props) {
     if (!user?.id || isHost) return;
     setHandRaised((hands ?? []).some((h) => h.userId === user.id));
   }, [hands, user?.id, isHost]);
+
+  useEffect(() => {
+    if (!accessToken || !streamId) return;
+    const socket = getSocket(accessToken);
+    if (!socket) return;
+
+    const onRaiseHand = (payload: {
+      streamId?: string;
+      userId?: string;
+      raised?: boolean;
+      raisedAt?: string;
+    }) => {
+      if (payload.streamId !== streamId) return;
+      void qc.invalidateQueries({ queryKey: ['stream-raise-hands', streamId] });
+      if (!isHost && payload.userId === user?.id) {
+        setHandRaised(!!payload.raised);
+      }
+    };
+
+    socket.on(SocketEvents.STREAM_RAISE_HAND, onRaiseHand);
+    return () => {
+      socket.off(SocketEvents.STREAM_RAISE_HAND, onRaiseHand);
+    };
+  }, [accessToken, streamId, isHost, user?.id, qc]);
 
   const raiseMutation = useMutation({
     mutationFn: async (raised: boolean) => {

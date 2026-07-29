@@ -1,0 +1,38 @@
+# FORGE CODEOWNERS
+#
+# M-D1: default reviewer required on every PR. Only current maintainer
+# (rahulbhanushali) is listed; add team handles here once GitHub teams exist
+# on the Forge-Studios-dev org so path-scoped ownership can grow without
+# blocking every PR on a single reviewer.
+#
+# Syntax: last matching rule wins. Path patterns are relative to repo root.
+# See https://docs.github.com/en/repositories/managing-your-repositories-settings-and-security/customizing-your-repository/about-code-owners
+
+# ---- Default owner (catch-all) --------------------------------------------
+*                                       @rahulbhanushali
+
+# ---- Deploy / infra / CI (high-blast-radius) ------------------------------
+# Force review of anything that can touch production deploy or secrets.
+/.github/                               @rahulbhanushali
+/.github/workflows/                     @rahulbhanushali
+/.github/CODEOWNERS                     @rahulbhanushali
+/fly.toml                               @rahulbhanushali
+/fly.worker.toml                        @rahulbhanushali
+/Dockerfile*                            @rahulbhanushali
+/docker-compose*.yml                    @rahulbhanushali
+/apps/api/Dockerfile*                   @rahulbhanushali
+/apps/web/Dockerfile*                   @rahulbhanushali
+/apps/admin/Dockerfile*                 @rahulbhanushali
+/scripts/                               @rahulbhanushali
+/infra/                                 @rahulbhanushali
+
+# ---- Auth / security-sensitive backend ------------------------------------
+/apps/api/src/modules/auth/             @rahulbhanushali
+/apps/api/src/modules/entitlements/     @rahulbhanushali
+/apps/api/src/config/                   @rahulbhanushali
+/apps/api/src/database/                 @rahulbhanushali
+
+# ---- Docs / audits --------------------------------------------------------
+/docs/                                  @rahulbhanushali
+/CLAUDE.md                              @rahulbhanushali
+/README.md                              @rahulbhanushali

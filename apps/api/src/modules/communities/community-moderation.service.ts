@@ -368,11 +368,32 @@ export class CommunityModerationService {
     });
   }
 
-  async listUnifiedReportsForCreator(creatorId: string, status = 'open') {
-    const communities = await this.communityRepository.find({
-      where: { creatorId },
-      select: ['id', 'name', 'slug'],
-    });
+  async listUnifiedReportsForCreator(userId: string, status = 'open') {
+    const [owned, roles] = await Promise.all([
+      this.communityRepository.find({
+        where: { creatorId: userId },
+        select: ['id', 'name', 'slug'],
+      }),
+      this.roleRepository.find({
+        where: { userId },
+        relations: ['community'],
+      }),
+    ]);
+
+    const byId = new Map<string, { id: string; name: string; slug: string }>();
+    for (const community of owned) {
+      byId.set(community.id, community);
+    }
+    for (const assignment of roles) {
+      if (!assignment.community) continue;
+      byId.set(assignment.community.id, {
+        id: assignment.community.id,
+        name: assignment.community.name,
+        slug: assignment.community.slug,
+      });
+    }
+
+    const communities = [...byId.values()];
     const communityIds = communities.map((c) => c.id);
     if (!communityIds.length) return { data: [] };
     const reports = await this.reportRepository.find({

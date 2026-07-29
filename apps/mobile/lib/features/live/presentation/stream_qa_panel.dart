@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/observability/capture_error.dart';
 import '../../../core/socket/forge_socket.dart';
 
 /// Live Q&A panel — mirrors the web `StreamQaPanel`. Viewers submit and upvote
@@ -40,7 +41,8 @@ class _StreamQaPanelState extends ConsumerState<StreamQaPanel> {
         _questions = res.data['data'] as List<dynamic>? ?? [];
         _loading = false;
       });
-    } catch (_) {
+    } catch (e, st) {
+      captureError(e, st, 'loadQa');
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -56,7 +58,8 @@ class _StreamQaPanelState extends ConsumerState<StreamQaPanel> {
           .post('/streams/${widget.streamId}/qa', data: {'body': body});
       _draftCtrl.clear();
       await _load();
-    } catch (_) {
+    } catch (e, st) {
+      captureError(e, st, 'submitQa');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -69,7 +72,7 @@ class _StreamQaPanelState extends ConsumerState<StreamQaPanel> {
           .dio
           .post('/streams/${widget.streamId}/qa/$questionId/upvote');
       await _load();
-    } catch (_) {}
+    } catch (e, st) { captureError(e, st, 'upvoteQa'); }
   }
 
   Future<void> _setStatus(String questionId, String status) async {
@@ -79,7 +82,7 @@ class _StreamQaPanelState extends ConsumerState<StreamQaPanel> {
           .dio
           .patch('/streams/${widget.streamId}/qa/$questionId/status', data: {'status': status});
       await _load();
-    } catch (_) {}
+    } catch (e, st) { captureError(e, st, 'setQaStatus'); }
   }
 
   @override

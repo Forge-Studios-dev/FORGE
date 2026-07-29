@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -22,6 +23,15 @@ export class MentorshipService {
     private readonly matchRepository: Repository<MentorshipMatch>,
     private readonly dataSource: DataSource,
   ) {}
+
+  private async assertCommunityOwner(creatorId: string, communityId: string): Promise<void> {
+    const [row] = await this.dataSource.query<[{ creator_id: string }?]>(
+      `SELECT creator_id FROM communities WHERE id = $1 LIMIT 1`,
+      [communityId],
+    );
+    if (!row) throw new NotFoundException('Community not found');
+    if (row.creator_id !== creatorId) throw new ForbiddenException('Not the community owner');
+  }
 
   // ── Profile management ─────────────────────────────────────────────────────
 
@@ -72,19 +82,68 @@ export class MentorshipService {
     const ids = mentors.map((m) => m.userId);
     if (ids.length === 0) return { data: [] };
 
-    const counts = await this.dataSource.query<{ mentor_id: string; cnt: string }[]>(
-      `SELECT mentor_id, COUNT(*) as cnt FROM mentorship_matches
-       WHERE community_id = $1 AND mentor_id = ANY($2::uuid[]) AND status IN ('accepted','active')
-       GROUP BY mentor_id`,
-      [communityId, ids],
-    );
+    const [counts, users] = await Promise.all([
+      this.dataSource.query<{ mentor_id: string; cnt: string }[]>(
+        `SELECT mentor_id, COUNT(*) as cnt FROM mentorship_matches
+         WHERE community_id = $1 AND mentor_id = ANY($2::uuid[]) AND status IN ('accepted','active')
+         GROUP BY mentor_id`,
+        [communityId, ids],
+      ),
+      this.dataSource.query<
+        Array<{ id: string; username: string | null; display_name: string | null }>
+      >(
+        `SELECT id, username, display_name
+         FROM users
+         WHERE id = ANY($1::uuid[])`,
+        [ids],
+      ),
+    ]);
     const countMap = Object.fromEntries(counts.map((r) => [r.mentor_id, parseInt(r.cnt, 10)]));
+    const userMap = Object.fromEntries(
+      users.map((u) => [
+        u.id,
+        { username: u.username ?? undefined, displayName: u.display_name ?? undefined },
+      ]),
+    );
 
     return {
       data: mentors.map((m) => ({
         ...m,
+        user: userMap[m.userId] ?? null,
         currentMentees: countMap[m.userId] ?? 0,
         hasCapacity: (countMap[m.userId] ?? 0) < m.maxMentees,
+      })),
+    };
+  }
+
+  async listCommunityMatches(creatorId: string, communityId: string) {
+    await this.assertCommunityOwner(creatorId, communityId);
+    const matches = await this.matchRepository.find({
+      where: { communityId },
+      order: { createdAt: 'DESC' },
+      take: 100,
+    });
+    if (!matches.length) return { data: [] };
+
+    const userIds = [...new Set(matches.flatMap((m) => [m.mentorId, m.menteeId]))];
+    const users = await this.dataSource.query<
+      Array<{ id: string; username: string | null; display_name: string | null }>
+    >(
+      `SELECT id, username, display_name FROM users WHERE id = ANY($1::uuid[])`,
+      [userIds],
+    );
+    const userMap = Object.fromEntries(
+      users.map((u) => [
+        u.id,
+        { username: u.username ?? undefined, displayName: u.display_name ?? undefined },
+      ]),
+    );
+
+    return {
+      data: matches.map((m) => ({
+        ...m,
+        mentor: userMap[m.mentorId] ?? null,
+        mentee: userMap[m.menteeId] ?? null,
       })),
     };
   }
@@ -112,10 +171,15 @@ export class MentorshipService {
     return Math.min(skillScore + directScore, 100);
   }
 
-  async runMatching(communityId: string): Promise<{
+  async runMatching(
+    creatorId: string,
+    communityId: string,
+  ): Promise<{
     matched: number;
     pairs: Array<{ mentorId: string; menteeId: string; score: number }>;
   }> {
+    await this.assertCommunityOwner(creatorId, communityId);
+
     const [mentors, mentees] = await Promise.all([
       this.profileRepository.find({
         where: { communityId, role: MentorshipRole.MENTOR, status: MentorshipProfileStatus.ACTIVE },
@@ -217,5 +281,48 @@ export class MentorshipService {
       throw new BadRequestException('Not a participant in this match');
     }
     await this.matchRepository.update(matchId, { status: MentorshipMatchStatus.COMPLETED });
+  }
+
+  /** Platform admin overview — no community owner check. */
+  async adminOverview(limit = 50) {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const [counts, recent] = await Promise.all([
+      this.dataSource.query<Array<{ status: string; cnt: string }>>(
+        `SELECT status, COUNT(*)::text AS cnt FROM mentorship_matches GROUP BY status`,
+      ),
+      this.dataSource.query<
+        Array<{
+          id: string;
+          community_id: string;
+          community_name: string;
+          mentor_id: string;
+          mentee_id: string;
+          status: string;
+          match_score: string | null;
+          created_at: Date;
+        }>
+      >(
+        `SELECT m.id, m.community_id, c.name AS community_name,
+                m.mentor_id, m.mentee_id, m.status, m.match_score::text, m.created_at
+         FROM mentorship_matches m
+         JOIN communities c ON c.id = m.community_id
+         ORDER BY m.created_at DESC
+         LIMIT $1`,
+        [take],
+      ),
+    ]);
+    return {
+      counts: Object.fromEntries(counts.map((r) => [r.status, Number(r.cnt) || 0])),
+      recent: recent.map((r) => ({
+        id: r.id,
+        communityId: r.community_id,
+        communityName: r.community_name,
+        mentorId: r.mentor_id,
+        menteeId: r.mentee_id,
+        status: r.status,
+        matchScore: r.match_score != null ? Number(r.match_score) : null,
+        createdAt: r.created_at,
+      })),
+    };
   }
 }

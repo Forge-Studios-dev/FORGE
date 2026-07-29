@@ -21,6 +21,7 @@
     "test": "npm run test --workspaces --if-present",
     "ci": "bash scripts/ci-local.sh",
     "ci:local": "bash scripts/ci-local.sh",
+    "knip": "npx --yes knip@5 --no-progress || true",
     "check:token-parity": "node scripts/check-token-parity.js",
     "gh:secrets": "bash scripts/print-github-secrets.sh",
     "gh:secrets:set": "bash scripts/setup-github-secrets.sh",
@@ -58,12 +59,15 @@
     "auth:bootstrap": "bash scripts/bootstrap-local-auth.sh",
     "auth:deploy": "bash scripts/deploy-auth-secrets.sh",
     "auth:verify": "bash scripts/verify-production-auth.sh",
-    "firebase:check": "bash scripts/check-firebase-connection.sh"
+    "firebase:check": "bash scripts/check-firebase-connection.sh",
+    "knip": "knip",
+    "knip:report": "knip --reporter compact || true"
   },
   "dependencies": {
     "class-validator": "^0.14.1"
   },
   "devDependencies": {
+    "knip": "^6.29.0",
     "vite": "^6.2.0",
     "typescript": "^5.4.4"
   },

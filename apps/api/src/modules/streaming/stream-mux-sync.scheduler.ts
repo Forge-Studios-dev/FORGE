@@ -5,11 +5,22 @@ import { shouldRegisterBullScheduler } from '../../common/bull/scheduler-role.ut
 import { STREAM_MUX_SYNC_QUEUE } from '../workers/stream-mux-sync/stream-mux-sync.constants';
 
 export const MUX_SYNC_SCHEDULER_ID = 'stream-mux-sync-scan';
-export const MUX_SYNC_INTERVAL_LIVE_MS = 45_000;
-export const MUX_SYNC_INTERVAL_IDLE_MS = 90_000;
+
+/**
+ * Webhook-first model:
+ * - Mux pushes `video.live_stream.active|idle` → API → Socket.IO to clients.
+ * - Reconnect grace uses a delayed Bull job (not a tight poll loop).
+ * - This scheduler is only a slow Mux REST backup for missed webhooks.
+ */
+export const MUX_SYNC_INTERVAL_LIVE_MS = Number(
+  process.env.MUX_SYNC_INTERVAL_LIVE_MS ?? 300_000,
+); // 5m backup while anything is live
+export const MUX_SYNC_INTERVAL_IDLE_MS = Number(
+  process.env.MUX_SYNC_INTERVAL_IDLE_MS ?? 300_000,
+); // 5m backup for soon-to-go-live rooms
 export const MUX_SYNC_INTERVAL_DORMANT_MS = Number(
   process.env.MUX_SYNC_INTERVAL_DORMANT_MS ?? 900_000,
-);
+); // 15m deep idle
 
 @Injectable()
 export class StreamMuxSyncScheduler implements OnModuleInit {
@@ -27,7 +38,7 @@ export class StreamMuxSyncScheduler implements OnModuleInit {
     void this.registerScheduler(MUX_SYNC_INTERVAL_IDLE_MS);
   }
 
-  /** Adjust scan frequency: 45s live / 90s idle / 15m dormant (deep idle). */
+  /** Adjust backup scan frequency: 5m live/idle / 15m dormant. */
   async syncIntervalForActivity(opts: {
     hasLiveStreams: boolean;
     isDormant: boolean;
@@ -59,7 +70,9 @@ export class StreamMuxSyncScheduler implements OnModuleInit {
         },
       );
       this.currentIntervalMs = everyMs;
-      this.logger.log(`Stream Mux sync scheduler registered (every ${everyMs / 1000}s)`);
+      this.logger.log(
+        `Stream Mux backup sync scheduler registered (every ${everyMs / 1000}s — webhook-first)`,
+      );
     } catch (err) {
       this.logger.warn(`Stream Mux sync scheduler failed: ${(err as Error).message}`);
     }

@@ -17,7 +17,7 @@ type AuditLog = {
   createdAt: string;
 };
 
-type Room = { id: string; name: string; roomType: string };
+type Room = { id: string; name: string; roomType?: string; type?: string };
 
 type CopilotInsights = {
   summary: string;
@@ -27,9 +27,16 @@ type CopilotInsights = {
 };
 
 type BusinessAnalytics = {
-  membership: { activeSubscribers: number; mrrCents: number; churnRate: number };
-  engagement: { engagementScore: number };
+  membership: { active: number; mrrCents: number };
+  kpis: { churnRate30d: number; engagementScore: number };
 };
+
+function unwrapData<T>(payload: T | { data: T }): T {
+  if (payload && typeof payload === 'object' && 'data' in payload) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+}
 
 export function StudioCreatorOpsPanel({ communityId }: Props) {
   const [moderationText, setModerationText] = useState('');
@@ -41,16 +48,23 @@ export function StudioCreatorOpsPanel({ communityId }: Props) {
   const { data: auditLogs, isLoading: auditLoading } = useQuery({
     queryKey: ['creator-audit-logs'],
     queryFn: async () => {
-      const { data } = await api.get<{ data: AuditLog[] }>('/creators/me/audit-logs?limit=30');
-      return data.data ?? [];
+      const { data } = await api.get<{ data: AuditLog[] | { data: AuditLog[] } }>(
+        '/creators/me/audit-logs?limit=30',
+      );
+      const payload = data.data;
+      return Array.isArray(payload) ? payload : payload?.data ?? [];
     },
   });
 
   const { data: rooms } = useQuery({
     queryKey: ['community-rooms', communityId],
     queryFn: async () => {
-      const { data } = await api.get<{ data: Room[] }>(`/communities/${communityId}/rooms`);
-      return (data.data ?? []).filter((r) => r.roomType === 'text');
+      const { data } = await api.get<{ data: Room[] | { data: Room[] } }>(
+        `/communities/${communityId}/rooms`,
+      );
+      const payload = data.data;
+      const list = Array.isArray(payload) ? payload : payload?.data ?? [];
+      return list.filter((r) => (r.roomType ?? r.type ?? 'text') === 'text');
     },
   });
 
@@ -59,7 +73,7 @@ export function StudioCreatorOpsPanel({ communityId }: Props) {
       const { data } = await api.post<{
         data: { score: number; flagged: boolean; reasons: string[]; model: string };
       }>('/creators/me/ai/moderation/score', { text: moderationText.trim() });
-      return data.data;
+      return unwrapData(data.data);
     },
     onSuccess: (result) => {
       setModerationResult(
@@ -70,31 +84,27 @@ export function StudioCreatorOpsPanel({ communityId }: Props) {
 
   const summaryMutation = useMutation({
     mutationFn: async (roomId: string) => {
-      const { data } = await api.get<{ data: { summary: string } }>(
-        `/creators/me/communities/${communityId}/rooms/${roomId}/summary`,
-      );
-      return data.data.summary;
+      const { data } = await api.get<{
+        data: { summary?: string; data?: { summary: string } };
+      }>(`/creators/me/communities/${communityId}/rooms/${roomId}/summary`);
+      const payload = data.data;
+      return payload.summary ?? payload.data?.summary ?? '';
     },
     onSuccess: (summary) => setRoomSummary(summary),
   });
 
   const copilotMutation = useMutation({
     mutationFn: async () => {
-      const bizRes = await api.get<{ data: BusinessAnalytics }>(
-        '/communities/creators/me/business-analytics',
-      );
+      const bizRes = await api.get<{ data: BusinessAnalytics }>('/creators/me/business-analytics');
       const biz = bizRes.data.data;
-      const { data } = await api.post<{ data: CopilotInsights }>(
-        '/creators/me/copilot/insights',
-        {
-          totalSubscribers: biz.membership.activeSubscribers,
-          mrr: biz.membership.mrrCents / 100,
-          churnRate: biz.membership.churnRate,
-          videoViews: 0,
-          communityEngagement: biz.engagement.engagementScore,
-        },
-      );
-      return data.data;
+      const { data } = await api.post<{ data: CopilotInsights }>('/creators/me/copilot/insights', {
+        totalSubscribers: biz.membership.active,
+        mrr: biz.membership.mrrCents / 100,
+        churnRate: biz.kpis.churnRate30d,
+        videoViews: 0,
+        communityEngagement: biz.kpis.engagementScore,
+      });
+      return unwrapData(data.data);
     },
     onSuccess: (insights) => setCopilotInsights(insights),
   });

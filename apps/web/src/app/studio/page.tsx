@@ -6,11 +6,17 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertStrip, Icon, PageHeader, type AlertStripItem, type StatusTone } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-
-type StudioLink = { href: string; label: string; icon: string; desc: string };
+import { fetchStudioLibrary, getMyVideos } from '@/lib/creator-studio';
+import { useStudioAccess } from '@/hooks/useStudioAccess';
+import { formatCount } from '@/lib/utils';
 
 interface CreatorAttention {
-  counts: { commentsNeedingReply: number; pendingModeration: number; failedPayments: number };
+  counts: {
+    commentsNeedingReply: number;
+    pendingModeration: number;
+    failedPayments: number;
+    processingFailures?: number;
+  };
   items: Array<{ id: string; kind: string; label: string; detail: string; href: string; tone: StatusTone }>;
 }
 
@@ -23,61 +29,79 @@ function StudioAttentionLink({ href, className, children }: { href: string; clas
   );
 }
 
-/**
- * Grouped by creator job-to-be-done (Content / Community / Grow / Settings) rather
- * than a flat alphabetical module list — a new creator's first Studio visit should
- * read as 4 jobs, not 15 peers. See docs/FORGE_PROJECT_MASTER.md §8 (design system)
- * and the product redesign blueprint for the rationale.
- */
-const ZONES: { zone: string; items: StudioLink[] }[] = [
-  {
-    zone: 'Content',
-    items: [
-      { href: '/studio/videos', label: 'Videos', icon: 'video_library', desc: 'Manage uploads' },
-      { href: '/studio/courses', label: 'Courses', icon: 'school', desc: 'Lessons & multi-course programs' },
-      { href: '/studio/live', label: 'Go live', icon: 'sensors', desc: 'Start a live session' },
-      { href: '/studio/comments', label: 'Comments', icon: 'forum', desc: 'Community feedback' },
-    ],
-  },
-  {
-    zone: 'Community',
-    items: [
-      { href: '/studio/communities', label: 'Communities', icon: 'hub', desc: 'Channels, categories & moderation' },
-      { href: '/studio/moderation', label: 'Moderation', icon: 'shield', desc: 'Delegated community moderation' },
-      { href: '/studio/brands', label: 'Brands', icon: 'storefront', desc: 'Brand identities' },
-    ],
-  },
-  {
-    zone: 'Grow',
-    items: [
-      { href: '/studio/analytics', label: 'Analytics', icon: 'analytics', desc: 'Performance insights' },
-      { href: '/studio/tiers', label: 'Memberships', icon: 'workspace_premium', desc: 'Configure member tiers' },
-      { href: '/studio/subscribers', label: 'Subscribers', icon: 'groups', desc: 'Manage members & export' },
-      { href: '/studio/bundles', label: 'Bundles', icon: 'inventory_2', desc: 'Package tiers with multiple resources' },
-    ],
-  },
-  {
-    zone: 'Settings',
-    items: [
-      { href: '/studio/settings', label: 'Settings', icon: 'settings', desc: 'Channel preferences' },
-    ],
-  },
-];
+const QUICK_ACTIONS = [
+  { href: '/upload', label: 'Upload video', icon: 'upload', desc: 'Start a new lesson' },
+  { href: '/studio/live', label: 'Go live', icon: 'sensors', desc: 'Start or schedule a stream' },
+  { href: '/studio/courses', label: 'New course', icon: 'school', desc: 'Build a structured learning path' },
+  { href: '/studio/analytics', label: 'Open analytics', icon: 'analytics', desc: 'Track growth and revenue' },
+] as const;
 
-const DISCOVER_LINKS: StudioLink[] = [
-  { href: '/discover/communities', label: 'Discover communities', icon: 'travel_explore', desc: 'Find public communities' },
-  { href: '/discover/courses', label: 'Discover courses', icon: 'menu_book', desc: 'Find published creator courses' },
-];
+const OPERATING_PILLARS = [
+  {
+    title: 'Content',
+    href: '/studio/videos',
+    icon: 'video_library',
+    summary: 'Manage uploads, drafts, publishing, and processing issues.',
+  },
+  {
+    title: 'Live',
+    href: '/studio/live',
+    icon: 'sensors',
+    summary: 'Start streams, schedule events, and run your host control room.',
+  },
+  {
+    title: 'Community',
+    href: '/studio/communities',
+    icon: 'hub',
+    summary: 'Keep conversations healthy, onboard members, and moderate faster.',
+  },
+  {
+    title: 'Grow',
+    href: '/studio/analytics',
+    icon: 'trending_up',
+    summary: 'Track performance, memberships, subscriber health, and retention.',
+  },
+] as const;
 
 export default function StudioPage() {
-  const { isCreator } = useAuth();
+  const { isCreator, user } = useAuth();
+  const { isCollaborator, moderated, primaryRole } = useStudioAccess();
 
-  const { data: attention } = useQuery({
+  const { data: attention, isLoading: attentionLoading } = useQuery({
     queryKey: ['studio-attention'],
     enabled: isCreator,
     queryFn: async () => {
       const { data } = await api.get<{ data: CreatorAttention }>('/creators/me/attention');
       return data.data;
+    },
+  });
+
+  const { data: libraryPreview } = useQuery({
+    queryKey: ['studio-library-preview'],
+    enabled: isCreator,
+    queryFn: () => fetchStudioLibrary({ page: 1, limit: 1 }),
+  });
+
+  const { data: subscriberStats } = useQuery({
+    queryKey: ['studio-dashboard-subscribers', user?.id],
+    enabled: isCreator && !!user?.id,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: { active: number; trial: number; mrrCents: number; canceled: number };
+      }>('/creators/me/subscribers/analytics');
+      return data.data;
+    },
+  });
+
+  const { data: topVideos = [] } = useQuery({
+    queryKey: ['studio-dashboard-top-content', user?.id],
+    enabled: isCreator && !!user?.id,
+    queryFn: async () => {
+      const videos = await getMyVideos(user?.id);
+      return videos
+        .filter((v) => v.status === 'ready')
+        .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
+        .slice(0, 5);
     },
   });
 
@@ -88,63 +112,288 @@ export default function StudioPage() {
     href: item.href,
     tone: item.tone,
   }));
+  const hasAttentionItems = (attentionItems?.length ?? 0) > 0;
+
+  const creatorName = user?.displayName?.trim() || user?.username?.trim() || 'Creator';
+  const totalAttention =
+    (attention?.counts.commentsNeedingReply ?? 0) +
+    (attention?.counts.pendingModeration ?? 0) +
+    (attention?.counts.failedPayments ?? 0) +
+    (attention?.counts.processingFailures ?? 0);
+  const isFirstTimeCreator =
+    libraryPreview?.pagination.total === 0 && !attentionLoading && !hasAttentionItems;
+  const mrrDisplay = ((subscriberStats?.mrrCents ?? 0) / 100).toLocaleString(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  });
+  const readyVideoCount = topVideos.length;
+
+  if (isCollaborator && !isCreator) {
+    return (
+      <main className="space-y-6">
+        <PageHeader
+          title={`Welcome, ${creatorName}`}
+          subtitle={`Collaborator Studio · ${primaryRole ?? 'team'} access`}
+        />
+        <section className="glass-panel space-y-4 rounded-2xl p-6">
+          <h2 className="text-lg font-semibold">Your assigned communities</h2>
+          <ul className="space-y-3">
+            {moderated.map((row) => (
+              <li key={`${row.communityId}-${row.role}`}>
+                <Link
+                  href={`/studio/moderation/${row.communityId}`}
+                  className="flex items-center justify-between rounded-xl border border-outline-variant/30 px-4 py-3 hover:border-primary/40"
+                >
+                  <span>
+                    <span className="font-medium">{row.community?.name ?? 'Community'}</span>
+                    <span className="mt-1 block text-sm capitalize text-on-surface-variant">
+                      {row.role}
+                      {row.community?.creator?.displayName
+                        ? ` · for ${row.community.creator.displayName}`
+                        : ''}
+                    </span>
+                  </span>
+                  <Icon name="chevron_right" className="text-outline" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Link
+              href="/studio/moderation"
+              className="primary-button inline-flex rounded-full px-5 py-2.5 text-sm font-semibold text-on-primary"
+            >
+              Open moderation inbox
+            </Link>
+            <Link href="/messages" className="text-sm text-primary hover:underline self-center">
+              Direct messages
+            </Link>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
-    <main className="mx-auto max-w-4xl px-5 py-8 md:px-12">
-      <PageHeader title="Creator Studio" subtitle="Upload, teach live, and grow your audience" />
-      <div className="mb-8">
-        <Link
-          href="/upload"
-          className="primary-button inline-flex items-center gap-2 rounded-full px-6 py-3 font-semibold text-on-primary"
-        >
-          <Icon name="upload" />
-          Upload new lesson
-        </Link>
-      </div>
+    <main className="space-y-6">
+      <PageHeader
+        title={`Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, ${creatorName}`}
+        subtitle="Run your channel, publish faster, and keep up with what needs attention."
+      />
 
-      {attentionItems ? (
-        <div className="mb-8">
-          <AlertStrip items={attentionItems} linkComponent={StudioAttentionLink} />
-        </div>
+      {isFirstTimeCreator ? (
+        <section className="glass-panel rounded-2xl p-6">
+          <p className="font-label-caps text-xs text-outline">Welcome</p>
+          <h2 className="mt-2 text-xl font-semibold">Set up your creator channel</h2>
+          <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
+            Your Studio is ready. Upload your first lesson, configure memberships, and invite your community when you are ready to publish.
+          </p>
+          <ol className="mt-6 grid gap-4 md:grid-cols-3">
+            <li className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
+              <p className="text-sm font-medium">1. Upload a lesson</p>
+              <p className="mt-2 text-sm text-on-surface-variant">Start with one high-signal video your audience can learn from today.</p>
+              <Link href="/upload" className="mt-3 inline-flex text-sm text-primary hover:underline">
+                Open upload flow
+              </Link>
+            </li>
+            <li className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
+              <p className="text-sm font-medium">2. Shape your channel</p>
+              <p className="mt-2 text-sm text-on-surface-variant">Add channel settings, tiers, and a community home for members.</p>
+              <Link href="/studio/settings" className="mt-3 inline-flex text-sm text-primary hover:underline">
+                Channel settings
+              </Link>
+            </li>
+            <li className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
+              <p className="text-sm font-medium">3. Plan your launch</p>
+              <p className="mt-2 text-sm text-on-surface-variant">Schedule a live session or publish your first course path.</p>
+              <Link href="/studio/live" className="mt-3 inline-flex text-sm text-primary hover:underline">
+                Go live setup
+              </Link>
+            </li>
+          </ol>
+        </section>
       ) : null}
 
-      {ZONES.map((group) => (
-        <section key={group.zone} className="mb-8">
-          <h2 className="font-label-caps mb-3 text-outline">{group.zone}</h2>
-          <div className="forge-stagger grid gap-4 sm:grid-cols-2">
-            {group.items.map((item) => (
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
+        <div className="glass-panel rounded-2xl p-6">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-label-caps text-xs text-outline">Command center</p>
+              <h2 className="mt-1 text-xl font-semibold">Daily creator overview</h2>
+            </div>
+            <span className="rounded-full border border-outline-variant/40 px-3 py-1 text-xs text-on-surface-variant">
+              Last refreshed automatically
+            </span>
+          </div>
+
+          <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
+              <p className="text-sm text-on-surface-variant">Active members</p>
+              <p className="mt-2 text-2xl font-semibold">{formatCount(subscriberStats?.active ?? 0)}</p>
+            </div>
+            <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
+              <p className="text-sm text-on-surface-variant">MRR</p>
+              <p className="mt-2 text-2xl font-semibold">{mrrDisplay}</p>
+            </div>
+            <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
+              <p className="text-sm text-on-surface-variant">Library</p>
+              <p className="mt-2 text-2xl font-semibold">
+                {formatCount(libraryPreview?.pagination.total ?? readyVideoCount)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
+              <p className="text-sm text-on-surface-variant">Open attention</p>
+              <p className="mt-2 text-2xl font-semibold">{formatCount(totalAttention)}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {OPERATING_PILLARS.map((pillar) => (
               <Link
-                key={item.href}
-                href={item.href}
-                className="forge-card-hover glass-panel flex items-start gap-4 rounded-xl p-5 transition-colors hover:border-primary/30"
+                key={pillar.title}
+                href={pillar.href}
+                className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4 transition-colors hover:border-primary/30"
               >
-                <Icon name={item.icon} className="text-2xl text-primary" />
-                <div>
-                  <h3 className="font-semibold">{item.label}</h3>
-                  <p className="text-sm text-on-surface-variant">{item.desc}</p>
+                <div className="mb-3 flex items-center justify-between">
+                  <Icon name={pillar.icon} className="text-2xl text-primary" />
+                  <Icon name="north_east" className="text-outline" />
                 </div>
+                <h3 className="font-semibold">{pillar.title}</h3>
+                <p className="mt-2 text-sm text-on-surface-variant">{pillar.summary}</p>
               </Link>
             ))}
           </div>
-        </section>
-      ))}
+        </div>
 
-      <section>
-        <h2 className="font-label-caps mb-3 text-outline">Discover</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {DISCOVER_LINKS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center gap-3 rounded-lg border border-outline-variant/30 px-4 py-3 text-sm transition-colors hover:border-primary/30"
-            >
-              <Icon name={item.icon} className="text-lg text-outline" />
-              <div>
-                <p className="font-medium">{item.label}</p>
-                <p className="text-xs text-on-surface-variant">{item.desc}</p>
-              </div>
+        <div className="glass-panel rounded-2xl p-6">
+          <p className="font-label-caps text-xs text-outline">Quick actions</p>
+          <div className="mt-4 space-y-3">
+            {QUICK_ACTIONS.map((action) => (
+              <Link
+                key={action.href}
+                href={action.href}
+                className="flex items-start gap-4 rounded-2xl border border-outline-variant/30 bg-surface-container-low px-4 py-4 transition-colors hover:border-primary/30"
+              >
+                <span className="rounded-full bg-primary/10 p-2 text-primary">
+                  <Icon name={action.icon} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-medium">{action.label}</span>
+                  <span className="block text-sm text-on-surface-variant">{action.desc}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {attentionLoading ? null : hasAttentionItems ? (
+        <section className="glass-panel rounded-2xl p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="font-label-caps text-xs text-outline">Attention</p>
+              <h2 className="text-lg font-semibold">What needs action now</h2>
+            </div>
+            <Link href="/studio/attention" className="text-sm text-primary hover:underline">
+              {totalAttention > 0 ? `${totalAttention} items open` : 'Open queue'}
             </Link>
-          ))}
+          </div>
+          <AlertStrip items={attentionItems!} linkComponent={StudioAttentionLink} />
+        </section>
+      ) : (
+        <section className="glass-panel rounded-2xl p-6">
+          <p className="font-label-caps text-xs text-outline">Attention</p>
+          <h2 className="mt-2 text-lg font-semibold">Your queue is clear</h2>
+          <p className="mt-2 text-sm text-on-surface-variant">
+            No urgent creator actions right now. Publish new content, start a live session, or review analytics trends.
+          </p>
+        </section>
+      )}
+
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,1fr)]">
+        <div className="glass-panel rounded-2xl p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="font-label-caps text-xs text-outline">Top content</p>
+              <h2 className="text-lg font-semibold">Best performing lessons</h2>
+            </div>
+            <Link href="/studio/videos" className="text-sm text-primary hover:underline">
+              Open library
+            </Link>
+          </div>
+          {topVideos.length === 0 ? (
+            <p className="text-sm text-on-surface-variant">
+              Ready videos will appear here once you publish. Upload your next lesson to start.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-outline">
+                  <tr>
+                    <th className="pb-3 font-medium">Title</th>
+                    <th className="pb-3 font-medium">Views</th>
+                    <th className="pb-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topVideos.map((video) => (
+                    <tr key={video.id} className="border-t border-outline-variant/20">
+                      <td className="py-3">
+                        <Link href={`/studio/videos/${video.id}`} className="font-medium hover:text-primary">
+                          {video.title}
+                        </Link>
+                      </td>
+                      <td className="py-3 text-on-surface-variant">{formatCount(video.viewCount ?? 0)}</td>
+                      <td className="py-3 capitalize text-on-surface-variant">{video.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="glass-panel rounded-2xl p-6">
+          <p className="font-label-caps text-xs text-outline">Suggested journey</p>
+          <ol className="mt-4 space-y-4 text-sm">
+            <li className="flex gap-3">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                1
+              </span>
+              <span className="text-on-surface-variant">
+                Upload your next lesson or continue an in-progress draft from{' '}
+                <Link href="/studio/videos" className="text-primary hover:underline">
+                  Videos
+                </Link>
+                .
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                2
+              </span>
+              <span className="text-on-surface-variant">
+                Check{' '}
+                <Link href="/studio/attention" className="text-primary hover:underline">
+                  Attention
+                </Link>{' '}
+                for replies, moderation, payments, and failed processing.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                3
+              </span>
+              <span className="text-on-surface-variant">
+                Open{' '}
+                <Link href="/studio/analytics" className="text-primary hover:underline">
+                  Analytics
+                </Link>{' '}
+                to review growth and adjust memberships or content plans.
+              </span>
+            </li>
+          </ol>
         </div>
       </section>
     </main>

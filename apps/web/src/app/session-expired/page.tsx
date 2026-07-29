@@ -8,13 +8,18 @@ type SessionExpiredPageProps = {
 export default function SessionExpiredPage({ searchParams }: SessionExpiredPageProps) {
   const rawNext = searchParams?.next;
   const loginHref = rawNext ? loginHrefWithNext(rawNext) : '/login';
+  const returningToStudio = typeof rawNext === 'string' && rawNext.startsWith('/studio');
 
   return (
     <StatusPage
       icon="schedule"
       title="Session expired"
-      description="Please sign in again to continue."
-      action={{ label: 'Sign in', href: loginHref }}
+      description={
+        returningToStudio
+          ? 'Your Studio session ended for security. Sign in again to return to where you left off.'
+          : 'Please sign in again to continue.'
+      }
+      action={{ label: returningToStudio ? 'Sign in to Studio' : 'Sign in', href: loginHref }}
     />
   );
 }

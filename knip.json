@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["apps/api/src/main.ts", "apps/web/src/app/**/page.tsx", "apps/admin/src/app/**/page.tsx"],
+      "project": ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"]
+    }
+  },
+  "ignore": ["**/dist/**", "**/coverage/**", "**/*.spec.ts", "**/*.test.ts", "**/migrations/**"]
+}

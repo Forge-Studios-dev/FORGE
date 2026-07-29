@@ -20,11 +20,30 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
+import { clampLimit } from '../../common/utils/pagination.util';
 
 @ApiTags('Channel Points')
 @Controller()
 export class ChannelPointsController {
   constructor(private readonly channelPointsService: ChannelPointsService) {}
+
+  // ── Admin oversight ───────────────────────────────────────────────────────
+
+  @Roles(UserRole.ADMIN)
+  @Get('admin/channel-points/redemptions')
+  @ApiOperation({ summary: 'List pending channel-point redemptions (admin)' })
+  adminRedemptions(@Query('limit') limit = 50) {
+    return this.channelPointsService.adminListPendingRedemptions(clampLimit(limit, 50, 100));
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Get('admin/channel-points/summary')
+  @ApiOperation({ summary: 'Channel points summary by community (admin)' })
+  adminSummary(@Query('limit') limit = 50) {
+    return this.channelPointsService.adminCommunityPointsSummary(clampLimit(limit, 50, 100));
+  }
 
   // ── Member: balance & public catalog ──────────────────────────────────────
 
@@ -51,6 +70,16 @@ export class ChannelPointsController {
   }
 
   // ── Creator: rewards management ───────────────────────────────────────────
+
+  @UseGuards(CreatorApprovedGuard)
+  @Get('creators/me/communities/:communityId/channel-points/rewards')
+  @ApiOperation({ summary: 'List channel point rewards for creator management (includes paused)' })
+  listCreatorRewards(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+  ) {
+    return this.channelPointsService.listCreatorRewards(user.sub, communityId);
+  }
 
   @UseGuards(CreatorApprovedGuard)
   @Post('creators/me/communities/:communityId/channel-points/rewards')

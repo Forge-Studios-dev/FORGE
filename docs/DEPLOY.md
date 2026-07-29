@@ -84,7 +84,7 @@ curl -s https://api.forgestudios.net/api/v1/health/live
 curl -s https://api.forgestudios.net/api/v1/health
 ```
 
-API runs **2 machines** (`min_machines_running=2` in `fly.toml`) — see [operations/FLY_SLO.md](./operations/FLY_SLO.md). Production release deploys with `--primary-region sin --regions bom`, overriding `fly.toml`'s `primary_region = 'bom'`.
+API runs **2 machines** (`min_machines_running=2`, `auto_stop_machines=false` in `fly.toml`) — see [operations/FLY_SLO.md](./operations/FLY_SLO.md). Production release deploys with `--primary-region bom --regions bom` so `min_machines_running` applies to the region where API VMs actually run.
 
 **Do not** set `ENABLE_VIDEO_WORKER` on API. Deploy worker separately:
 

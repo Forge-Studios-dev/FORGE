@@ -22,6 +22,11 @@ import {
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { createS3Client, createS3ClientForBrowserPresign } from '../../common/create-s3-client';
 
+// M-S4: `image/svg+xml` is intentionally NOT included — SVGs can carry inline
+// <script> / foreignObject payloads and, when served from the same origin as
+// authenticated CDN download URLs, would give an attacker a stored-XSS
+// primitive against subscribers. Creators can still upload PNG/JPEG/WebP/GIF
+// for imagery.
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
   'application/zip',
@@ -38,7 +43,6 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/gif',
-  'image/svg+xml',
   'image/webp',
   'audio/mpeg',
   'audio/ogg',
@@ -95,17 +99,32 @@ export class CreatorResourcesService {
     if (!ALLOWED_MIME_TYPES.has(mimeType)) {
       throw new BadRequestException(`Unsupported file type: ${mimeType}`);
     }
-    if (fileSizeBytes && fileSizeBytes > MAX_FILE_SIZE_BYTES) {
-      throw new BadRequestException('File exceeds 500 MB limit');
+    if (fileSizeBytes !== undefined && fileSizeBytes !== null) {
+      if (!Number.isFinite(fileSizeBytes) || fileSizeBytes <= 0) {
+        throw new BadRequestException('Invalid file size');
+      }
+      if (fileSizeBytes > MAX_FILE_SIZE_BYTES) {
+        throw new BadRequestException('File exceeds 500 MB limit');
+      }
     }
 
     const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
     const key = `creator-resources/${creatorId}/${uuidv4()}/${safeFileName}`;
 
+    // M-S3: when the client declares a size, bind it into the presigned URL
+    // via ContentLength. AWS SDK signs ContentLength into the request, so S3
+    // rejects any PUT where the actual body length differs — the presigned
+    // URL can't be reused to smuggle a 5 GB payload up to the 500 MB cap.
+    // When no size is supplied we still refuse in `create` if the recorded
+    // size exceeds the cap, but a hard signed cap is only possible when the
+    // client tells us the size up front.
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
       ContentType: mimeType,
+      ...(fileSizeBytes !== undefined && fileSizeBytes !== null
+        ? { ContentLength: fileSizeBytes }
+        : {}),
     });
 
     const uploadUrl = await getSignedUrl(this.presignS3, command, { expiresIn: 600 });
@@ -128,6 +147,16 @@ export class CreatorResourcesService {
   ) {
     if (!ALLOWED_MIME_TYPES.has(input.mimeType)) {
       throw new BadRequestException(`Unsupported file type: ${input.mimeType}`);
+    }
+    // M-S3: mirror the presigned cap on the DB-persist side too — a malicious
+    // client could bypass getUploadUrl entirely by writing directly to S3 with
+    // stolen creds, so also refuse to record an oversized resource here.
+    if (
+      typeof input.fileSizeBytes === 'number' &&
+      Number.isFinite(input.fileSizeBytes) &&
+      input.fileSizeBytes > MAX_FILE_SIZE_BYTES
+    ) {
+      throw new BadRequestException('File exceeds 500 MB limit');
     }
     return this.resourceRepository.save(
       this.resourceRepository.create({

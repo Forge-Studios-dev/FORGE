@@ -83,7 +83,10 @@ describe('Courses HTTP (mocked e2e)', () => {
   it('GET /api/v1/creators/me/courses lists creator courses', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/creators/me/courses');
     expect(res.status).toBe(200);
-    expect(coursesService.listForCreator).toHaveBeenCalledWith('user-1');
+    expect(coursesService.listForCreator).toHaveBeenCalledWith('user-1', {
+      limit: undefined,
+      page: undefined,
+    });
   });
 
   it('PATCH /api/v1/creators/me/courses/:id publishes course', async () => {

@@ -418,14 +418,21 @@ export class StreamLiveService {
   async raiseHand(streamId: string, userId: string) {
     await this.streamingService.findById(streamId);
     const key = this.raiseHandKey(streamId);
-    await this.redis.hset(key, userId, Date.now().toString());
+    const raisedAt = Date.now().toString();
+    await this.redis.hset(key, userId, raisedAt);
     await this.redis.expire(key, 3600);
-    this.eventEmitter.emit('stream.raise-hand', { streamId, userId });
+    this.eventEmitter.emit('stream.raise-hand', {
+      streamId,
+      userId,
+      raised: true,
+      raisedAt: new Date(Number(raisedAt)).toISOString(),
+    });
     return { raised: true };
   }
 
   async lowerHand(streamId: string, userId: string) {
     await this.redis.hdel(this.raiseHandKey(streamId), userId);
+    this.eventEmitter.emit('stream.raise-hand', { streamId, userId, raised: false });
     return { raised: false };
   }
 

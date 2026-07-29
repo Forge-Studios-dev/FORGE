@@ -10,6 +10,19 @@ import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../auth/data/auth_repository.dart';
 
+List<Map<String, dynamic>> _unwrapList(dynamic payload) {
+  if (payload is List) {
+    return payload
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+  if (payload is Map && payload['data'] != null) {
+    return _unwrapList(payload['data']);
+  }
+  return [];
+}
+
 class StudioEngagementScreen extends ConsumerStatefulWidget {
   const StudioEngagementScreen({
     super.key,
@@ -121,11 +134,10 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
         queryParameters: {'seriesOnly': '1'},
       );
       setState(() {
-        _wikiPages = (wikiRes.data['data']?['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-        _challenges =
-            (challengeRes.data['data']?['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-        _surveys = (surveyRes.data['data']?['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-        _events = (eventsRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _wikiPages = _unwrapList(wikiRes.data['data']);
+        _challenges = _unwrapList(challengeRes.data['data']);
+        _surveys = _unwrapList(surveyRes.data['data']);
+        _events = _unwrapList(eventsRes.data['data']);
       });
     } catch (_) {}
   }

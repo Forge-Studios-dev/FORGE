@@ -163,6 +163,8 @@ function CommentRow({
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
           <button
             type="button"
+            aria-label={liked ? `Unlike comment, ${likeCount} likes` : `Like comment, ${likeCount} likes`}
+            aria-pressed={liked}
             onClick={() => {
               if (!currentUser) {
                 onGuestInteract?.();
@@ -339,7 +341,7 @@ export function CommentsPanel({
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     const startPolling = () => {
       if (pollTimer) return;
-      pollTimer = setInterval(onNewComment, 10000);
+      pollTimer = setInterval(onNewComment, 30_000);
     };
     const stopPolling = () => {
       if (pollTimer) {

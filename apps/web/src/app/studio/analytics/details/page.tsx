@@ -8,18 +8,26 @@ import { useAuth } from '@/lib/auth';
 import { formatCount } from '@/lib/utils';
 
 export default function StudioAnalyticsDetailsPage() {
-  const { user } = useAuth();
+  const { user, isCreator } = useAuth();
   const { data: videos, isLoading, isError } = useQuery({
     queryKey: ['studio-analytics-videos', user?.id],
     queryFn: async () => {
       const all = await getMyVideos(user?.id);
       return all.filter((v) => v.status === 'ready');
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && isCreator,
   });
 
+  if (!isCreator) {
+    return (
+      <main className="space-y-4">
+        <PageHeader title="Video performance" subtitle="Creator access required." />
+      </main>
+    );
+  }
+
   return (
-    <main className="mx-auto max-w-4xl px-5 py-8 md:px-12">
+    <main className="space-y-6">
       <Link href="/studio/analytics" className="mb-4 inline-block text-sm text-primary hover:underline">
         ← Analytics
       </Link>

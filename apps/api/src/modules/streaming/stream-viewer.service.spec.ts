@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { StreamViewerService } from './stream-viewer.service';
 import { StreamAnalyticsService } from './stream-analytics.service';
@@ -20,6 +21,7 @@ describe('StreamViewerService', () => {
   const streamRepository = { update: jest.fn().mockResolvedValue({ affected: 1 }), find: jest.fn() };
   const streamAnalyticsService = { recordSnapshot: jest.fn().mockResolvedValue(undefined) };
   const configService = { get: jest.fn().mockReturnValue(false) };
+  const eventEmitter = { emit: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -30,6 +32,7 @@ describe('StreamViewerService', () => {
         { provide: getRepositoryToken(Stream), useValue: streamRepository },
         { provide: StreamAnalyticsService, useValue: streamAnalyticsService },
         { provide: ConfigService, useValue: configService },
+        { provide: EventEmitter2, useValue: eventEmitter },
       ],
     }).compile();
     service = moduleRef.get(StreamViewerService);
@@ -51,6 +54,10 @@ describe('StreamViewerService', () => {
     const count = await service.join('s1', 'socket-1', 'user-1');
     expect(redis.sadd).toHaveBeenCalledWith('stream:viewers:s1', 'socket-1');
     expect(redis.pfadd).toHaveBeenCalledWith('stream:unique:viewers:s1', 'user-1');
+    expect(eventEmitter.emit).toHaveBeenCalledWith('stream.viewer.joined', {
+      streamId: 's1',
+      userId: 'user-1',
+    });
     expect(count).toBe(3);
   });
 

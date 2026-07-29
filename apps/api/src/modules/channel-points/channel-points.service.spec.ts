@@ -31,6 +31,7 @@ describe('ChannelPointsService', () => {
   const redemptionRepository = { find: jest.fn(), findOne: jest.fn(), update: jest.fn() };
   const dataSource = { query: jest.fn(), transaction: jest.fn() };
   const eventEmitter = { emit: jest.fn() };
+  const redis = { set: jest.fn().mockResolvedValue('OK') };
 
   const fakeManager = {
     findOne: jest.fn(),
@@ -63,6 +64,7 @@ describe('ChannelPointsService', () => {
         { provide: getRepositoryToken(ChannelPointRedemption), useValue: redemptionRepository },
         { provide: DataSource, useValue: dataSource },
         { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
       ],
     }).compile();
 

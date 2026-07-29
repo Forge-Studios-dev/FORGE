@@ -2,10 +2,13 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
+import { DataSource, In, Repository } from 'typeorm';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import {
   ChannelPointRedemption,
@@ -17,6 +20,7 @@ import {
 
 @Injectable()
 export class ChannelPointsService {
+  private readonly logger = new Logger(ChannelPointsService.name);
   static readonly STREAM_WATCH_POINTS = 10;
   static readonly CHAT_MESSAGE_POINTS = 2;
   static readonly POST_POINTS = 5;
@@ -30,6 +34,7 @@ export class ChannelPointsService {
     private readonly redemptionRepository: Repository<ChannelPointRedemption>,
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   async getBalance(userId: string, communityId: string) {
@@ -108,6 +113,11 @@ export class ChannelPointsService {
       order: { costPoints: 'ASC' },
     });
     return { data: rewards };
+  }
+
+  async listCreatorRewards(creatorId: string, communityId: string) {
+    await this.assertCommunityOwner(creatorId, communityId);
+    return this.listRewards(communityId, true);
   }
 
   async updateReward(
@@ -231,7 +241,40 @@ export class ChannelPointsService {
       order: { createdAt: 'DESC' },
       take: Math.min(options?.limit ?? 50, 100),
     });
-    return { data: rows };
+    if (!rows.length) return { data: [] };
+
+    const rewardIds = [...new Set(rows.map((r) => r.rewardId))];
+    const userIds = [...new Set(rows.map((r) => r.userId))];
+    const [rewards, users] = await Promise.all([
+      this.rewardRepository.find({ where: { id: In(rewardIds) } }),
+      this.dataSource.query<
+        Array<{ id: string; username: string | null; display_name: string | null }>
+      >(`SELECT id, username, display_name FROM users WHERE id = ANY($1::uuid[])`, [userIds]),
+    ]);
+    const rewardMap = new Map(rewards.map((r) => [r.id, r]));
+    const userMap = new Map(
+      users.map((u) => [
+        u.id,
+        { username: u.username ?? undefined, displayName: u.display_name ?? undefined },
+      ]),
+    );
+
+    return {
+      data: rows.map((row) => {
+        const reward = rewardMap.get(row.rewardId);
+        return {
+          ...row,
+          reward: reward
+            ? {
+                id: reward.id,
+                title: reward.title,
+                costPoints: reward.costPoints,
+              }
+            : null,
+          user: userMap.get(row.userId) ?? null,
+        };
+      }),
+    };
   }
 
   async approveRedemption(creatorId: string, communityId: string, redemptionId: string): Promise<void> {
@@ -266,12 +309,185 @@ export class ChannelPointsService {
     });
   }
 
+  // ── Admin oversight ────────────────────────────────────────────────────────
+
+  async adminListPendingRedemptions(limit = 50) {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const rows = await this.redemptionRepository.find({
+      where: { status: ChannelPointRedemptionStatus.PENDING },
+      order: { createdAt: 'DESC' },
+      take,
+    });
+    if (!rows.length) return { data: [] };
+
+    const rewardIds = [...new Set(rows.map((r) => r.rewardId))];
+    const userIds = [...new Set(rows.map((r) => r.userId))];
+    const communityIds = [...new Set(rows.map((r) => r.communityId))];
+    const [rewards, users, communities] = await Promise.all([
+      this.rewardRepository.find({ where: { id: In(rewardIds) } }),
+      this.dataSource.query<
+        Array<{ id: string; username: string | null; display_name: string | null }>
+      >(`SELECT id, username, display_name FROM users WHERE id = ANY($1::uuid[])`, [userIds]),
+      this.dataSource.query<Array<{ id: string; name: string; slug: string }>>(
+        `SELECT id, name, slug FROM communities WHERE id = ANY($1::uuid[])`,
+        [communityIds],
+      ),
+    ]);
+    const rewardMap = new Map(rewards.map((r) => [r.id, r]));
+    const userMap = new Map(
+      users.map((u) => [
+        u.id,
+        { username: u.username ?? undefined, displayName: u.display_name ?? undefined },
+      ]),
+    );
+    const communityMap = new Map(communities.map((c) => [c.id, c]));
+
+    return {
+      data: rows.map((row) => {
+        const reward = rewardMap.get(row.rewardId);
+        return {
+          ...row,
+          reward: reward
+            ? { id: reward.id, title: reward.title, costPoints: reward.costPoints }
+            : null,
+          user: userMap.get(row.userId) ?? null,
+          community: communityMap.get(row.communityId) ?? null,
+        };
+      }),
+    };
+  }
+
+  async adminCommunityPointsSummary(limit = 50) {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const rows = await this.dataSource.query<
+      Array<{
+        community_id: string;
+        name: string;
+        slug: string;
+        members_with_balance: string;
+        total_balance: string;
+        total_earned: string;
+        pending_redemptions: string;
+      }>
+    >(
+      `SELECT c.id AS community_id, c.name, c.slug,
+              COUNT(DISTINCT b.user_id)::text AS members_with_balance,
+              COALESCE(SUM(b.balance), 0)::text AS total_balance,
+              COALESCE(SUM(b.total_earned), 0)::text AS total_earned,
+              (
+                SELECT COUNT(*)::text FROM channel_point_redemptions r
+                WHERE r.community_id = c.id AND r.status = 'pending'
+              ) AS pending_redemptions
+       FROM communities c
+       LEFT JOIN channel_points_balances b ON b.community_id = c.id
+       GROUP BY c.id, c.name, c.slug
+       HAVING COALESCE(SUM(b.total_earned), 0) > 0
+           OR EXISTS (
+             SELECT 1 FROM channel_point_redemptions r
+             WHERE r.community_id = c.id AND r.status = 'pending'
+           )
+       ORDER BY COALESCE(SUM(b.total_earned), 0) DESC
+       LIMIT $1`,
+      [take],
+    );
+    return {
+      data: rows.map((r) => ({
+        communityId: r.community_id,
+        name: r.name,
+        slug: r.slug,
+        membersWithBalance: Number(r.members_with_balance) || 0,
+        totalBalance: Number(r.total_balance) || 0,
+        totalEarned: Number(r.total_earned) || 0,
+        pendingRedemptions: Number(r.pending_redemptions) || 0,
+      })),
+    };
+  }
+
   // ── Event-driven point earning ─────────────────────────────────────────────
+
+  private async earnOnce(
+    rateKey: string,
+    ttlSec: number,
+    userId: string,
+    communityId: string,
+    points: number,
+  ): Promise<void> {
+    try {
+      const acquired = await this.redis.set(rateKey, '1', 'EX', ttlSec, 'NX');
+      if (acquired !== 'OK') return;
+      await this.earnPoints(userId, communityId, points);
+    } catch (err) {
+      this.logger.debug(
+        `Channel points earn skipped: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   @OnEvent('community.post.created')
   async onCommunityPost(payload: { communityId: string; post: { authorId?: string } }) {
     const authorId = (payload.post as Record<string, unknown>)?.authorId as string | undefined;
     if (!authorId || !payload.communityId) return;
-    await this.earnPoints(authorId, payload.communityId, ChannelPointsService.POST_POINTS).catch(() => {});
+    await this.earnPoints(authorId, payload.communityId, ChannelPointsService.POST_POINTS).catch(
+      () => {},
+    );
+  }
+
+  @OnEvent('room.message')
+  async onRoomMessage(payload: {
+    communityId?: string;
+    message?: { userId?: string };
+  }) {
+    const userId = payload.message?.userId;
+    const communityId = payload.communityId;
+    if (!userId || !communityId) return;
+    await this.earnOnce(
+      `cp:chat:${communityId}:${userId}`,
+      60,
+      userId,
+      communityId,
+      ChannelPointsService.CHAT_MESSAGE_POINTS,
+    );
+  }
+
+  @OnEvent('stream.chat.message')
+  async onStreamChatMessage(payload: {
+    streamId?: string;
+    message?: { userId?: string };
+  }) {
+    const userId = payload.message?.userId;
+    const streamId = payload.streamId;
+    if (!userId || !streamId) return;
+    const [row] = await this.dataSource.query<[{ community_id: string | null }?]>(
+      `SELECT community_id FROM streams WHERE id = $1 LIMIT 1`,
+      [streamId],
+    );
+    const communityId = row?.community_id;
+    if (!communityId) return;
+    await this.earnOnce(
+      `cp:chat:${communityId}:${userId}`,
+      60,
+      userId,
+      communityId,
+      ChannelPointsService.CHAT_MESSAGE_POINTS,
+    );
+  }
+
+  @OnEvent('stream.viewer.joined')
+  async onStreamViewerJoined(payload: { streamId?: string; userId?: string }) {
+    const { streamId, userId } = payload;
+    if (!streamId || !userId) return;
+    const [row] = await this.dataSource.query<[{ community_id: string | null }?]>(
+      `SELECT community_id FROM streams WHERE id = $1 LIMIT 1`,
+      [streamId],
+    );
+    const communityId = row?.community_id;
+    if (!communityId) return;
+    await this.earnOnce(
+      `cp:watch:${streamId}:${userId}`,
+      86_400,
+      userId,
+      communityId,
+      ChannelPointsService.STREAM_WATCH_POINTS,
+    );
   }
 }

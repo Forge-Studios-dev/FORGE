@@ -3,10 +3,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Button, Input, PageHeader } from '@forge/design-system';
+import { Button, EmptyState, Input, PageHeader, StatusPill } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-
 import type { Brand, Community } from '@/types/community';
 
 export default function StudioCommunitiesPage() {
@@ -59,17 +58,20 @@ export default function StudioCommunitiesPage() {
 
   if (!isCreator) {
     return (
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main className="space-y-6">
         <p className="text-sm text-on-surface-variant">Creator access required.</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
-      <PageHeader title="Communities" subtitle="Create and manage your creator communities" />
+    <main className="space-y-6">
+      <PageHeader
+        title="Communities"
+        subtitle="Create homes for members, track health, and jump into moderation or mentorship."
+      />
 
-      <section className="glass-panel mb-8 space-y-3 rounded-xl p-6">
+      <section className="glass-panel space-y-3 rounded-2xl p-6">
         <h2 className="font-label-caps text-outline">New community</h2>
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Community name" />
         <Input
@@ -77,28 +79,30 @@ export default function StudioCommunitiesPage() {
           onChange={(e) => setSlug(e.target.value)}
           placeholder="URL slug (optional)"
         />
-        <select
-          value={brandId}
-          onChange={(e) => setBrandId(e.target.value)}
-          className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
-        >
-          <option value="">No brand</option>
-          {(brands ?? []).map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={visibility}
-          onChange={(e) => setVisibility(e.target.value)}
-          className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
-        >
-          <option value="public">Public</option>
-          <option value="private">Private</option>
-          <option value="paid">Paid members only</option>
-          <option value="invite">Invite only</option>
-        </select>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <select
+            value={brandId}
+            onChange={(e) => setBrandId(e.target.value)}
+            className="w-full rounded-xl border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+          >
+            <option value="">No brand</option>
+            {(brands ?? []).map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={visibility}
+            onChange={(e) => setVisibility(e.target.value)}
+            className="w-full rounded-xl border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+          >
+            <option value="public">Public</option>
+            <option value="private">Private</option>
+            <option value="paid">Paid members only</option>
+            <option value="invite">Invite only</option>
+          </select>
+        </div>
         <Button
           disabled={!name.trim() || createMutation.isPending}
           onClick={() => createMutation.mutate()}
@@ -108,50 +112,55 @@ export default function StudioCommunitiesPage() {
       </section>
 
       {(brands ?? []).length > 0 ? (
-        <div className="mb-4">
-          <select
-            value={brandFilter}
-            onChange={(e) => setBrandFilter(e.target.value)}
-            className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
-          >
-            <option value="">All brands</option>
-            {(brands ?? []).map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={brandFilter}
+          onChange={(e) => setBrandFilter(e.target.value)}
+          className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+        >
+          <option value="">All brands</option>
+          {(brands ?? []).map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
       ) : null}
 
-      <ul className="space-y-2">
-        {filteredCommunities.length === 0 ? (
-          <li className="glass-panel rounded-xl p-4 text-sm text-on-surface-variant">
-            No communities yet. Create one above.
-          </li>
-        ) : (
-          filteredCommunities.map((c) => (
-          <li key={c.id}>
-            <Link
-              href={`/studio/communities/${c.id}`}
-              className="glass-panel flex items-center justify-between rounded-xl p-4 hover:border-primary/30"
-            >
-              <div>
-                <p className="font-medium">{c.name}</p>
-                <p className="text-xs capitalize text-on-surface-variant">
-                  /{c.slug} · {c.visibility}
-                </p>
+      {filteredCommunities.length === 0 ? (
+        <EmptyState
+          icon="hub"
+          title="No communities yet"
+          description="Create your first community to host rooms, events, channel points, and mentorship."
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {filteredCommunities.map((c) => (
+            <article key={c.id} className="glass-panel rounded-2xl p-5">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold">{c.name}</h3>
+                  <p className="text-xs text-on-surface-variant">/{c.slug}</p>
+                </div>
+                <StatusPill tone="neutral" label={c.visibility} />
               </div>
-              <span className="text-sm text-primary">Manage →</span>
-            </Link>
-          </li>
-          ))
-        )}
-      </ul>
-
-      <Link href="/studio" className="mt-8 inline-block text-sm text-primary hover:underline">
-        ← Back to Studio
-      </Link>
+              <div className="flex flex-wrap gap-3 text-sm">
+                <Link href={`/studio/communities/${c.id}`} className="text-primary hover:underline">
+                  Manage
+                </Link>
+                <Link href={`/studio/moderation/${c.id}`} className="text-on-surface-variant hover:underline">
+                  Moderation
+                </Link>
+                <Link href="/studio/channel-points" className="text-on-surface-variant hover:underline">
+                  Points
+                </Link>
+                <Link href="/studio/mentorship" className="text-on-surface-variant hover:underline">
+                  Mentorship
+                </Link>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

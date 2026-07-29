@@ -29,6 +29,7 @@ import '../../features/studio/presentation/studio_screen.dart';
 import '../../features/studio/presentation/studio_videos_screen.dart';
 import '../../features/studio/presentation/studio_comments_screen.dart';
 import '../../features/studio/presentation/studio_live_screen.dart';
+import '../../features/studio/presentation/studio_live_debrief_screen.dart';
 import '../../features/studio/presentation/studio_settings_screen.dart';
 import '../../features/studio/presentation/studio_analytics_screen.dart';
 import '../../features/studio/presentation/studio_tiers_screen.dart';
@@ -41,6 +42,8 @@ import '../../features/studio/presentation/course_viewer_screen.dart';
 import '../../features/courses/presentation/discover_courses_screen.dart';
 import '../../features/community/presentation/discover_communities_screen.dart';
 import '../../features/studio/presentation/studio_bundles_screen.dart';
+import '../../features/studio/presentation/studio_channel_points_screen.dart';
+import '../../features/studio/presentation/studio_mentorship_screen.dart';
 import '../../features/studio/presentation/studio_copilot_screen.dart';
 import '../../features/profile/presentation/program_viewer_screen.dart';
 import '../../features/profile/presentation/my_memberships_screen.dart';
@@ -141,6 +144,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     navigatorKey: rootNavigatorKey,
     initialLocation: '/splash',
     redirect: _redirect,
+    errorBuilder: (context, state) => Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Page not found',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  state.error?.toString() ?? state.uri.toString(),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => context.go('/feed'),
+                  child: const Text('Go home'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/onboarding', builder: (_, __) => const OnboardingScreen()),
@@ -168,6 +200,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/studio/videos', builder: (_, __) => const StudioVideosScreen()),
       GoRoute(path: '/studio/comments', builder: (_, __) => const StudioCommentsScreen()),
       GoRoute(path: '/studio/live', builder: (_, __) => const StudioLiveScreen()),
+      GoRoute(
+        path: '/studio/live/:id/debrief',
+        builder: (_, state) => StudioLiveDebriefScreen(streamId: state.pathParameters['id']!),
+      ),
       GoRoute(path: '/studio/analytics', builder: (_, __) => const StudioAnalyticsScreen()),
       GoRoute(path: '/studio/tiers', builder: (_, __) => const StudioTiersScreen()),
       GoRoute(path: '/studio/bundles', builder: (_, __) => const StudioBundlesScreen()),
@@ -178,6 +214,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => StudioCommunityScreen(
           initialTabIndex: _studioCommunityTabIndex(state.uri.queryParameters['tab']),
         ),
+      ),
+      GoRoute(
+        path: '/studio/communities',
+        redirect: (_, __) => '/studio/community',
       ),
       GoRoute(
         path: '/studio/rooms',
@@ -208,6 +248,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/discover/communities', builder: (_, __) => const DiscoverCommunitiesScreen()),
       GoRoute(path: '/discover/courses', builder: (_, __) => const DiscoverCoursesScreen()),
+      GoRoute(path: '/studio/channel-points', builder: (_, __) => const StudioChannelPointsScreen()),
+      GoRoute(path: '/studio/mentorship', builder: (_, __) => const StudioMentorshipScreen()),
       GoRoute(path: '/studio/settings', builder: (_, __) => const StudioSettingsScreen()),
       GoRoute(path: '/studio/copilot', builder: (_, __) => const StudioCopilotScreen()),
       GoRoute(path: '/profile/settings', builder: (_, __) => const ProfileSettingsScreen()),

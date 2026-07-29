@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/observability/capture_error.dart';
+import '../../../core/socket/forge_socket.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 
@@ -33,13 +35,15 @@ class _CommunityStageRaiseHandPanelState extends ConsumerState<CommunityStageRai
   List<Map<String, dynamic>> _raisedHands = [];
   bool _handRaised = false;
   bool _busy = false;
-  Timer? _hostPollTimer;
-  Timer? _approvalPollTimer;
+  Timer? _offlinePollTimer;
 
   @override
   void initState() {
     super.initState();
-    _startPolling();
+    unawaited(_ensureConnected());
+    if (widget.isHost) {
+      unawaited(_pollRaisedHands());
+    }
   }
 
   @override
@@ -48,26 +52,67 @@ class _CommunityStageRaiseHandPanelState extends ConsumerState<CommunityStageRai
     if (oldWidget.isHost != widget.isHost ||
         oldWidget.canPublish != widget.canPublish ||
         oldWidget.roomId != widget.roomId) {
-      _startPolling();
+      unawaited(_ensureConnected());
+      if (widget.isHost) {
+        unawaited(_pollRaisedHands());
+      }
     }
+  }
+
+  Future<void> _ensureConnected() async {
+    await ForgeSocket.connect();
+    if (!mounted) return;
+    _bindSockets();
+    _startOfflineFallback();
   }
 
   @override
   void dispose() {
-    _hostPollTimer?.cancel();
-    _approvalPollTimer?.cancel();
+    _offlinePollTimer?.cancel();
+    ForgeSocket.off('room:raise-hand', _onRaiseHand);
+    ForgeSocket.off('room:speaker:approved', _onSpeakerApproved);
+    ForgeSocket.leaveRoom(widget.roomId);
     super.dispose();
   }
 
-  void _startPolling() {
-    _hostPollTimer?.cancel();
-    _approvalPollTimer?.cancel();
+  void _bindSockets() {
+    ForgeSocket.off('room:raise-hand', _onRaiseHand);
+    ForgeSocket.off('room:speaker:approved', _onSpeakerApproved);
+    ForgeSocket.joinRoom(widget.roomId);
+    ForgeSocket.on('room:raise-hand', _onRaiseHand);
+    ForgeSocket.on('room:speaker:approved', _onSpeakerApproved);
+  }
 
+  void _startOfflineFallback() {
+    _offlinePollTimer?.cancel();
+    // Socket-first: host list only polls when the socket is down.
+    if (!widget.isHost) return;
+    _offlinePollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (ForgeSocket.isConnected) return;
+      unawaited(_pollRaisedHands());
+    });
+  }
+
+  void _onRaiseHand(dynamic raw) {
+    final data = raw is Map ? raw.cast<String, dynamic>() : <String, dynamic>{};
+    if (data['roomId'] != widget.roomId) return;
     if (widget.isHost) {
-      _pollRaisedHands();
-      _hostPollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _pollRaisedHands());
-    } else if (!widget.canPublish) {
-      _approvalPollTimer = Timer.periodic(const Duration(seconds: 8), (_) => _pollForApproval());
+      unawaited(_pollRaisedHands());
+    } else if (data['userId'] != null) {
+      // Viewer only tracks own hand state from the event.
+      final raised = data['raised'] == true;
+      if (mounted) setState(() => _handRaised = raised);
+    }
+  }
+
+  void _onSpeakerApproved(dynamic raw) {
+    final data = raw is Map ? raw.cast<String, dynamic>() : <String, dynamic>{};
+    if (data['roomId'] != widget.roomId) return;
+    if (widget.isHost) {
+      unawaited(_pollRaisedHands());
+      widget.onSpeakerApproved?.call();
+    } else {
+      widget.onCanPublishGranted?.call();
     }
   }
 
@@ -82,21 +127,7 @@ class _CommunityStageRaiseHandPanelState extends ConsumerState<CommunityStageRai
       setState(() {
         _raisedHands = (res.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
       });
-    } catch (_) {}
-  }
-
-  Future<void> _pollForApproval() async {
-    if (widget.isHost || widget.canPublish) return;
-    try {
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.post(
-        '/communities/${widget.communityId}/rooms/${widget.roomId}/token',
-      );
-      final canPublish = res.data['data']?['canPublish'] as bool? ?? false;
-      if (canPublish && mounted) {
-        widget.onCanPublishGranted?.call();
-      }
-    } catch (_) {}
+    } catch (e, st) { captureError(e, st, 'pollRaisedHands'); }
   }
 
   Future<void> _toggleHand() async {

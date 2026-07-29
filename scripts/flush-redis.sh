@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # Flush all keys from production/staging Redis (REDIS_URL).
 # Clears feed cache, video detail cache, BullMQ queues, rate-limit keys, etc.
 #

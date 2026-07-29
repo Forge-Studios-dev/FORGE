@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { getQueueToken } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MuxLiveSyncService } from './mux-live-sync.service';
 import { Stream, StreamEndReason, StreamStatus } from './entities/stream.entity';
 import { StreamViewerService } from './stream-viewer.service';
+import { STREAM_MUX_SYNC_QUEUE } from '../workers/stream-mux-sync/stream-mux-sync.constants';
 
 describe('MuxLiveSyncService idle grace finalization', () => {
   let service: MuxLiveSyncService;
@@ -32,6 +34,10 @@ describe('MuxLiveSyncService idle grace finalization', () => {
     finalizeUniqueViewers: jest.fn().mockResolvedValue(0),
   };
   const eventEmitter = { emit: jest.fn() };
+  const muxSyncQueue = {
+    add: jest.fn().mockResolvedValue(undefined),
+    getJob: jest.fn().mockResolvedValue(null),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -54,6 +60,7 @@ describe('MuxLiveSyncService idle grace finalization', () => {
         },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: StreamViewerService, useValue: streamViewerService },
+        { provide: getQueueToken(STREAM_MUX_SYNC_QUEUE), useValue: muxSyncQueue },
       ],
     }).compile();
 
@@ -168,6 +175,14 @@ describe('MuxLiveSyncService idle grace finalization', () => {
       'stream.reconnecting',
       expect.objectContaining({ streamId: 'stream-3', timeoutSec: 60, attempt: 1 }),
     );
+    expect(muxSyncQueue.add).toHaveBeenCalledWith(
+      'finalize-grace',
+      { finalizeStreamId: 'stream-3' },
+      expect.objectContaining({
+        jobId: 'mux-grace-finalize:stream-3',
+        delay: 60_000,
+      }),
+    );
   });
 
   it('does not re-emit stream.reconnecting on repeated idle webhooks', async () => {
@@ -185,6 +200,7 @@ describe('MuxLiveSyncService idle grace finalization', () => {
       'stream.reconnecting',
       expect.anything(),
     );
+    expect(muxSyncQueue.add).not.toHaveBeenCalled();
   });
 
   it('emits stream.reconnected when the host resumes after an idle period', async () => {
@@ -247,5 +263,63 @@ describe('MuxLiveSyncService idle grace finalization', () => {
       'stream-7',
       expect.objectContaining({ status: StreamStatus.ENDED }),
     );
+  });
+
+  it('marks platform dormant when only abandoned IDLE mux rooms exist (outside poll window)', async () => {
+    redis.scard.mockResolvedValue(0);
+    // grace work: 0; idle poll candidates (filtered): 0 — abandoned rooms no longer count
+    streamRepositoryWithCount.count.mockResolvedValue(0);
+    redis.get.mockResolvedValue(null);
+    redis.setex.mockResolvedValue('OK');
+
+    const result = await service.runPeriodicScan();
+
+    expect(result).toEqual({ synced: 0, finalized: 0 });
+    expect(streamRepository.find).not.toHaveBeenCalled();
+    expect(redis.setex).toHaveBeenCalledWith(
+      MuxLiveSyncService.PLATFORM_DORMANT_KEY,
+      1200,
+      '1',
+    );
+  });
+
+  it('finalizes via delayed job when reconnect grace has expired', async () => {
+    const stale = {
+      id: 'stream-8',
+      userId: 'creator-1',
+      title: 'Stale',
+      status: StreamStatus.LIVE,
+      muxIdleSince: new Date(Date.now() - 120_000),
+      communityId: null,
+    } as Stream;
+    streamRepositoryWithCount.findOne.mockResolvedValue(stale);
+    redis.set.mockResolvedValue('OK');
+
+    await service.finalizeIfGraceExpired('stream-8');
+
+    expect(streamRepository.update).toHaveBeenCalledWith(
+      'stream-8',
+      expect.objectContaining({
+        status: StreamStatus.ENDED,
+        endReason: StreamEndReason.CONNECTION_LOST,
+      }),
+    );
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'stream.ended',
+      expect.objectContaining({ streamId: 'stream-8' }),
+    );
+  });
+
+  it('skips delayed finalize when host already reconnected', async () => {
+    const live = {
+      id: 'stream-9',
+      status: StreamStatus.LIVE,
+      muxIdleSince: null,
+    } as Stream;
+    streamRepositoryWithCount.findOne.mockResolvedValue(live);
+
+    await service.finalizeIfGraceExpired('stream-9');
+
+    expect(streamRepository.update).not.toHaveBeenCalled();
   });
 });

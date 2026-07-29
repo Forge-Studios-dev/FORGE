@@ -9,7 +9,7 @@ import { FirebaseService } from '../../firebase/firebase.service';
 
 const BATCH_SIZE = 500;
 
-@Processor(PUSH_DISPATCH_QUEUE)
+@Processor(PUSH_DISPATCH_QUEUE, { concurrency: 3 })
 export class PushDispatchWorker extends WorkerHost {
   private readonly logger = new Logger(PushDispatchWorker.name);
 

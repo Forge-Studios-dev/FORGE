@@ -91,6 +91,19 @@ function buildSslConfig(
   };
 }
 
+/** Extract postgres database name from a connection URL (Neon/Fly/local). */
+export function databaseNameFromUrl(url: string): string | undefined {
+  try {
+    const normalized = url.replace(/^postgres(ql)?:\/\//, 'https://');
+    const pathname = new URL(normalized).pathname.replace(/^\//, '');
+    if (!pathname) return undefined;
+    return decodeURIComponent(pathname.split('/')[0] ?? '');
+  } catch {
+    const match = url.match(/\/([^/?#]+)(?:[?#]|$)/);
+    return match?.[1] ? decodeURIComponent(match[1]) : undefined;
+  }
+}
+
 export function parseDatabaseConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): DatabaseConnectionOptions {
@@ -110,7 +123,11 @@ export function parseDatabaseConfig(
   const ssl = buildSslConfig(env, url, nodeEnv);
 
   if (url) {
-    return { url, ssl, poolMax, connectTimeoutMs, idleTimeoutMs, slowQueryMs };
+    // Always set `database` alongside `url`. TypeORM's driver.database can stay
+    // undefined on URL-only Neon configs, and some metadata paths then throw
+    // "Cannot read properties of undefined (reading 'databaseName')".
+    const database = databaseNameFromUrl(url) || env.DB_NAME || 'neondb';
+    return { url, database, ssl, poolMax, connectTimeoutMs, idleTimeoutMs, slowQueryMs };
   }
 
   return {

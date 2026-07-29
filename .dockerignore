@@ -1,0 +1,85 @@
+# M-D3: keep Docker build context (Fly API + worker + web/admin) tight — avoid
+# uploading the whole monorepo, secrets, and app bundles unrelated to the API
+# image. Each Dockerfile still COPYs only what it needs; this just shrinks the
+# tarball sent to the builder and keeps sensitive files out of the layer cache.
+
+# ---- VCS / IDE / OS noise -------------------------------------------------
+.git
+.gitignore
+.gitattributes
+.github
+.vscode
+.idea
+.cursor
+.claude
+.agents
+.DS_Store
+Thumbs.db
+
+# ---- Dependency / build output (each stage restores what it needs) --------
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/build
+**/out
+**/coverage
+**/.nyc_output
+**/.parcel-cache
+
+# ---- Test / lint / TypeScript intermediates -------------------------------
+**/*.log
+**/*.tsbuildinfo
+**/*.map
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/playwright-report
+**/test-results
+**/*.spec.ts.snap
+
+# ---- Env / secrets (must never leak into an image) ------------------------
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+secrets/
+firebase/
+*.pem
+*.key
+*.crt
+credentials.json
+service-account*.json
+
+# ---- Apps + assets not needed inside API/worker images --------------------
+apps/mobile
+apps/web/public/uploads
+apps/admin/public/uploads
+
+# ---- Docs / markdown / audits / prompts (not needed at runtime) -----------
+docs
+**/README.md
+**/CHANGELOG.md
+**/CONTRIBUTING.md
+*.md
+MASTERPROJECTAUDITPROMPT.md
+newPrompt.md
+new_dataprompt.md
+prompt.md
+
+# ---- Local infra + editor artefacts ---------------------------------------
+docker-compose.yml
+docker-compose.prod.reference.yml
+compose.prod.env.example
+infra/nginx/ssl
+
+# ---- Terraform / infra state ----------------------------------------------
+**/.terraform
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/*.tfvars
+
+# ---- Misc -----------------------------------------------------------------
+tmp
+.tmp
+.cache

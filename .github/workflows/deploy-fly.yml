@@ -29,10 +29,16 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # H-D1: pinned to superfly/flyctl-actions@1.5 SHA (mutable @master rejected).
+      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # v1.5
 
       - name: Deploy to Fly.io
-        run: flyctl deploy --remote-only
+        # M-D7: pin the same region topology as the release workflow so an
+        # emergency redeploy doesn't silently ship into a different region
+        # than the routinely-tested production path. `fly.toml` currently uses
+        # primary_region='bom'; keep this flag explicit so it stays in lockstep
+        # with .github/workflows/release.yml even if fly.toml is later edited.
+        run: flyctl deploy --remote-only --primary-region bom --regions bom
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 

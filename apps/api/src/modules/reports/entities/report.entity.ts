@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -20,6 +21,10 @@ export enum ReportStatus {
   DISMISSED = 'dismissed',
 }
 
+// Moderation queue reads paginate pending reports by newest first
+// (status='pending' ORDER BY created_at DESC). Composite index keeps
+// that path index-only as the queue grows (H-B3).
+@Index('IDX_reports_status_created_at', ['status', 'createdAt'])
 @Entity('reports')
 export class Report {
   @PrimaryGeneratedColumn('uuid')

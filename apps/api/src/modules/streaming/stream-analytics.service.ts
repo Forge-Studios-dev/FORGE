@@ -49,6 +49,23 @@ export class StreamAnalyticsService {
     }
   }
 
+  async listRecentEndedStreams(creatorId: string, limit = 10) {
+    const take = Math.min(Math.max(limit, 1), 20);
+    const streams = await this.streamRepository.find({
+      where: { userId: creatorId, status: StreamStatus.ENDED },
+      order: { endedAt: 'DESC', createdAt: 'DESC' },
+      take,
+    });
+    return streams.map((stream) => ({
+      id: stream.id,
+      title: stream.title,
+      endedAt: stream.endedAt ?? null,
+      startedAt: stream.startedAt ?? null,
+      uniqueViewerCount: stream.uniqueViewerCount ?? 0,
+      status: stream.status,
+    }));
+  }
+
   async getCreatorStreamAnalytics(
     creatorId: string,
     streamId: string,

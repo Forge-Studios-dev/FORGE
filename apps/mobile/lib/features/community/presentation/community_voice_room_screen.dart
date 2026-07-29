@@ -125,6 +125,7 @@ class _CommunityVoiceRoomScreenState extends ConsumerState<CommunityVoiceRoomScr
         title: Text(_roomName ?? _title),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Leave room',
           onPressed: _leave,
         ),
       ),

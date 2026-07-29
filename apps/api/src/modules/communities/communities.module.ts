@@ -10,6 +10,9 @@ import { CommunityCategory } from './entities/community-category.entity';
 import { CommunityRole } from './entities/community-role.entity';
 import { CommunityMemberBan, CommunityReport } from './entities/community-moderation.entity';
 import { CommunitiesService } from './communities.service';
+import { CommunityAccessService } from './community-access.service';
+import { CommunityAnalyticsService } from './community-analytics.service';
+import { ChannelLegacyService } from './channel-legacy.service';
 import { CommunityModerationService } from './community-moderation.service';
 import { CommunitiesController } from './communities.controller';
 import { CommunityModerationController } from './community-moderation.controller';
@@ -157,6 +160,9 @@ import { MentorshipController } from './mentorship.controller';
   ],
   providers: [
     CommunitiesService,
+    CommunityAccessService,
+    CommunityAnalyticsService,
+    ChannelLegacyService,
     DeprecatedChannelApiInterceptor,
     CommunityModerationService,
     BrandsService,
@@ -189,6 +195,8 @@ import { MentorshipController } from './mentorship.controller';
   ],
   exports: [
     CommunitiesService,
+    CommunityAccessService,
+    CommunityAnalyticsService,
     CommunityModerationService,
     CommunityRoomsService,
     CreatorCopilotService,

@@ -1,11 +1,11 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useState } from 'react';
-import { Button, Input, PageHeader } from '@forge/design-system';
+import { Button, Input, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { getApiErrorMessage } from '@/lib/api-message';
 import { SubscriberPicker } from '@/components/Community/SubscriberPicker';
 import { SubscriptionTier } from '@/types';
 
@@ -21,6 +21,13 @@ type Subscriber = {
   expiresAt?: string | null;
 };
 
+function statusTone(status: string): StatusTone {
+  if (status === 'active' || status === 'trialing') return 'success';
+  if (status === 'past_due' || status === 'failed_payment') return 'warning';
+  if (status === 'canceled' || status === 'suspended') return 'critical';
+  return 'neutral';
+}
+
 export default function StudioSubscribersPage() {
   const { user, isCreator } = useAuth();
   const qc = useQueryClient();
@@ -28,6 +35,8 @@ export default function StudioSubscribersPage() {
   const [grantTierId, setGrantTierId] = useState('');
   const [grantCommunityId, setGrantCommunityId] = useState('');
   const [grantDays, setGrantDays] = useState('30');
+  const [exportPhase, setExportPhase] = useState<'idle' | 'preparing' | 'downloading' | 'done' | 'error'>('idle');
+  const [exportError, setExportError] = useState('');
 
   const { data: tiers } = useQuery({
     queryKey: ['studio-tiers-grant', user?.id],
@@ -60,6 +69,33 @@ export default function StudioSubscribersPage() {
     },
   });
 
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      setExportPhase('preparing');
+      setExportError('');
+      const { data } = await api.get<Blob>('/creators/me/subscribers/export', {
+        responseType: 'blob',
+      });
+      setExportPhase('downloading');
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'subscribers.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+    onSuccess: () => {
+      setExportPhase('done');
+      window.setTimeout(() => setExportPhase('idle'), 1800);
+    },
+    onError: (e) => {
+      setExportPhase('error');
+      setExportError(getApiErrorMessage(e, 'Could not export subscribers.'));
+    },
+  });
+
   const suspendMutation = useMutation({
     mutationFn: async (subscriptionId: string) => {
       await api.post(`/creators/me/subscribers/${subscriptionId}/suspend`);
@@ -82,30 +118,86 @@ export default function StudioSubscribersPage() {
     },
   });
 
+  const statusCounts = (subscribers ?? []).reduce<Record<string, number>>((acc, s) => {
+    acc[s.status] = (acc[s.status] ?? 0) + 1;
+    return acc;
+  }, {});
+
   if (!isCreator) {
     return (
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main className="space-y-6">
         <p className="text-sm text-on-surface-variant">Creator access required.</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-5 py-8 md:px-12">
-      <PageHeader title="Subscribers" subtitle="Manage your active members and export data" />
-
-      <div className="mb-6 flex flex-wrap gap-3">
+    <main className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <PageHeader
+          title="Subscribers"
+          subtitle="Track membership lifecycle, grant complimentary access, and export member data."
+        />
         <Button
           variant="outline"
-          onClick={() => {
-            window.open(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/v1/creators/me/subscribers/export`, '_blank');
-          }}
+          disabled={exportMutation.isPending || exportPhase === 'preparing' || exportPhase === 'downloading'}
+          onClick={() => exportMutation.mutate()}
         >
-          Export CSV
+          {exportMutation.isPending ? 'Exporting…' : 'Export CSV'}
         </Button>
       </div>
 
-      <section className="glass-panel mb-6 space-y-3 rounded-xl p-6">
+      {exportPhase !== 'idle' ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="glass-panel w-full max-w-sm space-y-3 rounded-2xl p-6 text-center">
+            <p className="font-label-caps text-xs text-outline">CSV export</p>
+            <h2 className="text-lg font-semibold">
+              {exportPhase === 'preparing'
+                ? 'Preparing export…'
+                : exportPhase === 'downloading'
+                  ? 'Downloading file…'
+                  : exportPhase === 'done'
+                    ? 'Export ready'
+                    : 'Export failed'}
+            </h2>
+            <p className="text-sm text-on-surface-variant">
+              {exportPhase === 'error'
+                ? exportError || 'Could not export subscribers.'
+                : exportPhase === 'done'
+                  ? 'subscribers.csv has been downloaded.'
+                  : 'This can take a moment for larger member lists.'}
+            </p>
+            {exportPhase === 'error' || exportPhase === 'done' ? (
+              <Button variant="secondary" onClick={() => setExportPhase('idle')}>
+                Close
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">Total</p>
+          <p className="mt-2 text-3xl font-semibold">{subscribers?.length ?? 0}</p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">Active</p>
+          <p className="mt-2 text-3xl font-semibold">{statusCounts.active ?? 0}</p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">Trials</p>
+          <p className="mt-2 text-3xl font-semibold">{statusCounts.trialing ?? statusCounts.trial ?? 0}</p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">At risk</p>
+          <p className="mt-2 text-3xl font-semibold">
+            {(statusCounts.past_due ?? 0) + (statusCounts.failed_payment ?? 0)}
+          </p>
+        </article>
+      </section>
+
+      <section className="glass-panel space-y-3 rounded-2xl p-6">
         <h2 className="font-label-caps text-outline">Grant complimentary access</h2>
         <SubscriberPicker
           value={grantUserId}
@@ -167,25 +259,28 @@ export default function StudioSubscribersPage() {
       ) : (
         <ul className="space-y-2">
           {(subscribers ?? []).map((s) => (
-            <li key={s.id} className="glass-panel flex items-center justify-between rounded-xl p-4">
-              <div>
+            <li key={s.id} className="glass-panel flex items-center justify-between gap-4 rounded-2xl p-4">
+              <div className="min-w-0">
                 <p className="font-medium">{s.displayName ?? s.username ?? s.userId}</p>
-                <p className="text-xs text-on-surface-variant">
-                  {s.tierName} · {s.source} · {s.status}
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  {s.tierName ?? 'No tier'} · {s.source}
                 </p>
               </div>
-              <Button
-                variant="ghost"
-                className="text-xs text-error"
-                disabled={suspendMutation.isPending}
-                onClick={() => {
-                  if (window.confirm('Suspend this membership?')) {
-                    suspendMutation.mutate(s.id);
-                  }
-                }}
-              >
-                Suspend
-              </Button>
+              <div className="flex shrink-0 items-center gap-3">
+                <StatusPill tone={statusTone(s.status)} label={s.status.replace(/_/g, ' ')} />
+                <Button
+                  variant="ghost"
+                  className="text-xs text-error"
+                  disabled={suspendMutation.isPending}
+                  onClick={() => {
+                    if (window.confirm('Suspend this membership?')) {
+                      suspendMutation.mutate(s.id);
+                    }
+                  }}
+                >
+                  Suspend
+                </Button>
+              </div>
             </li>
           ))}
           {(subscribers ?? []).length === 0 ? (
@@ -193,10 +288,6 @@ export default function StudioSubscribersPage() {
           ) : null}
         </ul>
       )}
-
-      <Link href="/studio" className="mt-8 inline-block text-sm text-primary hover:underline">
-        ← Back to Studio
-      </Link>
     </main>
   );
 }

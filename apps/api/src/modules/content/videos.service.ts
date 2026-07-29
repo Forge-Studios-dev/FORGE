@@ -65,7 +65,7 @@ import {
   isRedisQuotaError,
   safeRedisDel,
   safeRedisGet,
-  safeRedisIncr,
+  safeRedisIncrEx,
   safeRedisSetex,
 } from '../../common/redis/redis-safe.util';
 import { RecordViewDto } from './dto/record-view.dto';
@@ -996,7 +996,16 @@ export class VideosService {
         return false;
       }
     }
-    const n = await safeRedisIncr(this.redis, this.pendingViewKey(videoId), this.logger);
+    const n = await safeRedisIncrEx(this.redis, this.pendingViewKey(videoId), 48 * 3600, this.logger);
+    if (n !== null) {
+      try {
+        await this.redis.sadd('video:views:pending:ids', videoId);
+      } catch (err) {
+        this.logger.warn(
+          `pending view id set failed: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
     return n !== null;
   }
 

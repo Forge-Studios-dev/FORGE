@@ -41,6 +41,7 @@ import { toPublicStream } from './stream.mapper';
 import { StreamEventPurchase } from './entities/stream-event-purchase.entity';
 import { StreamViewerService } from './stream-viewer.service';
 import { MuxLiveSyncService } from './mux-live-sync.service';
+import { StreamReminderScheduler } from './stream-reminder.scheduler';
 import {
   safeRedisGet,
   safeRedisSetex,
@@ -90,6 +91,7 @@ export class StreamingService {
     private readonly webhookIdempotency: WebhookIdempotencyService,
     private readonly streamViewerService: StreamViewerService,
     private readonly muxLiveSyncService: MuxLiveSyncService,
+    private readonly streamReminderScheduler: StreamReminderScheduler,
     @InjectRedis() private readonly redis: Redis,
     @InjectQueue(PREMIUM_CONTENT_NOTIFY_QUEUE)
     private readonly premiumContentNotifyQueue: Queue<PremiumContentNotifyJobData>,
@@ -203,6 +205,9 @@ export class StreamingService {
     void this.invalidateStreamListCache();
     void this.bustStreamDetailCache(saved.id);
     await this.muxLiveSyncService.clearPlatformDormant();
+    if (saved.scheduledAt) {
+      await this.streamReminderScheduler.scheduleReminder(saved.id, saved.scheduledAt);
+    }
     return saved;
   }
 

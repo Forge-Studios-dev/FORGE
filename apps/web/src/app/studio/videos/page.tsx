@@ -1,16 +1,18 @@
 'use client';
 
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { SocketEvents } from '@forge/shared-types';
 import { getActiveUpload, subscribeActiveUpload } from '@/lib/upload-manager';
-import { Icon, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
+import { EmptyState, Icon, ListSkeleton, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { fetchStudioLibrary, type StudioVideoSort } from '@/lib/creator-studio';
-import { fetchCategorySkillTags, type UploadSkillTag } from '@/lib/categories';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { formatCount, timeAgo } from '@/lib/utils';
-import type { UploadVisibility } from '@/lib/upload-draft';
+import { getSocket } from '@/lib/socket';
 import type { Video } from '@/types';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -28,17 +30,30 @@ function statusTone(status: string): StatusTone {
   return 'neutral';
 }
 
+const VISIBILITY_ICON: Record<string, string> = {
+  public: 'public',
+  unlisted: 'link',
+  private: 'lock',
+  followers: 'group',
+  subscribers: 'workspace_premium',
+  tier: 'workspace_premium',
+  paid_event: 'payments',
+};
+
+function formatPublishedAt(video: Video): string {
+  const raw = video.publishedAt ?? video.scheduledPublishAt ?? video.createdAt;
+  return new Date(raw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function VideoRow({
   video,
   cancellingId,
   onCancel,
-  onEdit,
   browserUploadPct,
 }: {
   video: Video;
   cancellingId: string | null;
   onCancel: (id: string) => void;
-  onEdit?: (v: Video) => void;
   browserUploadPct?: number | null;
 }) {
   const inProgress = video.status === 'uploading' || video.status === 'processing';
@@ -95,14 +110,10 @@ function VideoRow({
             {cancellingId === video.id ? 'Cancelling…' : 'Cancel'}
           </button>
         ) : null}
-        {video.status === 'ready' && onEdit ? (
-          <button
-            type="button"
-            onClick={() => onEdit(video)}
-            className="text-sm text-on-surface-variant hover:underline"
-          >
+        {video.status !== 'uploading' ? (
+          <Link href={`/studio/videos/${video.id}`} className="text-sm text-on-surface-variant hover:underline">
             Edit
-          </button>
+          </Link>
         ) : null}
         {video.status === 'ready' ? (
           <Link href={`/watch/${video.id}`} className="text-sm text-primary hover:underline">
@@ -115,24 +126,41 @@ function VideoRow({
 }
 
 export default function StudioVideosPage() {
-  const { user } = useAuth();
+  return (
+    <Suspense fallback={<ListSkeleton rows={6} />}>
+      <StudioVideosPageInner />
+    </Suspense>
+  );
+}
+
+function StudioVideosPageInner() {
+  const searchParams = useSearchParams();
+  const { user, accessToken, isCreator } = useAuth();
   const queryClient = useQueryClient();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [releasing, setReleasing] = useState(false);
-  const [editing, setEditing] = useState<Video | null>(null);
-  const [editVisibility, setEditVisibility] = useState<UploadVisibility>('public');
-  const [editSchedule, setEditSchedule] = useState('');
-  const [availableTags, setAvailableTags] = useState<UploadSkillTag[]>([]);
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [tagsLoading, setTagsLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [browserUploadPct, setBrowserUploadPct] = useState<number | null>(null);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') ?? '');
+  const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get('search')?.trim() ?? '');
   const [sort, setSort] = useState<StudioVideoSort>('recent');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [visibilityFilter, setVisibilityFilter] = useState('');
 
   const PAGE_SIZE = 30;
+
+  useEffect(() => {
+    if (!accessToken) return;
+    const socket = getSocket(accessToken);
+    if (!socket) return;
+    const onReady = () => {
+      void queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    };
+    socket.on(SocketEvents.VIDEO_READY, onReady);
+    return () => {
+      socket.off(SocketEvents.VIDEO_READY, onReady);
+    };
+  }, [accessToken, queryClient]);
 
   useEffect(() => {
     const sync = () => {
@@ -143,6 +171,12 @@ export default function StudioVideosPage() {
     sync();
     return subscribeActiveUpload(sync);
   }, []);
+
+  useEffect(() => {
+    const fromUrl = searchParams.get('search') ?? '';
+    setSearch(fromUrl);
+    setDebouncedSearch(fromUrl.trim());
+  }, [searchParams]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -158,11 +192,18 @@ export default function StudioVideosPage() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['studio-videos', debouncedSearch, sort],
-    enabled: !!user?.id,
+    queryKey: ['studio-videos', debouncedSearch, sort, statusFilter, visibilityFilter],
+    enabled: !!user?.id && isCreator,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
-      fetchStudioLibrary({ search: debouncedSearch, sort, page: pageParam, limit: PAGE_SIZE }),
+      fetchStudioLibrary({
+        search: debouncedSearch,
+        sort,
+        status: statusFilter || undefined,
+        visibility: visibilityFilter || undefined,
+        page: pageParam,
+        limit: PAGE_SIZE,
+      }),
     getNextPageParam: (lastPage) =>
       lastPage.pagination.hasMore ? lastPage.pagination.page + 1 : undefined,
     refetchInterval: (q) => {
@@ -170,20 +211,16 @@ export default function StudioVideosPage() {
       const needsPoll = loaded.some(
         (v) => v.status === 'uploading' || v.status === 'processing',
       );
-      return needsPoll ? 5000 : false;
+      if (!needsPoll) return false;
+      const socket = accessToken ? getSocket(accessToken) : null;
+      if (socket?.connected) return false;
+      return 30_000;
     },
   });
 
   const data = useMemo(() => (pages?.pages ?? []).flatMap((p) => p.items), [pages]);
-
-  const groups = useMemo(() => {
-    const list = data;
-    return {
-      inProgress: list.filter((v) => v.status === 'uploading' || v.status === 'processing'),
-      published: list.filter((v) => v.status === 'ready'),
-      failed: list.filter((v) => v.status === 'failed' || v.status === 'pending'),
-    };
-  }, [data]);
+  const totalCount = pages?.pages[0]?.pagination.total ?? data.length;
+  const inProgressCount = data.filter((v) => v.status === 'uploading' || v.status === 'processing').length;
 
   const cancelVideo = async (videoId: string) => {
     if (!window.confirm('Remove this video and free the upload slot?')) return;
@@ -206,79 +243,48 @@ export default function StudioVideosPage() {
     }
   };
 
-  const openEdit = (video: Video) => {
-    setEditing(video);
-    setEditVisibility((video.visibility as UploadVisibility) ?? 'public');
-    setEditSchedule(
-      video.scheduledPublishAt
-        ? new Date(video.scheduledPublishAt).toISOString().slice(0, 16)
-        : '',
+  if (!isCreator) {
+    return (
+      <main className="space-y-4">
+        <PageHeader title="Videos" subtitle="Creator access required." />
+      </main>
     );
-    setSelectedTagIds((video.skillTags ?? []).map((t) => t.id));
-    setAvailableTags([]);
-    if (video.categoryId) {
-      setTagsLoading(true);
-      void fetchCategorySkillTags(video.categoryId)
-        .then(setAvailableTags)
-        .catch(() => setAvailableTags([]))
-        .finally(() => setTagsLoading(false));
-    }
-  };
-
-  const toggleTag = (tagId: string) => {
-    setSelectedTagIds((prev) =>
-      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId],
-    );
-  };
-
-  const saveEdit = async () => {
-    if (!editing) return;
-    // Re-tagging is only allowed within the video's existing category and must
-    // keep at least one tag; otherwise we omit skillTagIds and leave tags as-is.
-    const canEditTags = !!editing.categoryId && availableTags.length > 0;
-    if (canEditTags && selectedTagIds.length === 0) {
-      window.alert('Select at least one skill tag.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await api.patch(`/videos/${editing.id}`, {
-        visibility: editVisibility,
-        scheduledPublishAt: editSchedule ? new Date(editSchedule).toISOString() : null,
-        ...(canEditTags ? { skillTagIds: selectedTagIds } : {}),
-      });
-      await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
-      setEditing(null);
-    } finally {
-      setSaving(false);
-    }
-  };
+  }
 
   return (
-    <main className="mx-auto max-w-4xl px-5 py-8 md:px-12">
-      <PageHeader title="Your videos" subtitle="Manage uploads, processing, and published lessons" />
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Link
-          href="/upload"
-          className="primary-button inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-on-primary"
-        >
-          <Icon name="add" />
-          New upload
-        </Link>
-        {groups.inProgress.length > 0 ? (
-          <button
-            type="button"
-            disabled={releasing}
-            onClick={() => void releaseAllStuck()}
-            className="rounded-full border border-outline-variant px-4 py-2 text-sm hover:border-primary disabled:opacity-50"
+    <main className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <PageHeader
+          title="Videos"
+          subtitle={
+            totalCount > 0
+              ? `${totalCount} lessons · Manage uploads, processing, publishing, and lesson performance.`
+              : 'Manage uploads, processing, publishing, and lesson performance.'
+          }
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/upload"
+            className="primary-button inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-on-primary"
           >
-            {releasing ? 'Clearing…' : 'Clear stuck uploads'}
-          </button>
-        ) : null}
+            <Icon name="add" />
+            New upload
+          </Link>
+          {inProgressCount > 0 ? (
+            <button
+              type="button"
+              disabled={releasing}
+              onClick={() => void releaseAllStuck()}
+              className="rounded-full border border-outline-variant px-4 py-2 text-sm hover:border-primary disabled:opacity-50"
+            >
+              {releasing ? 'Clearing…' : 'Clear stuck uploads'}
+            </button>
+          ) : null}
+        </div>
       </div>
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[200px] flex-1">
           <Icon
             name="search"
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-outline"
@@ -292,6 +298,37 @@ export default function StudioVideosPage() {
             className="w-full rounded-full border border-outline-variant bg-surface-container-low py-2 pl-10 pr-4 text-sm"
           />
         </div>
+        <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+          Status
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            aria-label="Filter by status"
+            className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface"
+          >
+            <option value="">All</option>
+            <option value="ready">Published</option>
+            <option value="processing">Processing</option>
+            <option value="uploading">Uploading</option>
+            <option value="failed">Failed</option>
+            <option value="pending">Pending</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+          Visibility
+          <select
+            value={visibilityFilter}
+            onChange={(e) => setVisibilityFilter(e.target.value)}
+            aria-label="Filter by visibility"
+            className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface"
+          >
+            <option value="">All</option>
+            <option value="public">Public</option>
+            <option value="unlisted">Unlisted</option>
+            <option value="private">Private</option>
+            <option value="subscribers">Members</option>
+          </select>
+        </label>
         <label className="flex items-center gap-2 text-sm text-on-surface-variant">
           Sort
           <select
@@ -308,10 +345,10 @@ export default function StudioVideosPage() {
         </label>
       </div>
 
-      {groups.inProgress.length > 0 ? (
-        <div className="mb-8 rounded-xl border border-tertiary/30 bg-tertiary/5 p-4">
+      {inProgressCount > 0 ? (
+        <div className="rounded-2xl border border-tertiary/30 bg-tertiary/5 p-4">
           <p className="text-sm font-medium text-on-surface">
-            {groups.inProgress.length} video{groups.inProgress.length === 1 ? '' : 's'} in progress
+            {inProgressCount} video{inProgressCount === 1 ? '' : 's'} in progress
           </p>
           <p className="mt-1 text-sm text-on-surface-variant">
             New uploads are blocked until these finish or you cancel them below.
@@ -319,74 +356,154 @@ export default function StudioVideosPage() {
         </div>
       ) : null}
 
-      {isLoading && <p className="text-on-surface-variant">Loading videos…</p>}
-      {isError && <p className="text-error">Failed to load videos.</p>}
+      {isLoading ? <ListSkeleton rows={6} /> : null}
+      {isError ? <p className="text-error">Failed to load videos.</p> : null}
 
-      {!isLoading && !data.length ? (
-        <div className="glass-panel rounded-xl p-10 text-center">
-          <Icon name="video_library" className="mb-4 text-4xl text-outline" />
-          <p className="text-on-surface-variant">
-            {debouncedSearch
-              ? `No videos match “${debouncedSearch}”.`
-              : 'No videos yet. Upload your first lesson.'}
-          </p>
-        </div>
+      {!isLoading && !isError && !data.length ? (
+        <EmptyState
+          icon="video_library"
+          title={debouncedSearch ? 'No matching videos' : 'No videos yet'}
+          description={
+            debouncedSearch
+              ? `Nothing in your library matches “${debouncedSearch}”.`
+              : 'Upload your first lesson to start building your channel library.'
+          }
+          action={{ label: 'Upload a lesson', href: '/upload' }}
+        />
       ) : null}
 
-      {groups.inProgress.length > 0 ? (
-        <section className="mb-8">
-          <h2 className="font-label-caps mb-3 text-outline">In progress</h2>
-          <ul className="space-y-3">
-            {groups.inProgress.map((video) => (
+      {!isLoading && data.length > 0 ? (
+        <>
+          <div className="hidden overflow-x-auto rounded-2xl border border-outline-variant/30 md:block">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-outline-variant/30 bg-surface-container-low text-xs uppercase tracking-wide text-outline">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Lesson</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Visibility</th>
+                  <th className="px-4 py-3 font-medium">Views</th>
+                  <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((video) => {
+                  const inProgress = video.status === 'uploading' || video.status === 'processing';
+                  const canCancel =
+                    video.status === 'uploading' ||
+                    video.status === 'processing' ||
+                    video.status === 'failed' ||
+                    video.status === 'pending';
+                  const uploadPct = video.id === activeVideoId ? browserUploadPct : null;
+
+                  return (
+                    <tr key={video.id} className="border-b border-outline-variant/20 last:border-0">
+                      <td className="px-4 py-3">
+                        <div className="flex min-w-[280px] items-start gap-3">
+                          <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-lg bg-surface-container-high">
+                            {video.thumbnailUrl ? (
+                              <Image
+                                src={video.thumbnailUrl}
+                                alt=""
+                                fill
+                                className="object-cover"
+                                sizes="96px"
+                              />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-outline">
+                                <Icon name="movie" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{video.title}</p>
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {video.skillTags.slice(0, 3).map((tag) => (
+                                <span
+                                  key={tag.id}
+                                  className="font-label-caps rounded-full border border-outline-variant/40 px-2 py-0.5 text-[10px] text-on-surface-variant"
+                                >
+                                  {tag.name}
+                                </span>
+                              ))}
+                            </div>
+                            {inProgress && uploadPct != null ? (
+                              <div className="mt-2 h-1 max-w-[180px] overflow-hidden rounded-full bg-surface-container-high">
+                                <div
+                                  className="h-full bg-tertiary transition-all"
+                                  style={{ width: `${uploadPct}%` }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusPill
+                          tone={statusTone(video.status)}
+                          label={STATUS_LABEL[video.status] ?? video.status}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1.5 capitalize text-on-surface-variant">
+                          <Icon name={VISIBILITY_ICON[video.visibility] ?? 'visibility'} className="text-base" />
+                          {video.visibility.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-on-surface-variant">
+                        {video.status === 'ready' ? formatCount(video.viewCount) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-on-surface-variant">{formatPublishedAt(video)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                          {canCancel ? (
+                            <button
+                              type="button"
+                              disabled={cancellingId === video.id}
+                              onClick={() => cancelVideo(video.id)}
+                              className="text-sm text-error hover:underline disabled:opacity-50"
+                            >
+                              {cancellingId === video.id ? 'Cancelling…' : 'Cancel'}
+                            </button>
+                          ) : null}
+                          {video.status !== 'uploading' ? (
+                            <Link
+                              href={`/studio/videos/${video.id}`}
+                              className="text-sm text-on-surface-variant hover:underline"
+                            >
+                              Edit
+                            </Link>
+                          ) : null}
+                          {video.status === 'ready' ? (
+                            <Link href={`/watch/${video.id}`} className="text-sm text-primary hover:underline">
+                              View
+                            </Link>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <ul className="space-y-3 md:hidden">
+            {data.map((video) => (
               <VideoRow
                 key={video.id}
                 video={video}
                 cancellingId={cancellingId}
                 onCancel={cancelVideo}
-                browserUploadPct={
-                  video.id === activeVideoId ? browserUploadPct : null
-                }
+                browserUploadPct={video.id === activeVideoId ? browserUploadPct : null}
               />
             ))}
           </ul>
-        </section>
-      ) : null}
-
-      {groups.failed.length > 0 ? (
-        <section className="mb-8">
-          <h2 className="font-label-caps mb-3 text-outline">Failed</h2>
-          <ul className="space-y-3">
-            {groups.failed.map((video) => (
-              <VideoRow
-                key={video.id}
-                video={video}
-                cancellingId={cancellingId}
-                onCancel={cancelVideo}
-              />
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {groups.published.length > 0 ? (
-        <section>
-          <h2 className="font-label-caps mb-3 text-outline">Published</h2>
-          <ul className="space-y-3">
-            {groups.published.map((video) => (
-              <VideoRow
-                key={video.id}
-                video={video}
-                cancellingId={cancellingId}
-                onEdit={openEdit}
-                onCancel={cancelVideo}
-              />
-            ))}
-          </ul>
-        </section>
+        </>
       ) : null}
 
       {hasNextPage ? (
-        <div className="mt-8 flex justify-center">
+        <div className="flex justify-center">
           <button
             type="button"
             disabled={isFetchingNextPage}
@@ -395,86 +512,6 @@ export default function StudioVideosPage() {
           >
             {isFetchingNextPage ? 'Loading…' : 'Load more'}
           </button>
-        </div>
-      ) : null}
-
-      {editing ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="glass-panel w-full max-w-md space-y-4 rounded-2xl p-6">
-            <h2 className="font-display-forge text-lg font-semibold">Edit lesson</h2>
-            <p className="text-sm text-on-surface-variant">{editing.title}</p>
-            <fieldset className="space-y-2">
-              <legend className="font-label-caps text-outline">Visibility</legend>
-              {(['public', 'unlisted', 'private'] as UploadVisibility[]).map((vis) => (
-                <label key={vis} className="flex items-center gap-2 text-sm capitalize">
-                  <input
-                    type="radio"
-                    checked={editVisibility === vis}
-                    onChange={() => setEditVisibility(vis)}
-                  />
-                  {vis}
-                </label>
-              ))}
-            </fieldset>
-            <label className="block text-sm">
-              <span className="font-label-caps text-outline">Schedule publish (optional)</span>
-              <input
-                type="datetime-local"
-                value={editSchedule}
-                onChange={(e) => setEditSchedule(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2"
-              />
-            </label>
-            {editing.categoryId ? (
-              <fieldset className="space-y-2">
-                <legend className="font-label-caps text-outline">Skill tags</legend>
-                {tagsLoading ? (
-                  <p className="text-sm text-on-surface-variant">Loading tags…</p>
-                ) : availableTags.length === 0 ? (
-                  <p className="text-sm text-on-surface-variant">
-                    No skill tags available for this category.
-                  </p>
-                ) : (
-                  <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
-                    {availableTags.map((tag) => {
-                      const selected = selectedTagIds.includes(tag.id);
-                      return (
-                        <button
-                          key={tag.id}
-                          type="button"
-                          onClick={() => toggleTag(tag.id)}
-                          className={`font-label-caps rounded-full border px-3 py-1 text-xs transition ${
-                            selected
-                              ? 'border-primary bg-primary/10 text-primary'
-                              : 'border-outline-variant text-on-surface-variant hover:opacity-80'
-                          }`}
-                        >
-                          {tag.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </fieldset>
-            ) : null}
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                className="text-sm text-on-surface-variant"
-                onClick={() => setEditing(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void saveEdit()}
-                className="primary-button rounded-full px-5 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </div>
         </div>
       ) : null}
     </main>

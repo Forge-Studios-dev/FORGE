@@ -81,7 +81,32 @@ export default function FraudPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-zinc-400">Loading...</div>
+        <div className="overflow-x-auto" aria-busy="true" aria-label="Loading fraud alerts">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-zinc-400 border-b border-zinc-700">
+                <th className="pb-2 pr-4">Signal</th>
+                <th className="pb-2 pr-4">Risk</th>
+                <th className="pb-2 pr-4">User ID</th>
+                <th className="pb-2 pr-4">Status</th>
+                <th className="pb-2 pr-4">Created</th>
+                <th className="pb-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  <td className="py-3 pr-4"><div className="h-3 w-24 rounded bg-zinc-700" /></td>
+                  <td className="py-3 pr-4"><div className="h-3 w-8 rounded bg-zinc-700" /></td>
+                  <td className="py-3 pr-4"><div className="h-3 w-20 rounded bg-zinc-700" /></td>
+                  <td className="py-3 pr-4"><div className="h-4 w-16 rounded bg-zinc-700" /></td>
+                  <td className="py-3 pr-4"><div className="h-3 w-16 rounded bg-zinc-700" /></td>
+                  <td className="py-3"><div className="h-6 w-20 rounded bg-zinc-700" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : alerts.length === 0 ? (
         <div className="text-zinc-400">No alerts found.</div>
       ) : (

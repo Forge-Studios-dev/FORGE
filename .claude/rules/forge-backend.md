@@ -1,40 +1,30 @@
-# FORGE — Backend Standards
+# FORGE — Backend
 
 > Scope: **Apply when touching** `apps/api/**`, `packages/shared-types/**`. Mirrors `.cursor/rules/forge-backend.mdc`.
 
-## NestJS / API
+## API
 
-- Feature-based modules; SOLID; DTO validation; proper exceptions and structured logging.
-- JWT + refresh rotation; RBAC; rate limiting; request tracing; API versioning where applicable.
-- Heavy work via BullMQ (retries, idempotency). Never block API on CPU/IO-heavy jobs.
-- Transactions for multi-step writes; pagination on all list endpoints.
+- Feature modules; DTOs + validation; proper Nest exceptions; structured logging.
+- JWT + refresh rotation; RBAC; rate limiting; request IDs where the codebase already does.
+- Offload heavy/IO work to BullMQ (retries, idempotency). Do not block request handlers on CPU-heavy jobs.
+- Transactions for multi-step writes; paginate list endpoints.
+
+## Data & cache
+
+- Prevent N+1; index hot paths; avoid unbounded queries and huge payloads.
+- Redis for hot reads only when the path already warrants it; invalidate deliberately.
+- Soft deletes only where the domain already uses them.
 
 ## Security
 
-- Input sanitization; no secrets/stack traces in production logs.
-- Upload validation; secure file handling; audit logs for sensitive actions.
+- Validate/sanitize inputs; never log secrets or stack traces to clients.
+- Validate uploads; audit sensitive actions when patterns exist in-module.
 
-## Database
+## Real-time & async
 
-- Optimize queries; prevent N+1; indexes for hot paths; soft deletes where appropriate.
-- Avoid unbounded queries, huge payloads, unnecessary joins, blocking sync work.
-
-## Caching & Performance
-
-- Redis for hot reads (feeds, sessions, rate limits). Cache invalidation strategy required.
-- Stream large responses where appropriate; optimize memory on workers.
-
-## Real-Time (Socket.IO)
-
-- Redis adapter for scale; throttle events; pub/sub for notifications, live, watch sync.
-- Do not put heavy logic in gateway handlers — delegate to services/queues.
-
-## Video & Feed (platform-critical)
-
-- Video: chunked/resumable uploads, transcoding via queues, CDN URLs, watch tracking async.
-- Feed: modular ranking pipeline, cache layers, experimentation-ready structure.
-- Analytics: ingest via async events, not synchronous API hot paths.
+- Socket.IO: keep gateways thin; throttle; use Redis adapter patterns already in repo.
+- Video/feed/analytics: queues and async events on hot paths — follow existing pipeline modules, do not invent parallel systems.
 
 ## Observability
 
-- Correlate logs with request/user IDs; metrics for API latency, queue depth, DB slow queries.
+- Correlate with request/user IDs; prefer existing metrics/logging helpers over new stacks.

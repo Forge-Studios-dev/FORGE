@@ -18,7 +18,11 @@ export default () => ({
       10,
     ),
     connectTimeoutMs: parseInt(process.env.DB_CONNECT_TIMEOUT_MS || '10000', 10),
-    idleTimeoutMs: parseInt(process.env.DB_POOL_IDLE_TIMEOUT_MS || '30000', 10),
+    idleTimeoutMs: parseInt(
+      process.env.DB_POOL_IDLE_TIMEOUT_MS ||
+        (process.env.DATABASE_URL?.includes('neon.tech') ? '120000' : '10000'),
+      10,
+    ),
     slowQueryMs: parseInt(process.env.DB_SLOW_QUERY_MS || '2000', 10),
   },
 
@@ -39,6 +43,12 @@ export default () => ({
   auth: {
     /** e.g. `.forgestudios.net` when API and web are on different subdomains */
     refreshCookieDomain: process.env.AUTH_REFRESH_COOKIE_DOMAIN || '',
+    /**
+     * M-S2: opt-out of the double-submit CSRF check for cookie-based refresh.
+     * Fail-safe by default (enabled in every environment). Only honoured
+     * outside production — production ignores the flag entirely.
+     */
+    csrfDisabled: process.env.CSRF_DISABLED === 'true' ? 'true' : '',
     requireVerifiedLogin: process.env.AUTH_REQUIRE_VERIFIED_LOGIN === 'true',
     lockout: {
       maxAttempts: parseInt(process.env.AUTH_LOCKOUT_MAX_ATTEMPTS || '10', 10),

@@ -59,6 +59,10 @@ describe('UsersService', () => {
             }),
           },
         },
+        {
+          provide: 'default_IORedisModuleConnectionToken',
+          useValue: { get: jest.fn(), setex: jest.fn(), set: jest.fn() },
+        },
       ],
     }).compile();
     return module.get(UsersService);

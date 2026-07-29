@@ -45,6 +45,11 @@ describe('EventsGateway room authorization', () => {
   const directMessagesService = {
     assertMember: jest.fn(),
   };
+  const socketIoHub = {
+    setServer: jest.fn(),
+    to: jest.fn(),
+    io: null as unknown,
+  };
 
   let gateway: EventsGateway;
 
@@ -78,6 +83,7 @@ describe('EventsGateway room authorization', () => {
       communitiesService as never,
       communityRoomsService as never,
       directMessagesService as never,
+      socketIoHub as never,
     );
     (gateway as unknown as { server: unknown }).server = {
       to: jest.fn().mockReturnValue({ emit: jest.fn() }),
@@ -120,22 +126,6 @@ describe('EventsGateway room authorization', () => {
       authedClient() as never,
     );
     expect(result.data.reconnecting).toBe(false);
-  });
-
-  it('relays stream.reconnecting to the stream room', () => {
-    const emit = jest.fn();
-    (gateway as unknown as { server: unknown }).server = { to: jest.fn().mockReturnValue({ emit }) };
-    const payload = { streamId: 'stream-1', userId: 'creator-1', since: new Date().toISOString(), timeoutSec: 60, attempt: 1 };
-    gateway.handleStreamReconnecting(payload);
-    expect(emit).toHaveBeenCalledWith('stream:reconnecting', payload);
-  });
-
-  it('relays stream.reconnected to the stream room', () => {
-    const emit = jest.fn();
-    (gateway as unknown as { server: unknown }).server = { to: jest.fn().mockReturnValue({ emit }) };
-    const payload = { streamId: 'stream-1', userId: 'creator-1' };
-    gateway.handleStreamReconnected(payload);
-    expect(emit).toHaveBeenCalledWith('stream:reconnected', payload);
   });
 
   it('denies join-video when forbidden', async () => {

@@ -43,10 +43,13 @@ export const SocketEvents = {
   STREAM_POLL_UPDATED: 'stream:poll:updated',
   STREAM_QA_CREATED: 'stream:qa:created',
   STREAM_QA_UPDATED: 'stream:qa:updated',
+  STREAM_RAISE_HAND: 'stream:raise-hand',
   CHANNEL_MESSAGE: 'channel:message',
   CHANNEL_MESSAGE_DELETE: 'channel:message:delete',
   ROOM_MESSAGE: 'room:message',
   ROOM_MESSAGE_DELETE: 'room:message:delete',
+  ROOM_RAISE_HAND: 'room:raise-hand',
+  ROOM_SPEAKER_APPROVED: 'room:speaker:approved',
   STREAM_VIEWER_COUNT: 'stream:viewer-count',
   NOTIFICATION_NEW: 'notification:new',
   DM_MESSAGE: 'dm:message',
@@ -69,3 +72,4 @@ export * from './platform-public-config';
 export * from './analytics';
 export * from './content-visibility';
 export * from './entitlements';
+export * from './csrf';

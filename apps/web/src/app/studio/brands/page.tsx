@@ -76,14 +76,14 @@ export default function StudioBrandsPage() {
 
   if (!isCreator) {
     return (
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main className="space-y-6">
         <p className="text-sm text-on-surface-variant">Creator access required.</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
+    <main className="space-y-6">
       <PageHeader title="Brands" subtitle="Organize multiple communities under brand identities" />
 
       {statusMsg ? (

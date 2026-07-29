@@ -1,3 +1,25 @@
+# =============================================================================
+# H-D3: NOT USED FOR FORGE PRODUCTION — reference/self-host topology only.
+#
+# Real production is Fly.io (API + worker) + Vercel (web + admin) + Neon
+# Postgres + Redis Cloud + AWS S3 + Mux — see docs/DEPLOY.md.
+#
+# This compose file describes an alternative self-hosted topology (own
+# Postgres/Redis/nginx containers, pgbouncer sidecar, TLS terminated by
+# nginx). It is kept in-repo as a reference for anyone forking the
+# platform to run it fully self-hosted. It:
+#   - references `infra/nginx/ssl/` which is .gitignore'd and does not
+#     exist by default → the nginx service will fail to start until you
+#     provision real certificates,
+#   - uses `deploy.replicas`/resource `limits` which are silently no-ops
+#     under plain `docker compose up` (only honored under Swarm),
+#   - is not exercised by any CI workflow or deploy path.
+#
+# Do NOT `docker compose -f docker-compose.prod.reference.yml up` and treat
+# the result as a production deployment. If you need FORGE production, see
+# docs/DEPLOY.md and .github/workflows/release.yml instead.
+# =============================================================================
+
 services:
   nginx:
     image: nginx:alpine

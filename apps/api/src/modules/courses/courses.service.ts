@@ -28,6 +28,7 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 import { TierEntitlementResourceType } from '../entitlements/entities/tier-entitlement.entity';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
+import { clampLimit, clampPage, MAX_LIST_LIMIT } from '../../common/utils/pagination.util';
 
 @Injectable()
 export class CoursesService {
@@ -63,15 +64,19 @@ export class CoursesService {
   // CreatorProgramsService's own endpoints, never in the plain course
   // catalog/search/discovery a learner or creator browses here.
 
-  async listForCreator(creatorId: string) {
+  async listForCreator(creatorId: string, opts: { page?: unknown; limit?: unknown } = {}) {
+    const take = clampLimit(opts.limit);
+    const skip = (clampPage(opts.page) - 1) * take;
     return this.courseRepository.find({
       where: { creatorId, isBundle: false },
       order: { createdAt: 'DESC' },
+      take,
+      skip,
     });
   }
 
   async listFeaturedCourses(limit = 12) {
-    const take = Math.min(limit, 24);
+    const take = clampLimit(limit, 12, 24);
     const courses = await this.courseRepository.find({
       where: { isPublished: true, isBundle: false },
       order: { createdAt: 'DESC' },
@@ -84,6 +89,7 @@ export class CoursesService {
     const term = query.trim();
     if (term.length < 2) return { data: [] };
     const pattern = `%${term}%`;
+    const take = clampLimit(limit);
     const courses = await this.courseRepository
       .createQueryBuilder('c')
       .where('c.is_published = true')
@@ -93,15 +99,23 @@ export class CoursesService {
         { pattern },
       )
       .orderBy('c.created_at', 'DESC')
-      .take(Math.min(limit, 50))
+      .take(take)
       .getMany();
     return { data: await this.mapPublicCourses(courses) };
   }
 
-  async listPublishedForCreator(creatorId: string, viewerId?: string | null) {
+  async listPublishedForCreator(
+    creatorId: string,
+    viewerId?: string | null,
+    opts: { page?: unknown; limit?: unknown } = {},
+  ) {
+    const take = clampLimit(opts.limit);
+    const skip = (clampPage(opts.page) - 1) * take;
     const courses = await this.courseRepository.find({
       where: { creatorId, isPublished: true, isBundle: false },
       order: { createdAt: 'DESC' },
+      take,
+      skip,
     });
     return { data: await this.mapPublicCourses(courses, viewerId) };
   }
@@ -273,6 +287,7 @@ export class CoursesService {
     return this.cohortRepository.find({
       where: { courseId },
       order: { startsAt: 'ASC', createdAt: 'ASC' },
+      take: MAX_LIST_LIMIT,
     });
   }
 
@@ -611,11 +626,18 @@ export class CoursesService {
     );
   }
 
-  /** Returns all certificates earned by a user. */
-  async getMyCertificates(userId: string): Promise<CourseCertificate[]> {
+  /** Returns certificates earned by a user (paginated; capped at MAX_LIST_LIMIT per page). */
+  async getMyCertificates(
+    userId: string,
+    opts: { page?: unknown; limit?: unknown } = {},
+  ): Promise<CourseCertificate[]> {
+    const take = clampLimit(opts.limit);
+    const skip = (clampPage(opts.page) - 1) * take;
     return this.certificateRepository.find({
       where: { userId },
       order: { issuedAt: 'DESC' },
+      take,
+      skip,
     });
   }
 
@@ -653,7 +675,11 @@ export class CoursesService {
   }
 
   async listQuizzes(courseId: string): Promise<CourseQuiz[]> {
-    return this.quizRepository.find({ where: { courseId }, order: { createdAt: 'ASC' } });
+    return this.quizRepository.find({
+      where: { courseId },
+      order: { createdAt: 'ASC' },
+      take: MAX_LIST_LIMIT,
+    });
   }
 
   async submitQuiz(
@@ -719,7 +745,11 @@ export class CoursesService {
   }
 
   async listAssignments(courseId: string): Promise<CourseAssignment[]> {
-    return this.assignmentRepository.find({ where: { courseId }, order: { createdAt: 'ASC' } });
+    return this.assignmentRepository.find({
+      where: { courseId },
+      order: { createdAt: 'ASC' },
+      take: MAX_LIST_LIMIT,
+    });
   }
 
   async submitAssignment(
@@ -778,12 +808,17 @@ export class CoursesService {
     creatorId: string,
     courseId: string,
     assignmentId: string,
+    opts: { page?: unknown; limit?: unknown } = {},
   ): Promise<CourseAssignmentSubmission[]> {
     const course = await this.courseRepository.findOne({ where: { id: courseId, creatorId } });
     if (!course) throw new NotFoundException('Course not found');
+    const take = clampLimit(opts.limit);
+    const skip = (clampPage(opts.page) - 1) * take;
     return this.submissionRepository.find({
       where: { assignmentId },
       order: { submittedAt: 'DESC' },
+      take,
+      skip,
     });
   }
 }
