@@ -92,7 +92,12 @@ export function StreamHostDashboard({ stream, displayViewers, broadcastMode }: P
       );
       return data.data;
     },
-    refetchInterval: stream.status === 'live' ? 60_000 : false,
+    refetchInterval: () => {
+      if (stream.status !== 'live') return false;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return false;
+      // Viewer count comes from socket on the parent; analytics is a slow rollup.
+      return 120_000;
+    },
     enabled: stream.status !== 'ended',
   });
 
@@ -104,7 +109,11 @@ export function StreamHostDashboard({ stream, displayViewers, broadcastMode }: P
       );
       return data.data;
     },
-    refetchInterval: stream.status === 'live' ? 45_000 : false,
+    refetchInterval: () => {
+      if (stream.status !== 'live') return false;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return false;
+      return 90_000;
+    },
     enabled: stream.status === 'live',
   });
 
@@ -279,6 +288,7 @@ export function StreamHostDashboard({ stream, displayViewers, broadcastMode }: P
           </p>
           <button
             type="button"
+            aria-label="Mark highlight clip at current moment"
             disabled={markClip.isPending}
             onClick={() => markClip.mutate()}
             className="rounded-lg bg-secondary px-4 py-2 text-xs font-medium text-on-secondary disabled:opacity-50"

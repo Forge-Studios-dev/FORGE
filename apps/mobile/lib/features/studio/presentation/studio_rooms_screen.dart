@@ -6,6 +6,19 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/platform/platform_config.dart';
 
+List<Map<String, dynamic>> _unwrapList(dynamic payload) {
+  if (payload is List) {
+    return payload
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+  if (payload is Map && payload['data'] != null) {
+    return _unwrapList(payload['data']);
+  }
+  return [];
+}
+
 class StudioRoomsScreen extends ConsumerStatefulWidget {
   const StudioRoomsScreen({
     super.key,
@@ -53,7 +66,7 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
     );
     setState(() {
       _permissionsRoomId = roomId;
-      _permissions = (res.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      _permissions = _unwrapList(res.data['data']);
     });
   }
 
@@ -99,7 +112,7 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
     final client = ref.read(apiClientProvider);
     final res = await client.dio.get('/communities/$_communityId/rooms');
     setState(() {
-      _rooms = (res.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      _rooms = _unwrapList(res.data['data']);
     });
   }
 

@@ -11,19 +11,19 @@ import { CreatorFunnelChart } from '@/components/Community/CreatorFunnelChart';
 import { CreatorCohortChart } from '@/components/Community/CreatorCohortChart';
 
 export default function StudioAnalyticsPage() {
-  const { user } = useAuth();
+  const { user, isCreator } = useAuth();
   const { data: videos, isLoading, isError } = useQuery({
     queryKey: ['studio-analytics', user?.id],
     queryFn: async () => {
       const all = await getMyVideos(user?.id);
       return all.filter((v) => v.status === 'ready');
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && isCreator,
   });
 
   const { data: subscriberStats } = useQuery({
     queryKey: ['subscriber-analytics', user?.id],
-    enabled: !!user?.id,
+    enabled: !!user?.id && isCreator,
     queryFn: async () => {
       const { data } = await api.get<{
         data: { active: number; trial: number; mrrCents: number; canceled: number };
@@ -34,7 +34,7 @@ export default function StudioAnalyticsPage() {
 
   const { data: ecosystemTree } = useQuery({
     queryKey: ['ecosystem-tree', user?.id],
-    enabled: !!user?.id,
+    enabled: !!user?.id && isCreator,
     queryFn: async () => {
       const { data } = await api.get<{
         data: {
@@ -57,7 +57,7 @@ export default function StudioAnalyticsPage() {
 
   const { data: businessAnalytics } = useQuery({
     queryKey: ['business-analytics', user?.id],
-    enabled: !!user?.id,
+    enabled: !!user?.id && isCreator,
     queryFn: async () => {
       const { data } = await api.get<{
         data: {
@@ -126,38 +126,79 @@ export default function StudioAnalyticsPage() {
   const totalLikes = videos?.reduce((sum, v) => sum + (v.likeCount ?? 0), 0) ?? 0;
   const readyCount = videos?.filter((v) => v.status === 'ready').length ?? 0;
 
+  if (!isCreator) {
+    return (
+      <main className="space-y-4">
+        <PageHeader title="Analytics" subtitle="Creator access required." />
+      </main>
+    );
+  }
+
   return (
-    <main className="mx-auto max-w-4xl px-5 py-8 md:px-12">
-      <PageHeader title="Analytics" subtitle="Channel performance overview" />
+    <main className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <PageHeader
+          title="Analytics"
+          subtitle="Revenue, membership health, engagement, and top content in one command view."
+        />
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => exportMutation.mutate()}
+            disabled={exportMutation.isPending}
+            className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:border-primary disabled:opacity-60"
+          >
+            {exportMutation.isPending ? 'Exporting…' : 'Export CSV'}
+          </button>
+          <Link href="/studio/analytics/details" className="text-sm text-primary hover:underline self-center">
+            Per-lesson breakdown
+          </Link>
+        </div>
+      </div>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">Total views</p>
+          <p className="font-display-forge mt-1 text-2xl font-bold text-primary">{formatCount(totalViews)}</p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">Published lessons</p>
+          <p className="font-display-forge mt-1 text-2xl font-bold">{readyCount}</p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">Active members</p>
+          <p className="font-display-forge mt-1 text-2xl font-bold">
+            {formatCount(subscriberStats?.active ?? 0)}
+          </p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">MRR</p>
+          <p className="font-display-forge mt-1 text-2xl font-bold">
+            ₹{((subscriberStats?.mrrCents ?? 0) / 100).toFixed(0)}
+          </p>
+        </article>
+      </section>
 
       {subscriberStats ? (
-        <div className="mb-8 grid gap-4 sm:grid-cols-4">
-          <article className="glass-panel rounded-xl p-5">
-            <p className="text-sm text-on-surface-variant">Active members</p>
-            <p className="font-display-forge mt-1 text-2xl font-bold text-primary">
-              {formatCount(subscriberStats.active)}
-            </p>
-          </article>
-          <article className="glass-panel rounded-xl p-5">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <article className="glass-panel rounded-2xl p-5">
             <p className="text-sm text-on-surface-variant">Trials</p>
             <p className="font-display-forge mt-1 text-2xl font-bold">{subscriberStats.trial}</p>
           </article>
-          <article className="glass-panel rounded-xl p-5">
-            <p className="text-sm text-on-surface-variant">MRR</p>
-            <p className="font-display-forge mt-1 text-2xl font-bold">
-              ₹{(subscriberStats.mrrCents / 100).toFixed(0)}
-            </p>
-          </article>
-          <article className="glass-panel rounded-xl p-5">
+          <article className="glass-panel rounded-2xl p-5">
             <p className="text-sm text-on-surface-variant">Canceled</p>
             <p className="font-display-forge mt-1 text-2xl font-bold">{subscriberStats.canceled}</p>
+          </article>
+          <article className="glass-panel rounded-2xl p-5">
+            <p className="text-sm text-on-surface-variant">Total likes</p>
+            <p className="font-display-forge mt-1 text-2xl font-bold text-secondary">{formatCount(totalLikes)}</p>
           </article>
         </div>
       ) : null}
 
       {businessAnalytics?.kpis ? (
-        <div className="mb-8 grid gap-4 sm:grid-cols-2">
-          <article className="glass-panel rounded-xl p-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <article className="glass-panel rounded-2xl p-5">
             <div className="flex items-center justify-between">
               <p className="text-sm text-on-surface-variant">Churn (30d)</p>
               <StatusPill
@@ -173,7 +214,7 @@ export default function StudioAnalyticsPage() {
               {businessAnalytics.kpis.canceledLast30Days === 1 ? '' : 's'} in the last 30 days
             </p>
           </article>
-          <article className="glass-panel rounded-xl p-5">
+          <article className="glass-panel rounded-2xl p-5">
             <div className="flex items-center justify-between">
               <p className="text-sm text-on-surface-variant">Engagement score</p>
               <StatusPill
@@ -192,17 +233,7 @@ export default function StudioAnalyticsPage() {
       ) : null}
 
       {businessAnalytics?.funnel?.length ? (
-        <div className="mb-8 space-y-6">
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => exportMutation.mutate()}
-              disabled={exportMutation.isPending}
-              className="rounded-lg border border-outline-variant/40 px-3 py-1.5 text-sm font-medium text-on-surface hover:bg-surface-variant/40 disabled:opacity-60"
-            >
-              {exportMutation.isPending ? 'Exporting…' : 'Export CSV'}
-            </button>
-          </div>
+        <div className="space-y-6">
           <CreatorFunnelChart stages={businessAnalytics.funnel} />
           {businessAnalytics.cohortRetention ? (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -217,13 +248,13 @@ export default function StudioAnalyticsPage() {
             </div>
           ) : null}
           {(businessAnalytics.communities ?? []).length > 0 ? (
-            <section className="glass-panel rounded-xl p-6">
+            <section className="glass-panel rounded-2xl p-6">
               <h2 className="mb-3 font-label-caps text-outline">Communities (7d active)</h2>
               <ul className="space-y-2">
                 {businessAnalytics.communities.map((c) => (
                   <li
                     key={c.id}
-                    className="flex items-center justify-between rounded-lg border border-outline-variant/30 px-3 py-2 text-sm"
+                    className="flex items-center justify-between rounded-xl border border-outline-variant/30 px-3 py-2 text-sm"
                   >
                     <span>{c.name}</span>
                     <span className="text-on-surface-variant">
@@ -238,7 +269,7 @@ export default function StudioAnalyticsPage() {
       ) : null}
 
       {ecosystemTree ? (
-        <section className="glass-panel mb-8 rounded-xl p-6">
+        <section className="glass-panel rounded-2xl p-6">
           <h2 className="mb-3 font-label-caps text-outline">Creator ecosystem</h2>
           <ul className="space-y-3 text-sm">
             {(ecosystemTree.brands ?? []).map((b) => (
@@ -247,7 +278,7 @@ export default function StudioAnalyticsPage() {
               </li>
             ))}
             {(ecosystemTree.communities ?? []).map((c) => (
-              <li key={c.id} className="rounded-lg border border-outline-variant/30 px-3 py-2">
+              <li key={c.id} className="rounded-xl border border-outline-variant/30 px-3 py-2">
                 <p className="font-medium">{c.name}</p>
                 <p className="text-xs text-on-surface-variant">
                   {c.courses.length} course{c.courses.length === 1 ? '' : 's'}
@@ -278,49 +309,28 @@ export default function StudioAnalyticsPage() {
       {!isLoading && !isError && !videos?.length && (
         <EmptyState
           icon="analytics"
-          title="No analytics yet"
+          title="No content analytics yet"
           description="Upload lessons to start tracking views and engagement."
           action={{ label: 'Upload lesson', href: '/upload' }}
         />
       )}
 
-      {videos && videos.length > 0 && (
-        <>
-          <div className="mb-8 grid gap-4 sm:grid-cols-3">
-            <article className="glass-panel rounded-xl p-5">
-              <p className="text-sm text-on-surface-variant">Total views</p>
-              <p className="font-display-forge mt-1 text-2xl font-bold text-primary">{formatCount(totalViews)}</p>
-            </article>
-            <article className="glass-panel rounded-xl p-5">
-              <p className="text-sm text-on-surface-variant">Total likes</p>
-              <p className="font-display-forge mt-1 text-2xl font-bold text-secondary">{formatCount(totalLikes)}</p>
-            </article>
-            <article className="glass-panel rounded-xl p-5">
-              <p className="text-sm text-on-surface-variant">Published</p>
-              <p className="font-display-forge mt-1 text-2xl font-bold">{readyCount}</p>
-            </article>
-          </div>
-
-          <Link
-            href="/studio/analytics/details"
-            className="mb-6 inline-block text-sm font-medium text-primary hover:underline"
-          >
-            View per-lesson breakdown →
-          </Link>
-
+      {videos && videos.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Top lessons</h2>
           <ul className="space-y-2">
             {videos.slice(0, 5).map((v) => (
               <li
                 key={v.id}
-                className="glass-panel flex items-center justify-between rounded-lg px-4 py-3 text-sm"
+                className="glass-panel flex items-center justify-between rounded-xl px-4 py-3 text-sm"
               >
                 <span className="truncate font-medium">{v.title}</span>
                 <span className="shrink-0 text-primary">{formatCount(v.viewCount)} views</span>
               </li>
             ))}
           </ul>
-        </>
-      )}
+        </section>
+      ) : null}
     </main>
   );
 }

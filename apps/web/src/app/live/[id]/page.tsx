@@ -63,11 +63,16 @@ export default function LiveWatchPage() {
     },
     refetchInterval: (q) => {
       const s = q.state.data;
-      if (!s) return 15_000;
+      if (!s) return 30_000;
       if (s.status === 'live' && s.playbackUrl && !s.accessDenied) return false;
       if (s.status === 'ended') return false;
-      if (s.status === 'idle') return 15_000;
-      if (s.status === 'live' && !s.playbackUrl && !s.accessDenied) return 15_000;
+      // Socket drives go-live/end; poll only for Mux playbackUrl lag or offline fallback.
+      const socketConnected =
+        typeof window !== 'undefined' &&
+        !!(accessToken ? getSocket(accessToken)?.connected : false);
+      if (socketConnected && s.status === 'idle') return false;
+      if (s.status === 'idle') return 60_000;
+      if (s.status === 'live' && !s.playbackUrl && !s.accessDenied) return 30_000;
       return false;
     },
   });
@@ -91,7 +96,10 @@ export default function LiveWatchPage() {
     mutationFn: async () => {
       await api.post(`/streams/${id}/end`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['stream', id] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['stream', id] });
+      window.location.href = `/studio/live/${id}/debrief`;
+    },
   });
 
   const isOwner = me && stream && stream.userId === me.id;
@@ -323,6 +331,14 @@ export default function LiveWatchPage() {
               className="mt-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary"
             >
               Watch replay
+            </Link>
+          ) : null}
+          {isOwner && stream.status === 'ended' ? (
+            <Link
+              href={`/studio/live/${id}/debrief`}
+              className="mt-2 rounded-full border border-outline-variant/50 bg-surface-container-high/80 px-4 py-2 text-sm font-semibold text-on-surface hover:border-primary"
+            >
+              Open post-stream debrief
             </Link>
           ) : null}
         </div>

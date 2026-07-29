@@ -75,8 +75,11 @@ class StudioVideosScreen extends ConsumerWidget {
                               Text(v.title, style: const TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
                               const SizedBox(height: 4),
                               Text(
-                                '${v.status} · ${v.viewCount} views',
-                                style: const TextStyle(fontSize: 13, color: ForgeTokens.onSurfaceVariant),
+                                '${_statusLabel(v.status)} · ${v.viewCount} views',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: _statusColor(v.status),
+                                ),
                               ),
                             ],
                           ),
@@ -92,5 +95,38 @@ class StudioVideosScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'ready':
+        return 'Ready';
+      case 'processing':
+        return 'Processing';
+      case 'uploading':
+        return 'Uploading';
+      case 'failed':
+        return 'Failed';
+      case 'draft':
+        return 'Draft';
+      default:
+        return status;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'ready':
+        return ForgeTokens.secondary;
+      case 'processing':
+      case 'uploading':
+        return ForgeTokens.primary;
+      case 'failed':
+        return ForgeTokens.error;
+      case 'draft':
+        return ForgeTokens.onSurfaceVariant;
+      default:
+        return ForgeTokens.onSurfaceVariant;
+    }
   }
 }

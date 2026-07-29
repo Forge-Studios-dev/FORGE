@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, EmptyState, Icon, Input } from '@forge/design-system';
+import { SocketEvents } from '@forge/shared-types';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { getSocket } from '@/lib/socket';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
 import { CommunityEngagePanel } from '@/components/Community/CommunityEngagePanel';
 import { CommunityPostMedia } from '@/components/Community/CommunityPostMedia';
@@ -93,7 +95,7 @@ function CommunityRestrictedAccess({
 }
 
 export function CommunityPanel({ creatorId, communitySlug }: Props) {
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
   const qc = useQueryClient();
   const [reportingPostId, setReportingPostId] = useState<string | null>(null);
   const [reportingPoll, setReportingPoll] = useState(false);
@@ -259,7 +261,11 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
   const { data: communityLive } = useQuery({
     queryKey: ['community-live', communityId],
     enabled: !!communityId,
-    refetchInterval: 30_000,
+    refetchInterval: () => {
+      const socket = accessToken ? getSocket(accessToken) : null;
+      if (socket?.connected) return false;
+      return 90_000;
+    },
     queryFn: async () => {
       const { data } = await api.get<{
         data: Array<{ id: string; title: string; viewerCount: number }>;
@@ -267,6 +273,24 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
       return data.data ?? [];
     },
   });
+
+  useEffect(() => {
+    if (!accessToken || !communityId) return;
+    const socket = getSocket(accessToken);
+    if (!socket) return;
+    socket.emit('join-community', { communityId });
+    const invalidate = (payload?: { communityId?: string | null }) => {
+      if (payload?.communityId && payload.communityId !== communityId) return;
+      void qc.invalidateQueries({ queryKey: ['community-live', communityId] });
+    };
+    socket.on(SocketEvents.STREAM_STARTED, invalidate);
+    socket.on(SocketEvents.STREAM_ENDED, invalidate);
+    return () => {
+      socket.off(SocketEvents.STREAM_STARTED, invalidate);
+      socket.off(SocketEvents.STREAM_ENDED, invalidate);
+      socket.emit('leave-community', { communityId });
+    };
+  }, [accessToken, communityId, qc]);
 
   const reportPostMutation = useMutation({
     mutationFn: async ({ postId, reason }: { postId: string; reason: string }) => {
@@ -505,6 +529,8 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                 <div className="mt-2 flex flex-wrap items-center gap-3">
                   <button
                     type="button"
+                    aria-label={p.likedByMe ? `Unlike post, ${p.likeCount ?? 0} likes` : `Like post, ${p.likeCount ?? 0} likes`}
+                    aria-pressed={!!p.likedByMe}
                     className={`text-xs ${p.likedByMe ? 'text-primary font-medium' : 'text-outline'}`}
                     disabled={!user || likeMutation.isPending}
                     onClick={() => likeMutation.mutate(p.id)}
@@ -513,6 +539,8 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                   </button>
                   <button
                     type="button"
+                    aria-label={`Toggle comments, ${p.commentCount ?? 0} comments`}
+                    aria-expanded={expandedPostId === p.id}
                     className="text-xs text-outline"
                     onClick={() =>
                       setExpandedPostId((cur) => (cur === p.id ? null : p.id))

@@ -19,7 +19,7 @@ export default function StudioProgramsRedirectPage() {
   }, [router]);
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-8">
+    <main className="space-y-6">
       <p className="text-sm text-on-surface-variant">Redirecting to Courses → Programs…</p>
     </main>
   );

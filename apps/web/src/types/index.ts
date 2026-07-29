@@ -39,6 +39,8 @@ export interface Video {
   sourceStreamId?: string | null;
   publishedAt?: string | null;
   scheduledPublishAt?: string | null;
+  failureReason?: string | null;
+  transcodeProvider?: string | null;
   accessDenied?: boolean;
   accessReason?: string;
   viewerLiked?: boolean;

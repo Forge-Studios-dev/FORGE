@@ -103,14 +103,14 @@ export default function StudioBundlesPage() {
 
   if (!isCreator) {
     return (
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main className="space-y-6">
         <p className="text-sm text-on-surface-variant">Creator access required.</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
+    <main className="space-y-6">
       <Link href="/studio" className="mb-4 inline-block text-sm text-primary">
         ← Back to studio
       </Link>

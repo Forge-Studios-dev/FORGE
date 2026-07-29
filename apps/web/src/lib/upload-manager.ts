@@ -21,7 +21,13 @@ export type ActiveUploadMeta = {
   phase: UploadPhase;
   progress: number;
   startedAt: string;
-  uploadVia?: 'direct' | 'proxy';
+  uploadVia?: 'direct' | 'proxy' | 'multipart';
+  multipart?: {
+    partCount: number;
+    partSize: number;
+    completedParts: number;
+    fileSizeBytes: number;
+  };
 };
 
 type Listener = (state: ActiveUploadMeta | null) => void;
@@ -99,7 +105,23 @@ export async function runBackgroundUpload(
   });
   const presignData = presignRes.data.data as VideoPresignResponse;
   const videoId = presignData.videoId;
-  meta = { ...meta!, videoId, phase: 'uploading', progress: 0 };
+  const multipartMeta =
+    'uploadMode' in presignData && presignData.uploadMode === 'multipart'
+      ? {
+          partCount: presignData.partCount,
+          partSize: presignData.partSize,
+          completedParts: 0,
+          fileSizeBytes: file.size,
+        }
+      : undefined;
+  meta = {
+    ...meta!,
+    videoId,
+    phase: 'uploading',
+    progress: 0,
+    uploadVia: multipartMeta ? 'multipart' : undefined,
+    multipart: multipartMeta,
+  };
   emit();
 
   try {
@@ -119,13 +141,26 @@ export async function runBackgroundUpload(
 
     const via = await putVideoToStorageFromPresign(file, presignData, contentType, (pct) => {
       if (meta) {
-        meta = { ...meta, progress: pct, phase: 'uploading' };
+        const completedParts =
+          meta.multipart != null
+            ? Math.min(
+                meta.multipart.partCount,
+                Math.round((pct / 100) * meta.multipart.partCount),
+              )
+            : undefined;
+        meta = {
+          ...meta,
+          progress: pct,
+          phase: 'uploading',
+          multipart:
+            meta.multipart && completedParts != null
+              ? { ...meta.multipart, completedParts }
+              : meta.multipart,
+        };
         emit();
       }
     });
-    meta = meta
-      ? { ...meta, uploadVia: via === 'multipart' ? 'direct' : via }
-      : meta;
+    meta = meta ? { ...meta, uploadVia: via } : meta;
     emit();
 
     if (meta) {

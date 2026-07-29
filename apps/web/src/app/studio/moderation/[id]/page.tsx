@@ -23,7 +23,7 @@ export default function StudioModerationDetailPage() {
 
   if (isLoading) {
     return (
-      <main className="mx-auto max-w-4xl px-5 py-8">
+      <main className="space-y-6">
         <p className="text-sm text-on-surface-variant">Loading…</p>
       </main>
     );
@@ -31,14 +31,14 @@ export default function StudioModerationDetailPage() {
 
   if (!community) {
     return (
-      <main className="mx-auto max-w-4xl px-5 py-8">
+      <main className="space-y-6">
         <p className="text-sm text-on-surface-variant">Community not found or access denied.</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-5 py-8 md:px-12">
+    <main className="space-y-6">
       <PageHeader
         title={`Moderate: ${community.name}`}
         subtitle="Reports, bans, and role management for delegated moderators"

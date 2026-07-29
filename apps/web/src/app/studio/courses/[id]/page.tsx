@@ -167,7 +167,7 @@ export default function StudioCourseDetailPage() {
 
   if (!isCreator) {
     return (
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main className="space-y-6">
         <p className="text-sm text-on-surface-variant">Creator access required.</p>
       </main>
     );
@@ -182,7 +182,7 @@ export default function StudioCourseDetailPage() {
   });
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
+    <main className="space-y-6">
       <Link href="/studio/courses" className="mb-4 inline-block text-sm text-primary">
         ← Back to courses
       </Link>

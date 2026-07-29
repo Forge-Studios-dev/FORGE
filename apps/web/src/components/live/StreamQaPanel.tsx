@@ -128,6 +128,7 @@ export function StreamQaPanel({ streamId, isHost }: Props) {
                 disabled={upvoteMutation.isPending || !user}
                 onClick={() => upvoteMutation.mutate(q.id)}
                 aria-pressed={q.viewerHasUpvoted}
+                aria-label={`Upvote question, ${q.upvotes} votes`}
                 className={`flex shrink-0 flex-col items-center rounded-md px-2 py-1 ${
                   q.viewerHasUpvoted ? 'bg-primary/15 text-primary' : 'text-on-surface-variant'
                 } disabled:opacity-50`}

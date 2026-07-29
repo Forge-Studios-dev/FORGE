@@ -30,18 +30,29 @@ final _copilotInsightsProvider =
     FutureProvider.autoDispose<_CopilotInsights>((ref) async {
   final client = ref.read(apiClientProvider);
 
-  // Fetch business analytics to provide context to the copilot
   final analyticsRes = await client.dio.get('/creators/me/business-analytics');
-  final analyticsData = analyticsRes.data['data'] as Map<String, dynamic>? ?? {};
+  final analyticsEnvelope = analyticsRes.data as Map<String, dynamic>? ?? {};
+  final analyticsData = analyticsEnvelope['data'] as Map<String, dynamic>? ?? {};
+  final membership = analyticsData['membership'] as Map<String, dynamic>? ?? {};
+  final kpis = analyticsData['kpis'] as Map<String, dynamic>? ?? {};
 
-  // POST analytics context to copilot
   final insightRes = await client.dio.post(
     '/creators/me/copilot/insights',
-    data: analyticsData,
+    data: {
+      'totalSubscribers': membership['active'] ?? 0,
+      'mrr': ((membership['mrrCents'] as num?)?.toDouble() ?? 0) / 100,
+      'churnRate': kpis['churnRate30d'] ?? 0,
+      'videoViews': 0,
+      'communityEngagement': kpis['engagementScore'] ?? 0,
+    },
   );
 
-  final payload = insightRes.data as Map<String, dynamic>;
-  return _CopilotInsights.fromJson(payload);
+  final payload = insightRes.data as Map<String, dynamic>? ?? {};
+  final nested = payload['data'];
+  final insightsJson = nested is Map<String, dynamic>
+      ? nested
+      : payload;
+  return _CopilotInsights.fromJson(insightsJson);
 });
 
 class StudioCopilotScreen extends ConsumerWidget {

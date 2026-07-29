@@ -154,7 +154,17 @@ export default function AdminCommunityPage() {
 
       {tab === 'reports' ? (
         reportsLoading ? (
-          <p className="text-sm text-on-surface-variant">Loading…</p>
+          <ul className="space-y-3" aria-busy="true" aria-label="Loading reports">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <li key={i} className="animate-pulse rounded-xl border border-outline-variant/30 px-4 py-3">
+                <div className="space-y-2">
+                  <div className="h-4 w-40 rounded bg-surface-container-high" />
+                  <div className="h-3 w-56 rounded bg-surface-container-high" />
+                  <div className="h-8 w-28 rounded bg-surface-container-high mt-2" />
+                </div>
+              </li>
+            ))}
+          </ul>
         ) : (
           <ul className="space-y-3">
             {(reports ?? []).map((r) => (
@@ -179,7 +189,17 @@ export default function AdminCommunityPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
           {communitiesLoading ? (
-            <p className="text-sm text-on-surface-variant">Loading…</p>
+            <ul className="space-y-2" aria-busy="true" aria-label="Loading communities">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <li key={i} className="animate-pulse rounded-xl border border-outline-variant/30 px-4 py-3">
+                  <div className="space-y-2">
+                    <div className="h-4 w-36 rounded bg-surface-container-high" />
+                    <div className="h-3 w-52 rounded bg-surface-container-high" />
+                    <div className="h-3 w-44 rounded bg-surface-container-high" />
+                  </div>
+                </li>
+              ))}
+            </ul>
           ) : (
             <ul className="space-y-2">
               {(communities ?? []).map((c) => (
@@ -282,7 +302,17 @@ export default function AdminCommunityPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
           {connectLoading ? (
-            <p className="text-sm text-on-surface-variant">Loading…</p>
+            <ul className="space-y-2" aria-busy="true" aria-label="Loading connect status">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <li key={i} className="animate-pulse rounded-xl border border-outline-variant/30 px-4 py-3">
+                  <div className="space-y-2">
+                    <div className="h-4 w-32 rounded bg-surface-container-high" />
+                    <div className="h-3 w-40 rounded bg-surface-container-high" />
+                    <div className="h-3 w-48 rounded bg-surface-container-high" />
+                  </div>
+                </li>
+              ))}
+            </ul>
           ) : (
             <ul className="space-y-2">
               {(connectRows ?? []).map((row) => (

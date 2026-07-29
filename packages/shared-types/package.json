@@ -51,6 +51,11 @@
       "types": "./dist/platform-public-config.d.ts",
       "require": "./dist/platform-public-config.js",
       "default": "./dist/platform-public-config.js"
+    },
+    "./csrf": {
+      "types": "./dist/csrf.d.ts",
+      "require": "./dist/csrf.js",
+      "default": "./dist/csrf.js"
     }
   },
   "scripts": {

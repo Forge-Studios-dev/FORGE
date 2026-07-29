@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@forge/design-system';
+import { SocketEvents } from '@forge/shared-types';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { getSocket } from '@/lib/socket';
 
 type RaisedHand = { userId: string; raisedAt: string };
 
@@ -24,7 +26,7 @@ export function CommunityStageRaiseHandPanel({
   onSpeakerApproved,
 }: Props) {
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
   const [handRaised, setHandRaised] = useState(false);
 
   const { data: raisedHands } = useQuery({
@@ -35,14 +37,58 @@ export function CommunityStageRaiseHandPanel({
       );
       return data.data ?? [];
     },
-    enabled: !!user?.id,
-    refetchInterval: isHost ? 5000 : 15000,
+    enabled: !!user?.id && isHost,
+    refetchInterval: () => {
+      const socket = accessToken ? getSocket(accessToken) : null;
+      if (socket?.connected) return false;
+      return 60_000;
+    },
   });
 
   useEffect(() => {
     if (!user?.id || isHost) return;
     setHandRaised((raisedHands ?? []).some((h) => h.userId === user.id));
   }, [raisedHands, user?.id, isHost]);
+
+  useEffect(() => {
+    if (!accessToken || !roomId) return;
+    const socket = getSocket(accessToken);
+    if (!socket) return;
+
+    socket.emit('join-room', { roomId });
+
+    const onRaiseHand = (payload: {
+      roomId?: string;
+      userId?: string;
+      raised?: boolean;
+    }) => {
+      if (payload.roomId !== roomId) return;
+      void qc.invalidateQueries({
+        queryKey: ['community-room-raise-hands', communityId, roomId],
+      });
+      if (!isHost && payload.userId === user?.id) {
+        setHandRaised(!!payload.raised);
+      }
+    };
+
+    const onApproved = (payload: { roomId?: string; userId?: string }) => {
+      if (payload.roomId !== roomId) return;
+      void qc.invalidateQueries({
+        queryKey: ['community-room-raise-hands', communityId, roomId],
+      });
+      if (payload.userId === user?.id) {
+        onSpeakerApproved();
+      }
+    };
+
+    socket.on(SocketEvents.ROOM_RAISE_HAND, onRaiseHand);
+    socket.on(SocketEvents.ROOM_SPEAKER_APPROVED, onApproved);
+    return () => {
+      socket.off(SocketEvents.ROOM_RAISE_HAND, onRaiseHand);
+      socket.off(SocketEvents.ROOM_SPEAKER_APPROVED, onApproved);
+      socket.emit('leave-room', { roomId });
+    };
+  }, [accessToken, roomId, communityId, isHost, user?.id, qc, onSpeakerApproved]);
 
   const toggleMutation = useMutation({
     mutationFn: async (raised: boolean) => {
@@ -54,7 +100,9 @@ export function CommunityStageRaiseHandPanel({
     },
     onSuccess: (_data, raised) => {
       setHandRaised(raised);
-      void qc.invalidateQueries({ queryKey: ['community-room-raise-hands', communityId, roomId] });
+      void qc.invalidateQueries({
+        queryKey: ['community-room-raise-hands', communityId, roomId],
+      });
     },
   });
 
@@ -65,7 +113,9 @@ export function CommunityStageRaiseHandPanel({
       );
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['community-room-raise-hands', communityId, roomId] });
+      void qc.invalidateQueries({
+        queryKey: ['community-room-raise-hands', communityId, roomId],
+      });
       onSpeakerApproved();
     },
   });
@@ -99,18 +149,20 @@ export function CommunityStageRaiseHandPanel({
 
   if (canPublish) {
     return (
-      <p className="text-xs text-on-surface-variant">You are approved to speak on stage.</p>
+      <p className="mb-3 text-xs text-on-surface-variant">You are approved to speak on stage.</p>
     );
   }
 
   return (
-    <Button
-      variant="secondary"
-      className="text-xs"
-      disabled={toggleMutation.isPending}
-      onClick={() => toggleMutation.mutate(!handRaised)}
-    >
-      {handRaised ? 'Lower hand' : 'Raise hand to speak'}
-    </Button>
+    <div className="mb-3">
+      <Button
+        variant="secondary"
+        className="w-full text-sm"
+        disabled={toggleMutation.isPending}
+        onClick={() => toggleMutation.mutate(!handRaised)}
+      >
+        {handRaised ? 'Lower hand' : 'Raise hand to speak'}
+      </Button>
+    </div>
   );
 }
