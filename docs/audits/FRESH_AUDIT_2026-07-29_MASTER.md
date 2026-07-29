@@ -58,8 +58,8 @@ Mux minute/cost tables · AWS Cost Explorer / live S3 versioning apply · Vercel
 |----|-------|------------|
 | C1–C5 | Mostly ✅ | Confirmed (C2 still facade ~900 LOC — ⚠️) |
 | C6 | Checklist | ⚠️ Process only |
-| H-* remediations | Claimed ✅ in WT | Committed in Wave 1; several ⚠️ partial (H-A1, H-M1, H-M2, M-I1) |
-| Mux/Neon idle | WIP | Code committed; **prod pending deploy** |
+| H-* remediations | Claimed ✅ in WT | Committed in Wave 1; several ⚠️ partial (H-A1, H-M1, H-M2); M-I1 ✅ prod |
+| Mux/Neon idle | WIP | ✅ Prod 2026-07-29 (Mux 300s→900s dormant verified) |
 | H-F4 / H-M4 / H-Q3 / F-1101 / F-1302 | Deferred | Still deferred |
 
 ---
@@ -106,4 +106,4 @@ Gaps deferred: full Connect payout ledger/tax, semantic search, concurrent-sessi
 
 ## Wave 4 gate
 
-**Closed 2026-07-29** (user-authorized finish-outstanding). PR #161 merged to `main`; Fly API+worker live on merge SHA; Vercel web/admin via separate Deploy workflow when triggered. Note: automated Release failed twice on `no capacity available in bom` for `release_command` — mitigated with out-of-band migration bookkeeping + `--skip-release-command` deploy; release.yml now retries then falls back.
+**Closed 2026-07-29** (user-authorized finish-outstanding). PR #161 merged to `main`; Fly API+worker live on merge SHA; Vercel web/admin deployed via Deploy Web & Admin workflow. Note: automated Release failed twice on `no capacity available in bom` for `release_command` — mitigated with out-of-band migration bookkeeping + `--skip-release-command` manual deploy; release.yml retries then **fails closed** (no silent schema skip).

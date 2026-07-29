@@ -91,9 +91,9 @@ jobs:
         # counts the primary region — a sin primary left bom VMs unprotected
         # under auto_stop and caused cold-start proxy 502s. Release VM size is
         # already reduced in fly.toml [deploy.release_command_vm] for bom capacity.
-        # When bom still has no spare capacity for the one-off release_command VM,
-        # retry then fall back to --skip-release-command (migrations must already
-        # be applied out-of-band — CREATE INDEX IF NOT EXISTS / Neon).
+        # Do NOT silently --skip-release-command: that can ship an image whose
+        # schema migrations never ran. On capacity exhaustion, fail closed and
+        # require out-of-band migration + manual redeploy (see FLY_SLO / Wave 4).
         run: |
           set +e
           for attempt in 1 2 3 4 5; do
@@ -105,14 +105,16 @@ jobs:
               exit 0
             fi
             if grep -qi 'no capacity available in bom' "$OUT"; then
-              echo "BOM release_command capacity miss — sleeping before retry"
-              sleep $((attempt * 45))
+              if [ "$attempt" -lt 5 ]; then
+                echo "BOM release_command capacity miss — sleeping before retry"
+                sleep $((attempt * 45))
+              fi
               continue
             fi
             exit "$rc"
           done
-          echo "::warning::BOM capacity exhausted for release_command — deploying with --skip-release-command"
-          flyctl deploy --remote-only --primary-region bom --regions bom --skip-release-command
+          echo "::error::BOM capacity exhausted for release_command VM. Apply pending TypeORM migrations out-of-band (Neon / machine run), then: flyctl deploy --remote-only --primary-region bom --regions bom --skip-release-command"
+          exit 1
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
