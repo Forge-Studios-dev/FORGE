@@ -17,7 +17,7 @@ Live Neon shows a small ~40MB production DB with no application-query latency ho
 
 Wave 3 (Creator Economy surfaces) lands admin CP/mentorship oversight, earn hooks for chat/watch, Connect status clarity, mobile Studio CP/mentorship, and onboarding→recommendations via Redis interests.
 
-**Overall posture:** production-capable; cost wins pending deploy; Phase 5 product triggers unchanged (Stripe Connect payouts/DRM, search sidecar).
+**Overall posture:** production-capable; Mux/Neon idle cost wins **live in prod** (2026-07-29); Phase 5 product triggers unchanged (Stripe Connect payouts/DRM, search sidecar).
 
 ---
 
