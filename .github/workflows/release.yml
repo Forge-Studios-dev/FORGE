@@ -43,7 +43,8 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # H-D1: pinned to superfly/flyctl-actions@1.5 SHA (mutable @master rejected).
+      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # v1.5
 
       - name: Audit Fly secrets (MED-07 — required secrets block the deploy)
         run: |
@@ -86,8 +87,11 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Deploy to Fly.io (migrations via fly.toml release_command)
-        # Run release_command in sin (capacity); keep app machines in bom.
-        run: flyctl deploy --remote-only --primary-region sin --regions bom
+        # Keep primary_region=bom with app machines. min_machines_running only
+        # counts the primary region — a sin primary left bom VMs unprotected
+        # under auto_stop and caused cold-start proxy 502s. Release VM size is
+        # already reduced in fly.toml [deploy.release_command_vm] for bom capacity.
+        run: flyctl deploy --remote-only --primary-region bom --regions bom
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -125,7 +129,7 @@ jobs:
           PREV_IMAGE=$(flyctl releases -a forge-studios-api --json --image 2>/dev/null | jq -r 'if length > 1 then .[1].imageRef // .[1].ImageRef // empty else empty end')
           if [ -n "$PREV_IMAGE" ]; then
             echo "Rolling back to previous image: $PREV_IMAGE"
-            flyctl deploy --image "$PREV_IMAGE" -a forge-studios-api --primary-region sin --regions bom
+            flyctl deploy --image "$PREV_IMAGE" -a forge-studios-api --primary-region bom --regions bom
           else
             echo "No previous release image available for rollback"
           fi
@@ -142,7 +146,8 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # H-D1: pinned to superfly/flyctl-actions@1.5 SHA (mutable @master rejected).
+      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # v1.5
 
       - name: Sync worker secrets from API
         run: bash scripts/sync-fly-worker-secrets.sh

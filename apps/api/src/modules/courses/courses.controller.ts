@@ -33,8 +33,12 @@ export class CoursesController {
   @Get('creators/me/courses')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'List creator courses' })
-  list(@CurrentUser() user: JwtPayload) {
-    return this.coursesService.listForCreator(user.sub);
+  list(
+    @CurrentUser() user: JwtPayload,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.coursesService.listForCreator(user.sub, { page, limit });
   }
 
   @Public()
@@ -43,9 +47,11 @@ export class CoursesController {
   @ApiOperation({ summary: 'List published courses for a creator (public catalog)' })
   listCreatorPublished(
     @Param('creatorId') creatorId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
     @CurrentUser() user?: JwtPayload,
   ) {
-    return this.coursesService.listPublishedForCreator(creatorId, user?.sub);
+    return this.coursesService.listPublishedForCreator(creatorId, user?.sub, { page, limit });
   }
 
   @Public()
@@ -222,8 +228,12 @@ export class CoursesController {
 
   @Get('me/certificates')
   @ApiOperation({ summary: 'List my earned certificates' })
-  myCertificates(@CurrentUser() user: JwtPayload) {
-    return this.coursesService.getMyCertificates(user.sub);
+  myCertificates(
+    @CurrentUser() user: JwtPayload,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.coursesService.getMyCertificates(user.sub, { page, limit });
   }
 
   @Public()
@@ -313,7 +323,9 @@ export class CoursesController {
     @CurrentUser() user: JwtPayload,
     @Param('courseId') courseId: string,
     @Param('assignmentId') assignmentId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.coursesService.listSubmissions(user.sub, courseId, assignmentId);
+    return this.coursesService.listSubmissions(user.sub, courseId, assignmentId, { page, limit });
   }
 }

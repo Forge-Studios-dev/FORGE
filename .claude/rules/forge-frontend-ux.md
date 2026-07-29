@@ -1,36 +1,21 @@
-# FORGE — Frontend & UX Standards
+# FORGE — Frontend
 
 > Scope: **Apply when touching** `apps/web/**`, `apps/admin/**`, `packages/design-system/**`. Mirrors `.cursor/rules/forge-frontend-ux.mdc`.
 
-## Product Identity (required)
+## Identity
 
-- **Not a YouTube clone** — premium, modern, creator-first, skill-learning focused.
-- Unique layout, spacing, typography, motion; use `@forge/design-system` tokens/components.
-- Inspiration blend (YouTube, Skillshare, Twitch, Patreon, Coursera, SaaS) with distinct FORGE identity.
-- Avoid overcrowded screens and copy-paste generic patterns.
+- Creator-first, skill-learning product — not a generic video-site clone.
+- Use `@forge/design-system` tokens/components. Match patterns in `apps/web/src/components` before adding primitives.
 
 ## Architecture
 
-- Component-driven; reusable UI; design tokens from `packages/design-system`.
-- Business logic in hooks/services (`apps/web/src/lib`), not in presentational components.
-- Error boundaries, Suspense where beneficial, lazy routes/code splitting.
-
-## Performance
-
-- Reduce bundle size; avoid unnecessary re-renders; virtualize long lists.
-- Optimize images/video loading; CDN-aware URLs; proper caching (SWR/React Query patterns in repo).
-- Server Components where they reduce client JS; optimistic updates only when UX warrants it.
+- Presentational components stay thin; business logic in hooks/services (`apps/web/src/lib` or existing equivalents).
+- Error boundaries / `error` + `not-found` where the App Router already expects them.
+- Lazy routes / code-split when adding large surfaces.
 
 ## Quality
 
-- Responsive layouts; accessibility (labels, focus, contrast, keyboard).
-- SEO on public/marketing pages; `not-found` / `error` boundaries for graceful failures.
-
-## Creator Surfaces
-
-- Studio, upload, analytics: clear workflows, progress feedback, resilient upload UX.
-- Watch experience: fast startup, adaptive quality, minimal layout shift.
-
-## When Changing UI
-
-Match existing patterns in `apps/web/src/components` and design-system exports before inventing new primitives.
+- Responsive; accessible (labels, focus, contrast, keyboard).
+- SEO on public/marketing pages only when touching those routes.
+- Prefer existing data-fetching patterns (SWR/React Query/etc. already in repo).
+- Watch/studio: fast startup, clear upload progress, minimal layout shift — follow existing surfaces.

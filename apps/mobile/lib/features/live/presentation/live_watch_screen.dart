@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:video_player/video_player.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/observability/capture_error.dart';
 import '../../../core/socket/forge_socket.dart';
 import 'stream_chat_panel.dart';
 import 'stream_poll_panel.dart';
@@ -50,6 +51,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   void Function(dynamic)? _onReaction;
   void Function(dynamic)? _onReconnecting;
   void Function(dynamic)? _onReconnected;
+  void Function(dynamic)? _onRaiseHand;
 
   @override
   void initState() {
@@ -87,7 +89,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         try {
           final replayRes = await client.dio.get('/streams/${widget.streamId}/replay');
           replay = replayRes.data['data'] as Map<String, dynamic>?;
-        } catch (_) {}
+        } catch (e, st) { captureError(e, st, 'loadReplay'); }
       }
 
       Map<String, dynamic>? rsvp;
@@ -95,7 +97,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         try {
           final rsvpRes = await client.dio.get('/streams/${widget.streamId}/rsvp');
           rsvp = rsvpRes.data['data'] as Map<String, dynamic>?;
-        } catch (_) {}
+        } catch (e, st) { captureError(e, st, 'loadRsvp'); }
       }
 
       Map<String, dynamic>? health;
@@ -103,7 +105,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         try {
           final healthRes = await client.dio.get('/creators/me/streams/${widget.streamId}/health');
           health = healthRes.data['data'] as Map<String, dynamic>?;
-        } catch (_) {}
+        } catch (e, st) { captureError(e, st, 'loadHealth'); }
       }
 
       setState(() {
@@ -217,7 +219,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
             ..addAll(counts.map((k, v) => MapEntry(k, (v as num).toInt())));
         });
       }
-    } catch (_) {}
+    } catch (e, st) { captureError(e, st, 'loadReactions'); }
 
     _onViewerCount = (payload) {
       if (payload is Map && payload['streamId'] == widget.streamId && mounted) {
@@ -258,6 +260,12 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         _setReconnectDeadline(null);
       }
     };
+    _onRaiseHand = (payload) {
+      if (payload is! Map || payload['streamId'] != widget.streamId || !mounted) return;
+      final userId = payload['userId'] as String?;
+      if (userId == null || userId != _myUserId) return;
+      setState(() => _handRaised = payload['raised'] == true);
+    };
 
     ForgeSocket.on('stream:viewer-count', _onViewerCount!);
     ForgeSocket.on('stream:chat:message', _onChatMessage!);
@@ -266,12 +274,14 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
     ForgeSocket.on('stream:reaction', _onReaction!);
     ForgeSocket.on('stream:reconnecting', _onReconnecting!);
     ForgeSocket.on('stream:reconnected', _onReconnected!);
+    ForgeSocket.on('stream:raise-hand', _onRaiseHand!);
   }
 
   Future<void> _endStream() async {
     final client = ref.read(apiClientProvider);
     await client.dio.post('/streams/${widget.streamId}/end');
-    await _loadStream();
+    if (!mounted) return;
+    context.go('/studio/live/${widget.streamId}/debrief');
   }
 
   Future<void> _acknowledgeAge() async {
@@ -366,6 +376,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
     if (_onReaction != null) ForgeSocket.off('stream:reaction', _onReaction);
     if (_onReconnecting != null) ForgeSocket.off('stream:reconnecting', _onReconnecting);
     if (_onReconnected != null) ForgeSocket.off('stream:reconnected', _onReconnected);
+    if (_onRaiseHand != null) ForgeSocket.off('stream:raise-hand', _onRaiseHand);
     ForgeSocket.leaveStream(widget.streamId);
     ForgeSocket.leaveStreamChat(widget.streamId);
     _chewieController?.dispose();

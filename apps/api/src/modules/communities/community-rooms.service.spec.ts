@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CommunityRoomsService } from './community-rooms.service';
 import { Community } from './entities/community.entity';
 import { CommunityRoom, CommunityRoomType } from './entities/community-room.entity';
@@ -75,6 +76,7 @@ describe('CommunityRoomsService', () => {
         { provide: EntitlementsService, useValue: entitlementsService },
         { provide: CommunityRoomPermissionsService, useValue: roomPermissionsService },
         { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
     service = module.get(CommunityRoomsService);

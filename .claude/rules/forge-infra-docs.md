@@ -1,31 +1,26 @@
-# FORGE — Infra, Observability & Docs
+# FORGE — Infra & Docs
 
 > Scope: **Apply when touching** `docs/**`, `scripts/**`, `.github/**`, `docker-compose*.yml`, `Dockerfile*`. Mirrors `.cursor/rules/forge-infra-docs.mdc`.
 
-## DevOps Mindset
+## Ops
 
-- Horizontal scale, zero-downtime deploys, rollback strategy for every infra change.
-- Queues, CDN, object storage, Redis, workers — prefer async over scaling API replicas alone.
-- CI/CD (GitHub Actions): keep pipelines fast; no secrets in logs or committed files.
+- Prefer zero-downtime deploys and an explicit rollback for infra changes.
+- Prefer queues/CDN/object storage/workers over blindly scaling API replicas.
+- Keep CI fast; never commit secrets or log them.
 
-## Observability (implement early)
+## Observability
 
-- Structured logging; correlate API ↔ worker ↔ socket events.
-- Plan for: Sentry (errors), OpenTelemetry (tracing), Prometheus/Grafana (metrics), queue dashboards.
-- Health checks must reflect DB, Redis, and critical dependencies (`health.controller.ts` pattern).
+- Structured logs; correlate API ↔ worker ↔ socket when touching those paths.
+- Extend existing health checks (`health.controller.ts` pattern) for DB/Redis/critical deps.
+- Use observability tools already wired in the repo; do not add new APM stacks casually.
 
-## Documentation (`docs/`)
+## Docs (`docs/`)
 
-- Major features: update `FORGE_PROJECT_MASTER.md` or focused doc with architecture + env vars + rollback.
-- Deployment: align with `GETTING_STARTED.md`, `DEPLOY.md`; never document real credentials.
-- API changes: note breaking changes and migration steps.
+- Major features: update `FORGE_PROJECT_MASTER.md` or a focused doc (architecture, env, rollback).
+- Align deploy notes with `GETTING_STARTED.md` / `DEPLOY.md`. Never document real credentials.
+- Note breaking API changes and migration steps.
 
-## Scripts (`scripts/`)
+## Scripts
 
-- Destructive scripts (`wipe-platform-data`, `flush-redis`) require clear warnings and env guards.
-- Idempotent where possible; exit non-zero on failure; no hardcoded secrets.
-
-## Security in Ops
-
-- Environment isolation (local/staging/prod); `.env*.example` only in git.
-- Audit S3/Redis/AWS config changes for least privilege.
+- Destructive scripts need warnings + env guards; idempotent where possible; exit non-zero on failure.
+- Environment isolation; only `.env*.example` in git; least privilege on S3/Redis/AWS changes.

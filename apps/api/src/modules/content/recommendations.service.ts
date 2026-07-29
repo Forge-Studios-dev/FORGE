@@ -1,5 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
+import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
 
 export interface RecommendedVideo {
   id: string;
@@ -13,9 +16,16 @@ export interface RecommendedVideo {
   reason: 'watched_similar' | 'same_category' | 'followed_creator' | 'trending';
 }
 
+const TRENDING_CACHE_TTL_SEC = 60;
+
 @Injectable()
 export class RecommendationsService {
-  constructor(private readonly dataSource: DataSource) {}
+  private readonly logger = new Logger(RecommendationsService.name);
+
+  constructor(
+    private readonly dataSource: DataSource,
+    @InjectRedis() private readonly redis: Redis,
+  ) {}
 
   /**
    * Generate personalized video recommendations using a multi-signal SQL query:
@@ -135,6 +145,21 @@ export class RecommendationsService {
     limit = 20,
     excludeIds: string[] = [],
   ): Promise<RecommendedVideo[]> {
+    const capped = Math.min(Math.max(limit, 1), 50);
+    // Anonymous/global trending only — personalized exclusions skip cache.
+    const cacheable = !excludeUserId && excludeIds.length === 0;
+    const cacheKey = `recs:trending:v1:${capped}`;
+    if (cacheable) {
+      const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
+      if (cached) {
+        try {
+          return JSON.parse(cached) as RecommendedVideo[];
+        } catch {
+          /* fall through */
+        }
+      }
+    }
+
     const excludeClause = excludeIds.length
       ? `AND v.id NOT IN (${excludeIds.map((_, i) => `$${i + (excludeUserId ? 3 : 2)}`).join(',')})`
       : '';
@@ -163,12 +188,22 @@ export class RecommendationsService {
     `;
 
     const params: unknown[] = [
-      limit,
+      capped,
       ...(excludeUserId ? [excludeUserId] : []),
       ...excludeIds,
     ];
 
-    return this.dataSource.query<RecommendedVideo[]>(query, params);
+    const rows = await this.dataSource.query<RecommendedVideo[]>(query, params);
+    if (cacheable) {
+      await safeRedisSetex(
+        this.redis,
+        cacheKey,
+        TRENDING_CACHE_TTL_SEC,
+        JSON.stringify(rows),
+        this.logger,
+      );
+    }
+    return rows;
   }
 
   async getSimilarVideos(videoId: string, limit = 10): Promise<RecommendedVideo[]> {

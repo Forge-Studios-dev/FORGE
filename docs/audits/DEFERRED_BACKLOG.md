@@ -38,3 +38,5 @@
 ## Re-audit
 
 Schedule full re-audit on **2026-09-04** or at **50K MAU** — whichever comes first. See [EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md).
+
+Phase 5 status (2026-07-29): [PHASE5_DEFERRED_STATUS.md](./PHASE5_DEFERRED_STATUS.md) · load harness: `scripts/load/entitlements-k6.js`.

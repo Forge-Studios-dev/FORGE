@@ -21,6 +21,9 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
+# H-B2: API image mirrors Dockerfile.worker — Mux is the production transcode
+# provider (VIDEO_TRANSCODE_PROVIDER=mux) so ffmpeg stays opt-in via
+# --build-arg INCLUDE_FFMPEG=true (local dev only).
 ARG INCLUDE_FFMPEG=false
 RUN if [ "$INCLUDE_FFMPEG" = "true" ]; then apk add --no-cache ffmpeg; fi
 RUN apk add --no-cache curl

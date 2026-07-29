@@ -7,7 +7,7 @@ import { MUX_VOD_INGEST_QUEUE } from '../../content/mux-vod.constants';
 import { MuxVodIngestJob, MuxVodService } from '../../content/mux-vod.service';
 import { Video, VideoStatus } from '../../content/entities/video.entity';
 
-@Processor(MUX_VOD_INGEST_QUEUE)
+@Processor(MUX_VOD_INGEST_QUEUE, { concurrency: 2 })
 export class MuxVodIngestWorker extends WorkerHost {
   private readonly logger = new Logger(MuxVodIngestWorker.name);
 

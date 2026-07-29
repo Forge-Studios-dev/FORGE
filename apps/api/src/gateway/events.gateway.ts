@@ -9,16 +9,15 @@ import {
   WebSocketServer,
   WsException,
 } from '@nestjs/websockets';
-import { ForbiddenException, Logger } from '@nestjs/common';
+import { ForbiddenException, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { safeRedisGet, safeRedisSetex } from '../common/redis/redis-safe.util';
 import { JwtService } from '@nestjs/jwt';
-import { OnEvent } from '@nestjs/event-emitter';
 import { Namespace, Server, Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { createClient, type RedisClientOptions } from 'redis';
+import { createClient, type RedisClientOptions, type RedisClientType } from 'redis';
 import { redisTlsOptions } from '../common/redis/redis-tls.util';
 import { socketIoCorsOptions } from './socket-cors.util';
 import { StreamViewerService } from '../modules/streaming/stream-viewer.service';
@@ -32,7 +31,8 @@ import { DirectMessagesService } from '../modules/direct-messages/direct-message
 import { recordSocketJoinDenial } from '../common/metrics/forge-metrics';
 import { JwtPayload } from '../modules/auth/strategies/jwt.strategy';
 import { UserRole } from '../modules/users/entities/user.entity';
-import { StreamEndReason, StreamStatus } from '../modules/streaming/entities/stream.entity';
+import { StreamStatus } from '../modules/streaming/entities/stream.entity';
+import { SocketIoHub } from './socket-io.hub';
 
 type SocketAuthData = {
   userId?: string;
@@ -45,7 +45,7 @@ type SocketAuthData = {
   namespace: '/events',
 })
 export class EventsGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy
 {
   @WebSocketServer()
   server!: Server;
@@ -54,6 +54,8 @@ export class EventsGateway
   private userSockets = new Map<string, Set<string>>();
   private static readonly SOCKET_ACCESS_CACHE_TTL_SEC = 60;
   private static readonly SOCKET_JOIN_RATE_SEC = 3;
+  private redisPubClient: RedisClientType | null = null;
+  private redisSubClient: RedisClientType | null = null;
 
   private async assertSocketJoinRate(userId: string, scope: string): Promise<void> {
     const key = `socket:join:rate:${scope}:${userId}`;
@@ -75,9 +77,11 @@ export class EventsGateway
     private readonly communitiesService: CommunitiesService,
     private readonly communityRoomsService: CommunityRoomsService,
     private readonly directMessagesService: DirectMessagesService,
+    private readonly socketIoHub: SocketIoHub,
   ) {}
 
   async afterInit() {
+    this.socketIoHub.setServer(this.server);
     const url = this.configService.get<string>('redis.url');
     if (!url) {
       this.logger.warn('Redis URL missing; Socket.IO runs without Redis adapter (single replica only)');
@@ -87,11 +91,13 @@ export class EventsGateway
     try {
       const nodeEnv = this.configService.get<string>('nodeEnv') || 'development';
       const clientOptions = this.redisSocketOptions(url, nodeEnv);
-      const pubClient = createClient(clientOptions);
-      const subClient = pubClient.duplicate();
+      const pubClient = createClient(clientOptions) as RedisClientType;
+      const subClient = pubClient.duplicate() as RedisClientType;
       pubClient.on('error', (err) => this.logger.error(`Redis pub client: ${err.message}`));
       subClient.on('error', (err) => this.logger.error(`Redis sub client: ${err.message}`));
       await Promise.all([pubClient.connect(), subClient.connect()]);
+      this.redisPubClient = pubClient;
+      this.redisSubClient = subClient;
       const io = this.socketIoServer();
       io.adapter(createAdapter(pubClient, subClient));
       this.logger.log('WebSocket gateway initialized with Redis adapter (multi-replica ready)');
@@ -102,6 +108,26 @@ export class EventsGateway
       );
       this.logger.log('WebSocket gateway initialized');
     }
+  }
+
+  async onModuleDestroy() {
+    const clients = [this.redisPubClient, this.redisSubClient];
+    this.redisPubClient = null;
+    this.redisSubClient = null;
+    await Promise.all(
+      clients.map(async (client) => {
+        if (!client?.isOpen) return;
+        try {
+          await client.quit();
+        } catch {
+          try {
+            client.disconnect();
+          } catch {
+            // ignore shutdown races
+          }
+        }
+      }),
+    );
   }
 
   handleConnection(client: Socket) {
@@ -354,172 +380,6 @@ export class EventsGateway
     client.leave(`video:${data.videoId}`);
   }
 
-  @OnEvent('video.ready')
-  handleVideoReady(payload: {
-    videoId: string;
-    userId: string;
-    status?: string;
-    hlsUrl?: string;
-    thumbnailUrl?: string;
-  }) {
-    const body = {
-      videoId: payload.videoId,
-      status: payload.status ?? 'ready',
-      hlsUrl: payload.hlsUrl,
-      thumbnailUrl: payload.thumbnailUrl,
-      message: 'Your video is ready!',
-    };
-    this.server.to(`user:${payload.userId}`).emit('video:ready', body);
-    this.server.to(`video:${payload.videoId}`).emit('video:ready', body);
-  }
-
-  @OnEvent('stream.started')
-  handleStreamStarted(payload: { streamId: string; userId: string; title: string }) {
-    void this.streamingService.invalidateStreamListCache();
-    this.server.to('streams:live').emit('stream:started', payload);
-    this.server.to(`stream:${payload.streamId}`).emit('stream:started', payload);
-    this.server.to(`user:${payload.userId}`).emit('stream:started', payload);
-  }
-
-  @OnEvent('stream.ended')
-  handleStreamEnded(payload: {
-    streamId: string;
-    userId: string;
-    title: string;
-    endReason?: StreamEndReason;
-  }) {
-    void this.streamingService.invalidateStreamListCache();
-    this.server.to('streams:live').emit('stream:ended', payload);
-    this.server.to(`stream:${payload.streamId}`).emit('stream:ended', payload);
-    this.server.to(`user:${payload.userId}`).emit('stream:ended', payload);
-  }
-
-  /** Host disconnected — grace period started. Stream stays LIVE; viewers see a reconnecting overlay. */
-  @OnEvent('stream.reconnecting')
-  handleStreamReconnecting(payload: {
-    streamId: string;
-    userId: string;
-    since: string;
-    timeoutSec: number;
-    attempt: number;
-  }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:reconnecting', payload);
-  }
-
-  /** Host resumed ingest before the grace period expired — clears the reconnecting overlay. */
-  @OnEvent('stream.reconnected')
-  handleStreamReconnected(payload: { streamId: string; userId: string }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:reconnected', payload);
-  }
-
-  @OnEvent('comment.created')
-  handleCommentCreated(payload: { videoId: string; comment: unknown }) {
-    this.server.to(`video:${payload.videoId}`).emit('comment:new', payload.comment);
-  }
-
-  @OnEvent('stream.chat.message')
-  handleStreamChatMessage(payload: { streamId: string; message: unknown }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:chat:message', payload.message);
-  }
-
-  @OnEvent('stream.chat.delete')
-  handleStreamChatDelete(payload: { streamId: string; messageId: string }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:chat:delete', payload);
-  }
-
-  @OnEvent('stream.slow-mode')
-  handleStreamSlowMode(payload: { streamId: string; slowModeSeconds: number }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:chat:slow-mode', payload);
-  }
-
-  @OnEvent('stream.chat.pinned')
-  handleStreamChatPinned(payload: { streamId: string; messageId: string | null }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:chat:pinned', payload);
-  }
-
-  @OnEvent('stream.chat.settings')
-  handleStreamChatSettings(payload: {
-    streamId: string;
-    chatEnabled: boolean;
-    chatMode: string;
-  }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:chat:settings', payload);
-  }
-
-  @OnEvent('stream.poll.updated')
-  handleStreamPollUpdated(payload: { streamId: string; poll: unknown }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:poll:updated', payload);
-  }
-
-  @OnEvent('stream.qa.created')
-  handleStreamQaCreated(payload: { streamId: string; question: unknown }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:qa:created', payload.question);
-  }
-
-  @OnEvent('stream.qa.updated')
-  handleStreamQaUpdated(payload: { streamId: string; question: unknown }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:qa:updated', payload.question);
-  }
-
-  @OnEvent('channel.message')
-  handleChannelMessage(payload: { channelId: string; message: unknown }) {
-    this.server.to(`channel:${payload.channelId}`).emit('channel:message', payload.message);
-  }
-
-  @OnEvent('channel.message.deleted')
-  handleChannelMessageDeleted(payload: { channelId: string; messageId: string }) {
-    this.server.to(`channel:${payload.channelId}`).emit('channel:message:delete', payload);
-  }
-
-  @OnEvent('room.message')
-  handleRoomMessage(payload: { communityId: string; roomId: string; message: unknown }) {
-    this.server.to(`room:${payload.roomId}`).emit('room:message', payload.message);
-  }
-
-  @OnEvent('room.message.deleted')
-  handleRoomMessageDeleted(payload: { communityId: string; roomId: string; messageId: string }) {
-    this.server.to(`room:${payload.roomId}`).emit('room:message:delete', payload);
-  }
-
-  @OnEvent('community.post.created')
-  handleCommunityPostCreated(payload: { communityId: string; post: unknown }) {
-    this.server.to(`community:${payload.communityId}`).emit('post:created', payload.post);
-  }
-
-  @OnEvent('community.post.comment.created')
-  handleCommunityPostComment(payload: {
-    communityId: string;
-    postId: string;
-    comment: unknown;
-  }) {
-    this.server
-      .to(`community:${payload.communityId}`)
-      .emit('post:comment:created', { postId: payload.postId, comment: payload.comment });
-  }
-
-  @OnEvent('community.poll.updated')
-  handleCommunityPollUpdated(payload: { communityId: string; poll: unknown }) {
-    this.server.to(`community:${payload.communityId}`).emit('poll:updated', payload.poll);
-  }
-
-  @OnEvent('notification.created')
-  handleNotificationCreated(payload: { userId: string; notification: unknown }) {
-    this.server.to(`user:${payload.userId}`).emit('notification:new', payload.notification);
-  }
-
-  @OnEvent('direct-message.sent')
-  handleDirectMessageSent(payload: { conversationId: string; message: unknown; recipientIds: string[] }) {
-    for (const userId of payload.recipientIds) {
-      this.server.to(`user:${userId}`).emit('dm:message', payload.message);
-    }
-    this.server.to(`conversation:${payload.conversationId}`).emit('dm:message', payload.message);
-  }
-
-  @OnEvent('stream.reaction')
-  handleStreamReaction(payload: { streamId: string; reaction: string; count: number }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:reaction', payload);
-  }
-
   @SubscribeMessage('stream:react')
   async handleStreamReact(
     @MessageBody() data: { streamId: string; reaction: string },
@@ -657,49 +517,6 @@ export class EventsGateway
     client.leave(`stream:${data.streamId}:vip`);
   }
 
-  @OnEvent('stream.breakout.started')
-  handleBreakoutStarted(payload: { streamId: string; communityId: string; rooms: unknown[]; endsAt: string }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:breakout:started', payload);
-  }
-
-  @OnEvent('stream.breakout.assigned')
-  handleBreakoutAssigned(payload: {
-    streamId: string;
-    communityId: string;
-    assignments: Array<{ userId: string; roomId: string }>;
-  }) {
-    for (const { userId, roomId } of payload.assignments) {
-      this.server.to(`user:${userId}`).emit('stream:breakout:join', { roomId, streamId: payload.streamId });
-    }
-  }
-
-  @OnEvent('stream.breakout.ended')
-  handleBreakoutEnded(payload: { streamId: string; communityId: string }) {
-    this.server.to(`stream:${payload.streamId}`).emit('stream:breakout:ended', payload);
-  }
-
-  @OnEvent('channel_points.redeemed')
-  handleChannelPointsRedeemed(payload: {
-    communityId: string;
-    rewardId: string;
-    userId: string;
-    redemptionId: string;
-    requiresApproval: boolean;
-  }) {
-    this.server.to(`community:${payload.communityId}:mods`).emit('channel_points:redemption', payload);
-    if (!payload.requiresApproval) {
-      this.server.to(`user:${payload.userId}`).emit('channel_points:fulfilled', { redemptionId: payload.redemptionId });
-    }
-  }
-
-  @OnEvent('stream.cohost.added')
-  handleCoHostAdded(payload: { streamId: string; creatorId: string; coHostId: string }) {
-    this.server.to(`user:${payload.coHostId}`).emit('stream:cohost:invited', {
-      streamId: payload.streamId,
-      creatorId: payload.creatorId,
-    });
-  }
-
   @SubscribeMessage('join-creator-analytics')
   handleJoinCreatorAnalytics(@ConnectedSocket() client: Socket) {
     const { userId } = this.requireAuth(client);
@@ -711,39 +528,6 @@ export class EventsGateway
   handleLeaveCreatorAnalytics(@ConnectedSocket() client: Socket) {
     const { userId } = this.requireAuth(client);
     client.leave(`analytics:creator:${userId}`);
-  }
-
-  @OnEvent('follow.created')
-  handleFollowCreated(payload: { followerId: string; followingId: string }) {
-    this.server
-      .to(`analytics:creator:${payload.followingId}`)
-      .emit('analytics:update', { type: 'new_follower', followerId: payload.followerId });
-  }
-
-  @OnEvent('community.member.provision')
-  handleCommunityMemberProvision(payload: { userId: string; communityId: string; creatorId?: string }) {
-    if (!payload.creatorId) return;
-    this.server
-      .to(`analytics:creator:${payload.creatorId}`)
-      .emit('analytics:update', {
-        type: 'new_community_member',
-        communityId: payload.communityId,
-        userId: payload.userId,
-      });
-  }
-
-  @OnEvent('community.ownership.transferred')
-  handleOwnershipTransferred(payload: {
-    communityId: string;
-    previousOwnerId: string;
-    newOwnerId: string;
-  }) {
-    this.server
-      .to(`user:${payload.previousOwnerId}`)
-      .emit('community:ownership:transferred', payload);
-    this.server
-      .to(`user:${payload.newOwnerId}`)
-      .emit('community:ownership:transferred', payload);
   }
 
   emitToRoom(room: string, event: string, data: unknown) {

@@ -4,6 +4,9 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CommunitiesService } from './communities.service';
+import { CommunityAccessService } from './community-access.service';
+import { CommunityAnalyticsService } from './community-analytics.service';
+import { ChannelLegacyService } from './channel-legacy.service';
 import { Community, CommunityVisibility } from './entities/community.entity';
 import { CommunityCategory } from './entities/community-category.entity';
 import { CommunityRole } from './entities/community-role.entity';
@@ -27,6 +30,7 @@ import { UserRole } from '../users/entities/user.entity';
 
 describe('CommunitiesService', () => {
   let service: CommunitiesService;
+  let analyticsService: CommunityAnalyticsService;
   let entitlementsService: {
     checkChannelAccess: jest.Mock;
     checkChannelAccessMany: jest.Mock;
@@ -151,6 +155,9 @@ describe('CommunitiesService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CommunitiesService,
+        CommunityAccessService,
+        CommunityAnalyticsService,
+        ChannelLegacyService,
         { provide: getRepositoryToken(Community), useValue: communityRepository },
         { provide: getRepositoryToken(CommunityCategory), useValue: categoryRepository },
         { provide: getRepositoryToken(CommunityRole), useValue: roleRepository },
@@ -188,6 +195,7 @@ describe('CommunitiesService', () => {
     }).compile();
 
     service = module.get(CommunitiesService);
+    analyticsService = module.get(CommunityAnalyticsService);
     jest.clearAllMocks();
   });
 
@@ -359,7 +367,7 @@ describe('CommunitiesService', () => {
   });
 
   it('exports business analytics as injection-safe long-format CSV', async () => {
-    jest.spyOn(service, 'getCreatorBusinessAnalytics').mockResolvedValue({
+    jest.spyOn(analyticsService, 'getCreatorBusinessAnalytics').mockResolvedValue({
       periodDays: 30,
       membership: { active: 12, trial: 3, canceled: 5, mrrCents: 49900 },
       kpis: { churnRate30d: 2.5, canceledLast30Days: 5, engagementScore: 0.72, arrCents: 598800 },
@@ -419,25 +427,34 @@ describe('CommunitiesService', () => {
 
   describe('getCreatorAttention', () => {
     it('returns empty items and zero counts when nothing needs action', async () => {
-      dataSource.query.mockResolvedValueOnce([]);
+      dataSource.query
+        .mockResolvedValueOnce([]) // unreplied comments
+        .mockResolvedValueOnce([]); // failed videos
 
       const result = await service.getCreatorAttention('creator-1');
 
-      expect(result.counts).toEqual({ commentsNeedingReply: 0, pendingModeration: 0, failedPayments: 0 });
+      expect(result.counts).toEqual({
+        commentsNeedingReply: 0,
+        pendingModeration: 0,
+        failedPayments: 0,
+        processingFailures: 0,
+      });
       expect(result.items).toEqual([]);
     });
 
     it('surfaces unreplied comments with the total count from the window function', async () => {
-      dataSource.query.mockResolvedValueOnce([
-        {
-          id: 'comment-1',
-          video_id: 'video-1',
-          video_title: 'Intro to FORGE',
-          content: 'Great lesson!',
-          created_at: '2026-07-01T00:00:00.000Z',
-          total_count: '3',
-        },
-      ]);
+      dataSource.query
+        .mockResolvedValueOnce([
+          {
+            id: 'comment-1',
+            video_id: 'video-1',
+            video_title: 'Intro to FORGE',
+            content: 'Great lesson!',
+            created_at: '2026-07-01T00:00:00.000Z',
+            total_count: '3',
+          },
+        ])
+        .mockResolvedValueOnce([]);
 
       const result = await service.getCreatorAttention('creator-1');
 
@@ -451,6 +468,7 @@ describe('CommunitiesService', () => {
     });
 
     it('includes open moderation reports scoped to the creator', async () => {
+      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
       moderationService.listUnifiedReportsForCreator.mockResolvedValue({
         data: [
           { id: 'report-1', reason: 'Spam', communityName: 'Main', createdAt: new Date('2026-07-02') },
@@ -466,6 +484,7 @@ describe('CommunitiesService', () => {
     });
 
     it('ranks failed payments above moderation and comments, and omits the item when there are none', async () => {
+      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
       entitlementsService.getSubscriberAnalytics.mockResolvedValue({
         active: 10,
         trial: 0,
@@ -482,6 +501,31 @@ describe('CommunitiesService', () => {
 
       expect(result.counts.failedPayments).toBe(2);
       expect(result.items[0]).toMatchObject({ id: 'billing-failed-payments', kind: 'billing', tone: 'critical' });
+    });
+
+    it('surfaces failed video processing in the attention queue', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            id: 'video-fail-1',
+            title: 'Broken upload',
+            status: 'failed',
+            failure_reason: 'Transcode timed out',
+            updated_at: '2026-07-03T00:00:00.000Z',
+            total_count: '1',
+          },
+        ]);
+
+      const result = await service.getCreatorAttention('creator-1');
+
+      expect(result.counts.processingFailures).toBe(1);
+      expect(result.items[0]).toMatchObject({
+        id: 'processing-video-fail-1',
+        kind: 'processing',
+        href: '/studio/videos/video-fail-1',
+        tone: 'critical',
+      });
     });
   });
 });

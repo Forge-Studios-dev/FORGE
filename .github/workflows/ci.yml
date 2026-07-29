@@ -82,9 +82,20 @@ jobs:
             exit 0
           else
             echo "::warning::npm audit endpoint unavailable (registry-side error, not a dependency finding) — see audit-critical.json. Not blocking; re-run locally once the registry recovers."
+            echo "npm_audit_registry_unavailable=1" >> "$GITHUB_OUTPUT"
             cat audit-critical.json
+            # Persist for flakiness tracking (M-D4) without failing the job.
+            mkdir -p artifacts
+            cp audit-critical.json artifacts/npm-audit-registry-unavailable.json || true
             exit 0
           fi
+      - name: Upload npm audit flake artifact
+        if: always() && hashFiles('artifacts/npm-audit-registry-unavailable.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-registry-flake
+          path: artifacts/npm-audit-registry-unavailable.json
+          retention-days: 14
       # HIGH-05: high-severity findings (multer, nodemailer, ws, next, etc.)
       # were previously invisible — critical-only gate showed 0 findings while
       # dozens of high-severity ones accumulated. Non-blocking for now since
@@ -122,6 +133,28 @@ jobs:
       - run: npm run build --workspace=@forge/shared-types
       - run: npm run test --workspace=@forge/shared-types
       - run: npm run build --workspace=@forge/design-system
+
+  knip:
+    name: Dead code analysis (non-blocking)
+    runs-on: ubuntu-latest
+    needs: [build-packages]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build --workspace=@forge/shared-types
+      - run: npm run build --workspace=@forge/design-system
+      - name: Knip unused exports analysis
+        run: npm run knip:report
+      - name: Knip summary
+        if: always()
+        run: |
+          echo "## Knip dead code analysis" >> "$GITHUB_STEP_SUMMARY"
+          echo "Non-blocking report — see \`npm run knip\` locally for details." >> "$GITHUB_STEP_SUMMARY"
 
   api:
     name: API — lint, build, test

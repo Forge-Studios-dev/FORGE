@@ -222,10 +222,11 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
         title: Text(_roomName ?? 'Text room'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.pop(),
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refresh messages', onPressed: _load),
         ],
       ),
       body: _loading
@@ -268,10 +269,12 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
                                 m['userId']?.toString() != _currentUserId)
                               IconButton(
                                 icon: const Icon(Icons.flag_outlined, size: 18),
+                                tooltip: 'Report message',
                                 onPressed: () => _reportMessage(m),
                               ),
                             IconButton(
                               icon: const Icon(Icons.reply, size: 18),
+                              tooltip: 'Reply',
                               onPressed: () => _setReply(m),
                             ),
                           ],
@@ -313,6 +316,7 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
                         ),
                         const SizedBox(width: 8),
                         IconButton(
+                          tooltip: 'Send message',
                           onPressed: _sending ? null : _send,
                           icon: _sending
                               ? const SizedBox(

@@ -99,6 +99,8 @@ class ForgeSocket {
     }
   }
 
+  static bool get isConnected => _socket?.connected == true;
+
   static void disconnect() {
     _socket?.disconnect();
     _socket = null;

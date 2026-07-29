@@ -4,13 +4,13 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EntitlementsService } from './entitlements.service';
+import { EntitlementsAnalyticsService } from './entitlements-analytics.service';
 import { SubscriptionTier } from './entities/subscription-tier.entity';
 import { MemberSubscription } from './entities/member-subscription.entity';
 import { EngagementService } from '../engagement/engagement.service';
 import { ContentVisibility } from './content-access.types';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 import { TierEntitlement } from './entities/tier-entitlement.entity';
-import { BillingInterval } from './entities/subscription-tier.entity';
 import { MemberSubscriptionStatus, MemberSubscriptionSource } from './entities/member-subscription.entity';
 
 describe('EntitlementsService', () => {
@@ -22,6 +22,7 @@ describe('EntitlementsService', () => {
     findOne: jest.Mock;
     find: jest.Mock;
     save: jest.Mock;
+    update: jest.Mock;
     createQueryBuilder: jest.Mock;
   };
   let eventEmitter: { emit: jest.Mock };
@@ -58,6 +59,7 @@ describe('EntitlementsService', () => {
       findOne: jest.fn(),
       find: jest.fn().mockResolvedValue([]),
       save: jest.fn(async (x) => x),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
       createQueryBuilder: jest.fn(() => ({
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
@@ -104,6 +106,21 @@ describe('EntitlementsService', () => {
           useValue: dataSource,
         },
         { provide: EventEmitter2, useValue: eventEmitter },
+        {
+          provide: EntitlementsAnalyticsService,
+          useValue: {
+            listSubscribersForCreator: jest.fn().mockResolvedValue([]),
+            exportSubscribersCsv: jest.fn().mockResolvedValue(''),
+            getSubscriberAnalytics: jest.fn().mockResolvedValue({
+              active: 0,
+              trial: 0,
+              canceled: 0,
+              total: 0,
+              mrrCents: 0,
+              byStatus: {},
+            }),
+          },
+        },
       ],
     }).compile();
 
@@ -267,33 +284,6 @@ describe('EntitlementsService', () => {
     expect(results[1].reason).toBe('follow_required');
   });
 
-  it('getSubscriberAnalytics normalizes MRR by billing interval', async () => {
-    subscriptionRepository.createQueryBuilder
-      .mockReturnValueOnce({
-        select: jest.fn().mockReturnThis(),
-        addSelect: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        groupBy: jest.fn().mockReturnThis(),
-        getRawMany: jest.fn().mockResolvedValue([
-          { status: MemberSubscriptionStatus.ACTIVE, count: '2' },
-        ]),
-      })
-      .mockReturnValueOnce({
-        leftJoinAndSelect: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([
-          { tier: { priceCents: 1200, billingInterval: BillingInterval.YEARLY } },
-          { tier: { priceCents: 999, billingInterval: BillingInterval.MONTHLY } },
-          { tier: { priceCents: 5000, billingInterval: BillingInterval.LIFETIME } },
-        ]),
-      });
-
-    const analytics = await service.getSubscriberAnalytics('creator-1');
-
-    expect(analytics.mrrCents).toBe(1099);
-  });
-
   it('expireDueSubscriptions revokes access and suspends scoped members', async () => {
     const expiredSub = {
       id: 'sub-1',
@@ -308,8 +298,9 @@ describe('EntitlementsService', () => {
     const count = await service.expireDueSubscriptions();
 
     expect(count).toBe(1);
-    expect(subscriptionRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({ status: MemberSubscriptionStatus.EXPIRED }),
+    expect(subscriptionRepository.update).toHaveBeenCalledWith(
+      { id: 'sub-1' },
+      { status: MemberSubscriptionStatus.EXPIRED },
     );
     expect(eventEmitter.emit).toHaveBeenCalledWith('community.access.changed', {
       userId: 'user-1',
@@ -343,8 +334,9 @@ describe('EntitlementsService', () => {
       MemberSubscriptionStatus.TRIAL,
       MemberSubscriptionStatus.RENEWAL_PENDING,
     ]);
-    expect(subscriptionRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({ status: MemberSubscriptionStatus.EXPIRED }),
+    expect(subscriptionRepository.update).toHaveBeenCalledWith(
+      { id: 'sub-trial' },
+      { status: MemberSubscriptionStatus.EXPIRED },
     );
   });
 
@@ -363,8 +355,9 @@ describe('EntitlementsService', () => {
     const count = await service.expireDueSubscriptions();
 
     expect(count).toBe(1);
-    expect(subscriptionRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({ status: MemberSubscriptionStatus.EXPIRED }),
+    expect(subscriptionRepository.update).toHaveBeenCalledWith(
+      { id: 'sub-renewal' },
+      { status: MemberSubscriptionStatus.EXPIRED },
     );
   });
 

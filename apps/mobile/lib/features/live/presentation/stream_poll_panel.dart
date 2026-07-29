@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/observability/capture_error.dart';
 import '../../../core/socket/forge_socket.dart';
 
 class StreamPollPanel extends ConsumerStatefulWidget {
@@ -46,7 +47,8 @@ class _StreamPollPanelState extends ConsumerState<StreamPollPanel> {
         _poll = res.data['data'] as Map<String, dynamic>?;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e, st) {
+      captureError(e, st, 'loadPoll');
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -59,7 +61,7 @@ class _StreamPollPanelState extends ConsumerState<StreamPollPanel> {
             data: {'optionIndex': index},
           );
       await _loadPoll();
-    } catch (_) {}
+    } catch (e, st) { captureError(e, st, 'votePoll'); }
   }
 
   Future<void> _createPoll() async {
@@ -78,7 +80,8 @@ class _StreamPollPanelState extends ConsumerState<StreamPollPanel> {
       }
       setState(() => _showCreate = false);
       await _loadPoll();
-    } catch (_) {
+    } catch (e, st) {
+      captureError(e, st, 'createPoll');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -91,11 +94,12 @@ class _StreamPollPanelState extends ConsumerState<StreamPollPanel> {
             '/streams/${widget.streamId}/polls/${_poll!['id']}/close',
           );
       await _loadPoll();
-    } catch (_) {}
+    } catch (e, st) { captureError(e, st, 'closePoll'); }
   }
 
   @override
   void dispose() {
+    ForgeSocket.off('stream:poll:updated', _onPollUpdated);
     _questionCtrl.dispose();
     for (final c in _optionCtrls) {
       c.dispose();

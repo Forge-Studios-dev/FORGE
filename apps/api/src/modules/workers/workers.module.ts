@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { EventEmitterModule } from '@nestjs/event-emitter';
 import { VideoProcessorWorker } from './video-processor/video-processor.worker';
 import { AnalyticsIngestWorker } from './analytics-ingest/analytics-ingest.worker';
 import { Video } from '../content/entities/video.entity';
@@ -216,7 +215,9 @@ function shouldRegisterPlatformEventOutbox(): boolean {
       name: STREAM_REMINDER_QUEUE,
       defaultJobOptions: {
         attempts: 2,
+        backoff: { type: 'exponential', delay: 5000 },
         removeOnComplete: { age: 3600, count: 100 },
+        removeOnFail: { age: 86400, count: 50 },
       },
     }),
     BullModule.registerQueue({
@@ -232,13 +233,15 @@ function shouldRegisterPlatformEventOutbox(): boolean {
       name: STREAM_SNAPSHOT_RETENTION_QUEUE,
       defaultJobOptions: {
         attempts: 2,
+        backoff: { type: 'exponential', delay: 60_000 },
         removeOnComplete: { age: 86400, count: 14 },
+        removeOnFail: { age: 7 * 86400, count: 50 },
       },
     }),
     BullModule.registerQueue({
       name: STREAM_MUX_SYNC_QUEUE,
       defaultJobOptions: {
-        attempts: 2,
+        attempts: 1,
         removeOnComplete: { age: 3600, count: 500 },
         removeOnFail: { age: 86400, count: 200 },
       },
@@ -265,6 +268,7 @@ function shouldRegisterPlatformEventOutbox(): boolean {
       name: ENGAGEMENT_RECONCILIATION_QUEUE,
       defaultJobOptions: {
         attempts: 2,
+        backoff: { type: 'exponential', delay: 60_000 },
         removeOnComplete: { age: 7 * 86400, count: 14 },
         removeOnFail: { age: 7 * 86400, count: 50 },
       },
@@ -287,7 +291,6 @@ function shouldRegisterPlatformEventOutbox(): boolean {
         removeOnFail: { age: 86400, count: 500 },
       },
     }),
-    EventEmitterModule,
     PlatformEventOutboxModule,
   ],
   providers: [

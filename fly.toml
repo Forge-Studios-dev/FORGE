@@ -21,11 +21,18 @@ primary_region = 'bom'
   NODE_ENV = 'production'
   PORT = '3001'
   BILLING_PROVIDER = 'stripe'
+  # H-B2: production VOD is Mux end-to-end (see fly.worker.toml + Dockerfile.worker).
+  # Setting this on the API too keeps upload sessions/config-driven URLs consistent
+  # even though the API doesn't run the ffmpeg consumer.
+  VIDEO_TRANSCODE_PROVIDER = 'mux'
 
 [http_service]
   internal_port = 3001
   force_https = true
-  auto_stop_machines = true
+  # Keep both API machines warm. auto_stop + primary_region=sin (CI override for
+  # release_command capacity) made min_machines_running a no-op for bom machines,
+  # so idle VMs stopped and cold starts (~20s Nest boot) caused proxy 502s.
+  auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 2
   processes = ['app']
@@ -35,7 +42,7 @@ primary_region = 'bom'
     response_timeout = 600
 
   [[http_service.checks]]
-    grace_period = '20s'
+    grace_period = '45s'
     interval = '15s'
     method = 'GET'
     path = '/api/v1/health/live'

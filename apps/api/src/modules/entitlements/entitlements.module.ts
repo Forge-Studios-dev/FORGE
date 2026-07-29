@@ -7,6 +7,7 @@ import { CreatorBundle, CreatorBundleItem } from './entities/creator-bundle.enti
 import { CreatorBundlesService } from './creator-bundles.service';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 import { EntitlementsService } from './entitlements.service';
+import { EntitlementsAnalyticsService } from './entitlements-analytics.service';
 import { EntitlementsController } from './entitlements.controller';
 import { EngagementModule } from '../engagement/engagement.module';
 import { UsersModule } from '../users/users.module';
@@ -33,7 +34,13 @@ import { StripeTierSyncModule } from '../billing/stripe-tier-sync.module';
     StripeTierSyncModule,
   ],
   controllers: [EntitlementsController],
-  providers: [EntitlementsService, CreatorBundlesService, CreatorApprovedGuard, OptionalJwtAuthGuard],
-  exports: [EntitlementsService, CreatorBundlesService],
+  providers: [
+    EntitlementsService,
+    EntitlementsAnalyticsService,
+    CreatorBundlesService,
+    CreatorApprovedGuard,
+    OptionalJwtAuthGuard,
+  ],
+  exports: [EntitlementsService, EntitlementsAnalyticsService, CreatorBundlesService],
 })
 export class EntitlementsModule {}

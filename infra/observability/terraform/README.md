@@ -2,9 +2,11 @@
 
 Creates the `forge-api` scrape job pulling `https://api.forgestudios.net/metrics` into Grafana Cloud Prometheus.
 
-## Prerequisites
+## Remote state (M-D6)
 
-1. Fly API: `METRICS_ENABLED=true` and `METRICS_SCRAPE_TOKEN` (`npm run setup:fly:metrics-token`).
+Local `terraform.tfstate` is fine for a single operator applying observability scrape jobs. For shared/team use, configure a remote backend (e.g. S3 + DynamoDB lock, or Terraform Cloud) before multiple people run `apply`. Do **not** migrate state casually against production without a plan + backup of the existing state file.
+
+
 2. **Grafana Cloud access policy token** (`glc_…`, not `glsa_`).
    - Token needs **metrics** + **`stacks:read`** scopes for Terraform (UI works without `stacks:read`).
    - Stack → **Administration** → **Cloud access policies** → edit `forge_setup` or create a new policy.

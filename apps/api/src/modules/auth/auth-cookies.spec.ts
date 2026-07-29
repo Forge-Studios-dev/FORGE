@@ -60,12 +60,49 @@ describe('auth-cookies', () => {
     );
   });
 
-  it('assertCookieRefreshCsrf skips in development', () => {
+  it('assertCookieRefreshCsrf is fail-safe in development by default (M-S2)', () => {
     const req = {
       cookies: { [REFRESH_COOKIE_NAME]: 'r' },
       headers: {},
     } as unknown as import('express').Request;
-    expect(() => assertCookieRefreshCsrf(req, config)).not.toThrow();
+    // Was previously skipped in dev; now enforced everywhere unless an
+    // explicit opt-out is set (see next test).
+    expect(() => assertCookieRefreshCsrf(req, config)).toThrow(
+      'CSRF token required for cookie-based refresh',
+    );
+  });
+
+  it('assertCookieRefreshCsrf honours CSRF_DISABLED=true opt-out outside production only (M-S2)', () => {
+    const disabledConfig = {
+      get: (key: string) => {
+        if (key === 'nodeEnv') return 'development';
+        if (key === 'auth.csrfDisabled') return 'true';
+        if (key === 'auth.refreshCookieDomain') return '';
+        return undefined;
+      },
+    } as unknown as ConfigService;
+    const req = {
+      cookies: { [REFRESH_COOKIE_NAME]: 'r' },
+      headers: {},
+    } as unknown as import('express').Request;
+    expect(() => assertCookieRefreshCsrf(req, disabledConfig)).not.toThrow();
+
+    const disabledProdConfig = {
+      get: (key: string) => {
+        if (key === 'nodeEnv') return 'production';
+        if (key === 'auth.csrfDisabled') return 'true';
+        if (key === 'auth.refreshCookieDomain') return '.forgestudios.net';
+        return undefined;
+      },
+    } as unknown as ConfigService;
+    const prodReq = {
+      cookies: { [REFRESH_COOKIE_NAME]: 'r' },
+      headers: {},
+    } as unknown as import('express').Request;
+    // Production ignores the opt-out — cannot accidentally ship without CSRF.
+    expect(() => assertCookieRefreshCsrf(prodReq, disabledProdConfig)).toThrow(
+      'CSRF token required for cookie-based refresh',
+    );
   });
 
   it('assertCookieRefreshCsrf requires matching header in production', () => {

@@ -94,15 +94,31 @@ export function clearRefreshTokenCookie(res: Response, configService: ConfigServ
   clearCsrfCookie(res, configService);
 }
 
-/** F-802: double-submit CSRF when refresh uses HttpOnly cookie (production cross-site SPA). */
+/**
+ * F-802 / M-S2: double-submit CSRF for cookie-based refresh (HttpOnly refresh
+ * cookie in a cross-site SPA).
+ *
+ * Fail-safe by default: enforced in every environment (dev + prod). A body
+ * token is still accepted (SPA-provided XSRF token, non-cookie flows), and
+ * local development can explicitly opt out by setting `CSRF_DISABLED=true`
+ * in the API's env — never do this in staging/prod.
+ */
 export function assertCookieRefreshCsrf(
   req: Request,
   configService: ConfigService,
   bodyToken?: string,
 ): void {
   if (bodyToken?.trim()) return;
+
   const nodeEnv = configService.get<string>('nodeEnv');
-  if (nodeEnv !== 'production') return;
+  // Explicit opt-out — only honoured outside production to guarantee we
+  // cannot ship an accidentally-disabled CSRF check to real users.
+  const disabled = String(
+    configService.get<string>('auth.csrfDisabled') ??
+      process.env.CSRF_DISABLED ??
+      '',
+  ).toLowerCase() === 'true';
+  if (disabled && nodeEnv !== 'production') return;
 
   const refresh = req.cookies?.[REFRESH_COOKIE_NAME];
   if (typeof refresh !== 'string' || refresh.length === 0) return;

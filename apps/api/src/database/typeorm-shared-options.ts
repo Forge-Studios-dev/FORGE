@@ -8,7 +8,7 @@ export function buildTypeOrmPostgresOptions(env: NodeJS.ProcessEnv = process.env
   return {
     type: 'postgres' as const,
     ...(db.url
-      ? { url: db.url }
+      ? { url: db.url, database: db.database }
       : {
           host: db.host,
           port: db.port,
@@ -19,6 +19,9 @@ export function buildTypeOrmPostgresOptions(env: NodeJS.ProcessEnv = process.env
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     migrations: [__dirname + '/migrations/*{.ts,.js}'],
     synchronize: false,
+    // uuid-ossp is created by migrations — disable TypeORM's per-connect CREATE EXTENSION check
+    // (each Neon reconnect was paying that round-trip; see parse-database-config idle timeout notes).
+    installExtensions: false,
     migrationsRun: (env.MIGRATIONS_RUN ?? (env.NODE_ENV === 'production' ? 'false' : 'true')) === 'true',
     migrationsTransactionMode: 'each' as const,
     logging,

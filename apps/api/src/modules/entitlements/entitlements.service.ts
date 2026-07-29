@@ -10,7 +10,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { Repository, LessThanOrEqual, DataSource, In } from 'typeorm';
+import { Repository, LessThanOrEqual, MoreThan, And, DataSource, In } from 'typeorm';
 import { UserRole } from '../users/entities/user.entity';
 import { SubscriptionTier } from './entities/subscription-tier.entity';
 import {
@@ -28,15 +28,10 @@ import { TierEntitlement, TierEntitlementResourceType } from './entities/tier-en
 import { BillingInterval } from './entities/subscription-tier.entity';
 import { StripeTierSyncService } from '../billing/stripe-tier-sync.service';
 import { recordEntitlementCacheHit } from '../../common/metrics/forge-metrics';
-import { toCsv } from '../../common/utils/csv.util';
+import { EntitlementsAnalyticsService } from './entitlements-analytics.service';
+import { ACCESS_GRANTING_STATUSES } from './access-granting-statuses';
 
-/** Subscription statuses that grant content access. */
-export const ACCESS_GRANTING_STATUSES: MemberSubscriptionStatus[] = [
-  MemberSubscriptionStatus.ACTIVE,
-  MemberSubscriptionStatus.TRIAL,
-  MemberSubscriptionStatus.GRACE_PERIOD,
-  MemberSubscriptionStatus.RENEWAL_PENDING,
-];
+export { ACCESS_GRANTING_STATUSES };
 
 const TIER_ACCESS_LEVEL_RANK: Record<string, number> = {
   read: 1,
@@ -96,22 +91,9 @@ export class EntitlementsService {
     @InjectRedis() private readonly redis: Redis,
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
+    private readonly analyticsService: EntitlementsAnalyticsService,
     @Optional() private readonly stripeTierSync?: StripeTierSyncService,
   ) {}
-
-  private normalizedMonthlyMrrCents(priceCents: number, interval?: BillingInterval | null): number {
-    switch (interval) {
-      case BillingInterval.YEARLY:
-        return Math.round(priceCents / 12);
-      case BillingInterval.QUARTERLY:
-        return Math.round(priceCents / 3);
-      case BillingInterval.LIFETIME:
-        return 0;
-      case BillingInterval.MONTHLY:
-      default:
-        return priceCents;
-    }
-  }
 
   private emitCommunityAccessChanged(
     userId: string,
@@ -1321,101 +1303,37 @@ export class EntitlementsService {
     });
   }
 
-  async listSubscribersForCreator(
+  // --- Cold-path analytics delegates (forwarded to EntitlementsAnalyticsService, H-A1) ---
+  //
+  // These stay on the public facade so controllers, notify jobs, and the
+  // community analytics service keep working without a call-site migration.
+  // The read/CSV logic itself lives in EntitlementsAnalyticsService.
+
+  listSubscribersForCreator(
     creatorId: string,
     opts?: { status?: MemberSubscriptionStatus; limit?: number; offset?: number },
   ) {
-    const qb = this.subscriptionRepository
-      .createQueryBuilder('s')
-      .leftJoinAndSelect('s.user', 'user')
-      .leftJoinAndSelect('s.tier', 'tier')
-      .where('s.creator_id = :creatorId', { creatorId })
-      .orderBy('s.created_at', 'DESC')
-      .take(opts?.limit ?? 50)
-      .skip(opts?.offset ?? 0);
+    return this.analyticsService.listSubscribersForCreator(creatorId, opts);
+  }
 
-    if (opts?.status) {
-      qb.andWhere('s.status = :status', { status: opts.status });
-    } else {
-      qb.andWhere('s.status IN (:...statuses)', { statuses: ACCESS_GRANTING_STATUSES });
-    }
+  exportSubscribersCsv(creatorId: string): Promise<string> {
+    return this.analyticsService.exportSubscribersCsv(creatorId);
+  }
 
-    const subs = await qb.getMany();
-    return subs.map((s) => ({
-      id: s.id,
-      userId: s.userId,
-      username: s.user?.username,
-      displayName: s.user?.displayName,
-      tierName: s.tier?.name,
-      status: s.status,
-      source: s.source,
-      startsAt: s.startsAt,
-      expiresAt: s.expiresAt,
-      createdAt: s.createdAt,
-    }));
+  getSubscriberAnalytics(creatorId: string) {
+    return this.analyticsService.getSubscriberAnalytics(creatorId);
   }
 
   async suspendSubscriber(creatorId: string, subscriptionId: string) {
+    // Stays on the hot-path service: writes must invalidate the entitlement
+    // Redis cache (bustSubscriptionCache) so the next access check sees the
+    // suspended status. The analytics service is intentionally cache-blind.
     const sub = await this.subscriptionRepository.findOne({ where: { id: subscriptionId, creatorId } });
     if (!sub) throw new NotFoundException('Subscription not found');
     sub.status = MemberSubscriptionStatus.SUSPENDED;
     await this.subscriptionRepository.save(sub);
     await this.bustSubscriptionCache(sub.userId, creatorId);
     return { suspended: true };
-  }
-
-  async exportSubscribersCsv(creatorId: string): Promise<string> {
-    const subs = await this.listSubscribersForCreator(creatorId, { limit: 5000 });
-    return toCsv(
-      ['userId', 'username', 'displayName', 'tier', 'status', 'source', 'startsAt', 'expiresAt'],
-      subs.map((s) => [
-        s.userId,
-        s.username ?? '',
-        s.displayName ?? '',
-        s.tierName ?? '',
-        s.status,
-        s.source,
-        s.startsAt?.toISOString() ?? '',
-        s.expiresAt?.toISOString() ?? '',
-      ]),
-    );
-  }
-
-  async getSubscriberAnalytics(creatorId: string) {
-    const rows = await this.subscriptionRepository
-      .createQueryBuilder('s')
-      .select('s.status', 'status')
-      .addSelect('COUNT(*)', 'count')
-      .where('s.creator_id = :creatorId', { creatorId })
-      .groupBy('s.status')
-      .getRawMany<{ status: string; count: string }>();
-
-    const byStatus = Object.fromEntries(rows.map((r) => [r.status, Number(r.count)]));
-    const active = byStatus[MemberSubscriptionStatus.ACTIVE] ?? 0;
-    const trial = byStatus[MemberSubscriptionStatus.TRIAL] ?? 0;
-    const canceled = byStatus[MemberSubscriptionStatus.CANCELED] ?? 0;
-    const payingSubs = await this.subscriptionRepository
-      .createQueryBuilder('s')
-      .leftJoinAndSelect('s.tier', 'tier')
-      .where('s.creator_id = :creatorId', { creatorId })
-      .andWhere('s.status IN (:...statuses)', {
-        statuses: [MemberSubscriptionStatus.ACTIVE, MemberSubscriptionStatus.TRIAL],
-      })
-      .getMany();
-    const mrrCents = payingSubs.reduce(
-      (sum, sub) =>
-        sum + this.normalizedMonthlyMrrCents(sub.tier?.priceCents ?? 0, sub.tier?.billingInterval),
-      0,
-    );
-
-    return {
-      active,
-      trial,
-      canceled,
-      total: rows.reduce((sum, r) => sum + Number(r.count), 0),
-      mrrCents,
-      byStatus,
-    };
   }
 
   async expireDueSubscriptions(): Promise<number> {
@@ -1443,14 +1361,22 @@ export class EntitlementsService {
     });
     if (!due.length) return 0;
 
+    let expired = 0;
     for (const sub of due) {
+      // Column update avoids relation/metadata hydration on save (Neon URL-only
+      // TypeORM configs have historically thrown on databaseName during save).
+      const result = await this.subscriptionRepository.update(
+        { id: sub.id },
+        { status: MemberSubscriptionStatus.EXPIRED },
+      );
+      if (!result.affected) continue;
+      expired += 1;
       sub.status = MemberSubscriptionStatus.EXPIRED;
-      await this.subscriptionRepository.save(sub);
       await this.bustSubscriptionCache(sub.userId, sub.creatorId, sub.communityId);
       this.emitCommunityAccessChanged(sub.userId, sub.creatorId, sub.communityId);
       this.revokeCommunityMembershipIfNeeded(sub, MemberSubscriptionStatus.EXPIRED);
     }
-    return due.length;
+    return expired;
   }
 
   async getExpiringSubscriptions(withinDays = 3): Promise<MemberSubscription[]> {
@@ -1458,19 +1384,17 @@ export class EntitlementsService {
     const until = new Date();
     until.setDate(until.getDate() + withinDays);
 
-    return this.subscriptionRepository
-      .createQueryBuilder('s')
-      .leftJoinAndSelect('s.tier', 'tier')
-      .leftJoinAndSelect('s.creator', 'creator')
-      .where('s.status IN (:...statuses)', {
-        statuses: [MemberSubscriptionStatus.ACTIVE, MemberSubscriptionStatus.TRIAL],
-      })
-      .andWhere('s.expires_at IS NOT NULL')
-      .andWhere('s.expires_at > :now', { now })
-      .andWhere('s.expires_at <= :until', { until })
-      .orderBy('s.expires_at', 'ASC')
-      .take(500)
-      .getMany();
+    // Prefer find+relations over QueryBuilder joins — avoids TypeORM metadata
+    // paths that touch driver.database / databaseName when only DATABASE_URL is set.
+    return this.subscriptionRepository.find({
+      where: {
+        status: In([MemberSubscriptionStatus.ACTIVE, MemberSubscriptionStatus.TRIAL]),
+        expiresAt: And(MoreThan(now), LessThanOrEqual(until)),
+      },
+      relations: ['tier'],
+      order: { expiresAt: 'ASC' },
+      take: 500,
+    });
   }
 
   slugify(name: string): string {

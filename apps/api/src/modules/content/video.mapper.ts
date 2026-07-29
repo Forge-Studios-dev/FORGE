@@ -36,6 +36,8 @@ export type PublicVideo = {
   scheduledPublishAt: Date | null;
   requiredTierId: string | null;
   sourceStreamId: string | null;
+  failureReason?: string | null;
+  transcodeProvider?: string | null;
   accessDenied?: boolean;
   accessReason?: string;
   viewerLiked?: boolean;
@@ -84,6 +86,8 @@ export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): Publi
     scheduledPublishAt: video.scheduledPublishAt ?? null,
     requiredTierId: video.requiredTierId ?? null,
     sourceStreamId: video.sourceStreamId ?? null,
+    failureReason: video.failureReason ?? null,
+    transcodeProvider: video.transcodeProvider ?? null,
   };
 }
 

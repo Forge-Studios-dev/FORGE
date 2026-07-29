@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { Repository, IsNull, Not, LessThanOrEqual } from 'typeorm';
+import { Queue } from 'bullmq';
+import { Repository, IsNull, Not, LessThanOrEqual, Between, MoreThanOrEqual } from 'typeorm';
 import Mux from '@mux/mux-node';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Stream, StreamEndReason, StreamStatus } from './entities/stream.entity';
@@ -18,6 +20,11 @@ import {
 } from '../../common/streaming/platform-dormant.util';
 import { streamDetailCacheKey } from '../../common/streaming/stream-detail-cache.util';
 import { safeRedisDel } from '../../common/redis/redis-safe.util';
+import { mapPool } from '../../common/utils/map-pool.util';
+import {
+  STREAM_MUX_SYNC_QUEUE,
+  StreamMuxSyncJob,
+} from '../workers/stream-mux-sync/stream-mux-sync.constants';
 
 @Injectable()
 export class MuxLiveSyncService {
@@ -25,6 +32,11 @@ export class MuxLiveSyncService {
   private readonly mux: Mux;
 
   private static readonly MUX_SYNC_IDLE_LIMIT = 20;
+  private static readonly MUX_SYNC_PARALLELISM = 5;
+  /** Only backup-poll IDLE rooms scheduled in this window (or recently created unscheduled). */
+  private static readonly IDLE_POLL_LOOKBACK_MS = 30 * 60_000;
+  private static readonly IDLE_POLL_LOOKAHEAD_MS = 2 * 60 * 60_000;
+  private static readonly IDLE_UNSCHEDULED_MAX_AGE_MS = 2 * 60 * 60_000;
   private static readonly IDLE_SYNC_LOCK_KEY = 'streams:mux:idle-sync:lock';
   private static readonly IDLE_SYNC_LOCK_TTL_SEC = 45;
   private static readonly MUX_SYNC_TTL_IDLE_SEC = 15;
@@ -42,6 +54,8 @@ export class MuxLiveSyncService {
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly streamViewerService: StreamViewerService,
+    @InjectQueue(STREAM_MUX_SYNC_QUEUE)
+    private readonly muxSyncQueue: Queue<StreamMuxSyncJob>,
   ) {
     this.mux = new Mux({
       tokenId: configService.get<string>('mux.tokenId') || 'placeholder',
@@ -77,7 +91,7 @@ export class MuxLiveSyncService {
     }
   }
 
-  /** Periodic worker scan: idle go-live reconciliation + idle-grace finalization + Mux poll. */
+  /** Periodic backup scan: idle-grace sweep + rare Mux REST poll for missed webhooks. */
   async runPeriodicScan(): Promise<{ synced: number; finalized: number }> {
     if (await this.isPlatformDormant()) {
       return { synced: 0, finalized: 0 };
@@ -90,6 +104,7 @@ export class MuxLiveSyncService {
     }
 
     const finalized = hasGraceWork ? await this.finalizeStreamsPastIdleGrace() : 0;
+    // Mux REST is backup only — primary path is webhooks + delayed grace jobs.
     const synced = await this.syncIdleCandidateStreams();
     return { synced, finalized };
   }
@@ -119,14 +134,32 @@ export class MuxLiveSyncService {
 
     if (!this.muxConfigured()) return false;
 
-    const idleCount = await this.streamRepository.count({
-      where: {
-        status: StreamStatus.IDLE,
-        endedAt: IsNull(),
-        muxLiveStreamId: Not(IsNull()),
-      },
-    });
+    const idleCount = await this.countIdleMuxPollCandidates();
     return idleCount > 0;
+  }
+
+  /**
+   * IDLE rooms worth polling Mux for (webhook miss / go-live detection).
+   * Abandoned scheduled rooms and stale unscheduled drafts must NOT block platform dormancy.
+   */
+  private idleMuxPollWhere() {
+    const now = Date.now();
+    const scheduledFrom = new Date(now - MuxLiveSyncService.IDLE_POLL_LOOKBACK_MS);
+    const scheduledTo = new Date(now + MuxLiveSyncService.IDLE_POLL_LOOKAHEAD_MS);
+    const createdAfter = new Date(now - MuxLiveSyncService.IDLE_UNSCHEDULED_MAX_AGE_MS);
+    const base = {
+      status: StreamStatus.IDLE,
+      endedAt: IsNull(),
+      muxLiveStreamId: Not(IsNull()),
+    } as const;
+    return [
+      { ...base, scheduledAt: Between(scheduledFrom, scheduledTo) },
+      { ...base, scheduledAt: IsNull(), createdAt: MoreThanOrEqual(createdAfter) },
+    ];
+  }
+
+  private async countIdleMuxPollCandidates(): Promise<number> {
+    return this.streamRepository.count({ where: this.idleMuxPollWhere() });
   }
 
   private async hasStreamsPastIdleGrace(): Promise<boolean> {
@@ -169,6 +202,7 @@ export class MuxLiveSyncService {
     const updated = stream ?? (await this.streamRepository.findOne({ where: { muxLiveStreamId } }));
     if (!updated) return;
 
+    await this.cancelGraceFinalize(updated.id);
     await this.streamViewerService.trackStreamLive(updated.id);
     await this.redis.del(this.muxSyncCacheKey(updated.id));
     void this.bustStreamDetailCache(updated.id);
@@ -181,6 +215,7 @@ export class MuxLiveSyncService {
         title: updated.title,
         visibility: updated.visibility,
         requiredTierId: updated.requiredTierId,
+        communityId: updated.communityId ?? null,
       });
     } else if (wasReconnecting) {
       this.logger.log(`Reconnection successful — host resumed ingest for stream ${updated.id}`);
@@ -203,6 +238,7 @@ export class MuxLiveSyncService {
 
     if (!wasAlreadyIdle) {
       await this.emitReconnecting(stream, idleSince);
+      await this.scheduleGraceFinalize(stream.id);
     }
   }
 
@@ -302,6 +338,7 @@ export class MuxLiveSyncService {
           stream.muxIdleSince = idleSince;
           void this.bustStreamDetailCache(stream.id);
           await this.emitReconnecting(stream, idleSince);
+          await this.scheduleGraceFinalize(stream.id);
         } else if (Date.now() - idleSince.getTime() >= this.idleGraceMs()) {
           const acquired = await this.redis.set(
             this.finalizeLockKey(stream.id),
@@ -339,6 +376,7 @@ export class MuxLiveSyncService {
     endReason: StreamEndReason = StreamEndReason.CONNECTION_LOST,
   ): Promise<void> {
     if (stream.status === StreamStatus.ENDED) return;
+    await this.cancelGraceFinalize(stream.id);
     const uniqueViewerCount = await this.streamViewerService.finalizeUniqueViewers(stream.id);
     await this.streamRepository.update(stream.id, {
       status: StreamStatus.ENDED,
@@ -360,6 +398,68 @@ export class MuxLiveSyncService {
     });
   }
 
+  /**
+   * Event-driven reconnect timeout: fired by delayed Bull job after webhook idle.
+   * No Mux REST call — only DB state + Socket.IO events via finalizeStreamEnded.
+   */
+  async finalizeIfGraceExpired(streamId: string): Promise<void> {
+    const stream = await this.streamRepository.findOne({ where: { id: streamId } });
+    if (!stream || stream.status !== StreamStatus.LIVE || !stream.muxIdleSince) return;
+    if (Date.now() - stream.muxIdleSince.getTime() < this.idleGraceMs()) return;
+
+    const acquired = await this.redis.set(
+      this.finalizeLockKey(stream.id),
+      '1',
+      'EX',
+      MuxLiveSyncService.FINALIZE_LOCK_TTL_SEC,
+      'NX',
+    );
+    if (acquired !== 'OK') return;
+
+    this.logger.warn(
+      `Reconnection timeout expired for stream ${stream.id} — auto-terminating (connection lost, delayed job)`,
+    );
+    await this.finalizeStreamEnded(stream, StreamEndReason.CONNECTION_LOST);
+  }
+
+  private graceFinalizeJobId(streamId: string): string {
+    return `mux-grace-finalize:${streamId}`;
+  }
+
+  /** Schedule exact-time finalize after webhook idle — replaces tight polling. */
+  async scheduleGraceFinalize(streamId: string): Promise<void> {
+    const delay = this.idleGraceMs();
+    const jobId = this.graceFinalizeJobId(streamId);
+    try {
+      const existing = await this.muxSyncQueue.getJob(jobId);
+      if (existing) await existing.remove();
+      await this.muxSyncQueue.add(
+        'finalize-grace',
+        { finalizeStreamId: streamId },
+        {
+          jobId,
+          delay,
+          attempts: 1,
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Grace finalize schedule failed for ${streamId}: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  async cancelGraceFinalize(streamId: string): Promise<void> {
+    try {
+      const job = await this.muxSyncQueue.getJob(this.graceFinalizeJobId(streamId));
+      if (job) await job.remove();
+    } catch {
+      // non-fatal
+    }
+  }
+
   private async applyActiveState(stream: Stream): Promise<void> {
     const isFirstGoLive = !stream.startedAt;
     const wasReconnecting = !!stream.muxIdleSince;
@@ -378,6 +478,7 @@ export class MuxLiveSyncService {
       ...(thumbnailPatch ? { thumbnailUrl: thumbnailPatch } : {}),
     });
 
+    await this.cancelGraceFinalize(stream.id);
     await this.streamViewerService.trackStreamLive(stream.id);
     void this.bustStreamDetailCache(stream.id);
 
@@ -389,6 +490,7 @@ export class MuxLiveSyncService {
         title: stream.title,
         visibility: stream.visibility,
         requiredTierId: stream.requiredTierId,
+        communityId: stream.communityId ?? null,
       });
     } else if (wasReconnecting) {
       this.logger.log(`Reconnection successful — host resumed ingest for stream ${stream.id}`);
@@ -449,11 +551,7 @@ export class MuxLiveSyncService {
     if (acquired !== 'OK') return 0;
 
     const idleCandidates = await this.streamRepository.find({
-      where: {
-        status: StreamStatus.IDLE,
-        endedAt: IsNull(),
-        muxLiveStreamId: Not(IsNull()),
-      },
+      where: this.idleMuxPollWhere(),
       order: { createdAt: 'DESC' },
       take: MuxLiveSyncService.MUX_SYNC_IDLE_LIMIT,
     });
@@ -462,7 +560,9 @@ export class MuxLiveSyncService {
       (s) => s.muxLiveStreamId && s.muxLiveStreamId !== 'mock-stream-id',
     );
 
-    await Promise.all(toSync.map((s) => this.syncStream(s)));
+    await mapPool(toSync, MuxLiveSyncService.MUX_SYNC_PARALLELISM, async (s) => {
+      await this.syncStream(s);
+    });
     return toSync.length;
   }
 

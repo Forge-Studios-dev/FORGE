@@ -1,4 +1,9 @@
-import { isRedisQuotaError, safeRedisGet, safeRedisGetResult } from './redis-safe.util';
+import {
+  isRedisQuotaError,
+  safeRedisGet,
+  safeRedisGetResult,
+  safeRedisIncrEx,
+} from './redis-safe.util';
 
 describe('safeRedisGetResult', () => {
   it('returns ok with null when key is missing', async () => {
@@ -28,6 +33,26 @@ describe('safeRedisGetResult', () => {
 
     const error = { get: jest.fn().mockRejectedValue(new Error('down')) };
     await expect(safeRedisGet(error as never, 'k')).resolves.toBeNull();
+  });
+});
+
+describe('safeRedisIncrEx', () => {
+  it('increments and refreshes TTL', async () => {
+    const redis = {
+      incr: jest.fn().mockResolvedValue(2),
+      expire: jest.fn().mockResolvedValue(1),
+    };
+    await expect(safeRedisIncrEx(redis as never, 'video:views:pending:1', 3600)).resolves.toBe(2);
+    expect(redis.expire).toHaveBeenCalledWith('video:views:pending:1', 3600);
+  });
+
+  it('returns null when incr fails', async () => {
+    const redis = {
+      incr: jest.fn().mockRejectedValue(new Error('down')),
+      expire: jest.fn(),
+    };
+    await expect(safeRedisIncrEx(redis as never, 'k', 60)).resolves.toBeNull();
+    expect(redis.expire).not.toHaveBeenCalled();
   });
 });
 

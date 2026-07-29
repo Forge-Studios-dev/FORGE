@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -30,8 +31,12 @@ export class PodcastsController {
   @UseGuards(CreatorApprovedGuard)
   @Get('creators/me/podcasts')
   @ApiOperation({ summary: 'List my podcast series' })
-  listMySeries(@CurrentUser() user: JwtPayload) {
-    return this.podcastsService.listSeries(user.sub);
+  listMySeries(
+    @CurrentUser() user: JwtPayload,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.podcastsService.listSeries(user.sub, { page, limit });
   }
 
   @UseGuards(CreatorApprovedGuard)

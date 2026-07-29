@@ -5,6 +5,8 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  VERSION_NEUTRAL,
+  Version,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { collectDefaultMetrics } from 'prom-client';
@@ -31,13 +33,14 @@ function assertMetricsScrapeAuthorized(req: Request): void {
   throw new UnauthorizedException();
 }
 
-@Controller('metrics')
+@Controller({ path: 'metrics', version: VERSION_NEUTRAL })
 export class MetricsController {
   private defaultsRegistered = false;
 
   constructor(private readonly bullmqMetrics: BullmqMetricsService) {}
 
   @Public()
+  @Version(VERSION_NEUTRAL)
   @Get()
   async metrics(@Req() req: Request, @Res() res: Response): Promise<void> {
     if (!forgeMetricsEnabled()) {

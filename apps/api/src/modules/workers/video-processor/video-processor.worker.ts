@@ -42,7 +42,7 @@ const HLS_RENDITIONS: HlsRendition[] = [
   { resolution: '1920x1080', bitrate: '5000k', height: 1080 },
 ];
 
-@Processor(VIDEO_PROCESSING_QUEUE)
+@Processor(VIDEO_PROCESSING_QUEUE, { concurrency: 1 })
 export class VideoProcessorWorker extends WorkerHost {
   private readonly logger = new Logger(VideoProcessorWorker.name);
   private readonly s3: S3Client;

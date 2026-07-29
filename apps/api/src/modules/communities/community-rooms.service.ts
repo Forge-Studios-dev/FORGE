@@ -6,6 +6,7 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
@@ -38,6 +39,7 @@ export class CommunityRoomsService {
     private readonly entitlementsService: EntitlementsService,
     private readonly roomPermissionsService: CommunityRoomPermissionsService,
     @InjectRedis() private readonly redis: Redis,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   private slugify(text: string): string {
@@ -370,8 +372,16 @@ export class CommunityRoomsService {
       throw new BadRequestException('Raise hand is only available in stage rooms');
     }
     const key = this.raiseHandKey(roomId);
-    await this.redis.hset(key, userId, Date.now().toString());
+    const raisedAt = Date.now().toString();
+    await this.redis.hset(key, userId, raisedAt);
     await this.redis.expire(key, 3600);
+    this.eventEmitter.emit('room.raise-hand', {
+      communityId,
+      roomId,
+      userId,
+      raised: true,
+      raisedAt: new Date(Number(raisedAt)).toISOString(),
+    });
     return { data: { raised: true } };
   }
 
@@ -383,6 +393,12 @@ export class CommunityRoomsService {
   ) {
     await this.communitiesService.assertCommunityAccess(communityId, userId, viewerRole);
     await this.redis.hdel(this.raiseHandKey(roomId), userId);
+    this.eventEmitter.emit('room.raise-hand', {
+      communityId,
+      roomId,
+      userId,
+      raised: false,
+    });
     return { data: { raised: false } };
   }
 
@@ -444,6 +460,17 @@ export class CommunityRoomsService {
     await this.redis.sadd(this.stageSpeakersKey(roomId), targetUserId);
     await this.redis.expire(this.stageSpeakersKey(roomId), 7200);
     await this.redis.hdel(this.raiseHandKey(roomId), targetUserId);
+    this.eventEmitter.emit('room.raise-hand', {
+      communityId,
+      roomId,
+      userId: targetUserId,
+      raised: false,
+    });
+    this.eventEmitter.emit('room.speaker.approved', {
+      communityId,
+      roomId,
+      userId: targetUserId,
+    });
     return { data: { approved: true, userId: targetUserId } };
   }
 

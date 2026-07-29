@@ -17,6 +17,13 @@ export interface JwtPayload {
   isVerified: boolean;
   /** Refresh-token session id — enables instant revoke when session ends. */
   sid?: string;
+  /**
+   * Purpose tag on non-session tokens (e.g. `'impersonate'` for short-lived
+   * admin impersonation links). Session/access tokens are signed WITHOUT a
+   * `purpose` claim; M-S1 makes the JWT bearer strategy reject any token
+   * that carries one so link tokens can never act as full API credentials.
+   */
+  purpose?: string;
   iat?: number;
   exp?: number;
 }
@@ -39,6 +46,15 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: JwtPayload): Promise<JwtPayload> {
+    // M-S1: only pure session/access tokens (no `purpose` claim) may act as
+    // bearer credentials. Impersonation link tokens carry
+    // `purpose: 'impersonate'` and MUST be redeemed via
+    // AuthService#consumeImpersonationToken — never used directly as a Nest
+    // `Bearer` credential.
+    if (payload.purpose) {
+      throw new UnauthorizedException('Token cannot be used as a bearer credential');
+    }
+
     if (payload.sid) {
       const active = await this.authSessionCache.assertSessionActive(payload.sid, payload.sub);
       if (!active) {

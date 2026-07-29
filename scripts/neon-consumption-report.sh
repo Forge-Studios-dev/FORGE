@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # Neon consumption + endpoint health report (invoice-aligned v2 metrics).
 # Usage:
 #   export NEON_API_KEY='napi_...'

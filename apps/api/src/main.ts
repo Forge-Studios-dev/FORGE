@@ -2,7 +2,12 @@ import './instrument';
 import 'reflect-metadata';
 import { createServer } from 'http';
 import { NestFactory } from '@nestjs/core';
-import { ClassSerializerInterceptor, ValidationPipe, RequestMethod } from '@nestjs/common';
+import {
+  ClassSerializerInterceptor,
+  RequestMethod,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
@@ -68,8 +73,17 @@ async function bootstrap() {
   const http = app.getHttpAdapter().getInstance();
   http.set('trust proxy', 1);
 
-  app.setGlobalPrefix('api/v1', {
+  // H-B1: URI versioning managed by Nest. Global prefix stays `api` and Nest
+  // injects the version segment, so all existing routes still resolve at
+  // `/api/v1/...` (identical to the previous hardcoded `api/v1` prefix). The
+  // metrics controller opts out with @Version(VERSION_NEUTRAL) so /metrics
+  // stays where Prometheus/Grafana scrapes it.
+  app.setGlobalPrefix('api', {
     exclude: [{ path: 'metrics', method: RequestMethod.ALL }],
+  });
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
   });
 
   app.use(cookieParser());
@@ -100,21 +114,24 @@ async function bootstrap() {
 
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
+  // Always build the OpenAPI document (M-B4). Swagger UI stays non-prod only;
+  // production still exposes the JSON contract at /api/docs-json for clients/CI.
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('FORGE API')
+    .setDescription('FORGE – Live Creator Platform API')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: { persistAuthorization: true },
+    // Hide UI chrome in production; JSON remains at /api/docs-json.
+    ...(nodeEnv === 'production' ? { swaggerUiEnabled: false } : {}),
+  });
   if (nodeEnv !== 'production') {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle('FORGE API')
-      .setDescription('FORGE – Live Creator Platform API')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build();
-
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup('api/docs', app, document, {
-      swaggerOptions: { persistAuthorization: true },
-    });
-
     logger.log(`Swagger docs: http://localhost:${port}/api/docs`);
   }
+  logger.log(`OpenAPI JSON: /api/docs-json`);
 
   await app.listen(port, '0.0.0.0');
   logger.log(`FORGE API running on: http://0.0.0.0:${port}/api/v1`);

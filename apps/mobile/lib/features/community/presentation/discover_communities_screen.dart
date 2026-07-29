@@ -72,7 +72,7 @@ class _DiscoverCommunitiesScreenState extends ConsumerState<DiscoverCommunitiesS
                     onSubmitted: _search,
                   ),
                 ),
-                IconButton(onPressed: () => _search(), icon: const Icon(Icons.search)),
+                IconButton(onPressed: () => _search(), tooltip: 'Search', icon: const Icon(Icons.search)),
               ],
             ),
           ),

@@ -1,0 +1,9 @@
+{
+  "@@locale": "en",
+  "appTitle": "FORGE",
+  "@appTitle": {
+    "description": "Application title"
+  },
+  "goHome": "Go home",
+  "pageNotFound": "Page not found"
+}

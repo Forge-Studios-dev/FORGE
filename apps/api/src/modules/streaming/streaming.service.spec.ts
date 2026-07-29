@@ -14,6 +14,7 @@ import { AccessSessionsService } from '../access-sessions/access-sessions.servic
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
 import { StreamViewerService } from './stream-viewer.service';
 import { MuxLiveSyncService } from './mux-live-sync.service';
+import { StreamReminderScheduler } from './stream-reminder.scheduler';
 import { getQueueToken } from '@nestjs/bullmq';
 import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/premium-content-notify.constants';
 
@@ -127,6 +128,7 @@ describe('StreamingService access gating', () => {
           useValue: {
             handleWebhookActive: jest.fn(),
             handleWebhookIdle: jest.fn(),
+            clearPlatformDormant: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -135,6 +137,13 @@ describe('StreamingService access gating', () => {
             trackStreamLive: jest.fn().mockResolvedValue(undefined),
             trackStreamEnded: jest.fn().mockResolvedValue(undefined),
             finalizeUniqueViewers: jest.fn().mockResolvedValue(0),
+          },
+        },
+        {
+          provide: StreamReminderScheduler,
+          useValue: {
+            scheduleReminder: jest.fn().mockResolvedValue(undefined),
+            cancelReminder: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -296,6 +305,10 @@ describe('StreamingService endStream', () => {
         handleWebhookIdle: jest.fn(),
       } as never,
       {
+        scheduleReminder: jest.fn().mockResolvedValue(undefined),
+        cancelReminder: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
         get: jest.fn().mockResolvedValue(null),
         setex: jest.fn().mockResolvedValue('OK'),
         del: jest.fn(),
@@ -362,6 +375,10 @@ describe('StreamingService createStream', () => {
       {
         handleWebhookActive: jest.fn(),
         handleWebhookIdle: jest.fn(),
+      } as never,
+      {
+        scheduleReminder: jest.fn().mockResolvedValue(undefined),
+        cancelReminder: jest.fn().mockResolvedValue(undefined),
       } as never,
       {
         get: jest.fn().mockResolvedValue(null),

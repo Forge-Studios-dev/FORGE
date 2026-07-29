@@ -23,7 +23,7 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 import {
   safeRedisDel,
   safeRedisGet,
-  safeRedisIncr,
+  safeRedisIncrEx,
   safeRedisSetex,
 } from '../../common/redis/redis-safe.util';
 
@@ -544,7 +544,7 @@ export class FeedService {
 
   /** Bump generation so cached v4 keys expire naturally — avoids Redis KEYS. */
   async invalidateFeedCache(_categoryId?: string) {
-    await safeRedisIncr(this.redis, FEED_CACHE_GEN_KEY, this.logger);
+    await safeRedisIncrEx(this.redis, FEED_CACHE_GEN_KEY, 86400 * 30, this.logger);
   }
 
   async invalidateVideoDetailCache(videoId: string) {

@@ -26,7 +26,8 @@ export class CommunityAiController {
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Score content for spam/toxicity (creator copilot)' })
   async scoreContent(@Body() body: { text: string }) {
-    return { data: await this.aiCommunityService.scoreContentAsync(body.text ?? '') };
+    // TransformInterceptor wraps as { success, data } — return the score object directly.
+    return this.aiCommunityService.scoreContentAsync(body.text ?? '');
   }
 
   @Get('creators/me/communities/:communityId/copilot/health')
@@ -45,13 +46,12 @@ export class CommunityAiController {
     const engagedMembers = retention?.engagedMembers ?? 0;
     const retentionRate =
       payingMembers > 0 ? Math.round((engagedMembers / payingMembers) * 100) : undefined;
-    const health = this.aiCommunityService.communityHealthScore({
+    return this.aiCommunityService.communityHealthScore({
       messagesLast7Days: analytics.messagesLast7Days,
       activeMembersLast7Days: analytics.activeMembersLast7Days,
       postsLast7Days: analytics.postsLast7Days,
       retentionRate,
     });
-    return { data: health };
   }
 
   @Get('creators/me/communities/:communityId/rooms/:roomId/summary')
@@ -74,14 +74,14 @@ export class CommunityAiController {
     const summary = await this.aiCommunityService.summarizeDiscussionAsync(
       data.map((m) => m.body),
     );
-    return { data: { summary } };
+    return { summary };
   }
 
   @Get('admin/ai/budget')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Daily AI/LLM budget usage (admin)' })
   async budgetUsage() {
-    return { data: await this.aiBudget.usage() };
+    return this.aiBudget.usage();
   }
 
   @Post('creators/me/copilot/insights')
@@ -99,8 +99,7 @@ export class CommunityAiController {
       topContentTitles?: string[];
     },
   ) {
-    const insights = await this.aiCommunityService.generateCreatorInsights(body);
-    return { data: insights };
+    return this.aiCommunityService.generateCreatorInsights(body);
   }
 
   @Get('creators/me/audit-logs')

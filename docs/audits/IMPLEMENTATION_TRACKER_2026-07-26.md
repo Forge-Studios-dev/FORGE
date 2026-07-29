@@ -1,11 +1,10 @@
 # FORGE — Audit Remediation Tracker
 
-**Source of truth:** [FRESH_AUDIT_2026-07-26_MASTER.md](./FRESH_AUDIT_2026-07-26_MASTER.md) + 7 domain reports.
-**Branch:** `fix/production-hardening-audit-2026-07-26`
-**Order of execution:** Critical → High → Medium → Low → Optimization → Refactoring → Testing → Documentation → Final verification (per user instruction — no reordering).
-**Rule:** one item fully done (explain → implement → test → docs → commit) before starting the next. Nothing pushed/merged/PR'd without explicit user go-ahead (`forge-git-branching.md`).
+**Source of truth:** [FRESH_AUDIT_2026-07-26_MASTER.md](./FRESH_AUDIT_2026-07-26_MASTER.md) + [INFRA_AUDIT_2026-07-29.md](./INFRA_AUDIT_2026-07-29.md).  
+**Branch:** `fix/production-hardening-audit-2026-07-26`  
+**Updated:** 2026-07-29 (Wave 1 hardening commit — honest status)
 
-Legend: ⬜ not started · 🔄 in progress · ✅ done · ⏸️ blocked/deferred (reason given) · ❌ explicitly out of scope this pass
+Legend: ⬜ not started · 🔄 in progress · ✅ done · ⚠️ partial · ⏸️ blocked/deferred · ❌ out of scope this pass
 
 ---
 
@@ -13,33 +12,98 @@ Legend: ⬜ not started · 🔄 in progress · ✅ done · ⏸️ blocked/deferr
 
 | # | Finding | Status | Notes |
 |---|---|---|---|
-| C1 | `main` has no GitHub branch protection | ✅ | Applied live via `gh api PUT branches/main/protection` after user confirmation: requires PR + "CI passed" + CodeQL ("Analyze (javascript-typescript)") status checks, 1 approving review (dismiss stale on new commits), blocks force-push/deletion, `enforce_admins: true` (no admin bypass — closes the exact "compromised/careless admin" scenario the finding described), required conversation resolution. Verified live via a follow-up `gh api GET` read-back. |
-| C2 | `CommunitiesService` god object (2,035 lines) | ⬜ | Large refactor, staged |
-| C3 | `Billing ⇄ Entitlements` circular dependency | ✅ | Root cause was narrower than the module-level symptom suggested: `EntitlementsService` only ever needed the leaf `StripeTierSyncService` (already `@Optional()`-injected). Extracted it into a new standalone `StripeTierSyncModule` (deps: `ConfigService` only) that both `BillingModule` and `EntitlementsModule` now import one-way. `EntitlementsModule` no longer imports `BillingModule` at all; `BillingModule`'s `EntitlementsModule` import dropped its `forwardRef`. Removed the now-unnecessary `forwardRef(() => StripeTierSyncService)` injection in `entitlements.service.ts`. Verified: `tsc --noEmit` clean, full API unit suite (143 suites/912 tests) + e2e-spec suite (6/6) green, ESLint clean. Did not touch C2 (turned out independent — no shared extraction needed). |
-| C4 | Course pages client-only, missing SEO/sitemap | ✅ | `courses/[id]/page.tsx` + `discover/courses/page.tsx` converted to async Server Components with `generateMetadata`/static `metadata`, JSON-LD `Course` schema added; interactive parts extracted to `CourseViewerClient`/`CourseCatalogClient`. `sitemap.ts` now emits course routes (bounded via existing `courses/discover/featured?limit=24` — no bulk course-list endpoint exists yet, same bounded-fetch pattern as videos). Verified: `tsc --noEmit` clean, ESLint clean, full `next build` succeeds, both routes render. |
-| C5 | Mobile `TextEditingController` leak | ✅ | `playlists_screen.dart:44` — controller now created/disposed in try/finally. Verified: `flutter analyze` clean. |
-| C6 | No live/manual QA on flagship flows | ⬜ | Process item — will produce a manual verification checklist; actual click-through requires a running app + human/browser session, flagged explicitly |
-
-## High (23) — tracked per domain, filled in as reached
-
-_(populated when Critical items close)_
-
-## Medium (37) / Low (22)
-
-_(populated when High items close)_
+| C1 | `main` branch protection | ✅ | Live via gh api |
+| C2 | CommunitiesService god object | ⚠️ | Access/Analytics/ChannelLegacy extracted; facade still ~900 LOC |
+| C3 | Billing⇄Entitlements cycle | ✅ | StripeTierSyncModule |
+| C4 | Course SSR/sitemap | ✅ | |
+| C5 | Mobile TextEditingController leak | ✅ | |
+| C6 | Manual flagship QA | ⚠️ | Checklist only; live click-through operator-owned |
 
 ---
 
-## Risks & blockers log
+## High (23)
 
-- **C1 (branch protection):** applying this changes how *everyone* on the team pushes to `main` going forward — confirming with user before executing via `gh api`, even though it's explicitly named in the audit and this prompt.
-- **C6 (manual QA):** no browser/device session available in this execution context by default — will note this limitation explicitly rather than claim flows were verified when they weren't.
-- **C2/C3 (god object + circular dep):** touches `CommunitiesService`, `EntitlementsService`, `BillingModule` — high blast radius, real production revenue/access-control code. Will run full existing test suite after each extraction step, not just at the end.
+| # | Finding | Status | Notes |
+|---|---|---|---|
+| H-A1 | EntitlementsService god object | ⚠️ | analytics extract (~140 LOC); main service still ~1.4k LOC |
+| H-A2 | web/admin HTTP/CSRF dup | ✅ | packages/shared-types csrf |
+| H-A3 | knip tooling | ✅ | knip.json + `npm run knip` non-blocking |
+| H-A4 | Legacy channels quarantine | ✅ | ChannelLegacyService |
+| H-B1 | Nest API versioning | ✅ | enableVersioning + prefix api |
+| H-B2 | ffmpeg/Mux default | ✅ | Mux prod; ffmpeg opt-in |
+| H-B3 | reports index | ✅ | migration 1840000000000 |
+| H-F1 | Button focus-visible | ✅ | |
+| H-F2 | aria-label sweep | ⚠️ | critical screens only |
+| H-F3 | dark theme documented | ✅ | apps/web/README |
+| H-F4 | form validation | ⏸️ | Adopt incrementally; not mass-migrated |
+| H-F5 | Admin skeletons | ✅ | |
+| H-M1 | Repo pattern start | ⚠️ | LiveRepository template only — not 71% migration |
+| H-M2 | Silent catches → Sentry | ⚠️ | captureError + live/community subset, not all ~47 |
+| H-M3 | Semantics/tooltips | ⚠️ | community IconButtons subset |
+| H-M4 | Deprecated Dropdowns | ⏸️ | Needs controller pattern; no crash risk found |
+| H-D1 | Actions @master | ✅ | SHA-pinned flyctl v1.5 |
+| H-D2 | AWS key rotation | ✅ | AWS_CREDENTIAL_ROTATION.md |
+| H-D3 | docker-compose.prod | ✅ | .reference.yml |
+| H-Q1 | Playwright stubs | ✅ | checkout/upload/moderation |
+| H-Q2 | RecommendationsService tests | ✅ | |
+| H-Q3 | Semantic search | ⏸️ | F-1302 Phase 5 |
+| H-Q4 | Podcasts web UI | ✅ | /podcasts |
 
-## Technical debt removed
+---
 
-_(running log, updated as work lands)_
+## Medium
 
-## New technical debt introduced
+| # | Finding | Status |
+|---|---|---|
+| M-S1 | JWT purpose check | ✅ |
+| M-S2 | CSRF fail-safe | ✅ |
+| M-S3 | Presigned upload size | ✅ |
+| M-S4 | SVG upload blocked | ✅ |
+| M-B1 | Pagination util hotspots | ✅ | courses/certs + cohorts cap (not ~190 endpoints) |
+| M-B2 | Batch cron writes | ✅ |
+| M-B3 | EventsGateway split | ✅ | EventsBroadcastListener + SocketIoHub |
+| M-B4 | OpenAPI in prod | ✅ | docs-json always |
+| M-D1 | CODEOWNERS | ✅ |
+| M-D2 | Worker HEALTHCHECK | ✅ |
+| M-D3 | .dockerignore | ✅ |
+| M-D4 | npm audit flake tracking | ✅ | artifact on registry outage |
+| M-D5 | Worker --ha=false | ✅ | Documented accepted SPOF |
+| M-D6 | Terraform remote state | ✅ | README note |
+| M-D7 | Emergency deploy bom | ✅ |
+| M-Q1 | Coverage thresholds | ✅ | 38/37/36/24 |
+| M-Q2 | Cold-start onboarding | ✅ | /onboarding/interests |
+| M-M1 | Localization scaffolding | ✅ | flutter_localizations + arb |
+| M-M3 | Router errorBuilder | ✅ |
+| M-I1 | Mux/Neon/Redis WIP | ⚠️ | Code on branch (5m/15m + installExtensions:false); **not prod-deployed** |
 
-_(none yet — flag anything here immediately if it happens)_
+---
+
+## Low
+
+| # | Finding | Status |
+|---|---|---|
+| L1 | SVG mime | ✅ | Already removed creator-resources |
+| L2 | Script set -eu | ✅ | Key scripts |
+| L3 | reports index doc | ✅ | Entity + migration |
+| L4 | Knip | ✅ | Non-blocking script |
+
+---
+
+## Deferred Phase 5
+
+| ID | Status | Doc |
+|----|--------|-----|
+| F-1101 Stripe Connect | ⏸️ scaffolded | [PHASE5_DEFERRED_STATUS.md](./PHASE5_DEFERRED_STATUS.md) |
+| F-1302 Search sidecar | ⏸️ trigger-gated | same |
+| Load test k6 stub | ✅ harness | `scripts/load/entitlements-k6.js` |
+| Neon restore cadence | ✅ noted | same |
+| Mux monthly cost | ⏸️ needs Mux creds | same |
+
+---
+
+## Verification
+
+- Targeted API unit suites: streaming, communities, entitlements, gateway, recommendations, auth-cookies.
+- Full `ci:local` before PR merge.
+- Fly deploy of Mux-interval hardening **not** done — requires explicit user request.
+- Neon/AWS/Mux live metrics filled in Wave 2 when credentials available.

@@ -5,7 +5,7 @@ import { MuxLiveSyncService } from '../../streaming/mux-live-sync.service';
 import { StreamMuxSyncScheduler } from '../../streaming/stream-mux-sync.scheduler';
 import { STREAM_MUX_SYNC_QUEUE, StreamMuxSyncJob } from './stream-mux-sync.constants';
 
-@Processor(STREAM_MUX_SYNC_QUEUE)
+@Processor(STREAM_MUX_SYNC_QUEUE, { concurrency: 1 })
 export class StreamMuxSyncWorker extends WorkerHost {
   private readonly logger = new Logger(StreamMuxSyncWorker.name);
 
@@ -17,6 +17,11 @@ export class StreamMuxSyncWorker extends WorkerHost {
   }
 
   async process(job: Job<StreamMuxSyncJob>): Promise<void> {
+    if (job.data.finalizeStreamId) {
+      await this.muxLiveSyncService.finalizeIfGraceExpired(job.data.finalizeStreamId);
+      return;
+    }
+
     if (job.data.streamId) {
       await this.muxLiveSyncService.syncStreamById(job.data.streamId);
       return;
@@ -29,7 +34,7 @@ export class StreamMuxSyncWorker extends WorkerHost {
       : await this.muxLiveSyncService.hasActiveLiveStreams();
     await this.muxSyncScheduler.syncIntervalForActivity({ hasLiveStreams: hasLive, isDormant });
     this.logger.debug(
-      `Mux live sync scan: ${result.synced} idle synced, ${result.finalized} finalized (live=${hasLive})`,
+      `Mux backup scan: ${result.synced} idle synced, ${result.finalized} finalized (live=${hasLive})`,
     );
   }
 }

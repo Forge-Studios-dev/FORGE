@@ -95,6 +95,25 @@ export async function safeRedisIncr(redis: Redis, key: string, log?: Logger): Pr
   }
 }
 
+/** INCR then refresh TTL so counters cannot become permanent keys if flush/invalidation stalls. */
+export async function safeRedisIncrEx(
+  redis: Redis,
+  key: string,
+  ttlSec: number,
+  log?: Logger,
+): Promise<number | null> {
+  try {
+    const n = await redis.incr(key);
+    if (ttlSec > 0) {
+      await redis.expire(key, ttlSec);
+    }
+    return n;
+  } catch (err) {
+    log?.warn(`redis INCR/EXPIRE ${key} failed: ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
+}
+
 /** SCAN + DEL keys matching a glob pattern (e.g. streams:list:*). */
 export async function safeRedisDelPattern(
   redis: Redis,

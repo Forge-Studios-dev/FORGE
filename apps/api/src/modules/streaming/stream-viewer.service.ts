@@ -139,6 +139,13 @@ export class StreamViewerService implements OnModuleInit, OnModuleDestroy {
 
   private async flushAllLiveStreams(): Promise<void> {
     try {
+      // Skip lock + work when nothing is live (common idle case).
+      const liveCount = await this.redis.scard(LIVE_INDEX_KEY);
+      this.flushCount += 1;
+      const shouldReconcile = this.flushCount % RECONCILE_EVERY_N_FLUSHES === 0;
+
+      if (liveCount === 0 && !shouldReconcile) return;
+
       const isLeader = await tryAcquireIntervalLeader(
         this.redis,
         LEADER_LOCK_KEY,
@@ -147,8 +154,7 @@ export class StreamViewerService implements OnModuleInit, OnModuleDestroy {
       );
       if (!isLeader) return;
 
-      this.flushCount += 1;
-      if (this.flushCount % RECONCILE_EVERY_N_FLUSHES === 0) {
+      if (shouldReconcile) {
         await this.reconcileLiveIndexFromDb();
       }
 

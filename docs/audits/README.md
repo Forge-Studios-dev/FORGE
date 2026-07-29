@@ -1,5 +1,9 @@
 # Audits
 
+## Infrastructure audit — 2026-07-29
+
+Fresh SRE/FinOps audit (high server-usage RCA) per `new_dataprompt.md`, live Fly inventory + code merge against July-26 findings. See [INFRA_AUDIT_2026-07-29.md](./INFRA_AUDIT_2026-07-29.md). Full remediation tracker: [IMPLEMENTATION_TRACKER_2026-07-26.md](./IMPLEMENTATION_TRACKER_2026-07-26.md).
+
 ## Fresh full enterprise audit — 2026-07-26
 
 From-scratch 8-domain audit (architecture, backend/DB/API, security, web+admin frontend, mobile, DevOps/AWS, QA/testing, product/competitive) per `MASTERPROJECTAUDITPROMPT.md` + `prompt.md`, run as 7 independent parallel passes with no reliance on prior audit docs. 6 Critical / 23 High / 37 Medium / 22 Low findings (88 total). Overall score 6.9/10 (B-). See [FRESH_AUDIT_2026-07-26_MASTER.md](./FRESH_AUDIT_2026-07-26_MASTER.md) (synthesis + roadmap + scorecard + final verdict) and its 7 linked domain reports (`FRESH_AUDIT_2026-07-26_*.md`).

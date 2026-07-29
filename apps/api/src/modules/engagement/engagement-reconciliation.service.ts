@@ -8,6 +8,28 @@ import { Like } from './entities/like.entity';
 import { Follow } from './entities/follow.entity';
 import { CommentLike } from './entities/comment-like.entity';
 
+/** Cap mismatch rows updated per daily pass to bound write storms on large tables. */
+const MISMATCH_LIMIT = 1000;
+
+/**
+ * Update chunk size for mismatch fixups. Sequential per-row updates paid a
+ * full round-trip per row; a batch of 25 keeps peak DB concurrency low
+ * enough for a shared-CPU worker while cutting elapsed reconcile time by
+ * ~20×. Promise.allSettled is used so a single bad row (e.g. FK removed
+ * mid-run) doesn't abort the pass.
+ */
+const UPDATE_CHUNK_SIZE = 25;
+
+async function updateInChunks<T>(
+  rows: T[],
+  updater: (row: T) => Promise<unknown>,
+): Promise<void> {
+  for (let i = 0; i < rows.length; i += UPDATE_CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + UPDATE_CHUNK_SIZE);
+    await Promise.allSettled(chunk.map(updater));
+  }
+}
+
 @Injectable()
 export class EngagementReconciliationService {
   private readonly logger = new Logger(EngagementReconciliationService.name);
@@ -28,12 +50,11 @@ export class EngagementReconciliationService {
   ) {}
 
   async reconcileAll(): Promise<{ videos: number; users: number; comments: number; videoComments: number }> {
-    const [videoLikes, users, commentLikes, videoComments] = await Promise.all([
-      this.reconcileVideoLikeCounts(),
-      this.reconcileFollowCounts(),
-      this.reconcileCommentLikeCounts(),
-      this.reconcileVideoCommentCounts(),
-    ]);
+    // Sequential: four full-table GROUP BYs in parallel spiked worker/DB peak memory.
+    const videoLikes = await this.reconcileVideoLikeCounts();
+    const users = await this.reconcileFollowCounts();
+    const commentLikes = await this.reconcileCommentLikeCounts();
+    const videoComments = await this.reconcileVideoCommentCounts();
     this.logger.log(
       `Engagement reconciliation complete: ${videoLikes} video likes, ${users} users, ${commentLikes} comment likes, ${videoComments} video comment counts adjusted`,
     );
@@ -50,11 +71,12 @@ export class EngagementReconciliationService {
       .groupBy('v.id')
       .addGroupBy('v.like_count')
       .having('v.like_count != COUNT(l.id)')
+      .limit(MISMATCH_LIMIT)
       .getRawMany<{ id: string; stored: string; actual: string }>();
 
-    for (const row of mismatches) {
-      await this.videoRepository.update(row.id, { likeCount: parseInt(row.actual, 10) || 0 });
-    }
+    await updateInChunks(mismatches, (row) =>
+      this.videoRepository.update(row.id, { likeCount: parseInt(row.actual, 10) || 0 }),
+    );
     return mismatches.length;
   }
 
@@ -68,6 +90,7 @@ export class EngagementReconciliationService {
       .groupBy('u.id')
       .addGroupBy('u.follower_count')
       .having('u.follower_count != COUNT(f.id)')
+      .limit(MISMATCH_LIMIT)
       .getRawMany<{ id: string; stored: string; actual: string }>();
 
     const followingMismatches = await this.userRepository
@@ -79,6 +102,7 @@ export class EngagementReconciliationService {
       .groupBy('u.id')
       .addGroupBy('u.following_count')
       .having('u.following_count != COUNT(f.id)')
+      .limit(MISMATCH_LIMIT)
       .getRawMany<{ id: string; stored: string; actual: string }>();
 
     const byId = new Map<string, { followerCount?: number; followingCount?: number }>();
@@ -94,9 +118,10 @@ export class EngagementReconciliationService {
       byId.set(row.id, entry);
     }
 
-    for (const [userId, patch] of byId) {
-      await this.userRepository.update(userId, patch);
-    }
+    await updateInChunks(
+      Array.from(byId.entries()),
+      ([userId, patch]) => this.userRepository.update(userId, patch),
+    );
 
     return byId.size;
   }
@@ -111,11 +136,12 @@ export class EngagementReconciliationService {
       .groupBy('c.id')
       .addGroupBy('c.like_count')
       .having('c.like_count != COUNT(cl.id)')
+      .limit(MISMATCH_LIMIT)
       .getRawMany<{ id: string; stored: string; actual: string }>();
 
-    for (const row of mismatches) {
-      await this.commentRepository.update(row.id, { likeCount: parseInt(row.actual, 10) || 0 });
-    }
+    await updateInChunks(mismatches, (row) =>
+      this.commentRepository.update(row.id, { likeCount: parseInt(row.actual, 10) || 0 }),
+    );
     return mismatches.length;
   }
 
@@ -129,11 +155,12 @@ export class EngagementReconciliationService {
       .groupBy('v.id')
       .addGroupBy('v.comment_count')
       .having('v.comment_count != COUNT(c.id)')
+      .limit(MISMATCH_LIMIT)
       .getRawMany<{ id: string; stored: string; actual: string }>();
 
-    for (const row of mismatches) {
-      await this.videoRepository.update(row.id, { commentCount: parseInt(row.actual, 10) || 0 });
-    }
+    await updateInChunks(mismatches, (row) =>
+      this.videoRepository.update(row.id, { commentCount: parseInt(row.actual, 10) || 0 }),
+    );
     return mismatches.length;
   }
 }
