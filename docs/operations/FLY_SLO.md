@@ -19,7 +19,7 @@ With `min_machines_running = 2` and `auto_stop_machines = false`, two API machin
 
 > **Note (2026-07-29):** When Fly returns `no capacity available in bom` for the `release_command` VM, the Release workflow **retries then fails closed** (it will not silently `--skip-release-command`). Operator path: apply pending TypeORM migrations out-of-band (Neon MCP / `machine run` in a region with capacity), then:
 > `flyctl deploy --remote-only --primary-region bom --regions bom --skip-release-command`
-> Image rollback also uses `--skip-release-command` so a capacity miss cannot strand the previous image.
+> Image rollback also uses `--skip-release-command` so a capacity miss cannot strand the previous image. Docs/rules-only merges on `main` **skip** the Release deploy jobs entirely (manual `workflow_dispatch` still deploys).
 
 ---
 

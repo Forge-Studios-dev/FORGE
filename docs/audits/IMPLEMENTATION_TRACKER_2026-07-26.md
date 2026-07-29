@@ -2,7 +2,7 @@
 
 **Source of truth:** [FRESH_AUDIT_2026-07-26_MASTER.md](./FRESH_AUDIT_2026-07-26_MASTER.md) + [INFRA_AUDIT_2026-07-29.md](./INFRA_AUDIT_2026-07-29.md).  
 **Branch:** `fix/production-hardening-audit-2026-07-26`  
-**Updated:** 2026-07-29 (Wave 1–3: hardening + live audit + Creator Economy surfaces)
+**Updated:** 2026-07-29 (Waves 1–4 complete: hardening + live audit + Creator Economy + prod deploy)
 
 Legend: ⬜ not started · 🔄 in progress · ✅ done · ⚠️ partial · ⏸️ blocked/deferred · ❌ out of scope this pass
 
