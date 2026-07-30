@@ -2,9 +2,9 @@
 
 **Scope:** [`new_dataprompt.md`](../../new_dataprompt.md) (SRE / FinOps / high server-usage RCA) + merge against July 2026 enterprise audits.  
 **Method:** Live Fly CLI + code/config inventory. Neon / AWS / Mux / Vercel dashboards **not** available this session (credentials unset / AWS token invalid).  
-**Branch:** `fix/production-hardening-audit-2026-07-26`
+**Branch:** `fix/production-hardening-audit-2026-07-26` → merged via PR #161; Wave 4 prod verify 2026-07-29.
 
-> **Addendum (2026-07-29 Wave 4):** Mux 5m/15m + `installExtensions: false` are **live in prod** (worker logs: backup every 300s → 900s dormant). Migration `1840000000000` recorded. Automated Release still hits intermittent `bom` `release_command` capacity — operator path in [`FLY_SLO.md`](../operations/FLY_SLO.md).
+> **Addendum (2026-07-29 Wave 4):** Mux 5m/15m + `installExtensions: false` are **live in prod** (worker logs: backup every 300s → 900s dormant). Migration `1840000000000` recorded. Automated Release can still hit intermittent `bom` `release_command` capacity — operator path + docs-only skip in [`FLY_SLO.md`](../operations/FLY_SLO.md).
 
 ---
 
@@ -12,23 +12,23 @@
 
 Production is **healthy but expensive at idle**: 2× API + 1× worker, all `shared-cpu-2x:2048MB`, both API machines warm (`auto_stop_machines = false`). Health checks pass. No restart loops observed.
 
-The dominant **variable** load (until WIP deploys) is Mux live-sync polling at 45s/90s plus Neon pool reconnect churn (`CREATE EXTENSION` on new connections). Working-tree hardening moves sync to webhook-first + 5m/15m backup, raises idle timeout alignment, and sets `installExtensions: false`. That is the highest-leverage remediations for usage alerts.
+Dominant **variable** idle load was Mux live-sync polling (old 45s/90s) plus Neon pool reconnect churn (`CREATE EXTENSION` on new connections). **Shipped and verified in prod:** webhook-first Mux backup at 5m live/idle / 15m dormant, idle timeout alignment, and `installExtensions: false`. Remaining FinOps unknowns need Mux/AWS/Redis credentialed dashboards.
 
-**Confidence:** Fly inventory High; Redis/Neon/Mux/AWS cost numbers Low (blocked on credentials).
+**Confidence:** Fly inventory High; Redis/Neon/Mux/AWS cost dollar figures Low (blocked on credentials).
 
 ---
 
 ## Infrastructure inventory (live + config)
 
-| Service | Live state (2026-07-29) | Config |
-|---------|-------------------------|--------|
-| Fly API `forge-studios-api` | 2 machines `bom`, both `started`, checks passing, `shared-cpu-2x:2048MB`, version 253 | [`fly.toml`](../../fly.toml): `min_machines_running=2`, `auto_stop=false`, health `/api/v1/health/live` 15s |
-| Fly worker `forge-studios-worker` | 1 machine `bom`, `started`, check passing, `shared-cpu-2x:2048MB`, version 225 | [`fly.worker.toml`](../../fly.worker.toml): `WORKER_ONLY=true`, `VIDEO_TRANSCODE_PROVIDER=mux`, restart always |
-| Neon Postgres | Not queried (no `NEON_API_KEY`) | Pool default max 5 Neon; idle 120s; pooled URL required in prod |
+| Service | Live state (2026-07-29 Wave 4) | Config |
+|---------|-------------------------------|--------|
+| Fly API `forge-studios-api` | 2 machines `bom`, both `started`, checks passing, `shared-cpu-2x:2048MB` | [`fly.toml`](../../fly.toml): `min_machines_running=2`, `auto_stop=false`, health `/api/v1/health/live` 15s |
+| Fly worker `forge-studios-worker` | 1 machine `bom`, `started`, check passing; Mux scheduler **300s→900s dormant** | [`fly.worker.toml`](../../fly.worker.toml): `WORKER_ONLY=true`, `VIDEO_TRANSCODE_PROVIDER=mux`, restart always |
+| Neon Postgres | ~40MB DB; migration `1840000000000` recorded; no slow app-query hotspots | Pool default max 5 Neon; idle 120s; pooled URL required in prod |
 | Redis | Not queried (no live `INFO`) | Dual ioredis + node-redis; ~12–20 conn/API machine; require `noeviction` |
-| Mux | Not queried | Worker default Mux; WIP reduces poll storm |
-| AWS S3/CF | CLI token invalid | Lifecycle/versioning in `setup-aws-forge.sh` — **not applied live until script re-run** |
-| Vercel web/admin | No token | — |
+| Mux | Backup poll intervals verified via worker logs | Worker owns Bull schedulers |
+| AWS S3/CF | CLI token invalid this session | Lifecycle/versioning in `setup-aws-forge.sh` — **re-run when AWS creds valid** |
+| Vercel web/admin | Deployed via Deploy Web & Admin workflow (Wave 4) | — |
 
 **Fixed compute floor:** ~6 GB RAM / 6 shared CPUs always on ≈ constant bill even at zero traffic (intentional HA tradeoff per [`FLY_SLO.md`](../operations/FLY_SLO.md)).
 
@@ -39,12 +39,12 @@ The dominant **variable** load (until WIP deploys) is Mux live-sync polling at 4
 | Rank | Cause | Evidence | Status |
 |------|-------|----------|--------|
 | 1 | Always-on 2 API + worker | Live machines + `auto_stop=false` | Accepted cost for HA; optional bluegreen later |
-| 2 | Mux sync poll 45s/90s (prod image) | Pre-WIP defaults in deployed image | **WIP on branch** → 5m live/idle, 15m dormant |
-| 3 | Abandoned IDLE rooms blocking dormancy | Pre-WIP counted all IDLE mux rooms | **WIP** windowed candidates |
-| 4 | Neon reconnect + `CREATE EXTENSION` | COST_AUDIT #3; TypeORM driver | Idle 120s shipped; **WIP** `installExtensions: false` |
+| 2 | Mux sync poll (was 45s/90s) | Pre-hardening prod image | ✅ **Prod** 5m live/idle, 15m dormant |
+| 3 | Abandoned IDLE rooms blocking dormancy | Pre-hardening counted all IDLE mux rooms | ✅ Windowed candidates shipped |
+| 4 | Neon reconnect + `CREATE EXTENSION` | COST_AUDIT #3; TypeORM driver | ✅ Idle 120s + `installExtensions: false` |
 | 5 | Redis × queues × machines | `REDIS_CONNECTIONS.md`, ~17 queues | Monitor; noeviction required |
 | 6 | High worker concurrency on 2 CPU | analytics 5 + push 3 + chat 3 + … | Scale-ready; tune when queue depth lags |
-| 7 | API timers × 2 machines | viewer 30s, views 60s | **WIP** early-exit when no live |
+| 7 | API timers × 2 machines | viewer 30s, views 60s | ✅ Early-exit when no live shipped |
 
 ---
 
@@ -53,12 +53,12 @@ The dominant **variable** load (until WIP deploys) is Mux live-sync polling at 4
 | ID | Finding | Prior status | 2026-07-29 |
 |----|---------|--------------|------------|
 | C1 | `main` branch protection | ✅ tracker | ✅ closed |
-| C2 | `CommunitiesService` god object | ⬜ | Open → Phase 1B |
+| C2 | `CommunitiesService` god object | Open | ⚠️ Partial — Access/Analytics/ChannelLegacy extracted; facade remains |
 | C3 | Billing⇄Entitlements cycle | ✅ | ✅ closed |
 | C4 | Course SSR/sitemap | ✅ | ✅ closed |
 | C5 | Mobile TextEditingController leak | ✅ | ✅ closed |
-| C6 | Manual flagship QA | ⬜ | Checklist Phase 1C |
-| H-* (23) | See tracker | Mostly open | Remediation Phases 2+ |
+| C6 | Manual flagship QA | Open | ⚠️ Checklist only; live click-through operator-owned |
+| H-* | See tracker | Mixed | Mostly ✅ / ⚠️ partial; H-F4/H-M4/H-Q3 deferred |
 | COST #3 | Neon idle timeout | ✅ #157 | ✅ |
 | COST #6 | S3 multipart lifecycle | Script done | Needs live AWS apply |
 | Continuation | wipe/throttler/ipHash/S3 versioning script | ✅ | ✅ |
@@ -69,9 +69,9 @@ Deferred (product triggers): F-1101 Stripe Connect, F-1302 search sidecar, 100K 
 
 ## Access gaps (do not invent numbers)
 
-- Neon CU-hours / `pg_stat_statements`
+- Neon CU-hours / `pg_stat_statements` trend over billing window
 - Redis `INFO` / CLIENT LIST
-- Mux minutes stored/delivered
+- Mux minutes stored/delivered (dollar cost)
 - AWS Cost Explorer / S3 object inventory
 - Vercel build minutes
 
@@ -83,23 +83,10 @@ Re-run with credentials to fill cost tables.
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Prod still on old Mux poll intervals until deploy | High | Ship Phase 1A; deploy when authorized |
+| BOM `release_command` capacity misses | Medium | Fail-closed Release + docs-only skip + [`FLY_SLO.md`](../operations/FLY_SLO.md) operator path |
 | Worker SPOF (`--ha=false`) | Medium | Documented; scale when queue lag |
-| Static AWS keys / unpinned Actions `@master` | High | Phase 2 pin + OIDC/rotation runbook |
-| S3 versioning not live | Medium | Re-run `setup-aws-forge.sh` with valid AWS |
-
----
-
-## Phased remediation (this program)
-
-1. Finish WIP hardening + C2 + C6 checklist  
-2. All High (backend, devops, security, clients, product surfaces)  
-3. All Medium  
-4. All Low  
-5. Deferred backlog features  
-6. Verification / `ci:local` / tracker closeout  
-
-Tracker: [`IMPLEMENTATION_TRACKER_2026-07-26.md`](./IMPLEMENTATION_TRACKER_2026-07-26.md)
+| Static AWS keys | Medium | OIDC/rotation runbook (`AWS_CREDENTIAL_ROTATION.md`) |
+| S3 versioning not confirmed live | Medium | Re-run `setup-aws-forge.sh` with valid AWS |
 
 ---
 
@@ -108,26 +95,23 @@ Tracker: [`IMPLEMENTATION_TRACKER_2026-07-26.md`](./IMPLEMENTATION_TRACKER_2026-
 - [x] Fly API: 2 machines, checks passing, bom  
 - [x] Fly worker: 1 machine, check passing, bom  
 - [x] Code remediations Critical/High/Medium/Low tracked in IMPLEMENTATION_TRACKER  
-- [ ] Neon query-stats post-deploy (needs creds)  
+- [x] Post-deploy: Mux sync intervals via worker logs (300s → 900s dormant)  
+- [x] Migration `1840000000000` recorded on Neon  
+- [ ] Neon query-stats trend over billing window (needs longer CU history)  
 - [ ] Redis CLIENT LIST within budget (needs access)  
-- [ ] Mux monthly checklist (needs dashboard)  
+- [ ] Mux monthly dollar checklist (needs dashboard)  
 - [ ] AWS S3 versioning applied live  
-- [ ] Post-deploy: confirm Mux sync intervals via logs/metrics  
 
-## Post-remediation verification (2026-07-29 code pass)
-
-Completed on branch `fix/production-hardening-audit-2026-07-26` without production deploy:
+## Post-remediation verification (2026-07-29)
 
 - CommunitiesService split + community tests green
-- Entitlements analytics extraction + reports index migration authored
-- Mux 5m/15m + `installExtensions: false` **committed** (PR #161); **not** on prod image yet
-- Live Neon (2026-07-29): ~40MB DB, no slow app queries; CU active_time ~2.4M s in window
-- Live Fly: API 2× bom healthy; worker 1× bom healthy
-- See [FRESH_AUDIT_2026-07-29_MASTER.md](./FRESH_AUDIT_2026-07-29_MASTER.md)
-- Gateway broadcast listener extraction; gateway specs updated  
-- Recommendations trending Redis cache + unit specs  
-- DevOps pin/CODEOWNERS/dockerignore/HEALTHCHECK/CSRF/JWT purpose  
-- Client High batch (a11y, podcasts, Playwright stubs, mobile Sentry helper)  
+- Entitlements analytics extraction + reports index migration applied
+- Mux 5m/15m + `installExtensions: false` **live in prod** (PR #161 + Wave 4 deploy)
+- Live Neon: ~40MB DB, no slow app queries
+- Live Fly: API 2× bom healthy; worker 1× bom healthy; Mux scheduler verified
+- See [FRESH_AUDIT_2026-07-29_MASTER.md](./FRESH_AUDIT_2026-07-29_MASTER.md) · [IMPLEMENTATION_TRACKER_2026-07-26.md](./IMPLEMENTATION_TRACKER_2026-07-26.md)
+- Gateway broadcast listener extraction; Recommendations Redis cache; DevOps pins/CODEOWNERS
+- Client High batch (a11y, podcasts, Playwright stubs, mobile Sentry helper)
 - Phase 5 deferred status + k6 harness stub  
 
-**Still requires operator:** Fly deploy to realize Mux poll interval savings; live Neon/Mux/AWS credentialed audits; C6 checklist click-through on staging.
+**Still operator-owned (not blocking Wave 4):** credentialed Mux/AWS FinOps tables; C6 flagship click-through on staging; F-1101 / F-1302 when product triggers fire.
