@@ -57,7 +57,7 @@ dependencies:
   url_launcher: ^6.3.0
   share_plus: ^12.0.2
   socket_io_client: ^3.0.2
-  livekit_client: ^2.3.6
+  livekit_client: ^2.9.0
 
   # Crash reporting (CRIT-02) — enabled via --dart-define=SENTRY_DSN=...
   sentry_flutter: ^9.25.0
