@@ -17,8 +17,11 @@ With `min_machines_running = 2` and `auto_stop_machines = false`, two API machin
 
 > **Note (2026-07-28):** Do not set `--primary-region sin` while machines live in `bom`. `min_machines_running` only counts the primary region; a sin primary left bom machines unprotected under auto-stop and caused Nest cold-start (~20s) proxy timeouts. Release one-off capacity uses the smaller `[deploy.release_command_vm]` in bom instead.
 
-> **Note (2026-07-29):** When Fly returns `no capacity available in bom` for the `release_command` VM, the Release workflow **retries then fails closed** (it will not silently `--skip-release-command`). Operator path: apply pending TypeORM migrations out-of-band (Neon MCP / `machine run` in a region with capacity), then:
+> **Note (2026-07-29):** When Fly returns `no capacity available in bom` for the `release_command` VM, the Release workflow retries then:
+> - **No TypeORM migration files in the SHA** → deploys with `--skip-release-command` (safe for config/code-only releases).
+> - **Migrations present** → fails closed. Operator path: apply pending TypeORM migrations out-of-band (Neon MCP / `machine run` in a region with capacity), then:
 > `flyctl deploy --remote-only --primary-region bom --regions bom --skip-release-command`
+> Manual override: Actions → Release (production) → Run workflow → `skip_release_command=true` (only when schema is already current).
 > Image rollback also uses `--skip-release-command` so a capacity miss cannot strand the previous image. Docs/rules-only merges on `main` **skip** the Release deploy jobs entirely (manual `workflow_dispatch` still deploys).
 
 ---
