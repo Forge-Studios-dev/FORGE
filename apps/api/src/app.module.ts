@@ -10,6 +10,7 @@ import { ClsModule, ClsMiddleware } from 'nestjs-cls';
 import { LoggerModule } from 'nestjs-pino';
 import type { Params } from 'nestjs-pino';
 import configuration from './config/configuration';
+import { isInfraProbePath } from './common/http/infra-probe-path.util';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -117,6 +118,11 @@ function sentryFilterProviders() {
         return {
           pinoHttp: {
             level: isProd ? 'info' : 'debug',
+            // Fly Consul probes hit /health/live every 15s × N machines; Prometheus
+            // scrapes /metrics. Logging those floods Fly and looks like "continuous APIs".
+            autoLogging: {
+              ignore: (req) => isInfraProbePath(req.url),
+            },
             redact: {
               paths: [
                 'req.headers.authorization',

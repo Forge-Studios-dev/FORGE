@@ -62,6 +62,10 @@ export default function LiveWatchPage() {
       return data.data;
     },
     refetchInterval: (q) => {
+      // Stop only when the first load failed with no data — transient refetch
+      // errors must not kill go-live / playbackUrl fallback polling.
+      // (Tab visibility: rely on React Query refetchIntervalInBackground=false.)
+      if (q.state.status === 'error' && !q.state.data) return false;
       const s = q.state.data;
       if (!s) return 30_000;
       if (s.status === 'live' && s.playbackUrl && !s.accessDenied) return false;

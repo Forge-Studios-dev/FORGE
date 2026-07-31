@@ -6,6 +6,7 @@ import { Redis } from 'ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { Public } from './common/decorators/public.decorator';
 import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
@@ -22,6 +23,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
+/** Infra probes must never compete with user traffic for the rate-limit budget. */
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
   constructor(
