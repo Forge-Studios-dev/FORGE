@@ -5,6 +5,11 @@ name: Release (production)
 
 on:
   workflow_dispatch:
+    inputs:
+      skip_release_command:
+        description: 'Skip Fly release_command (only when migrations already applied or none pending)'
+        type: boolean
+        default: false
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -128,15 +133,32 @@ jobs:
         # counts the primary region — a sin primary left bom VMs unprotected
         # under auto_stop and caused cold-start proxy 502s. Release VM size is
         # already reduced in fly.toml [deploy.release_command_vm] for bom capacity.
-        # Do NOT silently --skip-release-command: that can ship an image whose
-        # schema migrations never ran. On capacity exhaustion, fail closed and
-        # require out-of-band migration + manual redeploy (see FLY_SLO / Wave 4).
+        # Prefer release_command for schema safety. On BOM capacity exhaustion:
+        # if this SHA has no TypeORM migration files, skip release_command and
+        # deploy the image (same as FLY_SLO operator path). Migration-bearing
+        # SHAs still fail closed for out-of-band migrate + manual redeploy.
         run: |
           set +e
+          SKIP="${{ github.event_name == 'workflow_dispatch' && inputs.skip_release_command }}"
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          HAS_MIGRATIONS=false
+          if git diff --name-only "${SHA}^1..${SHA}" 2>/dev/null | grep -qE 'apps/api/.*/migrations/|apps/api/src/database/migrations/'; then
+            HAS_MIGRATIONS=true
+          fi
+          echo "skip_release_command_input=${SKIP:-false} has_migrations=$HAS_MIGRATIONS"
+
+          deploy_args=(--remote-only --primary-region bom --regions bom)
+          if [ "$SKIP" = "true" ]; then
+            echo "Manual skip_release_command requested"
+            deploy_args+=(--skip-release-command)
+            flyctl deploy "${deploy_args[@]}"
+            exit $?
+          fi
+
           for attempt in 1 2 3 4 5; do
             echo "Deploy attempt $attempt"
             OUT=$(mktemp)
-            flyctl deploy --remote-only --primary-region bom --regions bom 2>&1 | tee "$OUT"
+            flyctl deploy "${deploy_args[@]}" 2>&1 | tee "$OUT"
             rc=${PIPESTATUS[0]}
             if [ "$rc" -eq 0 ]; then
               exit 0
@@ -150,6 +172,13 @@ jobs:
             fi
             exit "$rc"
           done
+
+          if [ "$HAS_MIGRATIONS" = "false" ]; then
+            echo "BOM capacity exhausted and no migration files in this SHA — deploying with --skip-release-command"
+            flyctl deploy --remote-only --primary-region bom --regions bom --skip-release-command
+            exit $?
+          fi
+
           echo "::error::BOM capacity exhausted for release_command VM. Apply pending TypeORM migrations out-of-band (Neon / machine run), then: flyctl deploy --remote-only --primary-region bom --regions bom --skip-release-command"
           exit 1
         env:
