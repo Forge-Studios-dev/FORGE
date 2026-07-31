@@ -23,8 +23,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
-/** Infra probes must never compete with user traffic for the rate-limit budget. */
-@SkipThrottle()
+/** Fly liveness only — readiness stays throttled (DB/Redis/queue checks). */
 @Controller('health')
 export class HealthController {
   constructor(
@@ -52,6 +51,7 @@ export class HealthController {
    * Used by Fly checks to avoid paying baseline DB/Redis ops.
    */
   @Public()
+  @SkipThrottle()
   @Get('live')
   getLive(@Req() req: Request) {
     return {

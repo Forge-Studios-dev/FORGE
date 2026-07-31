@@ -1,17 +1,17 @@
 import { isInfraProbePath } from './infra-probe-path.util';
 
 describe('isInfraProbePath', () => {
-  it('matches Fly liveness and readiness probes', () => {
+  it('matches Fly liveness and Prometheus scrape', () => {
     expect(isInfraProbePath('/api/v1/health/live')).toBe(true);
-    expect(isInfraProbePath('/api/v1/health/ready')).toBe(true);
-    expect(isInfraProbePath('/api/v1/health')).toBe(true);
-    expect(isInfraProbePath('/api/v1/health?x=1')).toBe(true);
     expect(isInfraProbePath('/api/v1/health/live?region=bom')).toBe(true);
-  });
-
-  it('matches Prometheus scrape path', () => {
     expect(isInfraProbePath('/metrics')).toBe(true);
     expect(isInfraProbePath('/metrics?foo=1')).toBe(true);
+  });
+
+  it('does not silence readiness (keep abuse visible in logs/metrics)', () => {
+    expect(isInfraProbePath('/api/v1/health')).toBe(false);
+    expect(isInfraProbePath('/api/v1/health?x=1')).toBe(false);
+    expect(isInfraProbePath('/api/v1/health/ready')).toBe(false);
   });
 
   it('does not match near-miss or application routes', () => {
