@@ -6,6 +6,7 @@ import { Redis } from 'ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { Public } from './common/decorators/public.decorator';
 import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
@@ -22,6 +23,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
+/** Fly liveness only — readiness stays throttled (DB/Redis/queue checks). */
 @Controller('health')
 export class HealthController {
   constructor(
@@ -49,6 +51,7 @@ export class HealthController {
    * Used by Fly checks to avoid paying baseline DB/Redis ops.
    */
   @Public()
+  @SkipThrottle()
   @Get('live')
   getLive(@Req() req: Request) {
     return {
