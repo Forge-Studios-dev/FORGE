@@ -9,7 +9,6 @@ import {
   Version,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { SkipThrottle } from '@nestjs/throttler';
 import { collectDefaultMetrics } from 'prom-client';
 import { Public } from '../decorators/public.decorator';
 import { forgeMetricsEnabled, getForgeMetricsRegistry } from './forge-metrics';
@@ -34,7 +33,6 @@ function assertMetricsScrapeAuthorized(req: Request): void {
   throw new UnauthorizedException();
 }
 
-@SkipThrottle()
 @Controller({ path: 'metrics', version: VERSION_NEUTRAL })
 export class MetricsController {
   private defaultsRegistered = false;
