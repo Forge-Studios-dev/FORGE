@@ -30,10 +30,14 @@ export function LiveStreamsSocketSync() {
     socket.emit('join-live-feed');
     socket.on('stream:started', invalidate);
     socket.on('stream:ended', invalidate);
+    // Re-evaluate live/upcoming refetchInterval when the socket drops
+    // (poll helper only peeks connection state; it does not own lifecycle).
+    socket.on('disconnect', invalidate);
 
     return () => {
       socket.off('stream:started', invalidate);
       socket.off('stream:ended', invalidate);
+      socket.off('disconnect', invalidate);
       socket.emit('leave-live-feed');
     };
   }, [accessToken, queryClient]);

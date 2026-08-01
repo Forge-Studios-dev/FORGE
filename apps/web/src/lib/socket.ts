@@ -8,6 +8,11 @@ function socketBaseUrl(): string {
   return api.replace(/\/api\/v1\/?$/, '');
 }
 
+/** Existing client only — never creates or reconnects. Safe for poll helpers. */
+export function peekSocket(): Socket | null {
+  return socket;
+}
+
 export function getSocket(accessToken?: string | null): Socket | null {
   if (typeof window === 'undefined') return null;
   if (!accessToken) return null;

@@ -19,7 +19,7 @@ export function refreshAccessToken(): Promise<string> {
       const { data } = await axios.post(
         `${API_URL}/auth/refresh`,
         {},
-        { withCredentials: true, headers: csrfRequestHeaders() },
+        { withCredentials: true, headers: csrfRequestHeaders(), timeout: 10_000 },
       );
       const accessToken = data.data.accessToken as string;
       persistAuthSession(

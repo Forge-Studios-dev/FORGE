@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { getSocket } from '@/lib/socket';
+import { peekSocket } from '@/lib/socket';
 import { useAuth } from '@/lib/auth';
 import { Stream } from '@/types';
 
@@ -15,9 +15,17 @@ const GUEST_UPCOMING_POLL_MS = 10 * 60_000;
 const AUTH_OFFLINE_LIVE_POLL_MS = 60_000;
 const AUTH_OFFLINE_UPCOMING_POLL_MS = 90_000;
 
-function liveFeedPollInterval(accessToken: string | null | undefined, guestMs: number, authMs: number) {
-  const socket = accessToken ? getSocket(accessToken) : null;
-  if (socket?.connected) return false;
+/**
+ * Poll only when there is no live socket feed.
+ * Observe an existing socket — do not create/reconnect from the interval callback
+ * (socket lifecycle lives in LiveStreamsSocketSync / getSocket callers).
+ */
+function liveFeedPollInterval(
+  accessToken: string | null | undefined,
+  guestMs: number,
+  authMs: number,
+) {
+  if (accessToken && peekSocket()?.connected) return false;
   if (!accessToken) return guestMs;
   return authMs;
 }

@@ -34,12 +34,17 @@ export function StudioSystemBanners() {
         if (!cancelled && navigator.onLine) setSlow(true);
       }
     };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void checkLatency();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     void checkLatency();
     const timer = window.setInterval(() => void checkLatency(), 30_000);
 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', syncOnline);
       window.removeEventListener('offline', syncOnline);
     };
