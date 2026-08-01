@@ -1,7 +1,6 @@
 import { Metadata } from 'next';
-import { redirect, notFound } from 'next/navigation';
-import { serverApi } from '@/lib/api';
-import { User } from '@/types';
+import { notFound } from 'next/navigation';
+import { getUserByUsernameCached } from '@/lib/get-user-by-username';
 import { ProfileHeader } from '@/components/ProfileHeader/ProfileHeader';
 import { CommunityPanel } from '@/components/Community/CommunityPanel';
 
@@ -11,23 +10,14 @@ interface Props {
   params: { username: string; communitySlug: string };
 }
 
-async function getUserByUsername(username: string): Promise<User | null> {
-  try {
-    const { data } = await serverApi.get(`/users/by-username/${username}`);
-    return data.data;
-  } catch {
-    return null;
-  }
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const user = await getUserByUsername(params.username);
+  const user = await getUserByUsernameCached(params.username);
   if (!user) return { title: 'Community' };
   return { title: `${user.displayName} — ${params.communitySlug}` };
 }
 
 export default async function CommunitySlugPage({ params }: Props) {
-  const user = await getUserByUsername(params.username);
+  const user = await getUserByUsernameCached(params.username);
   if (!user) notFound();
 
   return (

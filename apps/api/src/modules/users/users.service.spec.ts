@@ -127,4 +127,19 @@ describe('UsersService', () => {
     expect(result.creatorStatus).toBe(CreatorStatus.PENDING);
     expect(userRepo.save).toHaveBeenCalled();
   });
+
+  it('findByUsername rejects invalid usernames without a DB lookup', async () => {
+    const { NotFoundException } = await import('@nestjs/common');
+    const svc = await setup();
+    await expect(svc.findByUsername('favicon.ico')).rejects.toBeInstanceOf(NotFoundException);
+    expect(userRepo.findOne).not.toHaveBeenCalled();
+  });
+
+  it('findByUsername looks up valid usernames', async () => {
+    const user = { id: 'u1', username: 'john_doe' } as User;
+    userRepo.findOne.mockResolvedValue(user);
+    const svc = await setup();
+    await expect(svc.findByUsername('john_doe')).resolves.toBe(user);
+    expect(userRepo.findOne).toHaveBeenCalledWith({ where: { username: 'john_doe' } });
+  });
 });

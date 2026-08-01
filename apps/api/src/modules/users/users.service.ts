@@ -57,7 +57,12 @@ export class UsersService {
   }
 
   async findByUsername(username: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { username } });
+    const normalized = username?.trim().replace(/^@/, '') ?? '';
+    // Align with SignupDto: reject junk (favicon.ico, etc.) before hitting Postgres.
+    if (!/^[a-zA-Z0-9_]{3,30}$/.test(normalized)) {
+      throw new NotFoundException('User not found');
+    }
+    const user = await this.userRepository.findOne({ where: { username: normalized } });
     if (!user) throw new NotFoundException('User not found');
     return user;
   }

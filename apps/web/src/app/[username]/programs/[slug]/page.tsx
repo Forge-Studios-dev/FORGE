@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { isValidProfileUsername } from '@/lib/username';
 
 type ProgramCourse = {
   courseId: string;
@@ -33,6 +34,7 @@ export default function ProgramViewerPage() {
 
   const { data: profile } = useQuery({
     queryKey: ['profile-by-username', username],
+    enabled: isValidProfileUsername(username),
     queryFn: async () => {
       const { data } = await api.get<{ data: { id: string; displayName: string; username: string } }>(
         `/users/by-username/${username}`,

@@ -24,20 +24,27 @@ export function StudioSystemBanners() {
         setSlow(false);
         return;
       }
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       const started = performance.now();
       try {
-        await fetch('/favicon.ico', { method: 'HEAD', cache: 'no-store' });
+        // Static public asset — never use a path that can fall through to [username] SSR.
+        await fetch('/ping.txt', { method: 'HEAD', cache: 'no-store' });
         if (!cancelled) setSlow(performance.now() - started > 2500);
       } catch {
         if (!cancelled && navigator.onLine) setSlow(true);
       }
     };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void checkLatency();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     void checkLatency();
     const timer = window.setInterval(() => void checkLatency(), 30_000);
 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', syncOnline);
       window.removeEventListener('offline', syncOnline);
     };
