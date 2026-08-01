@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { cache } from 'react';
 import { serverApi } from '@/lib/api';
 
 export const revalidate = 120;
@@ -10,7 +11,7 @@ interface Props {
   params: { skill: string };
 }
 
-async function getCategoryName(slug: string): Promise<string> {
+const getCategoryName = cache(async (slug: string): Promise<string> => {
   try {
     const { data } = await serverApi.get<{ data: { name: string; slug: string }[] }>('/categories');
     const match = data.data?.find((c) => c.slug === slug);
@@ -18,7 +19,7 @@ async function getCategoryName(slug: string): Promise<string> {
   } catch {
     return slug.replace(/-/g, ' ');
   }
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = await getCategoryName(params.skill);

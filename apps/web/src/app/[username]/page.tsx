@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation';
 export const dynamic = 'force-dynamic';
 import { serverApi } from '@/lib/api';
 import { SITE_URL } from '@/lib/site';
-import { User, PaginatedResponse, Video } from '@/types';
+import { getUserByUsernameCached } from '@/lib/get-user-by-username';
+import { PaginatedResponse, Video } from '@/types';
 import { ProfileHeader } from '@/components/ProfileHeader/ProfileHeader';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
 import { CreatorCoursesPanel } from '@/components/Courses/CreatorCoursesPanel';
@@ -13,15 +14,6 @@ import { JsonLd } from '@/components/seo/JsonLd';
 
 interface Props {
   params: { username: string };
-}
-
-async function getUserByUsername(username: string): Promise<User | null> {
-  try {
-    const { data } = await serverApi.get(`/users/by-username/${username}`);
-    return data.data;
-  } catch {
-    return null;
-  }
 }
 
 async function getUserVideos(userId: string): Promise<PaginatedResponse<Video>> {
@@ -34,7 +26,7 @@ async function getUserVideos(userId: string): Promise<PaginatedResponse<Video>> 
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const user = await getUserByUsername(params.username);
+  const user = await getUserByUsernameCached(params.username);
   if (!user) return { title: 'User not found' };
 
   return {
@@ -49,7 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ProfilePage({ params }: Props) {
-  const user = await getUserByUsername(params.username);
+  const user = await getUserByUsernameCached(params.username);
   if (!user) notFound();
 
   const videos = await getUserVideos(user.id);

@@ -1,8 +1,8 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { clearAuthSession, getAccessToken, persistAuthSession } from '@/lib/auth-storage';
+import { getAccessToken } from '@/lib/auth-storage';
+import { refreshAccessToken } from '@/lib/auth-refresh';
 import { currentReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
-import { csrfRequestHeaders } from '@/lib/csrf';
 
 const APP_CHECK_ROUTES = ['/auth/login', '/auth/signup', '/analytics/events'];
 
@@ -34,27 +34,14 @@ api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    if (error.response?.status === 401 && !original._retry) {
+    const url = original?.url ?? '';
+    if (error.response?.status === 401 && original && !original._retry && !url.includes('/auth/refresh')) {
       original._retry = true;
       try {
-        const { data } = await axios.post(
-          `${API_URL}/auth/refresh`,
-          {},
-          { withCredentials: true, headers: csrfRequestHeaders() },
-        );
-        const accessToken = data.data.accessToken as string;
-        const newRefresh = data.data.refreshToken as string | undefined;
-        const refreshedUser = data.data.user;
-        persistAuthSession(
-          accessToken,
-          newRefresh,
-          refreshedUser ? JSON.stringify(refreshedUser) : undefined,
-          data.data.sessionId as string | undefined,
-        );
+        const accessToken = await refreshAccessToken();
         original.headers.Authorization = `Bearer ${accessToken}`;
         return api(original);
       } catch {
-        clearAuthSession();
         const next = encodeURIComponent(currentReturnPath());
         window.location.href = `/session-expired?next=${next}`;
       }

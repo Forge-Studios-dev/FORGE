@@ -1,7 +1,7 @@
 import axios from 'axios';
-import { clearAuthSession, getAccessToken, persistAuthSession } from '@/lib/auth-storage';
+import { getAccessToken } from '@/lib/auth-storage';
+import { refreshAccessToken } from '@/lib/auth-refresh';
 import { currentReturnPath } from '@/lib/safe-return-path';
-import { csrfRequestHeaders } from '@/lib/csrf';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -28,24 +28,19 @@ uploadApi.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config as typeof error.config & { _retry?: boolean };
-    if (error.response?.status === 401 && original && !original._retry) {
+    const url = original?.url ?? '';
+    if (
+      error.response?.status === 401 &&
+      original &&
+      !original._retry &&
+      !url.includes('/auth/refresh')
+    ) {
       original._retry = true;
       try {
-        const { data } = await axios.post(`${API_URL}/auth/refresh`, {}, {
-          withCredentials: true,
-          headers: csrfRequestHeaders(),
-        });
-        const accessToken = data.data.accessToken as string;
-        persistAuthSession(
-          accessToken,
-          data.data.refreshToken,
-          data.data.user ? JSON.stringify(data.data.user) : undefined,
-          data.data.sessionId as string | undefined,
-        );
+        const accessToken = await refreshAccessToken();
         original.headers.Authorization = `Bearer ${accessToken}`;
         return uploadApi(original);
       } catch {
-        clearAuthSession();
         const next = encodeURIComponent(currentReturnPath());
         window.location.href = `/session-expired?next=${next}`;
       }

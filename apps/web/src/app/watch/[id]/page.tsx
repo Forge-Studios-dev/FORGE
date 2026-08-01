@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { cache } from 'react';
 import { notFound } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
@@ -21,14 +22,14 @@ interface Props {
   params: { id: string };
 }
 
-async function getVideo(id: string): Promise<Video | null> {
+const getVideo = cache(async (id: string): Promise<Video | null> => {
   try {
     const { data } = await serverApi.get(`/videos/${id}`);
     return data.data;
   } catch {
     return null;
   }
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const video = await getVideo(params.id);

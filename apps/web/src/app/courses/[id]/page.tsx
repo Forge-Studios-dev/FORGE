@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@forge/design-system';
 import { serverApi } from '@/lib/api';
@@ -21,14 +22,14 @@ type PublicCourse = {
   creator: { id: string; username: string; displayName: string } | null;
 };
 
-async function getCourse(id: string): Promise<PublicCourse | null> {
+const getCourse = cache(async (id: string): Promise<PublicCourse | null> => {
   try {
     const { data } = await serverApi.get(`/courses/${id}/catalog`);
     return data.data;
   } catch {
     return null;
   }
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const course = await getCourse(params.id);
