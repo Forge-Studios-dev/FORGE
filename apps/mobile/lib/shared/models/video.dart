@@ -9,10 +9,14 @@ class VideoModel {
   final String? accessReason;
   final String? thumbnailUrl;
   final double? durationSeconds;
+  final String? videoType;
+  final int? viewerProgressSeconds;
   final int viewCount;
   final int likeCount;
   final int commentCount;
   final bool viewerLiked;
+  final bool viewerDisliked;
+  final bool viewerSubscribed;
   final UserModel user;
   final DateTime createdAt;
 
@@ -27,31 +31,52 @@ class VideoModel {
     this.accessReason,
     this.thumbnailUrl,
     this.durationSeconds,
+    this.videoType,
+    this.viewerProgressSeconds,
     required this.viewCount,
     required this.likeCount,
     required this.commentCount,
     this.viewerLiked = false,
+    this.viewerDisliked = false,
+    this.viewerSubscribed = false,
     required this.user,
     required this.createdAt,
   });
 
   factory VideoModel.fromJson(Map<String, dynamic> json) => VideoModel(
         id: json['id'] as String,
-        userId: json['userId'] as String,
-        title: json['title'] as String,
+        userId: json['userId'] as String? ?? '',
+        title: json['title'] as String? ?? '',
         description: json['description'] as String?,
-        status: json['status'] as String,
+        status: json['status'] as String? ?? 'ready',
         hlsUrl: json['hlsUrl'] as String?,
         accessDenied: json['accessDenied'] == true,
         accessReason: json['accessReason'] as String?,
         thumbnailUrl: json['thumbnailUrl'] as String?,
         durationSeconds: (json['durationSeconds'] as num?)?.toDouble(),
+        videoType: json['videoType'] as String?,
+        viewerProgressSeconds: (json['viewerProgressSeconds'] as num?)?.toInt(),
         viewCount: (json['viewCount'] as num?)?.toInt() ?? 0,
         likeCount: (json['likeCount'] as num?)?.toInt() ?? 0,
         commentCount: (json['commentCount'] as num?)?.toInt() ?? 0,
         viewerLiked: json['viewerLiked'] as bool? ?? false,
-        user: UserModel.fromJson(json['user'] as Map<String, dynamic>),
-        createdAt: DateTime.parse(json['createdAt'] as String),
+        viewerDisliked: json['viewerDisliked'] as bool? ?? false,
+        viewerSubscribed: json['viewerSubscribed'] as bool? ??
+            json['viewerFollowingCreator'] as bool? ??
+            false,
+        user: json['user'] is Map<String, dynamic>
+            ? UserModel.fromJson(json['user'] as Map<String, dynamic>)
+            : const UserModel(
+                id: '',
+                username: 'creator',
+                displayName: 'Creator',
+                role: 'user',
+                followerCount: 0,
+                followingCount: 0,
+                videoCount: 0,
+              ),
+        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0),
       );
 
   /// Round-trips through [fromJson] — used for the offline cache (HIGH-07),
@@ -67,10 +92,14 @@ class VideoModel {
         'accessReason': accessReason,
         'thumbnailUrl': thumbnailUrl,
         'durationSeconds': durationSeconds,
+        'videoType': videoType,
+        'viewerProgressSeconds': viewerProgressSeconds,
         'viewCount': viewCount,
         'likeCount': likeCount,
         'commentCount': commentCount,
         'viewerLiked': viewerLiked,
+        'viewerDisliked': viewerDisliked,
+        'viewerSubscribed': viewerSubscribed,
         'user': user.toJson(),
         'createdAt': createdAt.toIso8601String(),
       };
@@ -81,6 +110,9 @@ class UserModel {
   final String username;
   final String displayName;
   final String? avatarUrl;
+  final String? bio;
+  final String? websiteUrl;
+  final List<ChannelLink> channelLinks;
   final String role;
   final bool isVerified;
   final String? creatorStatus;
@@ -95,6 +127,9 @@ class UserModel {
     required this.username,
     required this.displayName,
     this.avatarUrl,
+    this.bio,
+    this.websiteUrl,
+    this.channelLinks = const [],
     required this.role,
     this.isVerified = false,
     this.creatorStatus,
@@ -110,6 +145,13 @@ class UserModel {
         username: json['username'] as String,
         displayName: json['displayName'] as String,
         avatarUrl: json['avatarUrl'] as String?,
+        bio: json['bio'] as String?,
+        websiteUrl: json['websiteUrl'] as String?,
+        channelLinks: (json['channelLinks'] as List<dynamic>? ?? [])
+            .whereType<Map>()
+            .map((e) => ChannelLink.fromJson(Map<String, dynamic>.from(e)))
+            .where((l) => l.url.isNotEmpty)
+            .toList(),
         role: json['role'] as String? ?? 'user',
         isVerified: json['isVerified'] as bool? ?? false,
         creatorStatus: json['creatorStatus'] as String?,
@@ -125,6 +167,9 @@ class UserModel {
         'username': username,
         'displayName': displayName,
         'avatarUrl': avatarUrl,
+        'bio': bio,
+        'websiteUrl': websiteUrl,
+        'channelLinks': channelLinks.map((e) => e.toJson()).toList(),
         'role': role,
         'isVerified': isVerified,
         'creatorStatus': creatorStatus,
@@ -134,4 +179,18 @@ class UserModel {
         'videoCount': videoCount,
         'viewerFollowing': viewerFollowing,
       };
+}
+
+class ChannelLink {
+  final String title;
+  final String url;
+
+  const ChannelLink({required this.title, required this.url});
+
+  factory ChannelLink.fromJson(Map<String, dynamic> json) => ChannelLink(
+        title: json['title'] as String? ?? '',
+        url: json['url'] as String? ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {'title': title, 'url': url};
 }

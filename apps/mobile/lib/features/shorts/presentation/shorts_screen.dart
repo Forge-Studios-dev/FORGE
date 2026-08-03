@@ -12,7 +12,10 @@ import '../../feed/data/feed_repository.dart';
 import '../../watch/data/watch_repository.dart';
 
 class ShortsScreen extends ConsumerStatefulWidget {
-  const ShortsScreen({super.key});
+  const ShortsScreen({super.key, this.initialVideoId});
+
+  /// Shared deep link (`/shorts?v=`).
+  final String? initialVideoId;
 
   @override
   ConsumerState<ShortsScreen> createState() => _ShortsScreenState();
@@ -27,6 +30,12 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
   bool _hasMore = true;
   bool _error = false;
   int _activeIndex = 0;
+
+  bool _isShort(VideoModel v) {
+    if (v.videoType == 'short') return true;
+    final d = v.durationSeconds;
+    return d != null && d > 0 && d <= 60;
+  }
 
   @override
   void initState() {
@@ -54,16 +63,38 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
     });
     try {
       final page = await ref.read(feedRepositoryProvider).getShortsFeed();
+      VideoModel? pinned;
+      final deepLink = widget.initialVideoId?.trim();
+      if (deepLink != null && deepLink.isNotEmpty) {
+        try {
+          final fetched = await ref.read(watchRepositoryProvider).getVideo(deepLink);
+          if (_isShort(fetched)) pinned = fetched;
+        } catch (_) {
+          /* fall through to feed only */
+        }
+      }
       if (!mounted) return;
+      final list = <VideoModel>[...page.videos];
+      if (pinned != null) {
+        list.removeWhere((v) => v.id == pinned!.id);
+        list.insert(0, pinned);
+      }
       setState(() {
         _videos
           ..clear()
-          ..addAll(page.videos);
+          ..addAll(list);
         _nextCursor = page.nextCursor;
         _hasMore = page.hasMore;
         _loading = false;
         _activeIndex = 0;
       });
+      if (pinned != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(0);
+          }
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -310,7 +341,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
 
   Future<void> _share() async {
     final video = widget.video;
-    final url = '${AppConstants.webBaseUrl}/watch/${video.id}';
+    final url = '${AppConstants.webBaseUrl}/shorts?v=${video.id}';
     await Share.share('${video.title}\n$url');
   }
 

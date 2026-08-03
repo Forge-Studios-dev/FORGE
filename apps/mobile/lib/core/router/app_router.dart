@@ -274,7 +274,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => PlaylistDetailScreen(playlistId: state.pathParameters['id']!),
       ),
       // Immersive Shorts — outside shell so bottom nav does not cover the feed.
-      GoRoute(path: '/shorts', builder: (_, __) => const ShortsScreen()),
+      GoRoute(
+        path: '/shorts',
+        builder: (_, state) => ShortsScreen(
+          initialVideoId: state.uri.queryParameters['v'],
+        ),
+      ),
       ShellRoute(
         builder: (context, state, child) => MainScaffold(child: child),
         routes: [
