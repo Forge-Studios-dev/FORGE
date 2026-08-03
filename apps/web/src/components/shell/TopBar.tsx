@@ -94,25 +94,45 @@ export function TopBar() {
                 Become a Creator
               </Link>
             )}
-            {canGoLive && (
-              <Link
-                href="/studio/live"
-                className="hidden h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 md:flex"
-                title="Go live"
-                aria-label="Go live"
-              >
-                <Icon name="sensors" />
-              </Link>
-            )}
-            {canUpload && (
-              <Link
-                href="/upload"
-                className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50"
-                title="Upload"
-                aria-label="Upload"
-              >
-                <Icon name="add_circle" />
-              </Link>
+            {(canUpload || canGoLive) && (
+              <details className="relative">
+                <summary
+                  className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 [&::-webkit-details-marker]:hidden"
+                  aria-label="Create"
+                  title="Create"
+                >
+                  <Icon name="add_circle" />
+                </summary>
+                <div className="absolute right-0 z-50 mt-2 w-52 rounded-xl border border-outline-variant/30 bg-surface-container-high py-2 shadow-lg">
+                  {canUpload ? (
+                    <>
+                      <Link
+                        href="/upload"
+                        className="flex items-center gap-3 px-4 py-2 text-sm hover:bg-surface-container-highest"
+                      >
+                        <Icon name="upload" className="text-base" />
+                        Upload video
+                      </Link>
+                      <Link
+                        href="/upload?type=short"
+                        className="flex items-center gap-3 px-4 py-2 text-sm hover:bg-surface-container-highest"
+                      >
+                        <Icon name="smart_display" className="text-base" />
+                        Create a Short
+                      </Link>
+                    </>
+                  ) : null}
+                  {canGoLive ? (
+                    <Link
+                      href="/studio/live"
+                      className="flex items-center gap-3 px-4 py-2 text-sm hover:bg-surface-container-highest"
+                    >
+                      <Icon name="sensors" className="text-base" />
+                      Go live
+                    </Link>
+                  ) : null}
+                </div>
+              </details>
             )}
             {canEngage && (
               <>
