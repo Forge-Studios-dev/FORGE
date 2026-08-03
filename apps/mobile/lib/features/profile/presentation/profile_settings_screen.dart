@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,9 +24,12 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
   final List<_ChannelLinkDraft> _channelLinks = [];
   bool _loading = true;
   bool _saving = false;
+  bool _mediaUploading = false;
   bool _watchHistoryPaused = false;
   bool _privacySaving = false;
   String? _userId;
+  String? _bannerUrl;
+  String? _avatarUrl;
 
   @override
   void initState() {
@@ -41,6 +46,8 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       _displayName.text = data['displayName'] as String? ?? '';
       _bio.text = data['bio'] as String? ?? '';
       _websiteUrl.text = data['websiteUrl'] as String? ?? '';
+      _bannerUrl = data['bannerUrl'] as String?;
+      _avatarUrl = data['avatarUrl'] as String?;
       final links = data['channelLinks'];
       _channelLinks
         ..clear()
@@ -85,6 +92,65 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       }
     } finally {
       if (mounted) setState(() => _privacySaving = false);
+    }
+  }
+
+  Future<void> _uploadChannelImage({required bool banner}) async {
+    final userId = _userId;
+    if (userId == null || _mediaUploading) return;
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+      withData: true,
+    );
+    final file = result?.files.single;
+    final bytes = file?.bytes;
+    if (file == null || bytes == null || bytes.isEmpty) return;
+
+    final contentType = switch (file.extension?.toLowerCase()) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+
+    setState(() => _mediaUploading = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      final path = banner ? 'banner-upload-url' : 'avatar-upload-url';
+      final presign = await client.dio.post(
+        '/users/$userId/$path',
+        queryParameters: {'contentType': contentType},
+      );
+      final data = presign.data['data'] as Map<String, dynamic>;
+      final uploadUrl = data['uploadUrl'] as String;
+      final publicUrl = data['publicUrl'] as String;
+      await client.dio.put(
+        uploadUrl,
+        data: bytes,
+        options: Options(
+          headers: {'Content-Type': contentType},
+          contentType: contentType,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        if (banner) {
+          _bannerUrl = publicUrl;
+        } else {
+          _avatarUrl = publicUrl;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(banner ? 'Banner updated' : 'Photo updated')),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not upload image')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _mediaUploading = false);
     }
   }
 
@@ -146,6 +212,39 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          if (_bannerUrl != null && _bannerUrl!.isNotEmpty)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: AspectRatio(
+                aspectRatio: 6,
+                child: Image.network(_bannerUrl!, fit: BoxFit.cover),
+              ),
+            )
+          else
+            Container(
+              height: 72,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: ForgeTokens.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text('No banner yet', style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+            ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              TextButton(
+                onPressed: _mediaUploading ? null : () => _uploadChannelImage(banner: true),
+                child: Text(_mediaUploading ? 'Uploading…' : 'Change banner'),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: _mediaUploading ? null : () => _uploadChannelImage(banner: false),
+                child: Text(_avatarUrl == null ? 'Add photo' : 'Change photo'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           TextField(
             controller: _displayName,
             decoration: const InputDecoration(labelText: 'Display name'),

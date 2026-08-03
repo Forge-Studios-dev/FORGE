@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Icon, PageHeader } from '@forge/design-system';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
@@ -33,7 +33,7 @@ const PHASE_LABEL: Record<UploadPhase, string> = {
   completing: 'Finalizing video…',
 };
 
-export default function UploadStepPage() {
+function UploadStepContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -680,5 +680,19 @@ export default function UploadStepPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function UploadStepPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
+          <p className="text-on-surface-variant">Loading upload…</p>
+        </main>
+      }
+    >
+      <UploadStepContent />
+    </Suspense>
   );
 }
