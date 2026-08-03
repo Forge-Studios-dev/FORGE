@@ -23,6 +23,15 @@ export function isAllowedThumbnailUrl(url: string | null | undefined): boolean {
   return /\.(jpg|jpeg|webp|png|gif)(\?|$)/i.test(trimmed);
 }
 
+/** WebVTT captions (Mux text tracks or CDN). */
+export function isAllowedCaptionUrl(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed || rejectsRawUpload(trimmed)) return false;
+  if (trimmed.includes('stream.mux.com') && /\/text\/.+\.vtt(\?|$)/i.test(trimmed)) return true;
+  return /\.vtt(\?|$)/i.test(trimmed);
+}
+
 /** @deprecated use isAllowedHlsUrl */
 export function isAllowedPlaybackUrl(url: string | null | undefined): boolean {
   return isAllowedHlsUrl(url);
@@ -36,6 +45,11 @@ export function sanitizeHlsUrl(url: string | null | undefined): string | null {
 export function sanitizeThumbnailUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   return isAllowedThumbnailUrl(url) ? url.trim() : null;
+}
+
+export function sanitizeCaptionUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return isAllowedCaptionUrl(url) ? url.trim() : null;
 }
 
 export function sanitizePlaybackUrl(url: string | null | undefined): string | null {

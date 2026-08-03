@@ -5,6 +5,8 @@ import {
   NotFoundException,
   BadRequestException,
   ServiceUnavailableException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { createReadStream, promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
@@ -42,6 +44,7 @@ import { MuxVodService } from './mux-vod.service';
 import {
   sanitizeHlsUrl,
   sanitizeThumbnailUrl,
+  sanitizeCaptionUrl,
 } from '../../common/media/playback-url.util';
 import {
   muxPlaybackIdFromHlsUrl,
@@ -50,6 +53,7 @@ import {
 import { SkillTag } from '../categories/entities/skill-tag.entity';
 import { Category } from '../categories/entities/category.entity';
 import { UserRole } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { Playlist } from '../playlists/entities/playlist.entity';
 import { PlaylistVideo } from '../playlists/entities/playlist-video.entity';
@@ -86,8 +90,7 @@ import { EngagementService } from '../engagement/engagement.service';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 
-export const VIDEO_PROCESSING_QUEUE = 'video-processing';
-export const VIDEO_PROCESSING_DLQ_QUEUE = 'video-processing-dlq';
+import { VIDEO_PROCESSING_QUEUE } from './video-processing.constants';
 
 const VIDEO_DETAIL_CACHE_TTL = 120;
 
@@ -138,6 +141,8 @@ export class VideosService {
     private readonly entitlementsService: EntitlementsService,
     private readonly engagementService: EngagementService,
     private readonly accessSessionsService: AccessSessionsService,
+    @Inject(forwardRef(() => UsersService))
+    private readonly usersService: UsersService,
   ) {
     const awsCreds = {
       region: configService.get<string>('aws.region') || 'ap-south-1',
@@ -255,6 +260,92 @@ export class VideosService {
     }
     if (this.cdnDomain) return rewriteMediaUrlToCdn(safe, this.cdnDomain);
     return safe;
+  }
+
+  /**
+   * Server-side caption fetch so the watch transcript UI is not blocked by CDN CORS.
+   * Only URLs on our CDN / S3 / Mux text track hosts are allowed (SSRF guard).
+   */
+  async getCaptionTrackText(
+    videoId: string,
+    language: string | undefined,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ): Promise<{ language: string; label: string; text: string }> {
+    const video = await this.findById(videoId);
+    await this.assertCanWatchVideo(video, viewerId, viewerRole);
+
+    let tracks = [...(video.captionTracks ?? [])];
+    if (!tracks.length && video.captionUrl) {
+      tracks = [{ language: 'en', label: 'English', url: video.captionUrl }];
+    }
+    if (!tracks.length) {
+      throw new NotFoundException('No captions for this video');
+    }
+
+    const lang = (language ?? 'en').toLowerCase().replace(/[^a-z-]/g, '').slice(0, 8) || 'en';
+    const track = tracks.find((t) => t.language === lang) ?? tracks[0];
+    const sanitized = sanitizeCaptionUrl(track.url);
+    if (!sanitized) {
+      throw new BadRequestException('Caption source is not allowed');
+    }
+    const resolved =
+      sanitized.includes('stream.mux.com') || !this.cdnDomain
+        ? sanitized
+        : rewriteMediaUrlToCdn(sanitized, this.cdnDomain) ?? sanitized;
+    if (!this.isAllowedCaptionFetchUrl(resolved)) {
+      throw new BadRequestException('Caption source is not allowed');
+    }
+
+    let res: Response;
+    try {
+      res = await fetch(resolved, {
+        method: 'GET',
+        headers: { Accept: 'text/vtt, text/plain, */*' },
+        signal: AbortSignal.timeout(12_000),
+      });
+    } catch (err) {
+      this.logger.warn(
+        `caption fetch failed for ${videoId}: ${err instanceof Error ? err.message : err}`,
+      );
+      throw new BadRequestException('Could not load captions');
+    }
+    if (!res.ok) {
+      throw new BadRequestException('Could not load captions');
+    }
+    const text = await res.text();
+    if (text.length > 2_000_000) {
+      throw new BadRequestException('Caption file too large');
+    }
+    return {
+      language: track.language,
+      label: track.label,
+      text,
+    };
+  }
+
+  private isAllowedCaptionFetchUrl(url: string): boolean {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return false;
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    const host = parsed.hostname.toLowerCase();
+    const cdnHost = this.cdnDomain
+      ? this.cdnDomain.replace(/^https?:\/\//, '').split('/')[0].toLowerCase()
+      : '';
+    if (cdnHost && (host === cdnHost || host.endsWith(`.${cdnHost}`))) return true;
+    if (this.bucket && host.includes('amazonaws.com') && host.includes(this.bucket.toLowerCase())) {
+      return true;
+    }
+    if (host.endsWith('.amazonaws.com') || host.endsWith('.cloudfront.net')) return true;
+    if (host === 'stream.mux.com' || host.endsWith('.mux.com')) return true;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return this.configService.get<string>('nodeEnv') !== 'production';
+    }
+    return false;
   }
 
   private usesMuxTranscode(): boolean {
@@ -540,6 +631,98 @@ export class VideosService {
     return { uploadUrl, key, expiresIn: 600 };
   }
 
+  /** Presigned PUT for a WebVTT caption file (Studio manual captions). */
+  async getCaptionPresignedUrl(
+    userId: string,
+    videoId: string,
+    contentType: string,
+    language: string = 'en',
+  ): Promise<{ uploadUrl: string; key: string; publicUrl: string; expiresIn: number; language: string }> {
+    const video = await this.videoRepository.findOne({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+    if (video.userId !== userId) throw new ForbiddenException();
+    if (video.status !== VideoStatus.READY && video.status !== VideoStatus.PROCESSING) {
+      throw new BadRequestException('Captions can only be added after upload completes');
+    }
+    const allowed = ['text/vtt', 'text/plain', 'application/octet-stream'];
+    if (!allowed.includes(contentType)) {
+      throw new BadRequestException('Caption file must be WebVTT (text/vtt)');
+    }
+    const lang = language.toLowerCase().replace(/[^a-z-]/g, '').slice(0, 8) || 'en';
+
+    const key = `videos/${userId}/${videoId}/captions/${lang}.vtt`;
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: 'text/vtt',
+    });
+    const uploadUrl = await getSignedUrl(this.presignS3, command, {
+      expiresIn: 600,
+      signableHeaders: new Set(['content-type']),
+    });
+    const cdnDomain = this.configService.get<string>('aws.cloudfrontDomain');
+    const publicUrl = cdnDomain
+      ? `https://${cdnDomain.replace(/^https?:\/\//, '')}/${key}`
+      : `https://${this.bucket}.s3.amazonaws.com/${key}`;
+
+    return { uploadUrl, key, publicUrl, expiresIn: 600, language: lang };
+  }
+
+  async setCaptionUrl(
+    userId: string,
+    videoId: string,
+    captionUrl: string | null,
+    language: string = 'en',
+  ) {
+    const video = await this.videoRepository.findOne({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+    if (video.userId !== userId) throw new ForbiddenException();
+
+    const lang = language.toLowerCase().replace(/[^a-z-]/g, '').slice(0, 8) || 'en';
+    const labelMap: Record<string, string> = {
+      en: 'English',
+      es: 'Spanish',
+      hi: 'Hindi',
+      pt: 'Portuguese',
+      fr: 'French',
+      de: 'German',
+      ja: 'Japanese',
+      ko: 'Korean',
+      ar: 'Arabic',
+    };
+    let tracks = [...(video.captionTracks ?? [])];
+    if ((!tracks.length || tracks.length === 0) && video.captionUrl) {
+      tracks = [{ language: 'en', label: 'English', url: video.captionUrl }];
+    }
+
+    if (captionUrl === null || captionUrl === '') {
+      tracks = tracks.filter((t) => t.language !== lang);
+    } else {
+      const trimmed = captionUrl.trim();
+      if (!/^https?:\/\//i.test(trimmed) || trimmed.length > 2000) {
+        throw new BadRequestException('Invalid caption URL');
+      }
+      const next = {
+        language: lang,
+        label: labelMap[lang] ?? lang.toUpperCase(),
+        url: trimmed,
+      };
+      const idx = tracks.findIndex((t) => t.language === lang);
+      if (idx >= 0) tracks[idx] = next;
+      else tracks.push(next);
+    }
+
+    video.captionTracks = tracks.length ? tracks : null;
+    // Keep legacy captionUrl as default (English preferred, else first track)
+    const primary =
+      tracks.find((t) => t.language === 'en') ?? tracks[0] ?? null;
+    video.captionUrl = primary?.url ?? null;
+
+    await this.videoRepository.save(video);
+    await this.bustVideoDetailCache(videoId);
+    return this.mapToPublicVideo(video);
+  }
+
   /**
    * Proxy upload when browser → S3 PUT fails (CORS, corporate firewall, etc.).
    * Multipart field name: `file`.
@@ -759,15 +942,16 @@ export class VideosService {
     if (playlists.length !== unique.length) {
       throw new BadRequestException('One or more playlists were not found');
     }
-    for (const playlist of playlists) {
-      const existing = await this.playlistVideoRepository.findOne({
-        where: { playlistId: playlist.id, videoId },
-      });
-      if (!existing) {
-        await this.playlistVideoRepository.save(
-          this.playlistVideoRepository.create({ playlistId: playlist.id, videoId }),
-        );
-      }
+    const existingRows = await this.playlistVideoRepository.find({
+      where: { videoId, playlistId: In(playlists.map((p) => p.id)) },
+      select: ['playlistId'],
+    });
+    const existingIds = new Set(existingRows.map((r) => r.playlistId));
+    const toInsert = playlists
+      .filter((p) => !existingIds.has(p.id))
+      .map((p) => this.playlistVideoRepository.create({ playlistId: p.id, videoId }));
+    if (toInsert.length) {
+      await this.playlistVideoRepository.save(toInsert);
     }
   }
 
@@ -859,24 +1043,31 @@ export class VideosService {
     }
 
     if (viewerId && !isOwner) {
-      const [viewerLiked, viewerFollowingCreator] = await Promise.all([
-        this.engagementService.isLiked(viewerId, id),
-        this.engagementService.isFollowing(viewerId, video.userId),
-      ]);
-      return { ...withViews, viewerLiked, viewerFollowingCreator };
+      const reaction = await this.engagementService.getViewerVideoReaction(viewerId, id);
+      const viewerFollowingCreator = await this.engagementService.isFollowing(
+        viewerId,
+        video.userId,
+      );
+      return {
+        ...withViews,
+        ...reaction,
+        viewerFollowingCreator,
+        viewerSubscribed: viewerFollowingCreator,
+      };
     }
 
     return withViews;
   }
 
   /** Paginated public shorts feed (duration <= 60s, published, public). */
-  async listShorts(opts: { cursor?: string; limit?: number } = {}): Promise<{
+  async listShorts(opts: { cursor?: string; limit?: number; viewerId?: string } = {}): Promise<{
     data: PublicVideo[];
     nextCursor: string | null;
   }> {
     const limit = Math.min(opts.limit ?? 20, 50);
     const qb = this.videoRepository
       .createQueryBuilder('v')
+      .leftJoinAndSelect('v.user', 'creator')
       .leftJoinAndSelect('v.skillTags', 'st')
       .where('v.video_type = :type', { type: VideoType.SHORT })
       .andWhere('v.status = :status', { status: VideoStatus.READY })
@@ -892,7 +1083,34 @@ export class VideosService {
 
     const rows = await qb.getMany();
     const hasMore = rows.length > limit;
-    const data = rows.slice(0, limit).map((v) => this.mapToPublicVideo(v));
+    const page = rows.slice(0, limit);
+    let data = page.map((v) => this.mapToPublicVideo(v));
+
+    if (opts.viewerId && page.length > 0) {
+      const creatorIds = [...new Set(page.map((v) => v.userId))];
+      const [reactionByVideo, followingSet] = await Promise.all([
+        this.engagementService.getViewerVideoReactions(
+          opts.viewerId,
+          page.map((v) => v.id),
+        ),
+        this.engagementService.getFollowingSet(opts.viewerId, creatorIds),
+      ]);
+      data = data.map((mapped, i) => {
+        const v = page[i];
+        const reaction = reactionByVideo.get(v.id) ?? {
+          viewerLiked: false,
+          viewerDisliked: false,
+        };
+        const following = followingSet.has(v.userId);
+        return {
+          ...mapped,
+          ...reaction,
+          viewerFollowingCreator: following,
+          viewerSubscribed: following,
+        };
+      });
+    }
+
     const nextCursor = hasMore ? data[data.length - 1].publishedAt?.toISOString() ?? null : null;
     return { data, nextCursor };
   }
@@ -1019,15 +1237,18 @@ export class VideosService {
       throw new BadRequestException('Video is not available');
     }
     const progressSeconds = dto.progressSeconds ?? 0;
-    await this.watchHistoryRepository.upsert(
-      {
-        userId,
-        videoId,
-        progressSeconds,
-        watchedAt: new Date(),
-      },
-      { conflictPaths: ['userId', 'videoId'] },
-    );
+    const historyPaused = await this.usersService.isWatchHistoryPaused(userId);
+    if (!historyPaused) {
+      await this.watchHistoryRepository.upsert(
+        {
+          userId,
+          videoId,
+          progressSeconds,
+          watchedAt: new Date(),
+        },
+        { conflictPaths: ['userId', 'videoId'] },
+      );
+    }
     await this.recordQualifiedView(
       videoId,
       userId,
@@ -1037,7 +1258,7 @@ export class VideosService {
       },
       userId,
     );
-    return { ok: true };
+    return { ok: true, historyPaused };
   }
 
   /**

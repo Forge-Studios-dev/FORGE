@@ -382,20 +382,31 @@ export class StreamingService {
     return !!user?.matureContentAcknowledgedAt;
   }
 
-  async getLiveStreams(viewerId?: string | null, viewerRole?: UserRole | null) {
+  async getLiveStreams(
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+    creatorId?: string | null,
+  ) {
     const viewerKey = streamListViewerKey(viewerId);
-    const cacheKey = streamListCacheKey('live', viewerKey);
-    const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch {
-        await this.redis.del(cacheKey);
+    const cacheKey = creatorId
+      ? null
+      : streamListCacheKey('live', viewerKey);
+    if (cacheKey) {
+      const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          await this.redis.del(cacheKey);
+        }
       }
     }
 
     const streams = await this.streamRepository.find({
-      where: { status: StreamStatus.LIVE },
+      where: {
+        status: StreamStatus.LIVE,
+        ...(creatorId ? { userId: creatorId } : {}),
+      },
       relations: ['user'],
       order: { startedAt: 'DESC' },
       take: StreamingService.LIVE_STREAMS_LIST_LIMIT,
@@ -435,13 +446,15 @@ export class StreamingService {
     const filtered = results.filter(
       (s) => s.visibility === StreamVisibility.PUBLIC || !s.accessDenied,
     );
-    await safeRedisSetex(
-      this.redis,
-      cacheKey,
-      StreamingService.STREAM_LIST_CACHE_TTL_SEC,
-      JSON.stringify(filtered),
-      this.logger,
-    );
+    if (cacheKey) {
+      await safeRedisSetex(
+        this.redis,
+        cacheKey,
+        StreamingService.STREAM_LIST_CACHE_TTL_SEC,
+        JSON.stringify(filtered),
+        this.logger,
+      );
+    }
     return filtered;
   }
 
@@ -515,15 +528,21 @@ export class StreamingService {
     return saved;
   }
 
-  async getUpcomingStreams(viewerId?: string | null, viewerRole?: UserRole | null) {
+  async getUpcomingStreams(
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+    creatorId?: string | null,
+  ) {
     const viewerKey = streamListViewerKey(viewerId);
-    const cacheKey = streamListCacheKey('upcoming', viewerKey);
-    const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch {
-        await this.redis.del(cacheKey);
+    const cacheKey = creatorId ? null : streamListCacheKey('upcoming', viewerKey);
+    if (cacheKey) {
+      const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          await this.redis.del(cacheKey);
+        }
       }
     }
 
@@ -532,6 +551,7 @@ export class StreamingService {
       where: {
         status: StreamStatus.IDLE,
         scheduledAt: MoreThan(now),
+        ...(creatorId ? { userId: creatorId } : {}),
       },
       relations: ['user'],
       order: { scheduledAt: 'ASC' },
@@ -571,13 +591,15 @@ export class StreamingService {
       })
       .filter((s) => s.visibility === StreamVisibility.PUBLIC || !s.accessDenied);
 
-    await safeRedisSetex(
-      this.redis,
-      cacheKey,
-      StreamingService.STREAM_LIST_CACHE_TTL_SEC,
-      JSON.stringify(filtered),
-      this.logger,
-    );
+    if (cacheKey) {
+      await safeRedisSetex(
+        this.redis,
+        cacheKey,
+        StreamingService.STREAM_LIST_CACHE_TTL_SEC,
+        JSON.stringify(filtered),
+        this.logger,
+      );
+    }
     return filtered;
   }
 
@@ -888,6 +910,8 @@ export class StreamingService {
           `Premium replay notify enqueue failed for ${video.id}: ${err instanceof Error ? err.message : err}`,
         );
       }
+    } else if (eventType === 'video.asset.track.ready') {
+      await this.muxVodService.handleTrackReady(payload);
     } else if (eventType === 'video.asset.errored') {
       await this.muxVodService.handleAssetErrored(payload);
     }

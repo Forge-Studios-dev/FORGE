@@ -41,6 +41,7 @@ describe('CommunityPostsService', () => {
     assertCommunityAccess: jest.Mock;
     assertCommunityStudioAccess: jest.Mock;
     listActiveMemberCommunityIds: jest.Mock;
+    ensureDefaultCommunity: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -79,6 +80,11 @@ describe('CommunityPostsService', () => {
         .fn()
         .mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1' }),
       listActiveMemberCommunityIds: jest.fn().mockResolvedValue([]),
+      ensureDefaultCommunity: jest.fn().mockResolvedValue({
+        id: 'comm-1',
+        creatorId: 'creator-1',
+        visibility: 'public',
+      }),
     };
     commentRepository = {
       find: jest.fn().mockResolvedValue([]),
@@ -255,6 +261,57 @@ describe('CommunityPostsService', () => {
       creatorId: 'creator-1',
     });
     expect(result.meta.hasMore).toBe(false);
+  });
+
+  it('lists empty channel posts when creator has no public communities', async () => {
+    communityRepository.find.mockResolvedValue([]);
+    const result = await service.listChannelPostsForCreator('creator-1');
+    expect(result).toEqual({ data: [], meta: { cursor: null, hasMore: false } });
+    expect(postRepository.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('lists public channel posts for YouTube-style Community tab', async () => {
+    const now = new Date();
+    communityRepository.find.mockResolvedValue([
+      { id: 'comm-1', name: 'Main', slug: 'main' },
+    ]);
+    const qb = postRepository.createQueryBuilder();
+    qb.getMany.mockResolvedValue([
+      {
+        id: 'post-1',
+        communityId: 'comm-1',
+        authorId: 'creator-1',
+        author: { displayName: 'Creator', username: 'c1' },
+        title: null,
+        body: 'Hello channel',
+        postType: CommunityPostType.POST,
+        isPinned: false,
+        mediaUrls: [],
+        createdAt: now,
+      },
+    ]);
+
+    const result = await service.listChannelPostsForCreator('creator-1', 20);
+
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].body).toBe('Hello channel');
+    expect(result.data[0].community).toEqual({ id: 'comm-1', name: 'Main', slug: 'main' });
+  });
+
+  it('createChannelPost ensures default community then creates post', async () => {
+    const result = await service.createChannelPost('creator-1', { body: 'Channel update' });
+
+    expect(communitiesService.ensureDefaultCommunity).toHaveBeenCalledWith('creator-1');
+    expect(result.id).toBe('post-1');
+    expect(result.communityId).toBe('comm-1');
+    expect(postRepository.save).toHaveBeenCalled();
+  });
+
+  it('getChannelPostMediaUploadUrl ensures default community then presigns', async () => {
+    const result = await service.getChannelPostMediaUploadUrl('creator-1', 'image/png');
+    expect(communitiesService.ensureDefaultCommunity).toHaveBeenCalledWith('creator-1');
+    expect(result.uploadUrl).toBe('https://s3/upload');
+    expect(result.publicUrl).toBe('https://cdn/img.jpg');
   });
 
   it('blocks spam comments via the sync fast path and enqueues a fast_path flag', async () => {

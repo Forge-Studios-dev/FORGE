@@ -121,6 +121,67 @@ describe('MuxVodService', () => {
     );
   });
 
+  it('handleAssetReady stores captionUrl when text track is ready', async () => {
+    const video = {
+      id: 'video-uuid',
+      userId: 'user-1',
+      categoryId: null,
+      status: VideoStatus.PROCESSING,
+      scheduledPublishAt: null,
+    } as Video;
+    videoRepo.findOne.mockResolvedValue(video);
+    videoRepo.update.mockResolvedValue({});
+
+    await service.handleAssetReady({
+      data: {
+        id: 'mux-asset-1',
+        passthrough: 'video-uuid',
+        playback_ids: [{ id: 'pb1' }],
+        duration: 60,
+        tracks: [{ id: 'track-1', type: 'text', text_type: 'subtitles', status: 'ready' }],
+      },
+    });
+
+    expect(videoRepo.update).toHaveBeenCalledWith(
+      'video-uuid',
+      expect.objectContaining({
+        captionUrl: 'https://stream.mux.com/pb1/text/track-1.vtt',
+      }),
+    );
+  });
+
+  it('handleTrackReady attaches caption after asset ready', async () => {
+    videoRepo.findOne.mockResolvedValue({
+      id: 'video-uuid',
+      muxPlaybackId: 'pb1',
+      captionUrl: null,
+      captionTracks: null,
+    } as Video);
+    videoRepo.update.mockResolvedValue({});
+
+    await service.handleTrackReady({
+      data: {
+        id: 'track-9',
+        type: 'text',
+        text_type: 'captions',
+        status: 'ready',
+        asset_id: 'mux-asset-1',
+        language_code: 'es',
+        name: 'Spanish',
+      },
+    });
+
+    expect(videoRepo.update).toHaveBeenCalledWith(
+      'video-uuid',
+      expect.objectContaining({
+        captionUrl: 'https://stream.mux.com/pb1/text/track-9.vtt',
+        captionTracks: [
+          { language: 'es', label: 'Spanish', url: 'https://stream.mux.com/pb1/text/track-9.vtt' },
+        ],
+      }),
+    );
+  });
+
   it('deleteAsset calls Mux API when configured', async () => {
     mockMuxDelete.mockResolvedValue(undefined);
     await service.deleteAsset('mux-asset-1');

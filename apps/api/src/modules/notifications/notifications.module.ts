@@ -11,6 +11,7 @@ import { SubscriptionMaintenanceService } from './subscription-maintenance.servi
 import { User } from '../users/entities/user.entity';
 import { Follow } from '../engagement/entities/follow.entity';
 import { Comment } from '../engagement/entities/comment.entity';
+import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { PUSH_DISPATCH_QUEUE } from './push-dispatch.constants';
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './subscription-maintenance.constants';
 import { SubscriptionMaintenanceScheduler } from './subscription-maintenance.scheduler';
@@ -22,7 +23,7 @@ import { COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE } from '../workers/community-announ
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, DeviceToken, User, Follow, Comment]),
+    TypeOrmModule.forFeature([Notification, DeviceToken, User, Follow, Comment, WatchHistory]),
     forwardRef(() => EntitlementsModule),
     BullModule.registerQueue({
       name: PUSH_DISPATCH_QUEUE,

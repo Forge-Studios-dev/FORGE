@@ -20,9 +20,11 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 
 @ApiTags('Podcasts')
 @Controller()
+@UseGuards(SkillEconomyLmsGuard)
 export class PodcastsController {
   constructor(private readonly podcastsService: PodcastsService) {}
 

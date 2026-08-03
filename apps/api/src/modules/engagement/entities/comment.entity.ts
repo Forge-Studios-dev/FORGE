@@ -52,6 +52,14 @@ export class Comment {
   @Column({ name: 'like_count', default: 0 })
   likeCount: number;
 
+  /** Pinned by the video owner (one top-level pin per video). */
+  @Column({ name: 'is_pinned', default: false })
+  isPinned: boolean;
+
+  /** Hearted by the video owner (YouTube creator heart). */
+  @Column({ name: 'creator_hearted', default: false })
+  creatorHearted: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

@@ -3,6 +3,8 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
 import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
+import { getMutedChannelIds, getNotInterestedVideoIds } from '../feed/not-interested.util';
+import { diversifyByCreator } from '../feed/feed-diversity.util';
 
 export interface RecommendedVideo {
   id: string;
@@ -75,12 +77,25 @@ export class RecommendationsService {
       `SELECT video_id FROM watch_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT 200`,
       [userId],
     );
-    const watchedIds = [...new Set([...watched.map((r) => r.video_id), ...excludeIds])];
+    const watchedIds = [
+      ...new Set([...watched.map((r) => r.video_id), ...excludeIds]),
+    ];
+    const notInterested = await getNotInterestedVideoIds(this.redis, userId, this.logger);
+    for (const id of notInterested) {
+      if (!watchedIds.includes(id)) watchedIds.push(id);
+    }
+    const mutedChannels = await getMutedChannelIds(this.redis, userId, this.logger);
 
     // Compose the recommendation query with score signals
     const excludeClause = watchedIds.length
       ? `AND v.id NOT IN (${watchedIds.map((_, i) => `$${i + 3}`).join(',')})`
       : '';
+    const muteStart = watchedIds.length + 3;
+    const muteClause = mutedChannels.length
+      ? `AND v.user_id NOT IN (${mutedChannels.map((_, i) => `$${muteStart + i}`).join(',')})`
+      : '';
+    const limitParam = muteStart + mutedChannels.length;
+    const offsetParam = limitParam + 1;
 
     const query = `
       WITH trending AS (
@@ -124,19 +139,21 @@ export class RecommendationsService {
         AND v.visibility = 'public'
         AND v.user_id != $1
         ${excludeClause}
+        ${muteClause}
         AND (
           fc.creator_id IS NOT NULL
           OR ca.category_id IS NOT NULL
           OR t.recent_views >= 3
         )
       ORDER BY score DESC, v.created_at DESC
-      LIMIT $${watchedIds.length + 3} OFFSET $${watchedIds.length + 4}
+      LIMIT $${limitParam} OFFSET $${offsetParam}
     `;
 
     const params: unknown[] = [
       userId,
       categoryIds.length ? categoryIds : ['00000000-0000-0000-0000-000000000000'],
       ...watchedIds,
+      ...mutedChannels,
       limit,
       offset,
     ];
@@ -145,14 +162,18 @@ export class RecommendationsService {
 
     // Fallback: if not enough personalized results, fill with trending
     if (rows.length < limit) {
-      const fallback = await this.getTrending(userId, limit - rows.length, watchedIds);
+      const fallback = await this.getTrending(userId, limit - rows.length, [
+        ...watchedIds,
+      ]);
       const existingIds = new Set(rows.map((r) => r.id));
+      const muted = new Set(mutedChannels);
       for (const f of fallback) {
-        if (!existingIds.has(f.id)) rows.push(f);
+        if (!existingIds.has(f.id) && !muted.has(f.userId)) rows.push(f);
       }
     }
 
-    return { data: rows.slice(0, limit), total: rows.length };
+    const diversified = diversifyByCreator(rows.slice(0, limit), 2);
+    return { data: diversified, total: diversified.length };
   }
 
   async getTrending(

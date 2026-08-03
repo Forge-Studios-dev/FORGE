@@ -23,12 +23,35 @@ import {
 import { createS3Client } from '../../common/create-s3-client';
 import { indexedAtOnReady, publishStatusOnReady } from './video-publish.util';
 import { videoDetailCacheKey } from './video-cache';
-import { muxHlsPlaybackUrl, muxThumbnailUrl } from './mux-vod.constants';
+import { muxHlsPlaybackUrl, muxThumbnailUrl, muxCaptionVttUrl } from './mux-vod.constants';
 
 export interface MuxVodIngestJob {
   videoId: string;
   s3Key: string;
   userId: string;
+}
+
+type MuxTrackLike = {
+  id?: string;
+  type?: string;
+  text_type?: string;
+  status?: string;
+  language_code?: string;
+  name?: string;
+};
+
+function pickCaptionTrackId(tracks: unknown): string | null {
+  if (!Array.isArray(tracks)) return null;
+  for (const raw of tracks) {
+    const track = raw as MuxTrackLike;
+    if (track.type !== 'text') continue;
+    if (track.text_type && track.text_type !== 'subtitles' && track.text_type !== 'captions') {
+      continue;
+    }
+    if (track.status && track.status !== 'ready') continue;
+    if (typeof track.id === 'string' && track.id.length > 0) return track.id;
+  }
+  return null;
 }
 
 @Injectable()
@@ -93,7 +116,17 @@ export class MuxVodService {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await this.mux.video.assets.create({
-      inputs: [{ url: signedUrl }],
+      inputs: [
+        {
+          url: signedUrl,
+          generated_subtitles: [
+            {
+              language_code: 'en',
+              name: 'English CC',
+            },
+          ],
+        },
+      ],
       playback_policy: ['public'],
       passthrough: videoId,
       max_resolution_tier: '1080p',
@@ -154,6 +187,8 @@ export class MuxVodService {
 
     const hlsUrl = muxHlsPlaybackUrl(playbackId);
     const thumbnailUrl = muxThumbnailUrl(playbackId);
+    const captionTrackId = pickCaptionTrackId(data.tracks);
+    const captionUrl = captionTrackId ? muxCaptionVttUrl(playbackId, captionTrackId) : null;
     const now = new Date();
     const scheduled = video.scheduledPublishAt;
     const publishedAt =
@@ -173,6 +208,12 @@ export class MuxVodService {
       publishStatus,
       hlsUrl,
       thumbnailUrl,
+      ...(captionUrl
+        ? {
+            captionUrl,
+            captionTracks: [{ language: 'en', label: 'English', url: captionUrl }],
+          }
+        : {}),
       muxAssetId: assetId,
       muxPlaybackId: playbackId,
       transcodeProvider: TranscodeProvider.MUX,
@@ -206,6 +247,61 @@ export class MuxVodService {
         playbackId,
         duration,
         trackCount: tracks,
+        captionUrl: captionUrl ?? undefined,
+      }),
+    );
+    return true;
+  }
+
+  /**
+   * Handles `video.asset.track.ready` — auto-generated captions often arrive
+   * after `video.asset.ready`.
+   */
+  async handleTrackReady(payload: Record<string, unknown>): Promise<boolean> {
+    const data = payload.data as Record<string, unknown> | undefined;
+    if (!data) return false;
+
+    const track = data as MuxTrackLike & { asset_id?: string };
+    if (track.type !== 'text') return false;
+    if (track.text_type && track.text_type !== 'subtitles' && track.text_type !== 'captions') {
+      return false;
+    }
+    const trackId = typeof track.id === 'string' ? track.id : '';
+    const assetId = typeof track.asset_id === 'string' ? track.asset_id : '';
+    if (!trackId || !assetId) return false;
+
+    const video = await this.videoRepository.findOne({ where: { muxAssetId: assetId } });
+    if (!video?.muxPlaybackId) return false;
+
+    const captionUrl = muxCaptionVttUrl(video.muxPlaybackId, trackId);
+    if (video.captionUrl === captionUrl) return true;
+
+    const lang =
+      typeof track.language_code === 'string' && track.language_code
+        ? track.language_code.slice(0, 8).toLowerCase()
+        : 'en';
+    const label = typeof track.name === 'string' && track.name ? track.name : 'English';
+    const existing = [...(video.captionTracks ?? [])];
+    const nextTrack = { language: lang, label, url: captionUrl };
+    const idx = existing.findIndex((t) => t.language === lang);
+    if (idx >= 0) existing[idx] = nextTrack;
+    else existing.push(nextTrack);
+
+    await this.videoRepository.update(video.id, {
+      captionUrl,
+      captionTracks: existing,
+    });
+    await this.redis.del(videoDetailCacheKey(video.id));
+    this.eventEmitter.emit('video.updated', { videoId: video.id });
+
+    this.logger.log(
+      JSON.stringify({
+        msg: 'mux_vod_caption_ready',
+        videoId: video.id,
+        assetId,
+        trackId,
+        captionUrl,
+        language: lang,
       }),
     );
     return true;

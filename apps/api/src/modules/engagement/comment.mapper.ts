@@ -9,13 +9,16 @@ export type PublicComment = {
   content: string;
   parentId: string | null;
   likeCount: number;
+  replyCount?: number;
+  isPinned: boolean;
+  creatorHearted: boolean;
   viewerLiked?: boolean;
   createdAt: Date;
 };
 
 export function toPublicComment(
   comment: Comment,
-  extras?: { viewerLiked?: boolean },
+  extras?: { viewerLiked?: boolean; replyCount?: number },
 ): PublicComment {
   return {
     id: comment.id,
@@ -25,6 +28,9 @@ export function toPublicComment(
     content: comment.content,
     parentId: comment.parentId,
     likeCount: comment.likeCount,
+    replyCount: extras?.replyCount,
+    isPinned: !!comment.isPinned,
+    creatorHearted: !!comment.creatorHearted,
     viewerLiked: extras?.viewerLiked,
     createdAt: comment.createdAt,
   };

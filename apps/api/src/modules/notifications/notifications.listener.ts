@@ -9,15 +9,19 @@ import { PushDispatchService } from './push-dispatch.service';
 import { NotificationType } from './entities/notification.entity';
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/entities/user.entity';
-import { Follow } from '../engagement/entities/follow.entity';
+import { Follow, FollowNotifyLevel } from '../engagement/entities/follow.entity';
 import { Comment } from '../engagement/entities/comment.entity';
+import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { VideoVisibility } from '../content/entities/video.entity';
 import { StreamVisibility } from '../streaming/entities/stream.entity';
 import { PremiumContentNotifyService } from './premium-content-notify.service';
+import { recipientIdsForNotifyLevel } from './notify-recipients.util';
 
 /** Max in-app + push recipients per fan-out event (matches follower query cap). */
 const FANOUT_RECIPIENT_LIMIT = 1000;
+/** Recent watch window for “Personalized” bell (YouTube-like engagement gate). */
+const PERSONALIZED_ENGAGEMENT_DAYS = 45;
 
 @Injectable()
 export class NotificationsListener {
@@ -35,8 +39,44 @@ export class NotificationsListener {
     private readonly followRepository: Repository<Follow>,
     @InjectRepository(Comment)
     private readonly commentRepository: Repository<Comment>,
+    @InjectRepository(WatchHistory)
+    private readonly watchHistoryRepository: Repository<WatchHistory>,
     @InjectRedis() private readonly redis: Redis,
   ) {}
+
+  /**
+   * Followers who recently watched this creator’s videos qualify for Personalized bell.
+   */
+  private async engagedFollowerIds(
+    creatorId: string,
+    candidateIds: string[],
+  ): Promise<Set<string>> {
+    if (!candidateIds.length) return new Set();
+    const since = new Date(
+      Date.now() - PERSONALIZED_ENGAGEMENT_DAYS * 24 * 60 * 60 * 1000,
+    );
+    const rows = await this.watchHistoryRepository
+      .createQueryBuilder('wh')
+      .innerJoin('wh.video', 'v')
+      .select('wh.userId', 'userId')
+      .distinct(true)
+      .where('v.user_id = :creatorId', { creatorId })
+      .andWhere('wh.user_id IN (:...candidateIds)', { candidateIds })
+      .andWhere('wh.watched_at >= :since', { since })
+      .getRawMany<{ userId: string }>();
+    return new Set(rows.map((r) => r.userId).filter(Boolean));
+  }
+
+  private async recipientIdsFromFollowers(
+    creatorId: string,
+    followers: Array<{ followerId: string; notifyLevel: FollowNotifyLevel }>,
+  ): Promise<string[]> {
+    const personalizedIds = followers
+      .filter((f) => f.notifyLevel === FollowNotifyLevel.PERSONALIZED)
+      .map((f) => f.followerId);
+    const engaged = await this.engagedFollowerIds(creatorId, personalizedIds);
+    return recipientIdsForNotifyLevel(followers, engaged);
+  }
 
   @OnEvent('creator.approved')
   async onCreatorApproved(payload: { userId: string }) {
@@ -96,20 +136,16 @@ export class NotificationsListener {
   }) {
     const followers = await this.followRepository.find({
       where: { followingId: payload.userId },
-      select: ['followerId'],
+      select: ['followerId', 'notifyLevel'],
       take: 500,
     });
     const title = payload.creatorName
       ? `${payload.creatorName} goes live soon`
-      : 'A creator you follow goes live soon';
+      : 'A channel you\'re subscribed to goes live soon';
     const body = payload.title || 'Live session starting soon';
 
-    const recipientIds = [
-      ...new Set([
-        ...followers.map((f) => f.followerId),
-        ...(payload.rsvpUserIds ?? []),
-      ]),
-    ];
+    const fromFollows = await this.recipientIdsFromFollowers(payload.userId, followers);
+    const recipientIds = [...new Set([...fromFollows, ...(payload.rsvpUserIds ?? [])])];
 
     await this.pushDispatch.enqueueForUsers(recipientIds, {
       title,
@@ -169,14 +205,18 @@ export class NotificationsListener {
     await this.notificationsService.create({
       userId: payload.followingId,
       type: NotificationType.NEW_FOLLOWER,
-      title: 'New follower',
-      body: `${name} started following you`,
-      metadata: { followerId: payload.followerId },
+      title: 'New subscriber',
+      body: `${name} subscribed to your channel`,
+      metadata: { followerId: payload.followerId, followerUsername: follower?.username },
     });
     await this.pushDispatch.enqueueForUser(payload.followingId, {
-      title: 'New follower',
-      body: `${name} started following you`,
-      data: { type: 'new_follower', followerId: payload.followerId },
+      title: 'New subscriber',
+      body: `${name} subscribed to your channel`,
+      data: {
+        type: 'new_follower',
+        followerId: payload.followerId,
+        ...(follower?.username ? { followerUsername: follower.username } : {}),
+      },
     });
   }
 
@@ -261,7 +301,7 @@ export class NotificationsListener {
     }
 
     const creator = await this.userRepository.findOne({ where: { id: payload.userId } });
-    const creatorName = creator?.displayName ?? 'Someone you follow';
+    const creatorName = creator?.displayName ?? 'Someone you\'re subscribed to';
 
     let recipientIds: string[];
 
@@ -278,9 +318,12 @@ export class NotificationsListener {
     } else {
       const followers = await this.followRepository.find({
         where: { followingId: payload.userId },
+        select: ['followerId', 'notifyLevel'],
         take: FANOUT_RECIPIENT_LIMIT,
       });
-      recipientIds = followers.map((f) => f.followerId);
+      recipientIds = (
+        await this.recipientIdsFromFollowers(payload.userId, followers)
+      ).slice(0, FANOUT_RECIPIENT_LIMIT);
     }
 
     if (!recipientIds.length) return;
@@ -304,6 +347,44 @@ export class NotificationsListener {
       })),
     );
     await this.pushDispatch.enqueueForUsers(recipientIds, { title, body, data: pushData });
+  }
+
+  @OnEvent('video.super-thanks.paid', { async: true })
+  async onSuperThanksPaid(payload: {
+    videoId: string;
+    creatorId: string;
+    userId: string;
+    body: string;
+    amountCents: number;
+  }) {
+    if (payload.creatorId === payload.userId) return;
+    const tipper = await this.userRepository.findOne({ where: { id: payload.userId } });
+    const name = tipper?.displayName ?? 'Someone';
+    const dollars = (payload.amountCents / 100).toFixed(2);
+    const note = payload.body?.trim() ? `: “${payload.body.trim().slice(0, 80)}”` : '';
+    const title = 'Super Thanks';
+    const body = `${name} sent $${dollars}${note}`;
+
+    await this.notificationsService.create({
+      userId: payload.creatorId,
+      type: NotificationType.SUPER_THANKS,
+      title,
+      body,
+      metadata: {
+        videoId: payload.videoId,
+        tipperId: payload.userId,
+        amountCents: payload.amountCents,
+      },
+    });
+    await this.pushDispatch.enqueueForUser(payload.creatorId, {
+      title,
+      body,
+      data: {
+        type: 'super_thanks',
+        videoId: payload.videoId,
+        tipperId: payload.userId,
+      },
+    });
   }
 
   @OnEvent('gamification.achievement_unlocked', { async: true })

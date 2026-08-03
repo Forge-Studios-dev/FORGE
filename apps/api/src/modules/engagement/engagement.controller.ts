@@ -16,6 +16,7 @@ import { EngagementService } from './engagement.service';
 import { clampLimit } from '../../common/utils/pagination.util';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { SetChannelNotifyLevelDto } from './dto/set-channel-notify-level.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
@@ -31,7 +32,7 @@ export class EngagementController {
   @Post('videos/:id/like')
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Like a video' })
+  @ApiOperation({ summary: 'Like a video (clears dislike)' })
   likeVideo(@CurrentUser() user: JwtPayload, @Param('id') videoId: string) {
     return this.engagementService.likeVideo(user.sub, videoId);
   }
@@ -39,9 +40,25 @@ export class EngagementController {
   @Delete('videos/:id/like')
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Unlike a video' })
+  @ApiOperation({ summary: 'Remove like from a video' })
   unlikeVideo(@CurrentUser() user: JwtPayload, @Param('id') videoId: string) {
     return this.engagementService.unlikeVideo(user.sub, videoId);
+  }
+
+  @Post('videos/:id/dislike')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Dislike a video (clears like)' })
+  dislikeVideo(@CurrentUser() user: JwtPayload, @Param('id') videoId: string) {
+    return this.engagementService.dislikeVideo(user.sub, videoId);
+  }
+
+  @Delete('videos/:id/dislike')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove dislike from a video' })
+  undislikeVideo(@CurrentUser() user: JwtPayload, @Param('id') videoId: string) {
+    return this.engagementService.undislikeVideo(user.sub, videoId);
   }
 
   @Post('videos/:id/comments')
@@ -63,14 +80,30 @@ export class EngagementController {
     @Param('id') videoId: string,
     @Query('limit') limit: number,
     @Query('cursor') cursor: string,
+    @Query('sort') sort: 'newest' | 'top' | 'oldest' = 'newest',
     @CurrentUser() user?: JwtPayload,
   ) {
+    const normalized =
+      sort === 'top' ? 'top' : sort === 'oldest' ? 'oldest' : 'newest';
     return this.engagementService.getComments(
       videoId,
       clampLimit(limit),
       cursor,
       user?.sub,
+      normalized,
     );
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('videos/:videoId/comments/:commentId')
+  @ApiOperation({ summary: 'Get a single comment (deep link / share)' })
+  getComment(
+    @Param('videoId') videoId: string,
+    @Param('commentId') commentId: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.engagementService.getComment(videoId, commentId, user?.sub);
   }
 
   @Public()
@@ -147,10 +180,46 @@ export class EngagementController {
     return this.engagementService.unlikeComment(user.sub, videoId, commentId);
   }
 
+  @Post('videos/:videoId/comments/:commentId/pin')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Pin or unpin a top-level comment (video owner)' })
+  pinComment(
+    @CurrentUser() user: JwtPayload,
+    @Param('videoId') videoId: string,
+    @Param('commentId') commentId: string,
+    @Body() body: { isPinned: boolean },
+  ) {
+    return this.engagementService.setCommentPinned(
+      user.sub,
+      videoId,
+      commentId,
+      !!body.isPinned,
+    );
+  }
+
+  @Post('videos/:videoId/comments/:commentId/creator-heart')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Heart a comment as the video owner' })
+  creatorHeartComment(
+    @CurrentUser() user: JwtPayload,
+    @Param('videoId') videoId: string,
+    @Param('commentId') commentId: string,
+    @Body() body: { creatorHearted: boolean },
+  ) {
+    return this.engagementService.setCommentCreatorHeart(
+      user.sub,
+      videoId,
+      commentId,
+      !!body.creatorHearted,
+    );
+  }
+
   @Post('follow/:userId')
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Follow a user' })
+  @ApiOperation({ summary: 'Follow a user (legacy; prefer channels/:id/subscribe)' })
   follow(@CurrentUser() user: JwtPayload, @Param('userId') targetId: string) {
     return this.engagementService.follow(user.sub, targetId);
   }
@@ -158,8 +227,79 @@ export class EngagementController {
   @Delete('follow/:userId')
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Unfollow a user' })
+  @ApiOperation({ summary: 'Unfollow a user (legacy; prefer channels/:id/subscribe)' })
   unfollow(@CurrentUser() user: JwtPayload, @Param('userId') targetId: string) {
     return this.engagementService.unfollow(user.sub, targetId);
+  }
+
+  @Post('channels/:userId/subscribe')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Subscribe to a channel' })
+  subscribe(@CurrentUser() user: JwtPayload, @Param('userId') channelId: string) {
+    return this.engagementService.subscribe(user.sub, channelId);
+  }
+
+  @Delete('channels/:userId/subscribe')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unsubscribe from a channel' })
+  unsubscribe(@CurrentUser() user: JwtPayload, @Param('userId') channelId: string) {
+    return this.engagementService.unsubscribe(user.sub, channelId);
+  }
+
+  @Get('channels/:userId/subscription')
+  @Permissions(Permission.ENGAGE)
+  @ApiOperation({ summary: 'Get subscription + notification bell level for a channel' })
+  getSubscription(@CurrentUser() user: JwtPayload, @Param('userId') channelId: string) {
+    return this.engagementService.getSubscription(user.sub, channelId);
+  }
+
+  @Patch('channels/:userId/subscription/notify')
+  @Permissions(Permission.ENGAGE)
+  @ApiOperation({ summary: 'Set notification level for a channel subscription (all | personalized | none)' })
+  setNotifyLevel(
+    @CurrentUser() user: JwtPayload,
+    @Param('userId') channelId: string,
+    @Body() dto: SetChannelNotifyLevelDto,
+  ) {
+    return this.engagementService.setNotifyLevel(user.sub, channelId, dto.notifyLevel);
+  }
+
+  @Get('me/muted-channels')
+  @Permissions(Permission.ENGAGE)
+  @ApiOperation({ summary: 'List channels muted via Don’t recommend channel' })
+  listMutedChannels(@CurrentUser() user: JwtPayload) {
+    return this.engagementService.listMutedChannels(user.sub);
+  }
+
+  @Delete('channels/:userId/dont-recommend')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unmute a channel (resume recommending in feeds)' })
+  unmuteChannel(@CurrentUser() user: JwtPayload, @Param('userId') channelId: string) {
+    return this.engagementService.unmuteChannelRecommendations(user.sub, channelId);
+  }
+
+  @Public()
+  @Get('channels/:userId/subscribers')
+  @ApiOperation({ summary: 'List channel subscribers' })
+  listSubscribers(
+    @Param('userId') channelId: string,
+    @Query('limit') limit: number,
+    @Query('cursor') cursor: string,
+  ) {
+    return this.engagementService.getFollowers(channelId, clampLimit(limit), cursor);
+  }
+
+  @Public()
+  @Get('channels/:userId/subscriptions')
+  @ApiOperation({ summary: 'List channels this channel is subscribed to' })
+  listSubscriptions(
+    @Param('userId') channelId: string,
+    @Query('limit') limit: number,
+    @Query('cursor') cursor: string,
+  ) {
+    return this.engagementService.getFollowing(channelId, clampLimit(limit), cursor);
   }
 }

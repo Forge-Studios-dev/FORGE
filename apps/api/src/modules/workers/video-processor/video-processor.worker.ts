@@ -18,7 +18,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { Video, VideoStatus } from '../../content/entities/video.entity';
 import { indexedAtOnReady, publishStatusOnReady } from '../../content/video-publish.util';
-import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../../content/videos.service';
+import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../../content/video-processing.constants';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { buildPublicMediaUrl } from '../../../common/media-url.util';
 import { videoDetailCacheKey } from '../../content/video-cache';

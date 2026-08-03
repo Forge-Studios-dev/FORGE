@@ -20,9 +20,6 @@ import { EngagementModule } from './modules/engagement/engagement.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { StreamingModule } from './modules/streaming/streaming.module';
 import { LiveBroadcastModule } from './modules/live-broadcast/live-broadcast.module';
-import { STREAM_REMINDER_QUEUE } from './modules/workers/stream-reminder/stream-reminder.constants';
-import { STREAM_CHAT_INGEST_QUEUE } from './modules/workers/stream-chat-ingest/stream-chat-ingest.constants';
-import { STREAM_SNAPSHOT_RETENTION_QUEUE } from './modules/workers/stream-snapshot-retention/stream-snapshot-retention.constants';
 import { WorkersModule } from './modules/workers/workers.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { PlaylistsModule } from './modules/playlists/playlists.module';
@@ -59,13 +56,7 @@ import { MetricsController } from './common/metrics/metrics.controller';
 import { BullmqMetricsService } from './common/metrics/bullmq-metrics.service';
 import { bullMqConnectionFromConfig } from './config/bull-redis.util';
 import { redisTlsOptions } from './common/redis/redis-tls.util';
-import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
-import { MUX_VOD_INGEST_QUEUE } from './modules/content/mux-vod.constants';
-import { ANALYTICS_INGEST_QUEUE } from './modules/analytics/analytics-ingest.constants';
-import { ANALYTICS_RETENTION_QUEUE } from './modules/analytics/analytics-retention.constants';
-import { PUSH_DISPATCH_QUEUE } from './modules/notifications/push-dispatch.constants';
-import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './modules/notifications/subscription-maintenance.constants';
-import { ENGAGEMENT_RECONCILIATION_QUEUE } from './modules/engagement/engagement-reconciliation.constants';
+import { QueuesModule } from './queues/queues.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 import { RedisThrottlerModule } from './common/throttler/redis-throttler.module';
@@ -189,75 +180,7 @@ function sentryFilterProviders() {
       }),
     }),
 
-    BullModule.registerQueue({ name: VIDEO_PROCESSING_QUEUE }),
-    BullModule.registerQueue({
-      name: MUX_VOD_INGEST_QUEUE,
-      defaultJobOptions: {
-        attempts: 5,
-        backoff: { type: 'exponential', delay: 5000 },
-        removeOnFail: { age: 7 * 24 * 3600 },
-        removeOnComplete: { age: 24 * 3600, count: 500 },
-      },
-    }),
-    BullModule.registerQueue({
-      name: ANALYTICS_INGEST_QUEUE,
-      defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 2000 },
-        removeOnComplete: { age: 3600, count: 5000 },
-        removeOnFail: { age: 86400, count: 10000 },
-      },
-    }),
-    BullModule.registerQueue({ name: PUSH_DISPATCH_QUEUE }),
-    BullModule.registerQueue({
-      name: SUBSCRIPTION_MAINTENANCE_QUEUE,
-      defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 10_000 },
-        removeOnComplete: { age: 86400, count: 48 },
-        removeOnFail: { age: 7 * 86400, count: 100 },
-      },
-    }),
-    BullModule.registerQueue({
-      name: ENGAGEMENT_RECONCILIATION_QUEUE,
-      defaultJobOptions: {
-        attempts: 2,
-        removeOnComplete: { age: 7 * 86400, count: 14 },
-        removeOnFail: { age: 7 * 86400, count: 50 },
-      },
-    }),
-    BullModule.registerQueue({
-      name: STREAM_REMINDER_QUEUE,
-      defaultJobOptions: {
-        attempts: 2,
-        removeOnComplete: { age: 3600, count: 100 },
-      },
-    }),
-    BullModule.registerQueue({
-      name: STREAM_CHAT_INGEST_QUEUE,
-      defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 1000 },
-        removeOnComplete: { age: 3600, count: 10_000 },
-        removeOnFail: { age: 86400, count: 5000 },
-      },
-    }),
-    BullModule.registerQueue({
-      name: STREAM_SNAPSHOT_RETENTION_QUEUE,
-      defaultJobOptions: {
-        attempts: 2,
-        removeOnComplete: { age: 86400, count: 14 },
-      },
-    }),
-    BullModule.registerQueue({
-      name: ANALYTICS_RETENTION_QUEUE,
-      defaultJobOptions: {
-        attempts: 2,
-        backoff: { type: 'exponential', delay: 60_000 },
-        removeOnComplete: { age: 7 * 86400, count: 14 },
-        removeOnFail: { age: 7 * 86400, count: 50 },
-      },
-    }),
+    QueuesModule,
 
     EventEmitterModule.forRoot(),
 
@@ -277,7 +200,7 @@ function sentryFilterProviders() {
     BillingModule,
     StreamChatModule,
     CommunitiesModule,
-    CoursesModule,
+    CoursesModule.register(),
     CreatorResourcesModule,
     GamificationModule,
     ChannelPointsModule,

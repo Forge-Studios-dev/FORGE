@@ -110,7 +110,7 @@ describe('StreamingService access gating', () => {
           },
         },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: MuxVodService, useValue: { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn() } },
+        { provide: MuxVodService, useValue: { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn(), handleTrackReady: jest.fn() } },
         { provide: EntitlementsService, useValue: entitlementsService },
         {
           provide: AccessSessionsService,
@@ -288,7 +288,7 @@ describe('StreamingService endStream', () => {
         get: (key: string) => (key === 'nodeEnv' ? 'test' : 'placeholder'),
       } as never,
       { emit } as never,
-      { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn() } as never,
+      { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn(), handleTrackReady: jest.fn() } as never,
       { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
       { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
       {
@@ -360,7 +360,7 @@ describe('StreamingService createStream', () => {
         },
       } as never,
       { emit: jest.fn() } as never,
-      { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn() } as never,
+      { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn(), handleTrackReady: jest.fn() } as never,
       { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
       { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
       {

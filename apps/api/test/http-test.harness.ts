@@ -22,7 +22,7 @@ import { AuthService } from '../src/modules/auth/auth.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { AppCheckGuard } from '../src/modules/firebase/app-check.guard';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
-import { VIDEO_PROCESSING_QUEUE } from '../src/modules/content/videos.service';
+import { VIDEO_PROCESSING_QUEUE } from '../src/modules/content/video-processing.constants';
 import { MUX_VOD_INGEST_QUEUE } from '../src/modules/content/mux-vod.constants';
 
 const mockQueue = {

@@ -133,6 +133,14 @@ export default () => ({
   /** Comma-separated: e.g. multipart_upload,blueprints_public */
   featureFlags: process.env.FEATURE_FLAGS || '',
 
+  features: {
+    /**
+     * Skill-economy LMS (courses, podcasts, creator programs).
+     * Default off — YouTube-replica mode. Set FEATURES_SKILL_ECONOMY_LMS=true to re-enable.
+     */
+    skillEconomyLms: process.env.FEATURES_SKILL_ECONOMY_LMS === 'true',
+  },
+
   entitlements: {
     mockSubscriptionsEnabled:
       process.env.MOCK_SUBSCRIPTIONS_ENABLED === 'true' ||

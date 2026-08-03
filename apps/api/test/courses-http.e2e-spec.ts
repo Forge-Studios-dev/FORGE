@@ -8,6 +8,8 @@ import { CoursesController } from '../src/modules/courses/courses.controller';
 import { CoursesService } from '../src/modules/courses/courses.service';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { CreatorApprovedGuard } from '../src/common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../src/common/guards/skill-economy-lms.guard';
+import { ConfigService } from '@nestjs/config';
 
 describe('Courses HTTP (mocked e2e)', () => {
   let app: INestApplication;
@@ -39,7 +41,16 @@ describe('Courses HTTP (mocked e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [CoursesController],
-      providers: [{ provide: CoursesService, useValue: coursesService }],
+      providers: [
+        { provide: CoursesService, useValue: coursesService },
+        SkillEconomyLmsGuard,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) => (key === 'features.skillEconomyLms' ? true : undefined),
+          },
+        },
+      ],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({

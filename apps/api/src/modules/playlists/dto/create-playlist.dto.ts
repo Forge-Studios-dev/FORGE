@@ -9,6 +9,12 @@ export class CreatePlaylistDto {
   @MaxLength(200)
   title: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
   @ApiPropertyOptional({ enum: PlaylistVisibility })
   @IsOptional()
   @IsEnum(PlaylistVisibility)

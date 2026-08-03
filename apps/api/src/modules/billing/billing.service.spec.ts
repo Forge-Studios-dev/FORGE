@@ -6,6 +6,8 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 import { ConfigService } from '@nestjs/config';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 import { Stream, StreamVisibility } from '../streaming/entities/stream.entity';
+import { Video, VideoStatus } from '../content/entities/video.entity';
+import { SuperThanks } from './entities/super-thanks.entity';
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
 import { StreamingService } from '../streaming/streaming.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -15,6 +17,7 @@ import { MemberSubscriptionStatus } from '../entitlements/entities/member-subscr
 
 describe('BillingService', () => {
   let service: BillingService;
+  const eventEmitter = { emit: jest.fn() };
   const streamingService = {
     grantEventPurchase: jest.fn(),
   };
@@ -27,6 +30,7 @@ describe('BillingService', () => {
     createCheckoutSession: jest.fn(),
     createEventCheckoutSession: jest.fn(),
     createSuperChatCheckoutSession: jest.fn(),
+    createSuperThanksCheckoutSession: jest.fn(),
     cancelSubscription: jest.fn(),
     verifyWebhook: jest.fn(),
   };
@@ -59,22 +63,39 @@ describe('BillingService', () => {
   const streamRepository = {
     findOne: jest.fn(),
   };
+  const videoRepository = {
+    findOne: jest.fn(),
+  };
+  const superThanksRepository = {
+    findOne: jest.fn(),
+    save: jest.fn(async (row) => ({ id: 'st1', ...row, createdAt: new Date() })),
+    create: jest.fn((dto) => dto),
+    findAndCount: jest.fn(),
+    find: jest.fn(),
+    createQueryBuilder: jest.fn(),
+  };
+
+  const baseProviders = () => [
+    BillingService,
+    { provide: PAYMENT_PROVIDER, useValue: paymentProvider },
+    { provide: EntitlementsService, useValue: entitlementsService },
+    { provide: WebhookIdempotencyService, useValue: webhookIdempotency },
+    { provide: getRepositoryToken(StreamEventPurchase), useValue: purchaseRepository },
+    { provide: getRepositoryToken(Stream), useValue: streamRepository },
+    { provide: getRepositoryToken(Video), useValue: videoRepository },
+    { provide: getRepositoryToken(SuperThanks), useValue: superThanksRepository },
+    { provide: StreamingService, useValue: streamingService },
+    { provide: EventEmitter2, useValue: eventEmitter },
+    { provide: StripeTierSyncService, useValue: stripeTierSync },
+    { provide: StripeConnectService, useValue: stripeConnectService },
+  ];
 
   beforeEach(async () => {
     jest.clearAllMocks();
     webhookIdempotency.isDuplicate.mockResolvedValue(false);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        BillingService,
-        { provide: PAYMENT_PROVIDER, useValue: paymentProvider },
-        { provide: EntitlementsService, useValue: entitlementsService },
-        { provide: WebhookIdempotencyService, useValue: webhookIdempotency },
-        { provide: getRepositoryToken(StreamEventPurchase), useValue: purchaseRepository },
-        { provide: getRepositoryToken(Stream), useValue: streamRepository },
-        { provide: StreamingService, useValue: streamingService },
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: StripeTierSyncService, useValue: stripeTierSync },
-        { provide: StripeConnectService, useValue: stripeConnectService },
+        ...baseProviders(),
         {
           provide: ConfigService,
           useValue: {
@@ -192,5 +213,201 @@ describe('BillingService', () => {
     await service.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
 
     expect(entitlementsService.cancelByExternalRef).toHaveBeenCalledWith('sub_cancel');
+  });
+
+  it('emits Super Thanks immediately when Stripe billing is off', async () => {
+    const stubModule = await Test.createTestingModule({
+      providers: [
+        ...baseProviders(),
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) => {
+              if (key === 'billing.provider') return 'stub';
+              return '';
+            },
+          },
+        },
+      ],
+    }).compile();
+    const stubService = stubModule.get(BillingService);
+    videoRepository.findOne.mockResolvedValue({
+      id: 'v1',
+      userId: 'creator1',
+      status: VideoStatus.READY,
+    });
+
+    const result = await stubService.createSuperThanksCheckout('fan1', {
+      videoId: 'v1',
+      amountCents: 200,
+      body: 'Great video',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({ tipped: true, requiresCheckout: false, amountCents: 200 }),
+    );
+    expect(superThanksRepository.save).toHaveBeenCalled();
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'video.super-thanks.paid',
+      expect.objectContaining({
+        videoId: 'v1',
+        creatorId: 'creator1',
+        userId: 'fan1',
+        amountCents: 200,
+        body: 'Great video',
+      }),
+    );
+  });
+
+  it('emits Super Thanks from completed Stripe webhook', async () => {
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'super_thanks',
+      status: 'completed',
+      userId: 'fan1',
+      videoId: 'v1',
+      creatorId: 'creator1',
+      amountCents: 500,
+      superChatBody: 'Thanks!',
+      sessionId: 'cs_thanks',
+    });
+
+    await service.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
+
+    expect(superThanksRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stripeCheckoutSessionId: 'cs_thanks',
+        amountCents: 500,
+      }),
+    );
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'video.super-thanks.paid',
+      expect.objectContaining({
+        videoId: 'v1',
+        creatorId: 'creator1',
+        userId: 'fan1',
+        amountCents: 500,
+        body: 'Thanks!',
+      }),
+    );
+  });
+
+  it('skips duplicate Super Thanks when Stripe session already recorded', async () => {
+    superThanksRepository.findOne.mockResolvedValue({
+      id: 'existing',
+      stripeCheckoutSessionId: 'cs_thanks',
+    });
+
+    const row = await service.recordSuperThanks({
+      videoId: 'v1',
+      creatorId: 'creator1',
+      tipperId: 'fan1',
+      amountCents: 500,
+      stripeCheckoutSessionId: 'cs_thanks',
+    });
+
+    expect(row.id).toBe('existing');
+    expect(superThanksRepository.save).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
+  });
+
+  it('exports Super Thanks CSV for the creator', async () => {
+    superThanksRepository.find.mockResolvedValue([
+      {
+        id: 'st1',
+        createdAt: new Date('2026-08-01T12:00:00.000Z'),
+        amountCents: 200,
+        platformFeePercent: 10,
+        platformFeeCents: 20,
+        creatorNetCents: 180,
+        currency: 'usd',
+        videoId: 'v1',
+        video: { title: 'Demo' },
+        tipperId: 'fan1',
+        tipper: { username: 'fan', displayName: 'Fan' },
+        body: 'Nice!',
+        stripeCheckoutSessionId: null,
+      },
+    ]);
+
+    const csv = await service.exportReceivedSuperThanksCsv('creator1');
+
+    expect(csv.split('\n')[0]).toContain('creatorNetCents');
+    expect(csv).toContain('Demo');
+    expect(csv).toContain('180');
+    expect(superThanksRepository.find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { creatorId: 'creator1' }, take: 5000 }),
+    );
+  });
+
+  it('summarizes Super Thanks by day for reconciliation', async () => {
+    const qb = {
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([
+        {
+          day: new Date('2026-08-01T00:00:00.000Z'),
+          tipCount: '2',
+          grossCents: '700',
+          feeCents: '70',
+          netCents: '630',
+        },
+      ]),
+    };
+    superThanksRepository.createQueryBuilder.mockReturnValue(qb);
+
+    const summary = await service.summarizeReceivedSuperThanks('creator1', { days: 30 });
+
+    expect(summary.days).toBe(30);
+    expect(summary.daysBreakdown).toEqual([
+      {
+        day: '2026-08-01',
+        tipCount: 2,
+        grossCents: 700,
+        platformFeeCents: 70,
+        creatorNetCents: 630,
+      },
+    ]);
+    expect(superThanksRepository.createQueryBuilder).toHaveBeenCalledWith('st');
+  });
+
+  it('snapshots platform fee when recording Super Thanks', async () => {
+    const stubModule = await Test.createTestingModule({
+      providers: [
+        ...baseProviders(),
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) => {
+              if (key === 'billing.provider') return 'stub';
+              if (key === 'billing.stripePlatformFeePercent') return 10;
+              return '';
+            },
+          },
+        },
+      ],
+    }).compile();
+    const stubService = stubModule.get(BillingService);
+
+    await stubService.recordSuperThanks({
+      videoId: 'v1',
+      creatorId: 'creator1',
+      tipperId: 'fan1',
+      amountCents: 1000,
+      body: 'tip',
+    });
+
+    expect(superThanksRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountCents: 1000,
+        platformFeePercent: 10,
+        platformFeeCents: 100,
+        creatorNetCents: 900,
+      }),
+    );
   });
 });

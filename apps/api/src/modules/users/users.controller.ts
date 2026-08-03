@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Put,
@@ -54,6 +57,42 @@ export class UsersController {
     return this.usersService.getWatchHistory(user.sub, limit || 20, incompleteOnly);
   }
 
+  @Delete('me/watch-history')
+  @Permissions(Permission.USE_LIBRARY)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear watch history for the current user' })
+  clearMyWatchHistory(@CurrentUser() user: JwtPayload) {
+    return this.usersService.clearWatchHistory(user.sub);
+  }
+
+  @Delete('me/watch-history/:videoId')
+  @Permissions(Permission.USE_LIBRARY)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove one video from watch history' })
+  removeMyWatchHistoryItem(
+    @CurrentUser() user: JwtPayload,
+    @Param('videoId') videoId: string,
+  ) {
+    return this.usersService.removeWatchHistoryItem(user.sub, videoId);
+  }
+
+  @Get('me/privacy')
+  @Permissions(Permission.USE_LIBRARY)
+  @ApiOperation({ summary: 'Privacy settings (watch history pause, etc.)' })
+  getMyPrivacy(@CurrentUser() user: JwtPayload) {
+    return this.usersService.getPrivacySettings(user.sub);
+  }
+
+  @Put('me/privacy')
+  @Permissions(Permission.USE_LIBRARY)
+  @ApiOperation({ summary: 'Update privacy settings' })
+  setMyPrivacy(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { watchHistoryPaused?: boolean },
+  ) {
+    return this.usersService.setPrivacySettings(user.sub, body);
+  }
+
   @Post('me/request-creator')
   @ApiOperation({ summary: 'Request creator access (sets creator status to pending)' })
   async requestCreator(@CurrentUser() user: JwtPayload, @Body() dto: RequestCreatorDto) {
@@ -100,7 +139,11 @@ export class UsersController {
         viewer.sub,
         profile.id,
       );
-      return { ...publicUser, viewerFollowing };
+      return {
+        ...publicUser,
+        viewerFollowing,
+        viewerSubscribed: viewerFollowing,
+      };
     }
     return publicUser;
   }
@@ -143,9 +186,22 @@ export class UsersController {
     @Param('id') id: string,
     @Query('limit') limit: number,
     @Query('cursor') cursor: string,
+    @Query('type') type: string,
+    @Query('sort') sort: string,
     @CurrentUser() user?: JwtPayload,
   ) {
-    return this.usersService.getUserVideos(id, limit || 20, cursor, user?.sub);
+    const videoType =
+      type === 'short' || type === 'video' || type === 'all' ? type : 'all';
+    const videoSort =
+      sort === 'oldest' || sort === 'popular' || sort === 'newest' ? sort : 'newest';
+    return this.usersService.getUserVideos(
+      id,
+      limit || 20,
+      cursor,
+      user?.sub,
+      videoType,
+      videoSort,
+    );
   }
 
   @Public()
@@ -164,6 +220,16 @@ export class UsersController {
     @Query('contentType') contentType: string,
   ) {
     return this.usersService.getAvatarUploadUrl(user.sub, contentType, id);
+  }
+
+  @Post(':id/banner-upload-url')
+  @ApiOperation({ summary: 'Get presigned URL for channel banner upload' })
+  getBannerUploadUrl(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Query('contentType') contentType: string,
+  ) {
+    return this.usersService.getBannerUploadUrl(user.sub, contentType, id);
   }
 
   @Public()

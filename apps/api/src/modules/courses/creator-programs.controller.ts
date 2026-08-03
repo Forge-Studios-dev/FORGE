@@ -4,11 +4,13 @@ import { CreatorProgramsService } from './creator-programs.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
 @ApiTags('Creator Programs')
 @Controller()
+@UseGuards(SkillEconomyLmsGuard)
 export class CreatorProgramsController {
   constructor(private readonly programsService: CreatorProgramsService) {}
 

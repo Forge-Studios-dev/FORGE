@@ -9,10 +9,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { In, IsNull, Repository } from 'typeorm';
-import { Like } from './entities/like.entity';
+import { Like, VideoReactionType } from './entities/like.entity';
 import { Comment } from './entities/comment.entity';
 import { CommentLike } from './entities/comment-like.entity';
-import { Follow } from './entities/follow.entity';
+import { Follow, FollowNotifyLevel } from './entities/follow.entity';
 import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -21,6 +21,10 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { toPublicComment } from './comment.mapper';
 import { toPublicUser } from '../users/user.mapper';
 import { UserRole } from '../users/entities/user.entity';
+import {
+  getMutedChannelIds,
+  unmuteChannel,
+} from '../feed/not-interested.util';
 
 const COMMENT_RATE_LIMIT_SEC = 3;
 
@@ -44,38 +48,157 @@ export class EngagementService {
   ) {}
 
   async likeVideo(userId: string, videoId: string) {
+    return this.setVideoReaction(userId, videoId, VideoReactionType.LIKE);
+  }
+
+  async unlikeVideo(userId: string, videoId: string) {
+    return this.clearVideoReaction(userId, videoId, VideoReactionType.LIKE);
+  }
+
+  async dislikeVideo(userId: string, videoId: string) {
+    return this.setVideoReaction(userId, videoId, VideoReactionType.DISLIKE);
+  }
+
+  async undislikeVideo(userId: string, videoId: string) {
+    return this.clearVideoReaction(userId, videoId, VideoReactionType.DISLIKE);
+  }
+
+  private async setVideoReaction(
+    userId: string,
+    videoId: string,
+    reaction: VideoReactionType,
+  ) {
     const video = await this.videoRepository.findOne({ where: { id: videoId } });
     if (!video) throw new NotFoundException('Video not found');
 
     const existing = await this.likeRepository.findOne({ where: { userId, videoId } });
-    if (existing) throw new ConflictException('Already liked');
+    if (existing?.reaction === reaction) {
+      return reaction === VideoReactionType.LIKE
+        ? { liked: true, disliked: false }
+        : { liked: false, disliked: true };
+    }
 
-    const like = this.likeRepository.create({ userId, videoId });
-    await this.likeRepository.save(like);
-    await this.videoRepository.increment({ id: videoId }, 'likeCount', 1);
+    if (existing) {
+      const prev = existing.reaction;
+      existing.reaction = reaction;
+      await this.likeRepository.save(existing);
+      if (prev === VideoReactionType.LIKE) {
+        await this.videoRepository.decrement({ id: videoId }, 'likeCount', 1);
+      } else {
+        await this.videoRepository.decrement({ id: videoId }, 'dislikeCount', 1);
+      }
+      if (reaction === VideoReactionType.LIKE) {
+        await this.videoRepository.increment({ id: videoId }, 'likeCount', 1);
+        this.eventEmitter.emit('video.liked', {
+          videoId,
+          videoOwnerId: video.userId,
+          likerId: userId,
+        });
+      } else {
+        await this.videoRepository.increment({ id: videoId }, 'dislikeCount', 1);
+      }
+    } else {
+      const row = this.likeRepository.create({ userId, videoId, reaction });
+      await this.likeRepository.save(row);
+      if (reaction === VideoReactionType.LIKE) {
+        await this.videoRepository.increment({ id: videoId }, 'likeCount', 1);
+        this.eventEmitter.emit('video.liked', {
+          videoId,
+          videoOwnerId: video.userId,
+          likerId: userId,
+        });
+      } else {
+        await this.videoRepository.increment({ id: videoId }, 'dislikeCount', 1);
+      }
+    }
 
-    this.eventEmitter.emit('video.liked', {
-      videoId,
-      videoOwnerId: video.userId,
-      likerId: userId,
-    });
-
-    return { liked: true };
+    return reaction === VideoReactionType.LIKE
+      ? { liked: true, disliked: false }
+      : { liked: false, disliked: true };
   }
 
-  async unlikeVideo(userId: string, videoId: string) {
+  private async clearVideoReaction(
+    userId: string,
+    videoId: string,
+    expected?: VideoReactionType,
+  ) {
     const like = await this.likeRepository.findOne({ where: { userId, videoId } });
-    if (!like) throw new NotFoundException('Like not found');
+    if (!like) {
+      return { liked: false, disliked: false };
+    }
+    if (expected && like.reaction !== expected) {
+      return like.reaction === VideoReactionType.LIKE
+        ? { liked: true, disliked: false }
+        : { liked: false, disliked: true };
+    }
 
+    const prev = like.reaction;
     await this.likeRepository.remove(like);
-    await this.videoRepository.decrement({ id: videoId }, 'likeCount', 1);
-
-    return { liked: false };
+    if (prev === VideoReactionType.LIKE) {
+      await this.videoRepository.decrement({ id: videoId }, 'likeCount', 1);
+    } else {
+      await this.videoRepository.decrement({ id: videoId }, 'dislikeCount', 1);
+    }
+    return { liked: false, disliked: false };
   }
 
   async isLiked(userId: string, videoId: string): Promise<boolean> {
-    const like = await this.likeRepository.findOne({ where: { userId, videoId } });
+    const like = await this.likeRepository.findOne({
+      where: { userId, videoId, reaction: VideoReactionType.LIKE },
+    });
     return !!like;
+  }
+
+  async isDisliked(userId: string, videoId: string): Promise<boolean> {
+    const like = await this.likeRepository.findOne({
+      where: { userId, videoId, reaction: VideoReactionType.DISLIKE },
+    });
+    return !!like;
+  }
+
+  async getViewerVideoReaction(
+    userId: string,
+    videoId: string,
+  ): Promise<{ viewerLiked: boolean; viewerDisliked: boolean }> {
+    const row = await this.likeRepository.findOne({ where: { userId, videoId } });
+    return {
+      viewerLiked: row?.reaction === VideoReactionType.LIKE,
+      viewerDisliked: row?.reaction === VideoReactionType.DISLIKE,
+    };
+  }
+
+  /** Batch reactions for a feed page (one query). */
+  async getViewerVideoReactions(
+    userId: string,
+    videoIds: string[],
+  ): Promise<Map<string, { viewerLiked: boolean; viewerDisliked: boolean }>> {
+    const out = new Map<string, { viewerLiked: boolean; viewerDisliked: boolean }>();
+    for (const id of videoIds) {
+      out.set(id, { viewerLiked: false, viewerDisliked: false });
+    }
+    if (videoIds.length === 0) return out;
+
+    const rows = await this.likeRepository.find({
+      where: { userId, videoId: In(videoIds) },
+      select: ['videoId', 'reaction'],
+    });
+    for (const row of rows) {
+      out.set(row.videoId, {
+        viewerLiked: row.reaction === VideoReactionType.LIKE,
+        viewerDisliked: row.reaction === VideoReactionType.DISLIKE,
+      });
+    }
+    return out;
+  }
+
+  /** Batch follow checks for a set of channel IDs (one query). */
+  async getFollowingSet(followerId: string, followingIds: string[]): Promise<Set<string>> {
+    if (followingIds.length === 0) return new Set();
+    const rows = await this.followRepository.find({
+      where: { followerId, followingId: In(followingIds) },
+      select: ['followingId'],
+    });
+    return new Set(rows.map((r) => r.followingId));
   }
 
   private async assertCommentRateLimit(userId: string, videoId: string): Promise<void> {
@@ -128,26 +251,80 @@ export class EngagementService {
     throw new NotFoundException('Comment not found after create');
   }
 
-  async getComments(videoId: string, limit = 20, cursor?: string, viewerId?: string) {
+  async getComments(
+    videoId: string,
+    limit = 20,
+    cursor?: string,
+    viewerId?: string,
+    sort: 'newest' | 'top' | 'oldest' = 'newest',
+  ) {
     const query = this.commentRepository
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.user', 'user')
       .where('c.videoId = :videoId', { videoId })
       .andWhere('c.parentId IS NULL')
       .andWhere('c.deletedAt IS NULL')
-      .orderBy('c.createdAt', 'DESC')
       .take(limit + 1);
 
+    // Pinned comment stays at top of the first page only.
     if (cursor) {
-      const cursorDate = new Date(Buffer.from(cursor, 'base64').toString('utf-8'));
-      query.andWhere('c.createdAt < :cursor', { cursor: cursorDate });
+      query.andWhere('c.isPinned = false');
+    }
+
+    if (sort === 'top') {
+      query
+        .orderBy('c.isPinned', 'DESC')
+        .addOrderBy('c.likeCount', 'DESC')
+        .addOrderBy('c.createdAt', 'DESC');
+      if (cursor) {
+        try {
+          const parsed = JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8')) as {
+            likeCount?: number;
+            createdAt?: string;
+          };
+          const likeCount = Number(parsed.likeCount);
+          const createdAt = parsed.createdAt ? new Date(parsed.createdAt) : null;
+          if (Number.isFinite(likeCount) && createdAt && !Number.isNaN(createdAt.getTime())) {
+            query.andWhere(
+              '(c.likeCount < :likeCount OR (c.likeCount = :likeCount AND c.createdAt < :createdAt))',
+              { likeCount, createdAt },
+            );
+          }
+        } catch {
+          /* ignore bad cursor */
+        }
+      }
+    } else if (sort === 'oldest') {
+      query.orderBy('c.isPinned', 'DESC').addOrderBy('c.createdAt', 'ASC');
+      if (cursor) {
+        const cursorDate = new Date(Buffer.from(cursor, 'base64').toString('utf-8'));
+        if (!Number.isNaN(cursorDate.getTime())) {
+          query.andWhere('c.createdAt > :cursor', { cursor: cursorDate });
+        }
+      }
+    } else {
+      query.orderBy('c.isPinned', 'DESC').addOrderBy('c.createdAt', 'DESC');
+      if (cursor) {
+        const cursorDate = new Date(Buffer.from(cursor, 'base64').toString('utf-8'));
+        if (!Number.isNaN(cursorDate.getTime())) {
+          query.andWhere('c.createdAt < :cursor', { cursor: cursorDate });
+        }
+      }
     }
 
     const comments = await query.getMany();
     const hasMore = comments.length > limit;
     const data = hasMore ? comments.slice(0, limit) : comments;
-    const nextCursor = hasMore
-      ? Buffer.from(data[data.length - 1].createdAt.toISOString()).toString('base64')
+    const last = data[data.length - 1];
+    const nextCursor = hasMore && last
+      ? sort === 'top'
+        ? Buffer.from(
+            JSON.stringify({
+              likeCount: last.likeCount,
+              createdAt: last.createdAt.toISOString(),
+            }),
+          ).toString('base64')
+        : Buffer.from(last.createdAt.toISOString()).toString('base64')
       : null;
 
     const total = await this.commentRepository.count({
@@ -158,10 +335,56 @@ export class EngagementService {
       ? await this.getViewerLikedCommentIds(viewerId, data.map((c) => c.id))
       : new Set<string>();
 
+    const replyCounts = await this.getReplyCounts(data.map((c) => c.id));
+
     return {
-      data: data.map((c) => toPublicComment(c, { viewerLiked: likedIds.has(c.id) })),
-      meta: { cursor: nextCursor, hasMore, total },
+      data: data.map((c) =>
+        toPublicComment(c, {
+          viewerLiked: likedIds.has(c.id),
+          replyCount: replyCounts.get(c.id) ?? 0,
+        }),
+      ),
+      meta: { cursor: nextCursor, hasMore, total, sort },
     };
+  }
+
+  /** Single comment for deep links (`?lc=`). */
+  async getComment(videoId: string, commentId: string, viewerId?: string) {
+    const comment = await this.commentRepository.findOne({
+      where: { id: commentId, videoId, deletedAt: IsNull() },
+      relations: ['user'],
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
+
+    const likedIds = viewerId
+      ? await this.getViewerLikedCommentIds(viewerId, [comment.id])
+      : new Set<string>();
+    const replyCounts =
+      comment.parentId == null
+        ? await this.getReplyCounts([comment.id])
+        : new Map<string, number>();
+
+    return toPublicComment(comment, {
+      viewerLiked: likedIds.has(comment.id),
+      replyCount: replyCounts.get(comment.id) ?? 0,
+    });
+  }
+
+  private async getReplyCounts(parentIds: string[]): Promise<Map<string, number>> {
+    const map = new Map<string, number>();
+    if (!parentIds.length) return map;
+    const rows = await this.commentRepository
+      .createQueryBuilder('c')
+      .select('c.parent_id', 'parentId')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('c.parent_id IN (:...parentIds)', { parentIds })
+      .andWhere('c.deleted_at IS NULL')
+      .groupBy('c.parent_id')
+      .getRawMany<{ parentId: string; cnt: string }>();
+    for (const row of rows) {
+      map.set(row.parentId, Number.parseInt(row.cnt, 10) || 0);
+    }
+    return map;
   }
 
   async getCommentReplies(
@@ -284,6 +507,66 @@ export class EngagementService {
     return { liked: false };
   }
 
+  private async assertVideoOwner(actorId: string, videoId: string) {
+    const video = await this.videoRepository.findOne({
+      where: { id: videoId },
+      select: { id: true, userId: true },
+    });
+    if (!video) throw new NotFoundException('Video not found');
+    if (video.userId !== actorId) {
+      throw new ForbiddenException('Only the video owner can manage this');
+    }
+    return video;
+  }
+
+  /** YouTube-style: pin one top-level comment (or unpin). */
+  async setCommentPinned(
+    actorId: string,
+    videoId: string,
+    commentId: string,
+    isPinned: boolean,
+  ) {
+    await this.assertVideoOwner(actorId, videoId);
+    const comment = await this.commentRepository.findOne({
+      where: { id: commentId, videoId, deletedAt: IsNull() },
+      relations: ['user'],
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
+    if (comment.parentId) {
+      throw new BadRequestException('Only top-level comments can be pinned');
+    }
+
+    if (isPinned) {
+      await this.commentRepository.update(
+        { videoId, parentId: IsNull(), isPinned: true },
+        { isPinned: false },
+      );
+      comment.isPinned = true;
+    } else {
+      comment.isPinned = false;
+    }
+    const saved = await this.commentRepository.save(comment);
+    return toPublicComment(saved);
+  }
+
+  /** YouTube-style creator heart on a comment. */
+  async setCommentCreatorHeart(
+    actorId: string,
+    videoId: string,
+    commentId: string,
+    creatorHearted: boolean,
+  ) {
+    await this.assertVideoOwner(actorId, videoId);
+    const comment = await this.commentRepository.findOne({
+      where: { id: commentId, videoId, deletedAt: IsNull() },
+      relations: ['user'],
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
+    comment.creatorHearted = creatorHearted;
+    const saved = await this.commentRepository.save(comment);
+    return toPublicComment(saved);
+  }
+
   async follow(followerId: string, followingId: string) {
     if (followerId === followingId) throw new BadRequestException('Cannot follow yourself');
 
@@ -299,7 +582,7 @@ export class EngagementService {
 
     this.eventEmitter.emit('follow.created', { followerId, followingId });
 
-    return { following: true };
+    return { following: true, subscribed: true };
   }
 
   async unfollow(followerId: string, followingId: string) {
@@ -310,7 +593,78 @@ export class EngagementService {
     await this.userRepository.decrement({ id: followerId }, 'followingCount', 1);
     await this.userRepository.decrement({ id: followingId }, 'followerCount', 1);
 
-    return { following: false };
+    return { following: false, subscribed: false };
+  }
+
+  /** YouTube-facing alias for follow. */
+  async subscribe(subscriberId: string, channelId: string) {
+    return this.follow(subscriberId, channelId);
+  }
+
+  /** YouTube-facing alias for unfollow. */
+  async unsubscribe(subscriberId: string, channelId: string) {
+    return this.unfollow(subscriberId, channelId);
+  }
+
+  async getSubscription(subscriberId: string, channelId: string) {
+    const follow = await this.followRepository.findOne({
+      where: { followerId: subscriberId, followingId: channelId },
+    });
+    if (!follow) {
+      return { subscribed: false, notifyLevel: null as FollowNotifyLevel | null };
+    }
+    return { subscribed: true, notifyLevel: follow.notifyLevel ?? FollowNotifyLevel.ALL };
+  }
+
+  async setNotifyLevel(
+    subscriberId: string,
+    channelId: string,
+    notifyLevel: FollowNotifyLevel,
+  ) {
+    const follow = await this.followRepository.findOne({
+      where: { followerId: subscriberId, followingId: channelId },
+    });
+    if (!follow) throw new NotFoundException('Not subscribed to this channel');
+    follow.notifyLevel = notifyLevel;
+    await this.followRepository.save(follow);
+    return { subscribed: true, notifyLevel: follow.notifyLevel };
+  }
+
+  async listMutedChannels(userId: string) {
+    const ids = await getMutedChannelIds(this.redis, userId);
+    if (!ids.length) {
+      return [] as Array<{
+        id: string;
+        username: string;
+        displayName: string;
+        avatarUrl: string | null;
+      }>;
+    }
+    const users = await this.userRepository.find({
+      where: { id: In(ids) },
+      select: ['id', 'username', 'displayName', 'avatarUrl'],
+    });
+    const byId = new Map(users.map((u) => [u.id, u]));
+    return ids
+      .map((id) => {
+        const u = byId.get(id);
+        if (!u) return null;
+        return {
+          id: u.id,
+          username: u.username,
+          displayName: u.displayName,
+          avatarUrl: (u.avatarUrl ?? null) as string | null,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x != null);
+  }
+
+  async unmuteChannelRecommendations(userId: string, channelId: string) {
+    return unmuteChannel(this.redis, userId, channelId);
+  }
+
+  async isSubscribed(subscriberId: string, channelId: string): Promise<boolean> {
+    return this.isFollowing(subscriberId, channelId);
   }
 
   async isFollowing(followerId: string, followingId: string): Promise<boolean> {

@@ -2,7 +2,8 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { VideosController } from './videos.controller';
-import { VideosService, VIDEO_PROCESSING_QUEUE } from './videos.service';
+import { VideosService } from './videos.service';
+import { VIDEO_PROCESSING_QUEUE } from './video-processing.constants';
 import { MUX_VOD_INGEST_QUEUE } from './mux-vod.constants';
 import { MuxVodService } from './mux-vod.service';
 import { Video } from './entities/video.entity';
@@ -14,6 +15,7 @@ import { Playlist } from '../playlists/entities/playlist.entity';
 import { PlaylistVideo } from '../playlists/entities/playlist-video.entity';
 import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { ViewCountFlushService } from './view-count-flush.service';
 import { VideoMultipartService } from './video-multipart.service';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
@@ -25,6 +27,9 @@ import { PodcastsController } from './podcasts.controller';
 import { RecommendationsService } from './recommendations.service';
 import { ContentLibraryService } from './content-library.service';
 import { FeedModule } from '../feed/feed.module';
+import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
+
+const skillEconomyLms = isSkillEconomyLmsEnabled();
 
 @Module({
   imports: [
@@ -66,17 +71,24 @@ import { FeedModule } from '../feed/feed.module';
       },
     }),
   ],
-  controllers: [VideosController, PodcastsController],
+  controllers: [VideosController, ...(skillEconomyLms ? [PodcastsController] : [])],
   providers: [
     VideosService,
     MuxVodService,
     CreatorApprovedGuard,
+    SkillEconomyLmsGuard,
     ViewCountFlushService,
     VideoMultipartService,
-    PodcastsService,
+    ...(skillEconomyLms ? [PodcastsService] : []),
     RecommendationsService,
     ContentLibraryService,
   ],
-  exports: [VideosService, MuxVodService, PodcastsService, RecommendationsService, ContentLibraryService],
+  exports: [
+    VideosService,
+    MuxVodService,
+    ...(skillEconomyLms ? [PodcastsService] : []),
+    RecommendationsService,
+    ContentLibraryService,
+  ],
 })
 export class ContentModule {}

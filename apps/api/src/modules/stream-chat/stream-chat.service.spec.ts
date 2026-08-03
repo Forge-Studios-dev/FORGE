@@ -284,7 +284,7 @@ describe('StreamChatService', () => {
 
     entitlementsService.assertAccessAsync
       .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new ForbiddenException('Follow this creator to access this content'));
+      .mockRejectedValueOnce(new ForbiddenException('Subscribe to this channel to access this content'));
 
     await expect(
       service.sendMessage('s1', 'viewer-1', { body: 'hello' }),

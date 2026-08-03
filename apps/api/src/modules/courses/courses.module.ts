@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { DynamicModule, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Course, CourseBundleItem, CourseCohort } from './entities/course.entity';
 import { Community } from '../communities/entities/community.entity';
@@ -24,31 +24,48 @@ import { UsersModule } from '../users/users.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { AccessSessionsModule } from '../access-sessions/access-sessions.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
+import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 
-@Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Course,
-      CourseCohort,
-      CourseBundleItem,
-      CourseLesson,
-      CourseEnrollment,
-      CourseLessonProgress,
-      CourseCertificate,
-      CourseQuiz,
-      CourseQuizAttempt,
-      CourseAssignment,
-      CourseAssignmentSubmission,
-      Community,
-      User,
-      Video,
-    ]),
-    UsersModule,
-    EntitlementsModule,
-    AccessSessionsModule,
-  ],
-  controllers: [CoursesController, CreatorProgramsController],
-  providers: [CoursesService, CreatorProgramsService, CreatorApprovedGuard],
-  exports: [CoursesService, CreatorProgramsService],
-})
-export class CoursesModule {}
+/**
+ * Courses / programs LMS. Controllers only register when
+ * FEATURES_SKILL_ECONOMY_LMS=true (YouTube mode leaves this empty).
+ */
+@Module({})
+export class CoursesModule {
+  static register(): DynamicModule {
+    if (!isSkillEconomyLmsEnabled()) {
+      return {
+        module: CoursesModule,
+      };
+    }
+
+    return {
+      module: CoursesModule,
+      imports: [
+        TypeOrmModule.forFeature([
+          Course,
+          CourseCohort,
+          CourseBundleItem,
+          CourseLesson,
+          CourseEnrollment,
+          CourseLessonProgress,
+          CourseCertificate,
+          CourseQuiz,
+          CourseQuizAttempt,
+          CourseAssignment,
+          CourseAssignmentSubmission,
+          Community,
+          User,
+          Video,
+        ]),
+        UsersModule,
+        EntitlementsModule,
+        AccessSessionsModule,
+      ],
+      controllers: [CoursesController, CreatorProgramsController],
+      providers: [CoursesService, CreatorProgramsService, CreatorApprovedGuard, SkillEconomyLmsGuard],
+      exports: [CoursesService, CreatorProgramsService],
+    };
+  }
+}

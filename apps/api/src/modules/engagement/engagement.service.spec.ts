@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -27,6 +28,7 @@ describe('EngagementService', () => {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
       take: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([]),
     })),
@@ -58,5 +60,190 @@ describe('EngagementService', () => {
     expect(result.data).toEqual([]);
     expect(result.meta.hasMore).toBe(false);
     expect(result.meta.total).toBe(0);
+    expect(result.meta.sort).toBe('newest');
+  });
+
+  it('orders top comments by pin then likeCount', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    commentRepo.createQueryBuilder.mockReturnValue(qb);
+    commentRepo.count.mockResolvedValue(0);
+    await service.getComments('video-1', 20, undefined, undefined, 'top');
+    expect(qb.orderBy).toHaveBeenCalledWith('c.isPinned', 'DESC');
+    expect(qb.addOrderBy).toHaveBeenCalledWith('c.likeCount', 'DESC');
+    expect(qb.addOrderBy).toHaveBeenCalledWith('c.createdAt', 'DESC');
+  });
+
+  it('orders oldest comments by createdAt ascending', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    commentRepo.createQueryBuilder.mockReturnValue(qb);
+    commentRepo.count.mockResolvedValue(0);
+    const result = await service.getComments('video-1', 20, undefined, undefined, 'oldest');
+    expect(qb.addOrderBy).toHaveBeenCalledWith('c.createdAt', 'ASC');
+    expect(result.meta.sort).toBe('oldest');
+  });
+
+  it('pins a top-level comment as video owner', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const videoRepo = (service as any).videoRepository;
+    videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'owner' });
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      videoId: 'v1',
+      parentId: null,
+      isPinned: false,
+      creatorHearted: false,
+      likeCount: 0,
+      userId: 'u1',
+      content: 'hi',
+      createdAt: new Date(),
+      user: {
+        id: 'u1',
+        email: 'a@b.c',
+        username: 'u1',
+        displayName: 'U',
+        role: 'user',
+        isVerified: true,
+        creatorStatus: null,
+        followerCount: 0,
+        followingCount: 0,
+        videoCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    commentRepo.update.mockResolvedValue({ affected: 0 });
+    commentRepo.save.mockImplementation(async (row: unknown) => row);
+
+    const result = await service.setCommentPinned('owner', 'v1', 'c1', true);
+    expect(result.isPinned).toBe(true);
+    expect(commentRepo.update).toHaveBeenCalled();
+  });
+
+  it('forbids pinning when not the video owner', async () => {
+    const videoRepo = (service as any).videoRepository;
+    videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'owner' });
+    await expect(service.setCommentPinned('other', 'v1', 'c1', true)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('likes a video and clears a prior dislike', async () => {
+    const likeRepo = (service as any).likeRepository;
+    const videoRepo = (service as any).videoRepository;
+    videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'owner' });
+    likeRepo.findOne.mockResolvedValue({
+      id: 'r1',
+      userId: 'u1',
+      videoId: 'v1',
+      reaction: 'dislike',
+    });
+    likeRepo.save.mockImplementation(async (row: unknown) => row);
+
+    const result = await service.likeVideo('u1', 'v1');
+    expect(result).toEqual({ liked: true, disliked: false });
+    expect(videoRepo.decrement).toHaveBeenCalledWith({ id: 'v1' }, 'dislikeCount', 1);
+    expect(videoRepo.increment).toHaveBeenCalledWith({ id: 'v1' }, 'likeCount', 1);
+  });
+
+  it('dislikes a video and clears a prior like', async () => {
+    const likeRepo = (service as any).likeRepository;
+    const videoRepo = (service as any).videoRepository;
+    videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'owner' });
+    likeRepo.findOne.mockResolvedValue({
+      id: 'r1',
+      userId: 'u1',
+      videoId: 'v1',
+      reaction: 'like',
+    });
+    likeRepo.save.mockImplementation(async (row: unknown) => row);
+
+    const result = await service.dislikeVideo('u1', 'v1');
+    expect(result).toEqual({ liked: false, disliked: true });
+    expect(videoRepo.decrement).toHaveBeenCalledWith({ id: 'v1' }, 'likeCount', 1);
+    expect(videoRepo.increment).toHaveBeenCalledWith({ id: 'v1' }, 'dislikeCount', 1);
+  });
+
+  it('subscribe aliases follow', async () => {
+    const followRepo = (service as any).followRepository;
+    const userRepo = (service as any).userRepository;
+    userRepo.findOne.mockResolvedValue({ id: 'channel' });
+    followRepo.findOne.mockResolvedValue(null);
+    followRepo.create.mockImplementation((row: unknown) => row);
+    followRepo.save.mockResolvedValue({});
+
+    const result = await service.subscribe('viewer', 'channel');
+    expect(result).toEqual({ following: true, subscribed: true });
+    expect(userRepo.increment).toHaveBeenCalled();
+  });
+
+  it('batches viewer video reactions in one find', async () => {
+    const likeRepo = (service as any).likeRepository;
+    likeRepo.find.mockResolvedValue([
+      { videoId: 'v1', reaction: 'like' },
+      { videoId: 'v2', reaction: 'dislike' },
+    ]);
+
+    const map = await service.getViewerVideoReactions('u1', ['v1', 'v2', 'v3']);
+    expect(map.get('v1')).toEqual({ viewerLiked: true, viewerDisliked: false });
+    expect(map.get('v2')).toEqual({ viewerLiked: false, viewerDisliked: true });
+    expect(map.get('v3')).toEqual({ viewerLiked: false, viewerDisliked: false });
+    expect(likeRepo.find).toHaveBeenCalledTimes(1);
+  });
+
+  it('batches following set in one find', async () => {
+    const followRepo = (service as any).followRepository;
+    followRepo.find.mockResolvedValue([{ followingId: 'c1' }, { followingId: 'c3' }]);
+
+    const set = await service.getFollowingSet('u1', ['c1', 'c2', 'c3']);
+    expect(set.has('c1')).toBe(true);
+    expect(set.has('c2')).toBe(false);
+    expect(set.has('c3')).toBe(true);
+    expect(followRepo.find).toHaveBeenCalledTimes(1);
+  });
+
+  it('getComment returns mapped public comment', async () => {
+    const commentRepo = (service as any).commentRepository;
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      videoId: 'v1',
+      userId: 'u1',
+      content: 'hello',
+      parentId: null,
+      likeCount: 2,
+      isPinned: false,
+      creatorHearted: false,
+      createdAt: new Date('2026-01-01'),
+      user: { id: 'u1', username: 'alice', displayName: 'Alice' },
+    });
+    commentRepo.createQueryBuilder = jest.fn(() => ({
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([{ parentId: 'c1', cnt: '3' }]),
+    }));
+
+    const result = await service.getComment('v1', 'c1', 'viewer');
+    expect(result.id).toBe('c1');
+    expect(result.replyCount).toBe(3);
   });
 });

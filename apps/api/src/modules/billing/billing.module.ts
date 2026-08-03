@@ -9,6 +9,8 @@ import { BillingController } from './billing.controller';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 import { Stream } from '../streaming/entities/stream.entity';
+import { Video } from '../content/entities/video.entity';
+import { SuperThanks } from './entities/super-thanks.entity';
 
 const billingProviderLogger = new Logger('BillingProvider');
 
@@ -80,7 +82,7 @@ import { User } from '../users/entities/user.entity';
     forwardRef(() => StreamingModule),
     UsersModule,
     StripeTierSyncModule,
-    TypeOrmModule.forFeature([StreamEventPurchase, Stream, User]),
+    TypeOrmModule.forFeature([StreamEventPurchase, Stream, User, Video, SuperThanks]),
   ],
   controllers: [BillingController],
   providers: [

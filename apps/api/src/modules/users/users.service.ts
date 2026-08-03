@@ -15,13 +15,16 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 import { CreatorStatus, User, UserRole } from './entities/user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.entity';
+import { Video, VideoStatus, VideoType, VideoVisibility } from '../content/entities/video.entity';
 import { VideosService } from '../content/videos.service';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { ModerationStatus } from '../content/entities/video.entity';
 import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
 
 const INTERESTS_TTL_SEC = 60 * 60 * 24 * 365;
+
+export type UserVideosTypeFilter = 'video' | 'short' | 'all';
+export type UserVideosSort = 'newest' | 'oldest' | 'popular';
 
 @Injectable()
 export class UsersService {
@@ -101,13 +104,48 @@ export class UsersService {
   async update(requesterId: string, targetId: string, dto: UpdateUserDto): Promise<User> {
     if (requesterId !== targetId) throw new ForbiddenException('Cannot update another user\'s profile');
     const user = await this.findById(targetId);
-    Object.assign(user, dto);
+    if (dto.displayName !== undefined) user.displayName = dto.displayName;
+    if (dto.bio !== undefined) user.bio = dto.bio;
+    if (dto.websiteUrl !== undefined) {
+      user.websiteUrl = dto.websiteUrl?.trim() ? dto.websiteUrl.trim() : null;
+    }
+    if (dto.channelLinks !== undefined) {
+      if (dto.channelLinks === null) {
+        user.channelLinks = null;
+      } else {
+        user.channelLinks = dto.channelLinks
+          .map((l) => ({
+            title: l.title.trim().slice(0, 60),
+            url: l.url.trim().slice(0, 500),
+          }))
+          .filter((l) => l.title && l.url)
+          .slice(0, 5);
+        if (user.channelLinks.length === 0) user.channelLinks = null;
+      }
+    }
     return this.userRepository.save(user);
   }
 
   async getAvatarUploadUrl(requesterId: string, contentType: string, targetUserId: string) {
+    return this.getImageUploadUrl(requesterId, contentType, targetUserId, 'avatar');
+  }
+
+  async getBannerUploadUrl(requesterId: string, contentType: string, targetUserId: string) {
+    return this.getImageUploadUrl(requesterId, contentType, targetUserId, 'banner');
+  }
+
+  private async getImageUploadUrl(
+    requesterId: string,
+    contentType: string,
+    targetUserId: string,
+    kind: 'avatar' | 'banner',
+  ) {
     if (requesterId !== targetUserId) {
-      throw new ForbiddenException('Cannot upload avatar for another user');
+      throw new ForbiddenException(
+        kind === 'avatar'
+          ? 'Cannot upload avatar for another user'
+          : 'Cannot upload banner for another user',
+      );
     }
     const allowed = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowed.includes(contentType)) {
@@ -115,7 +153,8 @@ export class UsersService {
     }
 
     const ext = contentType.split('/')[1];
-    const key = `avatars/${requesterId}/${uuidv4()}.${ext}`;
+    const folder = kind === 'avatar' ? 'avatars' : 'banners';
+    const key = `${folder}/${requesterId}/${uuidv4()}.${ext}`;
 
     const command = new PutObjectCommand({
       Bucket: this.bucket,
@@ -125,14 +164,27 @@ export class UsersService {
 
     const url = await getSignedUrl(this.s3, command, { expiresIn: 300 });
     const cdnDomain = this.configService.get<string>('aws.cloudfrontDomain');
-    const publicUrl = cdnDomain ? `${cdnDomain}/${key}` : `https://${this.bucket}.s3.amazonaws.com/${key}`;
+    const publicUrl = cdnDomain
+      ? `${cdnDomain}/${key}`
+      : `https://${this.bucket}.s3.amazonaws.com/${key}`;
 
-    await this.userRepository.update(requesterId, { avatarUrl: publicUrl });
+    if (kind === 'avatar') {
+      await this.userRepository.update(requesterId, { avatarUrl: publicUrl });
+    } else {
+      await this.userRepository.update(requesterId, { bannerUrl: publicUrl });
+    }
 
     return { uploadUrl: url, publicUrl, key };
   }
 
-  async getUserVideos(userId: string, limit = 20, cursor?: string, viewerId?: string) {
+  async getUserVideos(
+    userId: string,
+    limit = 20,
+    cursor?: string,
+    viewerId?: string,
+    videoType: UserVideosTypeFilter = 'all',
+    sort: UserVideosSort = 'newest',
+  ) {
     const isOwner = viewerId === userId;
     const query = this.videoRepository
       .createQueryBuilder('v')
@@ -140,8 +192,21 @@ export class UsersService {
       .leftJoinAndSelect('v.skillTags', 'skillTags')
       .where('v.user_id = :userId', { userId })
       .andWhere('v.status = :status', { status: 'ready' })
-      .orderBy('v.created_at', 'DESC')
       .take(limit + 1);
+
+    if (sort === 'popular') {
+      query.orderBy('v.view_count', 'DESC').addOrderBy('v.created_at', 'DESC');
+    } else if (sort === 'oldest') {
+      query.orderBy('v.created_at', 'ASC');
+    } else {
+      query.orderBy('v.created_at', 'DESC');
+    }
+
+    if (videoType === 'short') {
+      query.andWhere('v.video_type = :vtype', { vtype: VideoType.SHORT });
+    } else if (videoType === 'video') {
+      query.andWhere('v.video_type = :vtype', { vtype: VideoType.VIDEO });
+    }
 
     if (!isOwner) {
       // Public profile listing must honour the platform discovery contract
@@ -158,20 +223,26 @@ export class UsersService {
         .andWhere('(v.published_at IS NULL OR v.published_at <= CURRENT_TIMESTAMP)');
     }
 
-    if (cursor) {
+    if (cursor && sort !== 'popular') {
       const cursorDate = new Date(Buffer.from(cursor, 'base64').toString('utf-8'));
-      query.andWhere('v.created_at < :cursor', { cursor: cursorDate });
+      if (sort === 'oldest') {
+        query.andWhere('v.created_at > :cursor', { cursor: cursorDate });
+      } else {
+        query.andWhere('v.created_at < :cursor', { cursor: cursorDate });
+      }
     }
 
     const videos = await query.getMany();
     const hasMore = videos.length > limit;
     const data = hasMore ? videos.slice(0, limit) : videos;
     const nextCursor =
-      hasMore ? Buffer.from(data[data.length - 1].createdAt.toISOString()).toString('base64') : null;
+      hasMore && sort !== 'popular'
+        ? Buffer.from(data[data.length - 1].createdAt.toISOString()).toString('base64')
+        : null;
 
     return {
       data: data.map((v) => this.videosService.mapToPublicVideo(v)),
-      meta: { cursor: nextCursor, hasMore },
+      meta: { cursor: nextCursor, hasMore: sort === 'popular' ? false : hasMore },
     };
   }
 
@@ -194,7 +265,10 @@ export class UsersService {
     const rows = await qb.getMany();
     const ready = rows.filter((r) => r.video && r.video.status === VideoStatus.READY);
     if (incompleteOnly) {
-      const videos = ready.map((r) => this.videosService.mapToPublicVideo(r.video as Video));
+      const videos = ready.map((r) => ({
+        ...this.videosService.mapToPublicVideo(r.video as Video),
+        viewerProgressSeconds: r.progressSeconds,
+      }));
       return { data: videos, meta: { limit: take, incompleteOnly } };
     }
     const data = ready.map((r) => ({
@@ -203,6 +277,44 @@ export class UsersService {
       watchedAt: r.watchedAt,
     }));
     return { data, meta: { limit: take, incompleteOnly } };
+  }
+
+  async clearWatchHistory(userId: string): Promise<{ ok: true; deleted: number }> {
+    const result = await this.watchHistoryRepository.delete({ userId });
+    return { ok: true, deleted: result.affected ?? 0 };
+  }
+
+  async removeWatchHistoryItem(
+    userId: string,
+    videoId: string,
+  ): Promise<{ ok: true; deleted: number }> {
+    const result = await this.watchHistoryRepository.delete({ userId, videoId });
+    return { ok: true, deleted: result.affected ?? 0 };
+  }
+
+  async getPrivacySettings(userId: string): Promise<{ watchHistoryPaused: boolean }> {
+    const user = await this.findById(userId);
+    return { watchHistoryPaused: !!user.watchHistoryPaused };
+  }
+
+  async setPrivacySettings(
+    userId: string,
+    patch: { watchHistoryPaused?: boolean },
+  ): Promise<{ watchHistoryPaused: boolean }> {
+    const user = await this.findById(userId);
+    if (typeof patch.watchHistoryPaused === 'boolean') {
+      user.watchHistoryPaused = patch.watchHistoryPaused;
+      await this.userRepository.save(user);
+    }
+    return { watchHistoryPaused: !!user.watchHistoryPaused };
+  }
+
+  async isWatchHistoryPaused(userId: string): Promise<boolean> {
+    const row = await this.userRepository.findOne({
+      where: { id: userId },
+      select: { id: true, watchHistoryPaused: true },
+    });
+    return !!row?.watchHistoryPaused;
   }
 
   async requestCreator(userId: string, applicationNote?: string): Promise<User> {

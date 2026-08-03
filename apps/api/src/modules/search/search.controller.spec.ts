@@ -27,9 +27,44 @@ describe('SearchController', () => {
     }
   });
 
-  it('delegates search to service with clamped limit', async () => {
+  it('delegates search to service with clamped limit and default filters', async () => {
     await controller.search('forge', 100);
-    expect(searchService.search).toHaveBeenCalledWith('forge', 50);
+    expect(searchService.search).toHaveBeenCalledWith(
+      'forge',
+      50,
+      'all',
+      {
+        duration: 'any',
+        uploaded: 'any',
+        sort: 'relevance',
+        captions: 'any',
+        kind: 'any',
+        watched: 'any',
+      },
+      undefined,
+    );
+  });
+
+  it('passes type and watched filters plus viewer id', async () => {
+    await controller.search(
+      'forge',
+      20,
+      'channel',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'watched',
+      { sub: 'user-1' } as never,
+    );
+    expect(searchService.search).toHaveBeenCalledWith(
+      'forge',
+      20,
+      'channel',
+      expect.objectContaining({ watched: 'watched' }),
+      'user-1',
+    );
   });
 
   it('delegates suggestions with default clamp bounds', async () => {

@@ -54,6 +54,14 @@ export class User {
   @Column({ nullable: true, length: 500 })
   bio: string;
 
+  /** Primary website shown on the channel About tab. */
+  @Column({ name: 'website_url', type: 'varchar', length: 500, nullable: true })
+  websiteUrl: string | null;
+
+  /** Extra channel links: [{ title, url }] (max 5). */
+  @Column({ name: 'channel_links', type: 'jsonb', nullable: true })
+  channelLinks: { title: string; url: string }[] | null;
+
   @Column({ name: 'avatar_url', nullable: true })
   avatarUrl: string;
 
@@ -114,6 +122,10 @@ export class User {
 
   @Column({ name: 'mature_content_acknowledged_at', type: 'timestamptz', nullable: true })
   matureContentAcknowledgedAt: Date | null;
+
+  /** When true, VOD watch progress is not written to watch_history (views still count). */
+  @Column({ name: 'watch_history_paused', default: false })
+  watchHistoryPaused: boolean;
 
   @Column({ name: 'stripe_connect_account_id', type: 'varchar', length: 255, nullable: true })
   stripeConnectAccountId: string | null;

@@ -46,9 +46,11 @@ export class FeedController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('feed/following')
   @ApiOperation({ summary: 'Feed from followed and subscribed creators' })
+  @ApiQuery({ name: 'channelId', required: false, description: 'Filter to one subscribed channel' })
   getFollowingFeed(
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: number,
+    @Query('channelId') channelId?: string,
     @CurrentUser() user?: JwtPayload,
   ) {
     if (!user?.sub) {
@@ -58,6 +60,7 @@ export class FeedController {
       userId: user.sub,
       cursor,
       limit,
+      channelId: channelId?.trim() || undefined,
     });
   }
 

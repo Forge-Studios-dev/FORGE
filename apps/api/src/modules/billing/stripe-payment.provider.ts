@@ -6,6 +6,7 @@ import {
   CheckoutSessionResult,
   EventCheckoutSessionInput,
   SuperChatCheckoutInput,
+  SuperThanksCheckoutInput,
   PaymentProvider,
   ProviderWebhookResult,
   UpdateSubscriptionTierInput,
@@ -193,6 +194,55 @@ export class StripePaymentProvider implements PaymentProvider {
     };
   }
 
+  async createSuperThanksCheckoutSession(input: SuperThanksCheckoutInput): Promise<CheckoutSessionResult> {
+    const stripe = this.client();
+    const currency = (input.currency ?? 'usd').toLowerCase();
+    const feePercent = input.platformFeePercent ?? 0;
+    const applicationFeeAmount =
+      input.connectAccountId && feePercent > 0
+        ? Math.round((input.amountCents * feePercent) / 100)
+        : 0;
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      line_items: [
+        {
+          price_data: {
+            currency,
+            product_data: { name: 'Super Thanks' },
+            unit_amount: input.amountCents,
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        userId: input.userId,
+        videoId: input.videoId,
+        creatorId: input.creatorId,
+        type: 'super_thanks',
+        messageBody: input.body.slice(0, 200),
+        platformFeePercent: String(feePercent),
+        platformFeeCents: String(applicationFeeAmount),
+      },
+      ...(input.connectAccountId
+        ? {
+            payment_intent_data: {
+              transfer_data: { destination: input.connectAccountId },
+              ...(applicationFeeAmount > 0
+                ? { application_fee_amount: applicationFeeAmount }
+                : {}),
+            },
+          }
+        : {}),
+    });
+    return {
+      provider: this.name,
+      sessionId: session.id,
+      checkoutUrl: session.url,
+    };
+  }
+
   async cancelSubscription(externalSubscriptionId: string, cancelAtPeriodEnd = false): Promise<void> {
     const stripe = this.client();
     if (cancelAtPeriodEnd) {
@@ -272,6 +322,24 @@ export class StripePaymentProvider implements PaymentProvider {
           amountCents: session.amount_total ?? undefined,
           currency: session.currency ?? 'usd',
           superChatBody: meta.messageBody,
+          paymentIntentId:
+            typeof session.payment_intent === 'string'
+              ? session.payment_intent
+              : session.payment_intent?.id,
+        };
+      }
+      if (meta.type === 'super_thanks' && meta.userId && meta.videoId && meta.creatorId) {
+        return {
+          handled: true,
+          checkoutType: 'super_thanks',
+          status: 'completed',
+          sessionId: session.id,
+          userId: meta.userId,
+          videoId: meta.videoId,
+          creatorId: meta.creatorId,
+          amountCents: session.amount_total ?? undefined,
+          currency: session.currency ?? 'usd',
+          superChatBody: meta.messageBody || '',
           paymentIntentId:
             typeof session.payment_intent === 'string'
               ? session.payment_intent

@@ -136,6 +136,14 @@ export class Video {
   @Column({ name: 'thumbnail_url', type: 'varchar', nullable: true })
   thumbnailUrl: string | null;
 
+  /** WebVTT captions URL (Mux text track or CDN). Prefer captionTracks for multi-lang. */
+  @Column({ name: 'caption_url', type: 'varchar', nullable: true })
+  captionUrl: string | null;
+
+  /** Multi-language WebVTT tracks: [{ language, label, url }]. */
+  @Column({ name: 'caption_tracks', type: 'jsonb', nullable: true })
+  captionTracks: { language: string; label: string; url: string }[] | null;
+
   @Column({ name: 'duration_seconds', nullable: true, type: 'float' })
   durationSeconds: number | null;
 
@@ -150,6 +158,9 @@ export class Video {
 
   @Column({ name: 'like_count', default: 0 })
   likeCount: number;
+
+  @Column({ name: 'dislike_count', default: 0 })
+  dislikeCount: number;
 
   @Column({ name: 'comment_count', default: 0 })
   commentCount: number;

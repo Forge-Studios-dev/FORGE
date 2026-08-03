@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,6 +8,7 @@ import { PlaylistsService } from './playlists.service';
 import { Playlist, PlaylistVisibility } from './entities/playlist.entity';
 import { PlaylistVideo } from './entities/playlist-video.entity';
 import { Video } from '../content/entities/video.entity';
+import { Like } from '../engagement/entities/like.entity';
 
 describe('PlaylistsService', () => {
   let service: PlaylistsService;
@@ -17,6 +17,7 @@ describe('PlaylistsService', () => {
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
     getMany: jest.fn(),
   };
 
@@ -31,8 +32,17 @@ describe('PlaylistsService', () => {
     save: jest.fn(async (dto: Partial<PlaylistVideo>) => ({ id: 'pv-1', ...dto })),
     findOne: jest.fn(),
     delete: jest.fn(),
+    createQueryBuilder: jest.fn(() => ({
+      innerJoin: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([{ playlistId: 'pl-1' }]),
+      getRawOne: jest.fn().mockResolvedValue({ max: '-1' }),
+    })),
   };
   const videoRepository = { findOne: jest.fn() };
+  const likeRepository = { find: jest.fn().mockResolvedValue([]) };
 
   const ownerId = 'user-1';
   const otherId = 'user-2';
@@ -45,6 +55,7 @@ describe('PlaylistsService', () => {
         { provide: getRepositoryToken(Playlist), useValue: playlistRepository },
         { provide: getRepositoryToken(PlaylistVideo), useValue: playlistVideoRepository },
         { provide: getRepositoryToken(Video), useValue: videoRepository },
+        { provide: getRepositoryToken(Like), useValue: likeRepository },
       ],
     }).compile();
     service = module.get(PlaylistsService);
@@ -57,6 +68,8 @@ describe('PlaylistsService', () => {
         userId: ownerId,
         title: 'My list',
         visibility: PlaylistVisibility.PUBLIC,
+        description: null,
+        systemType: null,
       });
       expect(result.id).toBe('pl-1');
     });
@@ -146,13 +159,13 @@ describe('PlaylistsService', () => {
       );
     });
 
-    it('rejects duplicate videos in a playlist', async () => {
+    it('returns existing row when video is already in the playlist', async () => {
       playlistRepository.findOne.mockResolvedValue({ id: 'pl-1', userId: ownerId });
       videoRepository.findOne.mockResolvedValue({ id: 'v-1' });
       playlistVideoRepository.findOne.mockResolvedValue({ id: 'pv-existing' });
-      await expect(service.addVideo(ownerId, 'pl-1', 'v-1')).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      const result = await service.addVideo(ownerId, 'pl-1', 'v-1');
+      expect(result).toEqual({ id: 'pv-existing' });
+      expect(playlistVideoRepository.create).not.toHaveBeenCalled();
     });
 
     it('adds a new video to the playlist', async () => {
@@ -163,6 +176,7 @@ describe('PlaylistsService', () => {
       expect(playlistVideoRepository.create).toHaveBeenCalledWith({
         playlistId: 'pl-1',
         videoId: 'v-1',
+        position: 0,
       });
       expect(result.id).toBe('pv-1');
     });
@@ -192,6 +206,14 @@ describe('PlaylistsService', () => {
         videoId: 'v-1',
       });
       expect(result).toEqual({ ok: true });
+    });
+  });
+
+  describe('listPlaylistIdsContainingVideo', () => {
+    it('returns playlist ids that contain the video', async () => {
+      playlistRepository.findOne.mockResolvedValue({ id: 'wl-1' });
+      const result = await service.listPlaylistIdsContainingVideo(ownerId, 'v-1');
+      expect(result.playlistIds).toEqual(['pl-1']);
     });
   });
 });

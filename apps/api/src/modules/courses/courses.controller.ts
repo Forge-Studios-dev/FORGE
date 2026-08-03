@@ -4,6 +4,7 @@ import { CoursesService } from './courses.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CreateCohortDto, UpdateCohortDto } from './dto/cohort.dto';
@@ -11,6 +12,7 @@ import { LessonType } from './entities/course-lms.entity';
 
 @ApiTags('Courses')
 @Controller()
+@UseGuards(SkillEconomyLmsGuard)
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 

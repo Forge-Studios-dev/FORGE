@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { getQueueToken } from '@nestjs/bullmq';
 import { HealthController } from './health.controller';
-import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
+import { VIDEO_PROCESSING_QUEUE } from './modules/content/video-processing.constants';
 import { MUX_VOD_INGEST_QUEUE } from './modules/content/mux-vod.constants';
 
 const mockVideoQueue = {

@@ -25,6 +25,7 @@ import { CreateVideoDto } from './dto/create-video.dto';
 import { PresignedUrlDto } from './dto/presigned-url.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { ThumbnailPresignedDto } from './dto/thumbnail-presigned.dto';
+import { CaptionPresignedDto, SetCaptionUrlDto } from './dto/caption.dto';
 import { RecordWatchDto } from './dto/record-watch.dto';
 import { RecordViewDto } from './dto/record-view.dto';
 import { Request } from 'express';
@@ -60,10 +61,19 @@ export class VideosController {
   ) {}
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('shorts')
   @ApiOperation({ summary: 'Paginated public Shorts feed (≤60s, published, public)' })
-  listShorts(@Query('cursor') cursor?: string, @Query('limit') limit?: string) {
-    return this.videosService.listShorts({ cursor, limit: limit ? parseInt(limit, 10) : undefined });
+  listShorts(
+    @CurrentUser() user: JwtPayload | undefined,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.videosService.listShorts({
+      cursor,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      viewerId: user?.sub,
+    });
   }
 
   @Get('studio')
@@ -295,6 +305,41 @@ export class VideosController {
     return this.videosService.getThumbnailPresignedUrl(user.sub, id, dto.contentType);
   }
 
+  @Post(':id/caption/presigned-url')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Presigned S3 URL for WebVTT caption upload' })
+  getCaptionPresigned(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CaptionPresignedDto,
+  ) {
+    return this.videosService.getCaptionPresignedUrl(
+      user.sub,
+      id,
+      dto.contentType,
+      dto.language ?? 'en',
+    );
+  }
+
+  @Put(':id/caption')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @ApiOperation({ summary: 'Set or clear a language caption (WebVTT) URL' })
+  setCaption(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: SetCaptionUrlDto,
+  ) {
+    return this.videosService.setCaptionUrl(
+      user.sub,
+      id,
+      dto.captionUrl,
+      dto.language ?? 'en',
+    );
+  }
+
   @Get(':id/multipart/progress')
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.UPLOAD_VIDEO)
@@ -401,12 +446,42 @@ export class VideosController {
     return this.videosService.recordWatch(user.sub, id, dto);
   }
 
+  @Post(':id/not-interested')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Hide a video from personalized / signed-in feeds (Not interested)' })
+  markNotInterested(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.feedService.markNotInterested(user.sub, id);
+  }
+
+  @Post(':id/dont-recommend-channel')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Don’t recommend this video’s channel in feeds (YouTube-style)',
+  })
+  dontRecommendChannel(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.feedService.muteChannelFromVideo(user.sub, id);
+  }
+
   @Patch(':id')
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.UPLOAD_VIDEO)
   @ApiOperation({ summary: 'Update own video (title, visibility, schedule)' })
   patchVideo(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() dto: UpdateVideoDto) {
     return this.videosService.updateVideo(user.sub, id, dto);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get(':id/captions')
+  @ApiOperation({ summary: 'Fetch caption WebVTT text (server proxy for transcript UI)' })
+  getCaptions(
+    @Param('id') id: string,
+    @Query('language') language: string | undefined,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.videosService.getCaptionTrackText(id, language, user?.sub, user?.role);
   }
 
   @Public()

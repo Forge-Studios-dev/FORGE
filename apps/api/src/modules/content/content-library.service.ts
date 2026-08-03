@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 
 export type ContentType = 'video' | 'short' | 'podcast' | 'course' | 'live';
 
@@ -16,6 +17,9 @@ export interface ContentLibraryItem {
   publishedAt: Date;
   requiredTierId: string | null;
 }
+
+const YOUTUBE_DEFAULT_TYPES: ContentType[] = ['video', 'short'];
+const LMS_DEFAULT_TYPES: ContentType[] = ['video', 'short', 'podcast', 'course', 'live'];
 
 @Injectable()
 export class ContentLibraryService {
@@ -34,7 +38,11 @@ export class ContentLibraryService {
   ): Promise<{ data: ContentLibraryItem[]; total: number }> {
     const limit = Math.min(options.limit ?? 24, 60);
     const offset = options.offset ?? 0;
-    const types = options.contentTypes ?? ['video', 'short', 'podcast', 'course', 'live'];
+    const defaults = isSkillEconomyLmsEnabled() ? LMS_DEFAULT_TYPES : YOUTUBE_DEFAULT_TYPES;
+    let types = options.contentTypes ?? defaults;
+    if (!isSkillEconomyLmsEnabled()) {
+      types = types.filter((t) => t === 'video' || t === 'short' || t === 'live');
+    }
     const orderBy =
       options.orderBy === 'popular' ? 'v.view_count DESC' :
       options.orderBy === 'trending' ? 'recent_views DESC NULLS LAST, v.view_count DESC' :
@@ -50,7 +58,7 @@ export class ContentLibraryService {
     if (types.includes('podcast')) videoTypes.push(`'podcast'`);
     const videoTypeFilter = videoTypes.length
       ? `AND v.video_type IN (${videoTypes.join(',')})`
-      : `AND v.video_type IN ('video','short','podcast')`;
+      : `AND v.video_type IN ('video','short')`;
 
     // Union query: videos + (optionally) live VODs + courses
     const videosQuery = `

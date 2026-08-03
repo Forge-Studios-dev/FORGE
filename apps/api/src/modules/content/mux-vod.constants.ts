@@ -8,4 +8,5 @@ export function muxVodIngestJobId(videoId: string): string {
 export {
   muxHlsPlaybackUrl,
   muxThumbnailUrl,
+  muxCaptionVttUrl,
 } from '../../common/media/mux-playback.util';

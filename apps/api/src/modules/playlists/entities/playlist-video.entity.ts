@@ -33,7 +33,9 @@ export class PlaylistVideo {
   @Column({ name: 'video_id' })
   videoId: string;
 
+  @Column({ type: 'int', default: 0 })
+  position: number;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }
-

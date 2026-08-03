@@ -5,7 +5,7 @@ import { VideoProcessorWorker } from './video-processor/video-processor.worker';
 import { AnalyticsIngestWorker } from './analytics-ingest/analytics-ingest.worker';
 import { Video } from '../content/entities/video.entity';
 import { AnalyticsEvent } from '../analytics/entities/analytics-event.entity';
-import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../content/videos.service';
+import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../content/video-processing.constants';
 import { MuxVodIngestWorker } from './mux-vod-ingest/mux-vod-ingest.worker';
 import { MUX_VOD_INGEST_QUEUE } from '../content/mux-vod.constants';
 import { ContentModule } from '../content/content.module';

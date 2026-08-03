@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
   ForbiddenException,
@@ -66,16 +67,22 @@ export class StreamingController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('live')
   @ApiOperation({ summary: 'Get currently live streams' })
-  async getLiveStreams(@CurrentUser() user?: JwtPayload) {
-    return this.streamingService.getLiveStreams(user?.sub, user?.role);
+  async getLiveStreams(
+    @CurrentUser() user?: JwtPayload,
+    @Query('creatorId') creatorId?: string,
+  ) {
+    return this.streamingService.getLiveStreams(user?.sub, user?.role, creatorId);
   }
 
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @Get('upcoming')
   @ApiOperation({ summary: 'Get scheduled upcoming streams' })
-  async getUpcomingStreams(@CurrentUser() user?: JwtPayload) {
-    return this.streamingService.getUpcomingStreams(user?.sub, user?.role);
+  async getUpcomingStreams(
+    @CurrentUser() user?: JwtPayload,
+    @Query('creatorId') creatorId?: string,
+  ) {
+    return this.streamingService.getUpcomingStreams(user?.sub, user?.role, creatorId);
   }
 
   @Public()

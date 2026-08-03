@@ -5,6 +5,7 @@ import {
   CheckoutSessionResult,
   EventCheckoutSessionInput,
   SuperChatCheckoutInput,
+  SuperThanksCheckoutInput,
   PaymentProvider,
   ProviderWebhookResult,
 } from './payment-provider.interface';
@@ -34,6 +35,14 @@ export class StubPaymentProvider implements PaymentProvider {
     return {
       provider: this.name,
       sessionId: `stub_super_${randomUUID()}`,
+      checkoutUrl: null,
+    };
+  }
+
+  async createSuperThanksCheckoutSession(_input: SuperThanksCheckoutInput): Promise<CheckoutSessionResult> {
+    return {
+      provider: this.name,
+      sessionId: `stub_thanks_${randomUUID()}`,
       checkoutUrl: null,
     };
   }

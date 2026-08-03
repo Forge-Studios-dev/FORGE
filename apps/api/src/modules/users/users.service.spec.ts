@@ -28,6 +28,7 @@ describe('UsersService', () => {
       qb.where = chain('where');
       qb.andWhere = chain('andWhere');
       qb.orderBy = chain('orderBy');
+      qb.addOrderBy = chain('addOrderBy');
       qb.take = chain('take');
       qb.getMany = jest.fn(async () => []);
       return qb;
@@ -94,6 +95,48 @@ describe('UsersService', () => {
 
     const visClause = qbCalls.find((c) => c.args[0] === 'v.visibility = :vis');
     expect(visClause).toBeUndefined();
+  });
+
+  it('getUserVideos filters by videoType when type=short', async () => {
+    const svc = await setup();
+    await svc.getUserVideos('creator-1', 20, undefined, 'viewer-2', 'short');
+
+    const typeClause = qbCalls.find(
+      (c) => c.method === 'andWhere' && c.args[0] === 'v.video_type = :vtype',
+    );
+    expect(typeClause).toBeDefined();
+    expect(typeClause?.args[1]).toEqual({ vtype: 'short' });
+  });
+
+  it('getUserVideos sorts by popular views', async () => {
+    const svc = await setup();
+    await svc.getUserVideos('creator-1', 20, undefined, 'viewer-2', 'all', 'popular');
+    const order = qbCalls.find((c) => c.method === 'orderBy');
+    expect(order?.args[0]).toBe('v.view_count');
+    expect(order?.args[1]).toBe('DESC');
+  });
+
+  it('update sets website and channel links', async () => {
+    const user = {
+      id: 'u1',
+      displayName: 'A',
+      bio: null,
+      websiteUrl: null,
+      channelLinks: null,
+    } as unknown as User;
+    userRepo.findOne.mockResolvedValue(user);
+    userRepo.save.mockImplementation((u) => Promise.resolve(u));
+
+    const svc = await setup();
+    const result = await svc.update('u1', 'u1', {
+      websiteUrl: 'https://forge.example',
+      channelLinks: [{ title: 'Discord', url: 'https://discord.gg/forge' }],
+    });
+
+    expect(result.websiteUrl).toBe('https://forge.example');
+    expect(result.channelLinks).toEqual([
+      { title: 'Discord', url: 'https://discord.gg/forge' },
+    ]);
   });
 
   it('requestCreator requires verified email', async () => {

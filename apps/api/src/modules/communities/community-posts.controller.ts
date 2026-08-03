@@ -7,6 +7,7 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { CommunityStudioGuard } from './guards/community-studio.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
+import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 
 @ApiTags('Community Posts')
 @Controller()
@@ -21,6 +22,26 @@ export class CommunityPostsController {
     @Query('cursor') cursor?: string,
   ) {
     return this.postsService.getMemberUpdatesFeed(user.sub, Number(limit) || 20, cursor);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('creators/:creatorId/channel-posts')
+  @ApiOperation({
+    summary: 'YouTube-style channel Community feed (public posts across creator communities)',
+  })
+  listChannelPosts(
+    @Param('creatorId') creatorId: string,
+    @Query('limit') limit = 20,
+    @Query('cursor') cursor?: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.postsService.listChannelPostsForCreator(
+      creatorId,
+      Number(limit) || 20,
+      cursor,
+      user?.sub,
+    );
   }
 
   @Public()
@@ -52,6 +73,39 @@ export class CommunityPostsController {
     @CurrentUser() user?: JwtPayload,
   ) {
     return this.postsService.searchPosts(communityId, q, 20, user?.sub, user?.role);
+  }
+
+  @Post('creators/me/channel-posts')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({
+    summary: 'Create a YouTube-style channel Community post (default public community)',
+  })
+  createChannelPost(
+    @CurrentUser() user: JwtPayload,
+    @Body()
+    body: {
+      title?: string;
+      body: string;
+      postType?: CommunityPostType;
+      isPinned?: boolean;
+      mediaUrls?: string[];
+    },
+  ) {
+    return this.postsService.createChannelPost(user.sub, body, user.role);
+  }
+
+  @Post('creators/me/channel-posts/media-upload-url')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Presigned URL for channel Community post image' })
+  channelPostMediaUploadUrl(
+    @CurrentUser() user: JwtPayload,
+    @Query('contentType') contentType: string,
+  ) {
+    return this.postsService.getChannelPostMediaUploadUrl(
+      user.sub,
+      contentType || 'image/jpeg',
+      user.role,
+    );
   }
 
   @Post('creators/me/communities/:communityId/posts')

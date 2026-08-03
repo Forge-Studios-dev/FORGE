@@ -744,7 +744,7 @@ export class EntitlementsService {
     if (!result.allowed) {
       const messages: Record<string, string> = {
         login_required: 'Sign in to access this content',
-        follow_required: 'Follow this creator to access this content',
+        follow_required: 'Subscribe to this channel to access this content',
         subscription_required: 'An active membership is required',
         tier_required: 'A higher membership tier is required',
         invite_required: 'You are not invited to this channel',
@@ -768,7 +768,7 @@ export class EntitlementsService {
     if (!result.allowed) {
       const messages: Record<string, string> = {
         login_required: 'Sign in to access this content',
-        follow_required: 'Follow this creator to access this content',
+        follow_required: 'Subscribe to this channel to access this content',
         subscription_required: 'An active membership is required',
         tier_required: 'A higher membership tier is required',
         invite_required: 'You are not invited to this channel',
