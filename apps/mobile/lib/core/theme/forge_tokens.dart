@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
+import 'forge_palette.dart';
 
-/// Forge Narrative design tokens (synced with packages/design-system/tokens/forge-narrative.json)
-/// Dark values match `theme-modes.css` `:root`/`.dark`; light values match `.light`.
+/// Forge Narrative design tokens (synced with packages/design-system).
+/// Dark `static const` values stay for `scripts/check-token-parity.js`.
+/// Prefer [ForgeTokens.of] in widgets so light/dark ThemeMode works.
 abstract final class ForgeTokens {
+  /// Theme-aware palette (light or dark). Falls back to dark if extension missing.
+  static ForgePalette of(BuildContext context) {
+    return Theme.of(context).extension<ForgePalette>() ??
+        (Theme.of(context).brightness == Brightness.light
+            ? ForgePalette.light
+            : ForgePalette.dark);
+  }
+
   // --- Dark (default / parity with check-token-parity.js) ---
   static const background = Color(0xFF15121B);
   static const onBackground = Color(0xFFE7E0ED);

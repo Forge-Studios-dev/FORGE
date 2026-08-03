@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'forge_palette.dart';
 import 'forge_tokens.dart';
 
 class AppTheme {
@@ -8,6 +9,7 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: ForgeTokens.background,
+      extensions: const <ThemeExtension<dynamic>>[ForgePalette.dark],
       colorScheme: const ColorScheme.dark(
         primary: ForgeTokens.primary,
         onPrimary: ForgeTokens.onPrimary,
@@ -40,6 +42,7 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       scaffoldBackgroundColor: ForgeTokens.lightBackground,
+      extensions: const <ThemeExtension<dynamic>>[ForgePalette.light],
       colorScheme: const ColorScheme.light(
         primary: ForgeTokens.lightPrimary,
         onPrimary: ForgeTokens.lightOnPrimary,

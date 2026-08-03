@@ -1,46 +1,103 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 
-class LibraryScreen extends StatelessWidget {
+final libraryUnreadCountProvider = FutureProvider.autoDispose<int>((ref) async {
+  try {
+    final api = ref.read(apiClientProvider);
+    final res = await api.dio.get('/notifications/unread-count');
+    final data = res.data['data'];
+    if (data is Map) return (data['count'] as num?)?.toInt() ?? 0;
+    if (data is num) return data.toInt();
+    return 0;
+  } catch (_) {
+    return 0;
+  }
+});
+
+class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ForgeTokens.of(context);
+    final unread = ref.watch(libraryUnreadCountProvider).maybeWhen(
+          data: (c) => c,
+          orElse: () => 0,
+        );
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Library')),
+      appBar: AppBar(title: const Text('You')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           Text(
-            'Your learning',
+            'Library',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: ForgeTokens.onSurface,
+                  color: t.onSurface,
                 ),
           ),
           const SizedBox(height: 4),
-          const Text(
-            'History, notifications, and creator tools',
-            style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+          Text(
+            'History, playlists, and your channel',
+            style: TextStyle(color: t.onSurfaceVariant),
           ),
           const SizedBox(height: 20),
           ForgeCard(
-            onTap: () => context.push('/history'),
+            onTap: () => context.push('/explore'),
             child: const _LibraryRow(
-              icon: Icons.history,
-              title: 'Watch history',
-              subtitle: 'Lessons you have started',
+              icon: Icons.trending_up,
+              title: 'Trending & Explore',
+              subtitle: 'Popular videos and categories',
             ),
           ),
           const SizedBox(height: 12),
           ForgeCard(
-            onTap: () => context.push('/notifications'),
+            onTap: () => context.push('/live'),
             child: const _LibraryRow(
-              icon: Icons.notifications_outlined,
-              title: 'Notifications',
-              subtitle: 'Creator and upload updates',
+              icon: Icons.sensors,
+              title: 'Live',
+              subtitle: 'Live and upcoming streams',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
+            onTap: () => context.push('/history'),
+            child: const _LibraryRow(
+              icon: Icons.history,
+              title: 'History',
+              subtitle: 'Videos you have watched',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
+            onTap: () => context.push('/subscriptions'),
+            child: const _LibraryRow(
+              icon: Icons.subscriptions_outlined,
+              title: 'Subscriptions',
+              subtitle: 'Latest from channels you subscribe to',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
+            onTap: () => context.push('/playlists/me/watch-later'),
+            child: const _LibraryRow(
+              icon: Icons.watch_later_outlined,
+              title: 'Watch later',
+              subtitle: 'Videos saved for later',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
+            onTap: () => context.push('/playlists/me/liked'),
+            child: const _LibraryRow(
+              icon: Icons.thumb_up_outlined,
+              title: 'Liked videos',
+              subtitle: 'Videos you liked',
             ),
           ),
           const SizedBox(height: 12),
@@ -49,16 +106,26 @@ class LibraryScreen extends StatelessWidget {
             child: const _LibraryRow(
               icon: Icons.playlist_play,
               title: 'Playlists',
-              subtitle: 'Lessons you have saved and organized',
+              subtitle: 'Playlists you created or saved',
             ),
           ),
           const SizedBox(height: 12),
           ForgeCard(
-            onTap: () => context.push('/updates'),
+            onTap: () => context.push('/shorts'),
             child: const _LibraryRow(
-              icon: Icons.campaign_outlined,
-              title: 'Updates',
-              subtitle: 'Announcements from communities you joined',
+              icon: Icons.movie_filter_outlined,
+              title: 'Shorts',
+              subtitle: 'Vertical videos to watch',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
+            onTap: () => context.push('/notifications'),
+            child: _LibraryRow(
+              icon: Icons.notifications_outlined,
+              title: 'Notifications',
+              subtitle: 'Uploads, comments, and live alerts',
+              badgeCount: unread,
             ),
           ),
           const SizedBox(height: 12),
@@ -80,42 +147,69 @@ class _LibraryRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final int badgeCount;
 
   const _LibraryRow({
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.badgeCount = 0,
   });
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
     return Row(
       children: [
-        Icon(icon, color: ForgeTokens.primary, size: 28),
+        Icon(icon, color: t.primary, size: 28),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: ForgeTokens.onSurface,
-                ),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: t.onSurface,
+                      ),
+                    ),
+                  ),
+                  if (badgeCount > 0) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: t.error,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        badgeCount > 99 ? '99+' : '$badgeCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: ForgeTokens.onSurfaceVariant,
+                  color: t.onSurfaceVariant,
                 ),
               ),
             ],
           ),
         ),
-        const Icon(Icons.chevron_right, color: ForgeTokens.outline),
+        Icon(Icons.chevron_right, color: t.outline),
       ],
     );
   }

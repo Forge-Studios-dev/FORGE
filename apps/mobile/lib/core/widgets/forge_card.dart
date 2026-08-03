@@ -17,6 +17,7 @@ class _ForgeCardState extends State<ForgeCard> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
     final content = Padding(
       padding: widget.padding ?? const EdgeInsets.all(16),
       child: widget.child,
@@ -27,7 +28,7 @@ class _ForgeCardState extends State<ForgeCard> {
       duration: const Duration(milliseconds: 150),
       curve: Curves.easeOutCubic,
       child: Material(
-        color: ForgeTokens.surfaceContainer.withValues(alpha: 0.8),
+        color: t.surfaceContainer.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(16),
         elevation: _pressed ? 0 : 2,
         shadowColor: Colors.black54,
@@ -42,8 +43,8 @@ class _ForgeCardState extends State<ForgeCard> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: _pressed
-                    ? ForgeTokens.primary.withValues(alpha: 0.5)
-                    : ForgeTokens.outlineVariant.withValues(alpha: 0.4),
+                    ? t.primary.withValues(alpha: 0.5)
+                    : t.outlineVariant.withValues(alpha: 0.4),
               ),
             ),
             child: content,

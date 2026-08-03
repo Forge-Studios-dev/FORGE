@@ -9,12 +9,13 @@ class TopicChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: ForgeTokens.surfaceContainer.withValues(alpha: 0.9),
+        color: t.surfaceContainer.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: ForgeTokens.outlineVariant.withValues(alpha: 0.3)),
+        border: Border.all(color: t.outlineVariant.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -24,17 +25,17 @@ class TopicChip extends StatelessWidget {
             height: 8,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: live ? ForgeTokens.live : ForgeTokens.secondary,
+              color: live ? t.live : t.secondary,
             ),
           ),
           const SizedBox(width: 6),
           Text(
             label.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.8,
-              color: ForgeTokens.onSurface,
+              color: t.onSurface,
             ),
           ),
         ],

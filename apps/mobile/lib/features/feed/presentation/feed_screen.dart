@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
-import '../data/feed_repository.dart';
-import '../../history/data/history_repository.dart';
-import '../../../shared/models/video.dart';
 import '../../../core/widgets/forge_skeleton.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/motion/forge_motion.dart';
+import '../../../shared/models/video.dart';
 import '../../gamification/data/gamification_repository.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../history/data/history_repository.dart';
+import '../../watch/data/watch_repository.dart';
+import '../data/feed_repository.dart';
 
 final feedProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) async {
   final repo = ref.read(feedRepositoryProvider);
@@ -34,6 +38,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
   late TabController _tabController;
   int _tabIndex = 0;
   bool _loadError = false;
+  bool _initialLoading = true;
 
   @override
   void initState() {
@@ -42,7 +47,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) return;
       if (_tabController.index != _tabIndex) {
-        setState(() => _tabIndex = _tabController.index);
+        setState(() {
+          _tabIndex = _tabController.index;
+          _initialLoading = true;
+          _videos.clear();
+        });
         _loadInitial();
       }
     });
@@ -64,9 +73,15 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
         _nextCursor = page.nextCursor;
         _hasMore = page.nextCursor != null;
         _loadError = false;
+        _initialLoading = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loadError = true);
+      if (mounted) {
+        setState(() {
+          _loadError = true;
+          _initialLoading = false;
+        });
+      }
     }
   }
 
@@ -116,12 +131,12 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
         title: const Text('FORGE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: ForgeTokens.primary,
-          labelColor: ForgeTokens.onSurface,
-          unselectedLabelColor: ForgeTokens.onSurfaceVariant,
+          indicatorColor: ForgeTokens.of(context).primary,
+          labelColor: ForgeTokens.of(context).onSurface,
+          unselectedLabelColor: ForgeTokens.of(context).onSurfaceVariant,
           tabs: const [
-            Tab(text: 'Discover'),
-            Tab(text: 'Following'),
+            Tab(text: 'For you'),
+            Tab(text: 'Subscriptions'),
           ],
         ),
         actions: [
@@ -136,6 +151,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
             icon: const Icon(Icons.search),
             onPressed: () => context.push('/search'),
           ),
+          IconButton(
+            icon: const Icon(Icons.subscriptions_outlined),
+            tooltip: 'Subscriptions',
+            onPressed: () => context.push('/subscriptions'),
+          ),
         ],
       ),
       body: _videos.isEmpty
@@ -145,9 +165,27 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
                   title: 'Could not load feed',
                   description: 'Check your connection and try again.',
                   actionLabel: 'Retry',
-                  onAction: _loadInitial,
+                  onAction: () {
+                    setState(() => _initialLoading = true);
+                    _loadInitial();
+                  },
                 )
-              : const FeedSkeletonList(count: 2))
+              : _initialLoading
+                  ? const FeedSkeletonList(count: 2)
+                  : ForgeEmptyState(
+                      icon: _tabIndex == 1 ? Icons.subscriptions_outlined : Icons.video_library_outlined,
+                      title: _tabIndex == 1 ? 'No subscriptions yet' : 'Your feed is empty',
+                      description: _tabIndex == 1
+                          ? 'Subscribe to channels to see their latest videos here.'
+                          : 'Check back soon for new uploads.',
+                      actionLabel: _tabIndex == 1 ? 'Explore' : 'Retry',
+                      onAction: _tabIndex == 1
+                          ? () => context.push('/explore')
+                          : () {
+                              setState(() => _initialLoading = true);
+                              _loadInitial();
+                            },
+                    ))
           : Column(
               children: [
                 const _StreakXpChip(),
@@ -191,7 +229,17 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
                     controller: _pageController,
                     scrollDirection: Axis.vertical,
                     itemCount: _videos.length,
-                    itemBuilder: (context, index) => _VideoCard(video: _videos[index]),
+                    itemBuilder: (context, index) {
+                      final video = _videos[index];
+                      return _VideoCard(
+                        video: video,
+                        onHidden: () {
+                          setState(() {
+                            _videos.removeWhere((v) => v.id == video.id);
+                          });
+                        },
+                      );
+                    },
                   ),
                 ),
               ],
@@ -206,10 +254,22 @@ class _ContinueTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final progress = video.viewerProgressSeconds;
+    final duration = video.durationSeconds;
+    final progressFrac =
+        (progress != null && duration != null && duration > 0) ? (progress / duration).clamp(0.0, 1.0) : null;
+    final href = (progress != null &&
+            progress > 0 &&
+            duration != null &&
+            duration > 0 &&
+            progress < duration * 0.95)
+        ? '/watch/${video.id}?t=$progress'
+        : '/watch/${video.id}';
+
     return SizedBox(
       width: 168,
       child: GestureDetector(
-        onTap: () => context.push('/watch/${video.id}'),
+        onTap: () => context.push(href),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(10),
           child: Stack(
@@ -219,11 +279,11 @@ class _ContinueTile extends StatelessWidget {
                 CachedNetworkImage(
                   imageUrl: video.thumbnailUrl!,
                   fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(color: const Color(0xFF1A1A24)),
-                  errorWidget: (_, __, ___) => Container(color: const Color(0xFF1A1A24)),
+                  placeholder: (_, __) => Container(color: ForgeTokens.surfaceContainerHighest),
+                  errorWidget: (_, __, ___) => Container(color: ForgeTokens.surfaceContainerHighest),
                 )
               else
-                Container(color: const Color(0xFF1A1A24)),
+                Container(color: ForgeTokens.surfaceContainerHighest),
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -233,6 +293,18 @@ class _ContinueTile extends StatelessWidget {
                   ),
                 ),
               ),
+              if (progressFrac != null)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: LinearProgressIndicator(
+                    value: progressFrac,
+                    minHeight: 3,
+                    backgroundColor: Colors.black38,
+                    color: ForgeTokens.primary,
+                  ),
+                ),
               Positioned(
                 left: 8,
                 right: 8,
@@ -254,7 +326,8 @@ class _ContinueTile extends StatelessWidget {
 
 class _VideoCard extends ConsumerStatefulWidget {
   final VideoModel video;
-  const _VideoCard({required this.video});
+  final VoidCallback? onHidden;
+  const _VideoCard({required this.video, this.onHidden});
 
   @override
   ConsumerState<_VideoCard> createState() => _VideoCardState();
@@ -297,6 +370,107 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
     }
   }
 
+  Future<void> _share() async {
+    final video = widget.video;
+    final url = '${AppConstants.webBaseUrl}/watch/${video.id}';
+    await Share.share('${video.title}\n$url');
+  }
+
+  Future<void> _notInterested() async {
+    try {
+      await ref.read(watchRepositoryProvider).markNotInterested(widget.video.id);
+      widget.onHidden?.call();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("We'll show fewer videos like this")),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to update preferences')),
+        );
+      }
+    }
+  }
+
+  Future<void> _dontRecommend() async {
+    try {
+      await ref.read(watchRepositoryProvider).dontRecommendChannel(widget.video.id);
+      widget.onHidden?.call();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Channel won't be recommended")),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to update preferences')),
+        );
+      }
+    }
+  }
+
+  Future<void> _addWatchLater() async {
+    try {
+      await ref.read(watchRepositoryProvider).addToWatchLater(widget.video.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saved to Watch later')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to use Watch later')),
+        );
+      }
+    }
+  }
+
+  Future<void> _report() async {
+    const reasons = [
+      'Spam or misleading',
+      'Hate speech or harassment',
+      'Sexual content',
+      'Violent or repulsive content',
+      'Other',
+    ];
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Report', style: TextStyle(fontWeight: FontWeight.w600))),
+            ...reasons.map(
+              (r) => ListTile(title: Text(r), onTap: () => Navigator.pop(ctx, r)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (reason == null) return;
+    try {
+      await ref.read(watchRepositoryProvider).reportVideo(
+            videoId: widget.video.id,
+            reason: reason,
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report submitted')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to report')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final video = widget.video;
@@ -309,11 +483,11 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
             CachedNetworkImage(
               imageUrl: video.thumbnailUrl!,
               fit: BoxFit.cover,
-              placeholder: (_, __) => Container(color: const Color(0xFF13131A)),
-              errorWidget: (_, __, ___) => Container(color: const Color(0xFF13131A)),
+              placeholder: (_, __) => Container(color: ForgeTokens.surfaceContainerHigh),
+              errorWidget: (_, __, ___) => Container(color: ForgeTokens.surfaceContainerHigh),
             )
           else
-            Container(color: const Color(0xFF13131A)),
+            Container(color: ForgeTokens.surfaceContainerHigh),
 
           const DecoratedBox(
             decoration: BoxDecoration(
@@ -323,6 +497,30 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
                 colors: [Colors.transparent, Colors.black87],
                 stops: [0.5, 1.0],
               ),
+            ),
+          ),
+
+          Positioned(
+            top: 12,
+            right: 8,
+            child: PopupMenuButton<String>(
+              tooltip: 'More',
+              color: ForgeTokens.surfaceContainerHigh,
+              onSelected: (value) {
+                if (value == 'not_interested') _notInterested();
+                if (value == 'dont_recommend') _dontRecommend();
+                if (value == 'watch_later') _addWatchLater();
+                if (value == 'share') _share();
+                if (value == 'report') _report();
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'watch_later', child: Text('Save to Watch later')),
+                PopupMenuItem(value: 'share', child: Text('Share')),
+                PopupMenuItem(value: 'not_interested', child: Text('Not interested')),
+                PopupMenuItem(value: 'dont_recommend', child: Text("Don't recommend channel")),
+                PopupMenuItem(value: 'report', child: Text('Report')),
+              ],
+              icon: const Icon(Icons.more_vert, color: Colors.white),
             ),
           ),
 
@@ -354,7 +552,7 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
             child: Column(
               children: [
                 _ActionButton(
-                  icon: _liked ? Icons.favorite : Icons.favorite_border,
+                  icon: _liked ? Icons.thumb_up : Icons.thumb_up_outlined,
                   count: _likeCount,
                   onTap: _toggleLike,
                 ),
@@ -365,7 +563,7 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
                   onTap: () => context.push('/watch/${video.id}'),
                 ),
                 const SizedBox(height: 16),
-                _ActionButton(icon: Icons.share_outlined, count: 0, onTap: () {}),
+                _ActionButton(icon: Icons.share_outlined, count: 0, onTap: _share),
               ],
             ),
           ),
