@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../data/auth_repository.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
   const ResetPasswordScreen({super.key, required this.initialToken});
@@ -94,7 +95,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                 if (!_tokenFromDeepLink) ...[
                   Text(
                     'Paste the reset token from your email (or open the link from your phone).',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13, height: 1.4),
+                    style: TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 13, height: 1.4),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -117,11 +118,11 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
+                      color: ForgeTokens.error.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                      border: Border.all(color: ForgeTokens.error.withValues(alpha: 0.35)),
                     ),
-                    child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                    child: Text(_error!, style: const TextStyle(color: ForgeTokens.error, fontSize: 13)),
                   ),
                   const SizedBox(height: 16),
                 ],

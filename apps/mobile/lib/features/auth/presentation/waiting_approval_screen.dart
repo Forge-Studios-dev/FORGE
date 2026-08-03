@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 class WaitingApprovalScreen extends StatelessWidget {
   const WaitingApprovalScreen({super.key});
@@ -20,12 +21,12 @@ class WaitingApprovalScreen extends StatelessWidget {
             const SizedBox(height: 12),
             const Text(
               'You can still browse and watch videos while you wait.',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: ForgeTokens.onSurfaceVariant),
             ),
             const SizedBox(height: 32),
             FilledButton(
               onPressed: () => context.go('/explore'),
-              child: const Text('Explore skills while you wait'),
+              child: const Text('Explore videos while you wait'),
             ),
             const SizedBox(height: 12),
             OutlinedButton(

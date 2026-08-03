@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/google_oauth_launcher.dart';
 import '../../../core/platform/platform_config.dart';
 import '../data/auth_repository.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -101,7 +102,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const Text(
                   'Welcome back',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                  style: TextStyle(fontSize: 16, color: ForgeTokens.onSurfaceVariant),
                 ),
                 const SizedBox(height: 48),
 
@@ -109,11 +110,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
+                      color: ForgeTokens.error.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                      border: Border.all(color: ForgeTokens.error.withValues(alpha: 0.35)),
                     ),
-                    child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                    child: Text(_error!, style: const TextStyle(color: ForgeTokens.error, fontSize: 13)),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -185,7 +186,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("Don't have an account? ", style: TextStyle(color: Colors.grey)),
+                    const Text("Don't have an account? ", style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
                     TextButton(
                       onPressed: () => context.go('/signup'),
                       child: const Text('Sign up'),

@@ -79,9 +79,9 @@ class _LiveScreenState extends ConsumerState<LiveScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.live_tv, size: 64, color: Colors.grey),
+                      const Icon(Icons.live_tv, size: 64, color: ForgeTokens.onSurfaceVariant),
                       const SizedBox(height: 16),
-                      const Text('No live streams right now', style: TextStyle(color: Colors.grey)),
+                      const Text('No live streams right now', style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
                       const SizedBox(height: 24),
                       ElevatedButton.icon(
                         onPressed: () => _showGoLiveDialog(context),
@@ -147,7 +147,7 @@ class _StreamCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        Text('$viewerCount watching', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text('$viewerCount watching', style: const TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 12)),
                       ],
                     ),
                   ),

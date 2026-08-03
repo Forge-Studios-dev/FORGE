@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../data/auth_repository.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -74,7 +75,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     const SizedBox(height: 24),
                     Text(
                       'If an account exists for that email, we sent a reset link. Check your inbox and spam folder.',
-                      style: TextStyle(color: Colors.grey.shade300, height: 1.4),
+                      style: TextStyle(color: ForgeTokens.onSurfaceVariant, height: 1.4),
                     ),
                     const SizedBox(height: 24),
                     TextButton(
@@ -93,11 +94,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.1),
+                            color: ForgeTokens.error.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                            border: Border.all(color: ForgeTokens.error.withValues(alpha: 0.35)),
                           ),
-                          child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                          child: Text(_error!, style: const TextStyle(color: ForgeTokens.error, fontSize: 13)),
                         ),
                         const SizedBox(height: 16),
                       ],

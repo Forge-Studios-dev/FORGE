@@ -250,7 +250,8 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
                                   items: const [
                                     DropdownMenuItem(value: 'community', child: Text('Community')),
                                     DropdownMenuItem(value: 'channel', child: Text('Channel')),
-                                    DropdownMenuItem(value: 'course', child: Text('Course')),
+                                    DropdownMenuItem(value: 'video', child: Text('Video')),
+                                    DropdownMenuItem(value: 'creator', child: Text('Creator-wide')),
                                   ],
                                   onChanged: (v) => setState(() => _entResourceType = v ?? 'community'),
                                 ),
@@ -291,11 +292,6 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
                   );
                 }),
                 const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: () => context.push('/studio/bundles'),
-                  icon: const Icon(Icons.inventory_2_outlined),
-                  label: const Text('Manage product bundles'),
-                ),
                 TextButton(onPressed: () => context.pop(), child: const Text('← Back to Studio')),
               ],
             ),

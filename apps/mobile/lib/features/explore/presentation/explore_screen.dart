@@ -24,7 +24,7 @@ const _disciplines = [
   ('art-design', 'Art & Design', Icons.palette),
   ('building-tech', 'Building & Tech', Icons.construction),
   ('fitness', 'Fitness', Icons.fitness_center),
-  ('learning-journeys', 'Learning', Icons.school),
+  ('learning-journeys', 'Education', Icons.school),
   ('music', 'Music', Icons.music_note),
 ];
 
@@ -45,8 +45,15 @@ class ExploreScreen extends ConsumerStatefulWidget {
 class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   final _controller = TextEditingController();
   Timer? _debounce;
+  Timer? _suggestDebounce;
   String _lastQuery = '';
   Future<SearchResults>? _searchFuture;
+  Future<SearchSuggestions>? _suggestFuture;
+  String _sort = 'relevance';
+  String _kind = 'any';
+  String _duration = 'any';
+  String _uploaded = 'any';
+  String _captions = 'any';
 
   @override
   void initState() {
@@ -63,6 +70,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _suggestDebounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -72,15 +80,74 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final q = raw.trim();
     _lastQuery = q;
     if (q.length < 2) {
-      setState(() => _searchFuture = null);
+      setState(() {
+        _searchFuture = null;
+        _suggestFuture = null;
+      });
       return;
     }
     _debounce = Timer(const Duration(milliseconds: 400), () {
       if (!mounted || _lastQuery != q) return;
       setState(() {
-        _searchFuture = ref.read(searchRepositoryProvider).search(q);
+        _suggestFuture = null;
+        _searchFuture = ref.read(searchRepositoryProvider).search(
+              q,
+              sort: _sort,
+              kind: _kind,
+              duration: _duration,
+              uploaded: _uploaded,
+              captions: _captions,
+            );
       });
     });
+  }
+
+  void _scheduleSuggestions(String raw) {
+    _suggestDebounce?.cancel();
+    final q = raw.trim();
+    if (q.length < 2) {
+      setState(() => _suggestFuture = null);
+      return;
+    }
+    _suggestDebounce = Timer(const Duration(milliseconds: 200), () {
+      if (!mounted || _controller.text.trim() != q) return;
+      setState(() {
+        _suggestFuture = ref.read(searchRepositoryProvider).suggestions(q);
+      });
+    });
+  }
+
+  void _applyFilters() {
+    final q = _controller.text.trim();
+    if (q.length >= 2) {
+      setState(() {
+        _searchFuture = ref.read(searchRepositoryProvider).search(
+              q,
+              sort: _sort,
+              kind: _kind,
+              duration: _duration,
+              uploaded: _uploaded,
+              captions: _captions,
+            );
+      });
+    }
+  }
+
+  Widget _filterChip({
+    required String label,
+    required String value,
+    required String selected,
+    required ValueChanged<String> onSelected,
+  }) {
+    final active = value == selected;
+    return FilterChip(
+      label: Text(label),
+      selected: active,
+      onSelected: (_) {
+        onSelected(value);
+        _applyFilters();
+      },
+    );
   }
 
   @override
@@ -127,10 +194,96 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               textInputAction: TextInputAction.search,
               onChanged: (v) {
                 setState(() {});
+                _scheduleSuggestions(v);
                 _scheduleSearch(v);
               },
             ),
           ),
+          if (_controller.text.trim().length >= 2)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Row(
+                children: [
+                  _filterChip(
+                    label: 'Relevance',
+                    value: 'relevance',
+                    selected: _sort,
+                    onSelected: (v) => setState(() => _sort = v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'Upload date',
+                    value: 'date',
+                    selected: _sort,
+                    onSelected: (v) => setState(() => _sort = v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'View count',
+                    value: 'views',
+                    selected: _sort,
+                    onSelected: (v) => setState(() => _sort = v),
+                  ),
+                  const SizedBox(width: 12),
+                  _filterChip(
+                    label: 'Videos',
+                    value: 'video',
+                    selected: _kind,
+                    onSelected: (v) => setState(() => _kind = _kind == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'Shorts',
+                    value: 'short',
+                    selected: _kind,
+                    onSelected: (v) => setState(() => _kind = _kind == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 12),
+                  _filterChip(
+                    label: 'Under 4 min',
+                    value: 'short',
+                    selected: _duration,
+                    onSelected: (v) => setState(() => _duration = _duration == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: '4–20 min',
+                    value: 'medium',
+                    selected: _duration,
+                    onSelected: (v) => setState(() => _duration = _duration == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'Over 20 min',
+                    value: 'long',
+                    selected: _duration,
+                    onSelected: (v) => setState(() => _duration = _duration == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 12),
+                  _filterChip(
+                    label: 'This week',
+                    value: 'week',
+                    selected: _uploaded,
+                    onSelected: (v) => setState(() => _uploaded = _uploaded == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'This month',
+                    value: 'month',
+                    selected: _uploaded,
+                    onSelected: (v) => setState(() => _uploaded = _uploaded == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 12),
+                  _filterChip(
+                    label: 'Subtitles',
+                    value: 'yes',
+                    selected: _captions,
+                    onSelected: (v) => setState(() => _captions = _captions == v ? 'any' : v),
+                  ),
+                ],
+              ),
+            ),
           Expanded(child: _buildResultsArea()),
         ],
       ),
@@ -139,6 +292,44 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
   Widget _buildResultsArea() {
     final q = _controller.text.trim();
+    final suggest = _suggestFuture;
+    if (suggest != null && q.length >= 2 && _searchFuture == null) {
+      return FutureBuilder<SearchSuggestions>(
+        future: suggest,
+        builder: (context, snapshot) {
+          final data = snapshot.data;
+          if (data == null || (data.titles.isEmpty && data.channels.isEmpty)) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator(color: ForgeTokens.primary));
+            }
+            return const SizedBox.shrink();
+          }
+          return ListView(
+            children: [
+              ...data.channels.map(
+                (c) => ListTile(
+                  leading: const Icon(Icons.person_outline),
+                  title: Text(c.displayName),
+                  subtitle: Text('@${c.username}'),
+                  onTap: () => context.push('/profile/${c.username}'),
+                ),
+              ),
+              ...data.titles.map(
+                (t) => ListTile(
+                  leading: const Icon(Icons.search),
+                  title: Text(t),
+                  onTap: () {
+                    _controller.text = t;
+                    setState(() {});
+                    _scheduleSearch(t);
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
     if (q.isEmpty) {
       final categoriesAsync = ref.watch(exploreCategoriesProvider);
       return ListView(
@@ -283,7 +474,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
         }
         final data = snapshot.data;
         if (data == null) return const SizedBox.shrink();
-        if (data.videos.isEmpty && data.users.isEmpty) {
+        if (data.videos.isEmpty && data.users.isEmpty && data.playlists.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -307,6 +498,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 child: Text('Videos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
               ),
               ...data.videos.map((v) => _VideoSearchTile(video: v)),
+            ],
+            if (data.playlists.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text('Playlists', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
+              ),
+              ...data.playlists.map((p) => _PlaylistSearchTile(playlist: p)),
             ],
             if (data.users.isNotEmpty) ...[
               const Padding(
@@ -372,6 +570,32 @@ class _UserSearchTile extends StatelessWidget {
       title: Text(user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: ForgeTokens.onSurface)),
       subtitle: Text('@${user.username}', style: const TextStyle(color: ForgeTokens.onSurfaceVariant)),
       onTap: () => context.push('/profile/${user.username}'),
+    );
+  }
+}
+
+class _PlaylistSearchTile extends StatelessWidget {
+  final PlaylistSearchHit playlist;
+  const _PlaylistSearchTile({required this.playlist});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const CircleAvatar(
+        backgroundColor: ForgeTokens.surfaceContainerHigh,
+        child: Icon(Icons.playlist_play, color: ForgeTokens.primary),
+      ),
+      title: Text(
+        playlist.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: ForgeTokens.onSurface),
+      ),
+      subtitle: Text(
+        '${playlist.videoCount} videos${playlist.owner != null ? ' · @${playlist.owner!.username}' : ''}',
+        style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+      ),
+      onTap: () => context.push('/playlists/${playlist.id}'),
     );
   }
 }

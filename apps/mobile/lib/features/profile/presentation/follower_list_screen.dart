@@ -56,7 +56,7 @@ class _FollowerListScreenState extends ConsumerState<FollowerListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.following ? 'Following' : 'Followers';
+    final title = widget.following ? 'Subscriptions' : 'Subscribers';
     return Scaffold(
       appBar: AppBar(title: Text('@${widget.username} · $title')),
       body: _loading

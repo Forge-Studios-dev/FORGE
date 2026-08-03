@@ -46,12 +46,12 @@ class StudioVideosScreen extends ConsumerWidget {
                 children: [
                   const ForgeCard(
                     child: Text(
-                      'No videos yet. Upload your first lesson.',
+                      'No videos yet. Upload your first video.',
                       style: TextStyle(color: ForgeTokens.onSurfaceVariant),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  ForgeButton(label: 'Upload lesson', onPressed: () => context.push('/upload')),
+                  ForgeButton(label: 'Upload video', onPressed: () => context.push('/upload')),
                 ],
               ),
             );

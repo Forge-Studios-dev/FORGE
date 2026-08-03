@@ -15,11 +15,86 @@ final watchHistoryProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) 
   return repo.getWatchHistory(limit: 50);
 });
 
-class HistoryScreen extends ConsumerWidget {
+class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirmClear() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear watch history?'),
+        content: const Text('This removes all videos from your watch history. You can’t undo this.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear all')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(historyRepositoryProvider).clearWatchHistory();
+      ref.invalidate(watchHistoryProvider);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not clear history')),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeOne(VideoModel video) async {
+    try {
+      await ref.read(historyRepositoryProvider).removeFromWatchHistory(video.id);
+      ref.invalidate(watchHistoryProvider);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not remove from history')),
+        );
+      }
+    }
+  }
+
+  List<VideoModel> _filtered(List<VideoModel> videos) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return videos;
+    return videos.where((v) {
+      return v.title.toLowerCase().contains(q) ||
+          v.user.username.toLowerCase().contains(q) ||
+          v.user.displayName.toLowerCase().contains(q);
+    }).toList();
+  }
+
+  String _watchHref(VideoModel v) {
+    final progress = v.viewerProgressSeconds;
+    final duration = v.durationSeconds;
+    if (progress != null &&
+        progress > 0 &&
+        duration != null &&
+        duration > 0 &&
+        progress < duration * 0.95) {
+      return '/watch/${v.id}?t=$progress';
+    }
+    return '/watch/${v.id}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(watchHistoryProvider);
 
     return Scaffold(
@@ -29,6 +104,17 @@ class HistoryScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => context.push('/profile/settings'),
+            child: const Text('Pause'),
+          ),
+          if (async.hasValue && async.value!.isNotEmpty)
+            TextButton(
+              onPressed: _confirmClear,
+              child: const Text('Clear'),
+            ),
+        ],
       ),
       body: async.when(
         loading: () => const FeedSkeletonList(count: 4),
@@ -44,73 +130,160 @@ class HistoryScreen extends ConsumerWidget {
             return ForgeEmptyState(
               icon: Icons.history,
               title: 'No history yet',
-              description: 'Browse the feed and start watching lessons.',
+              description: 'Browse the feed and start watching videos.',
               actionLabel: 'Explore',
               onAction: () => context.go('/explore'),
             );
           }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: videos.length,
-            itemBuilder: (context, i) {
-              final v = videos[i];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: ForgeCard(
-                  padding: const EdgeInsets.all(8),
-                  onTap: () => context.push('/watch/${v.id}'),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: SizedBox(
-                          width: 112,
-                          height: 63,
-                          child: v.thumbnailUrl != null
-                              ? CachedNetworkImage(
-                                  imageUrl: v.thumbnailUrl!,
-                                  fit: BoxFit.cover,
-                                  placeholder: (_, __) => const ColoredBox(
-                                    color: ForgeTokens.surfaceContainerHigh,
-                                  ),
-                                  errorWidget: (_, __, ___) => const ColoredBox(
-                                    color: ForgeTokens.surfaceContainerHigh,
-                                  ),
-                                )
-                              : const ColoredBox(color: ForgeTokens.surfaceContainerHigh),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              v.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: ForgeTokens.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '@${v.user.username}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: ForgeTokens.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right, color: ForgeTokens.outline),
-                    ],
+          final filtered = _filtered(videos);
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: TextField(
+                  controller: _searchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Search watch history',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() => _query = '');
+                            },
+                          ),
+                    isDense: true,
                   ),
+                  onChanged: (v) => setState(() => _query = v),
                 ),
-              );
-            },
+              ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No matching videos',
+                          style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, i) {
+                          final v = filtered[i];
+                          final progress = v.viewerProgressSeconds;
+                          final duration = v.durationSeconds;
+                          final progressFrac = (progress != null &&
+                                  duration != null &&
+                                  duration > 0)
+                              ? (progress / duration).clamp(0.0, 1.0)
+                              : null;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Dismissible(
+                              key: ValueKey(v.id),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20),
+                                decoration: BoxDecoration(
+                                  color: ForgeTokens.error.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.delete_outline, color: ForgeTokens.error),
+                              ),
+                              onDismissed: (_) => _removeOne(v),
+                              child: ForgeCard(
+                                padding: const EdgeInsets.all(8),
+                                onTap: () => context.push(_watchHref(v)),
+                                child: Row(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: SizedBox(
+                                        width: 112,
+                                        height: 63,
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            if (v.thumbnailUrl != null)
+                                              CachedNetworkImage(
+                                                imageUrl: v.thumbnailUrl!,
+                                                fit: BoxFit.cover,
+                                                placeholder: (_, __) => const ColoredBox(
+                                                  color: ForgeTokens.surfaceContainerHigh,
+                                                ),
+                                                errorWidget: (_, __, ___) => const ColoredBox(
+                                                  color: ForgeTokens.surfaceContainerHigh,
+                                                ),
+                                              )
+                                            else
+                                              const ColoredBox(
+                                                color: ForgeTokens.surfaceContainerHigh,
+                                              ),
+                                            if (progressFrac != null)
+                                              Positioned(
+                                                left: 0,
+                                                right: 0,
+                                                bottom: 0,
+                                                child: LinearProgressIndicator(
+                                                  value: progressFrac,
+                                                  minHeight: 3,
+                                                  backgroundColor: Colors.black38,
+                                                  color: ForgeTokens.primary,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            v.title,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              color: ForgeTokens.onSurface,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '@${v.user.username}',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: ForgeTokens.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    PopupMenuButton<String>(
+                                      tooltip: 'More',
+                                      onSelected: (value) {
+                                        if (value == 'remove') _removeOne(v);
+                                      },
+                                      itemBuilder: (context) => const [
+                                        PopupMenuItem(
+                                          value: 'remove',
+                                          child: Text('Remove from watch history'),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
           );
         },
       ),

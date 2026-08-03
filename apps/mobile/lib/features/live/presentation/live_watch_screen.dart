@@ -4,13 +4,16 @@ import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/observability/capture_error.dart';
 import '../../../core/socket/forge_socket.dart';
 import 'stream_chat_panel.dart';
 import 'stream_poll_panel.dart';
 import 'stream_qa_panel.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 class LiveWatchScreen extends ConsumerStatefulWidget {
   final String streamId;
@@ -413,6 +416,14 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
       appBar: AppBar(
         title: Text(title),
         actions: [
+          IconButton(
+            tooltip: 'Share',
+            icon: const Icon(Icons.share_outlined),
+            onPressed: () {
+              final url = '${AppConstants.webBaseUrl}/live/${widget.streamId}';
+              Share.share('${title.isNotEmpty ? title : 'Live on FORGE'}\n$url');
+            },
+          ),
           if (_viewerCount > 0)
             Padding(
               padding: const EdgeInsets.only(right: 12),
@@ -573,7 +584,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                   if (_health != null) ...[
                     Text(
                       'Mux: ${_health!['muxStatus'] ?? '—'}${_health!['reconnecting'] == true ? ' (reconnecting)' : ''}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: const TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant),
                     ),
                     const SizedBox(height: 4),
                   ],
@@ -613,7 +624,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
       case 'login_required':
         return 'Sign in to watch this stream.';
       case 'follow_required':
-        return 'Follow this creator to watch.';
+        return 'Subscribe to this channel to watch.';
       case 'subscription_required':
         return 'Membership required.';
       case 'tier_required':

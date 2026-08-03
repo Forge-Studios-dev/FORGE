@@ -67,6 +67,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                       value: visibility,
                       items: const [
                         DropdownMenuItem(value: 'public', child: Text('Public')),
+                        DropdownMenuItem(value: 'unlisted', child: Text('Unlisted')),
                         DropdownMenuItem(value: 'private', child: Text('Private')),
                       ],
                       onChanged: (v) => setLocal(() => visibility = v ?? 'public'),
@@ -131,7 +132,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
               ? ForgeEmptyState(
                   icon: Icons.playlist_play,
                   title: 'No playlists yet',
-                  description: 'Create a playlist to organize lessons you love.',
+                  description: 'Create a playlist to organize videos you love.',
                   actionLabel: 'New playlist',
                   onAction: _createPlaylist,
                 )
@@ -142,7 +143,12 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                     itemCount: _items.length,
                     itemBuilder: (_, i) {
                       final p = _items[i] as Map<String, dynamic>;
-                      final isPrivate = p['visibility'] == 'private';
+                      final visibility = p['visibility'] as String? ?? 'public';
+                      final visibilityLabel = switch (visibility) {
+                        'private' => 'Private',
+                        'unlisted' => 'Unlisted',
+                        _ => 'Public',
+                      };
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: ForgeCard(
@@ -152,21 +158,36 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                               const Icon(Icons.playlist_play, color: ForgeTokens.primary, size: 28),
                               const SizedBox(width: 16),
                               Expanded(
-                                child: Text(
-                                  p['title'] as String? ?? 'Playlist',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: ForgeTokens.onSurface,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      p['title'] as String? ?? 'Playlist',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        color: ForgeTokens.onSurface,
+                                      ),
+                                    ),
+                                    Text(
+                                      visibilityLabel,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: ForgeTokens.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              if (isPrivate)
-                                const Padding(
-                                  padding: EdgeInsets.only(right: 8),
-                                  child: Icon(Icons.lock_outline,
-                                      size: 16, color: ForgeTokens.onSurfaceVariant),
+                              if (visibility == 'private' || visibility == 'unlisted')
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: Icon(
+                                    visibility == 'private' ? Icons.lock_outline : Icons.link,
+                                    size: 16,
+                                    color: ForgeTokens.onSurfaceVariant,
+                                  ),
                                 ),
                               const Icon(Icons.chevron_right, color: ForgeTokens.outline),
                             ],

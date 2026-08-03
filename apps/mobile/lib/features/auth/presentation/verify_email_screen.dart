@@ -6,6 +6,7 @@ import '../../../core/access/creator_status_provider.dart';
 import '../../../core/network/api_client.dart';
 import '../data/auth_repository.dart';
 import '../../profile/presentation/profile_screen.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 class VerifyEmailScreen extends ConsumerStatefulWidget {
   final String initialToken;
@@ -95,7 +96,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               if (_status == 'prompt' || _status == 'err') ...[
                 Icon(
                   _status == 'err' ? Icons.error_outline : Icons.mail_outline,
-                  color: _status == 'err' ? Colors.redAccent : Colors.amber,
+                  color: _status == 'err' ? ForgeTokens.error : ForgeTokens.warning,
                   size: 56,
                 ),
                 const SizedBox(height: 16),

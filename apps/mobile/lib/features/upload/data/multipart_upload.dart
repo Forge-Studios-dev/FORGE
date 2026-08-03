@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
-/// S3 multipart upload for large lessons (API flag `multipart_upload`, >= 50MB).
+/// S3 multipart upload for large videos (API flag `multipart_upload`, >= 50MB).
 class MultipartVideoUpload {
   /// [createUploadDio] is a test seam (HIGH-09) for the per-part S3 PUT —
   /// real callers never pass it, so production behavior is unchanged.

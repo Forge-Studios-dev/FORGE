@@ -90,12 +90,12 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
                 children: [
                   const ForgeCard(
                     child: Text(
-                      'Upload lessons to track views and engagement.',
+                      'Upload videos to track views and engagement.',
                       style: TextStyle(color: ForgeTokens.onSurfaceVariant),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  ForgeButton(label: 'Upload lesson', onPressed: () => context.push('/upload')),
+                  ForgeButton(label: 'Upload video', onPressed: () => context.push('/upload')),
                 ],
               ),
             );
@@ -190,7 +190,7 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-              const Text('Top lessons', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+              const Text('Top videos', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
               const SizedBox(height: 12),
               ...videos.take(8).map(
                 (v) => Padding(

@@ -51,6 +51,22 @@ class HistoryRepository {
     }
   }
 
+  Future<void> clearWatchHistory() async {
+    await _apiClient.dio.delete('/users/me/watch-history');
+    await LocalCache.write(_watchHistoryCacheKey, _encodeVideoList([]));
+  }
+
+  Future<void> removeFromWatchHistory(String videoId) async {
+    await _apiClient.dio.delete('/users/me/watch-history/$videoId');
+    try {
+      final cached = LocalCache.read(_watchHistoryCacheKey);
+      if (cached != null) {
+        final videos = _decodeVideoList(cached).where((v) => v.id != videoId).toList();
+        await LocalCache.write(_watchHistoryCacheKey, _encodeVideoList(videos));
+      }
+    } catch (_) {}
+  }
+
   Future<List<VideoModel>> getContinueWatching({int limit = 12}) async {
     try {
       final response = await _apiClient.dio.get(

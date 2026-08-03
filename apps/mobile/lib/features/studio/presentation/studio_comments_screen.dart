@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
+import '../../watch/data/watch_repository.dart';
 import '../data/studio_repository.dart';
 
 final studioCommentsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
@@ -12,6 +13,22 @@ final studioCommentsProvider = FutureProvider.autoDispose<List<Map<String, dynam
 
 class StudioCommentsScreen extends ConsumerWidget {
   const StudioCommentsScreen({super.key});
+
+  Future<void> _pin(WidgetRef ref, Map<String, dynamic> c, bool next) async {
+    final videoId = c['videoId'] as String?;
+    final id = c['id'] as String?;
+    if (videoId == null || id == null) return;
+    await ref.read(watchRepositoryProvider).setCommentPinned(videoId, id, isPinned: next);
+    ref.invalidate(studioCommentsProvider);
+  }
+
+  Future<void> _heart(WidgetRef ref, Map<String, dynamic> c, bool next) async {
+    final videoId = c['videoId'] as String?;
+    final id = c['id'] as String?;
+    if (videoId == null || id == null) return;
+    await ref.read(watchRepositoryProvider).setCreatorHeart(videoId, id, creatorHearted: next);
+    ref.invalidate(studioCommentsProvider);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,12 +53,12 @@ class StudioCommentsScreen extends ConsumerWidget {
                 children: [
                   const ForgeCard(
                     child: Text(
-                      'When learners comment on your lessons, they will appear here.',
+                      'When viewers comment on your videos, they will appear here.',
                       style: TextStyle(color: ForgeTokens.onSurfaceVariant, height: 1.5),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  ForgeButton(label: 'Upload lesson', onPressed: () => context.push('/upload')),
+                  ForgeButton(label: 'Upload video', onPressed: () => context.push('/upload')),
                 ],
               ),
             );
@@ -54,21 +71,80 @@ class StudioCommentsScreen extends ConsumerWidget {
             itemBuilder: (_, i) {
               final c = comments[i];
               final user = c['user'] as Map<String, dynamic>?;
+              final pinned = c['isPinned'] == true;
+              final hearted = c['creatorHearted'] == true;
               return ForgeCard(
-                onTap: () => context.push('/watch/${c['videoId']}'),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      c['videoTitle'] as String? ?? 'Lesson',
-                      style: const TextStyle(fontSize: 12, color: ForgeTokens.primary),
+                    InkWell(
+                      onTap: () => context.push('/watch/${c['videoId']}'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (pinned)
+                            const Text(
+                              'Pinned',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: ForgeTokens.onSurfaceVariant,
+                              ),
+                            ),
+                          Text(
+                            c['videoTitle'] as String? ?? 'Video',
+                            style: const TextStyle(fontSize: 12, color: ForgeTokens.primary),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            c['content'] as String? ?? '',
+                            style: const TextStyle(color: ForgeTokens.onSurface),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '@${user?['username'] ?? 'user'}',
+                            style: const TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    Text(c['content'] as String? ?? '', style: const TextStyle(color: ForgeTokens.onSurface)),
-                    const SizedBox(height: 8),
-                    Text(
-                      '@${user?['username'] ?? 'user'}',
-                      style: const TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant),
+                    Row(
+                      children: [
+                        if (c['parentId'] == null)
+                          TextButton(
+                            onPressed: () async {
+                              try {
+                                await _pin(ref, c, !pinned);
+                              } catch (_) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Could not update pin')),
+                                  );
+                                }
+                              }
+                            },
+                            child: Text(pinned ? 'Unpin' : 'Pin'),
+                          ),
+                        TextButton(
+                          onPressed: () async {
+                            try {
+                              await _heart(ref, c, !hearted);
+                            } catch (_) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Could not update heart')),
+                                );
+                              }
+                            }
+                          },
+                          child: Text(hearted ? 'Remove heart' : 'Heart'),
+                        ),
+                        TextButton(
+                          onPressed: () => context.push('/watch/${c['videoId']}'),
+                          child: const Text('Open video'),
+                        ),
+                      ],
                     ),
                   ],
                 ),

@@ -167,7 +167,7 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
               decoration: const InputDecoration(labelText: 'Visibility'),
               items: const [
                 DropdownMenuItem(value: 'public', child: Text('Public')),
-                DropdownMenuItem(value: 'followers', child: Text('Followers')),
+                DropdownMenuItem(value: 'followers', child: Text('Subscribers')),
                 DropdownMenuItem(value: 'subscribers', child: Text('Members')),
                 DropdownMenuItem(value: 'private', child: Text('Private')),
               ],

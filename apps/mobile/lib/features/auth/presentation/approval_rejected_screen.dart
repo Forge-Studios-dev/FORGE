@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
 import '../data/auth_repository.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 final _rejectedProfileProvider = FutureProvider.autoDispose<_UserSummary>((ref) async {
   final client = ref.read(apiClientProvider);
@@ -56,13 +57,13 @@ class ApprovalRejectedScreen extends ConsumerWidget {
               ),
               if (me.displayName.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Text(me.displayName, style: const TextStyle(color: Colors.grey)),
+                Text(me.displayName, style: const TextStyle(color: ForgeTokens.onSurfaceVariant)),
               ],
               if (me.creatorReviewNote != null && me.creatorReviewNote!.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 const Text('Reason', style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
-                Text(me.creatorReviewNote!, style: const TextStyle(color: Colors.grey)),
+                Text(me.creatorReviewNote!, style: const TextStyle(color: ForgeTokens.onSurfaceVariant)),
               ],
               const SizedBox(height: 28),
               FilledButton(

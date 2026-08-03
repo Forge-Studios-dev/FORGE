@@ -83,10 +83,11 @@ class FeedRepository {
     }
   }
 
-  Future<FeedPage> getFollowingFeed({String? cursor}) async {
-    final cacheKey = cursor == null ? 'feed:following' : null;
+  Future<FeedPage> getFollowingFeed({String? cursor, String? channelId}) async {
+    final cacheKey = cursor == null && channelId == null ? 'feed:following' : null;
     final params = <String, dynamic>{'limit': AppConstants.feedPageSize};
     if (cursor != null) params['cursor'] = cursor;
+    if (channelId != null) params['channelId'] = channelId;
 
     try {
       final response = await _apiClient.dio.get('/videos/feed/following', queryParameters: params);
@@ -110,5 +111,38 @@ class FeedRepository {
       if (cached != null) return FeedPage.fromCachedJson(cached);
       rethrow;
     }
+  }
+
+  Future<FeedPage> getShortsFeed({String? cursor}) async {
+    final params = <String, dynamic>{'limit': AppConstants.feedPageSize};
+    if (cursor != null) params['cursor'] = cursor;
+    final response = await _apiClient.dio.get('/videos/shorts', queryParameters: params);
+    final data = response.data['data'] as Map<String, dynamic>;
+    final list = data['data'] as List? ?? const [];
+    final videos = list.map((v) => VideoModel.fromJson(v as Map<String, dynamic>)).toList();
+    final next = data['nextCursor'] as String? ??
+        (data['meta'] is Map ? (data['meta'] as Map)['cursor'] as String? : null);
+    final hasMore = next != null ||
+        (data['meta'] is Map ? (data['meta'] as Map)['hasMore'] == true : false);
+    return FeedPage(videos: videos, nextCursor: next, hasMore: hasMore);
+  }
+
+  Future<FeedPage> getTrendingFeed({String? cursor}) async {
+    final params = <String, dynamic>{
+      'limit': AppConstants.feedPageSize,
+      'sort': 'popular',
+    };
+    if (cursor != null) params['cursor'] = cursor;
+    final response = await _apiClient.dio.get('/videos/feed', queryParameters: params);
+    final data = response.data['data'] as Map<String, dynamic>;
+    final videos = (data['data'] as List)
+        .map((v) => VideoModel.fromJson(v as Map<String, dynamic>))
+        .toList();
+    final meta = data['meta'] as Map<String, dynamic>;
+    return FeedPage(
+      videos: videos,
+      nextCursor: meta['cursor'] as String?,
+      hasMore: meta['hasMore'] as bool? ?? false,
+    );
   }
 }
