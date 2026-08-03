@@ -12,7 +12,7 @@ import { useLiveStreamsQuery, useUpcomingStreamsQuery } from '@/hooks/useLiveStr
 
 const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Public', desc: 'Anyone can join' },
-  { value: 'followers', label: 'Followers only', desc: 'People who follow you' },
+  { value: 'followers', label: 'Subscribers only', desc: 'People who subscribed to your channel' },
   { value: 'subscribers', label: 'Members only', desc: 'Active membership required' },
   { value: 'tier', label: 'Tier members', desc: 'Specific membership tier' },
   { value: 'private', label: 'Private', desc: 'Invite-only session' },
@@ -288,7 +288,7 @@ export default function StudioLivePage() {
               <p className="font-label-caps text-xs text-outline">Preview</p>
               <h2 className="mt-1 text-lg font-semibold">{title.trim() || 'Untitled session'}</h2>
               <p className="mt-2 text-sm text-on-surface-variant">
-                {description.trim() || 'Add a short description so learners know what to expect.'}
+                {description.trim() || 'Add a short description so viewers know what to expect.'}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <StatusPill tone="live" label={scheduledAt ? 'Scheduled' : 'Ready to go live'} />

@@ -110,7 +110,7 @@ export function SignupForm({
   return (
     <AuthScreen
       title="Join FORGE"
-      subtitle="Start your skill-first learning journey."
+      subtitle="Create an account to subscribe, comment, and save videos."
       showHeader={false}
     >
       <form className="space-y-5" onSubmit={handleSubmit}>
@@ -156,6 +156,13 @@ export function SignupForm({
         {showGoogle && (
           <a
             href={`${API_URL}/auth/google`}
+            onClick={() => {
+              try {
+                sessionStorage.setItem('forge_oauth_next', nextPath || '/');
+              } catch {
+                /* ignore */
+              }
+            }}
             className="mt-3 block w-full rounded-full border border-outline py-4 text-center text-sm font-semibold text-on-surface hover:bg-surface-container"
           >
             Continue with Google

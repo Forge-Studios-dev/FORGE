@@ -60,9 +60,9 @@ export function RealtimeToasts() {
   return (
     <div className="fixed bottom-4 right-4 z-50 space-y-3 w-[320px]">
       {toasts.map((toast) => (
-        <div key={toast.id} className="glass rounded-xl border border-white/10 p-4 shadow-lg">
+        <div key={toast.id} className="glass-panel rounded-xl border border-outline-variant/20 p-4 shadow-lg">
           <p className="font-semibold">{toast.title}</p>
-          {toast.body ? <p className="text-sm text-gray-400 mt-1">{toast.body}</p> : null}
+          {toast.body ? <p className="mt-1 text-sm text-on-surface-variant">{toast.body}</p> : null}
         </div>
       ))}
     </div>

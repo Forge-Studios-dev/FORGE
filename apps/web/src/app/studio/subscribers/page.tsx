@@ -135,7 +135,7 @@ export default function StudioSubscribersPage() {
     <main className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader
-          title="Subscribers"
+          title="Members"
           subtitle="Track membership lifecycle, grant complimentary access, and export member data."
         />
         <Button

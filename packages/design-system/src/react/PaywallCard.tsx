@@ -4,7 +4,7 @@ import { StatusPill } from './StatusPill';
 
 /**
  * Single restricted-content presentation used everywhere a viewer hits a
- * paywall (watch page, community premium posts, course lessons) — shows the
+ * paywall (watch page, community premium posts, memberships) — shows the
  * specific tier and price that unlocks the content inline, no extra click,
  * instead of each surface rolling its own "restricted" box. Checkout/subscribe
  * actions are app-specific (Stripe, mock membership) so they're passed as
@@ -25,7 +25,7 @@ export function PaywallCard({
   /** Pre-formatted price, e.g. "USD 29/mo". */
   priceLabel?: string;
   children?: ReactNode;
-  /** Video-shaped box (watch page default). Set false for non-video surfaces like course/community pages. */
+  /** Video-shaped box (watch page default). Set false for membership/community surfaces. */
   aspectVideo?: boolean;
 }) {
   return (

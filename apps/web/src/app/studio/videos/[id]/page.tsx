@@ -45,6 +45,21 @@ export default function StudioVideoDetailEditorPage() {
   const [tagsLoading, setTagsLoading] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [captionBusy, setCaptionBusy] = useState(false);
+  const [captionMsg, setCaptionMsg] = useState('');
+  const [captionLang, setCaptionLang] = useState('en');
+
+  const CAPTION_LANG_OPTIONS = [
+    { code: 'en', label: 'English' },
+    { code: 'es', label: 'Spanish' },
+    { code: 'hi', label: 'Hindi' },
+    { code: 'pt', label: 'Portuguese' },
+    { code: 'fr', label: 'French' },
+    { code: 'de', label: 'German' },
+    { code: 'ja', label: 'Japanese' },
+    { code: 'ko', label: 'Korean' },
+    { code: 'ar', label: 'Arabic' },
+  ] as const;
 
   const { data: video, isLoading, isError } = useQuery({
     queryKey: ['studio-video', id],
@@ -81,7 +96,7 @@ export default function StudioVideoDetailEditorPage() {
     mutationFn: async () => {
       const canEditTags = !!video?.categoryId && availableTags.length > 0;
       if (canEditTags && selectedTagIds.length === 0) {
-        throw new Error('Select at least one skill tag.');
+        throw new Error('Select at least one topic tag.');
       }
       await api.patch(`/videos/${id}`, {
         title: title.trim(),
@@ -113,6 +128,59 @@ export default function StudioVideoDetailEditorPage() {
     onError: (e) => setError(getApiErrorMessage(e, 'Could not retry processing.')),
   });
 
+  async function uploadCaption(file: File) {
+    if (!file.name.toLowerCase().endsWith('.vtt') && file.type !== 'text/vtt') {
+      setCaptionMsg('Please choose a .vtt WebVTT file.');
+      return;
+    }
+    setCaptionBusy(true);
+    setCaptionMsg('');
+    try {
+      const { data } = await api.post<{
+        data: { uploadUrl: string; publicUrl: string };
+      }>(`/videos/${id}/caption/presigned-url`, {
+        contentType: 'text/vtt',
+        language: captionLang,
+      });
+      const { uploadUrl, publicUrl } = data.data;
+      const put = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': 'text/vtt' },
+      });
+      if (!put.ok) {
+        throw new Error(`Upload failed (${put.status})`);
+      }
+      await api.put(`/videos/${id}/caption`, {
+        captionUrl: publicUrl,
+        language: captionLang,
+      });
+      setCaptionMsg(`Captions uploaded (${captionLang}).`);
+      await qc.invalidateQueries({ queryKey: ['studio-video', id] });
+    } catch (e) {
+      setCaptionMsg(getApiErrorMessage(e, 'Could not upload captions.'));
+    } finally {
+      setCaptionBusy(false);
+    }
+  }
+
+  async function clearCaption(language?: string) {
+    setCaptionBusy(true);
+    setCaptionMsg('');
+    try {
+      await api.put(`/videos/${id}/caption`, {
+        captionUrl: null,
+        language: language ?? captionLang,
+      });
+      setCaptionMsg('Captions removed.');
+      await qc.invalidateQueries({ queryKey: ['studio-video', id] });
+    } catch (e) {
+      setCaptionMsg(getApiErrorMessage(e, 'Could not remove captions.'));
+    } finally {
+      setCaptionBusy(false);
+    }
+  }
+
   if (!isCreator) {
     return (
       <main className="space-y-4">
@@ -132,7 +200,7 @@ export default function StudioVideoDetailEditorPage() {
   if (isError || !video || (user && video.userId !== user.id)) {
     return (
       <main className="space-y-4">
-        <PageHeader title="Video editor" subtitle="This lesson could not be loaded." />
+        <PageHeader title="Video editor" subtitle="This video could not be loaded." />
         <Link href="/studio/videos" className="text-sm text-primary hover:underline">
           Back to videos
         </Link>
@@ -147,7 +215,7 @@ export default function StudioVideoDetailEditorPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title="Video detail editor"
-          subtitle="Update title, visibility, schedule, and skill tags for this lesson."
+          subtitle="Update title, visibility, schedule, and tags for this video."
         />
         <div className="flex flex-wrap gap-3 text-sm">
           <Link href="/studio/videos" className="text-primary hover:underline">
@@ -195,11 +263,11 @@ export default function StudioVideoDetailEditorPage() {
                 onChange={(e) => setVisibility(e.target.value as UploadVisibility)}
                 className="mt-1 w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-2.5"
               >
-                <option value="public">Public</option>
-                <option value="unlisted">Unlisted</option>
-                <option value="private">Private</option>
-                <option value="followers">Followers</option>
-                <option value="subscribers">Members</option>
+                <option value="public">Public — Everyone</option>
+                <option value="unlisted">Unlisted — Anyone with the link</option>
+                <option value="private">Private — Only you</option>
+                <option value="followers">Subscribers — Channel subscribers</option>
+                <option value="subscribers">Members — Channel membership</option>
               </select>
             </label>
             <label className="block text-sm">
@@ -215,7 +283,7 @@ export default function StudioVideoDetailEditorPage() {
 
           {canEditTags ? (
             <div>
-              <p className="mb-2 text-sm text-on-surface-variant">Skill tags</p>
+              <p className="mb-2 text-sm text-on-surface-variant">Topic tags</p>
               {tagsLoading ? (
                 <p className="text-sm text-on-surface-variant">Loading tags…</p>
               ) : (
@@ -247,6 +315,79 @@ export default function StudioVideoDetailEditorPage() {
               )}
             </div>
           ) : null}
+
+          {(video.status === 'ready' || video.status === 'processing') && (
+            <div className="space-y-3 rounded-xl border border-outline-variant/30 p-4">
+              <div>
+                <p className="font-label-caps text-xs text-outline">Captions</p>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  Upload WebVTT (`.vtt`) files per language. Viewers pick a track in the player.
+                </p>
+              </div>
+              {(video.captionTracks?.length ?? 0) > 0 ? (
+                <ul className="space-y-1 text-xs text-secondary">
+                  {video.captionTracks!.map((t) => (
+                    <li key={t.language} className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{t.label}</span>
+                      <span className="truncate text-on-surface-variant" title={t.url}>
+                        ({t.language})
+                      </span>
+                      <button
+                        type="button"
+                        disabled={captionBusy}
+                        onClick={() => void clearCaption(t.language)}
+                        className="text-error hover:underline disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : video.captionUrl ? (
+                <p className="truncate text-xs text-secondary" title={video.captionUrl}>
+                  Current: {video.captionUrl}
+                </p>
+              ) : (
+                <p className="text-xs text-on-surface-variant">No caption files attached yet.</p>
+              )}
+              <label className="block text-sm">
+                <span className="text-on-surface-variant">Language</span>
+                <select
+                  value={captionLang}
+                  onChange={(e) => setCaptionLang(e.target.value)}
+                  className="mt-1 w-full max-w-xs rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-2"
+                >
+                  {CAPTION_LANG_OPTIONS.map((o) => (
+                    <option key={o.code} value={o.code}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:border-primary">
+                  <Icon name="subtitles" />
+                  {captionBusy ? 'Uploading…' : `Upload ${captionLang}.vtt`}
+                  <input
+                    type="file"
+                    accept=".vtt,text/vtt"
+                    className="sr-only"
+                    disabled={captionBusy}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) void uploadCaption(file);
+                    }}
+                  />
+                </label>
+              </div>
+              {captionMsg ? (
+                <p className="text-sm text-secondary" role="status">
+                  {captionMsg}
+                </p>
+              ) : null}
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-3">
             <button
@@ -329,7 +470,7 @@ export default function StudioVideoDetailEditorPage() {
                 </div>
               )}
               {video.status === 'ready' ? (
-                <p className="text-sm text-secondary">Published and ready for learners.</p>
+                <p className="text-sm text-secondary">Published and ready to watch.</p>
               ) : null}
             </div>
           </div>

@@ -3,10 +3,11 @@ import { getAccessToken } from '@/lib/auth-storage';
 import { refreshAccessToken } from '@/lib/auth-refresh';
 import { currentReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
+import { env } from '@/env';
 
 const APP_CHECK_ROUTES = ['/auth/login', '/auth/signup', '/analytics/events'];
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const API_URL = env.NEXT_PUBLIC_API_URL;
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -51,7 +52,7 @@ api.interceptors.response.use(
 );
 
 export const serverApi = axios.create({
-  baseURL: process.env.API_INTERNAL_URL || API_URL,
+  baseURL: env.API_INTERNAL_URL || API_URL,
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 });

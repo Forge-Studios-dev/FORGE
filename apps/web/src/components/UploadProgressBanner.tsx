@@ -14,7 +14,7 @@ import {
 const PHASE_LABEL: Record<ActiveUploadMeta['phase'], string> = {
   presigning: 'Preparing upload…',
   uploading: 'Uploading to storage…',
-  completing: 'Finalizing lesson…',
+  completing: 'Finalizing video…',
 };
 
 function formatBytes(bytes: number): string {

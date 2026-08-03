@@ -14,13 +14,19 @@ export function NewPlaylistClient() {
   const params = useSearchParams();
   const videoId = useMemo(() => params.get('videoId'), [params]);
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
   const [error, setError] = useState('');
   const { user, isGuest } = useAuth();
 
   const create = useMutation({
     mutationFn: async () => {
       if (!title.trim()) throw new Error('Title is required');
-      const { data } = await api.post('/playlists', { title: title.trim() });
+      const { data } = await api.post('/playlists', {
+        title: title.trim(),
+        visibility,
+        ...(description.trim() ? { description: description.trim() } : {}),
+      });
       return data.data as { id: string };
     },
     onSuccess: async (playlist) => {
@@ -44,7 +50,7 @@ export function NewPlaylistClient() {
       <main className="mx-auto max-w-xl px-5 py-10 md:px-12">
         <div className="glass-panel rounded-2xl p-8 text-center">
           <h1 className="font-display-forge text-xl font-semibold">Create playlist</h1>
-          <p className="mt-2 text-sm text-on-surface-variant">Sign in to save lessons to a playlist.</p>
+          <p className="mt-2 text-sm text-on-surface-variant">Sign in to save videos to a playlist.</p>
           <Link
             href={loginHrefWithNext('/playlists/new')}
             className="primary-button mt-6 inline-flex rounded-full px-6 py-2 text-sm font-semibold text-on-primary"
@@ -69,8 +75,33 @@ export function NewPlaylistClient() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="mt-1 w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-on-surface outline-none focus:border-primary"
-            placeholder="My learning playlist"
+            placeholder="My playlist"
           />
+        </label>
+        <label className="block">
+          <span className="font-label-caps text-outline">Description (optional)</span>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={500}
+            rows={3}
+            className="mt-1 w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+            placeholder="What is this playlist about?"
+          />
+        </label>
+        <label className="block">
+          <span className="font-label-caps text-outline">Visibility</span>
+          <select
+            value={visibility}
+            onChange={(e) =>
+              setVisibility(e.target.value as 'public' | 'unlisted' | 'private')
+            }
+            className="mt-1 w-full rounded-lg border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-on-surface outline-none focus:border-primary"
+          >
+            <option value="public">Public</option>
+            <option value="unlisted">Unlisted</option>
+            <option value="private">Private</option>
+          </select>
         </label>
         <button
           type="button"

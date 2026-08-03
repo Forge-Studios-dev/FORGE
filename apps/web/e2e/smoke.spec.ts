@@ -24,7 +24,7 @@ test.describe('FORGE web smoke', () => {
     await page.goto('/');
     await expect(page.getByTestId('discover-section')).toBeVisible();
     const feed = page.getByTestId('feed-grid');
-    const empty = page.getByRole('heading', { name: /no lessons yet/i });
+    const empty = page.getByRole('heading', { name: /no videos yet/i });
     const loadError = page.getByRole('heading', { name: /couldn't load feed/i });
     await expect(feed.or(empty).or(loadError)).toBeVisible({ timeout: 20_000 });
   });

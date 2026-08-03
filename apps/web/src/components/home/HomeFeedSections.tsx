@@ -11,9 +11,9 @@ export function HomeFeedSections() {
     <>
       {isGuest && (
         <section className="mb-10 rounded-2xl border border-primary/20 bg-primary/5 p-8 text-center md:text-left">
-          <h2 className="font-display-forge mb-2 text-3xl font-bold text-primary md:text-4xl">Forge your skills</h2>
+          <h2 className="font-display-forge mb-2 text-3xl font-bold text-primary md:text-4xl">Watch what you love</h2>
           <p className="mb-6 text-on-surface-variant">
-            Explore expert-led tutorials and live sessions. Sign in to follow creators and track progress.
+            Explore videos and live streams from creators. Sign in to subscribe and build your library.
           </p>
           <div className="flex flex-wrap justify-center gap-3 md:justify-start">
             <Link href="/signup" className="primary-button rounded-full px-8 py-3 font-semibold text-on-primary">
@@ -46,8 +46,8 @@ export function HomeFeedSections() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <Icon name="auto_videocam" className="text-3xl text-primary" />
             <div className="flex-1">
-              <h3 className="font-display-forge text-lg font-semibold">Share your expertise</h3>
-              <p className="text-sm text-on-surface-variant">Apply to become a creator and upload tutorials.</p>
+              <h3 className="font-display-forge text-lg font-semibold">Create on FORGE</h3>
+              <p className="text-sm text-on-surface-variant">Apply to become a creator and upload videos.</p>
             </div>
             <Link
               href="/upload/become-creator"

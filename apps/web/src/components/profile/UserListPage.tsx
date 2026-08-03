@@ -31,17 +31,20 @@ export function UserListPage({
 
   const users = data?.pages.flatMap((p) => p.data) ?? [];
 
+  const title = type === 'followers' ? 'Subscribers' : 'Subscriptions';
+  const emptyLabel = type === 'followers' ? 'No subscribers yet.' : 'No subscriptions yet.';
+
   return (
     <main className="mx-auto max-w-2xl px-5 py-8 md:px-12">
       <Link href={`/${username}`} className="text-sm text-primary hover:underline">
         ← @{username}
       </Link>
-      <h1 className="font-display-forge mt-4 text-2xl font-semibold capitalize">{type}</h1>
+      <h1 className="font-display-forge mt-4 text-2xl font-semibold">{title}</h1>
 
       {isLoading ? (
         <p className="mt-6 text-on-surface-variant">Loading…</p>
       ) : users.length === 0 ? (
-        <p className="mt-6 text-on-surface-variant">No users yet.</p>
+        <p className="mt-6 text-on-surface-variant">{emptyLabel}</p>
       ) : (
         <ul className="mt-6 space-y-4">
           {users.map((u) => (

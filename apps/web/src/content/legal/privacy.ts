@@ -5,7 +5,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     id: 'intro',
     title: '1. Introduction',
     paragraphs: [
-      'Forge Studios ("we", "us") operates FORGE (https://forgestudios.net), a skill-first creator learning platform. This Privacy Policy explains how we collect, use, disclose, and protect personal information when you use our websites, APIs, and applications.',
+      'Forge Studios ("we", "us") operates FORGE (https://forgestudios.net), a video platform for creators and viewers. This Privacy Policy explains how we collect, use, disclose, and protect personal information when you use our websites, APIs, and applications.',
       'By using the Service, you acknowledge this Policy. If you do not agree, please do not use the Service.',
     ],
   },
@@ -22,7 +22,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     paragraphs: ['We collect information you provide directly, automatically when you use the Service, and from third parties where permitted.'],
     bullets: [
       'Account data: email, username, display name, password (stored hashed), profile details, creator application information.',
-      'Content and activity: videos you upload, live stream metadata, chat and community messages, likes, follows, watch history, and membership status.',
+      'Content and activity: videos you upload, live stream metadata, chat and community messages, likes, subscriptions, watch history, and membership status.',
       'Device and usage: IP address, browser type, app version, pages viewed, crash reports, and product analytics events.',
       'Communications: support requests and email verification or notification delivery status.',
       'Payment-related data (when enabled): handled primarily by payment processors; we may receive subscription status and limited billing identifiers.',
@@ -55,7 +55,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     ],
     bullets: [
       'Service providers: hosting (e.g. Fly.io, Vercel), database (e.g. Neon), Redis, email (e.g. Resend), video (Mux), push notifications (Firebase), error monitoring (Sentry), and analytics — under contracts requiring appropriate safeguards.',
-      'Creators: when you follow, subscribe, or message in a creator community, that creator can see information needed to operate their channel (e.g. display name, membership tier).',
+      'Creators: when you subscribe, join a membership, or message in a creator community, that creator can see information needed to operate their channel (e.g. display name, membership tier).',
       'Legal and safety: when required by law, court order, or to protect rights, safety, and integrity of the Service.',
       'Business transfers: in connection with a merger, acquisition, or asset sale, with notice where required.',
     ],

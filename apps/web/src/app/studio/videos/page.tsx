@@ -40,6 +40,20 @@ const VISIBILITY_ICON: Record<string, string> = {
   paid_event: 'payments',
 };
 
+const VISIBILITY_LABEL: Record<string, string> = {
+  public: 'Public',
+  unlisted: 'Unlisted',
+  private: 'Private',
+  followers: 'Subscribers',
+  subscribers: 'Members',
+  tier: 'Tier members',
+  paid_event: 'Paid event',
+};
+
+function visibilityLabel(visibility: string): string {
+  return VISIBILITY_LABEL[visibility] ?? visibility.replace(/_/g, ' ');
+}
+
 function formatPublishedAt(video: Video): string {
   const raw = video.publishedAt ?? video.scheduledPublishAt ?? video.createdAt;
   return new Date(raw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -73,7 +87,7 @@ function VideoRow({
             label={STATUS_LABEL[video.status] ?? video.status}
             className="mr-2"
           />
-          {video.visibility}
+          {visibilityLabel(video.visibility)}
           {video.scheduledPublishAt
             ? ` · scheduled ${new Date(video.scheduledPublishAt).toLocaleString()}`
             : ''}
@@ -258,8 +272,8 @@ function StudioVideosPageInner() {
           title="Videos"
           subtitle={
             totalCount > 0
-              ? `${totalCount} lessons · Manage uploads, processing, publishing, and lesson performance.`
-              : 'Manage uploads, processing, publishing, and lesson performance.'
+              ? `${totalCount} videos · Manage uploads, processing, publishing, and performance.`
+              : 'Manage uploads, processing, publishing, and performance.'
           }
         />
         <div className="flex flex-wrap items-center gap-3">
@@ -326,6 +340,7 @@ function StudioVideosPageInner() {
             <option value="public">Public</option>
             <option value="unlisted">Unlisted</option>
             <option value="private">Private</option>
+            <option value="followers">Subscribers</option>
             <option value="subscribers">Members</option>
           </select>
         </label>
@@ -366,9 +381,9 @@ function StudioVideosPageInner() {
           description={
             debouncedSearch
               ? `Nothing in your library matches “${debouncedSearch}”.`
-              : 'Upload your first lesson to start building your channel library.'
+              : 'Upload your first video to start building your channel.'
           }
-          action={{ label: 'Upload a lesson', href: '/upload' }}
+          action={{ label: 'Upload a video', href: '/upload' }}
         />
       ) : null}
 
@@ -378,7 +393,7 @@ function StudioVideosPageInner() {
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-outline-variant/30 bg-surface-container-low text-xs uppercase tracking-wide text-outline">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Lesson</th>
+                  <th className="px-4 py-3 font-medium">Video</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Visibility</th>
                   <th className="px-4 py-3 font-medium">Views</th>
@@ -447,7 +462,7 @@ function StudioVideosPageInner() {
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1.5 capitalize text-on-surface-variant">
                           <Icon name={VISIBILITY_ICON[video.visibility] ?? 'visibility'} className="text-base" />
-                          {video.visibility.replace(/_/g, ' ')}
+                          {visibilityLabel(video.visibility)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-on-surface-variant">

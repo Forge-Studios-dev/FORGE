@@ -45,13 +45,14 @@ const NOTIFICATION_META: Record<NotificationType, { icon: string; tone: StatusTo
   comment_on_video: { icon: 'forum', tone: 'neutral', category: 'social' },
   comment_reply: { icon: 'reply', tone: 'neutral', category: 'social' },
   new_follower: { icon: 'person_add', tone: 'neutral', category: 'social' },
-  video_liked: { icon: 'favorite', tone: 'neutral', category: 'social' },
+  video_liked: { icon: 'thumb_up', tone: 'neutral', category: 'social' },
   direct_message: { icon: 'mail', tone: 'neutral', category: 'social' },
   community_role_assigned: { icon: 'shield', tone: 'primary', category: 'community' },
   community_banned: { icon: 'gavel', tone: 'critical', category: 'community' },
   community_post_new: { icon: 'campaign', tone: 'neutral', category: 'community' },
   achievement_unlocked: { icon: 'emoji_events', tone: 'reward', category: 'reward' },
   xp_level_up: { icon: 'trending_up', tone: 'reward', category: 'reward' },
+  super_thanks: { icon: 'volunteer_activism', tone: 'reward', category: 'billing' },
 };
 
 const DEFAULT_META = { icon: 'notifications', tone: 'neutral' as StatusTone, category: 'social' as NotificationCategory };

@@ -1,7 +1,7 @@
 'use client';
 
+import { Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { getAccessToken } from '@/lib/auth-storage';
@@ -10,7 +10,7 @@ import { Video } from '@/types';
 import { WatchExperience } from '@/components/watch/WatchExperience';
 import { preloadHlsManifests } from '@/lib/hls-preload';
 
-export function WatchPageClient({
+function WatchPageBody({
   video: initial,
   sidebar,
 }: {
@@ -66,4 +66,24 @@ export function WatchPageClient({
   }, [initial.id, refetch]);
 
   return <WatchExperience video={video} sidebar={sidebar} />;
+}
+
+export function WatchPageClient({
+  video,
+  sidebar,
+}: {
+  video: Video;
+  sidebar?: React.ReactNode;
+}) {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
+          <div className="aspect-video animate-pulse rounded-xl bg-surface-container/40" />
+        </main>
+      }
+    >
+      <WatchPageBody video={video} sidebar={sidebar} />
+    </Suspense>
+  );
 }

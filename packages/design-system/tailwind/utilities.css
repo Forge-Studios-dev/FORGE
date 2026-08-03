@@ -1,17 +1,17 @@
 @layer utilities {
   .bg-elevated {
-    background-color: rgba(33, 30, 39, 0.6);
+    background-color: color-mix(in srgb, var(--color-surface-container) 85%, transparent);
     backdrop-filter: blur(20px);
   }
 
   .border-subtle {
-    border-color: rgba(73, 68, 84, 0.2);
+    border-color: color-mix(in srgb, var(--color-outline-variant, var(--color-on-surface-variant)) 35%, transparent);
   }
 
   .glass-panel {
-    background: rgba(29, 26, 35, 0.4);
+    background: color-mix(in srgb, var(--color-surface-container) 72%, transparent);
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(73, 68, 84, 0.3);
+    border: 1px solid color-mix(in srgb, var(--color-outline-variant, var(--color-on-surface-variant)) 28%, transparent);
   }
 
   .primary-button {

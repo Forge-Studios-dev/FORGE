@@ -27,7 +27,7 @@ import { AccessSessionConflict } from '@/components/Community/AccessSessionConfl
 
 const ACCESS_MESSAGES: Record<string, string> = {
   login_required: 'Sign in to watch this stream.',
-  follow_required: 'Follow this creator to watch.',
+  follow_required: 'Subscribe to this channel to watch.',
   subscription_required: 'An active membership is required.',
   tier_required: 'A higher membership tier is required.',
   paid_event: 'This is a paid event. Access is granted by the creator or platform admin.',

@@ -119,6 +119,12 @@ export default function StudioTiersPage() {
             : 'Mock billing — enable Stripe for production checkout'
         }
       />
+      <p className="text-sm text-on-surface-variant">
+        Super Thanks on videos:{' '}
+        <Link href="/studio/super-thanks" className="text-primary hover:underline">
+          Super Thanks ledger
+        </Link>
+      </p>
 
       <section className="glass-panel mb-8 space-y-3 rounded-xl p-6">
         <h2 className="font-label-caps text-outline">Payouts (Stripe Connect)</h2>
@@ -307,17 +313,6 @@ function TierEntitlementsEditor({
     },
   });
 
-  const { data: courses } = useQuery({
-    queryKey: ['studio-courses', user?.id],
-    enabled: !!user?.id && entResourceType === 'course',
-    queryFn: async () => {
-      const { data } = await api.get<{ data: Array<{ id: string; title: string }> }>(
-        '/creators/me/courses',
-      );
-      return data.data;
-    },
-  });
-
   const { data: communityDetail } = useQuery({
     queryKey: ['community-channels-picker', channelCommunityId],
     enabled: !!channelCommunityId && entResourceType === 'channel',
@@ -341,8 +336,6 @@ function TierEntitlementsEditor({
     if (!e.resourceId) return `${e.resourceType} (all)`;
     const community = (communities ?? []).find((c) => c.id === e.resourceId);
     if (community) return `${e.resourceType}: ${community.name}`;
-    const course = (courses ?? []).find((c) => c.id === e.resourceId);
-    if (course) return `${e.resourceType}: ${course.title}`;
     return `${e.resourceType} · ${e.resourceId.slice(0, 8)}…`;
   };
 
@@ -374,7 +367,6 @@ function TierEntitlementsEditor({
       >
         <option value="community">Community</option>
         <option value="channel">Channel</option>
-        <option value="course">Course</option>
         <option value="video">Video</option>
         <option value="stream">Stream</option>
         <option value="event">Event</option>
@@ -390,20 +382,6 @@ function TierEntitlementsEditor({
           {(communities ?? []).map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
-            </option>
-          ))}
-        </select>
-      ) : null}
-      {entResourceType === 'course' ? (
-        <select
-          value={entResourceId}
-          onChange={(e) => onResourceIdChange(e.target.value)}
-          className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
-        >
-          <option value="">Select course</option>
-          {(courses ?? []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.title}
             </option>
           ))}
         </select>

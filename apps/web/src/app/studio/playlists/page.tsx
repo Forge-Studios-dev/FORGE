@@ -27,7 +27,7 @@ export default function StudioPlaylistsPage() {
   const { user, isCreator, canEngage } = useAuth();
   const qc = useQueryClient();
   const [title, setTitle] = useState('');
-  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
   const [error, setError] = useState('');
   const [manageId, setManageId] = useState<string | null>(null);
   const [attachVideoId, setAttachVideoId] = useState('');
@@ -118,7 +118,7 @@ export default function StudioPlaylistsPage() {
     <main className="space-y-6">
       <PageHeader
         title="Playlists"
-        subtitle="Group lessons into curated learning paths learners can binge."
+        subtitle="Organize videos into playlists viewers can binge."
       />
 
       <section className="glass-panel space-y-4 rounded-2xl p-6">
@@ -137,10 +137,13 @@ export default function StudioPlaylistsPage() {
           <span className="text-on-surface-variant">Visibility</span>
           <select
             value={visibility}
-            onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
+            onChange={(e) =>
+              setVisibility(e.target.value as 'public' | 'unlisted' | 'private')
+            }
             className="mt-1 w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-2.5"
           >
             <option value="public">Public</option>
+            <option value="unlisted">Unlisted</option>
             <option value="private">Private</option>
           </select>
         </label>
@@ -168,8 +171,8 @@ export default function StudioPlaylistsPage() {
           <EmptyState
             icon="playlist_play"
             title="No playlists yet"
-            description="Create a playlist, then add ready lessons from your library."
-            action={{ label: 'Upload a lesson', href: '/upload' }}
+            description="Create a playlist, then add ready videos from your library."
+            action={{ label: 'Upload a video', href: '/upload' }}
           />
         ) : null}
         <div className="grid gap-4 md:grid-cols-2">

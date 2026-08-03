@@ -64,7 +64,7 @@ export function StudioGate({ children }: { children: React.ReactNode }) {
       <GateCard
         icon="lock"
         title="Creator Studio"
-        subtitle="Sign in to manage your channel, upload lessons, go live, and grow memberships."
+        subtitle="Sign in to manage your channel, upload videos, go live, and grow memberships."
         primary={{ href: '/login?next=/studio', label: 'Sign in' }}
         secondary={{ href: '/signup?next=/studio', label: 'Create an account' }}
       />
@@ -112,9 +112,9 @@ export function StudioGate({ children }: { children: React.ReactNode }) {
       <GateCard
         icon="rocket_launch"
         title="Become a creator"
-        subtitle="Upload lessons, go live, run communities, and unlock analytics. Apply to open Creator Studio — same idea as starting a YouTube channel."
+        subtitle="Upload videos, go live, manage comments, and unlock analytics. Apply to open Creator Studio — the same path as starting a YouTube channel."
         primary={{ href: '/upload/become-creator', label: 'Apply to become a creator' }}
-        secondary={{ href: '/discover/courses', label: 'Explore creator courses' }}
+        secondary={{ href: '/', label: 'Browse videos' }}
       />
     );
   }

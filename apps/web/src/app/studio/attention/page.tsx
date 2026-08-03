@@ -91,7 +91,7 @@ export default function StudioAttentionPage() {
             icon="notifications_active"
             title="Nothing urgent right now"
             description="Your creator queue is clear. Publish, go live, or check analytics while things are quiet."
-            action={{ label: 'Upload a lesson', href: '/upload' }}
+            action={{ label: 'Upload a video', href: '/upload' }}
           />
         ) : null}
 

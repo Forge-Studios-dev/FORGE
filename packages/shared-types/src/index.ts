@@ -73,3 +73,4 @@ export * from './analytics';
 export * from './content-visibility';
 export * from './entitlements';
 export * from './csrf';
+export * from './domain';

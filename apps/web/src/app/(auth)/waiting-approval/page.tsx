@@ -26,14 +26,14 @@ export default function WaitingApprovalPage() {
       <StatusPage
         icon="hourglass_top"
         title="Creator approval pending"
-        description={`${name}your creator request is under review. You can still browse and watch tutorials while you wait.`}
+        description={`${name}your creator request is under review. You can still browse and watch videos while you wait.`}
         action={{ label: 'Go to home', href: '/' }}
         secondary={{ label: 'Switch account', href: '/login' }}
       />
       {categories?.length ? (
         <section className="mx-auto max-w-2xl px-5 pb-16 text-center">
           <h2 className="font-label-caps mb-4 text-outline">
-            Explore what other creators are teaching
+            Explore what other creators are publishing
           </h2>
           <div className="flex flex-wrap justify-center gap-3">
             {categories.slice(0, 8).map((cat) => (

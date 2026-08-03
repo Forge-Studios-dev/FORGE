@@ -74,11 +74,11 @@ export function StreamChatReplayPanel({ streamId, playbackSeconds }: Props) {
           visible.map((m) => (
             <div
               key={m.id}
-              className={`text-sm ${m.messageType === 'super_chat' ? 'rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1' : ''}`}
+              className={`text-sm ${m.messageType === 'super_chat' ? 'rounded-lg border border-warning/40 bg-warning/10 px-2 py-1' : ''}`}
             >
               <span className="font-medium text-primary">{displayName(m)}</span>
               {m.messageType === 'super_chat' && m.amountCents ? (
-                <span className="ml-1 text-xs text-amber-400">
+                <span className="ml-1 text-xs text-warning">
                   ${(m.amountCents / 100).toFixed(2)}
                 </span>
               ) : null}

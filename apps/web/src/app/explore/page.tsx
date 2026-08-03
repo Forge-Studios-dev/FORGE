@@ -25,7 +25,22 @@ export default async function ExplorePage() {
       data-testid="forge-explore"
       className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12"
     >
-      <PageHeader title="Explore" subtitle="Discover skills and learning paths by discipline" />
+      <PageHeader title="Explore" subtitle="Browse categories and discover creators" />
+
+      <div className="mb-8 flex flex-wrap gap-3">
+        <Link href="/trending" className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:bg-surface-container-high">
+          Trending
+        </Link>
+        <Link href="/search" className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:bg-surface-container-high">
+          Search
+        </Link>
+        <Link href="/shorts" className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:bg-surface-container-high">
+          Shorts
+        </Link>
+        <Link href="/live" className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:bg-surface-container-high">
+          Live
+        </Link>
+      </div>
 
       <section className="mb-12">
         <h2 className="font-label-caps mb-4 text-outline">Browse by category</h2>

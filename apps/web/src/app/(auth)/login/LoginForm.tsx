@@ -118,7 +118,7 @@ export function LoginForm({
       : '/signup';
 
   return (
-    <AuthScreen title="Welcome back" subtitle="Continue your path to mastery.">
+    <AuthScreen title="Welcome back" subtitle="Sign in to subscribe, comment, and save videos.">
       <form className="space-y-6" onSubmit={handleSubmit}>
         {resetOk && (
           <p className="rounded-lg bg-secondary/10 px-4 py-2 text-sm text-secondary">
@@ -174,6 +174,13 @@ export function LoginForm({
         {showGoogle && (
           <a
             href={`${API_URL}/auth/google`}
+            onClick={() => {
+              try {
+                sessionStorage.setItem('forge_oauth_next', nextPath || '/');
+              } catch {
+                /* ignore */
+              }
+            }}
             className="mt-3 block w-full rounded-full border border-outline py-4 text-center text-sm font-semibold text-on-surface hover:bg-surface-container"
           >
             Continue with Google

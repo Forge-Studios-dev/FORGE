@@ -25,7 +25,7 @@
   --forge-live: #ff453a;
   --forge-font-display: 'Space Grotesk', system-ui, sans-serif;
   --forge-font-body: 'Inter', system-ui, sans-serif;
-  --forge-font-label: 'Geist', ui-monospace, monospace;
+  --forge-font-label: var(--font-inter, 'Inter'), system-ui, sans-serif;
   --forge-spacing-margin-mobile: 20px;
   --forge-spacing-margin-desktop: 48px;
   --forge-spacing-container-max: 1440px;

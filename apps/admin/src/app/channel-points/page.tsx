@@ -52,7 +52,7 @@ export default function ChannelPointsOversightPage() {
     <main className="mx-auto max-w-5xl px-5 py-8 md:px-12">
       <PageHeader
         title="Channel points oversight"
-        subtitle="Cross-community balances and pending redemptions"
+        subtitle="Legacy community points (Twitch-style) — soft-retired from YouTube parity"
       />
 
       <h3 className="mt-8 text-sm font-semibold">Communities with activity</h3>

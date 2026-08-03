@@ -71,7 +71,7 @@ type ChatMode = 'all' | 'followers' | 'subscribers' | 'mods_only';
 
 const CHAT_MODE_OPTIONS: { value: ChatMode; label: string }[] = [
   { value: 'all', label: 'Everyone' },
-  { value: 'followers', label: 'Followers only' },
+  { value: 'followers', label: 'Subscribers only' },
   { value: 'subscribers', label: 'Members only' },
   { value: 'mods_only', label: 'Mods only' },
 ];

@@ -7,9 +7,15 @@ import { useStudioAccess } from '@/hooks/useStudioAccess';
 
 const CREATOR_LINKS = [
   {
+    href: '/studio/branding',
+    title: 'Customize channel',
+    desc: 'Channel name, handle, about text, website, and links.',
+    icon: 'palette',
+  },
+  {
     href: '/profile/settings',
     title: 'Profile & account',
-    desc: 'Display name, username, avatar, password, and email verification.',
+    desc: 'Password, email verification, and privacy preferences.',
     icon: 'manage_accounts',
   },
   {
@@ -19,9 +25,21 @@ const CREATOR_LINKS = [
     icon: 'workspace_premium',
   },
   {
+    href: '/studio/super-thanks',
+    title: 'Super Thanks',
+    desc: 'Review Super Thanks from viewers and export a CSV.',
+    icon: 'volunteer_activism',
+  },
+  {
+    href: '/studio/attention',
+    title: 'Attention queue',
+    desc: 'Comments needing reply, moderation, and processing failures.',
+    icon: 'priority_high',
+  },
+  {
     href: '/notifications',
     title: 'Notifications',
-    desc: 'Review creator alerts for comments, payments, and community events.',
+    desc: 'Review creator alerts for comments, payments, and live events.',
     icon: 'notifications',
   },
   {
@@ -29,18 +47,6 @@ const CREATOR_LINKS = [
     title: 'Direct messages',
     desc: 'Reply to member conversations and group DMs.',
     icon: 'chat',
-  },
-  {
-    href: '/studio/brands',
-    title: 'Brands & channel identity',
-    desc: 'Organize communities under brand identities.',
-    icon: 'storefront',
-  },
-  {
-    href: '/studio/ai-copilot',
-    title: 'AI Copilot defaults',
-    desc: 'Run growth insights and moderation scoring from Studio.',
-    icon: 'auto_awesome',
   },
 ] as const;
 
@@ -146,11 +152,11 @@ export default function StudioSettingsPage() {
           <p className="font-label-caps text-xs text-outline">Team access</p>
           <h2 className="mt-1 text-lg font-semibold">Moderators & coaches</h2>
           <p className="mt-2 text-sm text-on-surface-variant">
-            Community roles are managed inside each community admin page. Open a community to invite
-            moderators, coaches, or editors with scoped permissions.
+            Channel team access is managed from Moderation. Invite moderators with scoped
+            permissions for comments and live chat.
           </p>
-          <Link href="/studio/communities" className="mt-4 inline-flex text-sm text-primary hover:underline">
-            Manage communities
+          <Link href="/studio/moderation" className="mt-4 inline-flex text-sm text-primary hover:underline">
+            Open moderation center
           </Link>
         </section>
       ) : (

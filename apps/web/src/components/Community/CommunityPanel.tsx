@@ -535,7 +535,8 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                     disabled={!user || likeMutation.isPending}
                     onClick={() => likeMutation.mutate(p.id)}
                   >
-                    ♥ {p.likeCount ?? 0}
+                    <Icon name="thumb_up" filled={!!p.likedByMe} className="text-sm" />{' '}
+                    {p.likeCount ?? 0}
                   </button>
                   <button
                     type="button"

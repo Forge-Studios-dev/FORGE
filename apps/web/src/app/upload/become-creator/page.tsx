@@ -16,10 +16,10 @@ const STEPS = [
 ] as const;
 
 const FOCUS_OPTIONS = [
-  'Video lessons & tutorials',
-  'Live teaching sessions',
-  'Courses & mentorship',
-  'Community-led learning',
+  'Videos & Shorts',
+  'Live streams',
+  'Channel memberships',
+  'Community posts',
 ] as const;
 
 export default function BecomeCreatorPage() {
@@ -70,7 +70,7 @@ export default function BecomeCreatorPage() {
     <main className="mx-auto max-w-lg px-5 py-16 md:px-12">
       <PageHeader
         title="Become a creator"
-        subtitle="Share your expertise through tutorials and live teaching"
+        subtitle="Upload videos and go live for your audience"
       />
 
       <div className="mb-6 flex flex-wrap gap-2">
@@ -90,7 +90,7 @@ export default function BecomeCreatorPage() {
           <>
             <div>
               <label className="font-label-caps mb-2 block text-outline">
-                Why do you want to teach on FORGE?
+                Why do you want to create on FORGE?
               </label>
               <textarea
                 value={bio}
@@ -98,7 +98,7 @@ export default function BecomeCreatorPage() {
                 required
                 rows={5}
                 className="w-full rounded-lg border border-subtle bg-surface-container-low px-4 py-2.5 text-on-surface focus:border-primary focus:outline-none"
-                placeholder="Describe your skills and what you'll teach…"
+                placeholder="Describe your channel and the videos you’ll publish…"
               />
             </div>
             <Button
@@ -119,7 +119,7 @@ export default function BecomeCreatorPage() {
         {step === 2 ? (
           <>
             <div>
-              <p className="font-label-caps mb-3 block text-outline">Primary teaching focus</p>
+              <p className="font-label-caps mb-3 block text-outline">Primary channel focus</p>
               <div className="space-y-2">
                 {FOCUS_OPTIONS.map((option) => (
                   <label
@@ -166,7 +166,7 @@ export default function BecomeCreatorPage() {
                 onChange={(e) => setAgreed(e.target.checked)}
                 className="mt-1"
               />
-              I understand creator applications are reviewed for skill quality, safety, and community fit.
+              I understand creator applications are reviewed for content quality, safety, and community fit.
             </label>
             <div className="flex gap-3">
               <Button type="button" variant="secondary" className="flex-1" onClick={() => setStep(2)}>

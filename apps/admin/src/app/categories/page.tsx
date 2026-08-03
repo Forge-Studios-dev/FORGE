@@ -96,7 +96,7 @@ export default function CategoriesPage() {
   return (
     <section>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <PageHeader title="Categories" subtitle="Manage skill taxonomy for discovery" />
+        <PageHeader title="Categories" subtitle="Manage categories for discovery" />
         <Button type="button" onClick={openCreate}>
           Add category
         </Button>

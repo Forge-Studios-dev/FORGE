@@ -37,7 +37,7 @@
     "headlineLg": { "fontFamily": "Space Grotesk", "fontSize": "32px", "fontWeight": "600" },
     "headlineLgMobile": { "fontFamily": "Space Grotesk", "fontSize": "24px", "fontWeight": "600" },
     "bodyMd": { "fontFamily": "Inter", "fontSize": "16px", "fontWeight": "400" },
-    "labelCaps": { "fontFamily": "Geist", "fontSize": "12px", "fontWeight": "600", "letterSpacing": "0.08em", "textTransform": "uppercase" }
+    "labelCaps": { "fontFamily": "Inter", "fontSize": "12px", "fontWeight": "600", "letterSpacing": "0.08em", "textTransform": "uppercase" }
   },
   "spacing": {
     "unit": 4,

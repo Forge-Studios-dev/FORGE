@@ -129,7 +129,7 @@ export default function UsersPage() {
         header: 'Stats',
         cell: ({ row }) => (
           <span className="text-xs text-on-surface-variant">
-            {row.original.followerCount} followers · {row.original.videoCount} videos
+            {row.original.followerCount} subscribers · {row.original.videoCount} videos
           </span>
         ),
       },

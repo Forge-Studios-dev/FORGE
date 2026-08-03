@@ -31,13 +31,13 @@ export default function StudioAnalyticsDetailsPage() {
       <Link href="/studio/analytics" className="mb-4 inline-block text-sm text-primary hover:underline">
         ← Analytics
       </Link>
-      <PageHeader title="Video performance" subtitle="Per-lesson metrics" />
+      <PageHeader title="Video performance" subtitle="Per-video metrics" />
 
       {isLoading && <p className="text-on-surface-variant">Loading…</p>}
       {isError && <p className="text-error">Failed to load video metrics.</p>}
 
       {!isLoading && !isError && !videos?.length && (
-        <EmptyState icon="analytics" title="No videos" description="Upload lessons to see per-video stats." />
+        <EmptyState icon="analytics" title="No videos" description="Upload videos to see per-video stats." />
       )}
 
       <div className="glass-panel rounded-xl p-6">

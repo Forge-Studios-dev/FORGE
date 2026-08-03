@@ -8,7 +8,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-[var(--spacing-container-max)] flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="font-display-forge text-sm font-semibold text-on-surface">FORGE</p>
-          <p className="mt-1 text-xs text-outline">Skill-first learning from expert creators.</p>
+          <p className="mt-1 text-xs text-outline">Watch videos, Shorts, and live streams from creators you love.</p>
         </div>
         <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-on-surface-variant" aria-label="Legal and support">
           <LegalLinks linkClassName="hover:text-primary" />

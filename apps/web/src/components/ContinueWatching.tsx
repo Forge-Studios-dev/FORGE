@@ -15,8 +15,8 @@ export function ContinueWatching() {
     queryKey: ['watch-history', 'continue', user?.id],
     enabled: !authLoading && !isGuest && !!user,
     queryFn: async () => {
-      const { data } = await api.get<{ data: { data: Video[] } }>('/users/me/watch-history?incomplete=true&limit=8');
-      return data.data.data;
+      const { data } = await api.get<{ data: { data: Video[] } }>('/users/me/watch-history?incomplete=true&limit=12');
+      return (data.data.data ?? []).filter((v) => (v.viewerProgressSeconds ?? 0) >= 5);
     },
   });
 
@@ -24,7 +24,7 @@ export function ContinueWatching() {
   if (isLoading) {
     return (
       <section className="mb-10">
-        <h2 className="font-display-forge mb-6 text-2xl font-semibold md:text-3xl">Continue mastering</h2>
+        <h2 className="font-display-forge mb-6 text-2xl font-semibold md:text-3xl">Continue watching</h2>
         <HorizontalCardSkeleton count={4} />
       </section>
     );
@@ -34,7 +34,7 @@ export function ContinueWatching() {
   return (
     <section id="continue" className="mb-12">
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="font-display-forge text-2xl font-semibold md:text-3xl">Continue mastering</h2>
+        <h2 className="font-display-forge text-2xl font-semibold md:text-3xl">Continue watching</h2>
         <Link href="/history" className="font-label-caps text-secondary hover:underline">
           All history
         </Link>

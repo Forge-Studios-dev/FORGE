@@ -11,7 +11,6 @@ type NavItem = {
   href: string;
   label: string;
   icon: string;
-  badge?: string;
 };
 
 const CREATOR_NAV: Array<{ label: string; items: NavItem[] }> = [
@@ -19,49 +18,36 @@ const CREATOR_NAV: Array<{ label: string; items: NavItem[] }> = [
     label: 'Home',
     items: [
       { href: '/studio', label: 'Dashboard', icon: 'space_dashboard' },
-      { href: '/studio/attention', label: 'Attention', icon: 'notifications_active', badge: 'Now' },
+      { href: '/studio/attention', label: 'Attention', icon: 'priority_high' },
     ],
   },
   {
     label: 'Content',
     items: [
-      { href: '/studio/videos', label: 'Videos', icon: 'video_library' },
-      { href: '/studio/live', label: 'Live', icon: 'sensors' },
-      { href: '/studio/courses', label: 'Courses', icon: 'school' },
-      { href: '/studio/podcasts', label: 'Podcasts', icon: 'podcasts' },
+      { href: '/studio/videos', label: 'Content', icon: 'video_library' },
       { href: '/studio/playlists', label: 'Playlists', icon: 'playlist_play' },
       { href: '/studio/comments', label: 'Comments', icon: 'forum' },
+      { href: '/studio/live', label: 'Live', icon: 'sensors' },
     ],
   },
   {
-    label: 'Community',
-    items: [
-      { href: '/studio/communities', label: 'Communities', icon: 'hub' },
-      { href: '/studio/moderation', label: 'Moderation', icon: 'shield' },
-      { href: '/messages', label: 'Messages', icon: 'chat' },
-      { href: '/studio/channel-points', label: 'Channel points', icon: 'stars' },
-      { href: '/studio/mentorship', label: 'Mentorship', icon: 'diversity_3' },
-      { href: '/studio/brands', label: 'Brands', icon: 'storefront' },
-    ],
+    label: 'Analytics',
+    items: [{ href: '/studio/analytics', label: 'Analytics', icon: 'analytics' }],
   },
   {
-    label: 'Grow',
+    label: 'Monetization',
     items: [
-      { href: '/studio/analytics', label: 'Analytics', icon: 'analytics' },
       { href: '/studio/tiers', label: 'Memberships', icon: 'workspace_premium' },
-      { href: '/studio/subscribers', label: 'Subscribers', icon: 'groups' },
-      { href: '/studio/bundles', label: 'Bundles', icon: 'inventory_2' },
-      { href: '/studio/resources', label: 'Resources', icon: 'folder_open' },
-      { href: '/studio/referrals', label: 'Referrals', icon: 'share' },
-      { href: '/studio/ai-copilot', label: 'AI Copilot', icon: 'auto_awesome' },
+      { href: '/studio/subscribers', label: 'Members', icon: 'groups' },
+      { href: '/studio/super-thanks', label: 'Super Thanks', icon: 'volunteer_activism' },
     ],
   },
   {
     label: 'Settings',
     items: [
+      { href: '/studio/branding', label: 'Customization', icon: 'palette' },
       { href: '/studio/settings', label: 'Settings', icon: 'settings' },
-      { href: '/studio/upload-reliability', label: 'Upload reliability', icon: 'cloud_sync' },
-      { href: '/studio/system-states', label: 'System states', icon: 'health_and_safety' },
+      { href: '/studio/moderation', label: 'Moderation', icon: 'shield' },
     ],
   },
 ];
@@ -72,15 +58,11 @@ const COLLABORATOR_NAV: Array<{ label: string; items: NavItem[] }> = [
     items: [{ href: '/studio', label: 'Dashboard', icon: 'space_dashboard' }],
   },
   {
-    label: 'Community',
+    label: 'Settings',
     items: [
       { href: '/studio/moderation', label: 'Moderation', icon: 'shield' },
-      { href: '/messages', label: 'Messages', icon: 'chat' },
+      { href: '/studio/settings', label: 'Settings', icon: 'settings' },
     ],
-  },
-  {
-    label: 'Settings',
-    items: [{ href: '/studio/settings', label: 'Settings', icon: 'settings' }],
   },
 ];
 
@@ -92,7 +74,7 @@ function isCollaboratorAllowedPath(pathname: string): boolean {
   if (pathname === '/studio') return true;
   if (pathname.startsWith('/studio/moderation')) return true;
   if (pathname.startsWith('/studio/settings')) return true;
-  if (pathname === '/messages' || pathname.startsWith('/messages/')) return true;
+  if (pathname.startsWith('/studio/branding')) return true;
   return false;
 }
 
@@ -114,15 +96,15 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
         <div className="sticky top-24 space-y-4">
           <div className="glass-panel rounded-2xl p-4">
             <p className="font-label-caps mb-2 text-xs text-outline">
-              {isCollaborator ? 'Team Studio' : 'Creator Studio'}
+              {isCollaborator ? 'Team Studio' : 'Channel Studio'}
             </p>
             <h2 className="font-display-forge text-xl font-semibold">
-              {isCollaborator ? 'Help run the community' : 'Operate your channel'}
+              {isCollaborator ? 'Help run the channel' : 'Manage your channel'}
             </h2>
             <p className="mt-2 text-sm text-on-surface-variant">
               {isCollaborator
-                ? `Signed in as ${primaryRole ?? 'collaborator'}. You can moderate assigned communities and messages.`
-                : 'Publish, teach live, grow memberships, and run your community from one place.'}
+                ? `Signed in as ${primaryRole ?? 'collaborator'}. You can moderate assigned content.`
+                : 'Upload, analyze, and grow your channel from one place.'}
             </p>
             {isCollaborator ? (
               <Link
@@ -165,11 +147,6 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
                           <Icon name={item.icon} className={active ? 'text-primary' : 'text-outline'} />
                           <span className="font-medium">{item.label}</span>
                         </span>
-                        {item.badge ? (
-                          <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[10px] text-outline">
-                            {item.badge}
-                          </span>
-                        ) : null}
                       </Link>
                     );
                   })}

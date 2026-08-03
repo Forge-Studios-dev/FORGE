@@ -29,7 +29,7 @@ export default function StudioUploadReliabilityPage() {
     <main className="space-y-6">
       <PageHeader
         title="Upload reliability"
-        subtitle="How FORGE keeps large lesson uploads resumable, checkpointed, and recoverable."
+        subtitle="How FORGE keeps large video uploads resumable, checkpointed, and recoverable."
       />
 
       <section className="glass-panel space-y-4 rounded-2xl p-6">
@@ -70,7 +70,7 @@ export default function StudioUploadReliabilityPage() {
           </>
         ) : (
           <p className="text-sm text-on-surface-variant">
-            Start a lesson upload from Create. Files above the multipart threshold use resumable chunked upload with
+            Start a video upload from Create. Files above the multipart threshold use resumable chunked upload with
             server checkpoints so unstable networks can recover safely.
           </p>
         )}

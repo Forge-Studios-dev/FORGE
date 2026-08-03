@@ -36,6 +36,38 @@ export default function StudioCommentsPage() {
     onError: (e) => setError(getApiErrorMessage(e, 'Could not post reply.')),
   });
 
+  const pinMutation = useMutation({
+    mutationFn: async ({
+      videoId,
+      commentId,
+      isPinned,
+    }: {
+      videoId: string;
+      commentId: string;
+      isPinned: boolean;
+    }) => {
+      await api.post(`/videos/${videoId}/comments/${commentId}/pin`, { isPinned });
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] }),
+    onError: (e) => setError(getApiErrorMessage(e, 'Could not update pin.')),
+  });
+
+  const heartMutation = useMutation({
+    mutationFn: async ({
+      videoId,
+      commentId,
+      creatorHearted,
+    }: {
+      videoId: string;
+      commentId: string;
+      creatorHearted: boolean;
+    }) => {
+      await api.post(`/videos/${videoId}/comments/${commentId}/creator-heart`, { creatorHearted });
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] }),
+    onError: (e) => setError(getApiErrorMessage(e, 'Could not update heart.')),
+  });
+
   if (!isCreator) {
     return (
       <main className="space-y-4">
@@ -49,7 +81,7 @@ export default function StudioCommentsPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title="Comments workspace"
-          subtitle="Reply to learner feedback without leaving Studio."
+          subtitle="Reply to viewer comments without leaving Studio."
         />
         <Link href="/studio/attention" className="text-sm text-primary hover:underline">
           Open attention queue
@@ -64,8 +96,8 @@ export default function StudioCommentsPage() {
         <EmptyState
           icon="forum"
           title="No comments yet"
-          description="When learners engage with your lessons, their comments will appear here."
-          action={{ label: 'Upload a lesson', href: '/upload' }}
+          description="When viewers comment on your videos, they will appear here."
+          action={{ label: 'Upload a video', href: '/upload' }}
         />
       )}
 
@@ -86,8 +118,42 @@ export default function StudioCommentsPage() {
               </p>
               <div className="flex gap-3 text-sm">
                 <Link href={`/watch/${c.videoId}`} className="text-on-surface-variant hover:underline">
-                  Open lesson
+                  Open video
                 </Link>
+                {!c.parentId ? (
+                  <button
+                    type="button"
+                    className="text-on-surface-variant hover:text-primary"
+                    disabled={pinMutation.isPending}
+                    aria-label={c.isPinned ? 'Unpin comment' : 'Pin comment'}
+                    aria-pressed={!!c.isPinned}
+                    onClick={() =>
+                      pinMutation.mutate({
+                        videoId: c.videoId,
+                        commentId: c.id,
+                        isPinned: !c.isPinned,
+                      })
+                    }
+                  >
+                    {c.isPinned ? 'Unpin' : 'Pin'}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className={c.creatorHearted ? 'text-error' : 'text-on-surface-variant hover:text-error'}
+                  disabled={heartMutation.isPending}
+                  aria-label={c.creatorHearted ? 'Remove heart' : 'Heart comment'}
+                  aria-pressed={!!c.creatorHearted}
+                  onClick={() =>
+                    heartMutation.mutate({
+                      videoId: c.videoId,
+                      commentId: c.id,
+                      creatorHearted: !c.creatorHearted,
+                    })
+                  }
+                >
+                  {c.creatorHearted ? '♥' : '♡'}
+                </button>
                 <button
                   type="button"
                   className="text-primary hover:underline"

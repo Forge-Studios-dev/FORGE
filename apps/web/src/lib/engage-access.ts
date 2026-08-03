@@ -16,7 +16,7 @@ export function getEngageBlockReason(
 
 export function engageBlockedMessage(reason: EngageBlockReason): string {
   if (reason === 'unverified') {
-    return 'Verify your email to like, comment, and follow creators.';
+    return 'Verify your email to like, comment, and subscribe.';
   }
-  return 'Sign in to like, comment, and follow creators.';
+  return 'Sign in to like, comment, and subscribe.';
 }

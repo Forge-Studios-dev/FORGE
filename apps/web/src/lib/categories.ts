@@ -18,7 +18,7 @@ export async function fetchUploadOptions(): Promise<UploadCategoryOption[]> {
   return data.data ?? [];
 }
 
-/** Skill tags available for a single category (re-tagging an existing video). */
+/** Topic tags available for a single category (re-tagging an existing video). */
 export async function fetchCategorySkillTags(categoryId: string): Promise<UploadSkillTag[]> {
   const { data } = await api.get<UploadSkillTag[]>(`/categories/${categoryId}/skill-tags`);
   return data ?? [];

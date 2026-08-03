@@ -151,7 +151,7 @@ export default function StudioAnalyticsPage() {
             {exportMutation.isPending ? 'Exporting…' : 'Export CSV'}
           </button>
           <Link href="/studio/analytics/details" className="text-sm text-primary hover:underline self-center">
-            Per-lesson breakdown
+            Per-video breakdown
           </Link>
         </div>
       </div>
@@ -162,7 +162,7 @@ export default function StudioAnalyticsPage() {
           <p className="font-display-forge mt-1 text-2xl font-bold text-primary">{formatCount(totalViews)}</p>
         </article>
         <article className="glass-panel rounded-2xl p-5">
-          <p className="text-sm text-on-surface-variant">Published lessons</p>
+          <p className="text-sm text-on-surface-variant">Published videos</p>
           <p className="font-display-forge mt-1 text-2xl font-bold">{readyCount}</p>
         </article>
         <article className="glass-panel rounded-2xl p-5">
@@ -226,7 +226,7 @@ export default function StudioAnalyticsPage() {
               {businessAnalytics.kpis.engagementScore}/100
             </p>
             <p className="mt-1 text-xs text-on-surface-variant">
-              Active chatters, post authors &amp; course enrollments vs. member base
+              Active chatters &amp; post authors vs. member base
             </p>
           </article>
         </div>
@@ -268,37 +268,15 @@ export default function StudioAnalyticsPage() {
         </div>
       ) : null}
 
-      {ecosystemTree ? (
+      {ecosystemTree && (ecosystemTree.communities?.length ?? 0) > 0 ? (
         <section className="glass-panel rounded-2xl p-6">
-          <h2 className="mb-3 font-label-caps text-outline">Creator ecosystem</h2>
+          <h2 className="mb-3 font-label-caps text-outline">Communities</h2>
           <ul className="space-y-3 text-sm">
-            {(ecosystemTree.brands ?? []).map((b) => (
-              <li key={b.id} className="text-on-surface-variant">
-                Brand · {b.name}
-              </li>
-            ))}
             {(ecosystemTree.communities ?? []).map((c) => (
               <li key={c.id} className="rounded-xl border border-outline-variant/30 px-3 py-2">
                 <p className="font-medium">{c.name}</p>
-                <p className="text-xs text-on-surface-variant">
-                  {c.courses.length} course{c.courses.length === 1 ? '' : 's'}
-                  {c.programs.length > 0
-                    ? ` · ${c.programs.length} program${c.programs.length === 1 ? '' : 's'}`
-                    : ''}
-                </p>
               </li>
             ))}
-            {(ecosystemTree.standaloneCourses ?? []).length > 0 ? (
-              <li className="text-xs text-on-surface-variant">
-                {ecosystemTree.standaloneCourses.length} standalone course
-                {ecosystemTree.standaloneCourses.length === 1 ? '' : 's'}
-              </li>
-            ) : null}
-            {(ecosystemTree.bundles ?? []).length > 0 ? (
-              <li className="text-xs text-on-surface-variant">
-                {ecosystemTree.bundles.length} bundle{ecosystemTree.bundles.length === 1 ? '' : 's'}
-              </li>
-            ) : null}
           </ul>
         </section>
       ) : null}
@@ -310,14 +288,14 @@ export default function StudioAnalyticsPage() {
         <EmptyState
           icon="analytics"
           title="No content analytics yet"
-          description="Upload lessons to start tracking views and engagement."
-          action={{ label: 'Upload lesson', href: '/upload' }}
+          description="Upload videos to start tracking views and engagement."
+          action={{ label: 'Upload video', href: '/upload' }}
         />
       )}
 
       {videos && videos.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Top lessons</h2>
+          <h2 className="text-lg font-semibold">Top videos</h2>
           <ul className="space-y-2">
             {videos.slice(0, 5).map((v) => (
               <li

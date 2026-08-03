@@ -44,7 +44,7 @@ export default function LiveDirectoryPage() {
 
   return (
     <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
-      <PageHeader title="Live now" subtitle="Watch skill-first sessions or start your own with OBS" />
+      <PageHeader title="Live now" subtitle="Watch live streams from channels you subscribe to — or go live yourself" />
 
       {canGoLive ? (
         <div className="glass-panel mb-10 space-y-3 rounded-xl p-5">
@@ -168,7 +168,7 @@ export default function LiveDirectoryPage() {
         <EmptyState
           icon="sensors"
           title="No one is live right now"
-          description={canGoLive ? 'Create a stream above, then broadcast with OBS.' : 'Check back later for live lessons.'}
+          description={canGoLive ? 'Create a stream above, then broadcast with OBS.' : 'Check back later for live streams.'}
         />
       ) : null}
     </main>

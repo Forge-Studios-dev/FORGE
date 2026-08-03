@@ -21,10 +21,66 @@ export async function toggleVideoLike(videoId: string, liked: boolean): Promise<
   }
 }
 
-export async function toggleFollow(userId: string, following: boolean): Promise<void> {
-  if (following) {
-    await api.delete(`/follow/${userId}`);
+export async function toggleVideoDislike(videoId: string, disliked: boolean): Promise<void> {
+  if (disliked) {
+    await api.delete(`/videos/${videoId}/dislike`);
   } else {
-    await api.post(`/follow/${userId}`);
+    await api.post(`/videos/${videoId}/dislike`);
   }
+}
+
+/** Subscribe / unsubscribe (YouTube model). Uses channel subscribe API. */
+export async function toggleSubscribe(channelId: string, subscribed: boolean): Promise<void> {
+  if (subscribed) {
+    await api.delete(`/channels/${channelId}/subscribe`);
+  } else {
+    await api.post(`/channels/${channelId}/subscribe`);
+  }
+}
+
+export type ChannelNotifyLevel = 'all' | 'personalized' | 'none';
+
+export async function getChannelSubscription(channelId: string): Promise<{
+  subscribed: boolean;
+  notifyLevel: ChannelNotifyLevel | null;
+}> {
+  const { data } = await api.get<{
+    data: { subscribed: boolean; notifyLevel: ChannelNotifyLevel | null };
+  }>(`/channels/${channelId}/subscription`);
+  return data.data;
+}
+
+export async function setChannelNotifyLevel(
+  channelId: string,
+  notifyLevel: ChannelNotifyLevel,
+): Promise<void> {
+  await api.patch(`/channels/${channelId}/subscription/notify`, { notifyLevel });
+}
+
+/** @deprecated Use toggleSubscribe */
+export async function toggleFollow(userId: string, following: boolean): Promise<void> {
+  return toggleSubscribe(userId, following);
+}
+
+export async function addToWatchLater(videoId: string): Promise<void> {
+  await api.post('/playlists/me/watch-later/videos', { videoId });
+}
+
+export async function removeFromWatchLater(videoId: string): Promise<void> {
+  await api.delete(`/playlists/me/watch-later/videos/${videoId}`);
+}
+
+export async function toggleWatchLater(videoId: string, currentlySaved: boolean): Promise<void> {
+  if (currentlySaved) {
+    await removeFromWatchLater(videoId);
+  } else {
+    await addToWatchLater(videoId);
+  }
+}
+
+export async function isInWatchLater(videoId: string): Promise<boolean> {
+  const { data } = await api.get<{ data: { inWatchLater: boolean } }>(
+    `/playlists/me/watch-later/contains/${videoId}`,
+  );
+  return !!data.data.inWatchLater;
 }

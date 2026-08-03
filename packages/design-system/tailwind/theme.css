@@ -1,54 +1,46 @@
+@import './theme-modes.css';
+
 @theme {
-  --color-background: #15121b;
-  --color-on-background: #e7e0ed;
-  --color-surface: #15121b;
-  --color-surface-dim: #15121b;
-  --color-surface-container-lowest: #0f0d15;
-  --color-surface-container-low: #1d1a23;
-  --color-surface-container: #211e27;
-  --color-surface-container-high: #2c2832;
-  --color-surface-container-highest: #37333d;
-  --color-on-surface: #e7e0ed;
-  --color-on-surface-variant: #cbc3d7;
-  --color-outline: #958ea0;
-  --color-outline-variant: #494454;
-  --color-primary: #d0bcff;
-  --color-on-primary: #3c0091;
-  --color-primary-container: #a078ff;
-  --color-on-primary-container: #340080;
-  --color-secondary: #4cd7f6;
-  --color-on-secondary: #003640;
-  --color-secondary-container: #03b5d3;
-  --color-tertiary: #ffb869;
-  --color-error: #ffb4ab;
-  --color-error-container: #93000a;
-  --color-live: #ff453a;
-  --color-success: #3ee6a4;
-  --color-on-success: #003921;
-  --color-warning: #f2b33d;
-  --color-on-warning: #402d00;
-  --color-critical: #ff453a;
-  --color-on-critical: #3c0002;
+  --color-background: var(--forge-color-background);
+  --color-on-background: var(--forge-color-on-background);
+  --color-surface: var(--forge-color-surface);
+  --color-surface-dim: var(--forge-color-surface-dim);
+  --color-surface-container-lowest: var(--forge-color-surface-container-lowest);
+  --color-surface-container-low: var(--forge-color-surface-container-low);
+  --color-surface-container: var(--forge-color-surface-container);
+  --color-surface-container-high: var(--forge-color-surface-container-high);
+  --color-surface-container-highest: var(--forge-color-surface-container-highest);
+  --color-on-surface: var(--forge-color-on-surface);
+  --color-on-surface-variant: var(--forge-color-on-surface-variant);
+  --color-outline: var(--forge-color-outline);
+  --color-outline-variant: var(--forge-color-outline-variant);
+  --color-primary: var(--forge-color-primary);
+  --color-on-primary: var(--forge-color-on-primary);
+  --color-primary-container: var(--forge-color-primary-container);
+  --color-on-primary-container: var(--forge-color-on-primary-container);
+  --color-secondary: var(--forge-color-secondary);
+  --color-on-secondary: var(--forge-color-on-secondary);
+  --color-secondary-container: var(--forge-color-secondary-container);
+  --color-tertiary: var(--forge-color-tertiary);
+  --color-error: var(--forge-color-error);
+  --color-error-container: var(--forge-color-error-container);
+  --color-live: var(--forge-color-live);
+  --color-success: var(--forge-color-success);
+  --color-on-success: var(--forge-color-on-success);
+  --color-warning: var(--forge-color-warning);
+  --color-on-warning: var(--forge-color-on-warning);
+  --color-critical: var(--forge-color-critical);
+  --color-on-critical: var(--forge-color-on-critical);
   --font-display-forge: var(--font-space-grotesk, 'Space Grotesk'), system-ui, sans-serif;
   --font-body: var(--font-inter, 'Inter'), system-ui, sans-serif;
-  --font-label: var(--font-geist, 'Geist'), ui-monospace, monospace;
+  --font-label: var(--font-inter, 'Inter'), system-ui, sans-serif;
   --spacing-margin-mobile: 20px;
   --spacing-margin-desktop: 48px;
   --spacing-container-max: 1440px;
 
-  /**
-   * Elevation scale — neutral depth shadows, dark-surface tuned. Distinct from
-   * the colored "glow" effects in utilities.css (.primary-button, .live-glow),
-   * which signal brand/live state rather than stacking order.
-   *   xs  resting card / list row
-   *   sm  raised control (focused input, dropdown trigger)
-   *   md  hovered card, inline menu (matches the pre-existing .forge-card-hover value)
-   *   lg  popover, dropdown panel
-   *   xl  modal, dialog, toast — top of the stack
-   */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.16);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.32);
-  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.4);
+  --shadow-xs: var(--forge-shadow-xs);
+  --shadow-sm: var(--forge-shadow-sm);
+  --shadow-md: var(--forge-shadow-md);
+  --shadow-lg: var(--forge-shadow-lg);
+  --shadow-xl: var(--forge-shadow-xl);
 }
