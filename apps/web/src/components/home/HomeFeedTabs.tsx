@@ -16,7 +16,7 @@ type Props = {
   categories: Category[];
 };
 
-type FeedTab = 'discover' | 'following';
+type FeedTab = 'forYou' | 'following';
 
 function CategoryFilterSkeleton() {
   return (
@@ -32,59 +32,61 @@ function FeedSkeleton() {
   return <FeedGridSkeleton count={8} />;
 }
 
-/** Client island: the only interactive part of the homepage — discover/following
+/** Client island: the only interactive part of the homepage — For you / Subscriptions
  * tab state, and everything whose content depends on it. Everything else on
  * the homepage is server-rendered by HomePageContent. */
 export function HomeFeedTabs({ feed, categories }: Props) {
   const { canViewPersonalizedFeed } = useAuth();
-  const [tab, setTab] = useState<FeedTab>('discover');
+  const [tab, setTab] = useState<FeedTab>('forYou');
 
   return (
     <>
       <NewFromFollowing
         onViewAll={() => {
           setTab('following');
-          document.getElementById('discover')?.scrollIntoView({ behavior: 'smooth' });
+          document.getElementById('for-you')?.scrollIntoView({ behavior: 'smooth' });
         }}
       />
 
-      <section id="discover" data-testid="discover-section" className="mt-4">
+      <section id="for-you" data-testid="discover-section" className="mt-4">
         <VerifyEmailBanner />
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setTab('discover')}
+              onClick={() => setTab('forYou')}
+              aria-pressed={tab === 'forYou'}
               className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                tab === 'discover'
+                tab === 'forYou'
                   ? 'bg-primary text-on-primary'
                   : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
               }`}
             >
-              Discover
+              For you
             </button>
             {canViewPersonalizedFeed && (
               <button
                 type="button"
                 onClick={() => setTab('following')}
+                aria-pressed={tab === 'following'}
                 className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                   tab === 'following'
                     ? 'bg-primary text-on-primary'
                     : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
                 }`}
               >
-                Following
+                Subscriptions
               </button>
             )}
           </div>
-          {tab === 'discover' && (
-            <Link href="/explore" className="font-label-caps text-secondary hover:underline">
-              View all
+          {tab === 'forYou' && (
+            <Link href="/search" className="font-label-caps text-secondary hover:underline">
+              Search
             </Link>
           )}
         </div>
 
-        {tab === 'discover' ? (
+        {tab === 'forYou' ? (
           <>
             <Suspense fallback={<CategoryFilterSkeleton />}>
               <CategoryFilter categories={categories} />

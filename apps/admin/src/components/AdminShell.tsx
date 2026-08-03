@@ -5,22 +5,48 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Icon } from '@forge/design-system';
 import { adminLogout } from '@/lib/api';
+import { useTheme } from '@/components/theme/ThemeProvider';
 
-const NAV = [
-  { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { href: '/creator-approvals', label: 'Approvals', icon: 'verified' },
-  { href: '/content', label: 'Content', icon: 'video_library' },
-  { href: '/reports', label: 'Reports', icon: 'flag' },
-  { href: '/community', label: 'Community', icon: 'forum' },
-  { href: '/users', label: 'Users', icon: 'group' },
-  { href: '/categories', label: 'Categories', icon: 'category' },
-  { href: '/live', label: 'Live', icon: 'sensors' },
-  { href: '/fraud', label: 'Fraud', icon: 'security' },
-  { href: '/billing', label: 'Billing', icon: 'receipt_long' },
-  { href: '/analytics', label: 'Analytics', icon: 'analytics' },
-  { href: '/search', label: 'Search', icon: 'search' },
-  { href: '/settings', label: 'Settings', icon: 'settings' },
+type NavItem = { href: string; label: string; icon: string };
+type NavGroup = { label: string; items: NavItem[] };
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Overview',
+    items: [{ href: '/dashboard', label: 'Dashboard', icon: 'dashboard' }],
+  },
+  {
+    label: 'Moderation',
+    items: [
+      { href: '/creator-approvals', label: 'Approvals', icon: 'verified' },
+      { href: '/content', label: 'Content', icon: 'video_library' },
+      { href: '/reports', label: 'Reports', icon: 'flag' },
+      { href: '/users', label: 'Users', icon: 'group' },
+    ],
+  },
+  {
+    label: 'Community',
+    items: [
+      { href: '/community', label: 'Community', icon: 'forum' },
+    ],
+  },
+  {
+    label: 'Platform',
+    items: [
+      { href: '/categories', label: 'Categories', icon: 'category' },
+      { href: '/live', label: 'Live', icon: 'sensors' },
+      { href: '/fraud', label: 'Fraud', icon: 'security' },
+      { href: '/billing', label: 'Billing', icon: 'receipt_long' },
+      { href: '/analytics', label: 'Analytics', icon: 'analytics' },
+      { href: '/search', label: 'Search', icon: 'search' },
+      { href: '/settings', label: 'Settings', icon: 'settings' },
+    ],
+  },
 ];
+
+function isActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 function NavLinks({
   pathname,
@@ -31,24 +57,31 @@ function NavLinks({
 }) {
   return (
     <>
-      {NAV.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={`flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm ${
-              active
-                ? 'bg-primary/10 text-primary'
-                : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
-            }`}
-          >
-            <Icon name={item.icon} filled={active} />
-            {item.label}
-          </Link>
-        );
-      })}
+      {NAV_GROUPS.map((group) => (
+        <section key={group.label} className="mb-3 last:mb-0">
+          <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-outline">
+            {group.label}
+          </p>
+          {group.items.map((item) => {
+            const active = isActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                className={`flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm ${
+                  active
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                }`}
+              >
+                <Icon name={item.icon} filled={active} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </section>
+      ))}
     </>
   );
 }
@@ -74,6 +107,7 @@ function SidebarFooter({ onLogout, onNavigate }: { onLogout: () => void; onNavig
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   if (pathname === '/login' || pathname === '/unauthorized') {
@@ -93,27 +127,44 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             FORGE Admin
           </Link>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 p-4">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
           <NavLinks pathname={pathname} />
         </nav>
         <SidebarFooter onLogout={logout} />
       </aside>
 
-      {/* Mobile header + drawer */}
-      <div className="flex min-h-screen flex-1 flex-col md:contents">
-        <header className="flex items-center justify-between border-b border-outline-variant/20 bg-surface-container-low px-4 py-3 md:hidden">
-          <Link href="/dashboard" className="font-display-forge text-lg font-bold text-primary">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        <header className="flex items-center justify-between gap-3 border-b border-outline-variant/20 bg-surface-container-low px-4 py-3 md:px-6">
+          <Link href="/dashboard" className="font-display-forge text-lg font-bold text-primary md:hidden">
             FORGE Admin
           </Link>
-          <button
-            type="button"
-            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={mobileOpen}
-            onClick={() => setMobileOpen((open) => !open)}
-            className="rounded-lg p-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-          >
-            <Icon name={mobileOpen ? 'close' : 'menu'} className="text-2xl" />
-          </button>
+          <p className="hidden text-sm text-on-surface-variant md:block">Platform administration</p>
+          <div className="ml-auto flex items-center gap-1">
+            <Link
+              href="/search"
+              className="inline-flex items-center gap-2 rounded-lg border border-outline-variant/30 px-3 py-1.5 text-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface"
+            >
+              <Icon name="search" className="text-base" />
+              <span className="hidden sm:inline">Search</span>
+            </Link>
+            <button
+              type="button"
+              aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              onClick={toggleTheme}
+              className="rounded-lg p-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+            >
+              <Icon name={theme === 'dark' ? 'light_mode' : 'dark_mode'} className="text-xl" />
+            </button>
+            <button
+              type="button"
+              aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileOpen}
+              onClick={() => setMobileOpen((open) => !open)}
+              className="rounded-lg p-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface md:hidden"
+            >
+              <Icon name={mobileOpen ? 'close' : 'menu'} className="text-2xl" />
+            </button>
+          </div>
         </header>
 
         {mobileOpen && (

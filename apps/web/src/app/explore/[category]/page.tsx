@@ -8,7 +8,7 @@ import { PageHeader } from '@forge/design-system';
 import { PaginatedResponse, Video } from '@/types';
 
 interface Props {
-  params: { skill: string };
+  params: { category: string };
 }
 
 const getCategoryName = cache(async (slug: string): Promise<string> => {
@@ -22,14 +22,14 @@ const getCategoryName = cache(async (slug: string): Promise<string> => {
 });
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const title = await getCategoryName(params.skill);
+  const title = await getCategoryName(params.category);
   return { title };
 }
 
-async function getFeed(skill: string): Promise<PaginatedResponse<Video>> {
+async function getFeed(category: string): Promise<PaginatedResponse<Video>> {
   try {
     const { data } = await serverApi.get(
-      `/videos/feed?limit=24&categorySlug=${encodeURIComponent(skill)}`,
+      `/videos/feed?limit=24&categorySlug=${encodeURIComponent(category)}`,
     );
     return data.data;
   } catch {
@@ -37,13 +37,16 @@ async function getFeed(skill: string): Promise<PaginatedResponse<Video>> {
   }
 }
 
-export default async function ExploreSkillPage({ params }: Props) {
-  const [feed, title] = await Promise.all([getFeed(params.skill), getCategoryName(params.skill)]);
+export default async function ExploreCategoryPage({ params }: Props) {
+  const [feed, title] = await Promise.all([
+    getFeed(params.category),
+    getCategoryName(params.category),
+  ]);
 
   return (
     <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
-      <PageHeader title={title} subtitle="Lessons and creators in this discipline" />
-      <FeedGrid initialData={feed} categorySlug={params.skill} />
+      <PageHeader title={title} subtitle="Videos and channels in this category" />
+      <FeedGrid initialData={feed} categorySlug={params.category} />
     </main>
   );
 }

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../theme/forge_tokens.dart';
 
-class SkillChip extends StatelessWidget {
+class TopicChip extends StatelessWidget {
   final String label;
   final bool live;
 
-  const SkillChip({super.key, required this.label, this.live = false});
+  const TopicChip({super.key, required this.label, this.live = false});
 
   @override
   Widget build(BuildContext context) {
@@ -41,4 +41,9 @@ class SkillChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// @deprecated Use [TopicChip]
+class SkillChip extends TopicChip {
+  const SkillChip({super.key, required super.label, super.live = false});
 }

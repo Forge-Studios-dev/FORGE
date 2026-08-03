@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
-import '../../../core/widgets/skill_chip.dart';
+import '../../../core/widgets/topic_chip.dart';
 import '../data/onboarding_storage.dart';
 
 const _interestOptions = <String>[
@@ -24,7 +24,7 @@ const _interestOptions = <String>[
 const _maxInterests = 5;
 
 /// Three-screen, first-run onboarding: value prop, live + community, then an
-/// interest picker (reusing [SkillChip]) so the feed can be personalized.
+/// interest picker (reusing [TopicChip]) so the feed can be personalized.
 /// Shown once per signed-in user — see the onboarding gate in
 /// `core/router/app_router.dart`.
 class OnboardingScreen extends StatefulWidget {
@@ -108,16 +108,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 onPageChanged: (i) => setState(() => _page = i),
                 children: [
                   const _OnboardingSlide(
-                    icon: Icons.auto_awesome,
-                    title: 'Skills, not scroll',
+                    icon: Icons.play_circle_outline,
+                    title: 'Videos you love',
                     description:
-                        'FORGE is built around learning real skills from real creators — not another endless video feed.',
+                        'Watch videos, Shorts, and live streams from creators you subscribe to — then save them to your library.',
                   ),
                   const _OnboardingSlide(
-                    icon: Icons.groups,
-                    title: 'Learn live, together',
+                    icon: Icons.subscriptions_outlined,
+                    title: 'Subscribe & engage',
                     description:
-                        'Join live sessions and creator communities — ask questions, get feedback, and grow alongside people learning the same skills.',
+                        'Subscribe to channels, join live chats, and stay notified when creators upload or go live.',
                   ),
                   _InterestPickerSlide(
                     selected: _selected,
@@ -262,7 +262,7 @@ class _InterestPickerSlide extends StatelessWidget {
                   ),
                   child: Opacity(
                     opacity: isSelected ? 1 : 0.6,
-                    child: SkillChip(label: label),
+                    child: TopicChip(label: label),
                   ),
                 ),
               );

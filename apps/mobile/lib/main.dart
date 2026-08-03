@@ -10,6 +10,7 @@ import 'core/observability/sentry_setup.dart';
 import 'core/push/forge_push.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_mode_provider.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -37,12 +38,13 @@ class ForgeApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    final themeMode = ref.watch(themeModeProvider);
     return ConnectivityGate(
       child: MaterialApp.router(
         title: 'FORGE',
-        theme: AppTheme.dark,
+        theme: AppTheme.light,
         darkTheme: AppTheme.dark,
-        themeMode: ThemeMode.dark,
+        themeMode: themeMode,
         // M-M1: localization scaffolding — arb stubs under lib/l10n; expand strings later.
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,

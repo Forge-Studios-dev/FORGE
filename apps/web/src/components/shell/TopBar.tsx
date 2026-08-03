@@ -4,12 +4,14 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { Icon } from '@forge/design-system';
+import { Icon, IconButton } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
+import { NotificationsMenu } from '@/components/shell/NotificationsMenu';
+import { SearchSuggest } from '@/components/shell/SearchSuggest';
+import { useTheme } from '@/components/theme/ThemeProvider';
 
 export function TopBar() {
   const {
@@ -23,8 +25,8 @@ export function TopBar() {
     canApplyForCreator,
     accessToken,
   } = useAuth();
-  const router = useRouter();
   const queryClient = useQueryClient();
+  const { theme, toggleTheme } = useTheme();
   const showAuth = !isLoading && !isGuest;
 
   const { data: unreadCount = 0 } = useQuery({
@@ -38,16 +40,6 @@ export function TopBar() {
       const socket = accessToken ? getSocket(accessToken) : null;
       if (socket?.connected) return false;
       return 60_000;
-    },
-  });
-
-  const { data: streak } = useQuery({
-    queryKey: ['platform-gamification-me'],
-    enabled: !!accessToken && canEngage,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const { data } = await api.get<{ data: { streak: number } }>('/platform/gamification/me');
-      return data.data.streak;
     },
   });
 
@@ -73,24 +65,14 @@ export function TopBar() {
         FORGE
       </Link>
 
-      <form
-        className="group relative mx-4 hidden max-w-xl flex-1 md:flex"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const q = new FormData(e.currentTarget).get('q') as string;
-          router.push(`/search?q=${encodeURIComponent(q || '')}`);
-        }}
-      >
-        <Icon name="search" className="absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary" />
-        <input
-          name="q"
-          aria-label="Search skills, creators, or topics"
-          className="w-full rounded-full border border-subtle bg-surface-container-low py-2 pl-12 pr-4 text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          placeholder="Search skills, creators, or topics..."
-        />
-      </form>
+      <SearchSuggest className="mx-4 hidden max-w-xl flex-1 md:block" />
 
       <div className="flex items-center gap-2 md:gap-4">
+        <IconButton
+          icon={theme === 'dark' ? 'light_mode' : 'dark_mode'}
+          label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          onClick={toggleTheme}
+        />
         {isLoading ? (
           <div className="hidden h-10 w-40 animate-pulse rounded-full bg-surface-container-high md:block" aria-hidden />
         ) : !showAuth ? (
@@ -132,25 +114,8 @@ export function TopBar() {
                 <Icon name="add_circle" />
               </Link>
             )}
-            {canEngage && !!streak && streak > 0 && (
-              <span
-                className="hidden items-center gap-1 rounded-full border border-outline-variant/40 px-3 py-1.5 text-xs font-semibold text-tertiary md:flex"
-                title={`${streak}-day streak`}
-                aria-label={`${streak}-day streak`}
-              >
-                <Icon name="local_fire_department" className="text-sm" />
-                {streak}
-              </span>
-            )}
             {canEngage && (
               <>
-                <Link
-                  href="/updates"
-                  className="hidden h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 md:flex"
-                  aria-label="Updates"
-                >
-                  <Icon name="campaign" />
-                </Link>
                 <Link
                   href="/messages"
                   className="hidden h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 md:flex"
@@ -158,34 +123,55 @@ export function TopBar() {
                 >
                   <Icon name="mail" />
                 </Link>
-                <Link
-                  href="/notifications"
-                  className="relative flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50"
-                  aria-label="Notifications"
-                >
-                  <Icon name="notifications" />
-                  {unreadCount > 0 && (
-                    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-on-error">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
-                </Link>
+                <NotificationsMenu unreadCount={unreadCount} />
               </>
             )}
-            <Link
-              href={user?.username ? `/${user.username}` : '/profile'}
-              aria-label="Your profile"
-              className="ml-1 h-10 w-10 overflow-hidden rounded-full border border-subtle hover:border-primary bg-surface-container-high flex items-center justify-center"
-            >
-              {user?.avatarUrl ? (
-                <Image src={user.avatarUrl} alt="" width={40} height={40} className="h-full w-full object-cover" />
-              ) : (
-                <Icon name="person" className="text-on-surface-variant" />
-              )}
-            </Link>
-            <button type="button" onClick={() => logout()} className="hidden text-xs text-outline hover:text-on-surface md:block">
-              Log out
-            </button>
+            <details className="relative ml-1">
+              <summary
+                className="flex h-10 w-10 cursor-pointer list-none items-center justify-center overflow-hidden rounded-full border border-subtle bg-surface-container-high hover:border-primary [&::-webkit-details-marker]:hidden"
+                aria-label="Account menu"
+              >
+                {user?.avatarUrl ? (
+                  <Image src={user.avatarUrl} alt="" width={40} height={40} className="h-full w-full object-cover" />
+                ) : (
+                  <Icon name="person" className="text-on-surface-variant" />
+                )}
+              </summary>
+              <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-outline-variant/30 bg-surface-container-high py-2 shadow-lg">
+                <Link
+                  href={user?.username ? `/${user.username}` : '/profile'}
+                  className="block px-4 py-2 text-sm hover:bg-surface-container-highest"
+                >
+                  Your channel
+                </Link>
+                <Link href="/studio" className="block px-4 py-2 text-sm hover:bg-surface-container-highest">
+                  Studio
+                </Link>
+                <Link href="/library" className="block px-4 py-2 text-sm hover:bg-surface-container-highest">
+                  Library
+                </Link>
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="block w-full px-4 py-2 text-left text-sm hover:bg-surface-container-highest md:hidden"
+                >
+                  {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+                </button>
+                <Link
+                  href="/profile/settings"
+                  className="block px-4 py-2 text-sm hover:bg-surface-container-highest"
+                >
+                  Settings
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => logout()}
+                  className="block w-full px-4 py-2 text-left text-sm text-on-surface-variant hover:bg-surface-container-highest"
+                >
+                  Sign out
+                </button>
+              </div>
+            </details>
           </>
         )}
         <Link
