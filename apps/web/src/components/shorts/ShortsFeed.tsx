@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { EmptyState, Icon, IconButton } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { Video } from '@/types';
@@ -32,6 +33,12 @@ type ShortsPage = {
   data: Video[];
   nextCursor: string | null;
 };
+
+function isShortVideo(video: Video): boolean {
+  if (video.videoType === 'short') return true;
+  const duration = video.durationSeconds;
+  return typeof duration === 'number' && duration > 0 && duration <= 60;
+}
 
 function ShortSlide({
   video,
@@ -499,9 +506,12 @@ function ShortSlide({
 
 export function ShortsFeed() {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const searchParams = useSearchParams();
+  const deepLinkId = searchParams.get('v')?.trim() || null;
   const [activeIndex, setActiveIndex] = useState(0);
   const [guestGate, setGuestGate] = useState(false);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
+  const scrolledToDeepLink = useRef(false);
 
   const query = useInfiniteQuery({
     queryKey: ['shorts-feed'],
@@ -515,7 +525,31 @@ export function ShortsFeed() {
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 
-  const videos = (query.data?.pages.flatMap((p) => p.data) ?? []).filter((v) => !hiddenIds.has(v.id));
+  const deepLinkQuery = useQuery({
+    queryKey: ['shorts-deeplink', deepLinkId],
+    enabled: !!deepLinkId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: Video }>(`/videos/${deepLinkId}`);
+      return data.data;
+    },
+  });
+
+  const feedVideos = (query.data?.pages.flatMap((p) => p.data) ?? []).filter(
+    (v) => !hiddenIds.has(v.id),
+  );
+
+  const videos = useMemo(() => {
+    const pinned = deepLinkQuery.data;
+    if (!pinned || !isShortVideo(pinned) || hiddenIds.has(pinned.id)) {
+      return feedVideos;
+    }
+    if (feedVideos.some((v) => v.id === pinned.id)) {
+      const rest = feedVideos.filter((v) => v.id !== pinned.id);
+      return [pinned, ...rest];
+    }
+    return [pinned, ...feedVideos];
+  }, [deepLinkQuery.data, feedVideos, hiddenIds]);
 
   const onScroll = useCallback(() => {
     const el = scrollerRef.current;
@@ -533,6 +567,30 @@ export function ShortsFeed() {
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, [onScroll]);
+
+  useEffect(() => {
+    if (!deepLinkId || scrolledToDeepLink.current || videos.length === 0) return;
+    const idx = videos.findIndex((v) => v.id === deepLinkId);
+    if (idx < 0) return;
+    scrolledToDeepLink.current = true;
+    setActiveIndex(idx);
+    const el = scrollerRef.current;
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollTo({ top: idx * el.clientHeight, behavior: 'auto' });
+      });
+    }
+  }, [deepLinkId, videos]);
+
+  useEffect(() => {
+    const current = videos[activeIndex];
+    if (!current || typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.pathname !== '/shorts') return;
+    if (url.searchParams.get('v') === current.id) return;
+    url.searchParams.set('v', current.id);
+    window.history.replaceState(null, '', `${url.pathname}?${url.searchParams.toString()}`);
+  }, [activeIndex, videos]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -561,7 +619,7 @@ export function ShortsFeed() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  if (query.isLoading) {
+  if (query.isLoading || (deepLinkId && deepLinkQuery.isLoading && !query.data)) {
     return (
       <div className="flex h-dvh items-center justify-center">
         <div className="aspect-[9/16] h-full max-h-full w-full max-w-[420px] animate-pulse rounded-2xl bg-surface-container-high" />
