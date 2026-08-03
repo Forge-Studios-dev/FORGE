@@ -1,7 +1,7 @@
 # Phase 08 — Report
 
-**Completion:** ~90% of watch chrome parity  
-**Readiness:** proceed to Phase 09 Media.
+**Completion:** ~95% of watch/Shorts chrome parity  
+**Readiness:** proceed to Phase 09 Media (already verified).
 
 ## Verified
 
@@ -11,7 +11,7 @@
 | Theater / miniplayer / autoplay | `WatchExperience.tsx` |
 | Keyboard shortcuts | `VideoPlayer.tsx` keydown |
 | Captions + transcript | `captionUrl` / `TranscriptPanel` |
-| Related copy | `RelatedVideos.tsx` |
+| Shorts `?v=` hydrate | `ShortsFeed.tsx`, mobile `ShortsScreen` |
 
 ## Deferred
 
