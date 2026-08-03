@@ -12,6 +12,7 @@ export type CompleteUploadOptions = {
   visibility?: UploadVisibility;
   scheduledPublishAt?: string;
   playlistIds?: string[];
+  videoType?: 'video' | 'short';
 };
 
 export function resolveVideoContentType(file: File): string {

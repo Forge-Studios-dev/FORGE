@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Icon, PageHeader } from '@forge/design-system';
@@ -11,7 +11,7 @@ import {
   clearUploadDraft,
   getUploadDraft,
   saveUploadDraft,
-  type UploadVisibility,
+  type UploadVideoType,
 } from '@/lib/upload-draft';
 import { api } from '@/lib/api';
 import { clearUploadFile, getUploadFile, setUploadFile } from '@/lib/upload-file-store';
@@ -30,12 +30,13 @@ const TOTAL = 3;
 const PHASE_LABEL: Record<UploadPhase, string> = {
   presigning: 'Preparing upload…',
   uploading: 'Uploading to storage…',
-  completing: 'Finalizing lesson…',
+  completing: 'Finalizing video…',
 };
 
 export default function UploadStepPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const step = Math.min(TOTAL, Math.max(1, Number(params.step) || 1));
   const { canUpload, accessTier, canApplyForCreator, user } = useAuth();
 
@@ -52,6 +53,10 @@ export default function UploadStepPage() {
     user?.role === 'creator' && user?.creatorStatus === 'approved' && !user?.isVerified;
 
   useEffect(() => {
+    const typeParam = searchParams.get('type');
+    if (typeParam === 'short') {
+      saveUploadDraft({ videoType: 'short' });
+    }
     setDraft(getUploadDraft());
     const stored = getUploadFile();
     if (stored) setFile(stored);
@@ -60,7 +65,7 @@ export default function UploadStepPage() {
       setThumbnail(storedThumb);
       setThumbnailPreview(URL.createObjectURL(storedThumb));
     }
-  }, [step]);
+  }, [step, searchParams]);
 
   const minScheduleLocal = useMemo(() => {
     const d = new Date(Date.now() + 15 * 60 * 1000);
@@ -101,7 +106,7 @@ export default function UploadStepPage() {
       <main className="mx-auto max-w-lg px-5 py-20 md:px-12">
         <NoAccessCallout
           title="Verify your email to upload"
-          description="Your creator application is approved. Confirm your email address before publishing lessons."
+          description="Your creator application is approved. Confirm your email address before publishing videos."
         />
         <Link href="/verify-email" className="mt-4 inline-block text-primary hover:underline">
           Resend verification email
@@ -121,7 +126,7 @@ export default function UploadStepPage() {
           description={
             accessTier === 'creator_pending'
               ? 'Your creator application is still under review — like YouTube Partner Program approval.'
-              : 'Approved creators can upload lessons. Viewers can watch, like, and subscribe without uploading.'
+              : 'Approved creators can upload videos. Viewers can watch, like, and subscribe without uploading.'
           }
         />
         {canApplyForCreator ? (
@@ -209,6 +214,7 @@ export default function UploadStepPage() {
           visibility: draft.visibility,
           scheduledPublishAt,
           playlistIds: draft.playlistIds,
+          videoType: draft.videoType,
         },
       );
       void trackEvent(
@@ -234,12 +240,16 @@ export default function UploadStepPage() {
   return (
     <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
       <PageHeader
-        title="Upload a lesson"
+        title={draft.videoType === 'short' ? 'Create a Short' : 'Upload a video'}
         subtitle={
           step === 1
-            ? 'Add title, category, skills, and an optional thumbnail'
+            ? draft.videoType === 'short'
+              ? 'Shorts work best under 60 seconds — add title, category, and tags'
+              : 'Add title, category, tags, and an optional thumbnail'
             : step === 2
-              ? 'Upload your video file'
+              ? draft.videoType === 'short'
+                ? 'Upload a vertical clip (MP4 or MOV)'
+                : 'Upload your video file'
               : 'Review visibility and publish'
         }
       />
@@ -311,11 +321,42 @@ export default function UploadStepPage() {
       <div className="glass-panel space-y-4 rounded-2xl p-6">
         {step === 1 && (
           <>
+            <fieldset>
+              <legend className="font-label-caps text-outline">Type</legend>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(
+                  [
+                    { value: 'video' as UploadVideoType, label: 'Video', hint: 'Long-form' },
+                    { value: 'short' as UploadVideoType, label: 'Short', hint: '≤ 60s' },
+                  ] as const
+                ).map((opt) => {
+                  const active = draft.videoType === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => persist({ videoType: opt.value })}
+                      className={`rounded-full border px-4 py-2 text-sm transition ${
+                        active
+                          ? 'border-primary bg-primary/15 text-on-surface'
+                          : 'border-outline-variant/40 text-on-surface-variant hover:border-outline-variant'
+                      }`}
+                      aria-pressed={active}
+                    >
+                      <span className="font-medium">{opt.label}</span>
+                      <span className="ml-2 text-xs text-outline">{opt.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
             <label className="block">
-              <span className="font-label-caps text-outline">Lesson title</span>
+              <span className="font-label-caps text-outline">Title</span>
               <input
                 className="mt-1 w-full border-b border-outline-variant bg-transparent py-2 outline-none focus:border-primary"
-                placeholder="e.g. Advanced React Patterns"
+                placeholder={
+                  draft.videoType === 'short' ? 'e.g. 30-second tip' : 'e.g. My first vlog'
+                }
                 value={draft.title}
                 onChange={(e) => persist({ title: e.target.value })}
               />
@@ -324,7 +365,7 @@ export default function UploadStepPage() {
               <span className="font-label-caps text-outline">Description</span>
               <textarea
                 className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 outline-none focus:border-primary"
-                placeholder="What will learners gain?"
+                placeholder="Tell viewers about your video"
                 rows={3}
                 value={draft.description}
                 onChange={(e) => persist({ description: e.target.value })}
@@ -351,10 +392,10 @@ export default function UploadStepPage() {
             </label>
             <fieldset className="block" disabled={!draft.categoryId}>
               <legend className="font-label-caps text-outline">
-                Skills / tags <span className="text-error">*</span>
+                Tags <span className="text-error">*</span>
               </legend>
               <p className="mt-1 text-xs text-on-surface-variant">
-                Select at least one skill learners can use to find this lesson.
+                Select at least one topic tag so viewers can find this video.
               </p>
               <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded-lg border border-outline-variant p-3">
                 {availableSkills.length === 0 ? (
@@ -440,7 +481,7 @@ export default function UploadStepPage() {
 
         {step === 3 && (
           <>
-            <p className="text-on-surface-variant">Review your lesson and publish.</p>
+            <p className="text-on-surface-variant">Review your video and publish.</p>
             <dl className="space-y-2 text-sm">
               <div>
                 <dt className="text-outline">Title</dt>
@@ -460,7 +501,7 @@ export default function UploadStepPage() {
               ) : null}
               {draft.skillTagIds.length > 0 ? (
                 <div>
-                  <dt className="text-outline">Skills</dt>
+                  <dt className="text-outline">Tags</dt>
                   <dd>
                     {availableSkills
                       .filter((t) => draft.skillTagIds.includes(t.id))
@@ -515,15 +556,25 @@ export default function UploadStepPage() {
 
             <fieldset className="space-y-2">
               <legend className="font-label-caps text-outline">Visibility</legend>
-              {(['public', 'unlisted', 'private'] as UploadVisibility[]).map((vis) => (
-                <label key={vis} className="flex items-center gap-2 text-sm capitalize">
+              {(
+                [
+                  { value: 'public', label: 'Public', hint: 'Everyone' },
+                  { value: 'unlisted', label: 'Unlisted', hint: 'Anyone with the link' },
+                  { value: 'private', label: 'Private', hint: 'Only you' },
+                ] as const
+              ).map((opt) => (
+                <label key={opt.value} className="flex items-start gap-2 text-sm">
                   <input
                     type="radio"
                     name="visibility"
-                    checked={draft.visibility === vis}
-                    onChange={() => persist({ visibility: vis })}
+                    className="mt-1"
+                    checked={draft.visibility === opt.value}
+                    onChange={() => persist({ visibility: opt.value })}
                   />
-                  {vis}
+                  <span>
+                    <span className="font-medium">{opt.label}</span>
+                    <span className="block text-xs text-on-surface-variant">{opt.hint}</span>
+                  </span>
                 </label>
               ))}
             </fieldset>
@@ -608,7 +659,7 @@ export default function UploadStepPage() {
               }
               title={
                 step === 1 && !metadataComplete
-                  ? 'Title, category, and at least one skill are required'
+                  ? 'Title, category, and at least one tag are required'
                   : undefined
               }
               onClick={goNext}

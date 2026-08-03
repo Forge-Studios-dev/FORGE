@@ -11,9 +11,9 @@ import { api } from '@/lib/api';
 
 const CREATE_ITEMS = [
   { href: '/upload', label: 'Upload video', icon: 'upload' },
+  { href: '/upload?type=short', label: 'Create Short', icon: 'smart_display' },
   { href: '/studio/live', label: 'Go live', icon: 'sensors' },
-  { href: '/studio/courses', label: 'New course', icon: 'school' },
-  { href: '/studio/podcasts', label: 'Podcast episode', icon: 'podcasts' },
+  { href: '/playlists/new', label: 'New playlist', icon: 'playlist_add' },
 ] as const;
 
 export function StudioCommandBar({ collaboratorMode = false }: { collaboratorMode?: boolean }) {

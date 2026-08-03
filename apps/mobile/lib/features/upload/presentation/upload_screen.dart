@@ -23,7 +23,8 @@ const _visibilityOptions = <({String value, String label})>[
   (value: 'public', label: 'Public — anyone can discover'),
   (value: 'unlisted', label: 'Unlisted — only with the link'),
   (value: 'private', label: 'Private — only you'),
-  (value: 'subscribers', label: 'Subscribers only'),
+  (value: 'followers', label: 'Subscribers only'),
+  (value: 'subscribers', label: 'Members only'),
 ];
 
 class UploadScreen extends ConsumerStatefulWidget {
@@ -40,6 +41,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
   String? _categoryId;
   final Set<String> _skillTagIds = {};
   String _visibility = 'public';
+  String _videoType = 'video';
   bool _uploading = false;
   int _progress = 0;
   String? _error;
@@ -118,7 +120,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
       return;
     }
     if (_skillTagIds.isEmpty) {
-      setState(() => _error = 'Select at least one skill tag.');
+      setState(() => _error = 'Select at least one topic tag.');
       return;
     }
     setState(() {
@@ -137,6 +139,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             categoryId: _categoryId!,
             skillTagIds: _skillTagIds.toList(),
             visibility: _visibility,
+            videoType: _videoType,
             onProgress: (p) {
               if (mounted) setState(() => _progress = p);
             },
@@ -187,7 +190,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Upload lesson')),
+      appBar: AppBar(title: Text(_videoType == 'short' ? 'Create a Short' : 'Upload video')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -198,6 +201,25 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Text(_error!, style: const TextStyle(color: ForgeTokens.error)),
               ),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'video', label: Text('Video'), icon: Icon(Icons.videocam_outlined)),
+                ButtonSegment(value: 'short', label: Text('Short'), icon: Icon(Icons.smart_display_outlined)),
+              ],
+              selected: {_videoType},
+              onSelectionChanged: _uploading
+                  ? null
+                  : (s) => setState(() => _videoType = s.first),
+            ),
+            if (_videoType == 'short')
+              const Padding(
+                padding: EdgeInsets.only(top: 8, bottom: 4),
+                child: Text(
+                  'Shorts work best under 60 seconds.',
+                  style: TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 13),
+                ),
+              ),
+            const SizedBox(height: 16),
             if (_pendingResume != null && !_uploading)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -320,12 +342,12 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             if (_categoryId != null) ...[
               const SizedBox(height: 12),
               Text(
-                'Skill tags',
+                'Topic tags',
                 style: Theme.of(context).textTheme.labelMedium,
               ),
               const SizedBox(height: 6),
               if (skillTags.isEmpty)
-                const Text('No skill tags for this category.')
+                const Text('No tags for this category.')
               else
                 Wrap(
                   spacing: 8,

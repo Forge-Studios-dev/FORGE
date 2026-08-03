@@ -176,6 +176,7 @@ export async function runBackgroundUpload(
       visibility: options.visibility ?? 'public',
       scheduledPublishAt: options.scheduledPublishAt,
       playlistIds: options.playlistIds?.length ? options.playlistIds : undefined,
+      videoType: options.videoType === 'short' ? 'short' : 'video',
     });
 
     meta = null;

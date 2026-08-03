@@ -708,6 +708,9 @@ export class VideosService {
     video.title = dto.title.trim();
     video.description = dto.description?.trim() ?? null;
     video.visibility = dto.visibility;
+    if (dto.videoType === VideoType.SHORT || dto.videoType === VideoType.VIDEO) {
+      video.videoType = dto.videoType;
+    }
     video.categoryId = category.id;
     video.skillTags = skillTags;
     video.tagsSearchText = [

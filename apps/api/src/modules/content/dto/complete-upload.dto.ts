@@ -3,6 +3,7 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -10,7 +11,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { VideoVisibility } from '../entities/video.entity';
+import { VideoType, VideoVisibility } from '../entities/video.entity';
 
 export class CompleteUploadDto {
   @ApiProperty({ minLength: 3, maxLength: 200 })
@@ -38,6 +39,14 @@ export class CompleteUploadDto {
   @ArrayMinSize(1)
   @IsUUID('4', { each: true })
   skillTagIds: string[];
+
+  @ApiPropertyOptional({
+    enum: [VideoType.VIDEO, VideoType.SHORT],
+    description: 'Creator intent; processing may refine SHORT by duration ≤60s',
+  })
+  @IsOptional()
+  @IsIn([VideoType.VIDEO, VideoType.SHORT])
+  videoType?: VideoType.VIDEO | VideoType.SHORT;
 
   @ApiPropertyOptional({ description: 'ISO8601 — hide from feed until this instant' })
   @IsOptional()
