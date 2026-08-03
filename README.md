@@ -1,98 +1,62 @@
-# FORGE — Creator Economy OS
+# FORGE
 
-Skill-first creator platform: on-demand lessons, live teaching, communities, memberships, and monetization for creators. Spans web, mobile, and an operator admin.
+YouTube-replica video platform monorepo.
 
-**Repository:** [github.com/Forge-Studios-dev/FORGE](https://github.com/Forge-Studios-dev/FORGE)
+## Apps
+
+| App | Stack | Role |
+| --- | --- | --- |
+| `apps/api` | NestJS, BullMQ, Socket.IO | API, workers, realtime |
+| `apps/web` | Next.js 14 | Viewer + creator Studio |
+| `apps/admin` | Next.js 14 | Platform admin |
+| `apps/mobile` | Flutter | Mobile client (outside npm workspaces) |
+
+## Packages
+
+| Package | Role |
+| --- | --- |
+| `@forge/shared-types` | Cross-app contracts (auth, domain DTOs, sockets) |
+| `@forge/design-system` | Tokens + React primitives |
+
+## Architecture docs
+
+Phase execution lives under [`docs/phases/`](docs/phases/). Index:
+
+1. [UI/UX](docs/phases/01-ui-ux/PHASE_01_UI_UX.md)
+2. [Tech architecture](docs/phases/02-tech-architecture/PHASE_02_TECH_ARCHITECTURE.md)
+3. [Database](docs/phases/03-database/PHASE_03_DATABASE.md)
+4. [Navigation](docs/phases/04-navigation/PHASE_04_NAVIGATION.md)
+5. [User platform](docs/phases/05-user-platform/PHASE_05_USER_PLATFORM.md)
+6. [Creator](docs/phases/06-creator-platform/PHASE_06_CREATOR.md)
+7. [Admin](docs/phases/07-admin/PHASE_07_ADMIN.md)
+8. [Video](docs/phases/08-video-platform/PHASE_08_VIDEO.md)
+9. [Media pipeline](docs/phases/09-media-pipeline/PHASE_09_MEDIA.md)
+10. [Streaming](docs/phases/10-streaming/PHASE_10_STREAMING.md)
+11. [Search](docs/phases/11-search/PHASE_11_SEARCH.md)
+12. [Recommendations](docs/phases/12-recommendations/PHASE_12_RECS.md)
+13. [Subscriptions](docs/phases/13-subscriptions/PHASE_13_SUBSCRIPTIONS.md)
+14. [Monetization](docs/phases/14-monetization/PHASE_14_MONETIZATION.md)
+15. [Communication](docs/phases/15-communication/PHASE_15_COMMUNICATION.md)
+16. [Analytics](docs/phases/16-analytics/PHASE_16_ANALYTICS.md)
+17. [Security](docs/phases/17-security/PHASE_17_SECURITY.md)
+18. [Infrastructure](docs/phases/18-infrastructure/PHASE_18_INFRA.md)
+19. [Performance](docs/phases/19-performance/PHASE_19_PERFORMANCE.md)
+20. [QA](docs/phases/20-qa/PHASE_20_QA.md)
+21. [Accessibility](docs/phases/21-accessibility/PHASE_21_A11Y.md)
+22. [SEO](docs/phases/22-seo/PHASE_22_SEO.md)
+23. [Documentation](docs/phases/23-documentation/PHASE_23_DOCS.md)
+24. [Production readiness](docs/phases/24-production-readiness/PHASE_24_PRODUCTION.md)
+
+Also: [module boundary map](docs/phases/02-tech-architecture/MODULE_BOUNDARY_MAP.md) · [production checklist](docs/operations/PRODUCTION_CHECKLIST.md) · [depth backlog](docs/phases/DEPTH_BACKLOG.md) · [load-test runbook](docs/operations/LOAD_TEST_RUNBOOK.md)
+
 
 ## Quick start
 
 ```bash
-git clone https://github.com/Forge-Studios-dev/FORGE.git && cd FORGE
 npm install
-cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env.local
-cp apps/admin/.env.example apps/admin/.env.local
-docker compose up postgres redis -d
-bash scripts/setup-local-demo.sh
-npm run dev:api   # :3001
-npm run dev:web   # :3000
-npm run dev:admin # :3002
+npm run dev:api    # API
+npm run dev:web    # Web
+npm run dev:admin  # Admin
 ```
 
-| Service | URL |
-|---------|-----|
-| API | http://localhost:3001/api/v1 |
-| Swagger | http://localhost:3001/api/docs |
-| Web | http://localhost:3000 |
-| Admin | http://localhost:3002 |
-
-## Apps
-
-| App | Stack | Port |
-|-----|--------|------|
-| API | NestJS 10, TypeORM, BullMQ, Socket.IO | 3001 |
-| Web | Next.js 14 App Router | 3000 |
-| Admin | Next.js 14 | 3002 |
-| Mobile | Flutter, Riverpod, go_router | — |
-
-## Stack
-
-PostgreSQL 16 (Neon) · Redis 7 · AWS S3 · Mux (live + VOD) · FFmpeg · LiveKit · Stripe · Fly.io · Vercel
-
-## Features
-
-- **Video & Podcasts** — upload, Mux HLS, ABR playback, podcast series with iTunes RSS
-- **Live streaming** — Mux RTMP, LiveKit browser go-live, co-hosts, VIP rooms, breakout sessions, stream chat + super chat
-- **Communities** — rooms (text/voice/stage), posts, polls, wiki, challenges, events, gamification, channel points, mentorship matching
-- **Memberships** — Stripe subscription tiers, entitlements, paid events, creator bundles
-- **Recommendations** — personalized feed (watch history + follow graph + trending signal), similar videos, unified content library
-- **Fraud detection** — billing velocity rules, chargeback detection, risk scoring, admin review queue
-- **Creator tools** — studio analytics, subscriber analytics, AI moderation copilot
-- **Admin** — user/content moderation, creator approvals, fraud alerts, platform analytics
-
-## Layout
-
-```
-FORGE/
-├── apps/api/              # NestJS API + migrations + workers
-├── apps/web/              # Consumer Next.js
-├── apps/admin/            # Operator Next.js
-├── apps/mobile/           # Flutter
-├── packages/
-│   ├── shared-types/      # Contracts, flags, access helpers, socket events
-│   └── design-system/     # Tokens + React primitives
-├── docs/                  # Canonical documentation
-├── scripts/               # Deploy, smoke, DB, secrets
-├── infra/observability/   # Grafana/Prometheus config
-├── fly.toml               # API Fly app
-└── fly.worker.toml        # Worker Fly app
-```
-
-## Documentation
-
-| Doc | Purpose |
-|-----|---------|
-| [docs/FORGE_PROJECT_MASTER.md](docs/FORGE_PROJECT_MASTER.md) | Modules, routes, workers, design system, feature status |
-| [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | Local dev setup |
-| [docs/DEPLOY.md](docs/DEPLOY.md) | Production deployment |
-| [docs/CI_CD.md](docs/CI_CD.md) | GitHub Actions + secrets |
-| [docs/LIVE.md](docs/LIVE.md) | Live streaming setup |
-| [docs/MEMBERSHIPS.md](docs/MEMBERSHIPS.md) | Billing, tiers, Stripe Connect |
-| [docs/AUTH.md](docs/AUTH.md) | Auth, sessions, OAuth |
-| [docs/MEDIA.md](docs/MEDIA.md) | S3 + Mux pipeline |
-| [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) | Metrics, Sentry, Grafana |
-| [docs/API_SCHEMAS.md](docs/API_SCHEMAS.md) | Public API contracts |
-| [docs/README.md](docs/README.md) | Full docs index |
-
-## CI/CD
-
-Push feature branch → PR → merge to `main` → CI + Fly (API) + Vercel (web/admin) deploy.
-
-```bash
-npm run ci:local    # local CI gate
-npm run smoke:api   # integration smoke
-```
-
----
-
-Private — Forge Studios.
+See each app’s `.env.example`. Set `SKIP_ENV_VALIDATION=true` only for tooling that must boot without full env.

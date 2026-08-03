@@ -2,7 +2,7 @@
 
 > Scope: **Always apply**. Mirrors `.cursor/rules/forge-core.mdc`.
 
-Skill-first creator platform: NestJS API (`apps/api`), Next.js web/admin (`apps/web`, `apps/admin`), Flutter mobile (`apps/mobile`), BullMQ, Socket.IO, video/feed/analytics.
+YouTube-replica product on NestJS API (`apps/api`), Next.js web/admin (`apps/web`, `apps/admin`), Flutter mobile (`apps/mobile`), BullMQ, Socket.IO, video/feed/analytics. Product parity rules: `forge-youtube-replica`.
 
 ## Defaults
 

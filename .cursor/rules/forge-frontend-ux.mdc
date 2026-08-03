@@ -8,12 +8,15 @@ alwaysApply: false
 
 ## Identity
 
-- Creator-first, skill-learning product — not a generic video-site clone.
+- **YouTube-replica** video platform (viewer + creator Studio + admin). Prefer YouTube parity over skill-learning framing in primary chrome (`forge-youtube-replica`).
 - Use `@forge/design-system` tokens/components. Match patterns in `apps/web/src/components` before adding primitives.
+- Dual-theme tokens exist (`.dark` default, `.light` opt-in via `ThemeProvider`); do not hardcode colors.
 
 ## Architecture
 
 - Presentational components stay thin; business logic in hooks/services (`apps/web/src/lib` or existing equivalents).
+- Prefer domain types from `@forge/shared-types` (web `src/types` re-exports).
+- HTTP clients must use validated `env` (`apps/web/src/env.ts`), not raw `process.env` for API URLs.
 - Error boundaries / `error` + `not-found` where the App Router already expects them.
 - Lazy routes / code-split when adding large surfaces.
 
