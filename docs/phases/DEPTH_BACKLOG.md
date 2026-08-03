@@ -128,7 +128,8 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Area | Item | Owner |
 | --- | --- | --- |
 | Ops | Staging soak per load-test runbook | Operator |
-| Launch | Env secrets, Mux/Stripe webhooks, migrations on prod | Operator |
+| Launch | Env secrets, Mux/Stripe webhooks, migrations on prod (`185–196`) | Operator |
+| Ship | Review + merge `feature/youtube-replica-wave-1` (do not push straight to `main`) | Operator |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
 | Analytics | Studio impressions / CTR / retention / realtime depth | Product |
 | Recs | Full ML / embeddings stack | Product |
