@@ -56,7 +56,7 @@ export default function CommunityUpdatesPage() {
           <li key={post.id} className="glass-panel rounded-xl p-5">
             <div className="mb-2 flex items-center justify-between gap-3">
               <Link
-                href={`/community/${post.communityId}`}
+                href={`/communities/id/${post.communityId}`}
                 className="text-sm font-medium text-primary hover:underline"
               >
                 {post.community?.name ?? 'Community'}

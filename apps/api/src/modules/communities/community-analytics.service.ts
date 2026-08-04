@@ -590,13 +590,39 @@ export class CommunityAnalyticsService {
        WHERE creator_id = $1 AND status IN ('active', 'trial', 'grace_period')`,
       [creatorId],
     );
-    const [xpMembersRow] = await this.dataSource.query<{ count: string }[]>(
-      `SELECT COUNT(DISTINCT user_id)::int AS count FROM member_xp WHERE community_id = $1`,
-      [communityId],
-    );
+
+    let engagedMembers = 0;
+    if (isSkillEconomyLmsEnabled()) {
+      const [xpMembersRow] = await this.dataSource.query<{ count: string }[]>(
+        `SELECT COUNT(DISTINCT user_id)::int AS count FROM member_xp WHERE community_id = $1`,
+        [communityId],
+      );
+      engagedMembers = Number(xpMembersRow?.count ?? 0);
+    } else {
+      const [engagedRow] = await this.dataSource.query<{ count: string }[]>(
+        `SELECT COUNT(DISTINCT user_id)::int AS count FROM (
+           SELECT m.user_id
+           FROM channel_messages m
+           INNER JOIN channels ch ON ch.id = m.channel_id
+           WHERE ch.community_id = $1 AND m.deleted_at IS NULL
+           UNION
+           SELECT m.user_id
+           FROM community_room_messages m
+           INNER JOIN community_rooms r ON r.id = m.room_id
+           WHERE r.community_id = $1 AND m.deleted_at IS NULL
+           UNION
+           SELECT p.author_id AS user_id
+           FROM community_posts p
+           WHERE p.community_id = $1
+         ) engaged`,
+        [communityId],
+      );
+      engagedMembers = Number(engagedRow?.count ?? 0);
+    }
+
     return {
       activeSubscribers: Number(activeSubsRow?.count ?? 0),
-      engagedMembers: Number(xpMembersRow?.count ?? 0),
+      engagedMembers,
     };
   }
 

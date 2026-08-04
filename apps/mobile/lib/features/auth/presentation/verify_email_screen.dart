@@ -84,7 +84,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
             children: [
               if (_status == 'loading') CircularProgressIndicator(),
               if (_status == 'ok') ...[
-                Icon(Icons.check_circle, color: Colors.green, size: 56),
+                Icon(Icons.check_circle, color: ForgeTokens.of(context).success, size: 56),
                 const SizedBox(height: 16),
                 Text(_message, textAlign: TextAlign.center),
                 const SizedBox(height: 24),
@@ -105,10 +105,10 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 FilledButton(
                   onPressed: _resending ? null : _resend,
                   child: _resending
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: ForgeTokens.of(context).onPrimary),
                         )
                       : const Text('Resend verification email'),
                 ),

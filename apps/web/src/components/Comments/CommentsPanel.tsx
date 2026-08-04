@@ -109,6 +109,15 @@ function CommentRow({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
+
+  useEffect(() => {
+    if (!reportOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setReportOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [reportOpen]);
   const [liked, setLiked] = useState(!!comment.viewerLiked);
   const [likeCount, setLikeCount] = useState(comment.likeCount ?? 0);
   const [pinned, setPinned] = useState(!!comment.isPinned);
@@ -446,9 +455,20 @@ function CommentRow({
         )}
       </div>
       {reportOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog">
-          <div className="w-full max-w-md rounded-xl bg-surface p-6 shadow-xl">
-            <h3 className="font-semibold">Report comment</h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`comment-report-title-${comment.id}`}
+          onClick={() => setReportOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-surface p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id={`comment-report-title-${comment.id}`} className="font-semibold">
+              Report comment
+            </h3>
             <fieldset className="mt-3 space-y-2">
               <legend className="sr-only">Reason</legend>
               {COMMENT_REPORT_REASONS.map((r) => (

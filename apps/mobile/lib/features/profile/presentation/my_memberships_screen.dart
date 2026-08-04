@@ -226,9 +226,9 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
                               Wrap(
                                 spacing: 8,
                                 children: [
-                                  if (username != null)
+                                  if (username != null || creatorId != null)
                                     TextButton(
-                                      onPressed: () => context.push('/community/${sub['creatorId']}'),
+                                      onPressed: () => context.push('/community/${creatorId ?? ''}'),
                                       child: const Text('Open community'),
                                     ),
                                   if (!isRenewalPending)
@@ -236,7 +236,7 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
                                       onPressed: creatorId == null
                                           ? null
                                           : () => _promptCancel(creatorId, source: source),
-                                      child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+                                      child: Text('Cancel', style: TextStyle(color: ForgeTokens.of(context).error)),
                                     ),
                                 ],
                               ),

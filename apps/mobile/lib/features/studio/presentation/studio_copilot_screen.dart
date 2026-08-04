@@ -214,8 +214,8 @@ class _CopilotInsightsView extends StatelessWidget {
                           alignment: Alignment.center,
                           child: Text(
                             '${entry.key + 1}',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: ForgeTokens.of(context).onPrimary,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),

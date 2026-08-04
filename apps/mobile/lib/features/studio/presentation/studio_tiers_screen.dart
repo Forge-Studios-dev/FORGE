@@ -166,7 +166,7 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
                           : 'Complete onboarding to accept paid memberships',
                     ),
                     trailing: connectOk
-                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        ? Icon(Icons.check_circle, color: ForgeTokens.of(context).success)
                         : TextButton(onPressed: _connectStripe, child: const Text('Connect')),
                   ),
                 ),

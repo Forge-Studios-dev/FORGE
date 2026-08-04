@@ -193,7 +193,7 @@ describe('Community HTTP (mocked e2e)', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: (key: string) => (key === 'features.skillEconomyLms' ? true : undefined),
+            get: (key: string) => (key === 'features.skillEconomyLms' ? false : undefined),
           },
         },
       ],
@@ -318,18 +318,18 @@ describe('Community HTTP (mocked e2e)', () => {
     expect(pollsService.getActivePoll).toHaveBeenCalledWith('comm-1', 'user-1', 'consumer');
   });
 
-  it('POST /api/v1/communities/:id/gamification/check-in awards streak XP', async () => {
+  it('POST /api/v1/communities/:id/gamification/check-in returns 410 when LMS soft-retired', async () => {
     const res = await request(app.getHttpServer()).post(
       '/api/v1/communities/comm-1/gamification/check-in',
     );
-    expect(res.status).toBe(201);
-    expect(gamificationService.checkIn).toHaveBeenCalledWith('user-1', 'comm-1');
+    expect(res.status).toBe(410);
+    expect(gamificationService.checkIn).not.toHaveBeenCalled();
   });
 
-  it('GET /api/v1/communities/:id/leaderboard returns ranks', async () => {
+  it('GET /api/v1/communities/:id/leaderboard returns 410 when LMS soft-retired', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/communities/comm-1/leaderboard');
-    expect(res.status).toBe(200);
-    expect(gamificationService.leaderboard).toHaveBeenCalledWith('comm-1');
+    expect(res.status).toBe(410);
+    expect(gamificationService.leaderboard).not.toHaveBeenCalled();
   });
 
   it('GET /api/v1/creators/me/business-analytics returns creator funnel', async () => {

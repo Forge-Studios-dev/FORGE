@@ -160,6 +160,14 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile live Q&A/poll panels: `ForgeTokens.of(context)` (light/dark)
 - Clients: subscriptions rails + UserList use `/channels/:id/subscribers|subscriptions`
 
+## Hardening pass 5 (2026-08-04)
+
+- Community deep links: `/community/:id` + `/communities/id/:id` redirect to `/{username}/c/{slug}`
+- Community e2e defaults LMS off and asserts gamification 410
+- Retention + admin KPIs use chat/posts/watch signals when LMS off (not XP)
+- Comment report dialog: aria-modal, labelled title, Escape + backdrop close
+- Mobile auth/studio/memberships: remaining Colors.* → ForgeTokens
+
 ## Still open
 
 | Area | Item | Owner |
