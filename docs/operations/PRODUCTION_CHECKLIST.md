@@ -18,6 +18,7 @@ Use before promoting a release to production (`main`).
 
 - [ ] Mux webhooks point at production API (`video.asset.ready`, `track.ready`, live events)
 - [ ] Sample upload → READY → HLS playback + optional multi-language captions
+- [ ] For private/unlisted/members VOD + live: set Mux playback policy to **signed** and configure `MUX_SIGNING_KEY_ID` + `MUX_SIGNING_PRIVATE_KEY` (unsigned URLs are withheld when signing is required but keys are missing)
 
 ## Billing (if enabled)
 

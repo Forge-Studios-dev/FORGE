@@ -34,6 +34,7 @@ import {
   isMuxSigningConfigured,
   muxSignedHlsPlaybackUrl,
   normalizeMuxPrivateKey,
+  requiresMuxSignedPlayback,
   type MuxSigningConfig,
 } from '../../common/media/mux-signing.util';
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
@@ -145,7 +146,7 @@ export class StreamingService {
     }
 
     try {
-      const useSignedPlayback = this.requiresSignedPlayback(visibility);
+      const useSignedPlayback = requiresMuxSignedPlayback(visibility);
       const dvrEnabled = dto.dvrEnabled === true;
       const response = await this.mux.video.liveStreams.create({
         playback_policy: [useSignedPlayback ? 'signed' : 'public'],
@@ -345,7 +346,7 @@ export class StreamingService {
   /** Resolve HLS URL — signed token for restricted streams when configured. */
   resolvePlaybackUrlForViewer(stream: Stream, bypassSigning = false): string | null {
     if (stream.status !== StreamStatus.LIVE || !stream.playbackUrl) return null;
-    if (bypassSigning || !this.requiresSignedPlayback(stream.visibility)) {
+    if (bypassSigning || !requiresMuxSignedPlayback(stream.visibility)) {
       return stream.playbackUrl;
     }
 
@@ -353,17 +354,18 @@ export class StreamingService {
     const playbackId = stream.muxPlaybackId ?? muxPlaybackIdFromHlsUrl(stream.playbackUrl);
     if (!playbackId || !isMuxSigningConfigured(signing)) {
       this.logger.warn(
-        `Signed playback required for stream ${stream.id} but MUX signing keys are not configured`,
+        JSON.stringify({
+          msg: 'mux_signed_playback_missing_keys',
+          kind: 'stream',
+          streamId: stream.id,
+          visibility: stream.visibility,
+        }),
       );
       return null;
     }
 
     const ttl = this.configService.get<number>('mux.signedPlaybackTtlSec') ?? 3600;
     return muxSignedHlsPlaybackUrl(playbackId, signing, ttl);
-  }
-
-  private requiresSignedPlayback(visibility: StreamVisibility): boolean {
-    return visibility !== StreamVisibility.PUBLIC;
   }
 
   private muxSigningConfig(): MuxSigningConfig | null {
@@ -721,7 +723,7 @@ export class StreamingService {
   /** Resolve VOD HLS URL — signed token for restricted replays when configured. */
   resolveVodPlaybackUrlForViewer(video: Video, bypassSigning = false): string | null {
     if (!video.hlsUrl) return null;
-    if (bypassSigning || video.visibility === VideoVisibility.PUBLIC) {
+    if (bypassSigning || !requiresMuxSignedPlayback(video.visibility)) {
       return video.hlsUrl;
     }
 
@@ -729,7 +731,12 @@ export class StreamingService {
     const playbackId = video.muxPlaybackId ?? muxPlaybackIdFromHlsUrl(video.hlsUrl);
     if (!playbackId || !isMuxSigningConfigured(signing)) {
       this.logger.warn(
-        `Signed replay required for video ${video.id} but MUX signing keys are not configured`,
+        JSON.stringify({
+          msg: 'mux_signed_playback_missing_keys',
+          kind: 'vod_replay',
+          videoId: video.id,
+          visibility: video.visibility,
+        }),
       );
       return null;
     }

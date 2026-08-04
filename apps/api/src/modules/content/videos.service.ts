@@ -50,6 +50,13 @@ import {
   muxPlaybackIdFromHlsUrl,
   muxThumbnailUrl,
 } from '../../common/media/mux-playback.util';
+import {
+  isMuxSigningConfigured,
+  muxSignedHlsPlaybackUrl,
+  normalizeMuxPrivateKey,
+  requiresMuxSignedPlayback,
+  type MuxSigningConfig,
+} from '../../common/media/mux-signing.util';
 import { SkillTag } from '../categories/entities/skill-tag.entity';
 import { Category } from '../categories/entities/category.entity';
 import { UserRole } from '../users/entities/user.entity';
@@ -250,6 +257,43 @@ export class VideosService {
       return { ...mapped, thumbnailUrl: muxThumbnailUrl(playbackId) };
     }
     return mapped;
+  }
+
+  /**
+   * Sign Mux HLS for non-public videos when signing keys are configured.
+   * Owners/admins may pass bypassSigning. Missing keys → null + structured warn.
+   */
+  resolveViewerHlsUrl(
+    video: Video,
+    hlsUrl: string | null,
+    bypassSigning = false,
+  ): string | null {
+    if (!hlsUrl) return null;
+    if (bypassSigning || !requiresMuxSignedPlayback(video.visibility)) {
+      return hlsUrl;
+    }
+    const playbackId = video.muxPlaybackId ?? muxPlaybackIdFromHlsUrl(hlsUrl);
+    const signing = this.muxSigningConfig();
+    if (!playbackId || !isMuxSigningConfigured(signing)) {
+      this.logger.warn(
+        JSON.stringify({
+          msg: 'mux_signed_playback_missing_keys',
+          kind: 'vod',
+          videoId: video.id,
+          visibility: video.visibility,
+        }),
+      );
+      return null;
+    }
+    const ttl = this.configService.get<number>('mux.signedPlaybackTtlSec') ?? 3600;
+    return muxSignedHlsPlaybackUrl(playbackId, signing, ttl);
+  }
+
+  private muxSigningConfig(): MuxSigningConfig | null {
+    const keyId = this.configService.get<string>('mux.signingKeyId') || '';
+    const rawKey = this.configService.get<string>('mux.signingPrivateKey') || '';
+    if (!keyId.trim() || !rawKey.trim()) return null;
+    return { keyId: keyId.trim(), privateKeyPem: normalizeMuxPrivateKey(rawKey) };
   }
 
   rewritePlaybackUrl(url: string | null | undefined): string | null {
@@ -1047,10 +1091,14 @@ export class VideosService {
     const pending = await this.getPendingViewCount(id);
     const withViews =
       pending > 0 ? { ...mapped, viewCount: mapped.viewCount + pending } : mapped;
+    const withSignedHls = {
+      ...withViews,
+      hlsUrl: this.resolveViewerHlsUrl(video, withViews.hlsUrl, isOwner || isAdmin),
+    };
 
     if (!access.allowed && !isOwner && !isAdmin) {
       return {
-        ...withViews,
+        ...withSignedHls,
         hlsUrl: null,
         accessDenied: true,
         accessReason: access.reason,
@@ -1064,14 +1112,14 @@ export class VideosService {
         video.userId,
       );
       return {
-        ...withViews,
+        ...withSignedHls,
         ...reaction,
         viewerFollowingCreator,
         viewerSubscribed: viewerFollowingCreator,
       };
     }
 
-    return withViews;
+    return withSignedHls;
   }
 
   /** Paginated public shorts feed (duration <= 60s, published, public). */
