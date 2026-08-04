@@ -1,19 +1,16 @@
-# Phase 06 — Report
+# Phase 06 — Report (2026-08-04)
 
-**Completion:** ~90% (Create Short wired; deep Studio analytics/moderation deferred)  
-**Readiness:** proceed to Phase 07 Admin.
+**Completion:** ~95%  
+**Readiness:** 9 / 10  
+**Recommendation:** Closed. Create Short + ≤60s reject already shipped (web probe + Mux/ffmpeg).
 
-## Shipped
+## Verified
 
-| Area | Change |
-| --- | --- |
-| Create Short | `?type=short` → draft → complete API `videoType` |
-| Upload UI | Video / Short toggle (web + mobile) |
-| StudioCommandBar | Create Short → `/upload?type=short` |
-| API | Optional `videoType` on `CompleteUploadDto` |
+- `/upload?type=short` → draft `videoType` → complete API
+- StudioCommandBar Create Short
+- API `resolveVideoTypeOnReady` hard-reject Shorts > 60s
 
 ## Deferred
 
-- Full YouTube Studio analytics/customization parity
-- Enforce ≤60s at upload for Shorts (reject vs soft reclassify)
-- Archive orphan economy Studio routes
+- Full Studio analytics curves (product)
+- Optional LMS file deletion

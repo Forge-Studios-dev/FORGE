@@ -1,21 +1,25 @@
-# Phase 01 — Implementation roadmap (Fresh Restart)
+# Phase 01 — Implementation roadmap (closed · 2026-08-04)
 
-Validated against Master Execution: Phase 01 chrome/DS/voice only; no Phase 04–12 feature creep.
+| Slice | Priority | Effort | Status |
+| --- | --- | --- | --- |
+| Docs — fresh audit | P0 | S | Done |
+| A. TopBar Create + Account → PopoverMenu | P0 | M | **Done** |
+| B. NotificationsMenu → PopoverMenu | P0 | S | **Done** |
+| C. CommunityWelcomeModal → DS Dialog | P0 | S | **Done** |
+| D. Mobile web Create IA | P0 | S | **Done** |
+| E. Flutter bottom nav Create | P1 | S | **Done** |
+| F. Brand tokens | P1 | M | **Waived** — keep FORGE purple |
+| G. Admin LMS orphans | P1 | S | **Done** (pre-existing redirects) |
+| H. Nav magic font sizes | P2 | S | **Done** |
+| I. CategoryFilter keyboard | P2 | S | Deferred → Phase 21 |
+| Guest hero removal | P0 | S | **Done** |
+| Phase report | P0 | S | **Done** |
 
-| Slice | Priority | Effort | Risk | Deps | Status |
-| --- | --- | --- | --- | --- | --- |
-| Docs — fresh audit + this roadmap | P0 | S | Low | — | Done |
-| A. A11y shell — one skip + one `#main-content` | P0 | S | Low | — | Done |
-| B. Immersive Studio + Shorts (web + mobile) | P0 | L | Med | A | Done |
-| C. TopicChip, TrendingRail, For you, Continue once, FeedCard chips | P0 | M | Low | — | Done |
-| D. Mobile light theme + You always in bottom nav | P0 | M | Med | — | Done |
-| E. Mobile-web theme toggle, Admin channel-points, FeedCard Icon | P1 | S | Low | B/C | Done |
-| Report + Phase 02 handoff | P0 | S | Low | A–E | Done |
+## Deferred
 
-## Validation notes
-
-- No new packages.
-- No DB migrations.
-- API `skillTags` field names unchanged.
-- DS Menu/Select deferred.
-- Flutter body surfaces still often use dark `ForgeTokens` consts — ThemeMode flips Material chrome; full of(context) sweep → Phase 02 depth.
+| Item | Target |
+| --- | --- |
+| Custom video player chrome | Phase 08 |
+| Mobile Home grid rewrite | Backlog |
+| CategoryFilter arrow-key tabs | Phase 21 |
+| Brand red/neutral swap | Only if product revisits |

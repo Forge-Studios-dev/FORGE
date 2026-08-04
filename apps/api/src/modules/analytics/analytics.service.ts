@@ -126,7 +126,7 @@ export class AnalyticsService {
             FROM watch_history wh
             INNER JOIN videos v ON v.id = wh.video_id
             WHERE v.user_id = $1
-              AND wh.created_at >= $2
+              AND wh.watched_at >= $2
               AND v.duration_seconds IS NOT NULL
               AND v.duration_seconds > 0
           ) AS avg_watch_pct
@@ -167,7 +167,7 @@ export class AnalyticsService {
             ) AS avg_watch_pct
           FROM watch_history wh
           INNER JOIN videos v2 ON v2.id = wh.video_id
-          WHERE wh.created_at >= $2
+          WHERE wh.watched_at >= $2
             AND v2.duration_seconds IS NOT NULL
             AND v2.duration_seconds > 0
           GROUP BY wh.video_id

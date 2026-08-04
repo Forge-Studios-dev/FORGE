@@ -1,23 +1,20 @@
-# Phase 03 — Report (Fresh Verification)
+# Phase 03 — Report (2026-08-04 · migrations applied)
 
-**Completion:** ~95% (prior hot-path work + post-wave index review)  
+**Completion:** ~100%  
 **Readiness:** 9 / 10  
-**Recommendation:** Proceed to Phase 04 — Navigation & Routing
+**Recommendation:** Closed. Continue Phase 05+.
 
-## Summary
+## Applied to Neon (via local `apps/api` TypeORM)
 
-Re-audited database posture after YouTube-replica migrations 187–196. Phase 03 hot-path indexes (`186…`) remain the correct primary fix. Newer tables (Super Thanks, notify_level, unlisted playlists) already carry adequate indexes; no additional Critical/High migrations required this pass.
+185 → 197 inclusive, including:
+- YouTube wave (reactions, system playlists, captions, notify_level, Super Thanks, pin/heart, channel links, unlisted, history pause)
+- Hot-path indexes (`IDX_videos_discoverable_sort` without non-immutable COALESCE)
+- Watch-history index cleanup (drop duplicate `*_watched_at`)
 
-## Changes this pass
+## Fix shipped in repo
 
-- Fresh verification doc rewrite (`PHASE_03_DATABASE.md`)
-- This report
+`186…phase-03-hot-path-indexes.ts` no longer uses `COALESCE(timestamptz)` (PG rejects as non-IMMUTABLE). Uses `published_at DESC NULLS LAST` under discoverable WHERE clause.
 
-## Risks
+## Verify
 
-- Environments that have not applied `186…` still miss feed partial indexes
-- LMS tables remain in schema for opt-in flag
-
-## Next phase deps
-
-Phase 04 should treat AppShell immersive/studio route lists and mobile ShellRoute/Shorts outside-shell as navigation contracts (from Phase 01), not invent parallel IA.
+`migration:show` should list all through `WatchHistoryIndexCleanup197…` as `[X]`.

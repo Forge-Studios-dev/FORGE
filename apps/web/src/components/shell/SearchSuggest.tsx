@@ -176,7 +176,7 @@ export function SearchSuggest({ className = '', compact = false }: Props) {
                   />
                   <span className="min-w-0 flex-1 truncate text-on-surface">{label}</span>
                   {item.kind === 'channel' ? (
-                    <span className="shrink-0 text-[10px] uppercase tracking-wide text-outline">
+                    <span className="shrink-0 text-xs uppercase tracking-wide text-outline">
                       Channel
                     </span>
                   ) : null}

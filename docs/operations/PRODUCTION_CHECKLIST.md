@@ -11,7 +11,7 @@ Use before promoting a release to production (`main`).
 
 ## Data
 
-- [ ] Pending TypeORM migrations applied (incl. `187…` captions, `188…` notify_level, `189…` super_thanks enum, `190…` caption_tracks, `191…` super_thanks ledger, `192…` fee snapshot, `193…` watch_history_paused, `194…` comment pin/creator heart, `195…` channel website/links, `196…` playlist unlisted)
+- [ ] Pending TypeORM migrations applied (incl. `185…` YouTube wave through `197…` watch_history index cleanup; captions, notify_level, Super Thanks, pin/heart, channel links, unlisted playlists, history pause)
 - [ ] Rollback SQL reviewed for risky migrations
 
 ## Media

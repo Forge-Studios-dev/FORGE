@@ -68,5 +68,9 @@ describe('AnalyticsService', () => {
       ctr: 0.5,
       avgWatchPercent: 40,
     });
+    // watch_history uses watched_at (no created_at column)
+    expect(String(dataSource.query.mock.calls[0][0])).toContain('wh.watched_at');
+    expect(String(dataSource.query.mock.calls[1][0])).toContain('wh.watched_at');
+    expect(String(dataSource.query.mock.calls[0][0])).not.toContain('wh.created_at');
   });
 });

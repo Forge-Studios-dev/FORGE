@@ -279,6 +279,40 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           initialVideoId: state.uri.queryParameters['v'],
         ),
       ),
+      // Immersive watch / live watch / community rooms — YouTube-like full canvas.
+      GoRoute(
+        path: '/watch/:id',
+        builder: (_, state) {
+          final t = state.uri.queryParameters['t'];
+          final list = state.uri.queryParameters['list']?.trim();
+          final lc = state.uri.queryParameters['lc']?.trim();
+          return WatchScreen(
+            videoId: state.pathParameters['id']!,
+            initialSeekSeconds: _parseWatchTimeQuery(t),
+            playlistId: (list != null && list.isNotEmpty) ? list : null,
+            shuffle: state.uri.queryParameters['shuffle'] == '1',
+            highlightCommentId: (lc != null && lc.isNotEmpty) ? lc : null,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/live/:id',
+        builder: (_, state) => LiveWatchScreen(streamId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/community/:communityId/text/:roomId',
+        builder: (_, state) => CommunityTextRoomScreen(
+          communityId: state.pathParameters['communityId']!,
+          roomId: state.pathParameters['roomId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/community/:communityId/voice/:roomId',
+        builder: (_, state) => CommunityVoiceRoomScreen(
+          communityId: state.pathParameters['communityId']!,
+          roomId: state.pathParameters['roomId']!,
+        ),
+      ),
       ShellRoute(
         builder: (context, state, child) => MainScaffold(child: child),
         routes: [
@@ -318,24 +352,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(path: '/live', builder: (_, __) => const LiveScreen()),
           GoRoute(
-            path: '/live/:id',
-            builder: (_, state) => LiveWatchScreen(streamId: state.pathParameters['id']!),
-          ),
-          GoRoute(
-            path: '/community/:communityId/text/:roomId',
-            builder: (_, state) => CommunityTextRoomScreen(
-              communityId: state.pathParameters['communityId']!,
-              roomId: state.pathParameters['roomId']!,
-            ),
-          ),
-          GoRoute(
-            path: '/community/:communityId/voice/:roomId',
-            builder: (_, state) => CommunityVoiceRoomScreen(
-              communityId: state.pathParameters['communityId']!,
-              roomId: state.pathParameters['roomId']!,
-            ),
-          ),
-          GoRoute(
             path: '/community/:creatorId',
             builder: (_, state) => CommunityScreen(creatorId: state.pathParameters['creatorId']!),
           ),
@@ -354,21 +370,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               initialQuery: state.uri.queryParameters['q'],
               autofocusSearch: true,
             ),
-          ),
-          GoRoute(
-            path: '/watch/:id',
-            builder: (_, state) {
-              final t = state.uri.queryParameters['t'];
-              final list = state.uri.queryParameters['list']?.trim();
-              final lc = state.uri.queryParameters['lc']?.trim();
-              return WatchScreen(
-                videoId: state.pathParameters['id']!,
-                initialSeekSeconds: _parseWatchTimeQuery(t),
-                playlistId: (list != null && list.isNotEmpty) ? list : null,
-                shuffle: state.uri.queryParameters['shuffle'] == '1',
-                highlightCommentId: (lc != null && lc.isNotEmpty) ? lc : null,
-              );
-            },
           ),
           GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
           GoRoute(path: '/library', builder: (_, __) => const LibraryScreen()),

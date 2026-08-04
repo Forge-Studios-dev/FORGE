@@ -59,8 +59,8 @@ flowchart TB
 | --- | --- | --- |
 | Courses / programs LMS | `modules/courses` | `CoursesModule.register()` only if `FEATURES_SKILL_ECONOMY_LMS=true`; else empty module. Controllers also guarded by `SkillEconomyLmsGuard` → HTTP 410 |
 | Podcasts controller | `content/podcasts.controller` | Same LMS flag |
-| Channel points | `modules/channel-points` | Still loaded; Admin nav hidden (Phase 01) |
-| Gamification | `modules/gamification` | Still loaded; not primary chrome |
+| Channel points | `modules/channel-points` | `ChannelPointsModule.register()` — empty unless `FEATURES_SKILL_ECONOMY_LMS=true` |
+| Gamification | `modules/gamification` | `GamificationModule.register()` — same LMS gate |
 
 ## Adjacent (retain; secondary surfaces)
 

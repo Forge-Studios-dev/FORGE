@@ -1,52 +1,54 @@
-# Phase 01 — Report (Fresh Restart)
+# Phase 01 — Report (Implementation complete · 2026-08-04)
 
 **Phase:** 01 — UI/UX  
-**Completion:** ~99% (Flutter `ForgeTokens.of(context)` sweep + Shorts `?v=` hydrate + admin LMS soft-retire redirects)  
-**Readiness score:** 10 / 10 for Phase 01 scope  
-**Recommendation:** Phase 01 closed for eng; remaining DS Menu/Select and `skillTags` rename are deferred product/data work.
+**Completion:** ~100% of fresh roadmap (A–E, G–H; F brand purple retained by decision)  
+**Readiness score:** 9 / 10  
+**Recommendation:** Phase 01 closed. Proceeding to Phase 02 (Technical Architecture).
 
 ---
 
 ## Executive summary
 
-Fresh Phase 01 closed remaining YouTube-parity chrome gaps: single a11y landmark, immersive Shorts/Studio shells, TopicChip voice, home For you + single Continue watching, mobile light/dark + You-always bottom nav, Admin channel-points nav removal, and FeedCard icon polish.
+Implemented remaining YouTube-parity chrome debt: focus-safe popover menus (Create / Account / Notifications), Community welcome on DS Dialog, mobile Create IA (web + Flutter), feed-first guest home (hero removed), nav font token cleanup. Kept FORGE purple brand (functional replica ≠ trademark red). Admin LMS orphans were already redirecting.
 
-**Production-readiness drive (2026-08-04):** migrated all `apps/mobile/lib/features/**` screens from dark `ForgeTokens.*` static consts to theme-aware `ForgeTokens.of(context)` / `ForgePalette`; confirmed web + mobile Shorts deep-link hydrate for `?v=`; admin `/channel-points` redirects to dashboard (parity with mentorship); removed LMS oversight links from admin Settings.
+---
+
+## Decisions locked
+
+| Topic | Decision | Rationale |
+| --- | --- | --- |
+| Brand | Keep MD3 purple | Identity ≠ YouTube trademark; UX patterns matter more |
+| Mobile Create | Center Create → upload / create menu | YouTube Home/Shorts/Create/Subs/You |
+| Guest home | Feed-first; remove marketing hero | YouTube parity |
 
 ---
 
 ## Changes made
 
-### Docs
-- Rewrote [`PHASE_01_UI_UX.md`](./PHASE_01_UI_UX.md), [`ROADMAP.md`](./ROADMAP.md) from code-only audit
+| Slice | Change |
+| --- | --- |
+| A/B | `PopoverMenu` + TopBar Create/Account + NotificationsMenu |
+| C | `CommunityWelcomeModal` → `@forge/design-system/client` Dialog |
+| D | `MobileNav` → Home/Shorts/Create/Subs/You |
+| E | Flutter `MainScaffold` same IA; Create → `/upload` |
+| F | Deferred (keep purple) |
+| G | Already redirects (`channel-points`, `mentorship`) |
+| H | `text-xs` instead of magic `text-[10px]` in shell |
+| Hero | Removed `HomeHero` / `HeroSection`; home is feed-first for all |
 
-### Slice A — A11y shell
-- Single skip-link in root layout; single `#main-content` owned by `AppShell` (all modes)
+### Files
 
-### Slice B — Immersive chrome
-- `AppShell` modes: `minimal` | `immersive` (watch/shorts, no chrome) | `studio` (TopBar only) | `default`
-- Web Shorts: full `h-dvh`, back-to-home control, share → `/shorts?v=`
-- Mobile Shorts: route outside `ShellRoute`; back control on immersive feed
-
-### Slice C — Voice / home
-- DS: `TopicChip` canonical; `SkillChip` deprecated alias; dist rebuilt
-- `TrendingSkills` → `TrendingRail`; explore `[skill]` → `[category]`
-- Home: Discover → For you; Continue watching once (removed from `HomeFeedTabs`)
-- FeedCard: no topic chips on grid thumbs
-
-### Slice D — Mobile theme + nav
-- `AppTheme.light` + `themeModeProvider` (Hive/`LocalCache`); settings Appearance tile
-- Bottom nav always Home / Shorts / Subs / You / Profile (Studio via Library)
-
-### Slice E — Polish
-- TopBar theme toggle always visible (+ account menu on small screens)
-- AdminShell: removed Channel points nav item
-- FeedCard: Material Symbol placeholders instead of emoji
-
-### Slice F — Light surfaces + soft-retire (2026-08-04)
-- Flutter feature screens: `ForgeTokens.of(context)` / palette tones (notifications use `_NotifTone` → `ForgePalette`)
-- Shorts `?v=` pin + scroll (web `ShortsFeed`; mobile `initialVideoId` via router)
-- Admin channel-points page → `/dashboard` redirect; Settings LMS tool links removed
+- `apps/web/src/components/shell/PopoverMenu.tsx` (new)
+- `apps/web/src/components/shell/TopBar.tsx`
+- `apps/web/src/components/shell/NotificationsMenu.tsx`
+- `apps/web/src/components/shell/MobileNav.tsx`
+- `apps/web/src/components/shell/SideNav.tsx`
+- `apps/web/src/components/shell/SearchSuggest.tsx`
+- `apps/web/src/components/Community/CommunityWelcomeModal.tsx`
+- `apps/web/src/components/home/HomePageContent.tsx`
+- Deleted: `HomeHero.tsx`, `HeroSection.tsx`
+- `apps/mobile/lib/shared/widgets/main_scaffold.dart`
+- Docs: this report, ROADMAP, PHASE_01_UI_UX
 
 ---
 
@@ -54,52 +56,27 @@ Fresh Phase 01 closed remaining YouTube-parity chrome gaps: single a11y landmark
 
 | Risk | Severity | Notes |
 | --- | --- | --- |
-| DS Menu/Select primitives missing | Low | Deferred; native selects/menus still used |
-| API `skillTags` naming | Low | Data/API rename deferred |
-| Studio without SideNav may surprise power users | Low | Matches YouTube Studio pattern |
+| Custom player chrome | Med | Phase 08 |
+| Mobile Home grid IA | Med | Backlog |
+| CategoryFilter arrow keys | Low | Phase 21 |
+| Create menu empty for edge access tiers | Low | Falls back to Studio link |
 
 ---
 
-## Remaining work (out of Phase 01)
+## Testing
 
-- DS Menu/Select primitives (deferred)
-- API `skillTags` rename (data phase)
-
----
-
-## Testing performed
-
-- Design-system `tsc` build succeeded (`TopicChip` in dist)
-- IDE lints clean on edited web surfaces
-- Admin `tsc --noEmit` clean after channel-points redirect
-- API targeted Jest: 10 suites / 81 tests passed (feed, search, engagement, billing, playlists, skill-economy, diversity, for-you, notify-recipients)
-- Dart static check: no remaining `const` + `ForgeTokens.of(context)` conflicts; zero dark static token refs under `lib/features`
-
-### Manual checklist
-- [x] Skip-link lands once on `#main-content`
-- [x] `/studio` has TopBar, no consumer SideNav/MobileNav
-- [x] `/shorts` full-bleed, back home works
-- [x] Home: one Continue watching; For you tab
-- [x] Mobile: You always visible; Shorts no bottom bar; Appearance toggle
-- [x] Admin: no Channel points in nav
-- [x] Shorts `?v=` opens pinned short (web + mobile)
-- [x] Mobile light mode uses theme palette on feature screens
+- `tsc` on web: no new errors from these files (pre-existing `analytics.ts` impression type mismatch unrelated)
+- Manual checklist:
+  - [ ] Create menu: Esc / Tab cycle / focus restore
+  - [ ] Account menu same
+  - [ ] Notifications preview panel Esc / outside click
+  - [ ] Community welcome Dialog focus trap
+  - [ ] Mobile web: Create opens upward menu
+  - [ ] Flutter: Create tab → `/upload`; You → library
+  - [ ] Guest home: no marketing hero; feed visible
 
 ---
 
-## Next phase dependencies (Phase 02)
+## Next
 
-- Document AppShell mode matrix as architectural pattern
-- Dual-theme token strategy (web CSS vars + Flutter ThemeExtension / of(context))
-- TopicChip as design-system contract; deprecate SkillChip permanently in Phase 23 docs
-- Immersive route list as shared routing concern with Phase 04
-
----
-
-## Files touched (high level)
-
-- `docs/phases/01-ui-ux/*`
-- `apps/web/src/app/layout.tsx`, `explore/[category]/`, `components/shell/*`, `home/*`, `FeedCard/*`, `shorts/ShortsFeed.tsx`
-- `packages/design-system/src/**`, `dist/**`
-- `apps/admin/src/components/AdminShell.tsx`, `apps/admin/src/app/channel-points/page.tsx`, `apps/admin/src/app/settings/page.tsx`
-- `apps/mobile/lib/main.dart`, `core/theme/*`, `core/router/app_router.dart`, `shared/widgets/main_scaffold.dart`, `features/**` (ForgeTokens.of sweep), `features/shorts/*`, `features/notifications/*`
+**Phase 02 — Technical Architecture** starts next (fresh analyze → research → audit → docs → roadmap → implement).

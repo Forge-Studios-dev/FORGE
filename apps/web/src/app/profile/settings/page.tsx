@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { ActiveSessions } from '@/components/settings/ActiveSessions';
 import { AvatarUploadSettings } from '@/components/settings/AvatarUploadSettings';
+import { BannerUploadSettings } from '@/components/settings/BannerUploadSettings';
 import { MutedChannelsSettings } from '@/components/settings/MutedChannelsSettings';
 import { PasswordResetSettings } from '@/components/settings/PasswordResetSettings';
 import { WatchHistoryPrivacyToggle } from '@/components/settings/WatchHistoryPrivacyToggle';
@@ -129,6 +130,7 @@ export default function ProfileSettingsPage() {
       >
         <h2 className="font-display-forge text-lg font-semibold">Account</h2>
         <AvatarUploadSettings />
+        <BannerUploadSettings />
         <p className="text-sm text-on-surface-variant">
           @{stored.username} ·{' '}
           <Link href={`/${stored.username}`} className="text-primary hover:underline">

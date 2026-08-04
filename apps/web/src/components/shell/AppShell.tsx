@@ -20,9 +20,14 @@ const MINIMAL_PREFIXES = [
   '/embed',
 ];
 
-/** Watch and Shorts — full-bleed canvas, no consumer chrome */
-function isImmersiveRoute(pathname: string) {
-  return pathname.startsWith('/watch/') || pathname === '/shorts' || pathname.startsWith('/shorts/');
+/** Shorts — full-bleed canvas, no consumer chrome */
+function isShortsRoute(pathname: string) {
+  return pathname === '/shorts' || pathname.startsWith('/shorts/');
+}
+
+/** Watch — YouTube masthead (search/account); no SideNav/MobileNav */
+function isWatchRoute(pathname: string) {
+  return pathname.startsWith('/watch/');
 }
 
 /** Creator Studio — TopBar only (StudioShell owns the sidebar) */
@@ -33,7 +38,8 @@ function isStudioRoute(pathname: string) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const minimal = MINIMAL_PREFIXES.some((p) => pathname.startsWith(p));
-  const immersive = isImmersiveRoute(pathname);
+  const shorts = isShortsRoute(pathname);
+  const watch = isWatchRoute(pathname);
   const studio = isStudioRoute(pathname);
 
   if (minimal) {
@@ -44,7 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (immersive) {
+  if (shorts) {
     return (
       <div id="main-content" className="min-h-dvh" tabIndex={-1}>
         {children}
@@ -52,7 +58,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (studio) {
+  // Watch + Studio share TopBar-only chrome (YouTube masthead / Studio shell).
+  if (watch || studio) {
     return (
       <>
         <TopBar />

@@ -12,13 +12,13 @@
 | Pause watch history | Present (`WatchHistoryPrivacyToggle`) |
 | Notifications deep-links | Present |
 | OAuth `next` return | Present |
-| **Avatar upload in settings** | **Added** — `AvatarUploadSettings` + existing presign API |
-| **Password reset from settings** | **Added** — email reset link via forgot-password |
+| **Avatar upload in settings** | Present — `AvatarUploadSettings` |
+| **Banner upload in settings** | **Wired** — `BannerUploadSettings` (presign API already existed) |
+| **Password reset from settings** | Present — email reset link via forgot-password |
 | Channel links / website | Present |
 
 ## Deferred
 
-- Banner image upload (no API yet)
 - Change-password with current password (email reset covers common case)
 - Downloads / offline (product)
 

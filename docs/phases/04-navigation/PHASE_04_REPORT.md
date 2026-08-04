@@ -1,17 +1,15 @@
-# Phase 04 — Report
+# Phase 04 — Report (2026-08-04)
 
-**Completion:** ~92%  
+**Completion:** ~95%  
 **Readiness:** 9 / 10  
-**Recommendation:** Proceed to Phase 05 — User Platform
+**Recommendation:** Closed. Phase 05 next in app code. **Phase 03 Neon migrate still needs approval.**
 
-## Shipped this pass
-- TopBar **Create** menu (Upload video / Create a Short / Go live)
-- Fresh navigation docs aligned with Phase 01 AppShell modes
-- Confirmed LMS orphan redirects already in `next.config.mjs`
+## Changes
+
+- Docs refreshed for Phase 01 Create IA + AppShell contracts
+- No code edits this slice (navigation already corrected in Phase 01)
 
 ## Risks
-- Create a Short → `/upload?type=short` until upload draft supports `videoType` (Phase 08/upload polish)
-- Mobile Create remains via Library → Studio / Upload routes
 
-## Next
-Phase 05: user profile, privacy, subscriptions depth — avoid redoing chrome.
+- Short upload query param until upload pipeline sets `videoType`
+- Prod DB lag (Phase 03 C1) can make some navigated features error at API layer

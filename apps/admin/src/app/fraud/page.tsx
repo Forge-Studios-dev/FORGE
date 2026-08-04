@@ -1,7 +1,9 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { Button, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
+import { Dialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 
 type FraudAlert = {
@@ -22,6 +24,13 @@ const STATUS_LABELS: Record<string, string> = {
   false_positive: 'False Positive',
 };
 
+const STATUS_TONE: Record<string, StatusTone> = {
+  open: 'warning',
+  under_review: 'primary',
+  resolved: 'success',
+  false_positive: 'neutral',
+};
+
 const RISK_COLOR = (score: number) => {
   if (score >= 80) return 'text-error';
   if (score >= 50) return 'text-warning';
@@ -30,6 +39,7 @@ const RISK_COLOR = (score: number) => {
 
 export default function FraudPage() {
   const qc = useQueryClient();
+  const dialogTitleId = useId();
   const [statusFilter, setStatusFilter] = useState<string>('open');
   const [selectedAlert, setSelectedAlert] = useState<FraudAlert | null>(null);
   const [notes, setNotes] = useState('');
@@ -72,25 +82,24 @@ export default function FraudPage() {
   const alerts = data?.data ?? [];
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-on-surface">Fraud Alerts</h1>
-        <div className="flex flex-wrap gap-2">
-          {(['open', 'under_review', 'resolved', 'false_positive', ''] as const).map((s) => (
-            <button
-              key={s || 'all'}
-              type="button"
-              onClick={() => setStatusFilter(s)}
-              className={`rounded px-3 py-1 text-sm ${
-                statusFilter === s
-                  ? 'bg-primary text-on-primary'
-                  : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
-              }`}
-            >
-              {s ? STATUS_LABELS[s] : 'All'}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Fraud Alerts"
+        subtitle="Review risk signals, update case status, and re-run user checks."
+      />
+
+      <div className="flex flex-wrap gap-2">
+        {(['open', 'under_review', 'resolved', 'false_positive', ''] as const).map((s) => (
+          <Button
+            key={s || 'all'}
+            type="button"
+            variant={statusFilter === s ? 'primary' : 'secondary'}
+            className="!px-3 !py-1 text-sm"
+            onClick={() => setStatusFilter(s)}
+          >
+            {s ? STATUS_LABELS[s] : 'All'}
+          </Button>
+        ))}
       </div>
 
       {isLoading ? (
@@ -158,32 +167,35 @@ export default function FraudPage() {
                     {alert.userId}
                   </td>
                   <td className="py-3 pr-4">
-                    <span className="rounded bg-surface-container-high px-2 py-0.5 text-xs">
-                      {STATUS_LABELS[alert.status]}
-                    </span>
+                    <StatusPill
+                      tone={STATUS_TONE[alert.status] ?? 'neutral'}
+                      label={STATUS_LABELS[alert.status]}
+                    />
                   </td>
                   <td className="py-3 pr-4 text-xs text-on-surface-variant">
                     {new Date(alert.createdAt).toLocaleDateString()}
                   </td>
                   <td className="flex gap-2 py-3">
-                    <button
+                    <Button
                       type="button"
+                      variant="secondary"
+                      className="!px-2 !py-1 text-xs"
                       onClick={() => {
                         setSelectedAlert(alert);
                         setNotes(alert.notes ?? '');
                         setNewStatus(alert.status);
                       }}
-                      className="rounded bg-surface-container-high px-2 py-1 text-xs hover:bg-surface-container-highest"
                     >
                       Review
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      className="!px-2 !py-1 text-xs"
                       onClick={() => runCheck.mutate(alert.userId)}
-                      className="rounded bg-surface-container-high px-2 py-1 text-xs hover:bg-surface-container-highest"
                     >
                       Re-check
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -192,10 +204,17 @@ export default function FraudPage() {
         </div>
       )}
 
-      {selectedAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70">
-          <div className="w-full max-w-lg space-y-4 rounded-xl border border-outline-variant/40 bg-surface-container p-6">
-            <h2 className="text-lg font-bold text-on-surface">Update Alert</h2>
+      <Dialog
+        open={!!selectedAlert}
+        onClose={() => setSelectedAlert(null)}
+        labelledBy={dialogTitleId}
+        size="md"
+      >
+        {selectedAlert ? (
+          <div className="space-y-4">
+            <h2 id={dialogTitleId} className="text-lg font-bold text-on-surface">
+              Update Alert
+            </h2>
             <div className="text-sm text-on-surface-variant">
               <p>
                 <span className="text-on-surface">Signal:</span> {selectedAlert.signal}
@@ -206,15 +225,18 @@ export default function FraudPage() {
               <p>
                 <span className="text-on-surface">User:</span> {selectedAlert.userId}
               </p>
-              {Object.keys(selectedAlert.metadata).length > 0 && (
+              {Object.keys(selectedAlert.metadata).length > 0 ? (
                 <pre className="mt-2 max-h-32 overflow-auto rounded bg-surface-container-high p-2 text-xs">
                   {JSON.stringify(selectedAlert.metadata, null, 2)}
                 </pre>
-              )}
+              ) : null}
             </div>
             <div className="space-y-2">
-              <label className="block text-sm text-on-surface">Status</label>
+              <label className="block text-sm text-on-surface" htmlFor="fraud-status">
+                Status
+              </label>
               <select
+                id="fraud-status"
                 value={newStatus}
                 onChange={(e) => setNewStatus(e.target.value)}
                 className="w-full rounded border border-outline-variant/40 bg-surface-container-low px-3 py-2 text-sm text-on-surface"
@@ -227,8 +249,11 @@ export default function FraudPage() {
               </select>
             </div>
             <div className="space-y-2">
-              <label className="block text-sm text-on-surface">Notes</label>
+              <label className="block text-sm text-on-surface" htmlFor="fraud-notes">
+                Notes
+              </label>
               <textarea
+                id="fraud-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
@@ -237,15 +262,13 @@ export default function FraudPage() {
               />
             </div>
             <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedAlert(null)}
-                className="rounded bg-surface-container-high px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest"
-              >
+              <Button type="button" variant="secondary" onClick={() => setSelectedAlert(null)}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="primary"
+                disabled={updateAlert.isPending}
                 onClick={() =>
                   updateAlert.mutate({
                     alertId: selectedAlert.id,
@@ -253,15 +276,13 @@ export default function FraudPage() {
                     alertNotes: notes,
                   })
                 }
-                disabled={updateAlert.isPending}
-                className="rounded bg-primary px-4 py-2 text-sm text-on-primary hover:opacity-90 disabled:opacity-50"
               >
                 {updateAlert.isPending ? 'Saving...' : 'Save'}
-              </button>
+              </Button>
             </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </Dialog>
     </div>
   );
 }

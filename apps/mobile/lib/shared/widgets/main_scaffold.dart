@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+/// YouTube-style primary tabs: Home · Shorts · Create · Subs · You.
+/// Studio / Profile are reached from You (library) or in-app CTAs — not bottom tabs.
 class MainScaffold extends ConsumerWidget {
   final Widget child;
   const MainScaffold({super.key, required this.child});
@@ -30,6 +32,11 @@ class MainScaffold extends ConsumerWidget {
             label: 'Shorts',
           ),
           NavigationDestination(
+            icon: Icon(Icons.add_circle_outline),
+            selectedIcon: Icon(Icons.add_circle),
+            label: 'Create',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.subscriptions_outlined),
             selectedIcon: Icon(Icons.subscriptions),
             label: 'Subs',
@@ -39,30 +46,26 @@ class MainScaffold extends ConsumerWidget {
             selectedIcon: Icon(Icons.video_library),
             label: 'You',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
         ],
       ),
     );
   }
 
   int _selectedIndex(String location) {
-    if (location.startsWith('/feed') || location.startsWith('/watch')) return 0;
+    if (location.startsWith('/feed')) return 0;
     if (location.startsWith('/shorts')) return 1;
-    if (location.startsWith('/subscriptions')) return 2;
+    if (location.startsWith('/upload') || location.startsWith('/studio')) return 2;
+    if (location.startsWith('/subscriptions')) return 3;
     if (location.startsWith('/library') ||
         location.startsWith('/history') ||
         location.startsWith('/playlists') ||
         location.startsWith('/notifications') ||
         location.startsWith('/explore') ||
         location.startsWith('/live') ||
-        location.startsWith('/studio')) {
-      return 3;
+        location.startsWith('/community') ||
+        location.startsWith('/profile')) {
+      return 4;
     }
-    if (location.startsWith('/profile')) return 4;
     return 0;
   }
 
@@ -75,13 +78,13 @@ class MainScaffold extends ConsumerWidget {
         context.go('/shorts');
         break;
       case 2:
-        context.go('/subscriptions');
+        context.push('/upload');
         break;
       case 3:
-        context.go('/library');
+        context.go('/subscriptions');
         break;
       case 4:
-        context.go('/profile/me');
+        context.go('/library');
         break;
     }
   }

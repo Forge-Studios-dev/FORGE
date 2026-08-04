@@ -22,6 +22,8 @@ const PRIMARY: NavItem[] = [
     icon: 'subscriptions',
     guestHref: '/login?next=/subscriptions',
   },
+  { href: '/explore', label: 'Explore', icon: 'explore' },
+  { href: '/live', label: 'Live', icon: 'sensors' },
 ];
 
 const YOU: NavItem[] = [
@@ -119,7 +121,7 @@ export function SideNav() {
         <Icon name="auto_videocam" />
         <span className="font-label-caps">Studio</span>
         {showStudioExtras && canApplyForCreator ? (
-          <span className="text-[10px] text-tertiary">Apply</span>
+          <span className="text-xs text-tertiary">Apply</span>
         ) : null}
       </Link>
     </nav>

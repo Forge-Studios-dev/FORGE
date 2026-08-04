@@ -311,10 +311,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Area | Item | Owner |
 | --- | --- | --- |
 | Ops | Staging soak per load-test runbook | Operator |
-| Launch | Env secrets, Mux/Stripe webhooks, migrations on prod (`185–196`); Mux signing keys for private/unlisted | Operator |
+| Launch | Env secrets, Mux/Stripe webhooks; Mux signing keys for private/unlisted | Operator |
+| Launch | DB migrations **185–197 applied** to Neon (2026-08-04) via TypeORM | Done |
 | Ship | Review + merge `feature/youtube-replica-wave-1` (do not push straight to `main`) | Operator |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
 | Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |
+| Analytics | Studio details page uses `topVideos` (impressions/CTR/watch %); SQL uses `watched_at` | Done (2026-08-04) |
 | Recs | Full ML / embeddings stack | Product |
 | Downloads | Real offline download packages (UI hidden) | Product |
 | Legal | Kids / Restricted Mode / made-for-kids | Product + legal |

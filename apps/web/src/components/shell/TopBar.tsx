@@ -11,7 +11,11 @@ import { getSocket } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
 import { NotificationsMenu } from '@/components/shell/NotificationsMenu';
 import { SearchSuggest } from '@/components/shell/SearchSuggest';
+import { PopoverMenu } from '@/components/shell/PopoverMenu';
 import { useTheme } from '@/components/theme/ThemeProvider';
+
+const menuItemClass =
+  'flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-surface-container-highest';
 
 export function TopBar() {
   const {
@@ -95,44 +99,51 @@ export function TopBar() {
               </Link>
             )}
             {(canUpload || canGoLive) && (
-              <details className="relative">
-                <summary
-                  className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 [&::-webkit-details-marker]:hidden"
-                  aria-label="Create"
-                  title="Create"
-                >
-                  <Icon name="add_circle" />
-                </summary>
-                <div className="absolute right-0 z-50 mt-2 w-52 rounded-xl border border-outline-variant/30 bg-surface-container-high py-2 shadow-lg">
-                  {canUpload ? (
-                    <>
+              <PopoverMenu
+                label="Create"
+                align="right"
+                panelClassName="w-52"
+                triggerClassName="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50"
+                trigger={<Icon name="add_circle" />}
+              >
+                {(close) => (
+                  <>
+                    {canUpload ? (
+                      <>
+                        <Link
+                          href="/upload"
+                          role="menuitem"
+                          className={menuItemClass}
+                          onClick={close}
+                        >
+                          <Icon name="upload" className="text-base" />
+                          Upload video
+                        </Link>
+                        <Link
+                          href="/upload?type=short"
+                          role="menuitem"
+                          className={menuItemClass}
+                          onClick={close}
+                        >
+                          <Icon name="smart_display" className="text-base" />
+                          Create a Short
+                        </Link>
+                      </>
+                    ) : null}
+                    {canGoLive ? (
                       <Link
-                        href="/upload"
-                        className="flex items-center gap-3 px-4 py-2 text-sm hover:bg-surface-container-highest"
+                        href="/studio/live"
+                        role="menuitem"
+                        className={menuItemClass}
+                        onClick={close}
                       >
-                        <Icon name="upload" className="text-base" />
-                        Upload video
+                        <Icon name="sensors" className="text-base" />
+                        Go live
                       </Link>
-                      <Link
-                        href="/upload?type=short"
-                        className="flex items-center gap-3 px-4 py-2 text-sm hover:bg-surface-container-highest"
-                      >
-                        <Icon name="smart_display" className="text-base" />
-                        Create a Short
-                      </Link>
-                    </>
-                  ) : null}
-                  {canGoLive ? (
-                    <Link
-                      href="/studio/live"
-                      className="flex items-center gap-3 px-4 py-2 text-sm hover:bg-surface-container-highest"
-                    >
-                      <Icon name="sensors" className="text-base" />
-                      Go live
-                    </Link>
-                  ) : null}
-                </div>
-              </details>
+                    ) : null}
+                  </>
+                )}
+              </PopoverMenu>
             )}
             {canEngage && (
               <>
@@ -146,52 +157,68 @@ export function TopBar() {
                 <NotificationsMenu unreadCount={unreadCount} />
               </>
             )}
-            <details className="relative ml-1">
-              <summary
-                className="flex h-10 w-10 cursor-pointer list-none items-center justify-center overflow-hidden rounded-full border border-subtle bg-surface-container-high hover:border-primary [&::-webkit-details-marker]:hidden"
-                aria-label="Account menu"
-              >
-                {user?.avatarUrl ? (
+            <PopoverMenu
+              label="Account menu"
+              align="right"
+              panelClassName="w-56"
+              triggerClassName="ml-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-subtle bg-surface-container-high hover:border-primary"
+              trigger={
+                user?.avatarUrl ? (
                   <Image src={user.avatarUrl} alt="" width={40} height={40} className="h-full w-full object-cover" />
                 ) : (
                   <Icon name="person" className="text-on-surface-variant" />
-                )}
-              </summary>
-              <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-outline-variant/30 bg-surface-container-high py-2 shadow-lg">
-                <Link
-                  href={user?.username ? `/${user.username}` : '/profile'}
-                  className="block px-4 py-2 text-sm hover:bg-surface-container-highest"
-                >
-                  Your channel
-                </Link>
-                <Link href="/studio" className="block px-4 py-2 text-sm hover:bg-surface-container-highest">
-                  Studio
-                </Link>
-                <Link href="/library" className="block px-4 py-2 text-sm hover:bg-surface-container-highest">
-                  Library
-                </Link>
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  className="block w-full px-4 py-2 text-left text-sm hover:bg-surface-container-highest md:hidden"
-                >
-                  {theme === 'dark' ? 'Light theme' : 'Dark theme'}
-                </button>
-                <Link
-                  href="/profile/settings"
-                  className="block px-4 py-2 text-sm hover:bg-surface-container-highest"
-                >
-                  Settings
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => logout()}
-                  className="block w-full px-4 py-2 text-left text-sm text-on-surface-variant hover:bg-surface-container-highest"
-                >
-                  Sign out
-                </button>
-              </div>
-            </details>
+                )
+              }
+            >
+              {(close) => (
+                <>
+                  <Link
+                    href={user?.username ? `/${user.username}` : '/profile'}
+                    role="menuitem"
+                    className={menuItemClass}
+                    onClick={close}
+                  >
+                    Your channel
+                  </Link>
+                  <Link href="/studio" role="menuitem" className={menuItemClass} onClick={close}>
+                    Studio
+                  </Link>
+                  <Link href="/library" role="menuitem" className={menuItemClass} onClick={close}>
+                    Library
+                  </Link>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      toggleTheme();
+                      close();
+                    }}
+                    className={`${menuItemClass} md:hidden`}
+                  >
+                    {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+                  </button>
+                  <Link
+                    href="/profile/settings"
+                    role="menuitem"
+                    className={menuItemClass}
+                    onClick={close}
+                  >
+                    Settings
+                  </Link>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      close();
+                      void logout();
+                    }}
+                    className={`${menuItemClass} text-on-surface-variant`}
+                  >
+                    Sign out
+                  </button>
+                </>
+              )}
+            </PopoverMenu>
           </>
         )}
         <Link

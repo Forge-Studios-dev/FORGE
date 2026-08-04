@@ -688,6 +688,31 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                 ),
               ],
             ),
+          // In-body tabs — avoids stacking a second NavigationBar under MainScaffold.
+          Material(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            child: Row(
+              children: [
+                for (final entry in const [
+                  (0, Icons.article_outlined, 'Posts'),
+                  (1, Icons.poll_outlined, 'Polls'),
+                  (2, Icons.meeting_room_outlined, 'Rooms'),
+                ])
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () => setState(() => _tabIndex = entry.$1),
+                      icon: Icon(entry.$2),
+                      label: Text(entry.$3),
+                      style: TextButton.styleFrom(
+                        foregroundColor: _tabIndex == entry.$1
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           Expanded(
             child: IndexedStack(
               index: _tabIndex,
@@ -698,15 +723,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
               ],
             ),
           ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tabIndex,
-        onDestinationSelected: (i) => setState(() => _tabIndex = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.article_outlined), label: 'Posts'),
-          NavigationDestination(icon: Icon(Icons.poll_outlined), label: 'Polls'),
-          NavigationDestination(icon: Icon(Icons.meeting_room_outlined), label: 'Rooms'),
         ],
       ),
     );

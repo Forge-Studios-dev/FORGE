@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { EmptyState } from '@forge/design-system';
 import { FeedCard } from '@/components/FeedCard/FeedCard';
 import { Video } from '@/types';
 
@@ -13,7 +14,14 @@ export function RelatedVideosClient({ videos: initial }: { videos: Video[] }) {
   );
 
   if (!videos.length) {
-    return <p className="text-sm text-on-surface-variant">No related videos yet.</p>;
+    return (
+      <EmptyState
+        icon="playlist_play"
+        title="No related videos"
+        description="Try another video or browse Home for more to watch."
+        action={{ label: 'Home', href: '/' }}
+      />
+    );
   }
 
   return (

@@ -1,6 +1,5 @@
 import { HomeFeedSections } from '@/components/home/HomeFeedSections';
 import { LiveNowRail } from '@/components/home/LiveNowRail';
-import { HomeHero } from '@/components/home/HomeHero';
 import { TrendingRail } from '@/components/home/TrendingRail';
 import { ContinueWatching } from '@/components/ContinueWatching';
 import { HomeFeedTabs } from '@/components/home/HomeFeedTabs';
@@ -22,7 +21,6 @@ export function HomePageContent({ feed, trending, categories }: Props) {
       className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12"
     >
       <HomeFeedSections />
-      <HomeHero />
       <LiveNowRail />
       <ContinueWatching />
       <TrendingRail videos={trending.data.length > 0 ? trending.data : feed.data} />
