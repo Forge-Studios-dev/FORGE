@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Put,
@@ -251,7 +252,7 @@ export class VideosController {
   @ApiOperation({ summary: "A creator's full content library (unified)" })
   creatorLibrary(
     @CurrentUser() user: JwtPayload | undefined,
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ParseUUIDPipe) creatorId: string,
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
   ) {

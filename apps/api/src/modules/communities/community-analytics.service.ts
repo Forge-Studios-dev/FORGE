@@ -121,6 +121,7 @@ export class CommunityAnalyticsService {
   async getCreatorBusinessAnalytics(creatorId: string) {
     const periodDays = 30;
     const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+    const lmsEnabled = isSkillEconomyLmsEnabled();
     const membership = await this.entitlementsService.getSubscriberAnalytics(creatorId);
 
     const communities = await this.communityRepository.find({
@@ -134,63 +135,84 @@ export class CommunityAnalyticsService {
     let postAuthors = 0;
 
     if (communityIds.length > 0) {
-      const [[engagedRow], [chatRow], [postAuthorRow]] = await Promise.all([
-        this.dataSource.query<{ count: string }[]>(
-          `SELECT COUNT(DISTINCT user_id)::int AS count FROM member_xp
-           WHERE community_id = ANY($1::uuid[])`,
-          [communityIds],
-        ),
-        this.dataSource.query<{ count: string }[]>(
-          `SELECT COUNT(DISTINCT user_id)::int AS count FROM (
-             SELECT m.user_id
-             FROM channel_messages m
-             INNER JOIN channels ch ON ch.id = m.channel_id
-             WHERE ch.community_id = ANY($1::uuid[]) AND m.created_at >= $2 AND m.deleted_at IS NULL
-             UNION
-             SELECT m.user_id
-             FROM community_room_messages m
-             INNER JOIN community_rooms r ON r.id = m.room_id
-             WHERE r.community_id = ANY($1::uuid[]) AND m.created_at >= $2 AND m.deleted_at IS NULL
-           ) chatters`,
-          [communityIds, since],
-        ),
-        this.dataSource.query<{ count: string }[]>(
-          `SELECT COUNT(DISTINCT author_id)::int AS count FROM community_posts
-           WHERE community_id = ANY($1::uuid[]) AND created_at >= $2`,
-          [communityIds, since],
-        ),
-      ]);
-      engagedMembers = Number(engagedRow?.count ?? 0);
-      activeChatters = Number(chatRow?.count ?? 0);
-      postAuthors = Number(postAuthorRow?.count ?? 0);
+      const chatQuery = this.dataSource.query<{ count: string }[]>(
+        `SELECT COUNT(DISTINCT user_id)::int AS count FROM (
+           SELECT m.user_id
+           FROM channel_messages m
+           INNER JOIN channels ch ON ch.id = m.channel_id
+           WHERE ch.community_id = ANY($1::uuid[]) AND m.created_at >= $2 AND m.deleted_at IS NULL
+           UNION
+           SELECT m.user_id
+           FROM community_room_messages m
+           INNER JOIN community_rooms r ON r.id = m.room_id
+           WHERE r.community_id = ANY($1::uuid[]) AND m.created_at >= $2 AND m.deleted_at IS NULL
+         ) chatters`,
+        [communityIds, since],
+      );
+      const postsQuery = this.dataSource.query<{ count: string }[]>(
+        `SELECT COUNT(DISTINCT author_id)::int AS count FROM community_posts
+         WHERE community_id = ANY($1::uuid[]) AND created_at >= $2`,
+        [communityIds, since],
+      );
+
+      if (lmsEnabled) {
+        const [[engagedRow], [chatRow], [postAuthorRow]] = await Promise.all([
+          this.dataSource.query<{ count: string }[]>(
+            `SELECT COUNT(DISTINCT user_id)::int AS count FROM member_xp
+             WHERE community_id = ANY($1::uuid[])`,
+            [communityIds],
+          ),
+          chatQuery,
+          postsQuery,
+        ]);
+        engagedMembers = Number(engagedRow?.count ?? 0);
+        activeChatters = Number(chatRow?.count ?? 0);
+        postAuthors = Number(postAuthorRow?.count ?? 0);
+      } else {
+        const [[chatRow], [postAuthorRow]] = await Promise.all([chatQuery, postsQuery]);
+        activeChatters = Number(chatRow?.count ?? 0);
+        postAuthors = Number(postAuthorRow?.count ?? 0);
+      }
     }
 
-    const [courseEnrollRow] = await this.dataSource.query<{ count: string }[]>(
-      `SELECT COUNT(DISTINCT e.user_id)::int AS count
-       FROM course_enrollments e
-       INNER JOIN courses c ON c.id = e.course_id
-       WHERE c.creator_id = $1 AND e.enrolled_at >= $2`,
-      [creatorId, since],
-    );
-    const courseEnrollments = Number(courseEnrollRow?.count ?? 0);
+    let courseEnrollments = 0;
+    if (lmsEnabled) {
+      const [courseEnrollRow] = await this.dataSource.query<{ count: string }[]>(
+        `SELECT COUNT(DISTINCT e.user_id)::int AS count
+         FROM course_enrollments e
+         INNER JOIN courses c ON c.id = e.course_id
+         WHERE c.creator_id = $1 AND e.enrolled_at >= $2`,
+        [creatorId, since],
+      );
+      courseEnrollments = Number(courseEnrollRow?.count ?? 0);
+    }
 
     const payingMembers = membership.active + membership.trial;
     const pct = (n: number) =>
       payingMembers > 0 ? Math.round((n / payingMembers) * 100) : 0;
 
-    const funnel = [
+    const funnel: Array<{
+      stage: string;
+      label: string;
+      count: number;
+      rateFromTop: number;
+    }> = [
       {
         stage: 'paying_members',
         label: 'Paying members',
         count: payingMembers,
         rateFromTop: 100,
       },
-      {
+    ];
+    if (lmsEnabled) {
+      funnel.push({
         stage: 'engaged_xp',
         label: 'Engaged (XP)',
         count: engagedMembers,
         rateFromTop: pct(engagedMembers),
-      },
+      });
+    }
+    funnel.push(
       {
         stage: 'active_chat',
         label: 'Active in chat (30d)',
@@ -203,13 +225,15 @@ export class CommunityAnalyticsService {
         count: postAuthors,
         rateFromTop: pct(postAuthors),
       },
-      {
+    );
+    if (lmsEnabled) {
+      funnel.push({
         stage: 'course_enrolled',
         label: 'Course enrolled (30d)',
         count: courseEnrollments,
         rateFromTop: pct(courseEnrollments),
-      },
-    ];
+      });
+    }
 
     const since7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const activeRows =
@@ -253,14 +277,16 @@ export class CommunityAnalyticsService {
     const churnRate30d = denominator > 0 ? Math.round((canceledLast30Days / denominator) * 10000) / 100 : 0;
 
     // Engagement score: weighted activity signals normalized to 0-100.
-    // Weights: active chatters (40%), post authors (30%), course enrollments (30%).
+    // LMS: chat 40% + posts 30% + course enrollments 30%. YouTube: chat 55% + posts 45%.
     const totalMembers = membership.active + membership.trial;
     const engagementScore =
       totalMembers > 0
         ? Math.min(
             100,
             Math.round(
-              (activeChatters * 0.4 + postAuthors * 0.3 + courseEnrollments * 0.3) /
+              (lmsEnabled
+                ? activeChatters * 0.4 + postAuthors * 0.3 + courseEnrollments * 0.3
+                : activeChatters * 0.55 + postAuthors * 0.45) /
                 totalMembers *
                 100,
             ),

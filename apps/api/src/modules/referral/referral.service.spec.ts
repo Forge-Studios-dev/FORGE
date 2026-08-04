@@ -155,8 +155,27 @@ describe('ReferralService', () => {
     const result = await service.grantReward('newuser1');
     expect(result.rewarded).toBe(true);
     expect(result.referrerId).toBe('referrer1');
-    expect(gamificationService.awardPlatformXp).toHaveBeenCalled();
+    // YouTube mode (LMS off): referral completes without XP writes
+    expect(gamificationService.awardPlatformXp).not.toHaveBeenCalled();
     expect(referralStore[0].rewardGranted).toBe(true);
+  });
+
+  it('grants referral XP when skill-economy LMS is enabled', async () => {
+    const prev = process.env.FEATURES_SKILL_ECONOMY_LMS;
+    process.env.FEATURES_SKILL_ECONOMY_LMS = 'true';
+    try {
+      referralStore.push({
+        id: 'ref-2', referrerId: 'referrer1', referredUserId: 'newuser2',
+        referralCode: 'ABCD1234', status: ReferralStatus.PENDING,
+        rewardGranted: false, createdAt: new Date(),
+      });
+      const result = await service.grantReward('newuser2');
+      expect(result.rewarded).toBe(true);
+      expect(gamificationService.awardPlatformXp).toHaveBeenCalled();
+    } finally {
+      if (prev === undefined) delete process.env.FEATURES_SKILL_ECONOMY_LMS;
+      else process.env.FEATURES_SKILL_ECONOMY_LMS = prev;
+    }
   });
 
   it('returns rewarded=false when no pending referral found', async () => {

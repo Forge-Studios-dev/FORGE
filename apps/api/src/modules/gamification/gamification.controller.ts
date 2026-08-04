@@ -71,12 +71,6 @@ export class GamificationController {
     return this.gamificationService.listAchievements(user.sub);
   }
 
-  @Post('platform/gamification/achievements/:key/unlock')
-  @ApiOperation({ summary: 'Unlock a specific achievement (event-triggered)' })
-  unlockAchievement(@CurrentUser() user: JwtPayload, @Param('key') key: string) {
-    return this.gamificationService.unlockAchievement(user.sub, key);
-  }
-
   @Get('platform/gamification/reputation')
   @ApiOperation({ summary: 'My reputation score (composite: XP + followers + content + achievements)' })
   reputationScore(@CurrentUser() user: JwtPayload) {

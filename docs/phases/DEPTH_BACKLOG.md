@@ -151,6 +151,14 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Remove Community XP/leaderboard UI (web + mobile) — APIs return 410 with LMS off
 - Remove mobile Home streak/XP chip (platform gamification retired)
 
+## Hardening pass 4 (2026-08-04)
+
+- Content library: parameterized SQL binds for `creatorId`/`categoryId` + UUID validation (closes injection risk)
+- XP write soft-retire: `GamificationListener` + referral rewards no-op when LMS flag off
+- Removed self-service `POST .../achievements/:key/unlock` (service unlock remains internal)
+- Studio business analytics: omit XP/course funnel stages + reweight engagement when LMS off
+- Mobile live Q&A/poll panels: `ForgeTokens.of(context)` (light/dark)
+
 ## Still open
 
 | Area | Item | Owner |

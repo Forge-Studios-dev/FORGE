@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/observability/capture_error.dart';
 import '../../../core/socket/forge_socket.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 /// Live Q&A panel — mirrors the web `StreamQaPanel`. Viewers submit and upvote
 /// questions; the host can mark answered or dismiss. Reuses the stream socket
@@ -99,6 +100,7 @@ class _StreamQaPanelState extends ConsumerState<StreamQaPanel> {
   Widget build(BuildContext context) {
     if (_loading) return const SizedBox.shrink();
 
+    final t = ForgeTokens.of(context);
     final visible = _questions
         .cast<Map<String, dynamic>>()
         .where((q) => widget.isHost || q['status'] != 'dismissed')
@@ -108,14 +110,14 @@ class _StreamQaPanelState extends ConsumerState<StreamQaPanel> {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white10,
+        color: t.surfaceContainer.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: t.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Q&A', style: TextStyle(fontWeight: FontWeight.w600)),
+          Text('Q&A', style: TextStyle(fontWeight: FontWeight.w600, color: t.onSurface)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -137,9 +139,9 @@ class _StreamQaPanelState extends ConsumerState<StreamQaPanel> {
             ],
           ),
           if (visible.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('No questions yet.', style: TextStyle(color: Colors.white54)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text('No questions yet.', style: TextStyle(color: t.onSurfaceVariant)),
             )
           else
             for (final q in visible)
@@ -154,9 +156,9 @@ class _StreamQaPanelState extends ConsumerState<StreamQaPanel> {
                         children: [
                           Icon(
                             Icons.arrow_drop_up,
-                            color: q['viewerHasUpvoted'] == true ? Colors.tealAccent : Colors.white54,
+                            color: q['viewerHasUpvoted'] == true ? t.secondary : t.onSurfaceVariant,
                           ),
-                          Text('${q['upvotes'] ?? 0}', style: const TextStyle(fontSize: 12)),
+                          Text('${q['upvotes'] ?? 0}', style: TextStyle(fontSize: 12, color: t.onSurface)),
                         ],
                       ),
                     ),
@@ -168,13 +170,13 @@ class _StreamQaPanelState extends ConsumerState<StreamQaPanel> {
                           Text(
                             q['body'] as String? ?? '',
                             style: TextStyle(
-                              color: q['status'] == 'answered' ? Colors.white54 : Colors.white,
+                              color: q['status'] == 'answered' ? t.onSurfaceVariant : t.onSurface,
                             ),
                           ),
                           if (q['status'] != null && q['status'] != 'pending')
                             Text(
                               (q['status'] as String).toUpperCase(),
-                              style: const TextStyle(fontSize: 10, color: Colors.white54),
+                              style: TextStyle(fontSize: 10, color: t.onSurfaceVariant),
                             ),
                           if (widget.isHost)
                             Row(
@@ -185,8 +187,8 @@ class _StreamQaPanelState extends ConsumerState<StreamQaPanel> {
                                 ),
                                 TextButton(
                                   onPressed: () => _setStatus(q['id'] as String, 'dismissed'),
-                                  child: const Text('Dismiss',
-                                      style: TextStyle(fontSize: 12, color: Colors.redAccent)),
+                                  child: Text('Dismiss',
+                                      style: TextStyle(fontSize: 12, color: t.error)),
                                 ),
                               ],
                             ),

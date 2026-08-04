@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 
@@ -21,6 +21,17 @@ export interface ContentLibraryItem {
 const YOUTUBE_DEFAULT_TYPES: ContentType[] = ['video', 'short'];
 const LMS_DEFAULT_TYPES: ContentType[] = ['video', 'short', 'podcast', 'course', 'live'];
 
+/** Accept any RFC-4122 UUID shape (v1–v5). */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function assertOptionalUuid(value: string | undefined, field: string): void {
+  if (value == null || value === '') return;
+  if (!UUID_RE.test(value)) {
+    throw new BadRequestException(`Invalid ${field}`);
+  }
+}
+
 @Injectable()
 export class ContentLibraryService {
   constructor(private readonly dataSource: DataSource) {}
@@ -36,6 +47,9 @@ export class ContentLibraryService {
       orderBy?: 'recent' | 'popular' | 'trending';
     },
   ): Promise<{ data: ContentLibraryItem[]; total: number }> {
+    assertOptionalUuid(options.creatorId, 'creatorId');
+    assertOptionalUuid(options.categoryId, 'categoryId');
+
     const limit = Math.min(options.limit ?? 24, 60);
     const offset = options.offset ?? 0;
     const defaults = isSkillEconomyLmsEnabled() ? LMS_DEFAULT_TYPES : YOUTUBE_DEFAULT_TYPES;
@@ -48,10 +62,19 @@ export class ContentLibraryService {
       options.orderBy === 'trending' ? 'recent_views DESC NULLS LAST, v.view_count DESC' :
       'v.created_at DESC';
 
-    const creatorFilter = options.creatorId ? `AND v.user_id = '${options.creatorId}'` : '';
-    const categoryFilter = options.categoryId ? `AND v.category_id = '${options.categoryId}'` : '';
+    const filterParams: unknown[] = [];
+    let creatorFilter = '';
+    if (options.creatorId) {
+      filterParams.push(options.creatorId);
+      creatorFilter = `AND v.user_id = $${filterParams.length}`;
+    }
+    let categoryFilter = '';
+    if (options.categoryId) {
+      filterParams.push(options.categoryId);
+      categoryFilter = `AND v.category_id = $${filterParams.length}`;
+    }
 
-    // Map frontend content types to DB video_types
+    // Map frontend content types to DB video_types (enum literals only — never user input)
     const videoTypes: string[] = [];
     if (types.includes('video')) videoTypes.push(`'video'`);
     if (types.includes('short')) videoTypes.push(`'short'`);
@@ -60,7 +83,6 @@ export class ContentLibraryService {
       ? `AND v.video_type IN (${videoTypes.join(',')})`
       : `AND v.video_type IN ('video','short')`;
 
-    // Union query: videos + (optionally) live VODs + courses
     const videosQuery = `
       SELECT v.id, v.video_type as "contentType", v.title, v.description,
              v.thumbnail_url as "thumbnailUrl", v.duration,
@@ -81,15 +103,18 @@ export class ContentLibraryService {
         ${categoryFilter}
     `;
 
-    // For now, serve unified video/short/podcast only; course integration can reuse this pattern
+    const limitIdx = filterParams.length + 1;
+    const offsetIdx = filterParams.length + 2;
+    const pageParams = [...filterParams, limit, offset];
+
     const rows = await this.dataSource.query<ContentLibraryItem[]>(
-      `${videosQuery} ORDER BY ${orderBy} LIMIT $1 OFFSET $2`,
-      [limit, offset],
+      `${videosQuery} ORDER BY ${orderBy} LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      pageParams,
     );
 
     const [{ total }] = await this.dataSource.query<[{ total: string }]>(
       `SELECT COUNT(*) as total FROM (${videosQuery}) sub`,
-      [],
+      filterParams,
     );
 
     return { data: rows, total: parseInt(total, 10) };
