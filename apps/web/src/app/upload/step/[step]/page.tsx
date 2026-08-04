@@ -33,15 +33,6 @@ const PHASE_LABEL: Record<UploadPhase, string> = {
   completing: 'Finalizing video…',
 };
 
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
 function UploadStepContent() {
   const params = useParams();
   const router = useRouter();
@@ -404,7 +395,7 @@ function UploadStepContent() {
                 <option value="">Select a category</option>
                 {(uploadOptions ?? []).map((cat: UploadCategoryOption) => (
                   <option key={cat.id} value={cat.id}>
-                    {escapeHtml(cat.name)}
+                    {cat.name}
                   </option>
                 ))}
               </select>
@@ -432,7 +423,7 @@ function UploadStepContent() {
                           persist({ skillTagIds: ids });
                         }}
                       />
-                      {escapeHtml(tag.name)}
+                      {tag.name}
                     </label>
                   ))
                 )}
@@ -484,7 +475,7 @@ function UploadStepContent() {
               />
               {file || draft.fileName ? (
                 <span className="text-on-surface">
-                  {escapeHtml(file?.name ?? draft.fileName ?? '')}
+                  {file?.name ?? draft.fileName ?? ''}
                   {file ? ` · ${(file.size / (1024 * 1024)).toFixed(1)} MB` : null}
                 </span>
               ) : (
@@ -515,7 +506,7 @@ function UploadStepContent() {
               {selectedCategory ? (
                 <div>
                   <dt className="text-outline">Category</dt>
-                  <dd>{escapeHtml(selectedCategory.name)}</dd>
+                  <dd>{selectedCategory.name}</dd>
                 </div>
               ) : null}
               {draft.skillTagIds.length > 0 ? (
@@ -524,19 +515,19 @@ function UploadStepContent() {
                   <dd>
                     {availableSkills
                       .filter((t) => draft.skillTagIds.includes(t.id))
-                      .map((t) => escapeHtml(t.name))
+                      .map((t) => t.name)
                       .join(', ')}
                   </dd>
                 </div>
               ) : null}
               <div>
                 <dt className="text-outline">Thumbnail</dt>
-                <dd>{thumbnail ? escapeHtml(thumbnail.name) : 'Auto-generated from video'}</dd>
+                <dd>{thumbnail ? thumbnail.name : 'Auto-generated from video'}</dd>
               </div>
               <div>
                 <dt className="text-outline">File</dt>
                 <dd>
-                  {escapeHtml(file?.name ?? draft.fileName ?? '—')}
+                  {file?.name ?? draft.fileName ?? '—'}
                   {file ? ` (${(file.size / (1024 * 1024)).toFixed(1)} MB)` : null}
                 </dd>
               </div>

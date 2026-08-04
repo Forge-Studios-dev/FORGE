@@ -17,7 +17,6 @@ import {
   Video,
   VideoStatus,
   TranscodeProvider,
-  VideoType,
 } from './entities/video.entity';
 import { createS3Client } from '../../common/create-s3-client';
 import { indexedAtOnReady, publishStatusOnReady } from './video-publish.util';

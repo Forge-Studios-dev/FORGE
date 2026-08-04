@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { persistAuthSession } from '@/lib/auth-storage';
 import { trackEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
-import { AuthScreen, authFieldClass } from '@/components/auth/AuthScreen';
+import { AuthScreen, authFieldClass, authLabelClass } from '@/components/auth/AuthScreen';
 import { AuthTokens } from '@/types';
 import { safeReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
@@ -123,9 +123,22 @@ export function SignupForm({
         {error && <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{error}</p>}
         {FIELDS.map((field) => (
           <div key={field.key} className={field.key === 'password' ? 'space-y-2' : undefined}>
+            <label className={authLabelClass} htmlFor={`signup-${field.key}`}>
+              {field.label}
+            </label>
             <input
+              id={`signup-${field.key}`}
               type={field.type}
               required
+              autoComplete={
+                field.key === 'email'
+                  ? 'email'
+                  : field.key === 'password'
+                    ? 'new-password'
+                    : field.key === 'username'
+                      ? 'username'
+                      : 'name'
+              }
               placeholder={field.placeholder}
               value={form[field.key]}
               onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
