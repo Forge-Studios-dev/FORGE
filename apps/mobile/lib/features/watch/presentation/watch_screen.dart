@@ -1490,14 +1490,23 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
   Future<void> _deleteComment(Map<String, dynamic> m) async {
     final id = m['id'] as String?;
     if (id == null) return;
+    final authorId = m['userId'] as String? ?? (m['user'] as Map<String, dynamic>?)?['id'] as String?;
+    final isMine = _viewerId != null && authorId == _viewerId;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete comment?'),
-        content: const Text('This cannot be undone.'),
+        title: Text(isMine ? 'Delete comment?' : 'Remove comment?'),
+        content: Text(
+          isMine
+              ? 'This cannot be undone.'
+              : 'Remove this comment from your video? This cannot be undone.',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isMine ? 'Delete' : 'Remove'),
+          ),
         ],
       ),
     );
@@ -1893,6 +1902,8 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                             const PopupMenuItem(value: 'edit', child: Text('Edit')),
                             const PopupMenuItem(value: 'delete', child: Text('Delete')),
                           ],
+                          if (isOwner && !isMine)
+                            const PopupMenuItem(value: 'delete', child: Text('Remove')),
                           if (!isMine)
                             const PopupMenuItem(value: 'report', child: Text('Report')),
                         ],

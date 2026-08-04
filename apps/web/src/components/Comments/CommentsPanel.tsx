@@ -386,6 +386,18 @@ function CommentRow({
               </button>
             </>
           )}
+          {isVideoOwner && !isOwn && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Remove this comment from your video?')) deleteMut.mutate();
+              }}
+              className="text-error hover:underline"
+              aria-label="Remove comment"
+            >
+              Remove
+            </button>
+          )}
           {isVideoOwner && depth === 0 && (
             <button
               type="button"

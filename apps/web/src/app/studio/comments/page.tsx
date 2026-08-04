@@ -68,6 +68,17 @@ export default function StudioCommentsPage() {
     onError: (e) => setError(getApiErrorMessage(e, 'Could not update heart.')),
   });
 
+  const removeMutation = useMutation({
+    mutationFn: async ({ videoId, commentId }: { videoId: string; commentId: string }) => {
+      await api.delete(`/videos/${videoId}/comments/${commentId}`);
+    },
+    onSuccess: () => {
+      setError('');
+      void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] });
+    },
+    onError: (e) => setError(getApiErrorMessage(e, 'Could not remove comment.')),
+  });
+
   if (!isCreator) {
     return (
       <main className="space-y-4">
@@ -153,6 +164,18 @@ export default function StudioCommentsPage() {
                   }
                 >
                   {c.creatorHearted ? '♥' : '♡'}
+                </button>
+                <button
+                  type="button"
+                  className="text-error hover:underline"
+                  disabled={removeMutation.isPending}
+                  aria-label="Remove comment"
+                  onClick={() => {
+                    if (!window.confirm('Remove this comment from your video?')) return;
+                    removeMutation.mutate({ videoId: c.videoId, commentId: c.id });
+                  }}
+                >
+                  Remove
                 </button>
                 <button
                   type="button"

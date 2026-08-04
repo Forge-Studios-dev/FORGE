@@ -156,7 +156,8 @@ export function SignupForm({
             className="mt-1 h-4 w-4 rounded border-outline-variant accent-primary"
           />
           <span>
-            I agree to the <LegalLinks />.
+            I agree to the{' '}
+            <LegalLinks linkClassName="text-primary underline hover:underline" />.
           </span>
         </label>
         <button
@@ -189,8 +190,10 @@ export function SignupForm({
         </Link>
       </p>
       <p className="mt-4 text-center text-xs text-outline">
-        We send a verification link after sign up. Verify your email to unlock creator tools once approved.{' '}
-        <LegalLinks />
+        We send a verification link after sign up. Verify your email to unlock creator tools once approved.
+      </p>
+      <p className="mt-2 text-center text-xs text-outline">
+        <LegalLinks linkClassName="text-primary underline hover:underline" />
       </p>
     </AuthScreen>
   );

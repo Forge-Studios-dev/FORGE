@@ -470,7 +470,19 @@ export class EngagementService {
       where: { id: commentId, videoId, deletedAt: IsNull() },
     });
     if (!comment) throw new NotFoundException('Comment not found');
-    if (comment.userId !== userId && userRole !== UserRole.ADMIN) {
+
+    const isAuthor = comment.userId === userId;
+    const isAdmin = userRole === UserRole.ADMIN;
+    let isVideoOwner = false;
+    if (!isAuthor && !isAdmin) {
+      const video = await this.videoRepository.findOne({
+        where: { id: videoId },
+        select: { id: true, userId: true },
+      });
+      if (!video) throw new NotFoundException('Video not found');
+      isVideoOwner = video.userId === userId;
+    }
+    if (!isAuthor && !isAdmin && !isVideoOwner) {
       throw new ForbiddenException('Not allowed to delete this comment');
     }
 

@@ -8,7 +8,7 @@ import { Comment } from './entities/comment.entity';
 import { CommentLike } from './entities/comment-like.entity';
 import { Follow } from './entities/follow.entity';
 import { Video } from '../content/entities/video.entity';
-import { User } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 
 describe('EngagementService', () => {
   let service: EngagementService;
@@ -141,6 +141,45 @@ describe('EngagementService', () => {
     const videoRepo = (service as any).videoRepository;
     videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'owner' });
     await expect(service.setCommentPinned('other', 'v1', 'c1', true)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('lets the video owner remove someone else’s comment', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const videoRepo = (service as any).videoRepository;
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      videoId: 'v1',
+      userId: 'viewer',
+      content: 'spam',
+      deletedAt: null,
+    });
+    videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'owner' });
+    commentRepo.save.mockImplementation(async (row: unknown) => row);
+    videoRepo.decrement.mockResolvedValue({ affected: 1 });
+
+    const result = await service.deleteComment('owner', UserRole.USER, 'v1', 'c1');
+    expect(result).toEqual({ deleted: true });
+    expect(commentRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ content: '[deleted]', deletedAt: expect.any(Date) }),
+    );
+    expect(videoRepo.decrement).toHaveBeenCalledWith({ id: 'v1' }, 'commentCount', 1);
+  });
+
+  it('forbids deleting someone else’s comment when not the video owner', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const videoRepo = (service as any).videoRepository;
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      videoId: 'v1',
+      userId: 'viewer',
+      content: 'hi',
+      deletedAt: null,
+    });
+    videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'owner' });
+
+    await expect(service.deleteComment('stranger', UserRole.USER, 'v1', 'c1')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
   });
