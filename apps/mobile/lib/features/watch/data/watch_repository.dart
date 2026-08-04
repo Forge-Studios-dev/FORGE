@@ -22,7 +22,7 @@ class CommentsPage {
   });
 }
 
-/// Data layer for the watch/lesson-detail screen — pulled out of
+/// Data layer for the watch detail screen — pulled out of
 /// `watch_screen.dart` (which previously called `client.dio.get/post/delete`
 /// directly in widget code) so the feature follows the same
 /// `data/` + `presentation/` split used elsewhere (e.g. `feed`, `upload`).

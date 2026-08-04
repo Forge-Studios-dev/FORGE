@@ -22,7 +22,7 @@ import {
 } from '@/lib/upload-thumbnail-store';
 import { getStudioVideos } from '@/lib/creator-studio';
 import { fetchUploadOptions, type UploadCategoryOption } from '@/lib/categories';
-import { uploadLesson, validateUploadFile, type UploadPhase } from '@/lib/upload-lesson';
+import { uploadVideo, validateUploadFile, type UploadPhase } from '@/lib/upload-video';
 import { trackEvent } from '@/lib/analytics';
 
 const TOTAL = 3;
@@ -198,7 +198,7 @@ function UploadStepContent() {
           ? new Date(draft.scheduledAt).toISOString()
           : undefined;
 
-      const videoId = await uploadLesson(
+      const videoId = await uploadVideo(
         activeFile,
         draft.title,
         draft.description,

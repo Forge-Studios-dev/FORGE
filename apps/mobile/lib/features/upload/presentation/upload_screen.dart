@@ -126,7 +126,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
     });
     try {
       final type = _file!.extension == 'mov' ? 'video/quicktime' : 'video/mp4';
-      final videoId = await ref.read(uploadRepositoryProvider).uploadLesson(
+      final videoId = await ref.read(uploadRepositoryProvider).uploadVideo(
             filePath: _file!.path!,
             contentType: type,
             fileSizeBytes: _file!.size,

@@ -7,8 +7,8 @@ import {
   getUploadThumbnail,
   resolveThumbnailContentType,
 } from '@/lib/upload-thumbnail-store';
-import type { CompleteUploadOptions, UploadPhase } from '@/lib/upload-lesson';
-import { resolveVideoContentType } from '@/lib/upload-lesson';
+import type { CompleteUploadOptions, UploadPhase } from '@/lib/upload-video';
+import { resolveVideoContentType } from '@/lib/upload-video';
 
 const ACTIVE_KEY = 'forge_active_upload';
 

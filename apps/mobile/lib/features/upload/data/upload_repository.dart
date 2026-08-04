@@ -12,7 +12,7 @@ final uploadRepositoryProvider = Provider<UploadRepository>((ref) {
   return UploadRepository(ref.read(apiClientProvider));
 });
 
-/// Persisted state for an in-flight multipart lesson upload, so it can be
+/// Persisted state for an in-flight multipart video upload, so it can be
 /// resumed after the app returns to the foreground (or is relaunched) mid
 /// transfer instead of silently losing progress.
 ///
@@ -110,7 +110,7 @@ class UploadRepository {
   static const maxBytes = 500 * 1024 * 1024;
   static const allowedTypes = {'video/mp4', 'video/quicktime'};
 
-  Future<String> uploadLesson({
+  Future<String> uploadVideo({
     required String filePath,
     required String contentType,
     required int fileSizeBytes,
@@ -190,7 +190,7 @@ class UploadRepository {
     return videoId;
   }
 
-  /// Resumes a multipart upload persisted by [uploadLesson]. Safe to call
+  /// Resumes a multipart upload persisted by [uploadVideo]. Safe to call
   /// any time after a [PendingUpload] exists — `MultipartVideoUpload.upload`
   /// re-queries which parts the API already has and only sends what's
   /// missing, so this works whether the app was merely backgrounded or

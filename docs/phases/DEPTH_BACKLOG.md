@@ -231,6 +231,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Add DTO validation for `users/me/privacy` and `users/me/interests`, plus UUID guards on active user-profile list/detail routes
 - Add focused DTO tests covering malformed privacy values and invalid/oversized interest arrays
 
+## Hardening pass 17 (2026-08-04)
+
+- Rename the active web/mobile upload helper layer from `lesson` to `video` terminology and delete the now-orphaned `upload-lesson.ts`
+- Clean the remaining watch-detail/internal upload comments that still referenced LMS-era lesson naming
+
 ## Still open
 
 | Area | Item | Owner |

@@ -35,7 +35,7 @@ export function validateUploadFile(file: File): string | null {
   return null;
 }
 
-export async function uploadLesson(
+export async function uploadVideo(
   file: File,
   title: string,
   description: string,
