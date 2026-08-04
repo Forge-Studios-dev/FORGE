@@ -157,7 +157,7 @@ export class UsersController {
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/followers')
-  @ApiOperation({ summary: 'List followers of a user' })
+  @ApiOperation({ summary: 'List channel subscribers (legacy alias; prefer GET /channels/:id/subscribers)' })
   getFollowers(
     @Param('id') id: string,
     @Query('limit') limit?: number,
@@ -169,7 +169,7 @@ export class UsersController {
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/following')
-  @ApiOperation({ summary: 'List users this user follows' })
+  @ApiOperation({ summary: 'List channel subscriptions (legacy alias; prefer GET /channels/:id/subscriptions)' })
   getFollowing(
     @Param('id') id: string,
     @Query('limit') limit?: number,

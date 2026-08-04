@@ -22,7 +22,7 @@ function SubscriptionsContent() {
     staleTime: 60_000,
     queryFn: async () => {
       const { data } = await api.get<{ data: { data: User[] } }>(
-        `/users/${user!.id}/following?limit=40`,
+        `/channels/${user!.id}/subscriptions?limit=40`,
       );
       return data.data?.data ?? [];
     },

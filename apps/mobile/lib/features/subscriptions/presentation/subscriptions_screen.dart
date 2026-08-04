@@ -8,7 +8,7 @@ import '../../../core/widgets/forge_empty_state.dart';
 import '../../../shared/models/video.dart';
 import '../../feed/data/feed_repository.dart';
 
-/// Subscriptions = videos from channels you follow (YouTube parity).
+/// Subscriptions = videos from channels you subscribe to (YouTube parity).
 class SubscriptionsScreen extends ConsumerStatefulWidget {
   const SubscriptionsScreen({super.key});
 
@@ -39,7 +39,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
       final me = await api.dio.get('/users/me');
       final meId = (me.data['data'] as Map?)?['id'] as String?;
       if (meId == null) return;
-      final res = await api.dio.get('/users/$meId/following', queryParameters: {'limit': 40});
+      final res = await api.dio.get('/channels/$meId/subscriptions', queryParameters: {'limit': 40});
       final payload = res.data['data'];
       final list = payload is Map
           ? (payload['data'] as List? ?? [])

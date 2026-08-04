@@ -35,7 +35,9 @@ class _FollowerListScreenState extends ConsumerState<FollowerListScreen> {
       final client = ref.read(apiClientProvider);
       final userRes = await client.dio.get('/users/by-username/${widget.username}');
       final userId = userRes.data['data']['id'] as String;
-      final path = widget.following ? '/users/$userId/following' : '/users/$userId/followers';
+      final path = widget.following
+          ? '/channels/$userId/subscriptions'
+          : '/channels/$userId/subscribers';
       final params = <String, dynamic>{'limit': 30};
       if (cursor != null) params['cursor'] = cursor;
       final res = await client.dio.get(path, queryParameters: params);

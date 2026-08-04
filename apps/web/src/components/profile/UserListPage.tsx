@@ -20,8 +20,9 @@ export function UserListPage({
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '20' });
       if (pageParam) params.set('cursor', pageParam as string);
+      const listPath = type === 'followers' ? 'subscribers' : 'subscriptions';
       const { data } = await api.get<{ data: { data: User[]; meta: { cursor: string | null; hasMore: boolean } } }>(
-        `/users/${userId}/${type}?${params}`,
+        `/channels/${userId}/${listPath}?${params}`,
       );
       return data.data;
     },
