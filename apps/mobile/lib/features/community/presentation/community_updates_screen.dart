@@ -99,17 +99,17 @@ class _CommunityUpdatesScreenState extends ConsumerState<CommunityUpdatesScreen>
                                   Expanded(
                                     child: Text(
                                       community?['name'] as String? ?? 'Community',
-                                      style: const TextStyle(
-                                        color: ForgeTokens.primary,
+                                      style: TextStyle(
+                                        color: ForgeTokens.of(context).primary,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ),
                                   Text(
                                     _formatDate(p['createdAt'] as String?),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
-                                      color: ForgeTokens.onSurfaceVariant,
+                                      color: ForgeTokens.of(context).onSurfaceVariant,
                                     ),
                                   ),
                                 ],
@@ -118,34 +118,34 @@ class _CommunityUpdatesScreenState extends ConsumerState<CommunityUpdatesScreen>
                                 const SizedBox(height: 6),
                                 Text(
                                   title,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
-                                    color: ForgeTokens.onSurface,
+                                    color: ForgeTokens.of(context).onSurface,
                                   ),
                                 ),
                               ],
                               const SizedBox(height: 4),
                               Text(
                                 p['body'] as String? ?? '',
-                                style: const TextStyle(color: ForgeTokens.onSurface),
+                                style: TextStyle(color: ForgeTokens.of(context).onSurface),
                               ),
                               const SizedBox(height: 10),
                               Row(
                                 children: [
                                   Text(
                                     '${p['likeCount'] ?? 0} likes',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
-                                      color: ForgeTokens.onSurfaceVariant,
+                                      color: ForgeTokens.of(context).onSurfaceVariant,
                                     ),
                                   ),
                                   const SizedBox(width: 16),
                                   Text(
                                     '${p['commentCount'] ?? 0} comments',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
-                                      color: ForgeTokens.onSurfaceVariant,
+                                      color: ForgeTokens.of(context).onSurfaceVariant,
                                     ),
                                   ),
                                   if (author?['displayName'] != null ||
@@ -155,9 +155,9 @@ class _CommunityUpdatesScreenState extends ConsumerState<CommunityUpdatesScreen>
                                       child: Text(
                                         'by ${author?['displayName'] ?? author?['username']}',
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 12,
-                                          color: ForgeTokens.onSurfaceVariant,
+                                          color: ForgeTokens.of(context).onSurfaceVariant,
                                         ),
                                       ),
                                     ),

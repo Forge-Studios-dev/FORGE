@@ -82,10 +82,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     child: Center(child: CircularProgressIndicator()),
                   ),
                 ),
-                error: (_, __) => const SliverToBoxAdapter(
+                error: (_, __) => SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.all(24),
-                    child: Text('Could not load videos', style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+                    child: Text('Could not load videos', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                   ),
                 ),
                 data: (videos) => SliverPadding(
@@ -96,7 +96,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             padding: const EdgeInsets.all(24),
                             child: Text(
                               _type == 'short' ? 'No Shorts yet' : 'No videos yet',
-                              style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                              style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                             ),
                           ),
                         )
@@ -115,7 +115,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                           width: double.infinity,
                                           height: double.infinity,
                                         )
-                                      : Container(color: ForgeTokens.surfaceContainerHighest),
+                                      : Container(color: ForgeTokens.of(context).surfaceContainerHighest),
                                 ),
                               );
                             },
@@ -274,7 +274,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                     ? CachedNetworkImageProvider(user.avatarUrl!)
                     : null,
                 child: user.avatarUrl == null
-                    ? Text(user.displayName[0], style: const TextStyle(fontSize: 28, color: ForgeTokens.onPrimary, fontWeight: FontWeight.bold))
+                    ? Text(user.displayName[0], style: TextStyle(fontSize: 28, color: ForgeTokens.of(context).onPrimary, fontWeight: FontWeight.bold))
                     : null,
               ),
               const SizedBox(width: 20),
@@ -299,11 +299,11 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
             ],
           ),
           const SizedBox(height: 12),
-          Text(user.displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          Text('@${user.username}', style: const TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 13)),
+          Text(user.displayName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text('@${user.username}', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, fontSize: 13)),
           if (user.bio != null && user.bio!.trim().isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(user.bio!, style: const TextStyle(fontSize: 14, color: ForgeTokens.onSurface)),
+            Text(user.bio!, style: TextStyle(fontSize: 14, color: ForgeTokens.of(context).onSurface)),
           ],
           if (user.websiteUrl != null || user.channelLinks.isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -313,7 +313,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
               children: [
                 if (user.websiteUrl != null && user.websiteUrl!.isNotEmpty)
                   ActionChip(
-                    avatar: const Icon(Icons.language, size: 16),
+                    avatar: Icon(Icons.language, size: 16),
                     label: const Text('Website'),
                     onPressed: () => launchUrl(
                       Uri.parse(user.websiteUrl!),
@@ -340,7 +340,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
               icon: const Icon(Icons.forum_outlined, size: 18),
               label: const Text('Community'),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: ForgeTokens.outlineVariant),
+                side: BorderSide(color: ForgeTokens.of(context).outlineVariant),
               ),
             ),
           ],
@@ -348,20 +348,20 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
             const SizedBox(height: 8),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.settings, color: ForgeTokens.onSurfaceVariant),
+              leading: Icon(Icons.settings, color: ForgeTokens.of(context).onSurfaceVariant),
               title: const Text('Settings'),
               onTap: () => context.push('/profile/settings'),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.history, color: ForgeTokens.onSurfaceVariant),
+              leading: Icon(Icons.history, color: ForgeTokens.of(context).onSurfaceVariant),
               title: const Text('Watch history'),
               onTap: () => context.push('/history'),
             ),
             if (!user.isVerified) ...[
               const SizedBox(height: 8),
               Material(
-                color: ForgeTokens.warning.withValues(alpha: 0.2),
+                color: ForgeTokens.of(context).warning.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -440,7 +440,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                         PopupMenuItem(value: 'unsubscribe', child: Text('Unsubscribe')),
                       ],
                       child: Material(
-                        color: ForgeTokens.surfaceContainerHighest,
+                        color: ForgeTokens.of(context).surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(8),
                         child: const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -459,7 +459,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                   : OutlinedButton(
                       onPressed: _followBusy ? null : _toggleFollow,
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: ForgeTokens.outlineVariant),
+                        side: BorderSide(color: ForgeTokens.of(context).outlineVariant),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       child: const Text('Subscribe'),
@@ -474,7 +474,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                       final url = '${AppConstants.webBaseUrl}/${user.username}';
                       Share.share('${user.displayName}\n$url');
                     },
-                    icon: const Icon(Icons.share_outlined, size: 18),
+                    icon: Icon(Icons.share_outlined, size: 18),
                     label: const Text('Share'),
                   ),
                 ),
@@ -491,7 +491,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
           ],
           if (user.role == 'creator' && user.creatorStatus == 'pending') ...[
             const SizedBox(height: 12),
-            const Text('Creator approval pending', style: TextStyle(color: ForgeTokens.warning)),
+            Text('Creator approval pending', style: TextStyle(color: ForgeTokens.of(context).warning)),
           ],
           if (user.role == 'creator' && user.creatorStatus == 'rejected') ...[
             const SizedBox(height: 8),
@@ -517,8 +517,8 @@ class _Stat extends StatelessWidget {
     final child = Column(
       children: [
         Text(count > 999 ? '${(count / 1000).toStringAsFixed(1)}K' : count.toString(),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        Text(label, style: const TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 12)),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        Text(label, style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, fontSize: 12)),
       ],
     );
     if (onTap == null) return child;

@@ -279,11 +279,11 @@ class _ContinueTile extends StatelessWidget {
                 CachedNetworkImage(
                   imageUrl: video.thumbnailUrl!,
                   fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(color: ForgeTokens.surfaceContainerHighest),
-                  errorWidget: (_, __, ___) => Container(color: ForgeTokens.surfaceContainerHighest),
+                  placeholder: (_, __) => Container(color: ForgeTokens.of(context).surfaceContainerHighest),
+                  errorWidget: (_, __, ___) => Container(color: ForgeTokens.of(context).surfaceContainerHighest),
                 )
               else
-                Container(color: ForgeTokens.surfaceContainerHighest),
+                Container(color: ForgeTokens.of(context).surfaceContainerHighest),
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -302,7 +302,7 @@ class _ContinueTile extends StatelessWidget {
                     value: progressFrac,
                     minHeight: 3,
                     backgroundColor: Colors.black38,
-                    color: ForgeTokens.primary,
+                    color: ForgeTokens.of(context).primary,
                   ),
                 ),
               Positioned(
@@ -483,11 +483,11 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
             CachedNetworkImage(
               imageUrl: video.thumbnailUrl!,
               fit: BoxFit.cover,
-              placeholder: (_, __) => Container(color: ForgeTokens.surfaceContainerHigh),
-              errorWidget: (_, __, ___) => Container(color: ForgeTokens.surfaceContainerHigh),
+              placeholder: (_, __) => Container(color: ForgeTokens.of(context).surfaceContainerHigh),
+              errorWidget: (_, __, ___) => Container(color: ForgeTokens.of(context).surfaceContainerHigh),
             )
           else
-            Container(color: ForgeTokens.surfaceContainerHigh),
+            Container(color: ForgeTokens.of(context).surfaceContainerHigh),
 
           const DecoratedBox(
             decoration: BoxDecoration(
@@ -505,7 +505,7 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
             right: 8,
             child: PopupMenuButton<String>(
               tooltip: 'More',
-              color: ForgeTokens.surfaceContainerHigh,
+              color: ForgeTokens.of(context).surfaceContainerHigh,
               onSelected: (value) {
                 if (value == 'not_interested') _notInterested();
                 if (value == 'dont_recommend') _dontRecommend();
@@ -619,25 +619,25 @@ class _StreakXpChip extends ConsumerWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: ForgeTokens.surfaceContainer.withValues(alpha: 0.9),
+              color: ForgeTokens.of(context).surfaceContainer.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: ForgeTokens.outlineVariant.withValues(alpha: 0.3)),
+              border: Border.all(color: ForgeTokens.of(context).outlineVariant.withValues(alpha: 0.3)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.local_fire_department, size: 16, color: ForgeTokens.tertiary),
+                Icon(Icons.local_fire_department, size: 16, color: ForgeTokens.of(context).tertiary),
                 const SizedBox(width: 4),
                 Text(
                   '${profile.streak}d streak',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.onSurface),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface),
                 ),
                 const SizedBox(width: 10),
-                const Icon(Icons.bolt, size: 16, color: ForgeTokens.secondary),
+                Icon(Icons.bolt, size: 16, color: ForgeTokens.of(context).secondary),
                 const SizedBox(width: 4),
                 Text(
                   '${profile.xp} XP · Lvl ${profile.level}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.onSurface),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface),
                 ),
               ],
             ),

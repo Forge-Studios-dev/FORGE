@@ -467,9 +467,9 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen>
                     ? null
                     : TextButton(
                         onPressed: () => _suspendMember(userId),
-                        child: const Text(
+                        child: Text(
                           'Suspend',
-                          style: TextStyle(color: ForgeTokens.error),
+                          style: TextStyle(color: ForgeTokens.of(context).error),
                         ),
                       ),
               ),

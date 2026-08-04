@@ -155,7 +155,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                           onTap: () => context.push('/playlists/${p['id']}'),
                           child: Row(
                             children: [
-                              const Icon(Icons.playlist_play, color: ForgeTokens.primary, size: 28),
+                              Icon(Icons.playlist_play, color: ForgeTokens.of(context).primary, size: 28),
                               const SizedBox(width: 16),
                               Expanded(
                                 child: Column(
@@ -165,16 +165,16 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                                       p['title'] as String? ?? 'Playlist',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontWeight: FontWeight.w600,
-                                        color: ForgeTokens.onSurface,
+                                        color: ForgeTokens.of(context).onSurface,
                                       ),
                                     ),
                                     Text(
                                       visibilityLabel,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 12,
-                                        color: ForgeTokens.onSurfaceVariant,
+                                        color: ForgeTokens.of(context).onSurfaceVariant,
                                       ),
                                     ),
                                   ],
@@ -186,10 +186,10 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                                   child: Icon(
                                     visibility == 'private' ? Icons.lock_outline : Icons.link,
                                     size: 16,
-                                    color: ForgeTokens.onSurfaceVariant,
+                                    color: ForgeTokens.of(context).onSurfaceVariant,
                                   ),
                                 ),
-                              const Icon(Icons.chevron_right, color: ForgeTokens.outline),
+                              Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
                             ],
                           ),
                         ),

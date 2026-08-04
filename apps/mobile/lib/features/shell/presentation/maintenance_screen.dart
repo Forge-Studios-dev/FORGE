@@ -16,17 +16,17 @@ class MaintenanceScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.build_circle_outlined, size: 64, color: ForgeTokens.primary),
+                Icon(Icons.build_circle_outlined, size: 64, color: ForgeTokens.of(context).primary),
                 const SizedBox(height: 20),
-                const Text(
+                Text(
                   'Under maintenance',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: ForgeTokens.onSurface),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: ForgeTokens.of(context).onSurface),
                 ),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   "FORGE is being upgraded. We'll be back shortly.",
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: ForgeTokens.onSurfaceVariant, height: 1.5),
+                  style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, height: 1.5),
                 ),
                 const SizedBox(height: 28),
                 ForgeButton(label: 'Back home', onPressed: () => context.go('/feed')),

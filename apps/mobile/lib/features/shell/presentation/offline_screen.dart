@@ -16,17 +16,17 @@ class OfflineScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.wifi_off, size: 64, color: ForgeTokens.primary),
+                Icon(Icons.wifi_off, size: 64, color: ForgeTokens.of(context).primary),
                 const SizedBox(height: 20),
-                const Text(
+                Text(
                   "You're offline",
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: ForgeTokens.onSurface),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: ForgeTokens.of(context).onSurface),
                 ),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   'Check your connection and try again.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: ForgeTokens.onSurfaceVariant, height: 1.5),
+                  style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, height: 1.5),
                 ),
                 const SizedBox(height: 28),
                 ForgeButton(label: 'Retry', onPressed: () => context.go('/feed')),

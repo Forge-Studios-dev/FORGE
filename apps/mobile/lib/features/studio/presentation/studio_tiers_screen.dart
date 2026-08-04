@@ -229,7 +229,7 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
                           title: Text(t['name'] as String? ?? ''),
                           subtitle: Text(
                             '\$${(priceCents / 100).toStringAsFixed(2)} · $maxDevices device(s)',
-                            style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                            style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                           ),
                           trailing: Icon(expanded ? Icons.expand_less : Icons.expand_more),
                           onTap: () => setState(

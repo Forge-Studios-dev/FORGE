@@ -87,18 +87,18 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 const SizedBox(height: 32),
                 Text('Create Account', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                const Text('Create an account to watch and subscribe', style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+                Text('Create an account to watch and subscribe', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                 const SizedBox(height: 32),
 
                 if (_error != null) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: ForgeTokens.error.withValues(alpha: 0.12),
+                      color: ForgeTokens.of(context).error.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: ForgeTokens.error.withValues(alpha: 0.35)),
+                      border: Border.all(color: ForgeTokens.of(context).error.withValues(alpha: 0.35)),
                     ),
-                    child: Text(_error!, style: const TextStyle(color: ForgeTokens.error, fontSize: 13)),
+                    child: Text(_error!, style: TextStyle(color: ForgeTokens.of(context).error, fontSize: 13)),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -155,7 +155,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Already have an account? ', style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+                    Text('Already have an account? ', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                     TextButton(
                       onPressed: () => context.go('/login'),
                       child: const Text('Sign in'),

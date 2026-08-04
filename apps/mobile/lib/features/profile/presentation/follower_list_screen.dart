@@ -62,7 +62,7 @@ class _FollowerListScreenState extends ConsumerState<FollowerListScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _users.isEmpty
-              ? Center(child: Text('No $title yet', style: const TextStyle(color: ForgeTokens.onSurfaceVariant)))
+              ? Center(child: Text('No $title yet', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)))
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _users.length + (_hasMore ? 1 : 0),

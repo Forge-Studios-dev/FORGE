@@ -51,10 +51,10 @@ class StudioCommentsScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  const ForgeCard(
+                  ForgeCard(
                     child: Text(
                       'When viewers comment on your videos, they will appear here.',
-                      style: TextStyle(color: ForgeTokens.onSurfaceVariant, height: 1.5),
+                      style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, height: 1.5),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -83,27 +83,27 @@ class StudioCommentsScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (pinned)
-                            const Text(
+                            Text(
                               'Pinned',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: ForgeTokens.onSurfaceVariant,
+                                color: ForgeTokens.of(context).onSurfaceVariant,
                               ),
                             ),
                           Text(
                             c['videoTitle'] as String? ?? 'Video',
-                            style: const TextStyle(fontSize: 12, color: ForgeTokens.primary),
+                            style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).primary),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             c['content'] as String? ?? '',
-                            style: const TextStyle(color: ForgeTokens.onSurface),
+                            style: TextStyle(color: ForgeTokens.of(context).onSurface),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             '@${user?['username'] ?? 'user'}',
-                            style: const TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant),
+                            style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
                           ),
                         ],
                       ),

@@ -237,8 +237,8 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
   @override
   Widget build(BuildContext context) {
     if (!_chatEnabled) {
-      return const Center(
-        child: Text('Chat is disabled', style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+      return Center(
+        child: Text('Chat is disabled', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
       );
     }
 
@@ -278,7 +278,7 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
         if (modeLabel != null && _chatMode != 'all')
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-            child: Text(modeLabel, style: const TextStyle(fontSize: 11, color: ForgeTokens.onSurfaceVariant)),
+            child: Text(modeLabel, style: TextStyle(fontSize: 11, color: ForgeTokens.of(context).onSurfaceVariant)),
           ),
         if (_isMod)
           Padding(
@@ -305,18 +305,18 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Text(
               'Pinned: ${pinned['body']}',
-              style: const TextStyle(fontSize: 12, color: ForgeTokens.warning),
+              style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).warning),
             ),
           ),
         if (_slowMode > 0 && !_isMod)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text('Slow mode ${_slowMode}s', style: const TextStyle(fontSize: 11, color: ForgeTokens.onSurfaceVariant)),
+            child: Text('Slow mode ${_slowMode}s', style: TextStyle(fontSize: 11, color: ForgeTokens.of(context).onSurfaceVariant)),
           ),
         Expanded(
           child: _messages.isEmpty
-              ? const Center(
-                  child: Text('No messages yet', style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+              ? Center(
+                  child: Text('No messages yet', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                 )
               : ListView.builder(
                   controller: _scrollCtrl,

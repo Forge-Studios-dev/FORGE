@@ -161,10 +161,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               ),
               Expanded(
                 child: filtered.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
                           'No matching videos',
-                          style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+                          style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                         ),
                       )
                     : ListView.builder(
@@ -188,10 +188,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                 alignment: Alignment.centerRight,
                                 padding: const EdgeInsets.only(right: 20),
                                 decoration: BoxDecoration(
-                                  color: ForgeTokens.error.withValues(alpha: 0.2),
+                                  color: ForgeTokens.of(context).error.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: const Icon(Icons.delete_outline, color: ForgeTokens.error),
+                                child: Icon(Icons.delete_outline, color: ForgeTokens.of(context).error),
                               ),
                               onDismissed: (_) => _removeOne(v),
                               child: ForgeCard(
@@ -211,16 +211,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                               CachedNetworkImage(
                                                 imageUrl: v.thumbnailUrl!,
                                                 fit: BoxFit.cover,
-                                                placeholder: (_, __) => const ColoredBox(
-                                                  color: ForgeTokens.surfaceContainerHigh,
+                                                placeholder: (_, __) => ColoredBox(
+                                                  color: ForgeTokens.of(context).surfaceContainerHigh,
                                                 ),
-                                                errorWidget: (_, __, ___) => const ColoredBox(
-                                                  color: ForgeTokens.surfaceContainerHigh,
+                                                errorWidget: (_, __, ___) => ColoredBox(
+                                                  color: ForgeTokens.of(context).surfaceContainerHigh,
                                                 ),
                                               )
                                             else
-                                              const ColoredBox(
-                                                color: ForgeTokens.surfaceContainerHigh,
+                                              ColoredBox(
+                                                color: ForgeTokens.of(context).surfaceContainerHigh,
                                               ),
                                             if (progressFrac != null)
                                               Positioned(
@@ -231,7 +231,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                                   value: progressFrac,
                                                   minHeight: 3,
                                                   backgroundColor: Colors.black38,
-                                                  color: ForgeTokens.primary,
+                                                  color: ForgeTokens.of(context).primary,
                                                 ),
                                               ),
                                           ],
@@ -247,17 +247,17 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                             v.title,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontWeight: FontWeight.w600,
-                                              color: ForgeTokens.onSurface,
+                                              color: ForgeTokens.of(context).onSurface,
                                             ),
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
                                             '@${v.user.username}',
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 13,
-                                              color: ForgeTokens.onSurfaceVariant,
+                                              color: ForgeTokens.of(context).onSurfaceVariant,
                                             ),
                                           ),
                                         ],

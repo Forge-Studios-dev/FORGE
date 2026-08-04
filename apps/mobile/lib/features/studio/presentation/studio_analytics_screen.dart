@@ -88,10 +88,10 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  const ForgeCard(
+                  ForgeCard(
                     child: Text(
                       'Upload videos to track views and engagement.',
-                      style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+                      style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -133,7 +133,7 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
                               const SizedBox(height: 8),
                               Text(
                                 'Active: ${membership?['active'] ?? 0} · MRR ₹${((membership?['mrrCents'] as num? ?? 0) / 100).round()}',
-                                style: const TextStyle(fontSize: 13, color: ForgeTokens.onSurfaceVariant),
+                                style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
                               ),
                             ],
                           ),
@@ -158,9 +158,9 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
                                             ),
                                             Text(
                                               '${step['count']}',
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 12,
-                                                color: ForgeTokens.primary,
+                                                color: ForgeTokens.of(context).primary,
                                               ),
                                             ),
                                           ],
@@ -204,10 +204,10 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
                             v.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: ForgeTokens.onSurface),
+                            style: TextStyle(color: ForgeTokens.of(context).onSurface),
                           ),
                         ),
-                        Text('${v.viewCount} views', style: const TextStyle(color: ForgeTokens.primary, fontSize: 13)),
+                        Text('${v.viewCount} views', style: TextStyle(color: ForgeTokens.of(context).primary, fontSize: 13)),
                       ],
                     ),
                   ),
@@ -225,9 +225,9 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant)),
+          Text(label, style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant)),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: ForgeTokens.primary)),
+          Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: ForgeTokens.of(context).primary)),
         ],
       ),
     );
@@ -255,7 +255,7 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
                         Text(row['period'] as String? ?? '', style: const TextStyle(fontSize: 12)),
                         Text(
                           '${row['retained']}/${row['cohortSize']} · ${rate.round()}%',
-                          style: const TextStyle(fontSize: 11, color: ForgeTokens.onSurfaceVariant),
+                          style: TextStyle(fontSize: 11, color: ForgeTokens.of(context).onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -265,8 +265,8 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
                       child: LinearProgressIndicator(
                         value: rate / 100,
                         minHeight: 6,
-                        backgroundColor: ForgeTokens.surfaceContainerHigh,
-                        color: ForgeTokens.primary,
+                        backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
+                        color: ForgeTokens.of(context).primary,
                       ),
                     ),
                   ],

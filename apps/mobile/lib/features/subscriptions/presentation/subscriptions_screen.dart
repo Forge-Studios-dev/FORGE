@@ -164,10 +164,10 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                           ),
                         Expanded(
                           child: _videos.isEmpty
-                              ? const Center(
+                              ? Center(
                                   child: Text(
                                     'No videos from this channel',
-                                    style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+                                    style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                                   ),
                                 )
                               : NotificationListener<ScrollNotification>(
@@ -194,8 +194,8 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                                                     imageUrl: v.thumbnailUrl!,
                                                     fit: BoxFit.cover,
                                                   )
-                                                : const ColoredBox(
-                                                    color: ForgeTokens.surfaceContainerHigh,
+                                                : ColoredBox(
+                                                    color: ForgeTokens.of(context).surfaceContainerHigh,
                                                   ),
                                           ),
                                         ),

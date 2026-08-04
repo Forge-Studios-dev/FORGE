@@ -82,9 +82,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (_status == 'loading') const CircularProgressIndicator(),
+              if (_status == 'loading') CircularProgressIndicator(),
               if (_status == 'ok') ...[
-                const Icon(Icons.check_circle, color: Colors.green, size: 56),
+                Icon(Icons.check_circle, color: Colors.green, size: 56),
                 const SizedBox(height: 16),
                 Text(_message, textAlign: TextAlign.center),
                 const SizedBox(height: 24),
@@ -96,7 +96,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               if (_status == 'prompt' || _status == 'err') ...[
                 Icon(
                   _status == 'err' ? Icons.error_outline : Icons.mail_outline,
-                  color: _status == 'err' ? ForgeTokens.error : ForgeTokens.warning,
+                  color: _status == 'err' ? ForgeTokens.of(context).error : ForgeTokens.of(context).warning,
                   size: 56,
                 ),
                 const SizedBox(height: 16),

@@ -201,14 +201,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error || playlist == null
-              ? const Center(
+              ? Center(
                   child: Text('Failed to load playlist',
-                      style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+                      style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                 )
               : items.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text('This playlist is empty.',
-                          style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+                          style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                     )
                   : Column(
                       children: [
@@ -269,20 +269,20 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                           ),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.play_circle_outline,
-                                          color: ForgeTokens.primary, size: 28),
+                                      Icon(Icons.play_circle_outline,
+                                          color: ForgeTokens.of(context).primary, size: 28),
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Text(
                                           video?['title'] as String? ?? 'Video',
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(color: ForgeTokens.onSurface),
+                                          style: TextStyle(color: ForgeTokens.of(context).onSurface),
                                         ),
                                       ),
                                       if (isOwner) ...[
                                         IconButton(
-                                          icon: const Icon(Icons.arrow_upward, size: 18),
+                                          icon: Icon(Icons.arrow_upward, size: 18),
                                           tooltip: 'Move up',
                                           onPressed: i == 0 ? null : () => _moveItem(i, -1),
                                         ),
@@ -294,8 +294,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                       ],
                                       if (isOwner && videoId != null)
                                         IconButton(
-                                          icon: const Icon(Icons.remove_circle_outline,
-                                              size: 20, color: ForgeTokens.onSurfaceVariant),
+                                          icon: Icon(Icons.remove_circle_outline,
+                                              size: 20, color: ForgeTokens.of(context).onSurfaceVariant),
                                           tooltip: 'Remove',
                                           onPressed: () => _removeVideo(videoId),
                                         ),

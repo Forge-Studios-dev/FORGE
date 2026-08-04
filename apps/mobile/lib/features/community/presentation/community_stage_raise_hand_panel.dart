@@ -184,21 +184,21 @@ class _CommunityStageRaiseHandPanelState extends ConsumerState<CommunityStageRai
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          border: Border.all(color: ForgeTokens.outline.withValues(alpha: 0.3)),
+          border: Border.all(color: ForgeTokens.of(context).outline.withValues(alpha: 0.3)),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Raised hands',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.outline),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.of(context).outline),
             ),
             const SizedBox(height: 8),
             if (_raisedHands.isEmpty)
-              const Text(
+              Text(
                 'No raised hands yet.',
-                style: TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant),
+                style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
               )
             else
               ..._raisedHands.map((hand) {
@@ -227,11 +227,11 @@ class _CommunityStageRaiseHandPanelState extends ConsumerState<CommunityStageRai
     }
 
     if (widget.canPublish) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.only(bottom: 12),
         child: Text(
           'You are approved to speak on stage.',
-          style: TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant),
+          style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
         ),
       );
     }

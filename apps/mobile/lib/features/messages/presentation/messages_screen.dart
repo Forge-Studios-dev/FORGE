@@ -138,7 +138,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
           const VerticalDivider(width: 1),
           Expanded(
             child: _activeId == null
-                ? const Center(child: Text('Select a conversation', style: TextStyle(color: ForgeTokens.onSurfaceVariant)))
+                ? Center(child: Text('Select a conversation', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)))
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: _messages.length,

@@ -162,33 +162,33 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             child: TextField(
               controller: _controller,
               autofocus: widget.autofocusSearch,
-              style: const TextStyle(color: ForgeTokens.onSurface),
+              style: TextStyle(color: ForgeTokens.of(context).onSurface),
               decoration: InputDecoration(
                 hintText: 'Search videos and creators',
-                hintStyle: const TextStyle(color: ForgeTokens.outline),
-                prefixIcon: const Icon(Icons.search, color: ForgeTokens.outline),
+                hintStyle: TextStyle(color: ForgeTokens.of(context).outline),
+                prefixIcon: Icon(Icons.search, color: ForgeTokens.of(context).outline),
                 suffixIcon: _controller.text.isEmpty
                     ? null
                     : IconButton(
-                        icon: const Icon(Icons.clear, color: ForgeTokens.outline),
+                        icon: Icon(Icons.clear, color: ForgeTokens.of(context).outline),
                         onPressed: () {
                           _controller.clear();
                           _scheduleSearch('');
                         },
                       ),
                 filled: true,
-                fillColor: ForgeTokens.surfaceContainerLow,
+                fillColor: ForgeTokens.of(context).surfaceContainerLow,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: ForgeTokens.outlineVariant.withValues(alpha: 0.4)),
+                  borderSide: BorderSide(color: ForgeTokens.of(context).outlineVariant.withValues(alpha: 0.4)),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: ForgeTokens.outlineVariant.withValues(alpha: 0.4)),
+                  borderSide: BorderSide(color: ForgeTokens.of(context).outlineVariant.withValues(alpha: 0.4)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: ForgeTokens.primary),
+                  borderSide: BorderSide(color: ForgeTokens.of(context).primary),
                 ),
               ),
               textInputAction: TextInputAction.search,
@@ -300,7 +300,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           final data = snapshot.data;
           if (data == null || (data.titles.isEmpty && data.channels.isEmpty)) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: ForgeTokens.primary));
+              return Center(child: CircularProgressIndicator(color: ForgeTokens.of(context).primary));
             }
             return const SizedBox.shrink();
           }
@@ -341,13 +341,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Categories',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 12,
                       letterSpacing: 0.08,
-                      color: ForgeTokens.outline,
+                      color: ForgeTokens.of(context).outline,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -373,13 +373,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
-          const Text(
+          Text(
             'Core disciplines',
             style: TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 12,
               letterSpacing: 0.08,
-              color: ForgeTokens.outline,
+              color: ForgeTokens.of(context).outline,
             ),
           ),
           const SizedBox(height: 12),
@@ -408,16 +408,16 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(d.$3, color: ForgeTokens.primary, size: 28),
+                      Icon(d.$3, color: ForgeTokens.of(context).primary, size: 28),
                       const SizedBox(height: 10),
                       Text(
                         d.$2,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
-                          color: ForgeTokens.onSurface,
+                          color: ForgeTokens.of(context).onSurface,
                         ),
                       ),
                     ],
@@ -427,33 +427,33 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             },
           ),
           const SizedBox(height: 20),
-          const Text(
+          Text(
             'Or search above for videos and creators.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 13),
+            style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, fontSize: 13),
           ),
         ],
       );
     }
     if (q.length < 2) {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: Text('Enter at least 2 characters to search.', style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+          child: Text('Enter at least 2 characters to search.', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
         ),
       );
     }
 
     final future = _searchFuture;
     if (future == null) {
-      return const Center(child: CircularProgressIndicator(color: ForgeTokens.primary));
+      return Center(child: CircularProgressIndicator(color: ForgeTokens.of(context).primary));
     }
 
     return FutureBuilder<SearchResults>(
       future: future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: ForgeTokens.primary));
+          return Center(child: CircularProgressIndicator(color: ForgeTokens.of(context).primary));
         }
         if (snapshot.hasError) {
           return Center(
@@ -462,9 +462,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline, size: 48, color: ForgeTokens.error),
+                  Icon(Icons.error_outline, size: 48, color: ForgeTokens.of(context).error),
                   const SizedBox(height: 12),
-                  const Text('Search failed', style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
+                  Text('Search failed', style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface)),
                   const SizedBox(height: 8),
                   TextButton(onPressed: () => _scheduleSearch(q), child: const Text('Retry')),
                 ],
@@ -481,9 +481,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.search_off, size: 48, color: ForgeTokens.outline),
+                  Icon(Icons.search_off, size: 48, color: ForgeTokens.of(context).outline),
                   const SizedBox(height: 12),
-                  Text('No results for "${data.query}"', style: const TextStyle(color: ForgeTokens.onSurfaceVariant)),
+                  Text('No results for "${data.query}"', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                 ],
               ),
             ),
@@ -493,23 +493,23 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           padding: const EdgeInsets.only(bottom: 24),
           children: [
             if (data.videos.isNotEmpty) ...[
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Text('Videos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
+                child: Text('Videos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface)),
               ),
               ...data.videos.map((v) => _VideoSearchTile(video: v)),
             ],
             if (data.playlists.isNotEmpty) ...[
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text('Playlists', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
+                child: Text('Playlists', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface)),
               ),
               ...data.playlists.map((p) => _PlaylistSearchTile(playlist: p)),
             ],
             if (data.users.isNotEmpty) ...[
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text('Creators', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
+                child: Text('Creators', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface)),
               ),
               ...data.users.map((u) => _UserSearchTile(user: u)),
             ],
@@ -537,14 +537,14 @@ class _VideoSearchTile extends StatelessWidget {
               ? CachedNetworkImage(
                   imageUrl: video.thumbnailUrl!,
                   fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(color: ForgeTokens.surfaceContainerHigh),
-                  errorWidget: (_, __, ___) => Container(color: ForgeTokens.surfaceContainerHigh),
+                  placeholder: (_, __) => Container(color: ForgeTokens.of(context).surfaceContainerHigh),
+                  errorWidget: (_, __, ___) => Container(color: ForgeTokens.of(context).surfaceContainerHigh),
                 )
-              : Container(color: ForgeTokens.surfaceContainerHigh),
+              : Container(color: ForgeTokens.of(context).surfaceContainerHigh),
         ),
       ),
-      title: Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: ForgeTokens.onSurface)),
-      subtitle: Text('@${video.user.username}', style: const TextStyle(color: ForgeTokens.onSurfaceVariant)),
+      title: Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: ForgeTokens.of(context).onSurface)),
+      subtitle: Text('@${video.user.username}', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
       onTap: () => context.push('/watch/${video.id}'),
     );
   }
@@ -558,17 +558,17 @@ class _UserSearchTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: ForgeTokens.primaryContainer,
+        backgroundColor: ForgeTokens.of(context).primaryContainer,
         backgroundImage: user.avatarUrl != null ? CachedNetworkImageProvider(user.avatarUrl!) : null,
         child: user.avatarUrl == null
             ? Text(
                 user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
-                style: const TextStyle(color: ForgeTokens.onPrimary, fontWeight: FontWeight.bold),
+                style: TextStyle(color: ForgeTokens.of(context).onPrimary, fontWeight: FontWeight.bold),
               )
             : null,
       ),
-      title: Text(user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: ForgeTokens.onSurface)),
-      subtitle: Text('@${user.username}', style: const TextStyle(color: ForgeTokens.onSurfaceVariant)),
+      title: Text(user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: ForgeTokens.of(context).onSurface)),
+      subtitle: Text('@${user.username}', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
       onTap: () => context.push('/profile/${user.username}'),
     );
   }
@@ -581,19 +581,19 @@ class _PlaylistSearchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: const CircleAvatar(
-        backgroundColor: ForgeTokens.surfaceContainerHigh,
-        child: Icon(Icons.playlist_play, color: ForgeTokens.primary),
+      leading: CircleAvatar(
+        backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
+        child: Icon(Icons.playlist_play, color: ForgeTokens.of(context).primary),
       ),
       title: Text(
         playlist.title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: ForgeTokens.onSurface),
+        style: TextStyle(color: ForgeTokens.of(context).onSurface),
       ),
       subtitle: Text(
         '${playlist.videoCount} videos${playlist.owner != null ? ' · @${playlist.owner!.username}' : ''}',
-        style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+        style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
       ),
       onTap: () => context.push('/playlists/${playlist.id}'),
     );

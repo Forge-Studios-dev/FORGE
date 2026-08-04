@@ -58,9 +58,9 @@ class StudioSettingsScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: ForgeTokens.outline)),
+        Text(label, style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).outline)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
+        Text(value, style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface)),
       ],
     );
   }

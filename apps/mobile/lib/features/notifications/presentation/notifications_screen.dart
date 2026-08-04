@@ -2,41 +2,54 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/theme/forge_palette.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 
-/// Icon + color per notification type — mirrors
+/// Icon + semantic color key per notification type — mirrors
 /// apps/web/src/lib/notification-category.ts and
 /// apps/api/.../notification.entity.ts NotificationType, so a member can tell
 /// social vs. live vs. billing vs. reward notifications apart at a glance
 /// instead of every row looking identical.
+enum _NotifTone { outline, primary, success, critical, live, warning, tertiary }
+
 class _NotificationMeta {
   final IconData icon;
-  final Color color;
-  const _NotificationMeta(this.icon, this.color);
+  final _NotifTone tone;
+  const _NotificationMeta(this.icon, this.tone);
+
+  Color color(ForgePalette t) => switch (tone) {
+        _NotifTone.outline => t.outline,
+        _NotifTone.primary => t.primary,
+        _NotifTone.success => t.success,
+        _NotifTone.critical => t.critical,
+        _NotifTone.live => t.live,
+        _NotifTone.warning => t.warning,
+        _NotifTone.tertiary => t.tertiary,
+      };
 }
 
-const _defaultNotificationMeta = _NotificationMeta(Icons.notifications, ForgeTokens.outline);
+const _defaultNotificationMeta = _NotificationMeta(Icons.notifications, _NotifTone.outline);
 
 const Map<String, _NotificationMeta> _notificationMetaByType = {
-  'creator_approved': _NotificationMeta(Icons.verified, ForgeTokens.success),
-  'creator_rejected': _NotificationMeta(Icons.block, ForgeTokens.critical),
-  'video_ready': _NotificationMeta(Icons.video_library, ForgeTokens.primary),
-  'stream_started': _NotificationMeta(Icons.sensors, ForgeTokens.live),
-  'stream_started_followed': _NotificationMeta(Icons.sensors, ForgeTokens.live),
-  'premium_content_new': _NotificationMeta(Icons.workspace_premium, ForgeTokens.primary),
-  'subscription_expiring': _NotificationMeta(Icons.schedule, ForgeTokens.warning),
-  'comment_on_video': _NotificationMeta(Icons.forum, ForgeTokens.outline),
-  'comment_reply': _NotificationMeta(Icons.reply, ForgeTokens.outline),
-  'new_follower': _NotificationMeta(Icons.person_add, ForgeTokens.outline),
-  'video_liked': _NotificationMeta(Icons.thumb_up, ForgeTokens.outline),
-  'super_thanks': _NotificationMeta(Icons.volunteer_activism, ForgeTokens.warning),
-  'direct_message': _NotificationMeta(Icons.mail, ForgeTokens.outline),
-  'community_role_assigned': _NotificationMeta(Icons.shield, ForgeTokens.primary),
-  'community_banned': _NotificationMeta(Icons.gavel, ForgeTokens.critical),
-  'community_post_new': _NotificationMeta(Icons.campaign, ForgeTokens.outline),
-  'achievement_unlocked': _NotificationMeta(Icons.emoji_events, ForgeTokens.tertiary),
-  'xp_level_up': _NotificationMeta(Icons.trending_up, ForgeTokens.tertiary),
+  'creator_approved': _NotificationMeta(Icons.verified, _NotifTone.success),
+  'creator_rejected': _NotificationMeta(Icons.block, _NotifTone.critical),
+  'video_ready': _NotificationMeta(Icons.video_library, _NotifTone.primary),
+  'stream_started': _NotificationMeta(Icons.sensors, _NotifTone.live),
+  'stream_started_followed': _NotificationMeta(Icons.sensors, _NotifTone.live),
+  'premium_content_new': _NotificationMeta(Icons.workspace_premium, _NotifTone.primary),
+  'subscription_expiring': _NotificationMeta(Icons.schedule, _NotifTone.warning),
+  'comment_on_video': _NotificationMeta(Icons.forum, _NotifTone.outline),
+  'comment_reply': _NotificationMeta(Icons.reply, _NotifTone.outline),
+  'new_follower': _NotificationMeta(Icons.person_add, _NotifTone.outline),
+  'video_liked': _NotificationMeta(Icons.thumb_up, _NotifTone.outline),
+  'super_thanks': _NotificationMeta(Icons.volunteer_activism, _NotifTone.warning),
+  'direct_message': _NotificationMeta(Icons.mail, _NotifTone.outline),
+  'community_role_assigned': _NotificationMeta(Icons.shield, _NotifTone.primary),
+  'community_banned': _NotificationMeta(Icons.gavel, _NotifTone.critical),
+  'community_post_new': _NotificationMeta(Icons.campaign, _NotifTone.outline),
+  'achievement_unlocked': _NotificationMeta(Icons.emoji_events, _NotifTone.tertiary),
+  'xp_level_up': _NotificationMeta(Icons.trending_up, _NotifTone.tertiary),
 };
 
 _NotificationMeta _metaFor(String? type) =>
@@ -173,6 +186,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
     final hasUnread = _items.any((n) => (n as Map)['readAt'] == null);
     final visible = _unreadOnly
         ? _items.where((n) => (n as Map)['readAt'] == null).toList()
@@ -205,9 +219,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(height: 12, width: 120, color: ForgeTokens.surfaceContainerHigh),
+                      Container(height: 12, width: 120, color: t.surfaceContainerHigh),
                       const SizedBox(height: 8),
-                      Container(height: 10, width: double.infinity, color: ForgeTokens.surfaceContainerHigh),
+                      Container(height: 10, width: double.infinity, color: t.surfaceContainerHigh),
                     ],
                   ),
                 ),
@@ -218,11 +232,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.notifications_none, size: 48, color: ForgeTokens.outline),
+                      Icon(Icons.notifications_none, size: 48, color: t.outline),
                       const SizedBox(height: 12),
                       Text(
                         _unreadOnly ? 'No unread notifications' : 'No notifications yet',
-                        style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                        style: TextStyle(color: t.onSurfaceVariant),
                       ),
                       const SizedBox(height: 12),
                       TextButton(onPressed: () => _load(), child: const Text('Refresh')),
@@ -239,13 +253,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     final n = visible[i] as Map<String, dynamic>;
                     final read = n['readAt'] != null;
                     final meta = _metaFor(n['type']?.toString());
+                    final color = meta.color(t);
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: ForgeCard(
                         child: ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: meta.color.withValues(alpha: 0.12),
-                            child: Icon(meta.icon, color: meta.color, size: 20),
+                            backgroundColor: color.withValues(alpha: 0.12),
+                            child: Icon(meta.icon, color: color, size: 20),
                           ),
                           title: Text(
                             n['title']?.toString() ?? 'Notification',

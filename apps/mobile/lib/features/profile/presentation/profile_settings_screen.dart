@@ -225,10 +225,10 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
               height: 72,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: ForgeTokens.surfaceContainerHigh,
+                color: ForgeTokens.of(context).surfaceContainerHigh,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text('No banner yet', style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+              child: Text('No banner yet', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
             ),
           const SizedBox(height: 8),
           Row(
@@ -355,8 +355,8 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
               if (context.mounted) context.go('/login');
             },
             style: OutlinedButton.styleFrom(
-              foregroundColor: ForgeTokens.error,
-              side: const BorderSide(color: ForgeTokens.error),
+              foregroundColor: ForgeTokens.of(context).error,
+              side: BorderSide(color: ForgeTokens.of(context).error),
             ),
             child: const Text('Sign out'),
           ),
@@ -435,7 +435,7 @@ class _ActiveSessionsSectionState extends ConsumerState<_ActiveSessionsSection> 
   Widget build(BuildContext context) {
     if (_loading) return const LinearProgressIndicator();
     if (_sessions.isEmpty) {
-      return const Text('No other active sessions', style: TextStyle(color: ForgeTokens.onSurfaceVariant));
+      return Text('No other active sessions', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant));
     }
     return Column(
       children: _sessions.map((s) {
@@ -524,9 +524,9 @@ class _MutedChannelsSectionState extends ConsumerState<_MutedChannelsSection> {
       children: [
         const Text('Recommended content', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           'Channels hidden with “Don’t recommend channel”. Unmute anytime.',
-          style: TextStyle(fontSize: 13, color: ForgeTokens.onSurfaceVariant),
+          style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
         ),
         const SizedBox(height: 8),
         if (_loading)
@@ -534,7 +534,7 @@ class _MutedChannelsSectionState extends ConsumerState<_MutedChannelsSection> {
         else if (_error)
           TextButton(onPressed: _load, child: const Text('Retry muted channels'))
         else if (_channels.isEmpty)
-          const Text('No muted channels.', style: TextStyle(color: ForgeTokens.onSurfaceVariant))
+          Text('No muted channels.', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant))
         else
           ..._channels.map((ch) {
             final id = ch['id'] as String? ?? '';

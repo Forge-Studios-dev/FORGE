@@ -514,7 +514,7 @@ class _StudioEngagementScreenState extends ConsumerState<StudioEngagementScreen>
                           Text(
                             'Messages: ${_analytics!['messagesLast7Days'] ?? 0} · '
                             'Members: ${_analytics!['payingMembers'] ?? 0}',
-                            style: const TextStyle(fontSize: 13, color: ForgeTokens.onSurfaceVariant),
+                            style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
                           ),
                         ],
                       ),

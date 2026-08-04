@@ -84,7 +84,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final canFinish = _page != 2 || _selected.isNotEmpty;
     return Scaffold(
-      backgroundColor: ForgeTokens.background,
+      backgroundColor: ForgeTokens.of(context).background,
       body: SafeArea(
         child: Column(
           children: [
@@ -161,7 +161,7 @@ class _Dot extends StatelessWidget {
       width: active ? 20 : 8,
       height: 8,
       decoration: BoxDecoration(
-        color: active ? ForgeTokens.primary : ForgeTokens.outlineVariant,
+        color: active ? ForgeTokens.of(context).primary : ForgeTokens.of(context).outlineVariant,
         borderRadius: BorderRadius.circular(4),
       ),
     );
@@ -186,25 +186,25 @@ class _OnboardingSlide extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 72, color: ForgeTokens.primary),
+          Icon(icon, size: 72, color: ForgeTokens.of(context).primary),
           const SizedBox(height: 28),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
-              color: ForgeTokens.onSurface,
+              color: ForgeTokens.of(context).onSurface,
             ),
           ),
           const SizedBox(height: 14),
           Text(
             description,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               height: 1.4,
-              color: ForgeTokens.onSurfaceVariant,
+              color: ForgeTokens.of(context).onSurfaceVariant,
             ),
           ),
         ],
@@ -226,20 +226,20 @@ class _InterestPickerSlide extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text(
+          Text(
             'What do you want to learn?',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
-              color: ForgeTokens.onSurface,
+              color: ForgeTokens.of(context).onSurface,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Pick up to $_maxInterests — we\'ll personalize your feed.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: ForgeTokens.onSurfaceVariant),
+            style: TextStyle(fontSize: 14, color: ForgeTokens.of(context).onSurfaceVariant),
           ),
           const SizedBox(height: 24),
           Wrap(
@@ -256,7 +256,7 @@ class _InterestPickerSlide extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
-                      color: isSelected ? ForgeTokens.primary : Colors.transparent,
+                      color: isSelected ? ForgeTokens.of(context).primary : Colors.transparent,
                       width: 2,
                     ),
                   ),

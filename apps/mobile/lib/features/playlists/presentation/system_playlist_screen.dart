@@ -119,10 +119,10 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
                                       fit: BoxFit.cover,
                                     )
                                   : ColoredBox(
-                                      color: ForgeTokens.surfaceContainerHigh,
+                                      color: ForgeTokens.of(context).surfaceContainerHigh,
                                       child: Icon(
                                         Icons.play_arrow,
-                                        color: ForgeTokens.onSurfaceVariant,
+                                        color: ForgeTokens.of(context).onSurfaceVariant,
                                       ),
                                     ),
                             ),

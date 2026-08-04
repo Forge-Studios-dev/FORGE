@@ -445,7 +445,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                         children: [
                           Text(
                             _accessMessage(accessReason),
-                            style: const TextStyle(color: Colors.white70),
+                            style: TextStyle(color: Colors.white70),
                             textAlign: TextAlign.center,
                           ),
                           if (accessReason == 'age_confirmation_required') ...[
@@ -528,7 +528,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const CircularProgressIndicator(color: Colors.white70),
+                                        CircularProgressIndicator(color: Colors.white70),
                                         const SizedBox(height: 12),
                                         const Text(
                                           'Host connection lost. Waiting for reconnection…',
@@ -584,7 +584,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                   if (_health != null) ...[
                     Text(
                       'Mux: ${_health!['muxStatus'] ?? '—'}${_health!['reconnecting'] == true ? ' (reconnecting)' : ''}',
-                      style: const TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant),
+                      style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
                     ),
                     const SizedBox(height: 4),
                   ],

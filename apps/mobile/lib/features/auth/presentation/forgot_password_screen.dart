@@ -61,7 +61,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       appBar: AppBar(
         title: const Text('Reset password'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => context.canPop() ? context.pop() : context.go('/login'),
         ),
       ),
@@ -75,7 +75,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     const SizedBox(height: 24),
                     Text(
                       'If an account exists for that email, we sent a reset link. Check your inbox and spam folder.',
-                      style: TextStyle(color: ForgeTokens.onSurfaceVariant, height: 1.4),
+                      style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, height: 1.4),
                     ),
                     const SizedBox(height: 24),
                     TextButton(
@@ -94,11 +94,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: ForgeTokens.error.withValues(alpha: 0.12),
+                            color: ForgeTokens.of(context).error.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: ForgeTokens.error.withValues(alpha: 0.35)),
+                            border: Border.all(color: ForgeTokens.of(context).error.withValues(alpha: 0.35)),
                           ),
-                          child: Text(_error!, style: const TextStyle(color: ForgeTokens.error, fontSize: 13)),
+                          child: Text(_error!, style: TextStyle(color: ForgeTokens.of(context).error, fontSize: 13)),
                         ),
                         const SizedBox(height: 16),
                       ],

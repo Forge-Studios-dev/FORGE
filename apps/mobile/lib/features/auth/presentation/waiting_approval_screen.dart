@@ -19,9 +19,9 @@ class WaitingApprovalScreen extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'You can still browse and watch videos while you wait.',
-              style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+              style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
             ),
             const SizedBox(height: 32),
             FilledButton(

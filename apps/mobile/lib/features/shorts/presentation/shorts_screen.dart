@@ -131,7 +131,7 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
     }
     if (_error) {
       return Scaffold(
-        backgroundColor: ForgeTokens.background,
+        backgroundColor: ForgeTokens.of(context).background,
         appBar: AppBar(title: const Text('Shorts')),
         body: ForgeEmptyState(
           icon: Icons.error_outline,
@@ -144,7 +144,7 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
     }
     if (_videos.isEmpty) {
       return Scaffold(
-        backgroundColor: ForgeTokens.background,
+        backgroundColor: ForgeTokens.of(context).background,
         appBar: AppBar(title: const Text('Shorts')),
         body: ForgeEmptyState(
           icon: Icons.movie_filter_outlined,
@@ -355,7 +355,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: ForgeTokens.surfaceContainerHigh,
+      backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -417,7 +417,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                             ),
                           ),
                         ),
-                        IconButton(onPressed: post, icon: const Icon(Icons.send)),
+                        IconButton(onPressed: post, icon: Icon(Icons.send)),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -425,10 +425,10 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                       child: loading
                           ? const Center(child: CircularProgressIndicator())
                           : comments.isEmpty
-                              ? const Center(
+                              ? Center(
                                   child: Text(
                                     'No comments yet',
-                                    style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+                                    style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                                   ),
                                 )
                               : ListView.builder(
@@ -441,7 +441,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                                       title: Text(user?['displayName'] as String? ?? 'User'),
                                       subtitle: Text(
                                         m['content'] as String? ?? '',
-                                        style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                                        style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                                       ),
                                     );
                                   },
@@ -692,7 +692,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
             right: 8,
             child: PopupMenuButton<String>(
               tooltip: 'More',
-              color: ForgeTokens.surfaceContainerHigh,
+              color: ForgeTokens.of(context).surfaceContainerHigh,
               onSelected: (value) async {
                 try {
                   final repo = ref.read(watchRepositoryProvider);

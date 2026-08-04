@@ -42,22 +42,22 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ForgeTokens.background,
+      backgroundColor: ForgeTokens.of(context).background,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'FORGE',
               style: TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 40,
                 letterSpacing: 1.5,
-                color: ForgeTokens.primary,
+                color: ForgeTokens.of(context).primary,
               ),
             ),
             const SizedBox(height: 24),
-            const CircularProgressIndicator(color: ForgeTokens.primary),
+            CircularProgressIndicator(color: ForgeTokens.of(context).primary),
           ],
         ),
       ),

@@ -57,13 +57,13 @@ class ApprovalRejectedScreen extends ConsumerWidget {
               ),
               if (me.displayName.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Text(me.displayName, style: const TextStyle(color: ForgeTokens.onSurfaceVariant)),
+                Text(me.displayName, style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
               ],
               if (me.creatorReviewNote != null && me.creatorReviewNote!.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 const Text('Reason', style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
-                Text(me.creatorReviewNote!, style: const TextStyle(color: ForgeTokens.onSurfaceVariant)),
+                Text(me.creatorReviewNote!, style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
               ],
               const SizedBox(height: 28),
               FilledButton(

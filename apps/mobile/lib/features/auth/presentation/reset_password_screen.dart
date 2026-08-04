@@ -80,7 +80,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       appBar: AppBar(
         title: const Text('New password'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => context.canPop() ? context.pop() : context.go('/login'),
         ),
       ),
@@ -95,7 +95,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                 if (!_tokenFromDeepLink) ...[
                   Text(
                     'Paste the reset token from your email (or open the link from your phone).',
-                    style: TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 13, height: 1.4),
+                    style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, fontSize: 13, height: 1.4),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -118,11 +118,11 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: ForgeTokens.error.withValues(alpha: 0.12),
+                      color: ForgeTokens.of(context).error.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: ForgeTokens.error.withValues(alpha: 0.35)),
+                      border: Border.all(color: ForgeTokens.of(context).error.withValues(alpha: 0.35)),
                     ),
-                    child: Text(_error!, style: const TextStyle(color: ForgeTokens.error, fontSize: 13)),
+                    child: Text(_error!, style: TextStyle(color: ForgeTokens.of(context).error, fontSize: 13)),
                   ),
                   const SizedBox(height: 16),
                 ],

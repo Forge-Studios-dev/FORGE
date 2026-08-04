@@ -199,7 +199,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: Text(_error!, style: const TextStyle(color: ForgeTokens.error)),
+                child: Text(_error!, style: TextStyle(color: ForgeTokens.of(context).error)),
               ),
             SegmentedButton<String>(
               segments: const [
@@ -212,11 +212,11 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
                   : (s) => setState(() => _videoType = s.first),
             ),
             if (_videoType == 'short')
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 8, bottom: 4),
                 child: Text(
                   'Shorts work best under 60 seconds.',
-                  style: TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 13),
+                  style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, fontSize: 13),
                 ),
               ),
             const SizedBox(height: 16),
@@ -231,15 +231,15 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
                         _pendingResume!.backgrounded
                             ? 'Upload paused — reopen the app to continue.'
                             : 'You have an unfinished upload.',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: ForgeTokens.onSurface,
+                          color: ForgeTokens.of(context).onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _pendingResume!.title,
-                        style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                        style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -305,9 +305,9 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
         padding: EdgeInsets.symmetric(vertical: 8),
         child: LinearProgressIndicator(),
       ),
-      error: (_, __) => const Text(
+      error: (_, __) => Text(
         'Could not load categories. Pull to retry.',
-        style: TextStyle(color: ForgeTokens.error),
+        style: TextStyle(color: ForgeTokens.of(context).error),
       ),
       data: (categories) {
         if (categories.isEmpty) {

@@ -68,7 +68,7 @@ class MembershipPanel extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Text(
                     'Test',
-                    style: TextStyle(color: ForgeTokens.warning, fontSize: 11),
+                    style: TextStyle(color: ForgeTokens.of(context).warning, fontSize: 11),
                   ),
                 ],
               ],

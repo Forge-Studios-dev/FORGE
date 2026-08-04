@@ -10,7 +10,7 @@ class StudioScreen extends StatelessWidget {
   void _openAttentionSheet(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: ForgeTokens.surfaceContainerHigh,
+      backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -27,24 +27,24 @@ class StudioScreen extends StatelessWidget {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: ForgeTokens.outline,
+                      color: ForgeTokens.of(context).outline,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Attention',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: ForgeTokens.onSurface,
+                    color: ForgeTokens.of(context).onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Jump to the inbox that needs you next.',
-                  style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+                  style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                 ),
                 const SizedBox(height: 16),
                 _sheetAction(
@@ -79,7 +79,7 @@ class StudioScreen extends StatelessWidget {
   void _openCreateSheet(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: ForgeTokens.surfaceContainerHigh,
+      backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -96,24 +96,24 @@ class StudioScreen extends StatelessWidget {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: ForgeTokens.outline,
+                      color: ForgeTokens.of(context).outline,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Create',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: ForgeTokens.onSurface,
+                    color: ForgeTokens.of(context).onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Pick what you want to publish next.',
-                  style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+                  style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                 ),
                 const SizedBox(height: 16),
                 _sheetAction(
@@ -168,7 +168,7 @@ class StudioScreen extends StatelessWidget {
         },
         child: Row(
           children: [
-            Icon(icon, color: ForgeTokens.primary),
+            Icon(icon, color: ForgeTokens.of(context).primary),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -176,22 +176,22 @@ class StudioScreen extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: ForgeTokens.onSurface,
+                      color: ForgeTokens.of(context).onSurface,
                     ),
                   ),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: ForgeTokens.onSurfaceVariant,
+                      color: ForgeTokens.of(context).onSurfaceVariant,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: ForgeTokens.outline),
+            Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
           ],
         ),
       ),
@@ -204,25 +204,25 @@ class StudioScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Creator Studio')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openCreateSheet(context),
-        icon: const Icon(Icons.add),
+        icon: Icon(Icons.add),
         label: const Text('Create'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
         children: [
-          const Text(
+          Text(
             'Command center',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.1,
-              color: ForgeTokens.outline,
+              color: ForgeTokens.of(context).outline,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Publish, go live, and keep up with what needs attention.',
-            style: TextStyle(color: ForgeTokens.onSurfaceVariant, height: 1.4),
+            style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, height: 1.4),
           ),
           const SizedBox(height: 16),
           Row(
@@ -246,9 +246,9 @@ class StudioScreen extends StatelessWidget {
           const SizedBox(height: 16),
           ForgeCard(
             onTap: () => _openAttentionSheet(context),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.notifications_active, color: ForgeTokens.tertiary),
+                Icon(Icons.notifications_active, color: ForgeTokens.of(context).tertiary),
                 SizedBox(width: 16),
                 Expanded(
                   child: Column(
@@ -256,16 +256,16 @@ class StudioScreen extends StatelessWidget {
                     children: [
                       Text(
                         'Attention',
-                        style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.onSurface),
+                        style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface),
                       ),
                       Text(
                         'Comments, moderation, and subscribers',
-                        style: TextStyle(fontSize: 13, color: ForgeTokens.onSurfaceVariant),
+                        style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, color: ForgeTokens.outline),
+                Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
               ],
             ),
           ),
@@ -293,11 +293,11 @@ class StudioScreen extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10, top: 4),
       child: Text(
         label.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.1,
-          color: ForgeTokens.outline,
+          color: ForgeTokens.of(context).outline,
         ),
       ),
     );
@@ -310,18 +310,18 @@ class StudioScreen extends StatelessWidget {
         onTap: () => context.push(route),
         child: Row(
           children: [
-            Icon(icon, color: ForgeTokens.primary),
+            Icon(icon, color: ForgeTokens.of(context).primary),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
-                  Text(sub, style: const TextStyle(fontSize: 13, color: ForgeTokens.onSurfaceVariant)),
+                  Text(title, style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface)),
+                  Text(sub, style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant)),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: ForgeTokens.outline),
+            Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
           ],
         ),
       ),

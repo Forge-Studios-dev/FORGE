@@ -99,10 +99,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Welcome back',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: ForgeTokens.onSurfaceVariant),
+                  style: TextStyle(fontSize: 16, color: ForgeTokens.of(context).onSurfaceVariant),
                 ),
                 const SizedBox(height: 48),
 
@@ -110,11 +110,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: ForgeTokens.error.withValues(alpha: 0.12),
+                      color: ForgeTokens.of(context).error.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: ForgeTokens.error.withValues(alpha: 0.35)),
+                      border: Border.all(color: ForgeTokens.of(context).error.withValues(alpha: 0.35)),
                     ),
-                    child: Text(_error!, style: const TextStyle(color: ForgeTokens.error, fontSize: 13)),
+                    child: Text(_error!, style: TextStyle(color: ForgeTokens.of(context).error, fontSize: 13)),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -186,7 +186,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("Don't have an account? ", style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+                    Text("Don't have an account? ", style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                     TextButton(
                       onPressed: () => context.go('/signup'),
                       child: const Text('Sign up'),

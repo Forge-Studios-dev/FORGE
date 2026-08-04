@@ -555,7 +555,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                       child: isVideo
                           ? InkWell(
                               onTap: () => launchUrl(Uri.parse(s), mode: LaunchMode.externalApplication),
-                              child: Text('▶ Watch video', style: TextStyle(color: ForgeTokens.primary)),
+                              child: Text('▶ Watch video', style: TextStyle(color: ForgeTokens.of(context).primary)),
                             )
                           : ClipRRect(
                               borderRadius: BorderRadius.circular(8),
@@ -581,7 +581,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                           Icon(
                             likedByMe ? Icons.thumb_up : Icons.thumb_up_outlined,
                             size: 16,
-                            color: likedByMe ? ForgeTokens.primary : ForgeTokens.onSurfaceVariant,
+                            color: likedByMe ? ForgeTokens.of(context).primary : ForgeTokens.of(context).onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Text('$likes'),
@@ -617,7 +617,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                             Expanded(
                               child: Text(
                                 '${(c['author'] as Map?)?['displayName'] ?? 'Member'}${isReply ? ' · reply' : ''}: ${c['body']}',
-                                style: const TextStyle(fontSize: 13, color: ForgeTokens.onSurfaceVariant),
+                                style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
                               ),
                             ),
                             if (commentId != null)
@@ -869,7 +869,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
                         'Badges: ${(_gamificationProfile!['badges'] as List).join(', ')}',
-                        style: const TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant),
+                        style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
                       ),
                     ),
                   const SizedBox(height: 8),
@@ -920,7 +920,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.lock_outline, size: 48, color: ForgeTokens.onSurfaceVariant),
+                Icon(Icons.lock_outline, size: 48, color: ForgeTokens.of(context).onSurfaceVariant),
                 const SizedBox(height: 12),
                 const Text(
                   'This community is restricted',

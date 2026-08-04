@@ -238,7 +238,7 @@ class _StudioSubscribersScreenState extends ConsumerState<StudioSubscribersScree
                                 ),
                                 Text(
                                   '${s['tierName'] ?? 'Tier'} · ${s['status']}',
-                                  style: const TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant),
+                                  style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
                                 ),
                               ],
                             ),

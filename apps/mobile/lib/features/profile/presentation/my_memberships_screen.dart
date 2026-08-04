@@ -199,25 +199,25 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
                               ),
                               Text(
                                 tier?['name'] as String? ?? 'Member',
-                                style: const TextStyle(
-                                  color: ForgeTokens.onSurfaceVariant,
+                                style: TextStyle(
+                                  color: ForgeTokens.of(context).onSurfaceVariant,
                                   fontSize: 13,
                                 ),
                               ),
                               Text(
                                 status.replaceAll('_', ' ').toUpperCase(),
                                 style: TextStyle(
-                                  color: ForgeTokens.primary,
+                                  color: ForgeTokens.of(context).primary,
                                   fontSize: 11,
                                 ),
                               ),
                               if (isRenewalPending)
-                                const Padding(
+                                Padding(
                                   padding: EdgeInsets.only(top: 4),
                                   child: Text(
                                     'Cancels at end of billing period',
                                     style: TextStyle(
-                                      color: ForgeTokens.onSurfaceVariant,
+                                      color: ForgeTokens.of(context).onSurfaceVariant,
                                       fontSize: 12,
                                     ),
                                   ),

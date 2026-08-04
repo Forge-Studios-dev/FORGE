@@ -32,7 +32,7 @@ class StudioVideosScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Failed to load videos', style: TextStyle(color: ForgeTokens.onSurfaceVariant)),
+              Text('Failed to load videos', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
               const SizedBox(height: 12),
               TextButton(onPressed: () => ref.invalidate(myVideosProvider), child: const Text('Retry')),
             ],
@@ -44,10 +44,10 @@ class StudioVideosScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  const ForgeCard(
+                  ForgeCard(
                     child: Text(
                       'No videos yet. Upload your first video.',
-                      style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+                      style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -72,7 +72,7 @@ class StudioVideosScreen extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(v.title, style: const TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
+                              Text(v.title, style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface)),
                               const SizedBox(height: 4),
                               Text(
                                 '${_statusLabel(v.status)} · ${v.viewCount} views',
@@ -84,7 +84,7 @@ class StudioVideosScreen extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        const Icon(Icons.chevron_right, color: ForgeTokens.outline),
+                        Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
                       ],
                     ),
                   ),
@@ -117,16 +117,16 @@ class StudioVideosScreen extends ConsumerWidget {
   Color _statusColor(String status) {
     switch (status) {
       case 'ready':
-        return ForgeTokens.secondary;
+        return ForgeTokens.of(context).secondary;
       case 'processing':
       case 'uploading':
-        return ForgeTokens.primary;
+        return ForgeTokens.of(context).primary;
       case 'failed':
-        return ForgeTokens.error;
+        return ForgeTokens.of(context).error;
       case 'draft':
-        return ForgeTokens.onSurfaceVariant;
+        return ForgeTokens.of(context).onSurfaceVariant;
       default:
-        return ForgeTokens.onSurfaceVariant;
+        return ForgeTokens.of(context).onSurfaceVariant;
     }
   }
 }

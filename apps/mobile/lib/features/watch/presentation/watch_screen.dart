@@ -119,7 +119,7 @@ class _WatchScreenState extends ConsumerState<WatchScreen> {
     final asyncVideo = ref.watch(videoDetailProvider(videoId));
 
     return Scaffold(
-      backgroundColor: ForgeTokens.background,
+      backgroundColor: ForgeTokens.of(context).background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         leading: IconButton(
@@ -326,7 +326,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
                                 ? Icons.hourglass_top
                                 : Icons.videocam_off_outlined,
                         size: 40,
-                        color: ForgeTokens.outline,
+                        color: ForgeTokens.of(context).outline,
                       ),
                       const SizedBox(height: 12),
                       Text(
@@ -336,9 +336,9 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
                                 ? 'Processing your video'
                                 : 'Playback not available',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: ForgeTokens.onSurface,
+                          color: ForgeTokens.of(context).onSurface,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -351,7 +351,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
                                     ? 'This upload could not be processed.'
                                     : 'This video is not ready for playback yet.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                        style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -391,13 +391,13 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
           video.title,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: ForgeTokens.onSurface,
+                color: ForgeTokens.of(context).onSurface,
               ),
         ),
         const SizedBox(height: 8),
         Text(
           '@${video.user.username}',
-          style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+          style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
         ),
         const SizedBox(height: 12),
         _WatchEngageRow(video: video),
@@ -455,7 +455,7 @@ class _PlaylistQueueSection extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           '$title · ${items.length} videos${shuffle ? ' · Shuffle on' : ''}',
-          style: const TextStyle(color: ForgeTokens.onSurfaceVariant, fontSize: 13),
+          style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, fontSize: 13),
         ),
         const SizedBox(height: 8),
         ...items.asMap().entries.map((entry) {
@@ -481,7 +481,7 @@ class _PlaylistQueueSection extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
-                        color: active ? ForgeTokens.primary : ForgeTokens.outline,
+                        color: active ? ForgeTokens.of(context).primary : ForgeTokens.of(context).outline,
                         fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                       ),
                     ),
@@ -493,13 +493,13 @@ class _PlaylistQueueSection extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: ForgeTokens.onSurface,
+                        color: ForgeTokens.of(context).onSurface,
                         fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                       ),
                     ),
                   ),
                   if (active)
-                    const Icon(Icons.play_arrow, size: 18, color: ForgeTokens.primary),
+                    Icon(Icons.play_arrow, size: 18, color: ForgeTokens.of(context).primary),
                 ],
               ),
             ),
@@ -536,7 +536,7 @@ class _ExpandableDescriptionState extends ConsumerState<_ExpandableDescription> 
         _LinkifiedText(
           text: shown,
           videoId: widget.videoId,
-          style: const TextStyle(height: 1.4, color: ForgeTokens.onSurfaceVariant),
+          style: TextStyle(height: 1.4, color: ForgeTokens.of(context).onSurfaceVariant),
         ),
         if (needsToggle)
           TextButton(
@@ -579,7 +579,7 @@ class _LinkifiedText extends ConsumerWidget {
               child: Text(
                 token,
                 style: TextStyle(
-                  color: ForgeTokens.primary,
+                  color: ForgeTokens.of(context).primary,
                   fontWeight: FontWeight.w600,
                   height: style?.height,
                 ),
@@ -598,7 +598,7 @@ class _LinkifiedText extends ConsumerWidget {
               child: Text(
                 token,
                 style: TextStyle(
-                  color: ForgeTokens.primary,
+                  color: ForgeTokens.of(context).primary,
                   fontWeight: FontWeight.w600,
                   height: style?.height,
                 ),
@@ -619,7 +619,7 @@ class _LinkifiedText extends ConsumerWidget {
               child: Text(
                 token,
                 style: TextStyle(
-                  color: seconds != null ? ForgeTokens.primary : ForgeTokens.onSurfaceVariant,
+                  color: seconds != null ? ForgeTokens.of(context).primary : ForgeTokens.of(context).onSurfaceVariant,
                   fontWeight: seconds != null ? FontWeight.w600 : FontWeight.normal,
                   height: style?.height,
                 ),
@@ -635,7 +635,7 @@ class _LinkifiedText extends ConsumerWidget {
     }
     return Text.rich(
       TextSpan(
-        style: style ?? const TextStyle(height: 1.4, color: ForgeTokens.onSurfaceVariant),
+        style: style ?? TextStyle(height: 1.4, color: ForgeTokens.of(context).onSurfaceVariant),
         children: spans,
       ),
     );
@@ -1045,7 +1045,7 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: ForgeTokens.surfaceContainerHigh,
+      backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -1067,7 +1067,7 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
                   const SizedBox(height: 8),
                   Text(
                     'Send Super Thanks to ${widget.video.user.displayName} (USD).',
-                    style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                    style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -1096,7 +1096,7 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
                   ),
                   if (hint != null) ...[
                     const SizedBox(height: 8),
-                    Text(hint!, style: const TextStyle(color: ForgeTokens.warning)),
+                    Text(hint!, style: TextStyle(color: ForgeTokens.of(context).warning)),
                   ],
                   const SizedBox(height: 12),
                   FilledButton(
@@ -1220,7 +1220,7 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
                     PopupMenuItem(value: 'unsubscribe', child: Text('Unsubscribe')),
                   ],
                   child: Material(
-                    color: ForgeTokens.surfaceContainerHighest,
+                    color: ForgeTokens.of(context).surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(20),
                     child: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1240,8 +1240,8 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
               : FilledButton(
                   onPressed: _busy ? null : _toggleSubscribe,
                   style: FilledButton.styleFrom(
-                    backgroundColor: ForgeTokens.onSurface,
-                    foregroundColor: ForgeTokens.background,
+                    backgroundColor: ForgeTokens.of(context).onSurface,
+                    foregroundColor: ForgeTokens.of(context).background,
                   ),
                   child: const Text('Subscribe'),
                 ),
@@ -1298,7 +1298,7 @@ class _ReportVideoButtonState extends ConsumerState<_ReportVideoButton> {
   void _openSheet() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: ForgeTokens.surfaceContainerHigh,
+      backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -1335,9 +1335,9 @@ class _ReportVideoButtonState extends ConsumerState<_ReportVideoButton> {
       alignment: Alignment.centerLeft,
       child: TextButton.icon(
         onPressed: _openSheet,
-        icon: const Icon(Icons.flag_outlined, size: 18),
+        icon: Icon(Icons.flag_outlined, size: 18),
         label: const Text('Report'),
-        style: TextButton.styleFrom(foregroundColor: ForgeTokens.outline),
+        style: TextButton.styleFrom(foregroundColor: ForgeTokens.of(context).outline),
       ),
     );
   }
@@ -1729,9 +1729,9 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                           : _sort == 'oldest'
                               ? 'Oldest'
                               : 'Top',
-                      style: const TextStyle(fontSize: 13, color: ForgeTokens.primary),
+                      style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).primary),
                     ),
-                    const Icon(Icons.arrow_drop_down, size: 18, color: ForgeTokens.primary),
+                    Icon(Icons.arrow_drop_down, size: 18, color: ForgeTokens.of(context).primary),
                   ],
                 ),
               ),
@@ -1758,13 +1758,13 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                 ),
               ),
             ),
-            IconButton(onPressed: _post, icon: const Icon(Icons.send)),
+            IconButton(onPressed: _post, icon: Icon(Icons.send)),
           ],
         ),
         if (_loading)
           const Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator())
         else if (_comments.isEmpty)
-          const Text('No comments yet', style: TextStyle(color: ForgeTokens.onSurfaceVariant))
+          Text('No comments yet', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant))
         else ...[
           ..._comments.map((c) {
             final m = c as Map<String, dynamic>;
@@ -1786,7 +1786,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
               key: key,
               decoration: isHighlighted
                   ? BoxDecoration(
-                      color: ForgeTokens.primary.withValues(alpha: 0.08),
+                      color: ForgeTokens.of(context).primary.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8),
                     )
                   : null,
@@ -1794,14 +1794,14 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (pinned)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(top: 8),
                     child: Text(
                       'Pinned',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: ForgeTokens.onSurfaceVariant,
+                        color: ForgeTokens.of(context).onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -1811,7 +1811,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                     children: [
                       Expanded(child: Text(user?['displayName'] as String? ?? 'User')),
                       if (hearted)
-                        const Icon(Icons.favorite, size: 14, color: ForgeTokens.error),
+                        Icon(Icons.favorite, size: 14, color: ForgeTokens.of(context).error),
                     ],
                   ),
                   subtitle: editing
@@ -1840,7 +1840,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                       : _LinkifiedText(
                           text: m['content'] as String? ?? '',
                           videoId: widget.videoId,
-                          style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                          style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                         ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1849,7 +1849,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                         icon: Icon(liked ? Icons.thumb_up : Icons.thumb_up_outlined, size: 18),
                         onPressed: () => _toggleLike(m),
                       ),
-                      if (likeCount > 0) Text('$likeCount', style: const TextStyle(fontSize: 12)),
+                      if (likeCount > 0) Text('$likeCount', style: TextStyle(fontSize: 12)),
                       if (isOwner && parentId == null)
                         IconButton(
                           tooltip: pinned ? 'Unpin' : 'Pin',
@@ -1862,7 +1862,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                           icon: Icon(
                             hearted ? Icons.favorite : Icons.favorite_border,
                             size: 18,
-                            color: hearted ? ForgeTokens.error : null,
+                            color: hearted ? ForgeTokens.of(context).error : null,
                           ),
                           onPressed: () => _toggleHeart(m),
                         ),
@@ -1930,11 +1930,11 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                           children: [
                             Text(
                               ru?['displayName'] as String? ?? 'User',
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                             ),
                             Text(
                               r['content'] as String? ?? '',
-                              style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                              style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                             ),
                             TextButton(
                               onPressed: () => _startReply(r),
@@ -2033,10 +2033,10 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
         looping: false,
         aspectRatio: vc.value.aspectRatio == 0 ? 16 / 9 : vc.value.aspectRatio,
         materialProgressColors: ChewieProgressColors(
-          playedColor: ForgeTokens.primary,
-          handleColor: ForgeTokens.primary,
-          backgroundColor: ForgeTokens.outlineVariant,
-          bufferedColor: ForgeTokens.surfaceContainerHigh,
+          playedColor: ForgeTokens.of(context).primary,
+          handleColor: ForgeTokens.of(context).primary,
+          backgroundColor: ForgeTokens.of(context).outlineVariant,
+          bufferedColor: ForgeTokens.of(context).surfaceContainerHigh,
         ),
       );
     });
@@ -2091,9 +2091,9 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
         aspectRatio: 16 / 9,
         child: _chewie != null
             ? Chewie(controller: _chewie!)
-            : const ColoredBox(
-                color: ForgeTokens.surfaceContainerHigh,
-                child: Center(child: CircularProgressIndicator(color: ForgeTokens.primary)),
+            : ColoredBox(
+                color: ForgeTokens.of(context).surfaceContainerHigh,
+                child: Center(child: CircularProgressIndicator(color: ForgeTokens.of(context).primary)),
               ),
       ),
     );
@@ -2188,16 +2188,16 @@ class _RelatedVideosSectionState extends ConsumerState<_RelatedVideosSection> {
                           ? Image.network(
                               thumb,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const ColoredBox(
-                                color: ForgeTokens.surfaceContainerHigh,
+                              errorBuilder: (_, __, ___) => ColoredBox(
+                                color: ForgeTokens.of(context).surfaceContainerHigh,
                                 child: Icon(Icons.play_circle_outline,
-                                    color: ForgeTokens.outline),
+                                    color: ForgeTokens.of(context).outline),
                               ),
                             )
-                          : const ColoredBox(
-                              color: ForgeTokens.surfaceContainerHigh,
+                          : ColoredBox(
+                              color: ForgeTokens.of(context).surfaceContainerHigh,
                               child: Icon(Icons.play_circle_outline,
-                                  color: ForgeTokens.outline),
+                                  color: ForgeTokens.of(context).outline),
                             ),
                     ),
                   ),
@@ -2211,9 +2211,9 @@ class _RelatedVideosSectionState extends ConsumerState<_RelatedVideosSection> {
                           v['title'] as String? ?? 'Video',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: ForgeTokens.onSurface,
+                            color: ForgeTokens.of(context).onSurface,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -2221,9 +2221,9 @@ class _RelatedVideosSectionState extends ConsumerState<_RelatedVideosSection> {
                           '@${user?['username'] ?? 'creator'}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: ForgeTokens.onSurfaceVariant,
+                            color: ForgeTokens.of(context).onSurfaceVariant,
                           ),
                         ),
                       ],
