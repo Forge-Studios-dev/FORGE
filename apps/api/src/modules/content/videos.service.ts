@@ -289,8 +289,14 @@ export class VideosService {
     if (!sanitized) {
       throw new BadRequestException('Caption source is not allowed');
     }
+    let sanitizedHost = '';
+    try {
+      sanitizedHost = new URL(sanitized).hostname.toLowerCase();
+    } catch {
+      throw new BadRequestException('Caption source is not allowed');
+    }
     const resolved =
-      sanitized.includes('stream.mux.com') || !this.cdnDomain
+      sanitizedHost === 'stream.mux.com' || sanitizedHost.endsWith('.mux.com') || !this.cdnDomain
         ? sanitized
         : rewriteMediaUrlToCdn(sanitized, this.cdnDomain) ?? sanitized;
     if (!this.isAllowedCaptionFetchUrl(resolved)) {
@@ -337,8 +343,18 @@ export class VideosService {
       ? this.cdnDomain.replace(/^https?:\/\//, '').split('/')[0].toLowerCase()
       : '';
     if (cdnHost && (host === cdnHost || host.endsWith(`.${cdnHost}`))) return true;
-    if (this.bucket && host.includes('amazonaws.com') && host.includes(this.bucket.toLowerCase())) {
-      return true;
+    if (this.bucket) {
+      const bucket = this.bucket.toLowerCase();
+      const s3Hosts = [
+        `${bucket}.s3.amazonaws.com`,
+        `${bucket}.s3.dualstack.us-east-1.amazonaws.com`,
+      ];
+      if (
+        s3Hosts.includes(host) ||
+        (host.startsWith(`${bucket}.s3.`) && host.endsWith('.amazonaws.com'))
+      ) {
+        return true;
+      }
     }
     if (host.endsWith('.amazonaws.com') || host.endsWith('.cloudfront.net')) return true;
     if (host === 'stream.mux.com' || host.endsWith('.mux.com')) return true;

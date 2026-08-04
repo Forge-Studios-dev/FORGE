@@ -63,7 +63,7 @@ export function MiniPlayerDock() {
         hlsRef.current = null;
       }
     };
-  }, [session?.videoId, session?.hlsUrl, onSameWatch, updateSeconds]);
+  }, [session, onSameWatch, updateSeconds]);
 
   if (!session || onSameWatch) return null;
 

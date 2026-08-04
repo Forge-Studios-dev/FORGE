@@ -8,6 +8,14 @@ export type VttCue = {
   text: string;
 };
 
+function stripCueMarkup(text: string): string {
+  return text
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[<>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function parseTimestamp(raw: string): number | null {
   const parts = raw.trim().replace(',', '.').split(':');
   if (parts.length < 2 || parts.length > 3) return null;
@@ -47,11 +55,7 @@ export function parseWebVtt(source: string): VttCue[] {
     const startSeconds = parseTimestamp(startRaw);
     const endSeconds = parseTimestamp(endRaw);
     if (startSeconds == null || endSeconds == null) continue;
-    const text = textLines
-      .join(' ')
-      .replace(/<[^>]+>/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    const text = stripCueMarkup(textLines.join(' '));
     if (!text) continue;
     cues.push({ startSeconds, endSeconds, text });
   }

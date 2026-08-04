@@ -29,7 +29,7 @@ export function PlaylistDetailClient({ playlistId }: { playlistId: string }) {
     },
   });
 
-  const items = query.data?.items ?? [];
+  const items = useMemo(() => query.data?.items ?? [], [query.data?.items]);
   const filteredItems = useMemo(() => {
     const q = itemQuery.trim().toLowerCase();
     if (!q) return items;

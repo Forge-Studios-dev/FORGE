@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsInt, IsString, MaxLength, Min } from 'class-validator';
 
 export class PresignProfileImageUploadDto {
   @ApiProperty()

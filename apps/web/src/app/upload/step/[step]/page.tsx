@@ -411,7 +411,7 @@ function UploadStepContent() {
                           persist({ skillTagIds: ids });
                         }}
                       />
-                      {tag.name}
+                      {tag.name.replace(/[<>]/g, '')}
                     </label>
                   ))
                 )}

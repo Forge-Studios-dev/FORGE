@@ -259,14 +259,18 @@ export class PlaylistsService {
       throw new BadRequestException('Liked videos order follows like time');
     }
 
+    const normalizedVideoIds = Array.isArray(videoIds) ? videoIds.slice(0, 500) : [];
     const items = await this.playlistVideoRepository.find({ where: { playlistId } });
     const byVideo = new Map(items.map((i) => [i.videoId, i]));
-    if (videoIds.length !== items.length || videoIds.some((id) => !byVideo.has(id))) {
+    if (
+      normalizedVideoIds.length !== items.length ||
+      normalizedVideoIds.some((id) => !byVideo.has(id))
+    ) {
       throw new BadRequestException('Reorder must include every video in the playlist exactly once');
     }
 
-    for (let i = 0; i < videoIds.length; i++) {
-      const item = byVideo.get(videoIds[i])!;
+    for (let i = 0; i < normalizedVideoIds.length; i++) {
+      const item = byVideo.get(normalizedVideoIds[i])!;
       item.position = i;
       await this.playlistVideoRepository.save(item);
     }

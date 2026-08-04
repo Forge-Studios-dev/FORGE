@@ -17,7 +17,7 @@ export function NewPlaylistClient() {
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
   const [error, setError] = useState('');
-  const { user, isGuest } = useAuth();
+  const { isGuest } = useAuth();
 
   const create = useMutation({
     mutationFn: async () => {

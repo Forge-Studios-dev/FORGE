@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { PlaylistVisibility } from '../entities/playlist.entity';
 
 export class UpdatePlaylistDto {
@@ -25,6 +33,7 @@ export class UpdatePlaylistDto {
 export class ReorderPlaylistDto {
   @ApiProperty({ type: [String], description: 'Video IDs in desired order' })
   @IsArray()
+  @ArrayMaxSize(500)
   @IsString({ each: true })
   videoIds: string[];
 }

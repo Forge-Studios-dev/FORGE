@@ -28,7 +28,7 @@ function SubscriptionsContent() {
     },
   });
 
-  const channels = channelsQuery.data ?? [];
+  const channels = useMemo(() => channelsQuery.data ?? [], [channelsQuery.data]);
   const filteredChannel = useMemo(
     () => (channelFilter ? channels.find((c) => c.id === channelFilter) : null),
     [channels, channelFilter],
