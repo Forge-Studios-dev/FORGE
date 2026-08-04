@@ -317,6 +317,8 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
 | Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |
 | Analytics | Studio details page uses `topVideos` (impressions/CTR/watch %); SQL uses `watched_at` | Done (2026-08-04) |
+| Comments | Video owner can Remove comments (API + watch/Studio/mobile) | Done (2026-08-04) |
+| Community | Channel Community tab expand/reply on posts | Done (2026-08-04) |
 | Recs | Full ML / embeddings stack | Product |
 | Downloads | Real offline download packages (UI hidden) | Product |
 | Legal | Kids / Restricted Mode / made-for-kids | Product + legal |
