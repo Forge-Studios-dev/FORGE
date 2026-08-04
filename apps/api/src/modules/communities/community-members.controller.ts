@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { CommunityMembersService } from './community-members.service';
@@ -15,7 +15,7 @@ export class CommunityMembersController {
 
   @Post('communities/:communityId/join-request')
   @ApiOperation({ summary: 'Request to join a private or invite community' })
-  requestJoin(@CurrentUser() user: JwtPayload, @Param('communityId') communityId: string) {
+  requestJoin(@CurrentUser() user: JwtPayload, @Param('communityId', ParseUUIDPipe) communityId: string) {
     return this.membersService.requestJoin(user.sub, communityId, user.role);
   }
 
@@ -24,7 +24,7 @@ export class CommunityMembersController {
   @ApiOperation({ summary: 'List community members and join requests' })
   listMembers(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Query('status') status?: CommunityMemberStatus,
   ) {
     return this.membersService.listMembers(user.sub, communityId, status);
@@ -35,8 +35,8 @@ export class CommunityMembersController {
   @ApiOperation({ summary: 'Approve a pending community member' })
   approve(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('userId') userId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
   ) {
     return this.membersService.approveMember(user.sub, communityId, userId, user.role);
   }
@@ -46,8 +46,8 @@ export class CommunityMembersController {
   @ApiOperation({ summary: 'Reject a pending community member' })
   reject(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('userId') userId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
   ) {
     return this.membersService.rejectMember(user.sub, communityId, userId, user.role);
   }
@@ -57,8 +57,8 @@ export class CommunityMembersController {
   @ApiOperation({ summary: 'Suspend an active community member' })
   suspend(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('userId') userId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
   ) {
     return this.membersService.suspendMember(user.sub, communityId, userId, user.role);
   }
@@ -68,8 +68,8 @@ export class CommunityMembersController {
   @ApiOperation({ summary: 'Restore a suspended community member' })
   unsuspend(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('userId') userId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
   ) {
     return this.membersService.unsuspendMember(user.sub, communityId, userId, user.role);
   }
@@ -79,7 +79,7 @@ export class CommunityMembersController {
   @ApiOperation({ summary: 'Export community members as CSV' })
   async exportMembers(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Res() res: Response,
   ) {
     const csv = await this.membersService.exportMembersCsv(user.sub, communityId);

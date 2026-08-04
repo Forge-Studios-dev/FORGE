@@ -360,38 +360,47 @@ describe('Community HTTP (mocked e2e)', () => {
   });
 
   it('GET /api/v1/communities/:id/rooms lists rooms', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/communities/comm-1/rooms');
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const res = await request(app.getHttpServer()).get(`/api/v1/communities/${communityId}/rooms`);
     expect(res.status).toBe(200);
-    expect(roomsService.listRooms).toHaveBeenCalledWith('comm-1', 'user-1', 'consumer');
+    expect(roomsService.listRooms).toHaveBeenCalledWith(communityId, 'user-1', 'consumer');
   });
 
   it('POST /api/v1/communities/:id/rooms/:roomId/token returns LiveKit token', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const roomId = '00000000-0000-4000-8000-0000000000a1';
     const res = await request(app.getHttpServer()).post(
-      '/api/v1/communities/comm-1/rooms/room-1/token',
+      `/api/v1/communities/${communityId}/rooms/${roomId}/token`,
     );
     expect(res.status).toBe(201);
     expect(roomsService.joinRoomToken).toHaveBeenCalled();
   });
 
   it('POST /api/v1/communities/:id/rooms/:roomId/raise-hand raises hand in stage', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const roomId = '00000000-0000-4000-8000-0000000000a1';
     const res = await request(app.getHttpServer()).post(
-      '/api/v1/communities/comm-1/rooms/room-1/raise-hand',
+      `/api/v1/communities/${communityId}/rooms/${roomId}/raise-hand`,
     );
     expect(res.status).toBe(201);
     expect(roomsService.raiseHand).toHaveBeenCalled();
   });
 
   it('GET /api/v1/communities/:id/rooms/:roomId/messages lists text room messages', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const roomId = '00000000-0000-4000-8000-0000000000a1';
     const res = await request(app.getHttpServer()).get(
-      '/api/v1/communities/comm-1/rooms/room-1/messages',
+      `/api/v1/communities/${communityId}/rooms/${roomId}/messages`,
     );
     expect(res.status).toBe(200);
     expect(roomMessagesService.listMessages).toHaveBeenCalled();
   });
 
   it('POST /api/v1/communities/:id/rooms/:roomId/messages sends text room message', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const roomId = '00000000-0000-4000-8000-0000000000a1';
     const res = await request(app.getHttpServer())
-      .post('/api/v1/communities/comm-1/rooms/room-1/messages')
+      .post(`/api/v1/communities/${communityId}/rooms/${roomId}/messages`)
       .send({ body: 'Hello text room' });
     expect(res.status).toBe(201);
     expect(roomMessagesService.sendMessage).toHaveBeenCalled();
@@ -421,25 +430,29 @@ describe('Community HTTP (mocked e2e)', () => {
   });
 
   it('POST /api/v1/communities/:id/join-request submits join request', async () => {
-    const res = await request(app.getHttpServer()).post('/api/v1/communities/comm-1/join-request');
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const res = await request(app.getHttpServer()).post(`/api/v1/communities/${communityId}/join-request`);
     expect(res.status).toBe(201);
-    expect(membersService.requestJoin).toHaveBeenCalledWith('user-1', 'comm-1', 'consumer');
+    expect(membersService.requestJoin).toHaveBeenCalledWith('user-1', communityId, 'consumer');
   });
 
   it('GET /api/v1/creators/me/communities/:id/members lists members', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
     const res = await request(app.getHttpServer()).get(
-      '/api/v1/creators/me/communities/comm-1/members?status=pending',
+      `/api/v1/creators/me/communities/${communityId}/members?status=pending`,
     );
     expect(res.status).toBe(200);
-    expect(membersService.listMembers).toHaveBeenCalledWith('user-1', 'comm-1', 'pending');
+    expect(membersService.listMembers).toHaveBeenCalledWith('user-1', communityId, 'pending');
   });
 
   it('PATCH /api/v1/creators/me/communities/:id/members/:userId/approve approves member', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const userId = '00000000-0000-4000-8000-0000000000b2';
     const res = await request(app.getHttpServer()).patch(
-      '/api/v1/creators/me/communities/comm-1/members/user-2/approve',
+      `/api/v1/creators/me/communities/${communityId}/members/${userId}/approve`,
     );
     expect(res.status).toBe(200);
-    expect(membersService.approveMember).toHaveBeenCalledWith('user-1', 'comm-1', 'user-2', 'consumer');
+    expect(membersService.approveMember).toHaveBeenCalledWith('user-1', communityId, userId, 'consumer');
   });
 
   it('GET /api/v1/creators/:creatorId/communities/:slug/access returns join metadata', async () => {
@@ -456,11 +469,13 @@ describe('Community HTTP (mocked e2e)', () => {
   });
 
   it('PATCH /api/v1/creators/me/communities/:id/members/:userId/reject rejects member', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const userId = '00000000-0000-4000-8000-0000000000b2';
     const res = await request(app.getHttpServer()).patch(
-      '/api/v1/creators/me/communities/comm-1/members/user-2/reject',
+      `/api/v1/creators/me/communities/${communityId}/members/${userId}/reject`,
     );
     expect(res.status).toBe(200);
-    expect(membersService.rejectMember).toHaveBeenCalledWith('user-1', 'comm-1', 'user-2', 'consumer');
+    expect(membersService.rejectMember).toHaveBeenCalledWith('user-1', communityId, userId, 'consumer');
   });
 
   it('POST /api/v1/creators/me/subscribers/grant grants comp membership', async () => {

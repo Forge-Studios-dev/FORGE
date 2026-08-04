@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CommunityModerationService } from './community-moderation.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -19,7 +19,7 @@ export class CommunityModerationController {
   @ApiOperation({ summary: 'Report community content (message, post, poll, or user)' })
   report(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Body() body: CreateReportDto,
   ) {
     return this.moderationService.createReport(
@@ -39,7 +39,7 @@ export class CommunityModerationController {
   @Patch('admin/community-reports/:reportId/resolve')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Resolve a community report (admin)' })
-  resolve(@CurrentUser() user: JwtPayload, @Param('reportId') reportId: string) {
+  resolve(@CurrentUser() user: JwtPayload, @Param('reportId', ParseUUIDPipe) reportId: string) {
     return this.moderationService.resolveReport(reportId, user.sub);
   }
 
@@ -49,7 +49,7 @@ export class CommunityModerationController {
   @ApiOperation({ summary: 'Ban a member from community' })
   ban(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Body() body: BanMemberDto,
   ) {
     const expiresAt = body.expiresAt ? new Date(body.expiresAt) : undefined;
@@ -69,8 +69,8 @@ export class CommunityModerationController {
   @ApiOperation({ summary: 'Unban a community member' })
   unban(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('userId') userId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
   ) {
     return this.moderationService.unbanMember(user.sub, communityId, userId, user.role);
   }
@@ -81,7 +81,7 @@ export class CommunityModerationController {
   @ApiOperation({ summary: 'Assign a community role to a user' })
   assignRole(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Body() body: AssignRoleDto,
   ) {
     return this.moderationService.assignRole(
@@ -97,7 +97,7 @@ export class CommunityModerationController {
   @UseGuards(CommunityRoleGuard)
   @CommunityRoles(CommunityRoleType.ADMIN, CommunityRoleType.OWNER)
   @ApiOperation({ summary: 'List community role assignments' })
-  listRoles(@CurrentUser() user: JwtPayload, @Param('communityId') communityId: string) {
+  listRoles(@CurrentUser() user: JwtPayload, @Param('communityId', ParseUUIDPipe) communityId: string) {
     return this.moderationService.listRoles(user.sub, communityId, user.role);
   }
 
@@ -107,8 +107,8 @@ export class CommunityModerationController {
   @ApiOperation({ summary: 'Remove a community role from a user' })
   removeRole(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('userId') userId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
   ) {
     return this.moderationService.removeRole(user.sub, communityId, userId, user.role);
   }
@@ -117,7 +117,7 @@ export class CommunityModerationController {
   @UseGuards(CommunityRoleGuard)
   @CommunityRoles(CommunityRoleType.ADMIN, CommunityRoleType.MODERATOR, CommunityRoleType.OWNER)
   @ApiOperation({ summary: 'List community bans' })
-  listBans(@CurrentUser() user: JwtPayload, @Param('communityId') communityId: string) {
+  listBans(@CurrentUser() user: JwtPayload, @Param('communityId', ParseUUIDPipe) communityId: string) {
     return this.moderationService.listBans(user.sub, communityId, user.role);
   }
 
@@ -138,7 +138,7 @@ export class CommunityModerationController {
   @ApiOperation({ summary: 'List community reports for creator moderation' })
   listCommunityReports(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Query('status') status = 'open',
   ) {
     return this.moderationService.listReportsForCommunity(
@@ -160,8 +160,8 @@ export class CommunityModerationController {
   @ApiOperation({ summary: 'Resolve a community report (creator/moderator)' })
   resolveCommunityReport(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('reportId') reportId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('reportId', ParseUUIDPipe) reportId: string,
   ) {
     return this.moderationService.resolveReportForCommunity(
       user.sub,

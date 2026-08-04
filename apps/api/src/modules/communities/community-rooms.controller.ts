@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -61,7 +61,7 @@ export class CommunityRoomsController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/:communityId/rooms')
   @ApiOperation({ summary: 'List active rooms in a community' })
-  listRooms(@Param('communityId') communityId: string, @CurrentUser() user?: JwtPayload) {
+  listRooms(@Param('communityId', ParseUUIDPipe) communityId: string, @CurrentUser() user?: JwtPayload) {
     return this.roomsService.listRooms(communityId, user?.sub, user?.role);
   }
 
@@ -70,8 +70,8 @@ export class CommunityRoomsController {
   @Get('communities/:communityId/rooms/:roomId')
   @ApiOperation({ summary: 'Get a community room by id' })
   getRoom(
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
     @CurrentUser() user?: JwtPayload,
   ) {
     return this.roomsService.getRoom(communityId, roomId, user?.sub, user?.role);
@@ -82,7 +82,7 @@ export class CommunityRoomsController {
   @ApiOperation({ summary: 'Create a community room (text, voice, stage, or breakout)' })
   createRoom(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Body() dto: CreateCommunityRoomDto,
   ) {
     return this.roomsService.createRoom(user.sub, communityId, dto, user.role);
@@ -93,8 +93,8 @@ export class CommunityRoomsController {
   @ApiOperation({ summary: 'Update a community room' })
   updateRoom(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
     @Body()
     body: {
       name?: string;
@@ -113,8 +113,8 @@ export class CommunityRoomsController {
   @ApiOperation({ summary: 'Deactivate a community room' })
   deactivateRoom(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
   ) {
     return this.roomsService.deactivateRoom(user.sub, communityId, roomId, user.role);
   }
@@ -123,8 +123,8 @@ export class CommunityRoomsController {
   @ApiOperation({ summary: 'Get LiveKit token to join a voice/stage/breakout room' })
   joinToken(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
   ) {
     return this.roomsService.joinRoomToken(
       user.sub,
@@ -139,8 +139,8 @@ export class CommunityRoomsController {
   @ApiOperation({ summary: 'Raise hand in a stage room' })
   raiseHand(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
   ) {
     return this.roomsService.raiseHand(user.sub, communityId, roomId, user.role);
   }
@@ -149,8 +149,8 @@ export class CommunityRoomsController {
   @ApiOperation({ summary: 'Lower hand in a stage room' })
   lowerHand(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
   ) {
     return this.roomsService.lowerHand(user.sub, communityId, roomId, user.role);
   }
@@ -159,8 +159,8 @@ export class CommunityRoomsController {
   @ApiOperation({ summary: 'List raised hands (hosts only)' })
   listRaisedHands(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
   ) {
     return this.roomsService.listRaisedHands(user.sub, communityId, roomId, user.role);
   }
@@ -169,9 +169,9 @@ export class CommunityRoomsController {
   @ApiOperation({ summary: 'Approve a raised hand as stage speaker (hosts only)' })
   approveSpeaker(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
-    @Param('targetUserId') targetUserId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
+    @Param('targetUserId', ParseUUIDPipe) targetUserId: string,
   ) {
     return this.roomsService.approveStageSpeaker(
       user.sub,
@@ -187,8 +187,8 @@ export class CommunityRoomsController {
   @Get('communities/:communityId/rooms/:roomId/messages')
   @ApiOperation({ summary: 'List text room messages' })
   listRoomMessages(
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
     @Query('limit') limit = 50,
     @Query('cursor') cursor?: string,
     @Query('parentMessageId') parentMessageId?: string,
@@ -209,8 +209,8 @@ export class CommunityRoomsController {
   @ApiOperation({ summary: 'Send a text room message' })
   sendRoomMessage(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
     @Body() body: { body: string; parentMessageId?: string },
   ) {
     return this.roomMessagesService.sendMessage(
@@ -227,9 +227,9 @@ export class CommunityRoomsController {
   @ApiOperation({ summary: 'Delete a text room message' })
   deleteRoomMessage(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
-    @Param('messageId') messageId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
   ) {
     return this.roomMessagesService.deleteMessage(
       communityId,
@@ -244,8 +244,8 @@ export class CommunityRoomsController {
   @UseGuards(CreatorApprovedGuard)
   listRoomPermissions(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
   ) {
     return this.roomPermissionsService.listPermissions(user.sub, communityId, roomId);
   }
@@ -254,8 +254,8 @@ export class CommunityRoomsController {
   @UseGuards(CreatorApprovedGuard)
   grantRoomPermission(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
     @Body() body: { userId: string; permission: CommunityRoomPermission },
   ) {
     return this.roomPermissionsService.grantPermission(
@@ -271,9 +271,9 @@ export class CommunityRoomsController {
   @UseGuards(CreatorApprovedGuard)
   revokeRoomPermission(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
-    @Param('targetUserId') targetUserId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
+    @Param('targetUserId', ParseUUIDPipe) targetUserId: string,
     @Body() body: { permission?: CommunityRoomPermission },
   ) {
     return this.roomPermissionsService.revokePermission(

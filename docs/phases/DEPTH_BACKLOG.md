@@ -201,6 +201,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Add real web `/[username]/subscribers` + `/[username]/subscriptions` pages so ProfileHeader links resolve
 - Add `/communities/id/[communityId]` redirect page and make discover paid/fallback links route through canonical community resolution
 
+## Hardening pass 11 (2026-08-04)
+
+- Add `ParseUUIDPipe` across active community member, moderation, and room endpoints
+- Update mocked community e2e IDs to valid UUIDs and keep the suite green under the stricter guards
+
 ## Still open
 
 | Area | Item | Owner |
