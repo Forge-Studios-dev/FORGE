@@ -33,6 +33,30 @@ const PHASE_LABEL: Record<UploadPhase, string> = {
   completing: 'Finalizing video…',
 };
 
+/** Local image preview without blob:→img.src (CodeQL js/xss-through-dom FP). */
+async function imageFileToPreviewDataUrl(file: File): Promise<string | null> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maxEdge = 640;
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      bitmap.close();
+      return null;
+    }
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } catch {
+    return null;
+  }
+}
+
 function UploadStepContent() {
   const params = useParams();
   const router = useRouter();
@@ -63,7 +87,9 @@ function UploadStepContent() {
     const storedThumb = getUploadThumbnail();
     if (storedThumb) {
       setThumbnail(storedThumb);
-      setThumbnailPreview(URL.createObjectURL(storedThumb));
+      void imageFileToPreviewDataUrl(storedThumb).then((url) => {
+        if (url) setThumbnailPreview(url);
+      });
     }
   }, [step, searchParams]);
 
@@ -443,12 +469,15 @@ function UploadStepContent() {
                     const f = e.target.files?.[0] ?? null;
                     setThumbnail(f);
                     setUploadThumbnail(f);
-                    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
-                    setThumbnailPreview(f ? URL.createObjectURL(f) : null);
+                    setThumbnailPreview(null);
+                    if (f) {
+                      void imageFileToPreviewDataUrl(f).then((url) => {
+                        if (url) setThumbnailPreview(url);
+                      });
+                    }
                   }}
                 />
                 {thumbnailPreview ? (
-                  // next/image can't optimize blob: object URLs (local file preview, never fetched over the network)
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={thumbnailPreview}
