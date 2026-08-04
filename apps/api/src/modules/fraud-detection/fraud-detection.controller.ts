@@ -11,10 +11,24 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { FraudDetectionService } from './fraud-detection.service';
 import { FraudAlertStatus, FraudSignal } from './entities/fraud-alert.entity';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
+
+class UpdateFraudAlertDto {
+  @ApiProperty({ enum: FraudAlertStatus })
+  @IsEnum(FraudAlertStatus)
+  status: FraudAlertStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}
 
 @ApiTags('Fraud Detection')
 @Controller('admin/fraud')
@@ -58,7 +72,7 @@ export class FraudDetectionController {
   @ApiOperation({ summary: 'Update fraud alert status and notes (admin)' })
   updateAlert(
     @Param('alertId', ParseUUIDPipe) alertId: string,
-    @Body() body: { status: FraudAlertStatus; notes?: string },
+    @Body() body: UpdateFraudAlertDto,
   ) {
     return this.fraudService.updateAlertStatus(alertId, body.status, body.notes).then(() => ({ ok: true }));
   }

@@ -48,6 +48,73 @@ class CreateCommunityRoomDto {
   parentRoomId?: string;
 }
 
+class UpdateCommunityRoomDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  maxParticipants?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  sortOrder?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  requiredTierId?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string | null;
+}
+
+class SendCommunityRoomMessageDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  body: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  parentMessageId?: string;
+}
+
+class GrantCommunityRoomPermissionDto {
+  @ApiProperty()
+  @IsUUID()
+  userId: string;
+
+  @ApiPropertyOptional({ enum: CommunityRoomPermission })
+  @IsOptional()
+  @IsEnum(CommunityRoomPermission)
+  permission?: CommunityRoomPermission;
+}
+
+class RevokeCommunityRoomPermissionDto {
+  @ApiPropertyOptional({ enum: CommunityRoomPermission })
+  @IsOptional()
+  @IsEnum(CommunityRoomPermission)
+  permission?: CommunityRoomPermission;
+}
+
 @ApiTags('Community Rooms')
 @Controller()
 export class CommunityRoomsController {
@@ -95,15 +162,7 @@ export class CommunityRoomsController {
     @CurrentUser() user: JwtPayload,
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @Param('roomId', ParseUUIDPipe) roomId: string,
-    @Body()
-    body: {
-      name?: string;
-      description?: string;
-      maxParticipants?: number;
-      sortOrder?: number;
-      requiredTierId?: string | null;
-      categoryId?: string | null;
-    },
+    @Body() body: UpdateCommunityRoomDto,
   ) {
     return this.roomsService.updateRoom(user.sub, communityId, roomId, body, user.role);
   }
@@ -211,7 +270,7 @@ export class CommunityRoomsController {
     @CurrentUser() user: JwtPayload,
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @Param('roomId', ParseUUIDPipe) roomId: string,
-    @Body() body: { body: string; parentMessageId?: string },
+    @Body() body: SendCommunityRoomMessageDto,
   ) {
     return this.roomMessagesService.sendMessage(
       communityId,
@@ -256,7 +315,7 @@ export class CommunityRoomsController {
     @CurrentUser() user: JwtPayload,
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @Param('roomId', ParseUUIDPipe) roomId: string,
-    @Body() body: { userId: string; permission: CommunityRoomPermission },
+    @Body() body: GrantCommunityRoomPermissionDto,
   ) {
     return this.roomPermissionsService.grantPermission(
       user.sub,
@@ -274,7 +333,7 @@ export class CommunityRoomsController {
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @Param('roomId', ParseUUIDPipe) roomId: string,
     @Param('targetUserId', ParseUUIDPipe) targetUserId: string,
-    @Body() body: { permission?: CommunityRoomPermission },
+    @Body() body: RevokeCommunityRoomPermissionDto,
   ) {
     return this.roomPermissionsService.revokePermission(
       user.sub,

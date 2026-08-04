@@ -9,9 +9,10 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreatorStatus, User, UserRole } from '../users/entities/user.entity';
 import { ModerationStatus, Video, VideoStatus } from '../content/entities/video.entity';
@@ -36,6 +37,20 @@ import { AdminGrantSubscriptionDto } from '../entitlements/dto/tier.dto';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { AuthUserCacheService } from '../auth/auth-user-cache.service';
 import { clampLimit, clampPage } from '../../common/utils/pagination.util';
+
+class RejectCreatorDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
+}
+
+class UpdateAdminReportStatusDto {
+  @ApiProperty({ enum: ReportStatus })
+  @IsEnum(ReportStatus)
+  status: ReportStatus;
+}
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -222,7 +237,7 @@ export class AdminController {
 
   @Post('creators/:id/reject')
   @ApiOperation({ summary: 'Reject a creator request' })
-  async rejectCreator(@Param('id', ParseUUIDPipe) id: string, @Body() dto: { note?: string }) {
+  async rejectCreator(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RejectCreatorDto) {
     await this.userRepository.update(id, {
       role: UserRole.CREATOR,
       creatorStatus: CreatorStatus.REJECTED,
@@ -301,7 +316,7 @@ export class AdminController {
 
   @Patch('reports/:id')
   @ApiOperation({ summary: 'Update report status' })
-  updateReport(@Param('id', ParseUUIDPipe) id: string, @Body() dto: { status: ReportStatus }) {
+  updateReport(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminReportStatusDto) {
     return this.reportsService.updateStatus(id, dto.status);
   }
 

@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiOperation, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
+import { IsArray, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import { AiCommunityService } from './ai-community.service';
 import { AiBudgetService } from './ai-budget.service';
 import { CreatorAuditService } from './creator-audit.service';
@@ -10,6 +11,51 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+
+class ScoreCommunityContentDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(10000)
+  text: string;
+}
+
+class CreatorInsightsDto {
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  totalSubscribers: number;
+
+  @ApiProperty()
+  @IsNumber()
+  mrr: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  churnRate?: number;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  videoViews: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  lessonCompletionRate?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  communityEngagement?: number;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  topContentTitles?: string[];
+}
 
 @ApiTags('Community AI')
 @Controller()
@@ -25,7 +71,7 @@ export class CommunityAiController {
   @Post('creators/me/ai/moderation/score')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Score content for spam/toxicity (creator copilot)' })
-  async scoreContent(@Body() body: { text: string }) {
+  async scoreContent(@Body() body: ScoreCommunityContentDto) {
     // TransformInterceptor wraps as { success, data } — return the score object directly.
     return this.aiCommunityService.scoreContentAsync(body.text ?? '');
   }
@@ -35,7 +81,7 @@ export class CommunityAiController {
   @ApiOperation({ summary: 'Community health score and copilot tips' })
   async communityHealth(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
   ) {
     const analytics = await this.communitiesService.getCommunityAnalytics(
       user.sub,
@@ -59,8 +105,8 @@ export class CommunityAiController {
   @ApiOperation({ summary: 'Summarize recent text room discussion' })
   async summarizeRoom(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('roomId') roomId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
   ) {
     const { data } = await this.roomMessagesService.listMessages(
       communityId,
@@ -88,16 +134,7 @@ export class CommunityAiController {
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Claude-powered creator analytics insights and recommendations' })
   async creatorInsights(
-    @Body()
-    body: {
-      totalSubscribers: number;
-      mrr: number;
-      churnRate?: number;
-      videoViews: number;
-      lessonCompletionRate?: number;
-      communityEngagement?: number;
-      topContentTitles?: string[];
-    },
+    @Body() body: CreatorInsightsDto,
   ) {
     return this.aiCommunityService.generateCreatorInsights(body);
   }

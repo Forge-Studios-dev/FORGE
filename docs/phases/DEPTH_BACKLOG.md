@@ -251,6 +251,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Extend `ParseUUIDPipe` validation across active membership, analytics, referral, fraud-detection, and admin moderation/detail routes
 - Verify the admin-facing controller pass with `admin.security.spec.ts`
 
+## Hardening pass 21 (2026-08-04)
+
+- Replace raw inline bodies with DTO-validated payloads on active room messaging/permissions, creator AI moderation/insights, fraud alert updates, and admin creator/report moderation actions
+- Add missing UUID validation to active creator AI community/room routes
+- Verify with targeted API smoke tests on `community-rooms.service.spec.ts` and `admin.security.spec.ts`
+
 ## Still open
 
 | Area | Item | Owner |
