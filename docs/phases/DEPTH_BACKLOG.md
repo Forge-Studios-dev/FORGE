@@ -236,6 +236,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Rename the active web/mobile upload helper layer from `lesson` to `video` terminology and delete the now-orphaned `upload-lesson.ts`
 - Clean the remaining watch-detail/internal upload comments that still referenced LMS-era lesson naming
 
+## Hardening pass 18 (2026-08-04)
+
+- Tighten web LMS legacy routing by redirecting nested `/studio/programs/...` paths through `next.config.mjs` instead of leaving deep links to dead IA
+- Confirm the existing web course redirects already cover `/courses` and `/discover/courses`, avoiding duplicate filesystem routes
+
 ## Still open
 
 | Area | Item | Owner |

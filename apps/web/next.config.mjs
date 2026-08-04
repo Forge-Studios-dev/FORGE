@@ -48,6 +48,7 @@ const nextConfig = {
       '/studio/brands',
       '/studio/bundles',
       '/studio/programs',
+      '/studio/programs/:path*',
       '/studio/resources',
       '/studio/referrals',
       '/studio/channel-points',
