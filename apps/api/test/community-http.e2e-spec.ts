@@ -18,6 +18,7 @@ import { CommunityModerationService } from '../src/modules/communities/community
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../src/common/guards/optional-jwt.guard';
 import { CreatorApprovedGuard } from '../src/common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../src/common/guards/skill-economy-lms.guard';
 import { CommunityRoleGuard } from '../src/modules/communities/guards/community-role.guard';
 import { GamificationController } from '../src/modules/gamification/gamification.controller';
 import { GamificationService } from '../src/modules/gamification/gamification.service';
@@ -34,6 +35,7 @@ import { CreatorAuditService } from '../src/modules/communities/creator-audit.se
 import { EntitlementsController } from '../src/modules/entitlements/entitlements.controller';
 import { EntitlementsService } from '../src/modules/entitlements/entitlements.service';
 import { CreatorBundlesService } from '../src/modules/entitlements/creator-bundles.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('Community HTTP (mocked e2e)', () => {
   let app: INestApplication;
@@ -187,6 +189,13 @@ describe('Community HTTP (mocked e2e)', () => {
         { provide: CommunityMembersService, useValue: membersService },
         { provide: EntitlementsService, useValue: entitlementsService },
         { provide: CreatorBundlesService, useValue: creatorBundlesService },
+        SkillEconomyLmsGuard,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) => (key === 'features.skillEconomyLms' ? true : undefined),
+          },
+        },
       ],
     })
       .overrideGuard(JwtAuthGuard)
