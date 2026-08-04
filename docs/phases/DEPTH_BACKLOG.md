@@ -263,6 +263,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Add `ParseUUIDPipe` coverage to active community event route params
 - Verify with targeted API smoke tests on `community-events.service.spec.ts` and `creator-resources.service.spec.ts`
 
+## Hardening pass 23 (2026-08-04)
+
+- Add DTO validation for active community group creation and `ParseUUIDPipe` coverage across community group and poll route params
+- Verify the community poll route pass with `community-polls.service.spec.ts`
+
 ## Still open
 
 | Area | Item | Owner |
