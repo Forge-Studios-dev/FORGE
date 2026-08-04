@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -29,7 +30,7 @@ export class EntitlementsController {
   @Public()
   @Get('creators/:creatorId/tiers')
   @ApiOperation({ summary: 'List active membership tiers for a creator' })
-  listTiers(@Param('creatorId') creatorId: string) {
+  listTiers(@Param('creatorId', ParseUUIDPipe) creatorId: string) {
     return this.entitlementsService.listTiersForCreator(creatorId);
   }
 
@@ -45,7 +46,7 @@ export class EntitlementsController {
   @ApiOperation({ summary: 'Update a membership tier' })
   updateTier(
     @CurrentUser() user: JwtPayload,
-    @Param('tierId') tierId: string,
+    @Param('tierId', ParseUUIDPipe) tierId: string,
     @Body() dto: UpdateTierDto,
   ) {
     return this.entitlementsService.updateTier(user.sub, tierId, dto);
@@ -54,7 +55,7 @@ export class EntitlementsController {
   @Delete('creators/me/tiers/:tierId')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Deactivate a membership tier' })
-  deleteTier(@CurrentUser() user: JwtPayload, @Param('tierId') tierId: string) {
+  deleteTier(@CurrentUser() user: JwtPayload, @Param('tierId', ParseUUIDPipe) tierId: string) {
     return this.entitlementsService.deleteTier(user.sub, tierId);
   }
 
@@ -68,7 +69,7 @@ export class EntitlementsController {
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'My membership status for a creator' })
   myMembershipForCreator(
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ParseUUIDPipe) creatorId: string,
     @CurrentUser() user?: JwtPayload,
   ) {
     if (!user?.sub) return { active: false };
@@ -85,7 +86,7 @@ export class EntitlementsController {
   @ApiOperation({ summary: 'Cancel membership for a creator' })
   cancelSubscription(
     @CurrentUser() user: JwtPayload,
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ParseUUIDPipe) creatorId: string,
     @Query('cancelAtPeriodEnd') cancelAtPeriodEnd?: string,
   ) {
     return this.entitlementsService.cancelMySubscription(
@@ -143,7 +144,7 @@ export class EntitlementsController {
   @ApiOperation({ summary: 'Suspend a subscriber membership' })
   suspendSubscriber(
     @CurrentUser() user: JwtPayload,
-    @Param('subscriptionId') subscriptionId: string,
+    @Param('subscriptionId', ParseUUIDPipe) subscriptionId: string,
   ) {
     return this.entitlementsService.suspendSubscriber(user.sub, subscriptionId);
   }
@@ -151,7 +152,7 @@ export class EntitlementsController {
   @Get('creators/me/tiers/:tierId/entitlements')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'List tier entitlements' })
-  listTierEntitlements(@CurrentUser() user: JwtPayload, @Param('tierId') tierId: string) {
+  listTierEntitlements(@CurrentUser() user: JwtPayload, @Param('tierId', ParseUUIDPipe) tierId: string) {
     return this.entitlementsService.listTierEntitlements(user.sub, tierId);
   }
 
@@ -160,7 +161,7 @@ export class EntitlementsController {
   @ApiOperation({ summary: 'Add tier entitlement' })
   addTierEntitlement(
     @CurrentUser() user: JwtPayload,
-    @Param('tierId') tierId: string,
+    @Param('tierId', ParseUUIDPipe) tierId: string,
     @Body() dto: CreateTierEntitlementDto,
   ) {
     return this.entitlementsService.addTierEntitlement(user.sub, tierId, dto);
@@ -171,8 +172,8 @@ export class EntitlementsController {
   @ApiOperation({ summary: 'Remove tier entitlement' })
   removeTierEntitlement(
     @CurrentUser() user: JwtPayload,
-    @Param('tierId') tierId: string,
-    @Param('entitlementId') entitlementId: string,
+    @Param('tierId', ParseUUIDPipe) tierId: string,
+    @Param('entitlementId', ParseUUIDPipe) entitlementId: string,
   ) {
     return this.entitlementsService.removeTierEntitlement(user.sub, tierId, entitlementId);
   }

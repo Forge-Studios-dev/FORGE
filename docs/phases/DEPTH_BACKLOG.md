@@ -246,6 +246,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Add `ParseUUIDPipe` coverage to active live/video creator endpoints: stream chat, stream Q&A, studio stream analytics, browser broadcast controls, and creator resource routes
 - Verify the change with a targeted API smoke test on `stream-analytics.controller.spec.ts`
 
+## Hardening pass 20 (2026-08-04)
+
+- Extend `ParseUUIDPipe` validation across active membership, analytics, referral, fraud-detection, and admin moderation/detail routes
+- Verify the admin-facing controller pass with `admin.security.spec.ts`
+
 ## Still open
 
 | Area | Item | Owner |

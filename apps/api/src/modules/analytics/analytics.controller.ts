@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -73,7 +73,7 @@ export class AnalyticsController {
   @Get('kpi/communities/:communityId/churn')
   @ApiOperation({ summary: 'Community growth + engagement KPI for creator' })
   async communityChurn(
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Query('window') window = 30,
   ) {
     return this.kpiService.computeCommunityChurnKpi(communityId, Number(window) || 30);
@@ -82,7 +82,7 @@ export class AnalyticsController {
   @Get('kpi/communities/:communityId/churn-prediction')
   @ApiOperation({ summary: 'P12-T024: Identify at-risk members likely to churn' })
   async communityChurnPrediction(
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Query('window') window = 30,
   ) {
     return this.kpiService.predictCommunityChurn(communityId, Number(window) || 30);
@@ -90,7 +90,7 @@ export class AnalyticsController {
 
   @Get('kpi/communities/:communityId/predictions')
   @ApiOperation({ summary: 'P12-T023/025/026: Community health score, engagement prediction, and risk assessment' })
-  async communityPredictions(@Param('communityId') communityId: string) {
+  async communityPredictions(@Param('communityId', ParseUUIDPipe) communityId: string) {
     return this.kpiService.communityPredictions(communityId);
   }
 }

@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -40,7 +41,7 @@ export class FraudDetectionController {
   @Get('users/:userId/risk')
   @Permissions(Permission.MANAGE_PLATFORM)
   @ApiOperation({ summary: 'Get risk profile for a user (admin)' })
-  getUserRisk(@Param('userId') userId: string) {
+  getUserRisk(@Param('userId', ParseUUIDPipe) userId: string) {
     return this.fraudService.getUserRiskProfile(userId);
   }
 
@@ -48,7 +49,7 @@ export class FraudDetectionController {
   @HttpCode(HttpStatus.OK)
   @Permissions(Permission.MANAGE_PLATFORM)
   @ApiOperation({ summary: 'Run fraud checks on a user on demand (admin)' })
-  runCheck(@Param('userId') userId: string) {
+  runCheck(@Param('userId', ParseUUIDPipe) userId: string) {
     return this.fraudService.runManualCheck(userId);
   }
 
@@ -56,7 +57,7 @@ export class FraudDetectionController {
   @Permissions(Permission.MANAGE_PLATFORM)
   @ApiOperation({ summary: 'Update fraud alert status and notes (admin)' })
   updateAlert(
-    @Param('alertId') alertId: string,
+    @Param('alertId', ParseUUIDPipe) alertId: string,
     @Body() body: { status: FraudAlertStatus; notes?: string },
   ) {
     return this.fraudService.updateAlertStatus(alertId, body.status, body.notes).then(() => ({ ok: true }));

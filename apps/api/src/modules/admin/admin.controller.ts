@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -82,14 +83,14 @@ export class AdminController {
 
   @Get('users/:id/summary')
   @ApiOperation({ summary: 'User overview stats for admin detail' })
-  getUserSummary(@Param('id') id: string) {
+  getUserSummary(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getUserSummary(id);
   }
 
   @Get('users/:id/videos')
   @ApiOperation({ summary: 'List all videos by user (any status)' })
   getUserVideos(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
     @Query('status') status?: VideoStatus,
@@ -100,7 +101,7 @@ export class AdminController {
   @Get('users/:id/reports')
   @ApiOperation({ summary: 'Reports involving this user (filed, received, or on their videos)' })
   getUserReports(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
@@ -109,25 +110,25 @@ export class AdminController {
 
   @Get('users/:id/watch-history')
   @ApiOperation({ summary: 'Watch history for a user (admin)' })
-  getUserWatchHistory(@Param('id') id: string, @Query('limit') limit = 20) {
+  getUserWatchHistory(@Param('id', ParseUUIDPipe) id: string, @Query('limit') limit = 20) {
     return this.adminService.getUserWatchHistory(id, clampLimit(limit));
   }
 
   @Get('users/:id/playlists')
   @ApiOperation({ summary: 'Playlists owned by user (admin)' })
-  getUserPlaylists(@Param('id') id: string) {
+  getUserPlaylists(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getUserPlaylists(id);
   }
 
   @Get('users/:id')
   @ApiOperation({ summary: 'Get user profile (admin)' })
-  getUser(@Param('id') id: string) {
+  getUser(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.findUserById(id);
   }
 
   @Post('users/:id/impersonate')
   @ApiOperation({ summary: 'Create a short-lived link to sign in on web as this user' })
-  impersonateUser(@Param('id') id: string, @CurrentUser() admin: JwtPayload) {
+  impersonateUser(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
     return this.adminService.createImpersonation(admin.sub, id);
   }
 
@@ -141,7 +142,7 @@ export class AdminController {
   @Patch('users/:id')
   @ApiOperation({ summary: 'Update user role or status (admin)' })
   updateUser(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAdminUserDto,
     @CurrentUser() admin: JwtPayload,
   ) {
@@ -150,13 +151,13 @@ export class AdminController {
 
   @Delete('users/:id')
   @ApiOperation({ summary: 'Soft-delete user account (admin)' })
-  deleteUser(@Param('id') id: string) {
+  deleteUser(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.deleteUser(id);
   }
 
   @Post('users/:id/resend-verification')
   @ApiOperation({ summary: 'Resend email verification to user (admin)' })
-  resendUserVerification(@Param('id') id: string) {
+  resendUserVerification(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.resendUserVerificationEmail(id);
   }
 
@@ -205,7 +206,7 @@ export class AdminController {
 
   @Post('creators/:id/approve')
   @ApiOperation({ summary: 'Approve a creator request' })
-  async approveCreator(@Param('id') id: string) {
+  async approveCreator(@Param('id', ParseUUIDPipe) id: string) {
     await this.userRepository.update(id, {
       role: UserRole.CREATOR,
       creatorStatus: CreatorStatus.APPROVED,
@@ -221,7 +222,7 @@ export class AdminController {
 
   @Post('creators/:id/reject')
   @ApiOperation({ summary: 'Reject a creator request' })
-  async rejectCreator(@Param('id') id: string, @Body() dto: { note?: string }) {
+  async rejectCreator(@Param('id', ParseUUIDPipe) id: string, @Body() dto: { note?: string }) {
     await this.userRepository.update(id, {
       role: UserRole.CREATOR,
       creatorStatus: CreatorStatus.REJECTED,
@@ -269,7 +270,7 @@ export class AdminController {
   @Patch('videos/:id')
   @ApiOperation({ summary: 'Moderate or update video (admin)' })
   updateVideo(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAdminVideoDto,
     @CurrentUser() admin: JwtPayload,
   ) {
@@ -288,7 +289,7 @@ export class AdminController {
 
   @Get('reports/:id')
   @ApiOperation({ summary: 'Get a single report (admin)' })
-  getReport(@Param('id') id: string) {
+  getReport(@Param('id', ParseUUIDPipe) id: string) {
     return this.reportsService.findById(id);
   }
 
@@ -300,7 +301,7 @@ export class AdminController {
 
   @Patch('reports/:id')
   @ApiOperation({ summary: 'Update report status' })
-  updateReport(@Param('id') id: string, @Body() dto: { status: ReportStatus }) {
+  updateReport(@Param('id', ParseUUIDPipe) id: string, @Body() dto: { status: ReportStatus }) {
     return this.reportsService.updateStatus(id, dto.status);
   }
 
@@ -319,13 +320,13 @@ export class AdminController {
 
   @Patch('categories/:id')
   @ApiOperation({ summary: 'Update a category (admin)' })
-  updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
+  updateCategory(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCategoryDto) {
     return this.categoriesService.update(id, dto);
   }
 
   @Delete('categories/:id')
   @ApiOperation({ summary: 'Delete a category (admin)' })
-  deleteCategory(@Param('id') id: string) {
+  deleteCategory(@Param('id', ParseUUIDPipe) id: string) {
     return this.categoriesService.remove(id);
   }
 
@@ -384,14 +385,14 @@ export class AdminController {
 
   @Post('streams/:id/force-end')
   @ApiOperation({ summary: 'Force end a live stream (admin)' })
-  forceEndStream(@Param('id') id: string, @CurrentUser() admin: JwtPayload) {
+  forceEndStream(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
     return this.adminService.forceEndStream(id, admin.sub);
   }
 
   @Post('streams/:id/grant-access')
   @ApiOperation({ summary: 'Grant paid event access to a user (admin)' })
   grantStreamAccess(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() admin: JwtPayload,
     @Body() dto: GrantStreamAccessDto,
   ) {
@@ -401,7 +402,7 @@ export class AdminController {
   @Get('streams/:id/chat')
   @ApiOperation({ summary: 'View stream chat for moderation (admin)' })
   getStreamChat(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() admin: JwtPayload,
     @Query('limit') limit = 50,
   ) {
@@ -411,8 +412,8 @@ export class AdminController {
   @Delete('streams/:id/chat/:messageId')
   @ApiOperation({ summary: 'Delete a stream chat message (admin)' })
   deleteStreamChatMessage(
-    @Param('id') id: string,
-    @Param('messageId') messageId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
     @CurrentUser() admin: JwtPayload,
   ) {
     return this.adminService.deleteStreamChatMessage(id, messageId, admin.sub, admin.role);
@@ -436,13 +437,13 @@ export class AdminController {
 
   @Get('communities/:id')
   @ApiOperation({ summary: 'Community detail with member stats and Connect status (admin)' })
-  getCommunityDetail(@Param('id') id: string) {
+  getCommunityDetail(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getCommunityDetail(id);
   }
 
   @Patch('communities/:id')
   @ApiOperation({ summary: 'Update community visibility or name (admin)' })
-  updateCommunity(@Param('id') id: string, @Body() dto: UpdateAdminCommunityDto) {
+  updateCommunity(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminCommunityDto) {
     return this.adminService.updateCommunity(id, dto);
   }
 
