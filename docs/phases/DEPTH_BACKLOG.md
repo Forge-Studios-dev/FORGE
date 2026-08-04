@@ -283,6 +283,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Tighten API Jest module resolution so `@forge/shared-types` maps to source consistently in both unit and e2e configs instead of falling through to built `dist` artifacts
 - Keep the API test suite green after the config change (`community-http.e2e-spec.ts` and `admin.security.spec.ts` both passing); residual `ts-jest` fallback warnings remain for shared `.js` source files and can be handled in a later dedicated test-config pass
 
+## Hardening pass 27 (2026-08-04)
+
+- Remove the duplicate root `package.json` `knip` script entry so npm no longer emits duplicate-key warnings during workspace command execution
+- Verify with an npm-driven API smoke test (`admin.security.spec.ts` passing); remaining npm warning is only the unrelated local `devdir` env config
+
 ## Still open
 
 | Area | Item | Owner |
