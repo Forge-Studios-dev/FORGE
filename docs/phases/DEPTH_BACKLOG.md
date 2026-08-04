@@ -216,6 +216,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Add `ParseUUIDPipe` across still-mounted UUID-backed `communities.controller` params (community/category/channel/message IDs)
 - Add negative mocked e2e coverage proving malformed community IDs return `400` before service logic runs
 
+## Hardening pass 14 (2026-08-04)
+
+- Replace remaining anonymous live-control bodies with DTOs for audience requests, breakout controls, co-host add, and VIP config
+- Add focused stream DTO validation specs alongside the existing breakout controller coverage
+
 ## Still open
 
 | Area | Item | Owner |

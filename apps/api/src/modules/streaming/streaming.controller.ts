@@ -20,7 +20,18 @@ import { StreamLiveService } from './stream-live.service';
 import { toPublicStream } from './stream.mapper';
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { SetSlowModeDto } from './dto/set-slow-mode.dto';
-import { AddStreamModeratorDto, CreateStreamPollDto, VoteStreamPollDto } from './dto/stream-live.dto';
+import {
+  AddCoHostDto,
+  AddStreamModeratorDto,
+  AssignBreakoutRoomsDto,
+  CreateAudienceRequestDto,
+  CreateBreakoutRoomsDto,
+  CreateStreamPollDto,
+  EndBreakoutRoomsDto,
+  RespondAudienceRequestDto,
+  SetVipTierDto,
+  VoteStreamPollDto,
+} from './dto/stream-live.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
@@ -314,7 +325,7 @@ export class StreamingController {
   createAudienceRequest(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { requestType?: AudienceRequestType; message?: string },
+    @Body() body: CreateAudienceRequestDto,
   ) {
     return this.streamLiveService.createAudienceRequest(
       id,
@@ -348,7 +359,7 @@ export class StreamingController {
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('requestId', ParseUUIDPipe) requestId: string,
-    @Body() body: { approve: boolean },
+    @Body() body: RespondAudienceRequestDto,
   ) {
     return this.streamLiveService.respondToAudienceRequest(id, requestId, user.sub, body.approve);
   }
@@ -410,7 +421,7 @@ export class StreamingController {
   createBreakoutRooms(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { roomCount: number; durationMinutes: number; maxParticipantsPerRoom?: number; namingPrefix?: string },
+    @Body() body: CreateBreakoutRoomsDto,
   ) {
     return this.streamBreakoutService.createBreakoutRooms(user.sub, id, body);
   }
@@ -433,7 +444,7 @@ export class StreamingController {
   assignBreakout(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { communityId: string; roomIds: string[] },
+    @Body() body: AssignBreakoutRoomsDto,
   ) {
     return this.streamBreakoutService.assignParticipants(user.sub, id, body.communityId, body.roomIds);
   }
@@ -445,7 +456,7 @@ export class StreamingController {
   endBreakoutRooms(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { roomIds: string[] },
+    @Body() body: EndBreakoutRoomsDto,
   ) {
     return this.streamBreakoutService.endBreakoutRooms(user.sub, id, body.roomIds).then(() => ({ ok: true }));
   }
@@ -465,7 +476,7 @@ export class StreamingController {
   addCoHost(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { userId: string },
+    @Body() body: AddCoHostDto,
   ) {
     return this.streamingService.addCoHost(user.sub, id, body.userId);
   }
@@ -490,7 +501,7 @@ export class StreamingController {
   setVipTier(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { vipTierId: string | null },
+    @Body() body: SetVipTierDto,
   ) {
     return this.streamingService.setVipTier(user.sub, id, body.vipTierId ?? null);
   }
