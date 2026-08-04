@@ -241,6 +241,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Tighten web LMS legacy routing by redirecting nested `/studio/programs/...` paths through `next.config.mjs` instead of leaving deep links to dead IA
 - Confirm the existing web course redirects already cover `/courses` and `/discover/courses`, avoiding duplicate filesystem routes
 
+## Hardening pass 19 (2026-08-04)
+
+- Add `ParseUUIDPipe` coverage to active live/video creator endpoints: stream chat, stream Q&A, studio stream analytics, browser broadcast controls, and creator resource routes
+- Verify the change with a targeted API smoke test on `stream-analytics.controller.spec.ts`
+
 ## Still open
 
 | Area | Item | Owner |

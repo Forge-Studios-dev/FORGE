@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -30,7 +31,7 @@ export class StreamChatController {
   @Get()
   @ApiOperation({ summary: 'Get stream chat history' })
   getMessages(
-    @Param('streamId') streamId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
     @Query('limit') limit = 50,
     @Query('cursor') cursor?: string,
     @Query('fromMs') fromMs?: string,
@@ -58,7 +59,7 @@ export class StreamChatController {
   @Post('super-chat')
   @ApiOperation({ summary: 'Send a super chat (tip) message' })
   sendSuperChat(
-    @Param('streamId') streamId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: SendSuperChatDto,
   ) {
@@ -68,7 +69,7 @@ export class StreamChatController {
   @Post()
   @ApiOperation({ summary: 'Send a chat message' })
   sendMessage(
-    @Param('streamId') streamId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: SendStreamChatDto,
   ) {
@@ -78,8 +79,8 @@ export class StreamChatController {
   @Delete(':messageId')
   @ApiOperation({ summary: 'Delete a chat message' })
   deleteMessage(
-    @Param('streamId') streamId: string,
-    @Param('messageId') messageId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.streamChatService.deleteMessage(streamId, messageId, user.sub, user.role);
@@ -88,7 +89,7 @@ export class StreamChatController {
   @Post('timeout')
   @ApiOperation({ summary: 'Timeout a user from chat' })
   timeoutUser(
-    @Param('streamId') streamId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: TimeoutUserDto,
   ) {
@@ -98,7 +99,7 @@ export class StreamChatController {
   @Post('ban')
   @ApiOperation({ summary: 'Ban a user from chat' })
   banUser(
-    @Param('streamId') streamId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: TimeoutUserDto,
   ) {
@@ -108,7 +109,7 @@ export class StreamChatController {
   @Post('unban')
   @ApiOperation({ summary: 'Unban a user from chat' })
   unbanUser(
-    @Param('streamId') streamId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: TimeoutUserDto,
   ) {
@@ -118,7 +119,7 @@ export class StreamChatController {
   @Patch('settings')
   @ApiOperation({ summary: 'Update chat settings (owner or delegated moderator)' })
   setChatSettings(
-    @Param('streamId') streamId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: SetStreamChatSettingsDto,
   ) {
@@ -128,7 +129,7 @@ export class StreamChatController {
   @Patch('pin')
   @ApiOperation({ summary: 'Pin or unpin a chat message' })
   pinMessage(
-    @Param('streamId') streamId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: PinMessageDto,
   ) {
@@ -143,7 +144,7 @@ export class StreamChatController {
   @Patch('slow-mode')
   @ApiOperation({ summary: 'Set chat slow mode (owner or delegated moderator)' })
   setSlowMode(
-    @Param('streamId') streamId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: SetSlowModeDto,
   ) {

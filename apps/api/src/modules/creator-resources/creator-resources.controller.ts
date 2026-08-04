@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -69,7 +70,7 @@ export class CreatorResourcesController {
   @ApiOperation({ summary: 'Update a resource (title, description, visibility)' })
   update(
     @CurrentUser() user: JwtPayload,
-    @Param('resourceId') resourceId: string,
+    @Param('resourceId', ParseUUIDPipe) resourceId: string,
     @Body()
     body: {
       title?: string;
@@ -85,7 +86,7 @@ export class CreatorResourcesController {
   @Delete('creators/me/resources/:resourceId')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Delete a resource (removes S3 file)' })
-  remove(@CurrentUser() user: JwtPayload, @Param('resourceId') resourceId: string) {
+  remove(@CurrentUser() user: JwtPayload, @Param('resourceId', ParseUUIDPipe) resourceId: string) {
     return this.resourcesService.remove(user.sub, resourceId);
   }
 
@@ -101,7 +102,7 @@ export class CreatorResourcesController {
   @Get('creators/:creatorId/resources')
   @ApiOperation({ summary: 'List active resources for a creator (consumer)' })
   listPublic(
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ParseUUIDPipe) creatorId: string,
     @CurrentUser() user?: JwtPayload,
     @Query('limit') _limit?: string,
   ) {
@@ -110,7 +111,7 @@ export class CreatorResourcesController {
 
   @Get('resources/:resourceId/download-url')
   @ApiOperation({ summary: 'Get a presigned download URL (access-checked)' })
-  getDownloadUrl(@Param('resourceId') resourceId: string, @CurrentUser() user: JwtPayload) {
+  getDownloadUrl(@Param('resourceId', ParseUUIDPipe) resourceId: string, @CurrentUser() user: JwtPayload) {
     return this.resourcesService.getDownloadUrl(resourceId, user.sub);
   }
 }
