@@ -58,7 +58,7 @@ abstract final class ForgeTokens {
   static const lightSurfaceContainerHighest = Color(0xFFE2DFE5);
   static const lightOnSurface = Color(0xFF1C1B1F);
   static const lightOnSurfaceVariant = Color(0xFF49454E);
-  static const lightOutline = Color(0xFF7A757F);
+  static const lightOutline = Color(0xFF605C66);
   static const lightOutlineVariant = Color(0xFFCAC4CF);
   static const lightPrimary = Color(0xFF6750A4);
   static const lightOnPrimary = Color(0xFFFFFFFF);

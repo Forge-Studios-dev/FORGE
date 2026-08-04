@@ -16,6 +16,17 @@ async function assertNoSeriousViolations(page: import('@playwright/test').Page) 
 }
 
 test.describe('a11y smoke', () => {
+  test.beforeEach(async ({ page }) => {
+    // Product default is dark; pin it so axe isn't flaky across OS color-scheme.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('forge-theme', 'dark');
+      } catch {
+        /* ignore */
+      }
+    });
+  });
+
   test('home has no serious axe violations', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByTestId('forge-home')).toBeVisible();
@@ -30,13 +41,14 @@ test.describe('a11y smoke', () => {
 
   test('search has no serious axe violations', async ({ page }) => {
     await page.goto('/search');
-    await expect(page.getByRole('heading', { name: /search/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Search', exact: true })).toBeVisible();
     await assertNoSeriousViolations(page);
   });
 
   test('library has no serious axe violations', async ({ page }) => {
     await page.goto('/library');
-    await expect(page.getByRole('heading', { name: /you|library/i })).toBeVisible({
+    // Guests are middleware-redirected to login.
+    await expect(page.getByRole('heading', { name: /welcome back|you|library/i })).toBeVisible({
       timeout: 20_000,
     });
     await assertNoSeriousViolations(page);
@@ -44,7 +56,11 @@ test.describe('a11y smoke', () => {
 
   test('subscriptions has no serious axe violations', async ({ page }) => {
     await page.goto('/subscriptions');
-    await expect(page.getByRole('heading', { name: /subscription/i })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Subscriptions', exact: true }).or(
+        page.getByRole('heading', { name: /welcome back/i }),
+      ),
+    ).toBeVisible({
       timeout: 20_000,
     });
     await assertNoSeriousViolations(page);
@@ -72,7 +88,8 @@ test.describe('a11y smoke', () => {
 
   test('history has no serious axe violations', async ({ page }) => {
     await page.goto('/history');
-    await expect(page.getByRole('heading', { name: /history/i })).toBeVisible({
+    // Guests are middleware-redirected to login.
+    await expect(page.getByRole('heading', { name: /welcome back|history/i })).toBeVisible({
       timeout: 20_000,
     });
     await assertNoSeriousViolations(page);
@@ -80,7 +97,8 @@ test.describe('a11y smoke', () => {
 
   test('notifications has no serious axe violations', async ({ page }) => {
     await page.goto('/notifications');
-    await expect(page.getByRole('heading', { name: /notification/i })).toBeVisible({
+    // Guests are middleware-redirected to login.
+    await expect(page.getByRole('heading', { name: /welcome back|notification/i })).toBeVisible({
       timeout: 20_000,
     });
     await assertNoSeriousViolations(page);

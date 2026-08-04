@@ -30,12 +30,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // apply it to its own bootstrap <script> tags and forces this layout to
   // render dynamically — both required for the nonce-based CSP to actually
   // match at runtime instead of silently blocking every script.
-  headers().get('x-nonce');
+  const nonce = headers().get('x-nonce') ?? undefined;
 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('forge-theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.classList.remove('light','dark');document.documentElement.classList.add(t);}catch(e){document.documentElement.classList.add('dark');}})();`,
           }}

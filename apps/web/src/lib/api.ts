@@ -51,8 +51,14 @@ api.interceptors.response.use(
   },
 );
 
+/**
+ * Server-only axios instance. Prefer `process.env.API_INTERNAL_URL` over
+ * `env.API_INTERNAL_URL` — this module is also imported by client components
+ * (via `api`), and t3-env throws if a server key is touched in the browser.
+ */
 export const serverApi = axios.create({
-  baseURL: env.API_INTERNAL_URL || API_URL,
+  baseURL:
+    (typeof window === 'undefined' ? process.env.API_INTERNAL_URL : undefined) || API_URL,
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 });

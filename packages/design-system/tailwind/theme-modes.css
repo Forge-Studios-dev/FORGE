@@ -57,7 +57,8 @@
   --forge-color-surface-container-highest: #e2dfe5;
   --forge-color-on-surface: #1c1b1f;
   --forge-color-on-surface-variant: #49454e;
-  --forge-color-outline: #7a757f;
+  /* WCAG AA on light surfaces (≥4.5:1 at 12px); #7a757f/#6f6a74 failed on tinted nav chrome */
+  --forge-color-outline: #605c66;
   --forge-color-outline-variant: #cac4cf;
   --forge-color-primary: #6750a4;
   --forge-color-on-primary: #ffffff;

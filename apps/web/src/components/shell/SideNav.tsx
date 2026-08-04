@@ -69,8 +69,8 @@ function NavLink({
       aria-current={active ? 'page' : undefined}
       className={`group flex items-center gap-4 px-6 py-2.5 transition-all ${
         active
-          ? 'border-r-2 border-primary bg-primary/5 text-primary'
-          : 'text-outline hover:bg-surface-container-high/60 hover:text-on-surface'
+          ? 'border-r-2 border-primary bg-surface-container-high font-semibold text-on-surface'
+          : 'text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface'
       }`}
     >
       <Icon name={item.icon} filled={active} />
@@ -97,12 +97,12 @@ export function SideNav() {
       aria-label="Primary"
       className="fixed left-0 top-16 z-40 hidden h-[calc(100vh-64px)] w-64 flex-col gap-1 overflow-y-auto border-r border-outline-variant/10 bg-surface-container-low/40 py-4 backdrop-blur-[20px] md:flex"
     >
-      <p className="font-label-caps mb-1 mt-2 px-6 text-outline">Navigation</p>
+      <p className="font-label-caps mb-1 mt-2 px-6 text-on-surface-variant">Navigation</p>
       {PRIMARY.map((item) => (
         <NavLink key={item.href} item={item} pathname={pathname} isGuest={isGuest} />
       ))}
 
-      <p className="font-label-caps mb-1 mt-4 px-6 text-outline">You</p>
+      <p className="font-label-caps mb-1 mt-4 px-6 text-on-surface-variant">You</p>
       {YOU.map((item) => (
         <NavLink key={item.href} item={item} pathname={pathname} isGuest={isGuest} />
       ))}
@@ -112,8 +112,8 @@ export function SideNav() {
         aria-current={pathname.startsWith('/studio') ? 'page' : undefined}
         className={`mt-auto flex items-center gap-4 px-6 py-3 transition-all ${
           pathname.startsWith('/studio')
-            ? 'border-r-2 border-primary bg-primary/5 text-primary'
-            : 'text-outline hover:bg-surface-container-high/60 hover:text-on-surface'
+            ? 'border-r-2 border-primary bg-surface-container-high font-semibold text-on-surface'
+            : 'text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface'
         }`}
       >
         <Icon name="auto_videocam" />

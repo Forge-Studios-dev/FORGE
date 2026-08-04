@@ -43,17 +43,19 @@ export default async function ExplorePage() {
       </div>
 
       <section className="mb-12">
-        <h2 className="font-label-caps mb-4 text-outline">Browse by category</h2>
+        <h2 className="font-label-caps mb-4 text-on-surface-variant">Browse by category</h2>
         {categories.length > 0 ? (
-          <div className="forge-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {categories.map((cat) => (
               <Link
                 key={cat.id}
                 href={`/explore/${cat.slug}`}
-                className="forge-card-hover glass-panel group rounded-xl p-6 transition-colors hover:border-primary/40"
+                className="forge-card-hover group rounded-xl border border-outline-variant/30 bg-surface-container p-6 transition-colors hover:border-primary/40"
               >
                 <Icon name="category" className="mb-3 text-3xl text-primary" />
-                <h3 className="font-display-forge text-lg font-semibold group-hover:text-primary">{cat.name}</h3>
+                <h3 className="font-display-forge text-lg font-semibold text-on-surface group-hover:text-primary">
+                  {cat.name}
+                </h3>
               </Link>
             ))}
           </div>
