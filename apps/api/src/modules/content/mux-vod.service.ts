@@ -18,12 +18,12 @@ import {
   VideoStatus,
   TranscodeProvider,
   VideoType,
-  SHORT_DURATION_THRESHOLD_SECONDS,
 } from './entities/video.entity';
 import { createS3Client } from '../../common/create-s3-client';
 import { indexedAtOnReady, publishStatusOnReady } from './video-publish.util';
 import { videoDetailCacheKey } from './video-cache';
 import { muxHlsPlaybackUrl, muxThumbnailUrl, muxCaptionVttUrl } from './mux-vod.constants';
+import { resolveVideoTypeOnReady } from './short-duration.util';
 
 export interface MuxVodIngestJob {
   videoId: string;
@@ -185,6 +185,30 @@ export class MuxVodService {
       return true;
     }
 
+    const typeResolution = resolveVideoTypeOnReady(video.videoType, duration);
+    if (!typeResolution.ok) {
+      await this.videoRepository.update(video.id, {
+        status: VideoStatus.FAILED,
+        durationSeconds: duration,
+        muxAssetId: assetId,
+        muxPlaybackId: playbackId,
+        transcodeProvider: TranscodeProvider.MUX,
+        failureReason: typeResolution.reason,
+      });
+      await this.redis.del(videoDetailCacheKey(video.id));
+      this.eventEmitter.emit('video.updated', { videoId: video.id });
+      this.logger.warn(
+        JSON.stringify({
+          msg: 'mux_vod_short_too_long',
+          videoId: video.id,
+          assetId,
+          duration,
+          reason: typeResolution.reason,
+        }),
+      );
+      return true;
+    }
+
     const hlsUrl = muxHlsPlaybackUrl(playbackId);
     const thumbnailUrl = muxThumbnailUrl(playbackId);
     const captionTrackId = pickCaptionTrackId(data.tracks);
@@ -218,10 +242,7 @@ export class MuxVodService {
       muxPlaybackId: playbackId,
       transcodeProvider: TranscodeProvider.MUX,
       durationSeconds: duration,
-      videoType:
-        duration !== null && duration <= SHORT_DURATION_THRESHOLD_SECONDS
-          ? VideoType.SHORT
-          : VideoType.VIDEO,
+      videoType: typeResolution.videoType,
       publishedAt,
       indexedAt,
       failureReason: null,
@@ -246,6 +267,7 @@ export class MuxVodService {
         assetId,
         playbackId,
         duration,
+        videoType: typeResolution.videoType,
         trackCount: tracks,
         captionUrl: captionUrl ?? undefined,
       }),

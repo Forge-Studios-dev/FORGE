@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
@@ -26,6 +29,22 @@ const _visibilityOptions = <({String value, String label})>[
   (value: 'followers', label: 'Subscribers only'),
   (value: 'subscribers', label: 'Members only'),
 ];
+
+const _shortMaxSeconds = 60;
+const _shortTooLongMessage =
+    'Shorts must be 60 seconds or shorter. Upload as a regular video instead.';
+
+Future<Duration?> _probeVideoDuration(String path) async {
+  final controller = VideoPlayerController.file(File(path));
+  try {
+    await controller.initialize();
+    return controller.value.duration;
+  } catch (_) {
+    return null;
+  } finally {
+    await controller.dispose();
+  }
+}
 
 class UploadScreen extends ConsumerStatefulWidget {
   const UploadScreen({super.key});
@@ -100,6 +119,13 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
       setState(() => _error = 'File must be 500MB or smaller.');
       return;
     }
+    if (_videoType == 'short') {
+      final duration = await _probeVideoDuration(path);
+      if (duration != null && duration.inSeconds > _shortMaxSeconds) {
+        setState(() => _error = _shortTooLongMessage);
+        return;
+      }
+    }
     setState(() {
       _file = file;
       _error = null;
@@ -118,6 +144,13 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
     if (_categoryId == null) {
       setState(() => _error = 'Choose a category.');
       return;
+    }
+    if (_videoType == 'short' && _file!.path != null) {
+      final duration = await _probeVideoDuration(_file!.path!);
+      if (duration != null && duration.inSeconds > _shortMaxSeconds) {
+        setState(() => _error = _shortTooLongMessage);
+        return;
+      }
     }
     setState(() {
       _uploading = true;
@@ -211,7 +244,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
               Padding(
                 padding: EdgeInsets.only(top: 8, bottom: 4),
                 child: Text(
-                  'Shorts work best under 60 seconds.',
+                  'Shorts must be 60 seconds or shorter.',
                   style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, fontSize: 13),
                 ),
               ),

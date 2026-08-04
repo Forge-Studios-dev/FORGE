@@ -4,8 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { MuxVodService } from './mux-vod.service';
-import { Video, VideoStatus, TranscodeProvider } from './entities/video.entity';
+import { Video, VideoStatus, TranscodeProvider, VideoType } from './entities/video.entity';
 import { muxHlsPlaybackUrl, muxThumbnailUrl } from './mux-vod.constants';
+import { SHORT_TOO_LONG_MESSAGE } from './short-duration.util';
 
 const mockMuxCreate = jest.fn();
 const mockMuxDelete = jest.fn();
@@ -31,6 +32,7 @@ describe('MuxVodService', () => {
     findOne: jest.fn(),
     update: jest.fn(),
   };
+  const eventEmitter = { emit: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -60,7 +62,7 @@ describe('MuxVodService', () => {
             },
           },
         },
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: EventEmitter2, useValue: eventEmitter },
         { provide: getRedisConnectionToken(), useValue: { del: jest.fn() } },
       ],
     }).compile();
@@ -118,6 +120,43 @@ describe('MuxVodService', () => {
     expect(videoRepo.update).toHaveBeenCalledWith(
       'video-uuid',
       expect.objectContaining({ status: VideoStatus.FAILED }),
+    );
+  });
+
+  it('handleAssetReady rejects short intent when duration exceeds 60s', async () => {
+    const video = {
+      id: 'video-uuid',
+      userId: 'user-1',
+      categoryId: null,
+      status: VideoStatus.PROCESSING,
+      scheduledPublishAt: null,
+      videoType: VideoType.SHORT,
+      muxPlaybackId: null,
+    } as Video;
+    videoRepo.findOne.mockResolvedValue(video);
+    videoRepo.update.mockResolvedValue({});
+
+    const handled = await service.handleAssetReady({
+      data: {
+        id: 'mux-asset-1',
+        passthrough: 'video-uuid',
+        playback_ids: [{ id: 'pb1' }],
+        duration: 61,
+      },
+    });
+
+    expect(handled).toBe(true);
+    expect(videoRepo.update).toHaveBeenCalledWith(
+      'video-uuid',
+      expect.objectContaining({
+        status: VideoStatus.FAILED,
+        durationSeconds: 61,
+        failureReason: SHORT_TOO_LONG_MESSAGE,
+      }),
+    );
+    expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+      'video.ready',
+      expect.anything(),
     );
   });
 

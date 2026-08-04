@@ -57,7 +57,7 @@ export enum VideoType {
   PODCAST = 'podcast',
 }
 
-/** Duration threshold (seconds) below which a video is auto-classified as a short. */
+/** Max duration (seconds) for Shorts; longer Short uploads are rejected. */
 export const SHORT_DURATION_THRESHOLD_SECONDS = 60;
 
 @Entity('videos')

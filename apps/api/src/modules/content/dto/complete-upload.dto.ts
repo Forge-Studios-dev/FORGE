@@ -41,7 +41,8 @@ export class CompleteUploadDto {
 
   @ApiPropertyOptional({
     enum: [VideoType.VIDEO, VideoType.SHORT],
-    description: 'Creator intent; processing may refine SHORT by duration ≤60s',
+    description:
+      'Creator intent. Shorts must be ≤60s — processing fails if measured duration exceeds 60s. Videos ≤60s may be auto-classified as Short.',
   })
   @IsOptional()
   @IsIn([VideoType.VIDEO, VideoType.SHORT])

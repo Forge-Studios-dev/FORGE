@@ -22,7 +22,7 @@ import {
 } from '@/lib/upload-thumbnail-store';
 import { getStudioVideos } from '@/lib/creator-studio';
 import { fetchUploadOptions, type UploadCategoryOption } from '@/lib/categories';
-import { uploadVideo, validateUploadFile, type UploadPhase } from '@/lib/upload-video';
+import { uploadVideo, validateUploadFile, probeVideoDurationSeconds, validateShortDuration, type UploadPhase } from '@/lib/upload-video';
 import { trackEvent } from '@/lib/analytics';
 
 const TOTAL = 3;
@@ -157,13 +157,19 @@ function UploadStepContent() {
     saveUploadDraft(next);
   };
 
-  const selectFile = (f: File | null) => {
+  const selectFile = async (f: File | null) => {
     setFile(f);
     setUploadFile(f);
     if (f) {
       const validation = validateUploadFile(f);
-      if (validation) setError(validation);
-      else setError('');
+      if (validation) {
+        setError(validation);
+        persist({ fileName: f.name, fileSize: f.size, fileType: f.type });
+        return;
+      }
+      const duration = await probeVideoDurationSeconds(f);
+      const shortErr = validateShortDuration(duration, draft.videoType);
+      setError(shortErr ?? '');
       persist({ fileName: f.name, fileSize: f.size, fileType: f.type });
     }
   };
@@ -195,6 +201,12 @@ function UploadStepContent() {
     const validation = validateUploadFile(activeFile);
     if (validation) {
       setError(validation);
+      return;
+    }
+    const duration = await probeVideoDurationSeconds(activeFile);
+    const shortErr = validateShortDuration(duration, draft.videoType);
+    if (shortErr) {
+      setError(shortErr);
       return;
     }
     setError('');
@@ -251,11 +263,11 @@ function UploadStepContent() {
         subtitle={
           step === 1
             ? draft.videoType === 'short'
-              ? 'Shorts work best under 60 seconds — add title, category, and tags'
+              ? 'Shorts must be 60 seconds or shorter — add title, category, and tags'
               : 'Add title, category, tags, and an optional thumbnail'
             : step === 2
               ? draft.videoType === 'short'
-                ? 'Upload a vertical clip (MP4 or MOV)'
+                ? 'Upload a vertical clip ≤60s (MP4 or MOV)'
                 : 'Upload your video file'
               : 'Review visibility and publish'
         }
@@ -334,7 +346,7 @@ function UploadStepContent() {
                 {(
                   [
                     { value: 'video' as UploadVideoType, label: 'Video', hint: 'Long-form' },
-                    { value: 'short' as UploadVideoType, label: 'Short', hint: '≤ 60s' },
+                    { value: 'short' as UploadVideoType, label: 'Short', hint: 'Required ≤60s' },
                   ] as const
                 ).map((opt) => {
                   const active = draft.videoType === opt.value;

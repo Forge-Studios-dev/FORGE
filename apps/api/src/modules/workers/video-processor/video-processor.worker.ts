@@ -16,9 +16,10 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
-import { Video, VideoStatus } from '../../content/entities/video.entity';
+import { Video, VideoStatus, VideoType } from '../../content/entities/video.entity';
 import { indexedAtOnReady, publishStatusOnReady } from '../../content/video-publish.util';
 import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../../content/video-processing.constants';
+import { resolveVideoTypeOnReady } from '../../content/short-duration.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { buildPublicMediaUrl } from '../../../common/media-url.util';
 import { videoDetailCacheKey } from '../../content/video-cache';
@@ -136,6 +137,34 @@ export class VideoProcessorWorker extends WorkerHost {
       fs.mkdirSync(hlsOutputDir, { recursive: true });
 
       const duration = await this.getVideoDuration(rawFilePath);
+      const row = await this.videoRepository.findOne({
+        where: { id: videoId },
+        relations: ['skillTags'],
+      });
+      const typeResolution = resolveVideoTypeOnReady(
+        row?.videoType ?? VideoType.VIDEO,
+        duration,
+      );
+      if (!typeResolution.ok) {
+        await this.videoRepository.update(videoId, {
+          status: VideoStatus.FAILED,
+          durationSeconds: duration,
+          failureReason: typeResolution.reason,
+        });
+        await this.redis.del(videoDetailCacheKey(videoId));
+        this.eventEmitter.emit('video.updated', { videoId });
+        this.logger.warn(
+          JSON.stringify({
+            msg: 'video_processing_short_too_long',
+            videoId,
+            duration,
+            reason: typeResolution.reason,
+          }),
+        );
+        await job.updateProgress(100);
+        return;
+      }
+
       await this.transcodeToHls(rawFilePath, hlsOutputDir, duration, job);
 
       await job.updateProgress(80);
@@ -151,10 +180,6 @@ export class VideoProcessorWorker extends WorkerHost {
       const hlsUrl = this.mediaUrl(`${hlsBaseKey}/master.m3u8`);
       const thumbnailUrl = this.mediaUrl(thumbnailKey);
 
-      const row = await this.videoRepository.findOne({
-        where: { id: videoId },
-        relations: ['skillTags'],
-      });
       const now = new Date();
       const scheduled = row?.scheduledPublishAt;
       const publishedAt =
@@ -178,6 +203,7 @@ export class VideoProcessorWorker extends WorkerHost {
         hlsUrl,
         thumbnailUrl,
         durationSeconds: duration,
+        videoType: typeResolution.videoType,
         publishedAt,
         indexedAt,
       });
