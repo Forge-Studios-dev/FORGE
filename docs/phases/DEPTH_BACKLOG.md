@@ -168,6 +168,13 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Comment report dialog: aria-modal, labelled title, Escape + backdrop close
 - Mobile auth/studio/memberships: remaining Colors.* → ForgeTokens
 
+## Hardening pass 6 (2026-08-04)
+
+- Community notify metadata includes `creatorId`/`username`/`slug`; clients deep-link correctly (no community UUID as creatorId)
+- Report content dialog a11y parity; Studio analytics CSV export shows errors
+- Channel reorder validates UUID array DTO
+- Boot-omit Brands/Mentorship controllers + Gamification HTTP when LMS off (service retained)
+
 ## Still open
 
 | Area | Item | Owner |

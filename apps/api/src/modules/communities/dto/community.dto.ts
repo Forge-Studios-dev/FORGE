@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsDateString,
   IsEnum,
   IsInt,
@@ -288,4 +289,11 @@ export class TransferOwnershipDto {
   @ApiProperty({ description: 'UUID of the member who will become the new owner' })
   @IsUUID()
   newOwnerId: string;
+}
+
+export class ReorderChannelsDto {
+  @ApiProperty({ type: [String], description: 'Ordered list of all channel UUIDs in the community' })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  channelIds: string[];
 }

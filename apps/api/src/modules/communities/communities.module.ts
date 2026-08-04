@@ -83,6 +83,8 @@ import { CommunityGroupsController } from './community-groups.controller';
 import { MentorshipMatch, MentorshipProfile } from './entities/mentorship.entity';
 import { MentorshipService } from './mentorship.service';
 import { MentorshipController } from './mentorship.controller';
+import { User } from '../users/entities/user.entity';
+import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 
 @Module({
   imports: [
@@ -119,6 +121,7 @@ import { MentorshipController } from './mentorship.controller';
       CommunityGroupMember,
       MentorshipProfile,
       MentorshipMatch,
+      User,
     ]),
     forwardRef(() => EntitlementsModule),
     AccessSessionsModule,
@@ -148,7 +151,7 @@ import { MentorshipController } from './mentorship.controller';
   controllers: [
     CommunitiesController,
     CommunityModerationController,
-    BrandsController,
+    ...(isSkillEconomyLmsEnabled() ? [BrandsController, MentorshipController] : []),
     CommunityPostsController,
     CommunityPollsController,
     CommunityEngagementController,
@@ -157,7 +160,6 @@ import { MentorshipController } from './mentorship.controller';
     CommunityMembersController,
     CommunityEventsController,
     CommunityGroupsController,
-    MentorshipController,
   ],
   providers: [
     CommunitiesService,

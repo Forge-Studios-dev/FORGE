@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { EmptyState, PageHeader, StatCardsSkeleton, StatusPill, type StatusTone } from '@forge/design-system';
 import { getMyVideos } from '@/lib/creator-studio';
@@ -108,8 +109,11 @@ export default function StudioAnalyticsPage() {
   const engagementStatus = (score: number): { label: string; tone: StatusTone } =>
     score < 15 ? { label: 'Critical', tone: 'critical' } : score < 30 ? { label: 'Watch', tone: 'warning' } : { label: 'Healthy', tone: 'success' };
 
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const exportMutation = useMutation({
     mutationFn: async () => {
+      setExportError(null);
       const { data } = await api.get<Blob>('/creators/me/business-analytics/export', {
         responseType: 'blob',
       });
@@ -120,6 +124,7 @@ export default function StudioAnalyticsPage() {
       anchor.click();
       URL.revokeObjectURL(url);
     },
+    onError: () => setExportError('Could not export CSV. Try again.'),
   });
 
   const totalViews = videos?.reduce((sum, v) => sum + (v.viewCount ?? 0), 0) ?? 0;
@@ -141,18 +146,25 @@ export default function StudioAnalyticsPage() {
           title="Analytics"
           subtitle="Revenue, membership health, engagement, and top content in one command view."
         />
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => exportMutation.mutate()}
-            disabled={exportMutation.isPending}
-            className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:border-primary disabled:opacity-60"
-          >
-            {exportMutation.isPending ? 'Exporting…' : 'Export CSV'}
-          </button>
-          <Link href="/studio/analytics/details" className="text-sm text-primary hover:underline self-center">
-            Per-video breakdown
-          </Link>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => exportMutation.mutate()}
+              disabled={exportMutation.isPending}
+              className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:border-primary disabled:opacity-60"
+            >
+              {exportMutation.isPending ? 'Exporting…' : 'Export CSV'}
+            </button>
+            <Link href="/studio/analytics/details" className="text-sm text-primary hover:underline">
+              Per-video breakdown
+            </Link>
+          </div>
+          {exportError ? (
+            <p className="text-xs text-error" role="alert" aria-live="polite">
+              {exportError}
+            </p>
+          ) : null}
         </div>
       </div>
 

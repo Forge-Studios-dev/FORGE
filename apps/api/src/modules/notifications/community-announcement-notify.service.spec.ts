@@ -1,8 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { CommunityAnnouncementNotifyService } from './community-announcement-notify.service';
 import { NotificationsService } from './notifications.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { NotificationType } from './entities/notification.entity';
+import { Community } from '../communities/entities/community.entity';
+import { User } from '../users/entities/user.entity';
 
 describe('CommunityAnnouncementNotifyService', () => {
   let service: CommunityAnnouncementNotifyService;
@@ -23,6 +26,18 @@ describe('CommunityAnnouncementNotifyService', () => {
         CommunityAnnouncementNotifyService,
         { provide: NotificationsService, useValue: notificationsService },
         { provide: EntitlementsService, useValue: entitlementsService },
+        {
+          provide: getRepositoryToken(Community),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue({ id: 'comm-1', slug: 'main', creatorId: 'creator-1' }),
+          },
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue({ id: 'creator-1', username: 'creator' }),
+          },
+        },
       ],
     }).compile();
 
@@ -44,6 +59,12 @@ describe('CommunityAnnouncementNotifyService', () => {
         expect.objectContaining({
           userId: 'u1',
           type: NotificationType.COMMUNITY_POST_NEW,
+          metadata: expect.objectContaining({
+            communityId: 'comm-1',
+            creatorId: 'creator-1',
+            username: 'creator',
+            slug: 'main',
+          }),
         }),
       ]),
     );

@@ -97,8 +97,12 @@ String? _notificationHref(String? type, Map<String, dynamic>? metadata) {
     case 'community_role_assigned':
     case 'community_banned':
     case 'community_post_new':
-      final creatorId = meta['creatorId'] as String? ?? meta['communityId'] as String?;
-      if (creatorId != null && creatorId.isNotEmpty) return '/community/$creatorId';
+      final creatorId = meta['creatorId'] as String?;
+      final slug = meta['slug'] as String?;
+      if (creatorId != null && creatorId.isNotEmpty) {
+        if (slug != null && slug.isNotEmpty) return '/community/$creatorId/c/$slug';
+        return '/community/$creatorId';
+      }
       return username != null ? '/profile/$username' : null;
     case 'achievement_unlocked':
     case 'xp_level_up':

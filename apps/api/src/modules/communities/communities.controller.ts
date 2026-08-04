@@ -19,6 +19,7 @@ import {
   CreateChannelDto,
   CreateCommunityDto,
   InviteChannelMemberDto,
+  ReorderChannelsDto,
   SendChannelMessageDto,
   TransferOwnershipDto,
   UpdateCategoryDto,
@@ -252,7 +253,7 @@ export class CommunitiesController {
   reorderChannels(
     @CurrentUser() user: JwtPayload,
     @Param('communityId') communityId: string,
-    @Body() body: { channelIds: string[] },
+    @Body() body: ReorderChannelsDto,
   ) {
     return this.communitiesService.reorderChannels(user.sub, communityId, body.channelIds ?? []);
   }

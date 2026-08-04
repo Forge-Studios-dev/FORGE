@@ -44,8 +44,14 @@ export function notificationHref(
       return '/messages';
     case 'community_role_assigned':
     case 'community_banned':
-    case 'community_post_new':
-      return username ? `/${username}/community` : null;
+    case 'community_post_new': {
+      if (username) {
+        const slug = typeof meta.slug === 'string' ? meta.slug : null;
+        return slug ? `/${username}/c/${slug}` : `/${username}/community`;
+      }
+      const communityId = typeof meta.communityId === 'string' ? meta.communityId : null;
+      return communityId ? `/communities/id/${communityId}` : null;
+    }
     case 'achievement_unlocked':
     case 'xp_level_up':
       // LMS soft-retired: no dedicated rewards surface in YouTube mode

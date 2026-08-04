@@ -5,6 +5,8 @@ import { Not, Repository } from 'typeorm';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
 import { CommunityMember, CommunityMemberStatus } from './entities/community-member.entity';
+import { Community } from './entities/community.entity';
+import { User } from '../users/entities/user.entity';
 
 /**
  * Fans out community-wide activity notifications to active members.
@@ -29,17 +31,49 @@ export class CommunityActivityNotifyListener {
     private readonly notificationsService: NotificationsService,
     @InjectRepository(CommunityMember)
     private readonly memberRepository: Repository<CommunityMember>,
+    @InjectRepository(Community)
+    private readonly communityRepository: Repository<Community>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   @OnEvent('community.event.created')
   async onEventCreated(payload: { communityId: string; eventId: string; creatorId?: string }) {
+    const linkMeta = await this.resolveLinkMetadata(payload.communityId, payload.creatorId);
     await this.notifyActiveMembers(payload.communityId, {
       type: NotificationType.COMMUNITY_POST_NEW,
       title: 'New community event',
       body: 'A new event was scheduled in your community.',
-      metadata: { communityId: payload.communityId, eventId: payload.eventId, kind: 'event' },
+      metadata: {
+        communityId: payload.communityId,
+        eventId: payload.eventId,
+        kind: 'event',
+        ...linkMeta,
+      },
       excludeUserId: payload.creatorId,
     });
+  }
+
+  private async resolveLinkMetadata(
+    communityId: string,
+    creatorIdHint?: string,
+  ): Promise<Record<string, string>> {
+    const community = await this.communityRepository.findOne({
+      where: { id: communityId },
+      select: { id: true, slug: true, creatorId: true },
+    });
+    const creatorId = creatorIdHint ?? community?.creatorId;
+    const out: Record<string, string> = {};
+    if (creatorId) out.creatorId = creatorId;
+    if (community?.slug) out.slug = community.slug;
+    if (creatorId) {
+      const creator = await this.userRepository.findOne({
+        where: { id: creatorId },
+        select: { id: true, username: true },
+      });
+      if (creator?.username) out.username = creator.username;
+    }
+    return out;
   }
 
   /**

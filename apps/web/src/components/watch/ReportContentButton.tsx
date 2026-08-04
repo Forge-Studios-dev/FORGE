@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -23,6 +23,15 @@ export function ReportContentButton({ targetType, targetId, className }: Props) 
   const [error, setError] = useState<string | null>(null);
 
   const presets = targetType === 'comment' ? COMMENT_REPORT_REASONS : VIDEO_REPORT_REASONS;
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -76,10 +85,17 @@ export function ReportContentButton({ targetType, targetId, className }: Props) 
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4"
           role="dialog"
-          aria-label="Report content"
+          aria-modal="true"
+          aria-labelledby="report-content-title"
+          onClick={() => setOpen(false)}
         >
-          <div className="glass-panel w-full max-w-md rounded-2xl p-6">
-            <h3 className="font-display-forge text-lg font-semibold">Report content</h3>
+          <div
+            className="glass-panel w-full max-w-md rounded-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="report-content-title" className="font-display-forge text-lg font-semibold">
+              Report content
+            </h3>
             <p className="mt-2 text-sm text-on-surface-variant">
               Select a reason. Our team will review this report.
             </p>
