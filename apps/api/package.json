@@ -109,11 +109,22 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "allowJs": true
+          }
+        }
+      ]
     },
     "transformIgnorePatterns": [
       "/node_modules/(?!uuid/)"
     ],
+    "moduleNameMapper": {
+      "^@forge/shared-types$": "<rootDir>/../../../packages/shared-types/src/index.ts",
+      "^@forge/shared-types/(.*)$": "<rootDir>/../../../packages/shared-types/src/$1"
+    },
     "coverageDirectory": "../coverage",
     "collectCoverageFrom": [
       "modules/auth/**/*.ts",
