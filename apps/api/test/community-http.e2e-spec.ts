@@ -332,24 +332,24 @@ describe('Community HTTP (mocked e2e)', () => {
     expect(communitiesService.getCreatorBusinessAnalytics).toHaveBeenCalledWith('user-1');
   });
 
-  it('GET /api/v1/communities/:id/wiki returns wiki pages', async () => {
+  it('GET /api/v1/communities/:id/wiki returns 410 when LMS soft-retired', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/communities/comm-1/wiki');
-    expect(res.status).toBe(200);
-    expect(engagementService.listWiki).toHaveBeenCalledWith('comm-1', 'user-1', 'consumer');
+    expect(res.status).toBe(410);
+    expect(engagementService.listWiki).not.toHaveBeenCalled();
   });
 
-  it('GET /api/v1/communities/:id/challenges returns challenges', async () => {
+  it('GET /api/v1/communities/:id/challenges returns 410 when LMS soft-retired', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/communities/comm-1/challenges');
-    expect(res.status).toBe(200);
-    expect(engagementService.listChallenges).toHaveBeenCalledWith('comm-1', 'user-1', 'consumer');
+    expect(res.status).toBe(410);
+    expect(engagementService.listChallenges).not.toHaveBeenCalled();
   });
 
-  it('POST /api/v1/communities/:id/challenges/:challengeId/join joins challenge', async () => {
+  it('POST /api/v1/communities/:id/challenges/:challengeId/join returns 410 when LMS soft-retired', async () => {
     const res = await request(app.getHttpServer()).post(
       '/api/v1/communities/comm-1/challenges/ch-1/join',
     );
-    expect(res.status).toBe(201);
-    expect(engagementService.joinChallenge).toHaveBeenCalledWith('user-1', 'comm-1', 'ch-1', 'consumer');
+    expect(res.status).toBe(410);
+    expect(engagementService.joinChallenge).not.toHaveBeenCalled();
   });
 
   it('GET /api/v1/communities/:id/rooms lists rooms', async () => {

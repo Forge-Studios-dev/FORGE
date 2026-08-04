@@ -279,7 +279,7 @@ export class VideosController {
   })
   proxyUpload(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.videosService.receiveProxyUpload(user.sub, id, file);
@@ -300,7 +300,7 @@ export class VideosController {
   @ApiOperation({ summary: 'Get presigned S3 URL for custom thumbnail image' })
   getThumbnailPresigned(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ThumbnailPresignedDto,
   ) {
     return this.videosService.getThumbnailPresignedUrl(user.sub, id, dto.contentType);
@@ -313,7 +313,7 @@ export class VideosController {
   @ApiOperation({ summary: 'Presigned S3 URL for WebVTT caption upload' })
   getCaptionPresigned(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CaptionPresignedDto,
   ) {
     return this.videosService.getCaptionPresignedUrl(
@@ -330,7 +330,7 @@ export class VideosController {
   @ApiOperation({ summary: 'Set or clear a language caption (WebVTT) URL' })
   setCaption(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SetCaptionUrlDto,
   ) {
     return this.videosService.setCaptionUrl(
@@ -345,7 +345,7 @@ export class VideosController {
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.UPLOAD_VIDEO)
   @ApiOperation({ summary: 'Multipart upload progress (server checkpoint)' })
-  getMultipartProgress(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  getMultipartProgress(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.videosService.getMultipartProgress(user.sub, id);
   }
 
@@ -357,7 +357,7 @@ export class VideosController {
   @ApiOperation({ summary: 'Record completed S3 parts for resume' })
   checkpointMultipart(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: MultipartCheckpointDto,
   ) {
     return this.videosService.checkpointMultipart(user.sub, id, dto);
@@ -370,7 +370,7 @@ export class VideosController {
   @ApiOperation({ summary: 'Presigned URLs for S3 multipart upload parts' })
   signMultipartParts(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: MultipartPartUrlsDto,
   ) {
     return this.videosService.signMultipartPartUrls(user.sub, id, dto);
@@ -384,7 +384,7 @@ export class VideosController {
   @ApiOperation({ summary: 'Complete S3 multipart upload (assemble object)' })
   completeMultipart(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: MultipartCompletePartsDto,
   ) {
     return this.videosService.completeMultipartParts(user.sub, id, dto);
@@ -397,7 +397,7 @@ export class VideosController {
   @ApiOperation({ summary: 'Complete an upload and start processing' })
   complete(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CompleteUploadDto,
   ) {
     return this.videosService.completeUpload(user.sub, id, dto);
@@ -408,7 +408,7 @@ export class VideosController {
   @Permissions(Permission.UPLOAD_VIDEO)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel/remove uploading, processing, or failed video' })
-  cancelUpload(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  cancelUpload(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.videosService.cancelUpload(user.sub, id);
   }
 
@@ -421,7 +421,7 @@ export class VideosController {
     summary: 'Record a qualified view after watch-time threshold (YouTube-style)',
   })
   recordView(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RecordViewDto,
     @Req() req: Request,
     @CurrentUser() user?: JwtPayload,
@@ -441,7 +441,7 @@ export class VideosController {
   @ApiOperation({ summary: 'Record watch / continue watching' })
   recordWatch(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RecordWatchDto,
   ) {
     return this.videosService.recordWatch(user.sub, id, dto);
@@ -451,7 +451,7 @@ export class VideosController {
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Hide a video from personalized / signed-in feeds (Not interested)' })
-  markNotInterested(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  markNotInterested(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.feedService.markNotInterested(user.sub, id);
   }
 
@@ -461,7 +461,7 @@ export class VideosController {
   @ApiOperation({
     summary: 'Don’t recommend this video’s channel in feeds (YouTube-style)',
   })
-  dontRecommendChannel(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  dontRecommendChannel(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.feedService.muteChannelFromVideo(user.sub, id);
   }
 
@@ -469,7 +469,7 @@ export class VideosController {
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.UPLOAD_VIDEO)
   @ApiOperation({ summary: 'Update own video (title, visibility, schedule)' })
-  patchVideo(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() dto: UpdateVideoDto) {
+  patchVideo(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateVideoDto) {
     return this.videosService.updateVideo(user.sub, id, dto);
   }
 
@@ -478,7 +478,7 @@ export class VideosController {
   @Get(':id/captions')
   @ApiOperation({ summary: 'Fetch caption WebVTT text (server proxy for transcript UI)' })
   getCaptions(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query('language') language: string | undefined,
     @CurrentUser() user?: JwtPayload,
   ) {
@@ -489,7 +489,7 @@ export class VideosController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
   @ApiOperation({ summary: 'Get video by ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
     return this.videosService.getVideoForViewer(id, user?.sub, user?.role);
   }
 
@@ -498,7 +498,7 @@ export class VideosController {
   @Permissions(Permission.UPLOAD_VIDEO)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Retry Mux transcode after failure' })
-  retryTranscode(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  retryTranscode(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.videosService.retryTranscode(user.sub, id);
   }
 
@@ -507,14 +507,14 @@ export class VideosController {
   @Permissions(Permission.UPLOAD_VIDEO)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete video' })
-  delete(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  delete(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.videosService.delete(user.sub, id);
   }
 
   @Public()
   @Get(':id/similar')
   @ApiOperation({ summary: 'Videos similar to a given video (same category ranking)' })
-  similarVideos(@Param('id') id: string, @Query('limit') limit?: number) {
+  similarVideos(@Param('id', ParseUUIDPipe) id: string, @Query('limit') limit?: number) {
     return this.recommendationsService.getSimilarVideos(id, limit ? Number(limit) : 10);
   }
 }

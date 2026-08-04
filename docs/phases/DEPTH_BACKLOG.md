@@ -182,6 +182,13 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Creator bundles HTTP moved to boot-omitted `CreatorBundlesController` when LMS off
 - Removed empty mobile `features/gamification` tree
 
+## Hardening pass 8 (2026-08-04)
+
+- Soft-retire community wiki/challenges/surveys (`SkillEconomyLmsGuard` + e2e 410); Engage panel keeps rooms/events only; Posts default tab
+- Group DM DTOs + `ParseUUIDPipe` on conversation IDs; UUID pipes on playlists / video `:id` / notification read
+- Gate `ecosystem-tree` behind LMS; remove Studio analytics duplicate communities fetch
+- Delete unused Studio Community LMS panels; CategoryFilter + CommunityPanel tablist a11y
+
 ## Still open
 
 | Area | Item | Owner |

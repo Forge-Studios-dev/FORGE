@@ -99,7 +99,7 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
   const qc = useQueryClient();
   const [reportingPostId, setReportingPostId] = useState<string | null>(null);
   const [reportingPoll, setReportingPoll] = useState(false);
-  const [view, setView] = useState<'posts' | 'polls' | 'engage'>('engage');
+  const [view, setView] = useState<'posts' | 'polls' | 'engage'>('posts');
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
@@ -311,16 +311,11 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
           onDismiss={() => undefined}
         />
       ) : null}
-      <div className="flex gap-2">
+      <div className="flex gap-2" role="tablist" aria-label="Community sections">
         <button
           type="button"
-          onClick={() => setView('engage')}
-          className={`rounded-full px-4 py-1.5 text-sm ${view === 'engage' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
-        >
-          Rooms
-        </button>
-        <button
-          type="button"
+          role="tab"
+          aria-selected={view === 'posts'}
           onClick={() => setView('posts')}
           className={`rounded-full px-4 py-1.5 text-sm ${view === 'posts' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
         >
@@ -328,10 +323,21 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={view === 'polls'}
           onClick={() => setView('polls')}
           className={`rounded-full px-4 py-1.5 text-sm ${view === 'polls' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
         >
           Polls
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'engage'}
+          onClick={() => setView('engage')}
+          className={`rounded-full px-4 py-1.5 text-sm ${view === 'engage' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
+        >
+          Rooms
         </button>
       </div>
       {(communityLive ?? []).length > 0 ? (
@@ -467,7 +473,8 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                       setExpandedPostId((cur) => (cur === p.id ? null : p.id))
                     }
                   >
-                    💬 {p.commentCount ?? 0} comments
+                    <Icon name="chat_bubble" className="text-sm" />{' '}
+                    {p.commentCount ?? 0} comments
                   </button>
                 </div>
                 {expandedPostId === p.id ? (

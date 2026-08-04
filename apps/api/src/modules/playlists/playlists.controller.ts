@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Put,
@@ -64,7 +65,7 @@ export class PlaylistsController {
   @ApiOperation({ summary: 'Check if a video is in Watch later' })
   async watchLaterContains(
     @CurrentUser() user: JwtPayload,
-    @Param('videoId') videoId: string,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
   ) {
     const inWatchLater = await this.playlistsService.isInWatchLater(user.sub, videoId);
     return { inWatchLater };
@@ -75,7 +76,7 @@ export class PlaylistsController {
   @ApiOperation({ summary: 'Playlist IDs that already contain this video' })
   containing(
     @CurrentUser() user: JwtPayload,
-    @Param('videoId') videoId: string,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
   ) {
     return this.playlistsService.listPlaylistIdsContainingVideo(user.sub, videoId);
   }
@@ -91,7 +92,10 @@ export class PlaylistsController {
   @Permissions(Permission.USE_LIBRARY)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove a video from Watch later' })
-  removeWatchLater(@CurrentUser() user: JwtPayload, @Param('videoId') videoId: string) {
+  removeWatchLater(
+    @CurrentUser() user: JwtPayload,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+  ) {
     return this.playlistsService.removeFromWatchLater(user.sub, videoId);
   }
 
@@ -110,7 +114,10 @@ export class PlaylistsController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('user/:userId')
   @ApiOperation({ summary: 'List public playlists for a channel' })
-  listByUser(@Param('userId') userId: string, @CurrentUser() viewer?: JwtPayload) {
+  listByUser(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @CurrentUser() viewer?: JwtPayload,
+  ) {
     return this.playlistsService.listByUser(userId, viewer?.sub);
   }
 
@@ -118,7 +125,7 @@ export class PlaylistsController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
   @ApiOperation({ summary: 'Get playlist by ID' })
-  findOne(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
+  findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
     return this.playlistsService.findById(id, user?.sub);
   }
 
@@ -127,7 +134,7 @@ export class PlaylistsController {
   @ApiOperation({ summary: 'Update playlist title, description, or visibility' })
   update(
     @CurrentUser() user: JwtPayload,
-    @Param('id') playlistId: string,
+    @Param('id', ParseUUIDPipe) playlistId: string,
     @Body() dto: UpdatePlaylistDto,
   ) {
     return this.playlistsService.update(user.sub, playlistId, dto);
@@ -137,7 +144,10 @@ export class PlaylistsController {
   @Permissions(Permission.USE_LIBRARY)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete a playlist' })
-  remove(@CurrentUser() user: JwtPayload, @Param('id') playlistId: string) {
+  remove(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) playlistId: string,
+  ) {
     return this.playlistsService.delete(user.sub, playlistId);
   }
 
@@ -146,7 +156,7 @@ export class PlaylistsController {
   @ApiOperation({ summary: 'Reorder videos in a playlist' })
   reorder(
     @CurrentUser() user: JwtPayload,
-    @Param('id') playlistId: string,
+    @Param('id', ParseUUIDPipe) playlistId: string,
     @Body() dto: ReorderPlaylistDto,
   ) {
     return this.playlistsService.reorder(user.sub, playlistId, dto.videoIds);
@@ -157,7 +167,7 @@ export class PlaylistsController {
   @ApiOperation({ summary: 'Add a video to a playlist' })
   addVideo(
     @CurrentUser() user: JwtPayload,
-    @Param('id') playlistId: string,
+    @Param('id', ParseUUIDPipe) playlistId: string,
     @Body() dto: AddPlaylistVideoDto,
   ) {
     return this.playlistsService.addVideo(user.sub, playlistId, dto.videoId);
@@ -169,8 +179,8 @@ export class PlaylistsController {
   @ApiOperation({ summary: 'Remove a video from a playlist' })
   removeVideo(
     @CurrentUser() user: JwtPayload,
-    @Param('id') playlistId: string,
-    @Param('videoId') videoId: string,
+    @Param('id', ParseUUIDPipe) playlistId: string,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
   ) {
     return this.playlistsService.removeVideo(user.sub, playlistId, videoId);
   }

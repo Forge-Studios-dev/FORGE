@@ -31,6 +31,7 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { DeprecatedChannelApi } from '../../common/decorators/deprecated-channel-api.decorator';
 import { DeprecatedChannelApiInterceptor } from '../../common/interceptors/deprecated-channel-api.interceptor';
 import { CommunityType } from './entities/community.entity';
@@ -360,7 +361,7 @@ export class CommunitiesController {
   }
 
   @Get('creators/me/ecosystem-tree')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(SkillEconomyLmsGuard, CreatorApprovedGuard)
   @ApiOperation({ summary: 'Unified creator ecosystem tree — brands, communities, courses, programs, bundles' })
   ecosystemTree(@CurrentUser() user: JwtPayload) {
     return this.communitiesService.getCreatorEcosystemTree(user.sub);

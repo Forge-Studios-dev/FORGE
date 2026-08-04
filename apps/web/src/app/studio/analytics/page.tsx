@@ -33,29 +33,6 @@ export default function StudioAnalyticsPage() {
     },
   });
 
-  const { data: ecosystemTree } = useQuery({
-    queryKey: ['ecosystem-tree', user?.id],
-    enabled: !!user?.id && isCreator,
-    queryFn: async () => {
-      const { data } = await api.get<{
-        data: {
-          brands: Array<{ id: string; name: string; slug: string }>;
-          communities: Array<{
-            id: string;
-            name: string;
-            slug: string;
-            courses: Array<{ id: string; title: string }>;
-            programs: Array<{ id: string; name: string; courseCount: number }>;
-          }>;
-          standaloneCourses: Array<{ id: string; title: string }>;
-          programs: Array<{ id: string; name: string; courseCount: number }>;
-          bundles: Array<{ id: string; name: string; itemCount: number }>;
-        };
-      }>('/creators/me/ecosystem-tree');
-      return data.data;
-    },
-  });
-
   const { data: businessAnalytics } = useQuery({
     queryKey: ['business-analytics', user?.id],
     enabled: !!user?.id && isCreator,
@@ -278,19 +255,6 @@ export default function StudioAnalyticsPage() {
             </section>
           ) : null}
         </div>
-      ) : null}
-
-      {ecosystemTree && (ecosystemTree.communities?.length ?? 0) > 0 ? (
-        <section className="glass-panel rounded-2xl p-6">
-          <h2 className="mb-3 font-label-caps text-outline">Communities</h2>
-          <ul className="space-y-3 text-sm">
-            {(ecosystemTree.communities ?? []).map((c) => (
-              <li key={c.id} className="rounded-xl border border-outline-variant/30 px-3 py-2">
-                <p className="font-medium">{c.name}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
       ) : null}
 
       {isLoading && <StatCardsSkeleton />}
