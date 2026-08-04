@@ -54,7 +54,7 @@ export class CommunitiesController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('creators/:creatorId/communities')
   @ApiOperation({ summary: 'List creator communities' })
-  listCommunities(@Param('creatorId') creatorId: string, @CurrentUser() user?: JwtPayload) {
+  listCommunities(@Param('creatorId', ParseUUIDPipe) creatorId: string, @CurrentUser() user?: JwtPayload) {
     return this.communitiesService.listCommunitiesForCreator(creatorId, user?.sub, user?.role);
   }
 
@@ -63,7 +63,7 @@ export class CommunitiesController {
   @Get('creators/:creatorId/communities/:slug/access')
   @ApiOperation({ summary: 'Community access metadata for join-request UX' })
   getCommunityAccessMeta(
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ParseUUIDPipe) creatorId: string,
     @Param('slug') slug: string,
     @CurrentUser() user?: JwtPayload,
   ) {
@@ -80,7 +80,7 @@ export class CommunitiesController {
   @Get('creators/:creatorId/communities/:slug')
   @ApiOperation({ summary: 'Get community by creator and slug' })
   getCommunityBySlug(
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ParseUUIDPipe) creatorId: string,
     @Param('slug') slug: string,
     @CurrentUser() user?: JwtPayload,
   ) {
@@ -133,7 +133,7 @@ export class CommunitiesController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/:creatorId')
   @ApiOperation({ summary: 'Get creator default community (legacy)' })
-  getCommunity(@Param('creatorId') creatorId: string, @CurrentUser() user?: JwtPayload) {
+  getCommunity(@Param('creatorId', ParseUUIDPipe) creatorId: string, @CurrentUser() user?: JwtPayload) {
     return this.communitiesService.getCommunityByCreator(creatorId, user?.sub, user?.role);
   }
 
@@ -298,7 +298,7 @@ export class CommunitiesController {
   @DeprecatedChannelApi()
   @ApiOperation({ summary: 'Send a channel message (deprecated — bridged to room when mapped)' })
   sendMessage(
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: SendChannelMessageDto,
   ) {

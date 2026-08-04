@@ -268,6 +268,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Add DTO validation for active community group creation and `ParseUUIDPipe` coverage across community group and poll route params
 - Verify the community poll route pass with `community-polls.service.spec.ts`
 
+## Hardening pass 24 (2026-08-04)
+
+- Add `ParseUUIDPipe` validation to the remaining mounted `communities` controller creator/community-channel routes (`creatorId` public lookups and deprecated channel message send)
+- Confirm the controller compiles cleanly via IDE diagnostics; no direct Jest coverage was discoverable for those exact endpoints under the current API test matcher
+
 ## Still open
 
 | Area | Item | Owner |
