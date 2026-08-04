@@ -33,6 +33,15 @@ const PHASE_LABEL: Record<UploadPhase, string> = {
   completing: 'Finalizing video…',
 };
 
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 function UploadStepContent() {
   const params = useParams();
   const router = useRouter();
@@ -411,7 +420,7 @@ function UploadStepContent() {
                           persist({ skillTagIds: ids });
                         }}
                       />
-                      {tag.name.replace(/[<>]/g, '')}
+                      {escapeHtml(tag.name)}
                     </label>
                   ))
                 )}
