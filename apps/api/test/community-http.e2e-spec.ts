@@ -323,9 +323,10 @@ describe('Community HTTP (mocked e2e)', () => {
   });
 
   it('GET /api/v1/communities/:id/polls/active returns poll', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/communities/comm-1/polls/active');
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const res = await request(app.getHttpServer()).get(`/api/v1/communities/${communityId}/polls/active`);
     expect(res.status).toBe(200);
-    expect(pollsService.getActivePoll).toHaveBeenCalledWith('comm-1', 'user-1', 'consumer');
+    expect(pollsService.getActivePoll).toHaveBeenCalledWith(communityId, 'user-1', 'consumer');
   });
 
   it('POST /api/v1/communities/:id/gamification/check-in returns 410 when LMS soft-retired', async () => {
@@ -430,8 +431,10 @@ describe('Community HTTP (mocked e2e)', () => {
   });
 
   it('GET /api/v1/creators/me/communities/:id/rooms/:roomId/summary summarizes room', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const roomId = '00000000-0000-4000-8000-0000000000a1';
     const res = await request(app.getHttpServer()).get(
-      '/api/v1/creators/me/communities/comm-1/rooms/room-1/summary',
+      `/api/v1/creators/me/communities/${communityId}/rooms/${roomId}/summary`,
     );
     expect(res.status).toBe(200);
     expect(roomMessagesService.listMessages).toHaveBeenCalled();
@@ -465,16 +468,26 @@ describe('Community HTTP (mocked e2e)', () => {
   });
 
   it('GET /api/v1/creators/:creatorId/communities/:slug/access returns join metadata', async () => {
+    const creatorId = '00000000-0000-4000-8000-0000000000d1';
     const res = await request(app.getHttpServer()).get(
-      '/api/v1/creators/creator-1/communities/test/access',
+      `/api/v1/creators/${creatorId}/communities/test/access`,
     );
     expect(res.status).toBe(200);
     expect(communitiesService.getCommunityAccessMeta).toHaveBeenCalledWith(
-      'creator-1',
+      creatorId,
       'test',
       'user-1',
       'consumer',
     );
+  });
+
+  it('GET /api/v1/creators/:creatorId/communities/:slug/access returns 400 for malformed creator id', async () => {
+    communitiesService.getCommunityAccessMeta.mockClear();
+    const res = await request(app.getHttpServer()).get(
+      '/api/v1/creators/not-a-uuid/communities/test/access',
+    );
+    expect(res.status).toBe(400);
+    expect(communitiesService.getCommunityAccessMeta).not.toHaveBeenCalled();
   });
 
   it('PATCH /api/v1/creators/me/communities/:id/members/:userId/reject rejects member', async () => {
@@ -507,13 +520,14 @@ describe('Community HTTP (mocked e2e)', () => {
   });
 
   it('DELETE /api/v1/subscriptions/me/:creatorId?cancelAtPeriodEnd=true schedules cancel', async () => {
+    const creatorId = '00000000-0000-4000-8000-0000000000d1';
     const res = await request(app.getHttpServer()).delete(
-      '/api/v1/subscriptions/me/creator-1?cancelAtPeriodEnd=true',
+      `/api/v1/subscriptions/me/${creatorId}?cancelAtPeriodEnd=true`,
     );
     expect(res.status).toBe(200);
     expect(entitlementsService.cancelMySubscription).toHaveBeenCalledWith(
       'user-1',
-      'creator-1',
+      creatorId,
       true,
     );
   });

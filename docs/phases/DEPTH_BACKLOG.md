@@ -273,6 +273,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Add `ParseUUIDPipe` validation to the remaining mounted `communities` controller creator/community-channel routes (`creatorId` public lookups and deprecated channel message send)
 - Confirm the controller compiles cleanly via IDE diagnostics; no direct Jest coverage was discoverable for those exact endpoints under the current API test matcher
 
+## Hardening pass 25 (2026-08-04)
+
+- Update the mocked community HTTP e2e suite to use valid UUID fixtures on newly hardened routes and add an explicit malformed-`creatorId` assertion
+- Verify the route contract with the API e2e config directly: `jest --config apps/api/test/jest-e2e.json --runTestsByPath apps/api/test/community-http.e2e-spec.ts` (`33/33` passing)
+
 ## Still open
 
 | Area | Item | Owner |
