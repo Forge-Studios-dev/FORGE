@@ -26,9 +26,17 @@ describe('VideosService.applySkillTagUpdate', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('rejects an empty tag set', async () => {
-    await expect(applyTags(makeVideo(), [])).rejects.toBeInstanceOf(BadRequestException);
+  it('clears tags when given an empty set', async () => {
+    categoryRepository.findOne.mockResolvedValue({ name: 'Coding' });
+    const video = makeVideo();
+    video.skillTags = [{ id: 'old' } as never];
+    video.tagsSearchText = 'Coding old';
+
+    await applyTags(video, []);
+
     expect(skillTagRepository.find).not.toHaveBeenCalled();
+    expect(video.skillTags).toEqual([]);
+    expect(video.tagsSearchText).toBe('Coding');
   });
 
   it('rejects when one or more tag ids do not resolve', async () => {
