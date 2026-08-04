@@ -1,6 +1,4 @@
-import { notFound } from 'next/navigation';
-import { getUserByUsernameCached } from '@/lib/get-user-by-username';
-import { UserListPage } from '@/components/profile/UserListPage';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,8 +6,7 @@ interface Props {
   params: { username: string };
 }
 
-export default async function FollowersPage({ params }: Props) {
-  const user = await getUserByUsernameCached(params.username);
-  if (!user) notFound();
-  return <UserListPage userId={user.id} type="followers" username={user.username} />;
+/** Legacy Twitter-era path → YouTube-style subscribers. */
+export default function FollowersRedirectPage({ params }: Props) {
+  redirect(`/${params.username}/subscribers`);
 }

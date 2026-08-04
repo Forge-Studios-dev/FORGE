@@ -34,7 +34,6 @@ import { AiBudgetService } from '../src/modules/communities/ai-budget.service';
 import { CreatorAuditService } from '../src/modules/communities/creator-audit.service';
 import { EntitlementsController } from '../src/modules/entitlements/entitlements.controller';
 import { EntitlementsService } from '../src/modules/entitlements/entitlements.service';
-import { CreatorBundlesService } from '../src/modules/entitlements/creator-bundles.service';
 import { ConfigService } from '@nestjs/config';
 
 describe('Community HTTP (mocked e2e)', () => {
@@ -155,10 +154,6 @@ describe('Community HTTP (mocked e2e)', () => {
     cancelMySubscription: jest.fn().mockResolvedValue({ canceled: false, cancelAtPeriodEnd: true }),
   };
 
-  const creatorBundlesService = {
-    listBundlesForCreator: jest.fn().mockResolvedValue({ data: [] }),
-  };
-
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [
@@ -188,7 +183,6 @@ describe('Community HTTP (mocked e2e)', () => {
         { provide: CreatorAuditService, useValue: auditService },
         { provide: CommunityMembersService, useValue: membersService },
         { provide: EntitlementsService, useValue: entitlementsService },
-        { provide: CreatorBundlesService, useValue: creatorBundlesService },
         SkillEconomyLmsGuard,
         {
           provide: ConfigService,

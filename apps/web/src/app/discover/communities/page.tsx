@@ -73,7 +73,11 @@ export default function DiscoverCommunitiesPage() {
             <ul className="space-y-3">
               {(featured ?? []).map((c) => {
                 const username = c.creator?.username;
-                const href = username ? `/${username}/c/${c.slug}` : `/communities/id/${c.id}`;
+                const href = username
+                  ? `/${username}/c/${c.slug}`
+                  : c.creator?.id
+                    ? `/${c.creator.id}/c/${c.slug}`
+                    : `/communities/id/${c.id}`;
                 const isPaid = c.visibility === 'paid';
                 const subscribeHref = c.creator?.id
                   ? `/${username ?? c.creator.id}/c/${c.slug}?subscribe=1`
@@ -113,7 +117,11 @@ export default function DiscoverCommunitiesPage() {
         <ul className="space-y-3">
           {(data ?? []).map((c) => {
             const username = c.creator?.username;
-            const href = username ? `/${username}/c/${c.slug}` : `/communities/id/${c.id}`;
+            const href = username
+              ? `/${username}/c/${c.slug}`
+              : c.creator?.id
+                ? `/${c.creator.id}/c/${c.slug}`
+                : `/communities/id/${c.id}`;
             const isPaid = c.visibility === 'paid';
             const subscribeHref = c.creator?.id
               ? `/${username ?? c.creator.id}/c/${c.slug}?subscribe=1`

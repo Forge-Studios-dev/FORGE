@@ -9,7 +9,13 @@ import { useAuth } from '@/lib/auth';
 type UpdatePost = {
   id: string;
   communityId: string;
-  community: { id: string; name: string; slug: string; creatorId: string } | null;
+  community: {
+    id: string;
+    name: string;
+    slug: string;
+    creatorId: string;
+    creatorUsername?: string | null;
+  } | null;
   author: { displayName?: string; username?: string } | null;
   title: string | null;
   body: string;
@@ -56,7 +62,11 @@ export default function CommunityUpdatesPage() {
           <li key={post.id} className="glass-panel rounded-xl p-5">
             <div className="mb-2 flex items-center justify-between gap-3">
               <Link
-                href={`/communities/id/${post.communityId}`}
+                href={
+                  post.community?.creatorUsername && post.community.slug
+                    ? `/${post.community.creatorUsername}/c/${post.community.slug}`
+                    : `/communities/id/${post.communityId}`
+                }
                 className="text-sm font-medium text-primary hover:underline"
               >
                 {post.community?.name ?? 'Community'}

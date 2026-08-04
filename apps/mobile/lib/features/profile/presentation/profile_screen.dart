@@ -286,12 +286,12 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                     _Stat(
                       count: user.followerCount,
                       label: 'Subscribers',
-                      onTap: () => context.push('/profile/${user.username}/followers'),
+                      onTap: () => context.push('/profile/${user.username}/subscribers'),
                     ),
                     _Stat(
                       count: user.followingCount,
                       label: 'Subscriptions',
-                      onTap: () => context.push('/profile/${user.username}/following'),
+                      onTap: () => context.push('/profile/${user.username}/subscriptions'),
                     ),
                   ],
                 ),

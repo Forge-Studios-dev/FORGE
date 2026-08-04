@@ -96,7 +96,7 @@ function SubscriptionsContent() {
                 </button>
               ) : null}
               {user?.username ? (
-                <Link href={`/${user.username}/following`} className="text-sm text-primary hover:underline">
+                <Link href={`/${user.username}/subscriptions`} className="text-sm text-primary hover:underline">
                   Manage
                 </Link>
               ) : null}

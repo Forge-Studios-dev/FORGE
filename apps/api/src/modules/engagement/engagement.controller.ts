@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -17,6 +18,7 @@ import { clampLimit } from '../../common/utils/pagination.util';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { SetChannelNotifyLevelDto } from './dto/set-channel-notify-level.dto';
+import { CreatorHeartCommentDto, PinCommentDto } from './dto/comment-moderation.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
@@ -33,7 +35,7 @@ export class EngagementController {
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Like a video (clears dislike)' })
-  likeVideo(@CurrentUser() user: JwtPayload, @Param('id') videoId: string) {
+  likeVideo(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) videoId: string) {
     return this.engagementService.likeVideo(user.sub, videoId);
   }
 
@@ -41,7 +43,7 @@ export class EngagementController {
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove like from a video' })
-  unlikeVideo(@CurrentUser() user: JwtPayload, @Param('id') videoId: string) {
+  unlikeVideo(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) videoId: string) {
     return this.engagementService.unlikeVideo(user.sub, videoId);
   }
 
@@ -49,7 +51,7 @@ export class EngagementController {
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Dislike a video (clears like)' })
-  dislikeVideo(@CurrentUser() user: JwtPayload, @Param('id') videoId: string) {
+  dislikeVideo(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) videoId: string) {
     return this.engagementService.dislikeVideo(user.sub, videoId);
   }
 
@@ -57,7 +59,7 @@ export class EngagementController {
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove dislike from a video' })
-  undislikeVideo(@CurrentUser() user: JwtPayload, @Param('id') videoId: string) {
+  undislikeVideo(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) videoId: string) {
     return this.engagementService.undislikeVideo(user.sub, videoId);
   }
 
@@ -66,7 +68,7 @@ export class EngagementController {
   @ApiOperation({ summary: 'Add a comment to a video' })
   createComment(
     @CurrentUser() user: JwtPayload,
-    @Param('id') videoId: string,
+    @Param('id', ParseUUIDPipe) videoId: string,
     @Body() dto: CreateCommentDto,
   ) {
     return this.engagementService.createComment(user.sub, videoId, dto);
@@ -77,7 +79,7 @@ export class EngagementController {
   @Get('videos/:id/comments')
   @ApiOperation({ summary: 'Get comments for a video' })
   getComments(
-    @Param('id') videoId: string,
+    @Param('id', ParseUUIDPipe) videoId: string,
     @Query('limit') limit: number,
     @Query('cursor') cursor: string,
     @Query('sort') sort: 'newest' | 'top' | 'oldest' = 'newest',
@@ -99,8 +101,8 @@ export class EngagementController {
   @Get('videos/:videoId/comments/:commentId')
   @ApiOperation({ summary: 'Get a single comment (deep link / share)' })
   getComment(
-    @Param('videoId') videoId: string,
-    @Param('commentId') commentId: string,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
     @CurrentUser() user?: JwtPayload,
   ) {
     return this.engagementService.getComment(videoId, commentId, user?.sub);
@@ -111,8 +113,8 @@ export class EngagementController {
   @Get('videos/:videoId/comments/:commentId/replies')
   @ApiOperation({ summary: 'Get replies for a comment' })
   getCommentReplies(
-    @Param('videoId') videoId: string,
-    @Param('commentId') commentId: string,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
     @Query('limit') limit: number,
     @Query('cursor') cursor: string,
     @CurrentUser() user?: JwtPayload,
@@ -131,8 +133,8 @@ export class EngagementController {
   @ApiOperation({ summary: 'Edit a comment' })
   updateComment(
     @CurrentUser() user: JwtPayload,
-    @Param('videoId') videoId: string,
-    @Param('commentId') commentId: string,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
     @Body() dto: UpdateCommentDto,
   ) {
     return this.engagementService.updateComment(
@@ -150,8 +152,8 @@ export class EngagementController {
   @ApiOperation({ summary: 'Delete a comment' })
   deleteComment(
     @CurrentUser() user: JwtPayload,
-    @Param('videoId') videoId: string,
-    @Param('commentId') commentId: string,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
   ) {
     return this.engagementService.deleteComment(user.sub, user.role, videoId, commentId);
   }
@@ -162,8 +164,8 @@ export class EngagementController {
   @ApiOperation({ summary: 'Like a comment' })
   likeComment(
     @CurrentUser() user: JwtPayload,
-    @Param('videoId') videoId: string,
-    @Param('commentId') commentId: string,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
   ) {
     return this.engagementService.likeComment(user.sub, videoId, commentId);
   }
@@ -174,8 +176,8 @@ export class EngagementController {
   @ApiOperation({ summary: 'Unlike a comment' })
   unlikeComment(
     @CurrentUser() user: JwtPayload,
-    @Param('videoId') videoId: string,
-    @Param('commentId') commentId: string,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
   ) {
     return this.engagementService.unlikeComment(user.sub, videoId, commentId);
   }
@@ -186,15 +188,15 @@ export class EngagementController {
   @ApiOperation({ summary: 'Pin or unpin a top-level comment (video owner)' })
   pinComment(
     @CurrentUser() user: JwtPayload,
-    @Param('videoId') videoId: string,
-    @Param('commentId') commentId: string,
-    @Body() body: { isPinned: boolean },
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+    @Body() body: PinCommentDto,
   ) {
     return this.engagementService.setCommentPinned(
       user.sub,
       videoId,
       commentId,
-      !!body.isPinned,
+      body.isPinned,
     );
   }
 
@@ -204,15 +206,15 @@ export class EngagementController {
   @ApiOperation({ summary: 'Heart a comment as the video owner' })
   creatorHeartComment(
     @CurrentUser() user: JwtPayload,
-    @Param('videoId') videoId: string,
-    @Param('commentId') commentId: string,
-    @Body() body: { creatorHearted: boolean },
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+    @Body() body: CreatorHeartCommentDto,
   ) {
     return this.engagementService.setCommentCreatorHeart(
       user.sub,
       videoId,
       commentId,
-      !!body.creatorHearted,
+      body.creatorHearted,
     );
   }
 
@@ -220,7 +222,7 @@ export class EngagementController {
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Follow a user (legacy; prefer channels/:id/subscribe)' })
-  follow(@CurrentUser() user: JwtPayload, @Param('userId') targetId: string) {
+  follow(@CurrentUser() user: JwtPayload, @Param('userId', ParseUUIDPipe) targetId: string) {
     return this.engagementService.follow(user.sub, targetId);
   }
 
@@ -228,7 +230,7 @@ export class EngagementController {
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unfollow a user (legacy; prefer channels/:id/subscribe)' })
-  unfollow(@CurrentUser() user: JwtPayload, @Param('userId') targetId: string) {
+  unfollow(@CurrentUser() user: JwtPayload, @Param('userId', ParseUUIDPipe) targetId: string) {
     return this.engagementService.unfollow(user.sub, targetId);
   }
 
@@ -236,7 +238,7 @@ export class EngagementController {
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Subscribe to a channel' })
-  subscribe(@CurrentUser() user: JwtPayload, @Param('userId') channelId: string) {
+  subscribe(@CurrentUser() user: JwtPayload, @Param('userId', ParseUUIDPipe) channelId: string) {
     return this.engagementService.subscribe(user.sub, channelId);
   }
 
@@ -244,14 +246,14 @@ export class EngagementController {
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unsubscribe from a channel' })
-  unsubscribe(@CurrentUser() user: JwtPayload, @Param('userId') channelId: string) {
+  unsubscribe(@CurrentUser() user: JwtPayload, @Param('userId', ParseUUIDPipe) channelId: string) {
     return this.engagementService.unsubscribe(user.sub, channelId);
   }
 
   @Get('channels/:userId/subscription')
   @Permissions(Permission.ENGAGE)
   @ApiOperation({ summary: 'Get subscription + notification bell level for a channel' })
-  getSubscription(@CurrentUser() user: JwtPayload, @Param('userId') channelId: string) {
+  getSubscription(@CurrentUser() user: JwtPayload, @Param('userId', ParseUUIDPipe) channelId: string) {
     return this.engagementService.getSubscription(user.sub, channelId);
   }
 
@@ -260,7 +262,7 @@ export class EngagementController {
   @ApiOperation({ summary: 'Set notification level for a channel subscription (all | personalized | none)' })
   setNotifyLevel(
     @CurrentUser() user: JwtPayload,
-    @Param('userId') channelId: string,
+    @Param('userId', ParseUUIDPipe) channelId: string,
     @Body() dto: SetChannelNotifyLevelDto,
   ) {
     return this.engagementService.setNotifyLevel(user.sub, channelId, dto.notifyLevel);
@@ -277,7 +279,7 @@ export class EngagementController {
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unmute a channel (resume recommending in feeds)' })
-  unmuteChannel(@CurrentUser() user: JwtPayload, @Param('userId') channelId: string) {
+  unmuteChannel(@CurrentUser() user: JwtPayload, @Param('userId', ParseUUIDPipe) channelId: string) {
     return this.engagementService.unmuteChannelRecommendations(user.sub, channelId);
   }
 
@@ -285,7 +287,7 @@ export class EngagementController {
   @Get('channels/:userId/subscribers')
   @ApiOperation({ summary: 'List channel subscribers' })
   listSubscribers(
-    @Param('userId') channelId: string,
+    @Param('userId', ParseUUIDPipe) channelId: string,
     @Query('limit') limit: number,
     @Query('cursor') cursor: string,
   ) {
@@ -296,7 +298,7 @@ export class EngagementController {
   @Get('channels/:userId/subscriptions')
   @ApiOperation({ summary: 'List channels this channel is subscribed to' })
   listSubscriptions(
-    @Param('userId') channelId: string,
+    @Param('userId', ParseUUIDPipe) channelId: string,
     @Query('limit') limit: number,
     @Query('cursor') cursor: string,
   ) {

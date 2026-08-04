@@ -292,18 +292,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (_, state) => ProfileScreen(username: state.pathParameters['username']!),
           ),
           GoRoute(
-            path: '/profile/:username/followers',
+            path: '/profile/:username/subscribers',
             builder: (_, state) => FollowerListScreen(
               username: state.pathParameters['username']!,
               following: false,
             ),
           ),
           GoRoute(
-            path: '/profile/:username/following',
+            path: '/profile/:username/subscriptions',
             builder: (_, state) => FollowerListScreen(
               username: state.pathParameters['username']!,
               following: true,
             ),
+          ),
+          GoRoute(
+            path: '/profile/:username/followers',
+            redirect: (_, state) => '/profile/${state.pathParameters['username']}/subscribers',
+          ),
+          GoRoute(
+            path: '/profile/:username/following',
+            redirect: (_, state) => '/profile/${state.pathParameters['username']}/subscriptions',
           ),
           GoRoute(
             path: '/profile/:username/programs/:slug',

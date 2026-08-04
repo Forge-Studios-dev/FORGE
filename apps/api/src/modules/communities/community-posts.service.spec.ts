@@ -8,6 +8,7 @@ import { CommunityPost, CommunityPostType } from './entities/community-post.enti
 import { CommunityPostComment } from './entities/community-post-comment.entity';
 import { CommunityPostReaction } from './entities/community-post-reaction.entity';
 import { Community } from './entities/community.entity';
+import { User } from '../users/entities/user.entity';
 import { CommunitiesService } from './communities.service';
 import { CommunityModerationService } from './community-moderation.service';
 import { AiCommunityService } from './ai-community.service';
@@ -118,6 +119,12 @@ describe('CommunityPostsService', () => {
         CommunityPostsService,
         { provide: getRepositoryToken(CommunityPost), useValue: postRepository },
         { provide: getRepositoryToken(Community), useValue: communityRepository },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            find: jest.fn().mockResolvedValue([{ id: 'creator-1', username: 'c1' }]),
+          },
+        },
         {
           provide: getRepositoryToken(CommunityPostComment),
           useValue: commentRepository,
@@ -259,6 +266,7 @@ describe('CommunityPostsService', () => {
       name: 'Comm One',
       slug: 'comm-one',
       creatorId: 'creator-1',
+      creatorUsername: 'c1',
     });
     expect(result.meta.hasMore).toBe(false);
   });

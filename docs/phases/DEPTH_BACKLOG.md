@@ -175,6 +175,13 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Channel reorder validates UUID array DTO
 - Boot-omit Brands/Mentorship controllers + Gamification HTTP when LMS off (service retained)
 
+## Hardening pass 7 (2026-08-04)
+
+- Engagement: `ParseUUIDPipe` on video/comment/channel IDs; pin/creator-heart DTOs with `@IsBoolean`
+- Updates feed returns `creatorUsername`; web/mobile use `/subscribers` + `/subscriptions` (legacy paths redirect)
+- Creator bundles HTTP moved to boot-omitted `CreatorBundlesController` when LMS off
+- Removed empty mobile `features/gamification` tree
+
 ## Still open
 
 | Area | Item | Owner |

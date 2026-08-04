@@ -15,7 +15,7 @@ import { CommunitiesService } from './communities.service';
 import { CommunityModerationService } from './community-moderation.service';
 import { AiCommunityService } from './ai-community.service';
 import { CommunityModerationQueueService } from './community-moderation-queue.service';
-import { UserRole } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import {
   COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE,
   type CommunityAnnouncementNotifyJobData,
@@ -56,6 +56,8 @@ export class CommunityPostsService {
     private readonly reactionRepository: Repository<CommunityPostReaction>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
     private readonly moderationService: CommunityModerationService,
@@ -279,6 +281,15 @@ export class CommunityPostsService {
       select: { id: true, name: true, slug: true, creatorId: true },
     });
     const communityById = new Map(communities.map((c) => [c.id, c]));
+    const creatorIds = [...new Set(communities.map((c) => c.creatorId).filter(Boolean))];
+    const creators =
+      creatorIds.length === 0
+        ? []
+        : await this.userRepository.find({
+            where: { id: In(creatorIds) },
+            select: { id: true, username: true },
+          });
+    const usernameByCreatorId = new Map(creators.map((u) => [u.id, u.username]));
 
     const counts = await this.getPostEngagementCounts(
       data.map((p) => p.id),
@@ -288,11 +299,20 @@ export class CommunityPostsService {
     return {
       data: data.map((p) => {
         const community = communityById.get(p.communityId);
+        const creatorUsername = community
+          ? usernameByCreatorId.get(community.creatorId) ?? null
+          : null;
         return {
           id: p.id,
           communityId: p.communityId,
           community: community
-            ? { id: community.id, name: community.name, slug: community.slug, creatorId: community.creatorId }
+            ? {
+                id: community.id,
+                name: community.name,
+                slug: community.slug,
+                creatorId: community.creatorId,
+                creatorUsername,
+              }
             : null,
           authorId: p.authorId,
           author: p.author
