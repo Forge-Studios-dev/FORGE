@@ -77,7 +77,7 @@ export function TopBar() {
           <div className="hidden h-10 w-40 animate-pulse rounded-full bg-surface-container-high md:block" aria-hidden />
         ) : !showAuth ? (
           <>
-            <Link href="/login" className="hidden rounded-full px-4 py-2 text-sm text-on-surface-variant hover:text-on-surface md:block">
+            <Link href="/login" className="rounded-full px-3 py-2 text-sm text-on-surface-variant hover:text-on-surface md:px-4">
               Sign in
             </Link>
             <Link href="/signup" className="primary-button hidden rounded-full px-5 py-2 text-sm font-semibold text-on-primary md:block">

@@ -1,13 +1,29 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CommunityPostsService } from './community-posts.service';
-import { CommunityPostType } from './entities/community-post.entity';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { CommunityStudioGuard } from './guards/community-studio.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import {
+  CreateCommunityPostCommentDto,
+  CreateCommunityPostDto,
+  PinCommunityPostDto,
+  UpdateCommunityPostDto,
+} from './dto/community-post.dto';
 
 @ApiTags('Community Posts')
 @Controller()
@@ -31,7 +47,7 @@ export class CommunityPostsController {
     summary: 'YouTube-style channel Community feed (public posts across creator communities)',
   })
   listChannelPosts(
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ParseUUIDPipe) creatorId: string,
     @Query('limit') limit = 20,
     @Query('cursor') cursor?: string,
     @CurrentUser() user?: JwtPayload,
@@ -49,7 +65,7 @@ export class CommunityPostsController {
   @Get('communities/:communityId/posts')
   @ApiOperation({ summary: 'List community posts' })
   list(
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Query('limit') limit = 30,
     @Query('cursor') cursor?: string,
     @CurrentUser() user?: JwtPayload,
@@ -68,7 +84,7 @@ export class CommunityPostsController {
   @Get('communities/:communityId/posts/search')
   @ApiOperation({ summary: 'Search community posts' })
   search(
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Query('q') q = '',
     @CurrentUser() user?: JwtPayload,
   ) {
@@ -82,14 +98,7 @@ export class CommunityPostsController {
   })
   createChannelPost(
     @CurrentUser() user: JwtPayload,
-    @Body()
-    body: {
-      title?: string;
-      body: string;
-      postType?: CommunityPostType;
-      isPinned?: boolean;
-      mediaUrls?: string[];
-    },
+    @Body() body: CreateCommunityPostDto,
   ) {
     return this.postsService.createChannelPost(user.sub, body, user.role);
   }
@@ -113,15 +122,8 @@ export class CommunityPostsController {
   @ApiOperation({ summary: 'Create a community post or announcement' })
   create(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Body()
-    body: {
-      title?: string;
-      body: string;
-      postType?: CommunityPostType;
-      isPinned?: boolean;
-      mediaUrls?: string[];
-    },
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Body() body: CreateCommunityPostDto,
   ) {
     return this.postsService.createPost(user.sub, communityId, user.sub, body, user.role);
   }
@@ -131,7 +133,7 @@ export class CommunityPostsController {
   @ApiOperation({ summary: 'Presigned URL for community post image upload' })
   postMediaUploadUrl(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Query('contentType') contentType: string,
   ) {
     return this.postsService.getMediaUploadUrl(
@@ -147,9 +149,9 @@ export class CommunityPostsController {
   @ApiOperation({ summary: 'Update a community post' })
   update(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('postId') postId: string,
-    @Body() body: { title?: string; body?: string; isPinned?: boolean },
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('postId', ParseUUIDPipe) postId: string,
+    @Body() body: UpdateCommunityPostDto,
   ) {
     return this.postsService.updatePost(user.sub, communityId, postId, body, user.role);
   }
@@ -159,8 +161,8 @@ export class CommunityPostsController {
   @ApiOperation({ summary: 'Delete a community post' })
   delete(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('postId') postId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('postId', ParseUUIDPipe) postId: string,
   ) {
     return this.postsService.deletePost(user.sub, communityId, postId, user.role);
   }
@@ -170,9 +172,9 @@ export class CommunityPostsController {
   @ApiOperation({ summary: 'Pin or unpin a community post' })
   pin(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('postId') postId: string,
-    @Body() body: { isPinned: boolean },
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('postId', ParseUUIDPipe) postId: string,
+    @Body() body: PinCommunityPostDto,
   ) {
     return this.postsService.setPostPinned(
       user.sub,
@@ -188,8 +190,8 @@ export class CommunityPostsController {
   @Get('communities/:communityId/posts/:postId/comments')
   @ApiOperation({ summary: 'List comments on a community post' })
   listComments(
-    @Param('communityId') communityId: string,
-    @Param('postId') postId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('postId', ParseUUIDPipe) postId: string,
     @CurrentUser() user?: JwtPayload,
   ) {
     return this.postsService.listComments(communityId, postId, user?.sub, user?.role);
@@ -199,9 +201,9 @@ export class CommunityPostsController {
   @ApiOperation({ summary: 'Add a comment to a community post' })
   createComment(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('postId') postId: string,
-    @Body() body: { body: string; parentId?: string },
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('postId', ParseUUIDPipe) postId: string,
+    @Body() body: CreateCommunityPostCommentDto,
   ) {
     return this.postsService.createComment(
       communityId,
@@ -216,9 +218,9 @@ export class CommunityPostsController {
   @ApiOperation({ summary: 'Delete a comment on a community post' })
   deleteComment(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('postId') postId: string,
-    @Param('commentId') commentId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('postId', ParseUUIDPipe) postId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
   ) {
     return this.postsService.deleteComment(
       communityId,
@@ -233,8 +235,8 @@ export class CommunityPostsController {
   @ApiOperation({ summary: 'Toggle like reaction on a community post' })
   toggleReaction(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('postId') postId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('postId', ParseUUIDPipe) postId: string,
   ) {
     return this.postsService.toggleReaction(communityId, postId, user.sub, user.role);
   }
@@ -243,9 +245,9 @@ export class CommunityPostsController {
   @ApiOperation({ summary: 'Mark a comment as the accepted answer for a Q&A post' })
   acceptAnswer(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('postId') postId: string,
-    @Param('commentId') commentId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('postId', ParseUUIDPipe) postId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
   ) {
     return this.postsService.acceptAnswer(communityId, postId, commentId, user.sub);
   }

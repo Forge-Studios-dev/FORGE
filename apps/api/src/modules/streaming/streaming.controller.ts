@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -89,7 +90,7 @@ export class StreamingController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
   @ApiOperation({ summary: 'Get stream by ID' })
-  findOne(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
+  findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
     return this.streamingService.getStreamForViewer(id, user?.sub, user?.role);
   }
 
@@ -99,7 +100,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Grant paid event access to a user (creator)' })
   async grantAccess(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: GrantStreamAccessDto,
   ) {
     const userId = await this.usersService.resolveUserId(dto);
@@ -112,7 +113,7 @@ export class StreamingController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/replay')
   @ApiOperation({ summary: 'Get VOD replay for an ended stream' })
-  getReplay(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
+  getReplay(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
     return this.streamingService.getStreamReplayVideo(id, user?.sub, user?.role);
   }
 
@@ -120,7 +121,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Create Stripe checkout for a paid live event ticket' })
   createEventCheckout(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateEventCheckoutDto,
   ) {
     return this.billingService.createEventCheckout(user.sub, { ...dto, streamId: id });
@@ -131,7 +132,7 @@ export class StreamingController {
   @Permissions(Permission.START_STREAM)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'End a live stream' })
-  endStream(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  endStream(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.streamingService.endStream(user.sub, id);
   }
 
@@ -141,7 +142,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Set chat slow mode for a live stream' })
   setSlowMode(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SetSlowModeDto,
   ) {
     return this.streamingService.setSlowMode(user.sub, id, dto.slowModeSeconds);
@@ -151,20 +152,20 @@ export class StreamingController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/rsvp')
   @ApiOperation({ summary: 'Get RSVP status for a scheduled stream' })
-  getRsvp(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
+  getRsvp(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
     return this.streamLiveService.getRsvpStatus(id, user?.sub);
   }
 
   @Post(':id/rsvp')
   @ApiOperation({ summary: 'RSVP to a scheduled stream' })
-  createRsvp(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  createRsvp(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.streamLiveService.rsvp(id, user.sub);
   }
 
   @Post(':id/rsvp/cancel')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel RSVP' })
-  cancelRsvp(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  cancelRsvp(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.streamLiveService.cancelRsvp(id, user.sub);
   }
 
@@ -172,7 +173,7 @@ export class StreamingController {
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.START_STREAM)
   @ApiOperation({ summary: 'List stream moderators' })
-  listModerators(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  listModerators(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.streamLiveService.listModerators(id, user.sub, user.role);
   }
 
@@ -182,7 +183,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Add a stream moderator' })
   addModerator(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AddStreamModeratorDto,
   ) {
     return this.streamLiveService.addModerator(id, user.sub, dto, user.role);
@@ -195,7 +196,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Remove a stream moderator' })
   removeModerator(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Param('userId') targetUserId: string,
   ) {
     return this.streamLiveService.removeModerator(id, user.sub, targetUserId, user.role);
@@ -205,7 +206,7 @@ export class StreamingController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/moderator-status')
   @ApiOperation({ summary: 'Check if current user can moderate' })
-  async moderatorStatus(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
+  async moderatorStatus(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
     if (!user?.sub) return { isMod: false };
     const isMod = await this.streamLiveService.canModerate(id, user.sub, user.role);
     return { isMod };
@@ -214,14 +215,14 @@ export class StreamingController {
   @Public()
   @Get(':id/reactions')
   @ApiOperation({ summary: 'Get live reaction counts for a stream' })
-  getReactions(@Param('id') id: string) {
+  getReactions(@Param('id', ParseUUIDPipe) id: string) {
     return this.streamReactionService.getCounts(id);
   }
 
   @Public()
   @Get(':id/poll')
   @ApiOperation({ summary: 'Get active poll for stream' })
-  getActivePoll(@Param('id') id: string) {
+  getActivePoll(@Param('id', ParseUUIDPipe) id: string) {
     return this.streamLiveService.getActivePoll(id);
   }
 
@@ -231,7 +232,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Create a live poll' })
   createPoll(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateStreamPollDto,
   ) {
     return this.streamLiveService.createPoll(id, user.sub, dto, user.role);
@@ -254,7 +255,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Close a poll' })
   closePoll(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Param('pollId') pollId: string,
   ) {
     return this.streamLiveService.closePoll(id, pollId, user.sub, user.role);
@@ -263,7 +264,7 @@ export class StreamingController {
   @Public()
   @Get(':id/clips')
   @ApiOperation({ summary: 'List highlight clips for a stream' })
-  listClips(@Param('id') id: string) {
+  listClips(@Param('id', ParseUUIDPipe) id: string) {
     return this.streamLiveService.listClips(id);
   }
 
@@ -273,7 +274,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Mark a highlight clip (host or mod)' })
   createClip(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateStreamClipDto,
   ) {
     return this.streamLiveService.createClip(id, user.sub, dto, user.role);
@@ -282,27 +283,27 @@ export class StreamingController {
   @Public()
   @Get(':id/captions')
   @ApiOperation({ summary: 'List captions/subtitles for stream replay' })
-  listCaptions(@Param('id') id: string) {
+  listCaptions(@Param('id', ParseUUIDPipe) id: string) {
     return this.streamLiveService.listCaptions(id);
   }
 
   @Post(':id/raise-hand')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Raise hand during live stream (stage mode)' })
-  raiseHand(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  raiseHand(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.streamLiveService.raiseHand(id, user.sub);
   }
 
   @Delete(':id/raise-hand')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Lower raised hand' })
-  lowerHand(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  lowerHand(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.streamLiveService.lowerHand(id, user.sub);
   }
 
   @Get(':id/raise-hands')
   @ApiOperation({ summary: 'List raised hands for stream' })
-  listRaisedHands(@Param('id') id: string) {
+  listRaisedHands(@Param('id', ParseUUIDPipe) id: string) {
     return this.streamLiveService.listRaisedHands(id);
   }
 
@@ -312,7 +313,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Submit an audience request (question or speak/guest request)' })
   createAudienceRequest(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { requestType?: AudienceRequestType; message?: string },
   ) {
     return this.streamLiveService.createAudienceRequest(
@@ -326,7 +327,7 @@ export class StreamingController {
   @Delete(':id/requests/me')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Withdraw my audience request' })
-  withdrawAudienceRequest(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  withdrawAudienceRequest(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.streamLiveService.withdrawAudienceRequest(id, user.sub);
   }
 
@@ -335,7 +336,7 @@ export class StreamingController {
   @ApiOperation({ summary: "List audience requests for creator's stream" })
   listAudienceRequests(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.streamLiveService.listAudienceRequests(id, user.sub);
   }
@@ -345,7 +346,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Approve or reject an audience request' })
   respondToAudienceRequest(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Param('requestId') requestId: string,
     @Body() body: { approve: boolean },
   ) {
@@ -356,7 +357,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'AI-generated summary of a live stream' })
   async getStreamAiSummary(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     const stream = await this.streamingService.getStreamForViewer(id, user.sub, user.role);
     const chatMessages = await this.streamAnalyticsService.getStreamChatMessages(id, 200);
@@ -408,7 +409,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Create breakout rooms from a live stream (creator)' })
   createBreakoutRooms(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { roomCount: number; durationMinutes: number; maxParticipantsPerRoom?: number; namingPrefix?: string },
   ) {
     return this.streamBreakoutService.createBreakoutRooms(user.sub, id, body);
@@ -419,7 +420,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'List active breakout rooms for a stream' })
   listBreakoutRooms(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { communityId: string },
   ) {
     return this.streamBreakoutService.listBreakoutRooms(id, body.communityId);
@@ -431,7 +432,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Auto-assign participants to breakout rooms (creator)' })
   assignBreakout(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { communityId: string; roomIds: string[] },
   ) {
     return this.streamBreakoutService.assignParticipants(user.sub, id, body.communityId, body.roomIds);
@@ -443,7 +444,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'End all breakout rooms and return participants to main stream' })
   endBreakoutRooms(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { roomIds: string[] },
   ) {
     return this.streamBreakoutService.endBreakoutRooms(user.sub, id, body.roomIds).then(() => ({ ok: true }));
@@ -454,7 +455,7 @@ export class StreamingController {
   @UseGuards(CreatorApprovedGuard)
   @Get(':id/co-hosts')
   @ApiOperation({ summary: 'List co-hosts for a stream' })
-  listCoHosts(@Param('id') id: string) {
+  listCoHosts(@Param('id', ParseUUIDPipe) id: string) {
     return this.streamingService.listCoHosts(id);
   }
 
@@ -463,7 +464,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Add a co-host to the stream (creator only)' })
   addCoHost(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { userId: string },
   ) {
     return this.streamingService.addCoHost(user.sub, id, body.userId);
@@ -475,7 +476,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Remove a co-host from the stream (creator only)' })
   removeCoHost(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Param('userId') coHostId: string,
   ) {
     return this.streamingService.removeCoHost(user.sub, id, coHostId);
@@ -488,7 +489,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Configure VIP room tier for a stream (creator only)' })
   setVipTier(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { vipTierId: string | null },
   ) {
     return this.streamingService.setVipTier(user.sub, id, body.vipTierId ?? null);
@@ -497,7 +498,7 @@ export class StreamingController {
   @Post(':id/vip-room/join')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify VIP room access and get join token' })
-  async joinVipRoom(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  async joinVipRoom(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     await this.streamingService.assertVipAccess(id, user.sub, user.role);
     return { streamId: id, vipRoom: `stream:${id}:vip`, access: 'granted' };
   }

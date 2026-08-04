@@ -120,13 +120,12 @@ int _studioCommunityTabIndex(String? tab) {
   switch (tab) {
     case 'members':
       return 1;
-    case 'engagement':
-      return 2;
     case 'moderation':
-      return 3;
+      return 2;
     case 'settings':
-      return 4;
+      return 3;
     case 'rooms':
+    case 'engagement': // LMS soft-retire — map old deep links to Rooms
     default:
       return 0;
   }
@@ -238,7 +237,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/studio/engagement',
-        redirect: (_, __) => '/studio/community?tab=engagement',
+        redirect: (_, __) => '/studio/community?tab=rooms',
       ),
       GoRoute(
         path: '/studio/moderation',

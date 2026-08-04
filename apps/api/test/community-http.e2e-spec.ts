@@ -251,10 +251,11 @@ describe('Community HTTP (mocked e2e)', () => {
   });
 
   it('GET /api/v1/communities/:id/posts lists posts', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/communities/comm-1/posts');
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const res = await request(app.getHttpServer()).get(`/api/v1/communities/${communityId}/posts`);
     expect(res.status).toBe(200);
     expect(postsService.listPosts).toHaveBeenCalledWith(
-      'comm-1',
+      communityId,
       30,
       undefined,
       'user-1',
@@ -263,24 +264,30 @@ describe('Community HTTP (mocked e2e)', () => {
   });
 
   it('GET /api/v1/communities/:id/posts/:postId/comments lists comments', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const postId = '00000000-0000-4000-8000-0000000000a1';
     const res = await request(app.getHttpServer()).get(
-      '/api/v1/communities/comm-1/posts/post-1/comments',
+      `/api/v1/communities/${communityId}/posts/${postId}/comments`,
     );
     expect(res.status).toBe(200);
     expect(postsService.listComments).toHaveBeenCalled();
   });
 
   it('POST /api/v1/communities/:id/posts/:postId/comments creates comment', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const postId = '00000000-0000-4000-8000-0000000000a1';
     const res = await request(app.getHttpServer())
-      .post('/api/v1/communities/comm-1/posts/post-1/comments')
+      .post(`/api/v1/communities/${communityId}/posts/${postId}/comments`)
       .send({ body: 'Great post' });
     expect(res.status).toBe(201);
     expect(postsService.createComment).toHaveBeenCalled();
   });
 
   it('POST /api/v1/communities/:id/posts/:postId/reactions toggles like', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const postId = '00000000-0000-4000-8000-0000000000a1';
     const res = await request(app.getHttpServer()).post(
-      '/api/v1/communities/comm-1/posts/post-1/reactions',
+      `/api/v1/communities/${communityId}/posts/${postId}/reactions`,
     );
     expect(res.status).toBe(201);
     expect(postsService.toggleReaction).toHaveBeenCalled();

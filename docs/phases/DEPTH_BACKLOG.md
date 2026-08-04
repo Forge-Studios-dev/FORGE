@@ -189,6 +189,13 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Gate `ecosystem-tree` behind LMS; remove Studio analytics duplicate communities fetch
 - Delete unused Studio Community LMS panels; CategoryFilter + CommunityPanel tablist a11y
 
+## Hardening pass 9 (2026-08-04)
+
+- Mobile community: drop wiki/challenges/surveys; Posts/Polls/Rooms tabs; Studio Engagement tab removed
+- Community posts: DTOs + `ParseUUIDPipe`; streaming `:id` UUID pipes
+- Delete dead `StudioBadgeConfigPanel` + mobile `StudioEngagementScreen`
+- Welcome modal dialog a11y; TopBar Sign in visible on mobile
+
 ## Still open
 
 | Area | Item | Owner |
