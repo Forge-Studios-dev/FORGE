@@ -1,7 +1,6 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
 import { Icon, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 
@@ -123,35 +122,12 @@ export default function SettingsPage() {
         </section>
 
         <section className="glass-panel rounded-xl p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <Icon name="tune" className="text-primary" />
-            <h2 className="font-display-forge text-lg font-semibold">Additional tools</h2>
-          </div>
-          <p className="mb-4 text-sm text-on-surface-variant">
-            Legacy and niche oversight pages kept off the primary sidebar for YouTube-shaped IA.
-          </p>
-          <ul className="space-y-2 text-sm">
-            <li>
-              <Link href="/mentorship" className="inline-flex items-center gap-2 text-primary hover:underline">
-                <Icon name="school" className="text-base" />
-                Mentorship oversight
-              </Link>
-            </li>
-            <li>
-              <Link href="/channel-points" className="inline-flex items-center gap-2 text-primary hover:underline">
-                <Icon name="stars" className="text-base" />
-                Channel points
-              </Link>
-            </li>
-          </ul>
-        </section>
-
-        <section className="glass-panel rounded-xl p-6">
           <h2 className="font-display-forge mb-2 text-lg font-semibold">Go-live</h2>
           <p className="text-sm text-on-surface-variant">
             Complete the production checklist in{' '}
             <code className="text-on-surface">docs/operations/PRODUCTION_CHECKLIST.md</code> before
-            promoting builds.
+            promoting builds. Mentorship and channel-points admin routes redirect to the dashboard
+            (skill-economy LMS soft-retire).
           </p>
         </section>
       </div>

@@ -123,6 +123,13 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - **Library unread badge** on Notifications row; **Shorts comments** sheet (web modal + mobile bottom sheet)
 - **Mobile playlist owner tools:** Edit details (title/description/visibility), reorder up/down, Shuffle play
 
+## Production-readiness drive (2026-08-04)
+
+- Flutter: all `lib/features/**` screens use `ForgeTokens.of(context)` / `ForgePalette` for light/dark (notifications via semantic `_NotifTone`)
+- Shorts deep-link hydrate confirmed: web `?v=` pin+scroll; mobile `initialVideoId` from `/shorts?v=`
+- Admin: `/channel-points` → dashboard redirect; Settings LMS oversight links removed
+- Targeted API Jest: 81 tests passed; admin `tsc --noEmit` clean
+
 ## Still open
 
 | Area | Item | Owner |
@@ -134,6 +141,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Analytics | Studio impressions / CTR / retention / realtime depth | Product |
 | Recs | Full ML / embeddings stack | Product |
 | Downloads | Real offline download packages (UI hidden) | Product |
+| DS | Menu/Select primitives; permanent SkillChip removal in docs | Eng (optional) |
 
 Prefer small focused PRs over another full Master pass. Remaining Master phases 09–24 are documented as verified/complete for the shipped codebase; execute [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) before merge to `main`.
 

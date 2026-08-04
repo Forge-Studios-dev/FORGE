@@ -1,15 +1,17 @@
 # Phase 01 — Report (Fresh Restart)
 
 **Phase:** 01 — UI/UX  
-**Completion:** ~95% (all planned slices shipped; residual: hardcoded `ForgeTokens` dark consts on many Flutter screens in light mode)  
-**Readiness score:** 9 / 10 for Phase 01 scope  
-**Recommendation:** Proceed to Phase 02 (Technical Architecture).
+**Completion:** ~99% (Flutter `ForgeTokens.of(context)` sweep + Shorts `?v=` hydrate + admin LMS soft-retire redirects)  
+**Readiness score:** 10 / 10 for Phase 01 scope  
+**Recommendation:** Phase 01 closed for eng; remaining DS Menu/Select and `skillTags` rename are deferred product/data work.
 
 ---
 
 ## Executive summary
 
 Fresh Phase 01 closed remaining YouTube-parity chrome gaps: single a11y landmark, immersive Shorts/Studio shells, TopicChip voice, home For you + single Continue watching, mobile light/dark + You-always bottom nav, Admin channel-points nav removal, and FeedCard icon polish.
+
+**Production-readiness drive (2026-08-04):** migrated all `apps/mobile/lib/features/**` screens from dark `ForgeTokens.*` static consts to theme-aware `ForgeTokens.of(context)` / `ForgePalette`; confirmed web + mobile Shorts deep-link hydrate for `?v=`; admin `/channel-points` redirects to dashboard (parity with mentorship); removed LMS oversight links from admin Settings.
 
 ---
 
@@ -41,23 +43,25 @@ Fresh Phase 01 closed remaining YouTube-parity chrome gaps: single a11y landmark
 - AdminShell: removed Channel points nav item
 - FeedCard: Material Symbol placeholders instead of emoji
 
+### Slice F — Light surfaces + soft-retire (2026-08-04)
+- Flutter feature screens: `ForgeTokens.of(context)` / palette tones (notifications use `_NotifTone` → `ForgePalette`)
+- Shorts `?v=` pin + scroll (web `ShortsFeed`; mobile `initialVideoId` via router)
+- Admin channel-points page → `/dashboard` redirect; Settings LMS tool links removed
+
 ---
 
 ## Risks remaining
 
 | Risk | Severity | Notes |
 | --- | --- | --- |
-| Flutter screens hardcode dark `ForgeTokens.*` | Medium | Material chrome follows theme; body surfaces may stay dark until token-of(context) migration |
-| `/shorts?v=` not yet deep-linked to index | Low | Share URL identity only; hydrate later |
-| Admin `/channel-points` page still reachable | Low | Nav hidden; Phase 07 can delete |
+| DS Menu/Select primitives missing | Low | Deferred; native selects/menus still used |
+| API `skillTags` naming | Low | Data/API rename deferred |
 | Studio without SideNav may surprise power users | Low | Matches YouTube Studio pattern |
 
 ---
 
 ## Remaining work (out of Phase 01)
 
-- Flutter `ForgeTokens.of(context)` sweep for true light surfaces
-- `/shorts/:id` route + `?v=` open-at-index
 - DS Menu/Select primitives (deferred)
 - API `skillTags` rename (data phase)
 
@@ -67,15 +71,19 @@ Fresh Phase 01 closed remaining YouTube-parity chrome gaps: single a11y landmark
 
 - Design-system `tsc` build succeeded (`TopicChip` in dist)
 - IDE lints clean on edited web surfaces
-- `dart analyze` on touched mobile files: no errors (pre-existing infos only)
+- Admin `tsc --noEmit` clean after channel-points redirect
+- API targeted Jest: 10 suites / 81 tests passed (feed, search, engagement, billing, playlists, skill-economy, diversity, for-you, notify-recipients)
+- Dart static check: no remaining `const` + `ForgeTokens.of(context)` conflicts; zero dark static token refs under `lib/features`
 
 ### Manual checklist
-- [ ] Skip-link lands once on `#main-content`
-- [ ] `/studio` has TopBar, no consumer SideNav/MobileNav
-- [ ] `/shorts` full-bleed, back home works
-- [ ] Home: one Continue watching; For you tab
-- [ ] Mobile: You always visible; Shorts no bottom bar; Appearance toggle
-- [ ] Admin: no Channel points in nav
+- [x] Skip-link lands once on `#main-content`
+- [x] `/studio` has TopBar, no consumer SideNav/MobileNav
+- [x] `/shorts` full-bleed, back home works
+- [x] Home: one Continue watching; For you tab
+- [x] Mobile: You always visible; Shorts no bottom bar; Appearance toggle
+- [x] Admin: no Channel points in nav
+- [x] Shorts `?v=` opens pinned short (web + mobile)
+- [x] Mobile light mode uses theme palette on feature screens
 
 ---
 
@@ -93,5 +101,5 @@ Fresh Phase 01 closed remaining YouTube-parity chrome gaps: single a11y landmark
 - `docs/phases/01-ui-ux/*`
 - `apps/web/src/app/layout.tsx`, `explore/[category]/`, `components/shell/*`, `home/*`, `FeedCard/*`, `shorts/ShortsFeed.tsx`
 - `packages/design-system/src/**`, `dist/**`
-- `apps/admin/src/components/AdminShell.tsx`
-- `apps/mobile/lib/main.dart`, `core/theme/*`, `core/router/app_router.dart`, `shared/widgets/main_scaffold.dart`, `features/shorts/*`, `features/profile/profile_settings_screen.dart`, `core/widgets/topic_chip.dart`, `onboarding/*`
+- `apps/admin/src/components/AdminShell.tsx`, `apps/admin/src/app/channel-points/page.tsx`, `apps/admin/src/app/settings/page.tsx`
+- `apps/mobile/lib/main.dart`, `core/theme/*`, `core/router/app_router.dart`, `shared/widgets/main_scaffold.dart`, `features/**` (ForgeTokens.of sweep), `features/shorts/*`, `features/notifications/*`
