@@ -211,6 +211,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Fix `GET /streams/:id/breakout-rooms` to read `communityId` from query params instead of a GET body
 - Add nested `ParseUUIDPipe` validation on live moderator, poll, audience-request, and co-host IDs; cover the breakout query contract with a controller test
 
+## Hardening pass 13 (2026-08-04)
+
+- Add `ParseUUIDPipe` across still-mounted UUID-backed `communities.controller` params (community/category/channel/message IDs)
+- Add negative mocked e2e coverage proving malformed community IDs return `400` before service logic runs
+
 ## Still open
 
 | Area | Item | Owner |

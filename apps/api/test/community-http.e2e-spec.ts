@@ -300,17 +300,26 @@ describe('Community HTTP (mocked e2e)', () => {
   });
 
   it('GET /api/v1/creators/me/communities/:id/analytics returns metrics', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
     const res = await request(app.getHttpServer()).get(
-      '/api/v1/creators/me/communities/comm-1/analytics',
+      `/api/v1/creators/me/communities/${communityId}/analytics`,
     );
     expect(res.status).toBe(200);
-    expect(communitiesService.getCommunityAnalytics).toHaveBeenCalledWith('user-1', 'comm-1');
+    expect(communitiesService.getCommunityAnalytics).toHaveBeenCalledWith('user-1', communityId);
   });
 
   it('GET /api/v1/communities/:id/live returns community streams', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/communities/comm-1/live');
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const res = await request(app.getHttpServer()).get(`/api/v1/communities/${communityId}/live`);
     expect(res.status).toBe(200);
     expect(communitiesService.getCommunityLiveStreams).toHaveBeenCalled();
+  });
+
+  it('GET /api/v1/communities/:id/live returns 400 for malformed community id', async () => {
+    communitiesService.getCommunityLiveStreams.mockClear();
+    const res = await request(app.getHttpServer()).get('/api/v1/communities/not-a-uuid/live');
+    expect(res.status).toBe(400);
+    expect(communitiesService.getCommunityLiveStreams).not.toHaveBeenCalled();
   });
 
   it('GET /api/v1/communities/:id/polls/active returns poll', async () => {
