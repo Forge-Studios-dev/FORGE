@@ -60,7 +60,9 @@ export function probeVideoDurationSeconds(file: File): Promise<number | null> {
       finish(Number.isFinite(d) ? d : null);
     };
     video.onerror = () => finish(null);
-    video.setAttribute('src', url);
+    // Local File blob URL for metadata only — not attacker-controlled HTML.
+    // codeql[js/xss-through-dom]
+    video.src = url;
   });
 }
 

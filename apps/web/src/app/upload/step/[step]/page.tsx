@@ -450,6 +450,7 @@ function UploadStepContent() {
                 {thumbnailPreview ? (
                   // next/image can't optimize blob: object URLs (local file preview, never fetched over the network)
                   // eslint-disable-next-line @next/next/no-img-element
+                  // codeql[js/xss-through-dom]: local File preview blob URL only
                   <img
                     src={thumbnailPreview}
                     alt="Thumbnail preview"
