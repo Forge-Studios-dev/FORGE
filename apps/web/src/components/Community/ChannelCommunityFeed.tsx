@@ -62,6 +62,10 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
   const [uploading, setUploading] = useState(false);
   const [composeError, setComposeError] = useState('');
   const [guestGate, setGuestGate] = useState(false);
+  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
+  const [guestGateMessage, setGuestGateMessage] = useState('Sign in to like community posts.');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['channel-posts', creatorId],
@@ -98,12 +102,61 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
   const like = useMutation({
     mutationFn: async (post: ChannelPost) => {
       if (isGuest) {
+        setGuestGateMessage('Sign in to like community posts.');
         setGuestGate(true);
         return;
       }
       await api.post(`/communities/${post.communityId}/posts/${post.id}/reactions`);
     },
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['channel-posts', creatorId] });
+    },
+  });
+
+  const expandedCommunityId =
+    (data?.data ?? []).find((p) => p.id === expandedPostId)?.communityId ?? null;
+
+  const { data: postComments } = useQuery({
+    queryKey: ['channel-post-comments', expandedCommunityId, expandedPostId],
+    enabled: !!expandedCommunityId && !!expandedPostId,
+    queryFn: async () => {
+      const { data: res } = await api.get<{
+        data: {
+          data: Array<{
+            id: string;
+            body: string;
+            parentId?: string | null;
+            author?: { displayName?: string };
+          }>;
+        };
+      }>(`/communities/${expandedCommunityId}/posts/${expandedPostId}/comments`);
+      return res.data.data;
+    },
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: async ({
+      communityId,
+      postId,
+      body: text,
+      parentId,
+    }: {
+      communityId: string;
+      postId: string;
+      body: string;
+      parentId?: string;
+    }) => {
+      await api.post(`/communities/${communityId}/posts/${postId}/comments`, {
+        body: text,
+        parentId,
+      });
+    },
+    onSuccess: (_result, vars) => {
+      setCommentDraft('');
+      setReplyToCommentId(null);
+      void qc.invalidateQueries({
+        queryKey: ['channel-post-comments', vars.communityId, vars.postId],
+      });
       void qc.invalidateQueries({ queryKey: ['channel-posts', creatorId] });
     },
   });
@@ -282,8 +335,108 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
                     <Icon name="thumb_up" filled={!!post.likedByMe} className="text-sm" />
                     {post.likeCount}
                   </button>
-                  <span className="text-xs text-outline">{post.commentCount} comments</span>
+                  <button
+                    type="button"
+                    aria-label={`Toggle comments, ${post.commentCount} comments`}
+                    aria-expanded={expandedPostId === post.id}
+                    onClick={() => {
+                      setExpandedPostId((cur) => (cur === post.id ? null : post.id));
+                      setReplyToCommentId(null);
+                      setCommentDraft('');
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-on-surface-variant hover:bg-surface-container-high"
+                  >
+                    <Icon name="chat_bubble" className="text-sm" />
+                    {post.commentCount} comments
+                  </button>
                 </div>
+                {expandedPostId === post.id ? (
+                  <div className="mt-3 space-y-2 rounded-xl bg-surface-container-low p-3">
+                    {(postComments ?? []).length === 0 ? (
+                      <p className="text-xs text-on-surface-variant">No comments yet.</p>
+                    ) : (
+                      (postComments ?? []).map((c) => {
+                        const isReply = !!c.parentId;
+                        return (
+                          <div
+                            key={c.id}
+                            className="text-sm"
+                            style={{ paddingLeft: isReply ? 16 : undefined }}
+                          >
+                            <span className="font-medium">{c.author?.displayName ?? 'Member'}</span>
+                            {isReply ? (
+                              <span className="text-xs text-outline"> · reply</span>
+                            ) : null}
+                            <span className="text-on-surface-variant"> — {c.body}</span>
+                            {!isGuest ? (
+                              <button
+                                type="button"
+                                className="ml-2 text-xs text-primary"
+                                onClick={() => setReplyToCommentId(c.id)}
+                              >
+                                Reply
+                              </button>
+                            ) : null}
+                          </div>
+                        );
+                      })
+                    )}
+                    <form
+                      className="flex flex-col gap-2 pt-1"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (isGuest) {
+                          setGuestGateMessage('Sign in to comment on community posts.');
+                          setGuestGate(true);
+                          return;
+                        }
+                        const text = commentDraft.trim();
+                        if (!text) return;
+                        commentMutation.mutate({
+                          communityId: post.communityId,
+                          postId: post.id,
+                          body: text,
+                          parentId: replyToCommentId ?? undefined,
+                        });
+                      }}
+                    >
+                      {replyToCommentId ? (
+                        <p className="text-xs text-on-surface-variant">
+                          Replying
+                          <button
+                            type="button"
+                            className="ml-2 text-primary"
+                            onClick={() => setReplyToCommentId(null)}
+                          >
+                            Cancel
+                          </button>
+                        </p>
+                      ) : null}
+                      <div className="flex gap-2">
+                        <input
+                          value={commentDraft}
+                          onChange={(e) => setCommentDraft(e.target.value)}
+                          placeholder={
+                            isGuest
+                              ? 'Sign in to comment'
+                              : replyToCommentId
+                                ? 'Write a reply…'
+                                : 'Add a comment…'
+                          }
+                          disabled={isGuest || commentMutation.isPending}
+                          className="flex-1 rounded-lg border border-outline-variant/40 bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                        />
+                        <button
+                          type="submit"
+                          disabled={isGuest || commentMutation.isPending || !commentDraft.trim()}
+                          className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-on-primary disabled:opacity-50"
+                        >
+                          Post
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -299,7 +452,7 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
       <AuthGateModal
         open={guestGate}
         onClose={() => setGuestGate(false)}
-        message="Sign in to like community posts."
+        message={guestGateMessage}
       />
     </div>
   );
