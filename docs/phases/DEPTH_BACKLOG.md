@@ -257,6 +257,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Add missing UUID validation to active creator AI community/room routes
 - Verify with targeted API smoke tests on `community-rooms.service.spec.ts` and `admin.security.spec.ts`
 
+## Hardening pass 22 (2026-08-04)
+
+- Add DTO validation to active community event and creator resource payloads instead of accepting raw inline bodies
+- Add `ParseUUIDPipe` coverage to active community event route params
+- Verify with targeted API smoke tests on `community-events.service.spec.ts` and `creator-resources.service.spec.ts`
+
 ## Still open
 
 | Area | Item | Owner |
