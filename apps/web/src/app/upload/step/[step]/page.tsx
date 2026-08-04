@@ -392,7 +392,7 @@ function UploadStepContent() {
                 <option value="">Select a category</option>
                 {(uploadOptions ?? []).map((cat: UploadCategoryOption) => (
                   <option key={cat.id} value={cat.id}>
-                    {cat.name}
+                    {escapeHtml(cat.name)}
                   </option>
                 ))}
               </select>
@@ -472,7 +472,7 @@ function UploadStepContent() {
               />
               {file || draft.fileName ? (
                 <span className="text-on-surface">
-                  {file?.name ?? draft.fileName}
+                  {escapeHtml(file?.name ?? draft.fileName ?? '')}
                   {file ? ` · ${(file.size / (1024 * 1024)).toFixed(1)} MB` : null}
                 </span>
               ) : (
@@ -503,7 +503,7 @@ function UploadStepContent() {
               {selectedCategory ? (
                 <div>
                   <dt className="text-outline">Category</dt>
-                  <dd>{selectedCategory.name}</dd>
+                  <dd>{escapeHtml(selectedCategory.name)}</dd>
                 </div>
               ) : null}
               {draft.skillTagIds.length > 0 ? (
@@ -519,12 +519,12 @@ function UploadStepContent() {
               ) : null}
               <div>
                 <dt className="text-outline">Thumbnail</dt>
-                <dd>{thumbnail ? thumbnail.name : 'Auto-generated from video'}</dd>
+                <dd>{thumbnail ? escapeHtml(thumbnail.name) : 'Auto-generated from video'}</dd>
               </div>
               <div>
                 <dt className="text-outline">File</dt>
                 <dd>
-                  {file?.name ?? draft.fileName ?? '—'}
+                  {escapeHtml(file?.name ?? draft.fileName ?? '—')}
                   {file ? ` (${(file.size / (1024 * 1024)).toFixed(1)} MB)` : null}
                 </dd>
               </div>
