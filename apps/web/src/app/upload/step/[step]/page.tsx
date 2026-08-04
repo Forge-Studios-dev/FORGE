@@ -160,9 +160,7 @@ function UploadStepContent() {
   };
 
   const metadataComplete =
-    draft.title.trim().length >= 3 &&
-    !!draft.categoryId &&
-    draft.skillTagIds.length >= 1;
+    draft.title.trim().length >= 3 && !!draft.categoryId;
 
   const canContinueStep1 = metadataComplete;
   const canContinueStep2 = !!file && !validateUploadFile(file);
@@ -395,7 +393,7 @@ function UploadStepContent() {
                 Tags <span className="text-error">*</span>
               </legend>
               <p className="mt-1 text-xs text-on-surface-variant">
-                Select at least one topic tag so viewers can find this video.
+                Optional topic tags help viewers find this video.
               </p>
               <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded-lg border border-outline-variant p-3">
                 {availableSkills.length === 0 ? (
@@ -659,7 +657,7 @@ function UploadStepContent() {
               }
               title={
                 step === 1 && !metadataComplete
-                  ? 'Title, category, and at least one tag are required'
+                  ? 'Title and category are required'
                   : undefined
               }
               onClick={goNext}

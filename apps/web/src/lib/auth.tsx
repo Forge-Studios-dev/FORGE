@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { csrfRequestHeaders } from '@/lib/csrf';
 import {
   AUTH_SESSION_EVENT,
   clearAuthSession,
@@ -153,7 +154,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (options?: { allDevices?: boolean }) => {
       const token = getAccessToken();
       if (token) {
-        api.post('/auth/logout', { allDevices: !!options?.allDevices }).catch(() => undefined);
+        // CSRF required when forge_refresh cookie is present (cookie sessions).
+        void api
+          .post(
+            '/auth/logout',
+            { allDevices: !!options?.allDevices },
+            { headers: csrfRequestHeaders() },
+          )
+          .catch(() => undefined);
       }
       clearAuthSession();
       disconnectSocket();

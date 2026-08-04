@@ -130,6 +130,14 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Admin: `/channel-points` → dashboard redirect; Settings LMS oversight links removed
 - Targeted API Jest: 81 tests passed; admin `tsc --noEmit` clean
 
+## Hardening pass (2026-08-04 cont.)
+
+- Logout CSRF: API always asserts CSRF (incl. `allDevices`); web + admin send `X-Forge-CSRF` on logout
+- Channel points API boot-omit via `ChannelPointsModule.register()` when LMS flag off
+- Studio analytics skips `courses` / `creator_programs` queries when LMS off
+- Upload topic tags optional (API + web + mobile) — YouTube parity
+- Mobile subscribe uses `/channels/:id/subscribe` (not legacy `/follow`)
+
 ## Still open
 
 | Area | Item | Owner |

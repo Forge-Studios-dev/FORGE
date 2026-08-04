@@ -58,9 +58,9 @@ class WatchRepository {
 
   Future<void> setSubscribed(String creatorId, {required bool subscribed}) async {
     if (subscribed) {
-      await _client.dio.post('/follow/$creatorId');
+      await _client.dio.post('/channels/$creatorId/subscribe');
     } else {
-      await _client.dio.delete('/follow/$creatorId');
+      await _client.dio.delete('/channels/$creatorId/subscribe');
     }
   }
 

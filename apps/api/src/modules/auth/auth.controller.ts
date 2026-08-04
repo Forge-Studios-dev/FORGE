@@ -201,11 +201,12 @@ export class AuthController {
     @Body() body: LogoutDto,
     @Res({ passthrough: true }) res: Response,
   ) {
+    // Cookie sessions always require double-submit CSRF (including allDevices).
+    assertCookieRefreshCsrf(req, this.configService);
     if (body?.allDevices) {
       await this.authService.logoutAll(user.sub);
       await this.notificationsService.revokeDevice(user.sub);
     } else {
-      assertCookieRefreshCsrf(req, this.configService);
       const raw = readRefreshTokenFromRequest(req);
       await this.authService.logoutCurrent(user.sub, raw);
     }

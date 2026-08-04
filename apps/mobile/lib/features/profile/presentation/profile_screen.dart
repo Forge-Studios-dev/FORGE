@@ -171,9 +171,9 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
     try {
       final client = ref.read(apiClientProvider);
       if (_following) {
-        await client.dio.delete('/follow/${widget.user.id}');
+        await client.dio.delete('/channels/${widget.user.id}/subscribe');
       } else {
-        await client.dio.post('/follow/${widget.user.id}');
+        await client.dio.post('/channels/${widget.user.id}/subscribe');
       }
       setState(() => _following = !_following);
     } catch (_) {

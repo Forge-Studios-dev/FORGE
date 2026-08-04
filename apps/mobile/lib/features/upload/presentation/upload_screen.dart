@@ -119,10 +119,6 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
       setState(() => _error = 'Choose a category.');
       return;
     }
-    if (_skillTagIds.isEmpty) {
-      setState(() => _error = 'Select at least one topic tag.');
-      return;
-    }
     setState(() {
       _uploading = true;
       _error = null;
@@ -342,7 +338,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             if (_categoryId != null) ...[
               const SizedBox(height: 12),
               Text(
-                'Topic tags',
+                'Topic tags (optional)',
                 style: Theme.of(context).textTheme.labelMedium,
               ),
               const SizedBox(height: 6),

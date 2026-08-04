@@ -857,11 +857,14 @@ export class VideosService {
       throw new BadRequestException('Category not found');
     }
 
-    const uniqueTagIds = [...new Set(dto.skillTagIds)];
-    let skillTags = await this.skillTagRepository.find({
-      where: { id: In(uniqueTagIds) },
-      relations: ['subcategory'],
-    });
+    const uniqueTagIds = [...new Set(dto.skillTagIds ?? [])];
+    let skillTags =
+      uniqueTagIds.length > 0
+        ? await this.skillTagRepository.find({
+            where: { id: In(uniqueTagIds) },
+            relations: ['subcategory'],
+          })
+        : [];
 
     if (skillTags.length !== uniqueTagIds.length) {
       throw new BadRequestException('One or more skill tags were not found');
@@ -882,10 +885,6 @@ export class VideosService {
         .andWhere('subcategory.categoryId = :categoryId', { categoryId: dto.categoryId })
         .getOne();
       if (byName) skillTags = [byName];
-    }
-
-    if (skillTags.length === 0) {
-      throw new BadRequestException('At least one skill tag is required');
     }
 
     video.title = dto.title.trim();

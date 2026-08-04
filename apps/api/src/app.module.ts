@@ -203,7 +203,7 @@ function sentryFilterProviders() {
     CoursesModule.register(),
     CreatorResourcesModule,
     GamificationModule,
-    ChannelPointsModule,
+    ChannelPointsModule.register(),
     FraudDetectionModule,
     ReferralModule,
     AccessSessionsModule,

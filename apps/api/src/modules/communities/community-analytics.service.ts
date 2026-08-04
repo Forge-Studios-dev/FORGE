@@ -2,6 +2,7 @@ import { ForbiddenException, forwardRef, Inject, Injectable } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { toCsv } from '../../common/utils/csv.util';
+import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 import { Community } from './entities/community.entity';
 import { Channel } from './entities/channel.entity';
 import { CommunityModerationService } from './community-moderation.service';
@@ -574,34 +575,52 @@ export class CommunityAnalyticsService {
   }
 
   async getCreatorEcosystemTree(creatorId: string) {
+    const lmsOn = isSkillEconomyLmsEnabled();
     const [communities, courseRows, programRows, bundleRows, brandRows] = await Promise.all([
       this.communityRepository.find({ where: { creatorId }, order: { name: 'ASC' } }),
-      this.dataSource.query<
-        Array<{ id: string; title: string; slug: string; community_id: string | null; is_published: boolean }>
-      >(
-        `SELECT id, title, slug, community_id, is_published
-         FROM courses WHERE creator_id = $1 ORDER BY created_at DESC`,
-        [creatorId],
-      ),
-      this.dataSource.query<
-        Array<{
-          id: string;
-          name: string;
-          slug: string;
-          community_id: string | null;
-          is_published: boolean;
-          course_count: string;
-        }>
-      >(
-        `SELECT p.id, p.name, p.slug, p.community_id, p.is_published,
-                COUNT(pc.course_id)::int AS course_count
-         FROM creator_programs p
-         LEFT JOIN creator_program_courses pc ON pc.program_id = p.id
-         WHERE p.creator_id = $1
-         GROUP BY p.id
-         ORDER BY p.sort_order ASC, p.created_at DESC`,
-        [creatorId],
-      ),
+      lmsOn
+        ? this.dataSource.query<
+            Array<{ id: string; title: string; slug: string; community_id: string | null; is_published: boolean }>
+          >(
+            `SELECT id, title, slug, community_id, is_published
+             FROM courses WHERE creator_id = $1 ORDER BY created_at DESC`,
+            [creatorId],
+          )
+        : Promise.resolve([] as Array<{
+            id: string;
+            title: string;
+            slug: string;
+            community_id: string | null;
+            is_published: boolean;
+          }>),
+      lmsOn
+        ? this.dataSource.query<
+            Array<{
+              id: string;
+              name: string;
+              slug: string;
+              community_id: string | null;
+              is_published: boolean;
+              course_count: string;
+            }>
+          >(
+            `SELECT p.id, p.name, p.slug, p.community_id, p.is_published,
+                    COUNT(pc.course_id)::int AS course_count
+             FROM creator_programs p
+             LEFT JOIN creator_program_courses pc ON pc.program_id = p.id
+             WHERE p.creator_id = $1
+             GROUP BY p.id
+             ORDER BY p.sort_order ASC, p.created_at DESC`,
+            [creatorId],
+          )
+        : Promise.resolve([] as Array<{
+            id: string;
+            name: string;
+            slug: string;
+            community_id: string | null;
+            is_published: boolean;
+            course_count: string;
+          }>),
       this.dataSource.query<
         Array<{ id: string; name: string; slug: string; is_active: boolean; item_count: string }>
       >(

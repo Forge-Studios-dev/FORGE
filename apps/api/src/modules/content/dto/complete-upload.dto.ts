@@ -1,5 +1,4 @@
 import {
-  ArrayMinSize,
   IsArray,
   IsDateString,
   IsEnum,
@@ -34,11 +33,11 @@ export class CompleteUploadDto {
   @IsUUID('4')
   categoryId: string;
 
-  @ApiProperty({ type: [String], description: 'At least one skill tag ID' })
+  @ApiPropertyOptional({ type: [String], description: 'Optional topic/tag IDs for discovery' })
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @IsUUID('4', { each: true })
-  skillTagIds: string[];
+  skillTagIds?: string[];
 
   @ApiPropertyOptional({
     enum: [VideoType.VIDEO, VideoType.SHORT],
