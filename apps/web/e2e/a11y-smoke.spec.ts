@@ -104,6 +104,57 @@ test.describe('a11y smoke', () => {
     await assertNoSeriousViolations(page);
   });
 
+  test('signup has no serious axe violations', async ({ page }) => {
+    await page.goto('/signup');
+    await expect(page.getByLabel('Email')).toBeVisible({ timeout: 20_000 });
+    await assertNoSeriousViolations(page);
+  });
+
+  test('forgot password has no serious axe violations', async ({ page }) => {
+    await page.goto('/forgot-password');
+    await expect(page.getByRole('heading', { name: /forgot|reset|password/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    await assertNoSeriousViolations(page);
+  });
+
+  test('live directory has no serious axe violations', async ({ page }) => {
+    await page.goto('/live');
+    await expect(page.getByRole('heading', { name: /live/i }).first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await assertNoSeriousViolations(page);
+  });
+
+  test('privacy policy has no serious axe violations', async ({ page }) => {
+    await page.goto('/privacy');
+    await expect(page.getByRole('heading', { name: /privacy/i }).first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await assertNoSeriousViolations(page);
+  });
+
+  test('terms has no serious axe violations', async ({ page }) => {
+    await page.goto('/terms');
+    await expect(page.getByRole('heading', { name: /terms/i }).first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await assertNoSeriousViolations(page);
+  });
+
+  test('home light theme has no serious axe violations', async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('forge-theme', 'light');
+      } catch {
+        /* ignore */
+      }
+    });
+    await page.goto('/');
+    await expect(page.getByTestId('forge-home')).toBeVisible();
+    await assertNoSeriousViolations(page);
+  });
+
   test('watch page has no serious axe violations when a video exists', async ({ page, request }) => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
     let videoId: string | null = null;
@@ -134,6 +185,7 @@ test.describe('a11y studio authenticated', () => {
   const email = process.env.E2E_TEST_EMAIL;
   const password = process.env.E2E_TEST_PASSWORD;
 
+  // Studio axe stays optional in CI — set E2E_TEST_EMAIL / E2E_TEST_PASSWORD locally or in secrets.
   test.skip(!email || !password, 'Set E2E_TEST_EMAIL and E2E_TEST_PASSWORD to run Studio axe');
 
   test('studio dashboard has no serious axe violations', async ({ page }) => {
