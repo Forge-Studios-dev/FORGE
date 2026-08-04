@@ -221,6 +221,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Replace remaining anonymous live-control bodies with DTOs for audience requests, breakout controls, co-host add, and VIP config
 - Add focused stream DTO validation specs alongside the existing breakout controller coverage
 
+## Hardening pass 15 (2026-08-04)
+
+- Fix avatar/banner uploads to persist URLs only after an explicit finalize call; add profile image size checks on API and web/mobile clients
+- Add user service coverage for non-persistent presign, oversize rejection, and finalize persistence
+
 ## Still open
 
 | Area | Item | Owner |

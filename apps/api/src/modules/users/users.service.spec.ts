@@ -12,6 +12,7 @@ describe('UsersService', () => {
   const userRepo = {
     findOne: jest.fn(),
     save: jest.fn((u) => Promise.resolve(u)),
+    update: jest.fn(),
   };
 
   // Records every andWhere clause so we can assert visibility enforcement.
@@ -184,5 +185,42 @@ describe('UsersService', () => {
     const svc = await setup();
     await expect(svc.findByUsername('john_doe')).resolves.toBe(user);
     expect(userRepo.findOne).toHaveBeenCalledWith({ where: { username: 'john_doe' } });
+  });
+
+  it('getAvatarUploadUrl does not persist avatarUrl before finalize', async () => {
+    const svc = await setup();
+
+    const result = await svc.getAvatarUploadUrl(
+      'u1',
+      { contentType: 'image/png', fileSizeBytes: 1024 },
+      'u1',
+    );
+
+    expect(result.uploadUrl).toContain('X-Amz-');
+    expect(result.publicUrl).toContain('/avatars/u1/');
+    expect(userRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('getAvatarUploadUrl rejects oversized avatar uploads', async () => {
+    const svc = await setup();
+
+    await expect(
+      svc.getAvatarUploadUrl(
+        'u1',
+        { contentType: 'image/png', fileSizeBytes: 6 * 1024 * 1024 },
+        'u1',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('completeBannerUpload persists bannerUrl only after successful upload', async () => {
+    const svc = await setup();
+
+    const result = await svc.completeBannerUpload('u1', 'banners/u1/test.webp', 'u1');
+
+    expect(userRepo.update).toHaveBeenCalledWith('u1', {
+      bannerUrl: 'https://test-bucket.s3.amazonaws.com/banners/u1/test.webp',
+    });
+    expect(result.publicUrl).toBe('https://test-bucket.s3.amazonaws.com/banners/u1/test.webp');
   });
 });

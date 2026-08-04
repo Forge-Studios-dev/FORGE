@@ -18,6 +18,8 @@ class ProfileSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
+  static const int _maxAvatarBytes = 5 * 1024 * 1024;
+  static const int _maxBannerBytes = 8 * 1024 * 1024;
   final _displayName = TextEditingController();
   final _bio = TextEditingController();
   final _websiteUrl = TextEditingController();
@@ -106,6 +108,19 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
     final file = result?.files.single;
     final bytes = file?.bytes;
     if (file == null || bytes == null || bytes.isEmpty) return;
+    final maxBytes = banner ? _maxBannerBytes : _maxAvatarBytes;
+    if (bytes.length > maxBytes) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              banner ? 'Banner must be 8MB or smaller' : 'Photo must be 5MB or smaller',
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
     final contentType = switch (file.extension?.toLowerCase()) {
       'png' => 'image/png',
@@ -119,11 +134,12 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       final path = banner ? 'banner-upload-url' : 'avatar-upload-url';
       final presign = await client.dio.post(
         '/users/$userId/$path',
-        queryParameters: {'contentType': contentType},
+        data: {'contentType': contentType, 'fileSizeBytes': bytes.length},
       );
       final data = presign.data['data'] as Map<String, dynamic>;
       final uploadUrl = data['uploadUrl'] as String;
       final publicUrl = data['publicUrl'] as String;
+      final key = data['key'] as String;
       await client.dio.put(
         uploadUrl,
         data: bytes,
@@ -132,6 +148,8 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
           contentType: contentType,
         ),
       );
+      final completePath = banner ? 'banner-upload-complete' : 'avatar-upload-complete';
+      await client.dio.post('/users/$userId/$completePath', data: {'key': key});
       if (!mounted) return;
       setState(() {
         if (banner) {

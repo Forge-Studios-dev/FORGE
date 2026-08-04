@@ -20,8 +20,11 @@ import { VideosService } from '../content/videos.service';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { ModerationStatus } from '../content/entities/video.entity';
 import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
+import { PresignProfileImageUploadDto } from './dto/profile-image-upload.dto';
 
 const INTERESTS_TTL_SEC = 60 * 60 * 24 * 365;
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const MAX_BANNER_BYTES = 8 * 1024 * 1024;
 
 export type UserVideosTypeFilter = 'video' | 'short' | 'all';
 export type UserVideosSort = 'newest' | 'oldest' | 'popular';
@@ -126,17 +129,33 @@ export class UsersService {
     return this.userRepository.save(user);
   }
 
-  async getAvatarUploadUrl(requesterId: string, contentType: string, targetUserId: string) {
-    return this.getImageUploadUrl(requesterId, contentType, targetUserId, 'avatar');
+  async getAvatarUploadUrl(
+    requesterId: string,
+    input: PresignProfileImageUploadDto,
+    targetUserId: string,
+  ) {
+    return this.getImageUploadUrl(requesterId, input, targetUserId, 'avatar');
   }
 
-  async getBannerUploadUrl(requesterId: string, contentType: string, targetUserId: string) {
-    return this.getImageUploadUrl(requesterId, contentType, targetUserId, 'banner');
+  async getBannerUploadUrl(
+    requesterId: string,
+    input: PresignProfileImageUploadDto,
+    targetUserId: string,
+  ) {
+    return this.getImageUploadUrl(requesterId, input, targetUserId, 'banner');
+  }
+
+  async completeAvatarUpload(requesterId: string, key: string, targetUserId: string) {
+    return this.completeImageUpload(requesterId, key, targetUserId, 'avatar');
+  }
+
+  async completeBannerUpload(requesterId: string, key: string, targetUserId: string) {
+    return this.completeImageUpload(requesterId, key, targetUserId, 'banner');
   }
 
   private async getImageUploadUrl(
     requesterId: string,
-    contentType: string,
+    input: PresignProfileImageUploadDto,
     targetUserId: string,
     kind: 'avatar' | 'banner',
   ) {
@@ -148,8 +167,17 @@ export class UsersService {
       );
     }
     const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    const contentType = input.contentType?.trim() || 'image/jpeg';
     if (!allowed.includes(contentType)) {
       throw new BadRequestException('Unsupported image format');
+    }
+    const maxBytes = kind === 'avatar' ? MAX_AVATAR_BYTES : MAX_BANNER_BYTES;
+    if (!Number.isFinite(input.fileSizeBytes) || input.fileSizeBytes > maxBytes) {
+      throw new BadRequestException(
+        kind === 'avatar'
+          ? `Avatar images must be ${Math.floor(MAX_AVATAR_BYTES / (1024 * 1024))}MB or smaller`
+          : `Banner images must be ${Math.floor(MAX_BANNER_BYTES / (1024 * 1024))}MB or smaller`,
+      );
     }
 
     const ext = contentType.split('/')[1];
@@ -168,13 +196,40 @@ export class UsersService {
       ? `${cdnDomain}/${key}`
       : `https://${this.bucket}.s3.amazonaws.com/${key}`;
 
+    return { uploadUrl: url, publicUrl, key };
+  }
+
+  private async completeImageUpload(
+    requesterId: string,
+    key: string,
+    targetUserId: string,
+    kind: 'avatar' | 'banner',
+  ) {
+    if (requesterId !== targetUserId) {
+      throw new ForbiddenException(
+        kind === 'avatar'
+          ? 'Cannot finalize avatar for another user'
+          : 'Cannot finalize banner for another user',
+      );
+    }
+    const expectedPrefix = `${kind === 'avatar' ? 'avatars' : 'banners'}/${requesterId}/`;
+    if (!key.startsWith(expectedPrefix)) {
+      throw new BadRequestException('Upload key does not match the target user');
+    }
+    const publicUrl = this.buildPublicUrl(key);
     if (kind === 'avatar') {
       await this.userRepository.update(requesterId, { avatarUrl: publicUrl });
     } else {
       await this.userRepository.update(requesterId, { bannerUrl: publicUrl });
     }
+    return { publicUrl };
+  }
 
-    return { uploadUrl: url, publicUrl, key };
+  private buildPublicUrl(key: string): string {
+    const cdnDomain = this.configService.get<string>('aws.cloudfrontDomain');
+    return cdnDomain
+      ? `${cdnDomain}/${key}`
+      : `https://${this.bucket}.s3.amazonaws.com/${key}`;
   }
 
   async getUserVideos(

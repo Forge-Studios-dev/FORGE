@@ -5,7 +5,8 @@ import { Button } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
-/** Presign → PUT → refresh user with new bannerUrl. */
+const MAX_BANNER_BYTES = 8 * 1024 * 1024;
+
 export function BannerUploadSettings() {
   const { user, refresh } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -17,21 +18,30 @@ export function BannerUploadSettings() {
 
   const onPick = async (file: File | null) => {
     if (!file) return;
+    if (file.size > MAX_BANNER_BYTES) {
+      setError('Channel banner must be 8MB or smaller.');
+      setOk('');
+      return;
+    }
     setError('');
     setOk('');
     setPending(true);
     try {
       const contentType = file.type || 'image/jpeg';
       const { data } = await api.post<{
-        data: { uploadUrl: string; publicUrl: string };
-      }>(`/users/${user.id}/banner-upload-url?contentType=${encodeURIComponent(contentType)}`);
-      const { uploadUrl, publicUrl } = data.data;
+        data: { uploadUrl: string; publicUrl: string; key: string };
+      }>(`/users/${user.id}/banner-upload-url`, {
+        contentType,
+        fileSizeBytes: file.size,
+      });
+      const { uploadUrl, publicUrl, key } = data.data;
       const put = await fetch(uploadUrl, {
         method: 'PUT',
         body: file,
         headers: { 'Content-Type': contentType },
       });
       if (!put.ok) throw new Error('upload failed');
+      await api.post(`/users/${user.id}/banner-upload-complete`, { key });
       const next = { ...user, bannerUrl: publicUrl };
       localStorage.setItem('forge_user', JSON.stringify(next));
       refresh();

@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Put,
   Query,
@@ -24,6 +25,10 @@ import { PlaylistsService } from '../playlists/playlists.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
 import { EngagementService } from '../engagement/engagement.service';
+import {
+  CompleteProfileImageUploadDto,
+  PresignProfileImageUploadDto,
+} from './dto/profile-image-upload.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -71,7 +76,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Remove one video from watch history' })
   removeMyWatchHistoryItem(
     @CurrentUser() user: JwtPayload,
-    @Param('videoId') videoId: string,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
   ) {
     return this.usersService.removeWatchHistoryItem(user.sub, videoId);
   }
@@ -216,26 +221,46 @@ export class UsersController {
   @ApiOperation({ summary: 'Get presigned URL for avatar upload' })
   getAvatarUploadUrl(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Query('contentType') contentType: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: PresignProfileImageUploadDto,
   ) {
-    return this.usersService.getAvatarUploadUrl(user.sub, contentType, id);
+    return this.usersService.getAvatarUploadUrl(user.sub, dto, id);
+  }
+
+  @Post(':id/avatar-upload-complete')
+  @ApiOperation({ summary: 'Finalize avatar upload after successful object PUT' })
+  completeAvatarUpload(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CompleteProfileImageUploadDto,
+  ) {
+    return this.usersService.completeAvatarUpload(user.sub, dto.key, id);
   }
 
   @Post(':id/banner-upload-url')
   @ApiOperation({ summary: 'Get presigned URL for channel banner upload' })
   getBannerUploadUrl(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Query('contentType') contentType: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: PresignProfileImageUploadDto,
   ) {
-    return this.usersService.getBannerUploadUrl(user.sub, contentType, id);
+    return this.usersService.getBannerUploadUrl(user.sub, dto, id);
+  }
+
+  @Post(':id/banner-upload-complete')
+  @ApiOperation({ summary: 'Finalize banner upload after successful object PUT' })
+  completeBannerUpload(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CompleteProfileImageUploadDto,
+  ) {
+    return this.usersService.completeBannerUpload(user.sub, dto.key, id);
   }
 
   @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get user profile by ID' })
-  async findById(@Param('id') id: string) {
+  async findById(@Param('id', ParseUUIDPipe) id: string) {
     const profile = await this.usersService.findById(id);
     return toPublicUser(profile);
   }
@@ -244,7 +269,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Update user profile' })
   async update(
     @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
   ) {
     const profile = await this.usersService.update(user.sub, id, dto);
