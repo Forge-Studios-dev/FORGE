@@ -298,17 +298,27 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Expand the mocked community HTTP e2e suite again to cover active community event creation, malformed event/resource UUID rejection, and creator resource upload-url flows
 - Re-verify the suite directly under the API e2e config (`41/41` passing)
 
+## Autonomous production hardening (2026-08-04)
+
+- Shorts ≤60s hard reject (Mux + ffmpeg + web/mobile duration probe)
+- Axe smoke expanded (signup, forgot-password, live, legal, light home); API Jest `--forceExit`
+- Mux signed playback for restricted VOD watch path + structured missing-key warn + checklist item
+- Shorts feed: mute/not-interested filters + freshness/engagement rank + creator diversity
+- Studio analytics foundation: `video.impression` beacons, `GET /analytics/studio/video-performance` (impressions / CTR / avg watch %)
+
 ## Still open
 
 | Area | Item | Owner |
 | --- | --- | --- |
 | Ops | Staging soak per load-test runbook | Operator |
-| Launch | Env secrets, Mux/Stripe webhooks, migrations on prod (`185–196`) | Operator |
+| Launch | Env secrets, Mux/Stripe webhooks, migrations on prod (`185–196`); Mux signing keys for private/unlisted | Operator |
 | Ship | Review + merge `feature/youtube-replica-wave-1` (do not push straight to `main`) | Operator |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
-| Analytics | Studio impressions / CTR / retention / realtime depth | Product |
+| Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |
 | Recs | Full ML / embeddings stack | Product |
 | Downloads | Real offline download packages (UI hidden) | Product |
+| Legal | Kids / Restricted Mode / made-for-kids | Product + legal |
+| Monetization | Ad breaks / VAST | Product + partners |
 
 Prefer small focused PRs over another full Master pass. Remaining Master phases 09–24 are documented as verified/complete for the shipped codebase; execute [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) before merge to `main`.
 
