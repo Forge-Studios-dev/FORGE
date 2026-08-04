@@ -6,6 +6,7 @@ export const ANALYTICS_EVENTS = [
   'watch.progress',
   'watch.complete',
   'watch.startup_ms',
+  'video.impression',
   'search.query',
   'navigation.page',
   'studio.publish',

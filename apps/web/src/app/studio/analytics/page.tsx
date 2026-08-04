@@ -79,6 +79,23 @@ export default function StudioAnalyticsPage() {
     },
   });
 
+  const { data: videoPerformance } = useQuery({
+    queryKey: ['studio-video-performance', user?.id],
+    enabled: !!user?.id && isCreator,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: {
+          periodDays: number;
+          impressions: number;
+          views: number;
+          ctr: number | null;
+          avgWatchPercent: number | null;
+        };
+      }>('/analytics/studio/video-performance');
+      return data.data;
+    },
+  });
+
   // Thresholds mirror docs/CREATOR_KPI_DEFINITIONS.md §9 (KPI alert thresholds) —
   // keep in sync if those thresholds change.
   const churnStatus = (rate: number): { label: string; tone: StatusTone } =>
@@ -149,6 +166,30 @@ export default function StudioAnalyticsPage() {
         <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Total views</p>
           <p className="font-display-forge mt-1 text-2xl font-bold text-primary">{formatCount(totalViews)}</p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">Impressions (28d)</p>
+          <p className="font-display-forge mt-1 text-2xl font-bold">
+            {formatCount(videoPerformance?.impressions ?? 0)}
+          </p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">CTR</p>
+          <p className="font-display-forge mt-1 text-2xl font-bold">
+            {videoPerformance?.ctr != null
+              ? `${Math.round(videoPerformance.ctr * 1000) / 10}%`
+              : '—'}
+          </p>
+          <p className="mt-1 text-xs text-outline">Views ÷ feed impressions</p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">Avg watch %</p>
+          <p className="font-display-forge mt-1 text-2xl font-bold">
+            {videoPerformance?.avgWatchPercent != null
+              ? `${videoPerformance.avgWatchPercent}%`
+              : '—'}
+          </p>
+          <p className="mt-1 text-xs text-outline">From watch history ({videoPerformance?.periodDays ?? 28}d)</p>
         </article>
         <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Published videos</p>

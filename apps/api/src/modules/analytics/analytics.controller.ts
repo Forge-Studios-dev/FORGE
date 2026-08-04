@@ -50,6 +50,20 @@ export class AnalyticsController {
     await this.analyticsService.ingest(userId, dto);
   }
 
+  @Get('studio/video-performance')
+  @ApiOperation({
+    summary: 'Creator Studio video performance (impressions, CTR, avg watch %)',
+  })
+  async studioVideoPerformance(
+    @CurrentUser() user: JwtPayload,
+    @Query('days') days?: string,
+  ) {
+    return this.analyticsService.getStudioVideoPerformance(
+      user.sub,
+      days ? Number(days) : 28,
+    );
+  }
+
   @Get('kpi/platform/churn')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Platform churn rate KPI (admin)' })

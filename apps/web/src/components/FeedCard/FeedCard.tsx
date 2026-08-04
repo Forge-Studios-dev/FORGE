@@ -2,13 +2,14 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@forge/design-system';
 import { Video } from '@/types';
 import { formatCount, formatDuration, timeAgo } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { addToWatchLater } from '@/lib/engage-mutations';
+import { trackVideoImpression } from '@/lib/analytics';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
 
@@ -72,6 +73,23 @@ export function FeedCard({
       ? `/watch/${video.id}?t=${Math.floor(progress)}`
       : `/watch/${video.id}`;
   const channelHref = video.user?.username ? `/${video.user.username}` : null;
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting && e.intersectionRatio >= 0.5)) {
+          trackVideoImpression(video.id, layout);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [video.id, layout]);
 
   const showMenu = !isGuest && (layout === 'grid' || layout === 'sidebar' || layout === 'carousel');
 
@@ -129,7 +147,7 @@ export function FeedCard({
   };
 
   return (
-    <div className={`relative ${LAYOUT_CLASS[layout]}`}>
+    <div ref={rootRef} className={`relative ${LAYOUT_CLASS[layout]}`}>
       <Link
         href={watchHref}
         className="forge-card-hover group block cursor-pointer"
