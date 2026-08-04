@@ -158,6 +158,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Removed self-service `POST .../achievements/:key/unlock` (service unlock remains internal)
 - Studio business analytics: omit XP/course funnel stages + reweight engagement when LMS off
 - Mobile live Q&A/poll panels: `ForgeTokens.of(context)` (light/dark)
+- Clients: subscriptions rails + UserList use `/channels/:id/subscribers|subscriptions`
 
 ## Still open
 
