@@ -293,6 +293,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Expand the mocked community HTTP e2e suite to cover active group creation plus malformed community/group/poll UUID rejection paths
 - Re-verify the suite directly under the API e2e config (`37/37` passing)
 
+## Hardening pass 29 (2026-08-04)
+
+- Expand the mocked community HTTP e2e suite again to cover active community event creation, malformed event/resource UUID rejection, and creator resource upload-url flows
+- Re-verify the suite directly under the API e2e config (`41/41` passing)
+
 ## Still open
 
 | Area | Item | Owner |

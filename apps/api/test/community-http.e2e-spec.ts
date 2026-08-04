@@ -30,12 +30,16 @@ import { CommunityRoomsController } from '../src/modules/communities/community-r
 import { CommunityRoomsService } from '../src/modules/communities/community-rooms.service';
 import { CommunityRoomMessagesService } from '../src/modules/communities/community-room-messages.service';
 import { CommunityRoomPermissionsService } from '../src/modules/communities/community-room-permissions.service';
+import { CommunityEventsController } from '../src/modules/communities/community-events.controller';
+import { CommunityEventsService } from '../src/modules/communities/community-events.service';
 import { CommunityAiController } from '../src/modules/communities/community-ai.controller';
 import { AiCommunityService } from '../src/modules/communities/ai-community.service';
 import { AiBudgetService } from '../src/modules/communities/ai-budget.service';
 import { CreatorAuditService } from '../src/modules/communities/creator-audit.service';
 import { EntitlementsController } from '../src/modules/entitlements/entitlements.controller';
 import { EntitlementsService } from '../src/modules/entitlements/entitlements.service';
+import { CreatorResourcesController } from '../src/modules/creator-resources/creator-resources.controller';
+import { CreatorResourcesService } from '../src/modules/creator-resources/creator-resources.service';
 import { ConfigService } from '@nestjs/config';
 
 describe('Community HTTP (mocked e2e)', () => {
@@ -134,6 +138,12 @@ describe('Community HTTP (mocked e2e)', () => {
     revokePermission: jest.fn().mockResolvedValue({ ok: true }),
   };
 
+  const eventsService = {
+    createEvent: jest.fn().mockResolvedValue({ data: { id: 'event-1', title: 'Town Hall' } }),
+    rsvp: jest.fn().mockResolvedValue({ data: { eventId: 'event-1', status: 'going' } }),
+    listRsvps: jest.fn().mockResolvedValue({ data: [] }),
+  };
+
   const aiCommunityService = {
     scoreContentAsync: jest.fn().mockResolvedValue({
       score: 0.1,
@@ -166,6 +176,17 @@ describe('Community HTTP (mocked e2e)', () => {
     cancelMySubscription: jest.fn().mockResolvedValue({ canceled: false, cancelAtPeriodEnd: true }),
   };
 
+  const creatorResourcesService = {
+    getUploadUrl: jest.fn().mockResolvedValue({
+      uploadUrl: 'https://example.com/upload',
+      key: 'creator-resources/user-1/file.pdf',
+      fileUrl: 'https://cdn.example.com/creator-resources/user-1/file.pdf',
+    }),
+    create: jest.fn().mockResolvedValue({ id: 'resource-1', title: 'Guide PDF' }),
+    update: jest.fn().mockResolvedValue({ id: 'resource-1', title: 'Guide PDF' }),
+    getDownloadUrl: jest.fn().mockResolvedValue({ downloadUrl: 'https://example.com/download' }),
+  };
+
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [
@@ -178,8 +199,10 @@ describe('Community HTTP (mocked e2e)', () => {
         GamificationController,
         CommunityEngagementController,
         CommunityRoomsController,
+        CommunityEventsController,
         CommunityAiController,
         EntitlementsController,
+        CreatorResourcesController,
       ],
       providers: [
         { provide: CommunityPostsService, useValue: postsService },
@@ -192,11 +215,13 @@ describe('Community HTTP (mocked e2e)', () => {
         { provide: CommunityRoomsService, useValue: roomsService },
         { provide: CommunityRoomMessagesService, useValue: roomMessagesService },
         { provide: CommunityRoomPermissionsService, useValue: roomPermissionsService },
+        { provide: CommunityEventsService, useValue: eventsService },
         { provide: AiCommunityService, useValue: aiCommunityService },
         { provide: AiBudgetService, useValue: { checkAndCharge: jest.fn().mockResolvedValue({ allowed: true, remaining: 100 }) } },
         { provide: CreatorAuditService, useValue: auditService },
         { provide: CommunityMembersService, useValue: membersService },
         { provide: EntitlementsService, useValue: entitlementsService },
+        { provide: CreatorResourcesService, useValue: creatorResourcesService },
         SkillEconomyLmsGuard,
         {
           provide: ConfigService,
@@ -464,6 +489,58 @@ describe('Community HTTP (mocked e2e)', () => {
     const res = await request(app.getHttpServer()).get('/api/v1/groups/not-a-uuid');
     expect(res.status).toBe(400);
     expect(groupsService.getGroup).not.toHaveBeenCalled();
+  });
+
+  it('POST /api/v1/creators/me/communities/:id/events creates a community event', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/creators/me/communities/${communityId}/events`)
+      .send({
+        title: 'Town Hall',
+        startsAt: '2026-08-05T12:00:00.000Z',
+        eventType: 'one_off',
+      });
+    expect(res.status).toBe(201);
+    expect(eventsService.createEvent).toHaveBeenCalledWith(
+      'user-1',
+      communityId,
+      expect.objectContaining({ title: 'Town Hall', eventType: 'one_off' }),
+      'consumer',
+    );
+  });
+
+  it('POST /api/v1/communities/:id/events/:eventId/rsvp returns 400 for malformed event id', async () => {
+    eventsService.rsvp.mockClear();
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/communities/${communityId}/events/not-a-uuid/rsvp`)
+      .send({ status: 'going' });
+    expect(res.status).toBe(400);
+    expect(eventsService.rsvp).not.toHaveBeenCalled();
+  });
+
+  it('POST /api/v1/creators/me/resources/upload-url returns a presigned upload target', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/creators/me/resources/upload-url')
+      .send({
+        fileName: 'guide.pdf',
+        mimeType: 'application/pdf',
+        fileSizeBytes: 1024,
+      });
+    expect(res.status).toBe(201);
+    expect(creatorResourcesService.getUploadUrl).toHaveBeenCalledWith(
+      'user-1',
+      'guide.pdf',
+      'application/pdf',
+      1024,
+    );
+  });
+
+  it('GET /api/v1/resources/:resourceId/download-url returns 400 for malformed resource id', async () => {
+    creatorResourcesService.getDownloadUrl.mockClear();
+    const res = await request(app.getHttpServer()).get('/api/v1/resources/not-a-uuid/download-url');
+    expect(res.status).toBe(400);
+    expect(creatorResourcesService.getDownloadUrl).not.toHaveBeenCalled();
   });
 
   it('POST /api/v1/creators/me/ai/moderation/score scores content', async () => {
