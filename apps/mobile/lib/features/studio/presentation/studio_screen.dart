@@ -270,25 +270,25 @@ class StudioScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          _zoneLabel('Content'),
+          _zoneLabel(context, 'Content'),
           _link(context, 'Videos', 'Manage uploads', Icons.video_library, '/studio/videos'),
           _link(context, 'Go live', 'Start a stream', Icons.sensors, '/studio/live'),
           _link(context, 'Comments', 'Reply to viewers', Icons.forum, '/studio/comments'),
           _link(context, 'Messages', 'Direct messages', Icons.chat, '/messages'),
-          _zoneLabel('Audience'),
+          _zoneLabel(context, 'Audience'),
           _link(context, 'Moderation', 'Reports & trust queue', Icons.shield, '/studio/moderation'),
-          _zoneLabel('Grow'),
+          _zoneLabel(context, 'Grow'),
           _link(context, 'Analytics', 'Performance insights', Icons.analytics, '/studio/analytics'),
           _link(context, 'Memberships', 'Configure tiers', Icons.workspace_premium, '/studio/tiers'),
           _link(context, 'Members', 'Manage channel memberships', Icons.people, '/studio/subscribers'),
-          _zoneLabel('Channel'),
+          _zoneLabel(context, 'Channel'),
           _link(context, 'Settings', 'Customization', Icons.settings, '/studio/settings'),
         ],
       ),
     );
   }
 
-  Widget _zoneLabel(String label) {
+  Widget _zoneLabel(BuildContext context, String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10, top: 4),
       child: Text(

@@ -78,7 +78,7 @@ class StudioVideosScreen extends ConsumerWidget {
                                 '${_statusLabel(v.status)} · ${v.viewCount} views',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: _statusColor(v.status),
+                                  color: _statusColor(context, v.status),
                                 ),
                               ),
                             ],
@@ -114,7 +114,7 @@ class StudioVideosScreen extends ConsumerWidget {
     }
   }
 
-  Color _statusColor(String status) {
+  Color _statusColor(BuildContext context, String status) {
     switch (status) {
       case 'ready':
         return ForgeTokens.of(context).secondary;

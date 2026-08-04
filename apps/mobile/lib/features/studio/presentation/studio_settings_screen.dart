@@ -35,11 +35,11 @@ class StudioSettingsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _row('Display name', me['displayName'] as String? ?? '—'),
+                  _row(context, 'Display name', me['displayName'] as String? ?? '—'),
                   const SizedBox(height: 12),
-                  _row('Username', '@${me['username'] ?? '—'}'),
+                  _row(context, 'Username', '@${me['username'] ?? '—'}'),
                   const SizedBox(height: 12),
-                  _row('Email', me['email'] as String? ?? '—'),
+                  _row(context, 'Email', me['email'] as String? ?? '—'),
                 ],
               ),
             ),
@@ -54,7 +54,7 @@ class StudioSettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _row(String label, String value) {
+  Widget _row(BuildContext context, String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
