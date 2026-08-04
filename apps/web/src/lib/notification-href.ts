@@ -48,7 +48,8 @@ export function notificationHref(
       return username ? `/${username}/community` : null;
     case 'achievement_unlocked':
     case 'xp_level_up':
-      return '/library';
+      // LMS soft-retired: no dedicated rewards surface in YouTube mode
+      return null;
     default:
       return videoId ? `/watch/${videoId}` : null;
   }

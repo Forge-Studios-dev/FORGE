@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { Repository } from 'typeorm';
+import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 import { NotificationsService } from './notifications.service';
 import { PushDispatchService } from './push-dispatch.service';
 import { NotificationType } from './entities/notification.entity';
@@ -394,6 +395,7 @@ export class NotificationsListener {
     title: string;
     icon: string;
   }) {
+    if (!isSkillEconomyLmsEnabled()) return;
     const notifTitle = `${payload.icon} Achievement unlocked: ${payload.title}`;
     await this.notificationsService.create({
       userId: payload.userId,
@@ -411,6 +413,7 @@ export class NotificationsListener {
 
   @OnEvent('gamification.level_up', { async: true })
   async onXpLevelUp(payload: { userId: string; level: number; xp: number }) {
+    if (!isSkillEconomyLmsEnabled()) return;
     const notifTitle = `Level up! You reached Level ${payload.level}`;
     await this.notificationsService.create({
       userId: payload.userId,

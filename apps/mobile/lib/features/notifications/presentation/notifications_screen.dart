@@ -102,7 +102,7 @@ String? _notificationHref(String? type, Map<String, dynamic>? metadata) {
       return username != null ? '/profile/$username' : null;
     case 'achievement_unlocked':
     case 'xp_level_up':
-      return '/library';
+      return null;
     default:
       return videoId != null ? '/watch/$videoId' : null;
   }
