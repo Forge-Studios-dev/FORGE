@@ -75,13 +75,9 @@ export default function DiscoverCommunitiesPage() {
                 const username = c.creator?.username;
                 const href = username
                   ? `/${username}/c/${c.slug}`
-                  : c.creator?.id
-                    ? `/${c.creator.id}/c/${c.slug}`
-                    : `/communities/id/${c.id}`;
+                  : `/communities/id/${c.id}`;
                 const isPaid = c.visibility === 'paid';
-                const subscribeHref = c.creator?.id
-                  ? `/${username ?? c.creator.id}/c/${c.slug}?subscribe=1`
-                  : href;
+                const subscribeHref = `${href}?subscribe=1`;
                 return (
                   <li key={c.id}>
                     <div className="glass-panel rounded-xl p-4 transition-colors hover:border-primary/30">
@@ -119,13 +115,9 @@ export default function DiscoverCommunitiesPage() {
             const username = c.creator?.username;
             const href = username
               ? `/${username}/c/${c.slug}`
-              : c.creator?.id
-                ? `/${c.creator.id}/c/${c.slug}`
-                : `/communities/id/${c.id}`;
+              : `/communities/id/${c.id}`;
             const isPaid = c.visibility === 'paid';
-            const subscribeHref = c.creator?.id
-              ? `/${username ?? c.creator.id}/c/${c.slug}?subscribe=1`
-              : href;
+            const subscribeHref = `${href}?subscribe=1`;
             return (
               <li key={c.id}>
                 <div className="glass-panel rounded-xl p-4 transition-colors hover:border-primary/30">

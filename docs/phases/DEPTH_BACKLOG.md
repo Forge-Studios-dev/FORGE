@@ -196,6 +196,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Delete dead `StudioBadgeConfigPanel` + mobile `StudioEngagementScreen`
 - Welcome modal dialog a11y; TopBar Sign in visible on mobile
 
+## Hardening pass 10 (2026-08-04)
+
+- Add real web `/[username]/subscribers` + `/[username]/subscriptions` pages so ProfileHeader links resolve
+- Add `/communities/id/[communityId]` redirect page and make discover paid/fallback links route through canonical community resolution
+
 ## Still open
 
 | Area | Item | Owner |
