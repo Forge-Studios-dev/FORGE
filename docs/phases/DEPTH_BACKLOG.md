@@ -288,6 +288,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Remove the duplicate root `package.json` `knip` script entry so npm no longer emits duplicate-key warnings during workspace command execution
 - Verify with an npm-driven API smoke test (`admin.security.spec.ts` passing); remaining npm warning is only the unrelated local `devdir` env config
 
+## Hardening pass 28 (2026-08-04)
+
+- Expand the mocked community HTTP e2e suite to cover active group creation plus malformed community/group/poll UUID rejection paths
+- Re-verify the suite directly under the API e2e config (`37/37` passing)
+
 ## Still open
 
 | Area | Item | Owner |

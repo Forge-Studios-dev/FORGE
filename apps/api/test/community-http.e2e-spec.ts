@@ -13,6 +13,8 @@ import { CommunitiesController } from '../src/modules/communities/communities.co
 import { CommunitiesService } from '../src/modules/communities/communities.service';
 import { CommunityPollsController } from '../src/modules/communities/community-polls.controller';
 import { CommunityPollsService } from '../src/modules/communities/community-polls.service';
+import { CommunityGroupsController } from '../src/modules/communities/community-groups.controller';
+import { CommunityGroupsService } from '../src/modules/communities/community-groups.service';
 import { CommunityModerationController } from '../src/modules/communities/community-moderation.controller';
 import { CommunityModerationService } from '../src/modules/communities/community-moderation.service';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
@@ -82,6 +84,16 @@ describe('Community HTTP (mocked e2e)', () => {
 
   const pollsService = {
     getActivePoll: jest.fn().mockResolvedValue({ id: 'poll-1', question: 'Q?' }),
+  };
+
+  const groupsService = {
+    createGroup: jest.fn().mockResolvedValue({ id: 'group-1', name: 'Study Group' }),
+    listGroups: jest.fn().mockResolvedValue([{ id: 'group-1', name: 'Study Group' }]),
+    getGroup: jest.fn().mockResolvedValue({ id: 'group-1', name: 'Study Group' }),
+    joinGroup: jest.fn().mockResolvedValue({ id: 'member-1', role: 'member' }),
+    leaveGroup: jest.fn().mockResolvedValue(undefined),
+    listMembers: jest.fn().mockResolvedValue([{ id: 'member-1', userId: 'user-1' }]),
+    deleteGroup: jest.fn().mockResolvedValue(undefined),
   };
 
   const gamificationService = {
@@ -161,6 +173,7 @@ describe('Community HTTP (mocked e2e)', () => {
         CommunityPostsController,
         CommunitiesController,
         CommunityPollsController,
+        CommunityGroupsController,
         CommunityModerationController,
         GamificationController,
         CommunityEngagementController,
@@ -172,6 +185,7 @@ describe('Community HTTP (mocked e2e)', () => {
         { provide: CommunityPostsService, useValue: postsService },
         { provide: CommunitiesService, useValue: communitiesService },
         { provide: CommunityPollsService, useValue: pollsService },
+        { provide: CommunityGroupsService, useValue: groupsService },
         { provide: CommunityModerationService, useValue: moderationService },
         { provide: GamificationService, useValue: gamificationService },
         { provide: CommunityEngagementService, useValue: engagementService },
@@ -329,6 +343,13 @@ describe('Community HTTP (mocked e2e)', () => {
     expect(pollsService.getActivePoll).toHaveBeenCalledWith(communityId, 'user-1', 'consumer');
   });
 
+  it('GET /api/v1/communities/:id/polls/active returns 400 for malformed community id', async () => {
+    pollsService.getActivePoll.mockClear();
+    const res = await request(app.getHttpServer()).get('/api/v1/communities/not-a-uuid/polls/active');
+    expect(res.status).toBe(400);
+    expect(pollsService.getActivePoll).not.toHaveBeenCalled();
+  });
+
   it('POST /api/v1/communities/:id/gamification/check-in returns 410 when LMS soft-retired', async () => {
     const res = await request(app.getHttpServer()).post(
       '/api/v1/communities/comm-1/gamification/check-in',
@@ -414,6 +435,35 @@ describe('Community HTTP (mocked e2e)', () => {
       .send({ body: 'Hello text room' });
     expect(res.status).toBe(201);
     expect(roomMessagesService.sendMessage).toHaveBeenCalled();
+  });
+
+  it('POST /api/v1/communities/:id/groups creates a group', async () => {
+    const communityId = '00000000-0000-4000-8000-0000000000c1';
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/communities/${communityId}/groups`)
+      .send({ name: 'Study Group', description: 'Weekly creators accountability' });
+    expect(res.status).toBe(201);
+    expect(groupsService.createGroup).toHaveBeenCalledWith(
+      'user-1',
+      communityId,
+      expect.objectContaining({ name: 'Study Group', description: 'Weekly creators accountability' }),
+    );
+  });
+
+  it('POST /api/v1/communities/:id/groups returns 400 for malformed community id', async () => {
+    groupsService.createGroup.mockClear();
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/communities/not-a-uuid/groups')
+      .send({ name: 'Study Group' });
+    expect(res.status).toBe(400);
+    expect(groupsService.createGroup).not.toHaveBeenCalled();
+  });
+
+  it('GET /api/v1/groups/:groupId returns 400 for malformed group id', async () => {
+    groupsService.getGroup.mockClear();
+    const res = await request(app.getHttpServer()).get('/api/v1/groups/not-a-uuid');
+    expect(res.status).toBe(400);
+    expect(groupsService.getGroup).not.toHaveBeenCalled();
   });
 
   it('POST /api/v1/creators/me/ai/moderation/score scores content', async () => {
