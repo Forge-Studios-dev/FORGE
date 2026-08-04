@@ -512,7 +512,7 @@ function UploadStepContent() {
                   <dd>
                     {availableSkills
                       .filter((t) => draft.skillTagIds.includes(t.id))
-                      .map((t) => t.name)
+                      .map((t) => escapeHtml(t.name))
                       .join(', ')}
                   </dd>
                 </div>
