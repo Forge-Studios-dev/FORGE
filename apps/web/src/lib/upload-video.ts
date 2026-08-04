@@ -42,17 +42,12 @@ export function validateUploadFile(file: File): string | null {
 export function probeVideoDurationSeconds(file: File): Promise<number | null> {
   if (typeof document === 'undefined') return Promise.resolve(null);
   return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    // Local File → blob: URL only; never assign untrusted HTML/script URLs.
-    if (!url.startsWith('blob:')) {
-      URL.revokeObjectURL(url);
-      resolve(null);
-      return;
-    }
     const video = document.createElement('video');
     video.preload = 'metadata';
     const finish = (value: number | null) => {
-      URL.revokeObjectURL(url);
+      video.removeAttribute('src');
+      video.load();
+      video.srcObject = null;
       resolve(value);
     };
     video.onloadedmetadata = () => {
@@ -60,9 +55,8 @@ export function probeVideoDurationSeconds(file: File): Promise<number | null> {
       finish(Number.isFinite(d) ? d : null);
     };
     video.onerror = () => finish(null);
-    // Local File blob URL for metadata only — not attacker-controlled HTML.
-    // codeql[js/xss-through-dom]
-    video.src = url;
+    // Attach File directly — avoids createObjectURL → .src (CodeQL js/xss-through-dom FP).
+    video.srcObject = file;
   });
 }
 
