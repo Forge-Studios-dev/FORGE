@@ -197,7 +197,7 @@ export class StreamingController {
   removeModerator(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Param('userId') targetUserId: string,
+    @Param('userId', ParseUUIDPipe) targetUserId: string,
   ) {
     return this.streamLiveService.removeModerator(id, user.sub, targetUserId, user.role);
   }
@@ -242,7 +242,7 @@ export class StreamingController {
   @ApiOperation({ summary: 'Vote on a poll' })
   votePoll(
     @CurrentUser() user: JwtPayload,
-    @Param('pollId') pollId: string,
+    @Param('pollId', ParseUUIDPipe) pollId: string,
     @Body() dto: VoteStreamPollDto,
   ) {
     return this.streamLiveService.votePoll(pollId, user.sub, dto.optionIndex);
@@ -256,7 +256,7 @@ export class StreamingController {
   closePoll(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Param('pollId') pollId: string,
+    @Param('pollId', ParseUUIDPipe) pollId: string,
   ) {
     return this.streamLiveService.closePoll(id, pollId, user.sub, user.role);
   }
@@ -347,7 +347,7 @@ export class StreamingController {
   respondToAudienceRequest(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Param('requestId') requestId: string,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
     @Body() body: { approve: boolean },
   ) {
     return this.streamLiveService.respondToAudienceRequest(id, requestId, user.sub, body.approve);
@@ -421,9 +421,9 @@ export class StreamingController {
   listBreakoutRooms(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { communityId: string },
+    @Query('communityId', ParseUUIDPipe) communityId: string,
   ) {
-    return this.streamBreakoutService.listBreakoutRooms(id, body.communityId);
+    return this.streamBreakoutService.listBreakoutRooms(id, communityId);
   }
 
   @UseGuards(CreatorApprovedGuard)
@@ -477,7 +477,7 @@ export class StreamingController {
   removeCoHost(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Param('userId') coHostId: string,
+    @Param('userId', ParseUUIDPipe) coHostId: string,
   ) {
     return this.streamingService.removeCoHost(user.sub, id, coHostId);
   }

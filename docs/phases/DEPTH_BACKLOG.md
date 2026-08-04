@@ -206,6 +206,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Add `ParseUUIDPipe` across active community member, moderation, and room endpoints
 - Update mocked community e2e IDs to valid UUIDs and keep the suite green under the stricter guards
 
+## Hardening pass 12 (2026-08-04)
+
+- Fix `GET /streams/:id/breakout-rooms` to read `communityId` from query params instead of a GET body
+- Add nested `ParseUUIDPipe` validation on live moderator, poll, audience-request, and co-host IDs; cover the breakout query contract with a controller test
+
 ## Still open
 
 | Area | Item | Owner |

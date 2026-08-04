@@ -25,6 +25,11 @@ describe('StreamingController Mux webhook', () => {
   const streamingService = {
     handleMuxWebhook: jest.fn().mockResolvedValue({ ok: true }),
   };
+  const breakoutService = {
+    createBreakoutRooms: jest.fn(),
+    listBreakoutRooms: jest.fn(),
+    endBreakoutSession: jest.fn(),
+  };
 
   async function createController(nodeEnv = 'production') {
     const moduleRef = await Test.createTestingModule({
@@ -37,7 +42,7 @@ describe('StreamingController Mux webhook', () => {
         { provide: StreamReactionService, useValue: {} },
         { provide: StreamAnalyticsService, useValue: { getCreatorStreamAnalytics: jest.fn(), recordSnapshot: jest.fn() } },
         { provide: AiCommunityService, useValue: { generateStreamSummary: jest.fn() } },
-        { provide: StreamBreakoutService, useValue: { createBreakoutRooms: jest.fn(), listBreakoutRooms: jest.fn(), endBreakoutSession: jest.fn() } },
+        { provide: StreamBreakoutService, useValue: breakoutService },
         {
           provide: ConfigService,
           useValue: {
@@ -100,5 +105,22 @@ describe('StreamingController Mux webhook', () => {
     expect(() =>
       controller.handleMuxWebhook({ headers: { 'mux-signature': 't=1,v1=x' } }, { type: 'x' }),
     ).toThrow(ForbiddenException);
+  });
+
+  it('lists breakout rooms using communityId query input', async () => {
+    const controller = await createController();
+    breakoutService.listBreakoutRooms.mockResolvedValue([{ id: 'room-1' }]);
+
+    const result = await controller.listBreakoutRooms(
+      { sub: 'user-1', role: 'creator' } as never,
+      '00000000-0000-4000-8000-0000000000a1',
+      '00000000-0000-4000-8000-0000000000b2',
+    );
+
+    expect(breakoutService.listBreakoutRooms).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-0000000000a1',
+      '00000000-0000-4000-8000-0000000000b2',
+    );
+    expect(result).toEqual([{ id: 'room-1' }]);
   });
 });
