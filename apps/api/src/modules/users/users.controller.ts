@@ -29,6 +29,7 @@ import {
   CompleteProfileImageUploadDto,
   PresignProfileImageUploadDto,
 } from './dto/profile-image-upload.dto';
+import { UpdateInterestsDto, UpdatePrivacyDto } from './dto/user-preferences.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -93,7 +94,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Update privacy settings' })
   setMyPrivacy(
     @CurrentUser() user: JwtPayload,
-    @Body() body: { watchHistoryPaused?: boolean },
+    @Body() body: UpdatePrivacyDto,
   ) {
     return this.usersService.setPrivacySettings(user.sub, body);
   }
@@ -124,9 +125,9 @@ export class UsersController {
   @ApiOperation({ summary: 'Save cold-start interest category IDs' })
   setMyInterests(
     @CurrentUser() user: JwtPayload,
-    @Body() body: { categoryIds?: string[] },
+    @Body() body: UpdateInterestsDto,
   ) {
-    return this.usersService.setInterestCategoryIds(user.sub, body.categoryIds ?? []);
+    return this.usersService.setInterestCategoryIds(user.sub, body.categoryIds);
   }
 
   @Public()
@@ -164,7 +165,7 @@ export class UsersController {
   @Get(':id/followers')
   @ApiOperation({ summary: 'List channel subscribers (legacy alias; prefer GET /channels/:id/subscribers)' })
   getFollowers(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query('limit') limit?: number,
     @Query('cursor') cursor?: string,
   ) {
@@ -176,7 +177,7 @@ export class UsersController {
   @Get(':id/following')
   @ApiOperation({ summary: 'List channel subscriptions (legacy alias; prefer GET /channels/:id/subscriptions)' })
   getFollowing(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query('limit') limit?: number,
     @Query('cursor') cursor?: string,
   ) {
@@ -188,11 +189,11 @@ export class UsersController {
   @Get(':id/videos')
   @ApiOperation({ summary: 'Get videos by user' })
   getUserVideos(
-    @Param('id') id: string,
-    @Query('limit') limit: number,
-    @Query('cursor') cursor: string,
-    @Query('type') type: string,
-    @Query('sort') sort: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('limit') limit?: number,
+    @Query('cursor') cursor?: string,
+    @Query('type') type?: string,
+    @Query('sort') sort?: string,
     @CurrentUser() user?: JwtPayload,
   ) {
     const videoType =
@@ -213,7 +214,7 @@ export class UsersController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/playlists')
   @ApiOperation({ summary: 'Get playlists by user' })
-  getUserPlaylists(@Param('id') id: string, @CurrentUser() user?: JwtPayload) {
+  getUserPlaylists(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
     return this.playlistsService.listByUser(id, user?.sub);
   }
 

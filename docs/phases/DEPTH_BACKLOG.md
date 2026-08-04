@@ -226,6 +226,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Fix avatar/banner uploads to persist URLs only after an explicit finalize call; add profile image size checks on API and web/mobile clients
 - Add user service coverage for non-persistent presign, oversize rejection, and finalize persistence
 
+## Hardening pass 16 (2026-08-04)
+
+- Add DTO validation for `users/me/privacy` and `users/me/interests`, plus UUID guards on active user-profile list/detail routes
+- Add focused DTO tests covering malformed privacy values and invalid/oversized interest arrays
+
 ## Still open
 
 | Area | Item | Owner |
