@@ -11,7 +11,6 @@ import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/motion/forge_motion.dart';
 import '../../../shared/models/video.dart';
-import '../../gamification/data/gamification_repository.dart';
 import '../../history/data/history_repository.dart';
 import '../../library/presentation/library_screen.dart';
 import '../../watch/data/watch_repository.dart';
@@ -206,7 +205,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
                     ))
           : Column(
               children: [
-                const _StreakXpChip(),
                 cwAsync.when(
                   loading: () => const SizedBox.shrink(),
                   error: (_, __) => const SizedBox.shrink(),
@@ -611,56 +609,6 @@ class _ActionButton extends StatelessWidget {
             style: const TextStyle(color: Colors.white, fontSize: 12),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Persistent streak/XP chip fed by the existing platform-wide gamification
-/// endpoint (GET /platform/gamification/me — apps/api gamification
-/// module), reused here rather than a new backend contract. Best-effort:
-/// hides silently on loading/error (e.g. guest browsing without a session),
-/// same pattern as the other feed sections below.
-class _StreakXpChip extends ConsumerWidget {
-  const _StreakXpChip();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final xpAsync = ref.watch(platformXpProvider);
-    return xpAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (profile) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: ForgeTokens.of(context).surfaceContainer.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: ForgeTokens.of(context).outlineVariant.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.local_fire_department, size: 16, color: ForgeTokens.of(context).tertiary),
-                const SizedBox(width: 4),
-                Text(
-                  '${profile.streak}d streak',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface),
-                ),
-                const SizedBox(width: 10),
-                Icon(Icons.bolt, size: 16, color: ForgeTokens.of(context).secondary),
-                const SizedBox(width: 4),
-                Text(
-                  '${profile.xp} XP · Lvl ${profile.level}',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

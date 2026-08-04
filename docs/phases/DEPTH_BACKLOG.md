@@ -146,6 +146,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile Home AppBar notifications bell + unread badge
 - Removed deprecated `SkillChip` export (TopicChip only)
 
+## Hardening pass 3 (2026-08-04)
+
+- Remove Community XP/leaderboard UI (web + mobile) — APIs return 410 with LMS off
+- Remove mobile Home streak/XP chip (platform gamification retired)
+
 ## Still open
 
 | Area | Item | Owner |

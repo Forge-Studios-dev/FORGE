@@ -99,7 +99,7 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
   const qc = useQueryClient();
   const [reportingPostId, setReportingPostId] = useState<string | null>(null);
   const [reportingPoll, setReportingPoll] = useState(false);
-  const [view, setView] = useState<'posts' | 'polls' | 'leaderboard' | 'engage'>('engage');
+  const [view, setView] = useState<'posts' | 'polls' | 'engage'>('engage');
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
@@ -226,38 +226,6 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
     },
   });
 
-  const { data: leaderboard } = useQuery({
-    queryKey: ['community-leaderboard', communityId],
-    enabled: !!communityId && view === 'leaderboard',
-    queryFn: async () => {
-      const { data } = await api.get<{
-        data: Array<{ rank: number; userId: string; xp: number; level: number; streak?: number }>;
-      }>(`/communities/${communityId}/leaderboard`);
-      return data.data;
-    },
-  });
-
-  const { data: gamificationProfile } = useQuery({
-    queryKey: ['community-gamification-me', communityId],
-    enabled: !!communityId && !!user && view === 'leaderboard',
-    queryFn: async () => {
-      const { data } = await api.get<{
-        data: { xp: number; level: number; streak: number; badges: string[] };
-      }>(`/communities/${communityId}/gamification/me`);
-      return data.data;
-    },
-  });
-
-  const checkInMutation = useMutation({
-    mutationFn: async () => {
-      await api.post(`/communities/${communityId}/gamification/check-in`);
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['community-gamification-me', communityId] });
-      void qc.invalidateQueries({ queryKey: ['community-leaderboard', communityId] });
-    },
-  });
-
   const { data: communityLive } = useQuery({
     queryKey: ['community-live', communityId],
     enabled: !!communityId,
@@ -365,13 +333,6 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
         >
           Polls
         </button>
-        <button
-          type="button"
-          onClick={() => setView('leaderboard')}
-          className={`rounded-full px-4 py-1.5 text-sm ${view === 'leaderboard' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
-        >
-          Leaderboard
-        </button>
       </div>
       {(communityLive ?? []).length > 0 ? (
         <div className="glass-panel space-y-2 rounded-xl border border-primary/30 p-4">
@@ -388,48 +349,7 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
           ))}
         </div>
       ) : null}
-      {view === 'leaderboard' ? (
-        <div className="glass-panel space-y-2 rounded-xl p-4">
-          {gamificationProfile && (
-            <div className="mb-3 rounded-lg border border-outline-variant/30 px-3 py-2 text-sm">
-              <p>
-                Your progress: Lv {gamificationProfile.level} · {gamificationProfile.xp} XP ·{' '}
-                {gamificationProfile.streak} day streak
-              </p>
-              {gamificationProfile.badges.length > 0 && (
-                <p className="mt-1 text-on-surface-variant">
-                  Badges: {gamificationProfile.badges.join(', ')}
-                </p>
-              )}
-              <Button
-                variant="secondary"
-                className="mt-3"
-                disabled={checkInMutation.isPending}
-                onClick={() => checkInMutation.mutate()}
-              >
-                {checkInMutation.isPending ? 'Checking in…' : 'Daily check-in'}
-              </Button>
-            </div>
-          )}
-          {(leaderboard ?? []).length === 0 ? (
-            <p className="text-sm text-on-surface-variant">No XP earned yet — chat and post to climb.</p>
-          ) : (
-            <ol className="space-y-2">
-              {(leaderboard ?? []).map((row) => (
-                <li
-                  key={row.userId}
-                  className="flex items-center justify-between rounded-lg border border-outline-variant/30 px-3 py-2 text-sm"
-                >
-                  <span>
-                    #{row.rank} · Lv {row.level}
-                  </span>
-                  <span className="font-medium">{row.xp} XP</span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-      ) : view === 'polls' ? (
+      {view === 'polls' ? (
         <div className="glass-panel space-y-3 rounded-xl p-4">
           {!activePoll ? (
             <p className="text-sm text-on-surface-variant">No active poll right now.</p>

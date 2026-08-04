@@ -26,8 +26,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   final _commentCtrl = TextEditingController();
   List<Map<String, dynamic>> _posts = [];
   Map<String, dynamic>? _activePoll;
-  List<Map<String, dynamic>> _leaderboard = [];
-  Map<String, dynamic>? _gamificationProfile;
   List<Map<String, dynamic>> _liveStreams = [];
   List<Map<String, dynamic>> _postComments = [];
   List<Map<String, dynamic>> _wikiPages = [];
@@ -39,7 +37,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   final Map<String, List<dynamic>> _surveyAnswers = {};
   final Map<String, TextEditingController> _surveyTextCtrls = {};
   String? _myUserId;
-  bool _checkingIn = false;
   bool _loading = true;
   bool _communityRestricted = false;
   bool _canRequestJoin = false;
@@ -82,8 +79,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         await Future.wait([
           _loadPosts(),
           _loadPoll(),
-          _loadLeaderboard(),
-          _loadGamificationProfile(),
           _loadLiveStreams(),
           _loadEngageContent(),
         ]);
@@ -189,16 +184,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       final client = ref.read(apiClientProvider);
       final response = await client.dio.get('/communities/$_communityId/polls/active');
       setState(() => _activePoll = response.data['data'] as Map<String, dynamic>?);
-    } catch (_) {}
-  }
-
-  Future<void> _loadLeaderboard() async {
-    if (_communityId == null) return;
-    try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get('/communities/$_communityId/leaderboard');
-      final data = response.data['data'] as List;
-      setState(() => _leaderboard = data.cast<Map<String, dynamic>>());
     } catch (_) {}
   }
 
@@ -376,38 +361,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           const SnackBar(content: Text('Could not submit report')),
         );
       }
-    }
-  }
-
-  Future<void> _loadGamificationProfile() async {
-    if (_communityId == null) return;
-    try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get('/communities/$_communityId/gamification/me');
-      setState(() => _gamificationProfile = response.data['data'] as Map<String, dynamic>?);
-    } catch (_) {}
-  }
-
-  Future<void> _checkIn() async {
-    if (_communityId == null || _checkingIn) return;
-    setState(() => _checkingIn = true);
-    try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/communities/$_communityId/gamification/check-in');
-      await Future.wait([_loadGamificationProfile(), _loadLeaderboard()]);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Checked in — streak updated')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Already checked in today')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _checkingIn = false);
     }
   }
 
@@ -849,53 +802,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     );
   }
 
-  Widget _buildLeaderboardTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (_gamificationProfile != null) ...[
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Lv ${_gamificationProfile!['level']} · ${_gamificationProfile!['xp']} XP · ${_gamificationProfile!['streak']} day streak',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  if ((_gamificationProfile!['badges'] as List?)?.isNotEmpty == true)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        'Badges: ${(_gamificationProfile!['badges'] as List).join(', ')}',
-                        style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  OutlinedButton(
-                    onPressed: _checkingIn ? null : _checkIn,
-                    child: Text(_checkingIn ? 'Checking in…' : 'Daily check-in'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (_leaderboard.isEmpty)
-          const Text('No XP yet — chat to earn points')
-        else
-          ..._leaderboard.map(
-            (row) => ListTile(
-              title: Text('#${row['rank']} · Lv ${row['level']}'),
-              trailing: Text('${row['xp']} XP'),
-            ),
-          ),
-      ],
-    );
-  }
-
   @override
   void dispose() {
     _commentCtrl.dispose();
@@ -976,7 +882,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                 _buildRoomsTab(),
                 _buildPostsTab(),
                 _buildPollsTab(),
-                _buildLeaderboardTab(),
                 _buildEngageTab(),
               ],
             ),
@@ -990,7 +895,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           NavigationDestination(icon: Icon(Icons.meeting_room_outlined), label: 'Rooms'),
           NavigationDestination(icon: Icon(Icons.article_outlined), label: 'Posts'),
           NavigationDestination(icon: Icon(Icons.poll_outlined), label: 'Polls'),
-          NavigationDestination(icon: Icon(Icons.leaderboard_outlined), label: 'XP'),
           NavigationDestination(icon: Icon(Icons.menu_book_outlined), label: 'Engage'),
         ],
       ),
