@@ -621,22 +621,32 @@ export class CommunityAnalyticsService {
             is_published: boolean;
             course_count: string;
           }>),
-      this.dataSource.query<
-        Array<{ id: string; name: string; slug: string; is_active: boolean; item_count: string }>
-      >(
-        `SELECT b.id, b.name, b.slug, b.is_active,
-                COUNT(i.id)::int AS item_count
-         FROM creator_bundles b
-         LEFT JOIN creator_bundle_items i ON i.bundle_id = b.id
-         WHERE b.creator_id = $1
-         GROUP BY b.id
-         ORDER BY b.sort_order ASC, b.created_at DESC`,
-        [creatorId],
-      ),
-      this.dataSource.query<Array<{ id: string; name: string; slug: string }>>(
-        `SELECT id, name, slug FROM brands WHERE creator_id = $1 ORDER BY name ASC`,
-        [creatorId],
-      ),
+      lmsOn
+        ? this.dataSource.query<
+            Array<{ id: string; name: string; slug: string; is_active: boolean; item_count: string }>
+          >(
+            `SELECT b.id, b.name, b.slug, b.is_active,
+                    COUNT(i.id)::int AS item_count
+             FROM creator_bundles b
+             LEFT JOIN creator_bundle_items i ON i.bundle_id = b.id
+             WHERE b.creator_id = $1
+             GROUP BY b.id
+             ORDER BY b.sort_order ASC, b.created_at DESC`,
+            [creatorId],
+          )
+        : Promise.resolve([] as Array<{
+            id: string;
+            name: string;
+            slug: string;
+            is_active: boolean;
+            item_count: string;
+          }>),
+      lmsOn
+        ? this.dataSource.query<Array<{ id: string; name: string; slug: string }>>(
+            `SELECT id, name, slug FROM brands WHERE creator_id = $1 ORDER BY name ASC`,
+            [creatorId],
+          )
+        : Promise.resolve([] as Array<{ id: string; name: string; slug: string }>),
     ]);
 
     const coursesByCommunity = new Map<string, typeof courseRows>();

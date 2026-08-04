@@ -2,7 +2,7 @@ export { Icon } from './react/Icon';
 export { Avatar } from './react/Avatar';
 export { IconButton } from './react/IconButton';
 export { PageHeader } from './react/PageHeader';
-export { TopicChip, SkillChip } from './react/SkillChip';
+export { TopicChip } from './react/SkillChip';
 export { StatusPage } from './react/StatusPage';
 export type { StatusPageAction } from './react/StatusPage';
 export { Button } from './react/Button';

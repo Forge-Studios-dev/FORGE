@@ -19,6 +19,3 @@ export function TopicChip({
     </div>
   );
 }
-
-/** @deprecated Use TopicChip */
-export const SkillChip = TopicChip;

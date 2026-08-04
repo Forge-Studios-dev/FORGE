@@ -22,6 +22,7 @@ import { AccessSessionsModule } from '../access-sessions/access-sessions.module'
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { CommunityPost } from './entities/community-post.entity';
 import { CommunityPostComment } from './entities/community-post-comment.entity';
 import { CommunityPostReaction } from './entities/community-post-reaction.entity';
@@ -188,6 +189,7 @@ import { MentorshipController } from './mentorship.controller';
     CommunityActivityNotifyListener,
     AfterLiveRoomListener,
     CreatorApprovedGuard,
+    SkillEconomyLmsGuard,
     CommunityRoleGuard,
     CommunityStudioGuard,
     CommunityGroupsService,

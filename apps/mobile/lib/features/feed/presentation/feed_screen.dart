@@ -13,6 +13,7 @@ import '../../../core/motion/forge_motion.dart';
 import '../../../shared/models/video.dart';
 import '../../gamification/data/gamification_repository.dart';
 import '../../history/data/history_repository.dart';
+import '../../library/presentation/library_screen.dart';
 import '../../watch/data/watch_repository.dart';
 import '../data/feed_repository.dart';
 
@@ -155,6 +156,23 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
             icon: const Icon(Icons.subscriptions_outlined),
             tooltip: 'Subscriptions',
             onPressed: () => context.push('/subscriptions'),
+          ),
+          Builder(
+            builder: (context) {
+              final unread = ref.watch(libraryUnreadCountProvider).maybeWhen(
+                    data: (c) => c,
+                    orElse: () => 0,
+                  );
+              return IconButton(
+                tooltip: 'Notifications',
+                onPressed: () => context.push('/notifications'),
+                icon: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text(unread > 99 ? '99+' : '$unread'),
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+              );
+            },
           ),
         ],
       ),

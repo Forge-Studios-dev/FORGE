@@ -6,9 +6,11 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CommunitiesService } from '../communities/communities.service';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 
 @ApiTags('Gamification')
 @Controller()
+@UseGuards(SkillEconomyLmsGuard)
 export class GamificationController {
   constructor(
     private readonly gamificationService: GamificationService,

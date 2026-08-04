@@ -12,6 +12,7 @@ import { EntitlementsController } from './entitlements.controller';
 import { EngagementModule } from '../engagement/engagement.module';
 import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { StripeTierSyncModule } from '../billing/stripe-tier-sync.module';
 
@@ -40,6 +41,7 @@ import { StripeTierSyncModule } from '../billing/stripe-tier-sync.module';
     CreatorBundlesService,
     CreatorApprovedGuard,
     OptionalJwtAuthGuard,
+    SkillEconomyLmsGuard,
   ],
   exports: [EntitlementsService, EntitlementsAnalyticsService, CreatorBundlesService],
 })

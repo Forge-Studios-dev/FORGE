@@ -5,6 +5,8 @@ import { GamificationService } from './gamification.service';
 import { GamificationController } from './gamification.controller';
 import { GamificationListener } from './gamification.listener';
 import { CommunitiesModule } from '../communities/communities.module';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
 @Module({
   imports: [
@@ -12,7 +14,7 @@ import { CommunitiesModule } from '../communities/communities.module';
     forwardRef(() => CommunitiesModule),
   ],
   controllers: [GamificationController],
-  providers: [GamificationService, GamificationListener],
+  providers: [GamificationService, GamificationListener, SkillEconomyLmsGuard, OptionalJwtAuthGuard],
   exports: [GamificationService],
 })
 export class GamificationModule {}

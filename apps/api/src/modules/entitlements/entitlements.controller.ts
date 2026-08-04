@@ -22,6 +22,7 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 
 @ApiTags('Entitlements')
 @Controller()
@@ -184,27 +185,28 @@ export class EntitlementsController {
 
   @Public()
   @Get('creators/:creatorId/bundles')
+  @UseGuards(SkillEconomyLmsGuard)
   @ApiOperation({ summary: 'List active product bundles for a creator' })
   listPublicBundles(@Param('creatorId') creatorId: string) {
     return this.creatorBundlesService.listPublic(creatorId);
   }
 
   @Get('creators/me/bundles')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(SkillEconomyLmsGuard, CreatorApprovedGuard)
   @ApiOperation({ summary: 'List creator product bundles' })
   listMyBundles(@CurrentUser() user: JwtPayload) {
     return this.creatorBundlesService.listForCreator(user.sub);
   }
 
   @Post('creators/me/bundles')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(SkillEconomyLmsGuard, CreatorApprovedGuard)
   @ApiOperation({ summary: 'Create a product bundle (syncs tier entitlements)' })
   createBundle(@CurrentUser() user: JwtPayload, @Body() dto: CreateBundleDto) {
     return this.creatorBundlesService.create(user.sub, dto);
   }
 
   @Patch('creators/me/bundles/:bundleId')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(SkillEconomyLmsGuard, CreatorApprovedGuard)
   @ApiOperation({ summary: 'Update a product bundle' })
   updateBundle(
     @CurrentUser() user: JwtPayload,
@@ -215,7 +217,7 @@ export class EntitlementsController {
   }
 
   @Delete('creators/me/bundles/:bundleId')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(SkillEconomyLmsGuard, CreatorApprovedGuard)
   @ApiOperation({ summary: 'Deactivate a product bundle' })
   deactivateBundle(@CurrentUser() user: JwtPayload, @Param('bundleId') bundleId: string) {
     return this.creatorBundlesService.deactivate(user.sub, bundleId);

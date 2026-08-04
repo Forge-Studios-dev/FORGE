@@ -1,7 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
-  ArrayMinSize,
   IsArray,
   IsDateString,
   IsEnum,
@@ -42,12 +41,11 @@ export class UpdateVideoDto {
 
   @ApiPropertyOptional({
     description:
-      'Replace the video\'s skill tags. All tags must belong to the video\'s current category.',
+      'Replace the video\'s topic tags (empty clears tags). All tags must belong to the video\'s current category.',
     type: [String],
   })
   @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @ArrayMaxSize(20)
   @IsUUID('4', { each: true })
   skillTagIds?: string[];

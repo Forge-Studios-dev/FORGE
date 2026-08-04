@@ -1270,7 +1270,12 @@ export class VideosService {
   private async applySkillTagUpdate(video: Video, skillTagIds: string[]): Promise<void> {
     const uniqueTagIds = [...new Set(skillTagIds)];
     if (uniqueTagIds.length === 0) {
-      throw new BadRequestException('At least one skill tag is required');
+      const category = video.categoryId
+        ? await this.categoryRepository.findOne({ where: { id: video.categoryId } })
+        : null;
+      video.skillTags = [];
+      video.tagsSearchText = (category?.name ?? '').slice(0, 2000);
+      return;
     }
     const tags = await this.skillTagRepository.find({
       where: { id: In(uniqueTagIds) },

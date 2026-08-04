@@ -6,9 +6,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 /**
- * Courses / podcasts / creator programs are skill-economy LMS surfaces.
- * Controllers are omitted at boot when FEATURES_SKILL_ECONOMY_LMS is unset;
- * this guard is a second line if a controller is still mounted (e.g. tests).
+ * Skill-economy LMS surfaces (courses, podcasts, mentorship, brands, bundles, XP).
+ * Controllers may be omitted at boot when FEATURES_SKILL_ECONOMY_LMS is unset;
+ * this guard is a second line when a controller is still mounted.
  */
 @Injectable()
 export class SkillEconomyLmsGuard implements CanActivate {
@@ -20,7 +20,7 @@ export class SkillEconomyLmsGuard implements CanActivate {
     }
     throw new GoneException({
       message:
-        'Courses and podcasts are retired on this FORGE deployment. Use videos, Shorts, and playlists instead.',
+        'This skill-economy feature is retired on this FORGE deployment. Use videos, Shorts, playlists, and channel memberships instead.',
       code: 'SKILL_ECONOMY_LMS_RETIRED',
     });
   }

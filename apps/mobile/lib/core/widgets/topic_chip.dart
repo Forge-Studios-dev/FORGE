@@ -43,8 +43,3 @@ class TopicChip extends StatelessWidget {
     );
   }
 }
-
-/// @deprecated Use [TopicChip]
-class SkillChip extends TopicChip {
-  const SkillChip({super.key, required super.label, super.live = false});
-}

@@ -138,6 +138,14 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Upload topic tags optional (API + web + mobile) — YouTube parity
 - Mobile subscribe uses `/channels/:id/subscribe` (not legacy `/follow`)
 
+## Hardening pass 2 (2026-08-04)
+
+- Studio video update: empty topic tags allowed (DTO + `applySkillTagUpdate` + Studio UI)
+- LMS HTTP soft-retire: Mentorship, Brands, Gamification controllers + bundle routes return 410 when LMS off
+- Studio analytics also skips brands/bundles queries when LMS off
+- Mobile Home AppBar notifications bell + unread badge
+- Removed deprecated `SkillChip` export (TopicChip only)
+
 ## Still open
 
 | Area | Item | Owner |
@@ -149,7 +157,6 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Analytics | Studio impressions / CTR / retention / realtime depth | Product |
 | Recs | Full ML / embeddings stack | Product |
 | Downloads | Real offline download packages (UI hidden) | Product |
-| DS | Menu/Select primitives; permanent SkillChip removal in docs | Eng (optional) |
 
 Prefer small focused PRs over another full Master pass. Remaining Master phases 09–24 are documented as verified/complete for the shipped codebase; execute [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) before merge to `main`.
 

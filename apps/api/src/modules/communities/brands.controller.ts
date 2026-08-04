@@ -4,10 +4,11 @@ import { BrandsService } from './brands.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 
 @ApiTags('Brands')
 @Controller('creators/me/brands')
-@UseGuards(CreatorApprovedGuard)
+@UseGuards(SkillEconomyLmsGuard, CreatorApprovedGuard)
 export class BrandsController {
   constructor(private readonly brandsService: BrandsService) {}
 

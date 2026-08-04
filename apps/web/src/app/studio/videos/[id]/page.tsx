@@ -95,9 +95,6 @@ export default function StudioVideoDetailEditorPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const canEditTags = !!video?.categoryId && availableTags.length > 0;
-      if (canEditTags && selectedTagIds.length === 0) {
-        throw new Error('Select at least one topic tag.');
-      }
       await api.patch(`/videos/${id}`, {
         title: title.trim(),
         description: description.trim() || null,
