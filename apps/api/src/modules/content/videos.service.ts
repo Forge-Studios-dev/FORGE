@@ -72,6 +72,12 @@ import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { RecordWatchDto } from './dto/record-watch.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { PublicVideo, serializeVideoForCache, toPublicVideo } from './video.mapper';
+import { diversifyByCreator } from '../feed/feed-diversity.util';
+import {
+  getMutedChannelIds,
+  getNotInterestedVideoIds,
+} from '../feed/not-interested.util';
+import { rankShortsByScore } from './shorts-rank.util';
 import {
   isRedisQuotaError,
   safeRedisDel,
@@ -1122,12 +1128,13 @@ export class VideosService {
     return withSignedHls;
   }
 
-  /** Paginated public shorts feed (duration <= 60s, published, public). */
+  /** Paginated public shorts feed — ranked by freshness/engagement with soft creator diversity. */
   async listShorts(opts: { cursor?: string; limit?: number; viewerId?: string } = {}): Promise<{
     data: PublicVideo[];
     nextCursor: string | null;
   }> {
     const limit = Math.min(opts.limit ?? 20, 50);
+    const fetchLimit = Math.min(limit * 3, 60);
     const qb = this.videoRepository
       .createQueryBuilder('v')
       .leftJoinAndSelect('v.user', 'creator')
@@ -1138,28 +1145,42 @@ export class VideosService {
       .andWhere('v.visibility = :vis', { vis: VideoVisibility.PUBLIC })
       .andWhere('v.moderation_status != :blocked', { blocked: ModerationStatus.BLOCKED })
       .orderBy('v.published_at', 'DESC')
-      .take(limit + 1);
+      .take(fetchLimit + 1);
 
     if (opts.cursor) {
       qb.andWhere('v.published_at < :cursor', { cursor: new Date(opts.cursor) });
     }
 
-    const rows = await qb.getMany();
-    const hasMore = rows.length > limit;
-    const page = rows.slice(0, limit);
-    let data = page.map((v) => this.mapToPublicVideo(v));
+    if (opts.viewerId) {
+      const [mutedChannels, notInterested] = await Promise.all([
+        getMutedChannelIds(this.redis, opts.viewerId, this.logger),
+        getNotInterestedVideoIds(this.redis, opts.viewerId, this.logger),
+      ]);
+      if (mutedChannels.length) {
+        qb.andWhere('v.user_id NOT IN (:...mutedChannels)', { mutedChannels });
+      }
+      if (notInterested.length) {
+        qb.andWhere('v.id NOT IN (:...notInterested)', { notInterested });
+      }
+    }
 
-    if (opts.viewerId && page.length > 0) {
-      const creatorIds = [...new Set(page.map((v) => v.userId))];
+    const rows = await qb.getMany();
+    const hasMore = rows.length > fetchLimit;
+    const candidates = rows.slice(0, fetchLimit);
+    const ranked = diversifyByCreator(rankShortsByScore(candidates), 1).slice(0, limit);
+    let data = ranked.map((v) => this.mapToPublicVideo(v));
+
+    if (opts.viewerId && ranked.length > 0) {
+      const creatorIds = [...new Set(ranked.map((v) => v.userId))];
       const [reactionByVideo, followingSet] = await Promise.all([
         this.engagementService.getViewerVideoReactions(
           opts.viewerId,
-          page.map((v) => v.id),
+          ranked.map((v) => v.id),
         ),
         this.engagementService.getFollowingSet(opts.viewerId, creatorIds),
       ]);
       data = data.map((mapped, i) => {
-        const v = page[i];
+        const v = ranked[i];
         const reaction = reactionByVideo.get(v.id) ?? {
           viewerLiked: false,
           viewerDisliked: false,
@@ -1174,7 +1195,9 @@ export class VideosService {
       });
     }
 
-    const nextCursor = hasMore ? data[data.length - 1].publishedAt?.toISOString() ?? null : null;
+    const nextCursor = hasMore
+      ? ranked[ranked.length - 1]?.publishedAt?.toISOString() ?? null
+      : null;
     return { data, nextCursor };
   }
 
