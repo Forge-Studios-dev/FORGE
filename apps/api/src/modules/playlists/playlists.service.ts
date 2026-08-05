@@ -83,7 +83,16 @@ export class PlaylistsService {
       qb.andWhere('p.visibility = :vis', { vis: PlaylistVisibility.PUBLIC });
       qb.andWhere('p.systemType IS NULL');
     }
-    return qb.getMany();
+    const playlists = await qb.getMany();
+    if (viewerId === userId) {
+      const liked = playlists.find((p) => p.systemType === PlaylistSystemType.LIKED);
+      if (liked) {
+        liked.videoCount = await this.likeRepository.count({
+          where: { userId, reaction: VideoReactionType.LIKE },
+        });
+      }
+    }
+    return playlists;
   }
 
   async ensureSystemPlaylists(userId: string): Promise<void> {

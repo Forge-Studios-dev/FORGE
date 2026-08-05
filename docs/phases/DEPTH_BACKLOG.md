@@ -497,6 +497,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Studio comments: Reply + Remove (parity with web Studio)
 - Channel profile: `bannerUrl` on UserModel + banner strip on mobile header
 
+## Library playlist counts (2026-08-06)
+
+- Liked system playlist `videoCount` from reactions; web Library uses `videoCount` meta
+
 ## Still open
 
 | Area | Item | Owner |

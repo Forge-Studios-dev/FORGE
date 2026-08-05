@@ -54,6 +54,7 @@ describe('PlaylistsService', () => {
     find: jest.fn().mockResolvedValue([]),
     findOne: jest.fn(),
     remove: jest.fn().mockResolvedValue(undefined),
+    count: jest.fn().mockResolvedValue(0),
   };
 
   const ownerId = 'user-1';
@@ -151,10 +152,16 @@ describe('PlaylistsService', () => {
 
   describe('listByUser', () => {
     it('returns all playlists for the owner', async () => {
-      qb.getMany.mockResolvedValue([{ id: 'pl-1', videoCount: 2 }]);
-      await service.listByUser(ownerId, ownerId);
+      qb.getMany.mockResolvedValue([
+        { id: 'pl-1', videoCount: 2, systemType: null },
+        { id: 'liked-1', videoCount: 0, systemType: PlaylistSystemType.LIKED },
+      ]);
+      likeRepository.count.mockResolvedValue(7);
+      const result = await service.listByUser(ownerId, ownerId);
       expect(qb.loadRelationCountAndMap).toHaveBeenCalledWith('p.videoCount', 'p.items');
       expect(qb.andWhere).not.toHaveBeenCalled();
+      expect(likeRepository.count).toHaveBeenCalled();
+      expect(result.find((p) => p.systemType === PlaylistSystemType.LIKED)?.videoCount).toBe(7);
     });
 
     it('restricts to public playlists for other viewers', async () => {

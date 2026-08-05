@@ -114,14 +114,28 @@ export default function LibraryPage() {
           className="glass-panel flex items-center gap-3 rounded-2xl px-4 py-4 hover:border-primary/30"
         >
           <Icon name="watch_later" className="text-primary" />
-          <span className="font-semibold">Watch later</span>
+          <span className="font-semibold">
+            Watch later
+            {typeof watchLater?.videoCount === 'number' ? (
+              <span className="ml-2 text-xs font-normal text-on-surface-variant">
+                {watchLater.videoCount}
+              </span>
+            ) : null}
+          </span>
         </Link>
         <Link
           href={likedVideos ? `/playlists/${likedVideos.id}` : '/playlists/me/liked'}
           className="glass-panel flex items-center gap-3 rounded-2xl px-4 py-4 hover:border-primary/30"
         >
           <Icon name="thumb_up" className="text-primary" />
-          <span className="font-semibold">Liked videos</span>
+          <span className="font-semibold">
+            Liked videos
+            {typeof likedVideos?.videoCount === 'number' ? (
+              <span className="ml-2 text-xs font-normal text-on-surface-variant">
+                {likedVideos.videoCount}
+              </span>
+            ) : null}
+          </span>
         </Link>
         {user?.username ? (
           <Link
@@ -225,7 +239,7 @@ export default function LibraryPage() {
                   : pl.visibility === 'unlisted'
                     ? 'Unlisted'
                     : 'Public';
-              const count = pl.items?.length;
+              const count = pl.videoCount ?? pl.items?.length;
               return (
                 <li key={pl.id}>
                   <Link
