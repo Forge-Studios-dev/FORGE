@@ -1,80 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
+import 'studio_attention_screen.dart';
 
-class StudioScreen extends StatelessWidget {
+class StudioScreen extends ConsumerWidget {
   const StudioScreen({super.key});
-
-  void _openAttentionSheet(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: ForgeTokens.of(context).outline,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Attention',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: ForgeTokens.of(context).onSurface,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Jump to the inbox that needs you next.',
-                  style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
-                ),
-                const SizedBox(height: 16),
-                _sheetAction(
-                  sheetContext,
-                  icon: Icons.forum,
-                  title: 'Comments',
-                  subtitle: 'Reply to viewers',
-                  route: '/studio/comments',
-                ),
-                _sheetAction(
-                  sheetContext,
-                  icon: Icons.shield,
-                  title: 'Moderation',
-                  subtitle: 'Open reports and trust queue',
-                  route: '/studio/moderation',
-                ),
-                _sheetAction(
-                  sheetContext,
-                  icon: Icons.groups,
-                  title: 'Members',
-                  subtitle: 'Channel memberships and payment issues',
-                  route: '/studio/subscribers',
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   void _openCreateSheet(BuildContext context) {
     showModalBottomSheet<void>(
@@ -199,12 +132,24 @@ class StudioScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final attentionAsync = ref.watch(studioAttentionProvider);
+    final totalUrgent = attentionAsync.maybeWhen(
+      data: (a) {
+        final c = a.counts;
+        return (c['commentsNeedingReply'] ?? 0) +
+            (c['pendingModeration'] ?? 0) +
+            (c['failedPayments'] ?? 0) +
+            (c['processingFailures'] ?? 0);
+      },
+      orElse: () => 0,
+    );
+
     return Scaffold(
       appBar: AppBar(title: const Text('Creator Studio')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openCreateSheet(context),
-        icon: Icon(Icons.add),
+        icon: const Icon(Icons.add),
         label: const Text('Create'),
       ),
       body: ListView(
@@ -245,22 +190,52 @@ class StudioScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           ForgeCard(
-            onTap: () => _openAttentionSheet(context),
+            onTap: () => context.push('/studio/attention'),
             child: Row(
               children: [
                 Icon(Icons.notifications_active, color: ForgeTokens.of(context).tertiary),
-                SizedBox(width: 16),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Attention',
-                        style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface),
+                      Row(
+                        children: [
+                          Text(
+                            'Attention',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: ForgeTokens.of(context).onSurface,
+                            ),
+                          ),
+                          if (totalUrgent > 0) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: ForgeTokens.of(context).error,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                totalUrgent > 99 ? '99+' : '$totalUrgent',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       Text(
-                        'Comments, moderation, and subscribers',
-                        style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
+                        totalUrgent > 0
+                            ? 'Items need your review'
+                            : 'Comments, moderation, and processing',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: ForgeTokens.of(context).onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -274,6 +249,7 @@ class StudioScreen extends StatelessWidget {
           _link(context, 'Videos', 'Manage uploads', Icons.video_library, '/studio/videos'),
           _link(context, 'Go live', 'Start a stream', Icons.sensors, '/studio/live'),
           _link(context, 'Comments', 'Reply to viewers', Icons.forum, '/studio/comments'),
+          _link(context, 'Attention', 'Unified action queue', Icons.notifications_active, '/studio/attention'),
           _link(context, 'Messages', 'Direct messages', Icons.chat, '/messages'),
           _zoneLabel(context, 'Audience'),
           _link(context, 'Moderation', 'Reports & trust queue', Icons.shield, '/studio/moderation'),

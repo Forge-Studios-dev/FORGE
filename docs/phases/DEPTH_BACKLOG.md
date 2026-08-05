@@ -502,6 +502,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Liked system playlist `videoCount` from reactions; web Library uses `videoCount` meta
 - Save-to-playlist modal + mobile Library shelves show counts
 
+## Mobile Studio Attention queue (2026-08-06)
+
+- `/studio/attention` from `GET /creators/me/attention` (counts + inbox); Studio home badge
+
 ## Still open
 
 | Area | Item | Owner |

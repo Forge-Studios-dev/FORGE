@@ -119,6 +119,12 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => context.push('/studio/attention'),
+            child: const Text('Attention'),
+          ),
+        ],
       ),
       body: commentsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

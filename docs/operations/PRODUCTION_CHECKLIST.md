@@ -53,6 +53,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Channel Home playlists shelf (web + mobile)
 - [ ] Smoke: Channel Community owner Pin/Delete (web + mobile)
 - [ ] Smoke: Mobile Studio comments Reply/Remove; channel banner on profile
+- [ ] Smoke: Mobile Studio Attention queue + home badge
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback
