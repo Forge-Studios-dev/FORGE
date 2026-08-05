@@ -517,6 +517,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Explore/Search: Live chip (streams from `/streams/live`, Live-only hides catalog)
 - Watched / Not watched chips → `?watched=` (web parity)
 
+## Mobile Library New playlist (2026-08-06)
+
+- You tab: New playlist action + shelf card (title, optional description, visibility)
+- Shared create dialog; opens playlist detail after create
+
 ## Still open
 
 | Area | Item | Owner |

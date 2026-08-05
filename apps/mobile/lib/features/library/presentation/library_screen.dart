@@ -7,6 +7,7 @@ import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../shared/models/video.dart';
 import '../../history/data/history_repository.dart';
+import '../../playlists/presentation/create_playlist_dialog.dart';
 
 final libraryUnreadCountProvider = FutureProvider.autoDispose<int>((ref) async {
   try {
@@ -72,7 +73,23 @@ class LibraryScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('You')),
+      appBar: AppBar(
+        title: const Text('You'),
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              final id = await showCreatePlaylistDialog(context, ref);
+              if (!context.mounted) return;
+              if (id != null) {
+                ref.invalidate(libraryPlaylistCountsProvider);
+                context.push('/playlists/$id');
+              }
+            },
+            icon: const Icon(Icons.playlist_add, size: 20),
+            label: const Text('New'),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -189,6 +206,22 @@ class LibraryScreen extends ConsumerWidget {
               icon: Icons.playlist_play,
               title: 'Playlists',
               subtitle: shelfSubtitle('Playlists you created or saved', counts.playlists),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
+            onTap: () async {
+              final id = await showCreatePlaylistDialog(context, ref);
+              if (!context.mounted) return;
+              if (id != null) {
+                ref.invalidate(libraryPlaylistCountsProvider);
+                context.push('/playlists/$id');
+              }
+            },
+            child: const _LibraryRow(
+              icon: Icons.playlist_add,
+              title: 'New playlist',
+              subtitle: 'Create a public, unlisted, or private list',
             ),
           ),
           const SizedBox(height: 12),

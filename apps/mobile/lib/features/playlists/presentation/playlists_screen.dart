@@ -5,6 +5,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../core/widgets/forge_empty_state.dart';
+import 'create_playlist_dialog.dart';
 
 /// Lists the current user's playlists (public + private) and allows creating
 /// new ones. Mirrors the web `/playlists` experience.
@@ -41,69 +42,16 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
   }
 
   Future<void> _createPlaylist() async {
-    final titleCtrl = TextEditingController();
+    setState(() => _creating = true);
     try {
-      var visibility = 'public';
-      final result = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => StatefulBuilder(
-          builder: (ctx, setLocal) => AlertDialog(
-            title: const Text('New playlist'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleCtrl,
-                  autofocus: true,
-                  maxLength: 200,
-                  decoration: const InputDecoration(hintText: 'Playlist title'),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Text('Visibility'),
-                    const Spacer(),
-                    DropdownButton<String>(
-                      value: visibility,
-                      items: const [
-                        DropdownMenuItem(value: 'public', child: Text('Public')),
-                        DropdownMenuItem(value: 'unlisted', child: Text('Unlisted')),
-                        DropdownMenuItem(value: 'private', child: Text('Private')),
-                      ],
-                      onChanged: (v) => setLocal(() => visibility = v ?? 'public'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create')),
-            ],
-          ),
-        ),
-      );
-
-      if (result != true) return;
-      final title = titleCtrl.text.trim();
-      if (title.isEmpty) return;
-
-      setState(() => _creating = true);
-      try {
-        final api = ref.read(apiClientProvider);
-        await api.dio.post('/playlists', data: {'title': title, 'visibility': visibility});
+      final id = await showCreatePlaylistDialog(context, ref);
+      if (!mounted) return;
+      if (id != null) {
         await _load();
-      } catch (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not create playlist')),
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _creating = false);
+        if (mounted) context.push('/playlists/$id');
       }
     } finally {
-      titleCtrl.dispose();
+      if (mounted) setState(() => _creating = false);
     }
   }
 

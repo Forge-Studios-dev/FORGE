@@ -56,6 +56,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Mobile Studio Attention queue + home badge
 - [ ] Smoke: Mobile Studio branding; Library Continue watching shelf
 - [ ] Smoke: Mobile search Live + Watched filters
+- [ ] Smoke: Mobile Library New playlist (create + open detail)
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback
