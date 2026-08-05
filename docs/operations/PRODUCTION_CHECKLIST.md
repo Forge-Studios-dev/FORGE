@@ -50,6 +50,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Mobile channel Community posts + About tab
 - [ ] Smoke: Mobile Videos list titles; Community image compose
 - [ ] Smoke: Mobile channel Home tab; Community expand/reply comments
+- [ ] Smoke: Channel Home playlists shelf (web + mobile)
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback

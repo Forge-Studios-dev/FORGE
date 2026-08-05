@@ -152,7 +152,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
               if (_type == 'home')
-                ..._homeSlivers(user, username)
+                ..._homeSlivers(user)
               else if (_type == 'live')
                 ..._liveSlivers(user.id)
               else if (_type == 'playlists')
@@ -170,7 +170,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  List<Widget> _homeSlivers(UserModel user, String profileUsername) {
+  List<Widget> _homeSlivers(UserModel user) {
     final streamsAsync = ref.watch(channelStreamsProvider(user.id));
     final videosAsync = ref.watch(
       userVideosProvider((userId: user.id, type: 'video', sort: 'newest')),
@@ -389,19 +389,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 );
               },
             ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () => setState(() => _type = 'community'),
-              icon: const Icon(Icons.forum_outlined, size: 18),
-              label: const Text('Community posts'),
+            const SizedBox(height: 20),
+            _HomePlaylistsShelf(
+              userId: user.id,
+              onSeeAll: () => setState(() => _type = 'playlists'),
             ),
-            if (profileUsername.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => setState(() => _type = 'about'),
-                child: const Text('About this channel'),
-              ),
-            ],
+            const SizedBox(height: 12),
+            _HomeCommunityShelf(
+              creatorId: user.id,
+              onSeeAll: () => setState(() => _type = 'community'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => setState(() => _type = 'about'),
+              child: const Text('About this channel'),
+            ),
           ]),
         ),
       ),
@@ -743,6 +745,129 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
       ),
     ];
+  }
+}
+
+class _HomePlaylistsShelf extends ConsumerWidget {
+  const _HomePlaylistsShelf({required this.userId, required this.onSeeAll});
+
+  final String userId;
+  final VoidCallback onSeeAll;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(channelPlaylistsProvider(userId));
+    final t = ForgeTokens.of(context);
+    return async.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (playlists) {
+        if (playlists.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Playlists',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                TextButton(onPressed: onSeeAll, child: const Text('See all')),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ...playlists.take(4).map((p) {
+              final id = p['id'] as String?;
+              final title = p['title'] as String? ?? 'Playlist';
+              final count = p['videoCount'] ?? p['itemCount'];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.playlist_play, color: t.primary),
+                  title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: count != null ? Text('$count videos') : null,
+                  onTap: id == null ? null : () => context.push('/playlists/$id'),
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _HomeCommunityShelf extends ConsumerWidget {
+  const _HomeCommunityShelf({required this.creatorId, required this.onSeeAll});
+
+  final String creatorId;
+  final VoidCallback onSeeAll;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(channelPostsProvider(creatorId));
+    final t = ForgeTokens.of(context);
+    return async.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (posts) {
+        if (posts.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Community',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                TextButton(onPressed: onSeeAll, child: const Text('See all')),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ...posts.take(2).map((post) {
+              final body = post['body'] as String? ?? '';
+              final title = post['title'] as String?;
+              final preview = (title != null && title.isNotEmpty)
+                  ? title
+                  : (body.isEmpty ? 'Community post' : body);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InkWell(
+                  onTap: onSeeAll,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: t.outlineVariant),
+                    ),
+                    child: Text(
+                      preview,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: t.onSurface, height: 1.35),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
   }
 }
 

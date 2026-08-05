@@ -474,6 +474,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Home tab (default): Live now shelf, Uploads preview, Shorts rail, links to Community/About
 - Community posts: expand/reply comments via `/communities/:id/posts/:postId/comments`
 
+## Channel Home playlists + community shelves (2026-08-06)
+
+- Mobile Home: Playlists shelf + Community post previews
+- Web channel Home: Playlists shelf; `getUserPlaylists` falls back to `/users/:id/playlists`
+
 ## Still open
 
 | Area | Item | Owner |

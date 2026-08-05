@@ -40,11 +40,13 @@ async function getUserVideos(
 async function getUserPlaylists(userId: string): Promise<Playlist[]> {
   try {
     const { data } = await serverApi.get(`/playlists/user/${userId}`);
-    return data.data;
+    return data.data ?? [];
   } catch {
     try {
-      // Fallback: public list via users relation if dedicated route missing
-      void userId;
+      const { data } = await serverApi.get(`/users/${userId}/playlists`);
+      const payload = data.data;
+      if (Array.isArray(payload)) return payload;
+      if (payload && Array.isArray(payload.data)) return payload.data;
       return [];
     } catch {
       return [];
@@ -132,7 +134,7 @@ export default async function ChannelPage({ params, searchParams }: Props) {
     tab === 'home' || tab === 'live' ? getCreatorLiveStreams(user.id) : Promise.resolve([]),
     tab === 'live' ? getCreatorUpcomingStreams(user.id) : Promise.resolve([]),
   ]);
-  const playlists = tab === 'playlists' ? await getUserPlaylists(user.id) : [];
+  const playlists = tab === 'playlists' || tab === 'home' ? await getUserPlaylists(user.id) : [];
   const subscriberCount = user.subscriberCount ?? user.followerCount;
 
   const tabs: { id: ChannelTab; label: string }[] = [
@@ -241,6 +243,31 @@ export default async function ChannelPage({ params, searchParams }: Props) {
                     meta: { cursor: null, hasMore: false },
                   }}
                 />
+              </section>
+            ) : null}
+            {tab === 'home' && playlists.length > 0 ? (
+              <section className="mb-10">
+                <div className="mb-4 flex items-baseline justify-between gap-3">
+                  <h2 className="font-display-forge text-xl font-semibold">Playlists</h2>
+                  <Link
+                    href={`/${user.username}?tab=playlists`}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    View all
+                  </Link>
+                </div>
+                <ul className="space-y-2">
+                  {playlists.slice(0, 6).map((pl) => (
+                    <li key={pl.id}>
+                      <Link
+                        href={`/playlists/${pl.id}`}
+                        className="glass-panel block rounded-xl px-4 py-3 hover:border-primary/30"
+                      >
+                        {pl.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </section>
             ) : null}
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
