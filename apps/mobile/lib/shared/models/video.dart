@@ -165,6 +165,7 @@ class UserModel {
   final int followingCount;
   final int videoCount;
   final bool viewerFollowing;
+  final DateTime? createdAt;
 
   const UserModel({
     required this.id,
@@ -182,6 +183,7 @@ class UserModel {
     required this.followingCount,
     required this.videoCount,
     this.viewerFollowing = false,
+    this.createdAt,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
@@ -204,6 +206,7 @@ class UserModel {
         followingCount: (json['followingCount'] as num?)?.toInt() ?? 0,
         videoCount: (json['videoCount'] as num?)?.toInt() ?? 0,
         viewerFollowing: json['viewerFollowing'] as bool? ?? false,
+        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
       );
 
   Map<String, dynamic> toJson() => {
@@ -222,6 +225,7 @@ class UserModel {
         'followingCount': followingCount,
         'videoCount': videoCount,
         'viewerFollowing': viewerFollowing,
+        'createdAt': createdAt?.toIso8601String(),
       };
 }
 

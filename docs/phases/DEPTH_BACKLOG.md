@@ -459,6 +459,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Newest / Popular / Oldest sort on Videos & Shorts
 - Public playlists via `GET /users/:id/playlists`
 
+## Mobile channel Community + About (2026-08-06)
+
+- Community tab: channel posts feed, like, owner compose (`/creators/.../channel-posts`)
+- About tab: bio, links, subscribers/videos/joined (`createdAt` on UserModel)
+
 ## Still open
 
 | Area | Item | Owner |

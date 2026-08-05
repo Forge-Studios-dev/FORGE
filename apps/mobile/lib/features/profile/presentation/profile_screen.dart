@@ -13,6 +13,7 @@ import '../../live/data/live_repository.dart';
 import '../../watch/data/watch_repository.dart';
 import '../../../shared/models/video.dart';
 import 'membership_panel.dart';
+import 'channel_community_panel.dart';
 
 final userVideosProvider = FutureProvider.autoDispose
     .family<List<VideoModel>, ({String userId, String type, String sort})>((ref, args) async {
@@ -82,6 +83,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     (id: 'short', label: 'Shorts', icon: Icons.movie_filter_outlined),
     (id: 'live', label: 'Live', icon: Icons.sensors),
     (id: 'playlists', label: 'Playlists', icon: Icons.playlist_play),
+    (id: 'community', label: 'Community', icon: Icons.forum_outlined),
+    (id: 'about', label: 'About', icon: Icons.info_outline),
   ];
 
   @override
@@ -151,6 +154,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ..._liveSlivers(user.id)
               else if (_type == 'playlists')
                 ..._playlistSlivers(user.id)
+              else if (_type == 'community')
+                ..._communitySlivers(user, username)
+              else if (_type == 'about')
+                ..._aboutSlivers(user)
               else
                 ..._videoSlivers(user.id),
             ],
@@ -283,6 +290,101 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     ];
   }
 
+  List<Widget> _communitySlivers(UserModel user, String profileUsername) {
+    final viewingOwn = profileUsername == 'me' || profileUsername == user.username;
+    final canCompose = viewingOwn &&
+        (user.creatorStatus == 'approved' || user.role == 'creator' || user.role == 'admin');
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        sliver: SliverToBoxAdapter(
+          child: ChannelCommunityPanel(
+            creatorId: user.id,
+            isOwner: canCompose,
+          ),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _aboutSlivers(UserModel user) {
+    final t = ForgeTokens.of(context);
+    final joined = user.createdAt?.toLocal();
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        sliver: SliverList(
+          delegate: SliverChildListDelegate([
+            Text(
+              'About',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              (user.bio != null && user.bio!.trim().isNotEmpty)
+                  ? user.bio!
+                  : 'No channel description yet.',
+              style: TextStyle(height: 1.45, color: t.onSurfaceVariant),
+            ),
+            if (user.websiteUrl != null || user.channelLinks.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Text(
+                'Links',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                  color: t.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (user.websiteUrl != null && user.websiteUrl!.isNotEmpty)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.language, size: 20),
+                  title: const Text('Website'),
+                  onTap: () => launchUrl(
+                    Uri.parse(user.websiteUrl!),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+              ...user.channelLinks.map(
+                (link) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.link, size: 20),
+                  title: Text(link.title.isNotEmpty ? link.title : link.url),
+                  onTap: () => launchUrl(
+                    Uri.parse(link.url),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _AboutStat(label: 'Subscribers', value: '${user.followerCount}'),
+                ),
+                Expanded(
+                  child: _AboutStat(label: 'Videos', value: '${user.videoCount}'),
+                ),
+              ],
+            ),
+            if (joined != null) ...[
+              const SizedBox(height: 12),
+              _AboutStat(
+                label: 'Joined',
+                value:
+                    '${joined.year}-${joined.month.toString().padLeft(2, '0')}-${joined.day.toString().padLeft(2, '0')}',
+              ),
+            ],
+          ]),
+        ),
+      ),
+    ];
+  }
+
   List<Widget> _liveSlivers(String creatorId) {
     final streamsAsync = ref.watch(channelStreamsProvider(creatorId));
     return [
@@ -384,6 +486,29 @@ class _StreamTile extends StatelessWidget {
                 : null,
         onTap: id == null ? null : () => context.push('/live/$id'),
       ),
+    );
+  }
+}
+
+class _AboutStat extends StatelessWidget {
+  const _AboutStat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 13, color: t.onSurfaceVariant)),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: t.onSurface),
+        ),
+      ],
     );
   }
 }
