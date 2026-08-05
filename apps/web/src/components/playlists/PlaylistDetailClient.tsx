@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EmptyState, Icon, Input, ListSkeleton, PageHeader } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Playlist } from '@/types';
@@ -20,6 +21,8 @@ export function PlaylistDetailClient({ playlistId }: { playlistId: string }) {
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [shareHint, setShareHint] = useState<string | null>(null);
   const [itemQuery, setItemQuery] = useState('');
+  const [clearOpen, setClearOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const query = useQuery({
     queryKey: ['playlist', playlistId],
@@ -54,6 +57,7 @@ export function PlaylistDetailClient({ playlistId }: { playlistId: string }) {
       await api.delete('/playlists/me/watch-later/videos');
     },
     onSuccess: () => {
+      setClearOpen(false);
       void qc.invalidateQueries({ queryKey: ['playlist', playlistId] });
       void qc.invalidateQueries({ queryKey: ['playlists', 'me'] });
       void qc.invalidateQueries({ queryKey: ['playlist-liked'] });
@@ -317,18 +321,7 @@ export function PlaylistDetailClient({ playlistId }: { playlistId: string }) {
             <button
               type="button"
               disabled={clearMutation.isPending}
-              onClick={() => {
-                const label =
-                  playlist.systemType === 'liked' ? 'Liked videos' : 'Watch later';
-                if (
-                  typeof window !== 'undefined' &&
-                  window.confirm(`Remove all videos from ${label}?`)
-                ) {
-                  clearMutation.mutate(
-                    playlist.systemType === 'liked' ? 'liked' : 'watch_later',
-                  );
-                }
-              }}
+              onClick={() => setClearOpen(true)}
               className="rounded-full border border-error/40 px-4 py-2 text-sm font-semibold text-error hover:bg-error/10 disabled:opacity-50"
             >
               {clearMutation.isPending ? 'Clearing…' : 'Clear all'}
@@ -338,14 +331,7 @@ export function PlaylistDetailClient({ playlistId }: { playlistId: string }) {
             <button
               type="button"
               disabled={deleteMutation.isPending}
-              onClick={() => {
-                if (
-                  typeof window !== 'undefined' &&
-                  window.confirm('Delete this playlist? Videos themselves are not deleted.')
-                ) {
-                  deleteMutation.mutate();
-                }
-              }}
+              onClick={() => setDeleteOpen(true)}
               className="rounded-full border border-error/40 px-4 py-2 text-sm font-semibold text-error hover:bg-error/10 disabled:opacity-50"
             >
               {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
@@ -461,6 +447,33 @@ export function PlaylistDetailClient({ playlistId }: { playlistId: string }) {
           </li>
         ) : null}
       </ul>
+
+      <ConfirmDialog
+        open={clearOpen}
+        title={
+          playlist.systemType === 'liked'
+            ? 'Clear Liked videos?'
+            : 'Clear Watch later?'
+        }
+        description={`Remove all videos from ${
+          playlist.systemType === 'liked' ? 'Liked videos' : 'Watch later'
+        }?`}
+        confirmLabel="Clear all"
+        onConfirm={() =>
+          clearMutation.mutate(playlist.systemType === 'liked' ? 'liked' : 'watch_later')
+        }
+        onCancel={() => setClearOpen(false)}
+        loading={clearMutation.isPending}
+      />
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Delete playlist?"
+        description="Videos themselves are not deleted — only this playlist."
+        confirmLabel="Delete"
+        onConfirm={() => deleteMutation.mutate()}
+        onCancel={() => setDeleteOpen(false)}
+        loading={deleteMutation.isPending}
+      />
     </main>
   );
 }

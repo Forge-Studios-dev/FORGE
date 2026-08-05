@@ -379,6 +379,13 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile Explore recent list trailing close + storage helper
 - Studio video editor: live chapter preview from description timestamp lines
 
+## Upload chapters + history confirm (2026-08-06)
+
+- Shared `DescriptionChaptersHint` on Studio edit + web upload (long-form)
+- Mobile upload description helper for chapter format
+- Watch history Clear all → `ConfirmDialog` (parity with unsubscribe confirms)
+- Playlist Clear all / Delete → `ConfirmDialog` (Liked, Watch later, custom)
+
 ## Still open
 
 | Area | Item | Owner |

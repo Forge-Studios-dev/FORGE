@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { EmptyState, FeedGridSkeleton, Icon, Input, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -13,6 +14,7 @@ export default function HistoryPage() {
   const qc = useQueryClient();
   const { user, isGuest } = useAuth();
   const [query, setQuery] = useState('');
+  const [clearOpen, setClearOpen] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['watch-history', 'all', user?.id],
@@ -31,6 +33,7 @@ export default function HistoryPage() {
   const clearMutation = useMutation({
     mutationFn: () => api.delete('/users/me/watch-history'),
     onSuccess: () => {
+      setClearOpen(false);
       void qc.invalidateQueries({ queryKey: ['watch-history'] });
     },
   });
@@ -70,11 +73,7 @@ export default function HistoryPage() {
               <button
                 type="button"
                 disabled={clearMutation.isPending}
-                onClick={() => {
-                  if (window.confirm('Clear your entire watch history?')) {
-                    clearMutation.mutate();
-                  }
-                }}
+                onClick={() => setClearOpen(true)}
                 className="text-sm font-semibold text-on-surface-variant hover:text-error disabled:opacity-50"
               >
                 {clearMutation.isPending ? 'Clearing…' : 'Clear all watch history'}
@@ -83,6 +82,16 @@ export default function HistoryPage() {
           </div>
         ) : null}
       </div>
+
+      <ConfirmDialog
+        open={clearOpen}
+        title="Clear watch history?"
+        description="This removes all videos from your watch history. You can’t undo this."
+        confirmLabel="Clear all"
+        onConfirm={() => clearMutation.mutate()}
+        onCancel={() => setClearOpen(false)}
+        loading={clearMutation.isPending}
+      />
 
       {isGuest ? (
         <EmptyState

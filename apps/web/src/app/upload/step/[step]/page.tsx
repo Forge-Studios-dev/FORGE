@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Icon, PageHeader } from '@forge/design-system';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
+import { DescriptionChaptersHint } from '@/components/studio/DescriptionChaptersHint';
 import { useAuth } from '@/lib/auth';
 import {
   clearUploadDraft,
@@ -401,11 +402,18 @@ function UploadStepContent() {
               <span className="font-label-caps text-outline">Description</span>
               <textarea
                 className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 outline-none focus:border-primary"
-                placeholder="Tell viewers about your video"
-                rows={3}
+                placeholder={
+                  draft.videoType === 'short'
+                    ? 'Tell viewers about your Short'
+                    : 'Tell viewers about your video. Optional chapters:\n0:00 Intro\n1:30 Main topic\n5:00 Outro'
+                }
+                rows={draft.videoType === 'short' ? 3 : 5}
                 value={draft.description}
                 onChange={(e) => persist({ description: e.target.value })}
               />
+              {draft.videoType !== 'short' ? (
+                <DescriptionChaptersHint description={draft.description} />
+              ) : null}
             </label>
             <label className="block">
               <span className="font-label-caps text-outline">

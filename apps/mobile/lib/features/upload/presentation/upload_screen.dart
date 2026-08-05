@@ -303,8 +303,11 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             const SizedBox(height: 12),
             TextField(
               controller: _descCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Description (optional)'),
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Description (optional)',
+                helperText: 'Chapters: lines like 0:00 Intro (need ≥3, start at 0:00)',
+              ),
             ),
             const SizedBox(height: 16),
             _buildCategoryAndSkills(),
