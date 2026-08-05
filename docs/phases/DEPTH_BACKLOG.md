@@ -430,6 +430,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Watch Chapters panel (seek bar + list, active from playback position)
 - Studio edit + upload live chapter preview (`DescriptionChaptersHint`)
 
+## Mobile watch end-screen + loop (2026-08-06)
+
+- Up next end overlay (Cancel / Play now; 5s countdown when Autoplay on)
+- Loop video toggle (Hive pref; disables end-screen; Chewie looping)
+- Persist Autoplay / Loop prefs; reset end-fired after seek-back
+
 ## Still open
 
 | Area | Item | Owner |

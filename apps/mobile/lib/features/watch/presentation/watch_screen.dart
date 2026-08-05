@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../../core/cache/local_cache.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/socket/forge_socket.dart';
@@ -19,6 +22,9 @@ import '../../../shared/models/video.dart';
 import '../data/watch_repository.dart';
 import 'chapters_panel.dart';
 import 'transcript_panel.dart';
+
+const _autoplayPrefKey = 'forge.watch.autoplay';
+const _loopPrefKey = 'forge.watch.loop';
 
 final videoDetailProvider = FutureProvider.family.autoDispose<VideoModel, String>((ref, id) async {
   return ref.read(watchRepositoryProvider).getVideo(id);
@@ -163,16 +169,33 @@ class _WatchBody extends ConsumerStatefulWidget {
 class _WatchBodyState extends ConsumerState<_WatchBody> {
   Map<String, dynamic>? _playlist;
   String? _playlistNextHref;
+  String? _playlistNextTitle;
   String? _relatedNextHref;
+  String? _relatedNextTitle;
   bool _autoplay = true;
+  bool _loopVideo = false;
   bool _loopPlaylist = false;
   bool _endedHandled = false;
+  bool _showEndScreen = false;
+  int _endCountdown = 5;
+  Timer? _endTimer;
 
   @override
   void initState() {
     super.initState();
+    final autoplayPref = LocalCache.read(_autoplayPrefKey);
+    if (autoplayPref == '0') _autoplay = false;
+    if (autoplayPref == '1') _autoplay = true;
+    final loopPref = LocalCache.read(_loopPrefKey);
+    if (loopPref == '1') _loopVideo = true;
     _loadPlaylist();
     _loadRelatedNext();
+  }
+
+  @override
+  void dispose() {
+    _endTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -182,9 +205,59 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
         oldWidget.playlistId != widget.playlistId ||
         oldWidget.shuffle != widget.shuffle) {
       _endedHandled = false;
+      _showEndScreen = false;
+      _endTimer?.cancel();
       _loadPlaylist();
       _loadRelatedNext();
     }
+  }
+
+  String? get _upNextHref =>
+      _playlistNextHref ?? (widget.playlistId == null ? _relatedNextHref : null);
+
+  String? get _upNextTitle =>
+      _playlistNextHref != null ? _playlistNextTitle : _relatedNextTitle;
+
+  Future<void> _persistAutoplay(bool value) async {
+    await LocalCache.write(_autoplayPrefKey, value ? '1' : '0');
+  }
+
+  Future<void> _persistLoop(bool value) async {
+    await LocalCache.write(_loopPrefKey, value ? '1' : '0');
+  }
+
+  void _cancelEndScreen() {
+    _endTimer?.cancel();
+    setState(() {
+      _showEndScreen = false;
+      _endCountdown = 5;
+      _endedHandled = false;
+    });
+  }
+
+  void _playUpNextNow() {
+    final next = _upNextHref;
+    if (next == null) return;
+    _endTimer?.cancel();
+    _endedHandled = true;
+    context.pushReplacement(next);
+  }
+
+  void _startEndCountdown() {
+    _endTimer?.cancel();
+    if (!_autoplay) return;
+    _endTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_endCountdown <= 1) {
+        timer.cancel();
+        _playUpNextNow();
+        return;
+      }
+      setState(() => _endCountdown -= 1);
+    });
   }
 
   Future<void> _loadPlaylist() async {
@@ -194,6 +267,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
         setState(() {
           _playlist = null;
           _playlistNextHref = null;
+          _playlistNextTitle = null;
         });
       }
       return;
@@ -202,21 +276,24 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
       final res = await ref.read(apiClientProvider).dio.get('/playlists/$listId');
       final data = res.data['data'] as Map<String, dynamic>?;
       if (!mounted) return;
+      final next = _computePlaylistNext(data);
       setState(() {
         _playlist = data;
-        _playlistNextHref = _computePlaylistNext(data);
+        _playlistNextHref = next?.href;
+        _playlistNextTitle = next?.title;
       });
     } catch (_) {
       if (mounted) {
         setState(() {
           _playlist = null;
           _playlistNextHref = null;
+          _playlistNextTitle = null;
         });
       }
     }
   }
 
-  String? _computePlaylistNext(Map<String, dynamic>? data) {
+  ({String href, String? title})? _computePlaylistNext(Map<String, dynamic>? data) {
     final listId = widget.playlistId;
     if (data == null || listId == null) return null;
     final items = (data['items'] as List?) ?? [];
@@ -228,50 +305,76 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
       return item['videoId'] as String? ?? video?['id'] as String?;
     }
 
-    final ids = items.map(videoIdOf).whereType<String>().toList();
-    if (ids.isEmpty) return null;
-    final current = widget.video.id;
-
-    if (widget.shuffle) {
-      final nextId = _pickShuffledNextId(ids, current, listId);
-      if (nextId != null) {
-        return _watchListHref(nextId, playlistId: listId, shuffle: true);
-      }
-      if (_loopPlaylist && ids.isNotEmpty) {
-        return _watchListHref(ids.first, playlistId: listId, shuffle: true);
+    String? titleOf(String id) {
+      for (final raw in items) {
+        if (raw is! Map<String, dynamic>) continue;
+        final video = raw['video'] as Map<String, dynamic>?;
+        final vid = raw['videoId'] as String? ?? video?['id'] as String?;
+        if (vid == id) return video?['title'] as String? ?? raw['title'] as String?;
       }
       return null;
     }
 
-    final idx = ids.indexOf(current);
-    if (idx < 0) return null;
-    if (idx < ids.length - 1) {
-      return _watchListHref(ids[idx + 1], playlistId: listId, shuffle: false);
+    final ids = items.map(videoIdOf).whereType<String>().toList();
+    if (ids.isEmpty) return null;
+    final current = widget.video.id;
+
+    String? nextId;
+    if (widget.shuffle) {
+      nextId = _pickShuffledNextId(ids, current, listId);
+      if (nextId == null && _loopPlaylist && ids.isNotEmpty) {
+        nextId = ids.first;
+      }
+    } else {
+      final idx = ids.indexOf(current);
+      if (idx < 0) return null;
+      if (idx < ids.length - 1) {
+        nextId = ids[idx + 1];
+      } else if (_loopPlaylist) {
+        nextId = ids.first;
+      }
     }
-    if (_loopPlaylist) {
-      return _watchListHref(ids.first, playlistId: listId, shuffle: false);
-    }
-    return null;
+    if (nextId == null) return null;
+    return (
+      href: _watchListHref(nextId, playlistId: listId, shuffle: widget.shuffle),
+      title: titleOf(nextId),
+    );
   }
 
   Future<void> _loadRelatedNext() async {
     try {
       final data = await ref.read(watchRepositoryProvider).getRelated(widget.video.id, limit: 4);
-      final first = data.cast<dynamic>().whereType<Map>().cast<Map<String, dynamic>>().where((v) => v['id'] != widget.video.id).toList();
+      final first = data
+          .cast<dynamic>()
+          .whereType<Map>()
+          .cast<Map<String, dynamic>>()
+          .where((v) => v['id'] != widget.video.id)
+          .toList();
       if (!mounted) return;
       final id = first.isNotEmpty ? first.first['id'] as String? : null;
-      setState(() => _relatedNextHref = id != null ? '/watch/$id' : null);
+      setState(() {
+        _relatedNextHref = id != null ? '/watch/$id' : null;
+        _relatedNextTitle = id != null ? first.first['title'] as String? : null;
+      });
     } catch (_) {
-      if (mounted) setState(() => _relatedNextHref = null);
+      if (mounted) {
+        setState(() {
+          _relatedNextHref = null;
+          _relatedNextTitle = null;
+        });
+      }
     }
   }
 
   void _onPlaybackEnded() {
-    if (_endedHandled || !_autoplay) return;
-    final next = _playlistNextHref ?? (widget.playlistId == null ? _relatedNextHref : null);
+    if (_endedHandled || _loopVideo) return;
+    final next = _upNextHref;
     if (next == null) return;
-    _endedHandled = true;
-    context.pushReplacement(next);
+    setState(() {
+      _showEndScreen = true;
+      _endCountdown = 5;
+    });
+    _startEndCountdown();
   }
 
   @override
@@ -290,10 +393,83 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
       padding: const EdgeInsets.all(16),
       children: [
         if (canPlay)
-          _HlsPlayerBlock(
-            videoId: videoId,
-            url: video.hlsUrl!,
-            onEnded: _onPlaybackEnded,
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _HlsPlayerBlock(
+                  videoId: videoId,
+                  url: video.hlsUrl!,
+                  looping: _loopVideo,
+                  onEnded: _onPlaybackEnded,
+                ),
+                if (_showEndScreen && _upNextHref != null)
+                  ColoredBox(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 360),
+                          child: ForgeCard(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Up next',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.4,
+                                    color: ForgeTokens.of(context).onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _upNextTitle ?? 'Next video',
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: ForgeTokens.of(context).onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _autoplay
+                                      ? 'Playing in $_endCountdown s…'
+                                      : 'Autoplay is off',
+                                  style: TextStyle(
+                                    color: ForgeTokens.of(context).onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    TextButton(
+                                      onPressed: _cancelEndScreen,
+                                      child: const Text('Cancel'),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    FilledButton(
+                                      onPressed: _playUpNextNow,
+                                      child: const Text('Play now'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           )
         else
           ForgeCard(
@@ -350,7 +526,31 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
           contentPadding: EdgeInsets.zero,
           title: const Text('Autoplay next', style: TextStyle(fontSize: 14)),
           value: _autoplay,
-          onChanged: (v) => setState(() => _autoplay = v),
+          onChanged: (v) {
+            setState(() => _autoplay = v);
+            _persistAutoplay(v);
+            if (!v) {
+              _endTimer?.cancel();
+            } else if (_showEndScreen) {
+              _startEndCountdown();
+            }
+          },
+        ),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Loop video', style: TextStyle(fontSize: 14)),
+          value: _loopVideo,
+          onChanged: (v) {
+            setState(() {
+              _loopVideo = v;
+              if (v) {
+                _showEndScreen = false;
+                _endCountdown = 5;
+              }
+            });
+            _endTimer?.cancel();
+            _persistLoop(v);
+          },
         ),
         if (listId != null) ...[
           SwitchListTile.adaptive(
@@ -359,7 +559,9 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
             value: _loopPlaylist,
             onChanged: (v) => setState(() {
               _loopPlaylist = v;
-              _playlistNextHref = _computePlaylistNext(_playlist);
+              final next = _computePlaylistNext(_playlist);
+              _playlistNextHref = next?.href;
+              _playlistNextTitle = next?.title;
             }),
           ),
           SwitchListTile.adaptive(
@@ -2004,8 +2206,14 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
 class _HlsPlayerBlock extends ConsumerStatefulWidget {
   final String videoId;
   final String url;
+  final bool looping;
   final VoidCallback? onEnded;
-  const _HlsPlayerBlock({required this.videoId, required this.url, this.onEnded});
+  const _HlsPlayerBlock({
+    required this.videoId,
+    required this.url,
+    this.looping = false,
+    this.onEnded,
+  });
 
   @override
   ConsumerState<_HlsPlayerBlock> createState() => _HlsPlayerBlockState();
@@ -2038,6 +2246,24 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
       _endedFired = false;
       _disposeControllers();
       _bootstrap();
+      return;
+    }
+    if (oldWidget.looping != widget.looping) {
+      _video?.setLooping(widget.looping);
+      final vc = _video;
+      final existing = _chewie;
+      if (vc != null && existing != null) {
+        existing.dispose();
+        setState(() {
+          _chewie = ChewieController(
+            videoPlayerController: vc,
+            autoPlay: vc.value.isPlaying,
+            looping: widget.looping,
+            aspectRatio: vc.value.aspectRatio == 0 ? 16 / 9 : vc.value.aspectRatio,
+            materialProgressColors: existing.materialProgressColors,
+          );
+        });
+      }
     }
   }
 
@@ -2045,6 +2271,7 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
     final vc = VideoPlayerController.networkUrl(Uri.parse(widget.url));
     await vc.initialize();
     if (!mounted) return;
+    await vc.setLooping(widget.looping);
     vc.addListener(() {
       if (!mounted) return;
       final sec = vc.value.position.inSeconds;
@@ -2052,7 +2279,12 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
         ref.read(watchPositionSecondsProvider(widget.videoId).notifier).state = sec;
       }
       final dur = vc.value.duration;
+      if (dur > Duration.zero &&
+          vc.value.position < dur - const Duration(seconds: 2)) {
+        _endedFired = false;
+      }
       if (!_endedFired &&
+          !widget.looping &&
           dur > Duration.zero &&
           vc.value.position >= dur - const Duration(milliseconds: 500) &&
           !vc.value.isPlaying) {
@@ -2065,7 +2297,7 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
       _chewie = ChewieController(
         videoPlayerController: vc,
         autoPlay: true,
-        looping: false,
+        looping: widget.looping,
         aspectRatio: vc.value.aspectRatio == 0 ? 16 / 9 : vc.value.aspectRatio,
         materialProgressColors: ChewieProgressColors(
           playedColor: ForgeTokens.of(context).primary,
@@ -2122,14 +2354,11 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
+      child: ColoredBox(
+        color: ForgeTokens.of(context).surfaceContainerHigh,
         child: _chewie != null
             ? Chewie(controller: _chewie!)
-            : ColoredBox(
-                color: ForgeTokens.of(context).surfaceContainerHigh,
-                child: Center(child: CircularProgressIndicator(color: ForgeTokens.of(context).primary)),
-              ),
+            : Center(child: CircularProgressIndicator(color: ForgeTokens.of(context).primary)),
       ),
     );
   }
