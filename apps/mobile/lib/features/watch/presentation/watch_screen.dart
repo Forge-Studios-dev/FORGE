@@ -971,7 +971,7 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
     final pos = ref.read(watchPositionSecondsProvider(widget.video.id));
     final base = '${AppConstants.webBaseUrl}/watch/${widget.video.id}';
     final url = pos > 0 ? '$base?t=$pos' : base;
-    await Share.share('${widget.video.title}\n$url');
+    await SharePlus.instance.share(ShareParams(text: '${widget.video.title}\n$url'));
   }
 
   Future<void> _copyWatchLink({bool atTime = false}) async {
@@ -2191,7 +2191,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                             if (id == null) return;
                             final url =
                                 '${AppConstants.webBaseUrl}/watch/${widget.videoId}?lc=$id';
-                            await Share.share(url);
+                            await SharePlus.instance.share(ShareParams(text: url));
                           } else if (value == 'report') {
                             await _reportComment(m);
                           } else if (value == 'edit') {

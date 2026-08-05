@@ -483,6 +483,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Mobile + web: owner Pin/Unpin + Delete on channel Community posts
 
+## Channel Home community + SharePlus (2026-08-06)
+
+- Web channel Home: Community post previews
+- Mobile: migrate `Share.share` → `SharePlus.instance.share(ShareParams…)`
+
 ## Still open
 
 | Area | Item | Owner |

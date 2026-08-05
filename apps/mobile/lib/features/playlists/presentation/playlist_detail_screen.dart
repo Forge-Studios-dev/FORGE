@@ -311,7 +311,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               onPressed: () {
                 final url = '${AppConstants.webBaseUrl}/playlists/${widget.playlistId}';
                 final title = playlist['title'] as String? ?? 'Playlist';
-                Share.share('$title\n$url');
+                SharePlus.instance.share(ShareParams(text: '$title\n$url'));
               },
             ),
         ],

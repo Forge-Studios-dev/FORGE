@@ -421,7 +421,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
             icon: const Icon(Icons.share_outlined),
             onPressed: () {
               final url = '${AppConstants.webBaseUrl}/live/${widget.streamId}';
-              Share.share('${title.isNotEmpty ? title : 'Live on FORGE'}\n$url');
+              SharePlus.instance.share(ShareParams(text: '${title.isNotEmpty ? title : 'Live on FORGE'}\n$url'));
             },
           ),
           if (_viewerCount > 0)

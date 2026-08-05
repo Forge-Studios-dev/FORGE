@@ -389,7 +389,7 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
   Future<void> _share() async {
     final video = widget.video;
     final url = '${AppConstants.webBaseUrl}/watch/${video.id}';
-    await Share.share('${video.title}\n$url');
+    await SharePlus.instance.share(ShareParams(text: '${video.title}\n$url'));
   }
 
   Future<void> _notInterested() async {

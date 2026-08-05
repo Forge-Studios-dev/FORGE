@@ -1291,7 +1291,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                   child: OutlinedButton.icon(
                     onPressed: () {
                       final url = '${AppConstants.webBaseUrl}/${user.username}';
-                      Share.share('${user.displayName}\n$url');
+                      SharePlus.instance.share(ShareParams(text: '${user.displayName}\n$url'));
                     },
                     icon: Icon(Icons.share_outlined, size: 18),
                     label: const Text('Share'),

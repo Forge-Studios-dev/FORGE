@@ -342,7 +342,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
   Future<void> _share() async {
     final video = widget.video;
     final url = '${AppConstants.webBaseUrl}/shorts?v=${video.id}';
-    await Share.share('${video.title}\n$url');
+    await SharePlus.instance.share(ShareParams(text: '${video.title}\n$url'));
   }
 
   Future<void> _openComments() async {

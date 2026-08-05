@@ -23,9 +23,11 @@ class CsvExportUtil {
     final file = File('${Directory.systemTemp.path}/$safeName');
     await file.writeAsBytes(bytes, flush: true);
 
-    await Share.shareXFiles(
-      [XFile(file.path, mimeType: 'text/csv', name: safeName)],
-      subject: safeName,
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path, mimeType: 'text/csv', name: safeName)],
+        subject: safeName,
+      ),
     );
   }
 }

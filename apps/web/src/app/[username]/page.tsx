@@ -63,6 +63,25 @@ type ChannelStream = {
   thumbnailUrl?: string | null;
 };
 
+type ChannelPostPreview = {
+  id: string;
+  title?: string | null;
+  body?: string | null;
+  isPinned?: boolean;
+  createdAt?: string;
+};
+
+async function getCreatorChannelPosts(creatorId: string): Promise<ChannelPostPreview[]> {
+  try {
+    const { data } = await serverApi.get(`/creators/${creatorId}/channel-posts?limit=4`);
+    const root = data.data;
+    const list = Array.isArray(root) ? root : Array.isArray(root?.data) ? root.data : [];
+    return list as ChannelPostPreview[];
+  } catch {
+    return [];
+  }
+}
+
 async function getCreatorLiveStreams(creatorId: string): Promise<ChannelStream[]> {
   try {
     const { data } = await serverApi.get(`/streams/live?creatorId=${creatorId}`);
@@ -124,7 +143,7 @@ export default async function ChannelPage({ params, searchParams }: Props) {
 
   const tab = resolveTab(searchParams?.tab);
   const sort = resolveSort(searchParams?.sort);
-  const [videos, shortsPreview, liveStreams, upcomingStreams] = await Promise.all([
+  const [videos, shortsPreview, liveStreams, upcomingStreams, homePosts] = await Promise.all([
     tab === 'shorts'
       ? getUserVideos(user.id, 'short', sort)
       : tab === 'videos' || tab === 'home'
@@ -133,6 +152,7 @@ export default async function ChannelPage({ params, searchParams }: Props) {
     tab === 'home' ? getUserVideos(user.id, 'short') : Promise.resolve({ data: [], meta: { cursor: null, hasMore: false } }),
     tab === 'home' || tab === 'live' ? getCreatorLiveStreams(user.id) : Promise.resolve([]),
     tab === 'live' ? getCreatorUpcomingStreams(user.id) : Promise.resolve([]),
+    tab === 'home' ? getCreatorChannelPosts(user.id) : Promise.resolve([]),
   ]);
   const playlists = tab === 'playlists' || tab === 'home' ? await getUserPlaylists(user.id) : [];
   const subscriberCount = user.subscriberCount ?? user.followerCount;
@@ -267,6 +287,42 @@ export default async function ChannelPage({ params, searchParams }: Props) {
                       </Link>
                     </li>
                   ))}
+                </ul>
+              </section>
+            ) : null}
+            {tab === 'home' && homePosts.length > 0 ? (
+              <section className="mb-10">
+                <div className="mb-4 flex items-baseline justify-between gap-3">
+                  <h2 className="font-display-forge text-xl font-semibold">Community</h2>
+                  <Link
+                    href={`/${user.username}?tab=community`}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    View all
+                  </Link>
+                </div>
+                <ul className="space-y-3">
+                  {homePosts.slice(0, 3).map((post) => {
+                    const preview =
+                      (post.title && post.title.trim()) ||
+                      (post.body && post.body.trim()) ||
+                      'Community post';
+                    return (
+                      <li key={post.id}>
+                        <Link
+                          href={`/${user.username}?tab=community`}
+                          className="glass-panel block rounded-xl px-4 py-3 hover:border-primary/30"
+                        >
+                          {post.isPinned ? (
+                            <span className="mb-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                              Pinned
+                            </span>
+                          ) : null}
+                          <p className="line-clamp-3 text-sm text-on-surface">{preview}</p>
+                        </Link>
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
             ) : null}
