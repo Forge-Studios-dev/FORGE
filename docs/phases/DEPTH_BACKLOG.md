@@ -453,6 +453,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Profile Videos / Shorts / Live segmented control
 - Live now + Upcoming from `/streams/live|upcoming?creatorId=`
 
+## Mobile channel Playlists + video sort (2026-08-06)
+
+- Profile chips: Videos / Shorts / Live / Playlists
+- Newest / Popular / Oldest sort on Videos & Shorts
+- Public playlists via `GET /users/:id/playlists`
+
 ## Still open
 
 | Area | Item | Owner |

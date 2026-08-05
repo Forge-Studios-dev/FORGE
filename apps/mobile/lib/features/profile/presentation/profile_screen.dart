@@ -14,12 +14,16 @@ import '../../watch/data/watch_repository.dart';
 import '../../../shared/models/video.dart';
 import 'membership_panel.dart';
 
-final userVideosProvider =
-    FutureProvider.autoDispose.family<List<VideoModel>, ({String userId, String type})>((ref, args) async {
+final userVideosProvider = FutureProvider.autoDispose
+    .family<List<VideoModel>, ({String userId, String type, String sort})>((ref, args) async {
   final client = ref.read(apiClientProvider);
   final response = await client.dio.get(
     '/users/${args.userId}/videos',
-    queryParameters: {'limit': 30, 'type': args.type},
+    queryParameters: {
+      'limit': 30,
+      'type': args.type,
+      if (args.sort != 'newest') 'sort': args.sort,
+    },
   );
   final list = response.data['data']['data'] as List<dynamic>? ?? [];
   return list.map((e) => VideoModel.fromJson(e as Map<String, dynamic>)).toList();
@@ -34,6 +38,23 @@ final channelStreamsProvider = FutureProvider.autoDispose
     repo.getUpcomingStreams(creatorId: creatorId),
   ]);
   return (live: results[0], upcoming: results[1]);
+});
+
+final channelPlaylistsProvider =
+    FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, userId) async {
+  final client = ref.read(apiClientProvider);
+  final response = await client.dio.get('/users/$userId/playlists');
+  final data = response.data['data'];
+  if (data is List) {
+    return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+  if (data is Map && data['data'] is List) {
+    return (data['data'] as List)
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+  return [];
 });
 
 final userProfileProvider = FutureProvider.autoDispose.family<UserModel, String>((ref, username) async {
@@ -54,6 +75,14 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String _type = 'video';
+  String _sort = 'newest';
+
+  static const _tabs = <({String id, String label, IconData icon})>[
+    (id: 'video', label: 'Videos', icon: Icons.videocam_outlined),
+    (id: 'short', label: 'Shorts', icon: Icons.movie_filter_outlined),
+    (id: 'live', label: 'Live', icon: Icons.sensors),
+    (id: 'playlists', label: 'Playlists', icon: Icons.playlist_play),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -74,31 +103,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(
-                        value: 'video',
-                        label: Text('Videos'),
-                        icon: Icon(Icons.videocam_outlined, size: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        height: 40,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            for (final tab in _tabs)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  avatar: Icon(tab.icon, size: 16),
+                                  label: Text(tab.label),
+                                  selected: _type == tab.id,
+                                  onSelected: (_) => setState(() => _type = tab.id),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                      ButtonSegment(
-                        value: 'short',
-                        label: Text('Shorts'),
-                        icon: Icon(Icons.movie_filter_outlined, size: 16),
-                      ),
-                      ButtonSegment(
-                        value: 'live',
-                        label: Text('Live'),
-                        icon: Icon(Icons.sensors, size: 16),
-                      ),
+                      if (_type == 'video' || _type == 'short') ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: DropdownButton<String>(
+                            value: _sort,
+                            underline: const SizedBox.shrink(),
+                            items: const [
+                              DropdownMenuItem(value: 'newest', child: Text('Newest')),
+                              DropdownMenuItem(value: 'popular', child: Text('Popular')),
+                              DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
+                            ],
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() => _sort = v);
+                            },
+                          ),
+                        ),
+                      ],
                     ],
-                    selected: {_type},
-                    onSelectionChanged: (s) => setState(() => _type = s.first),
                   ),
                 ),
               ),
               if (_type == 'live')
                 ..._liveSlivers(user.id)
+              else if (_type == 'playlists')
+                ..._playlistSlivers(user.id)
               else
                 ..._videoSlivers(user.id),
             ],
@@ -110,7 +162,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   List<Widget> _videoSlivers(String userId) {
     final videosAsync = ref.watch(
-      userVideosProvider((userId: userId, type: _type)),
+      userVideosProvider((userId: userId, type: _type, sort: _sort)),
     );
     return [
       videosAsync.when(
@@ -167,6 +219,63 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     mainAxisSpacing: 4,
                     crossAxisSpacing: 4,
                     childAspectRatio: _type == 'short' ? 9 / 16 : 16 / 9,
+                  ),
+                ),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _playlistSlivers(String userId) {
+    final playlistsAsync = ref.watch(channelPlaylistsProvider(userId));
+    return [
+      playlistsAsync.when(
+        loading: () => const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ),
+        error: (_, __) => SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Could not load playlists',
+              style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+            ),
+          ),
+        ),
+        data: (playlists) => SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          sliver: playlists.isEmpty
+              ? SliverToBoxAdapter(
+                  child: Text(
+                    'No public playlists yet.',
+                    style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                  ),
+                )
+              : SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) {
+                      final p = playlists[i];
+                      final id = p['id'] as String?;
+                      final title = p['title'] as String? ?? 'Playlist';
+                      final count = p['videoCount'] ?? p['itemCount'];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: ForgeTokens.of(context).outlineVariant),
+                          ),
+                          leading: Icon(Icons.playlist_play, color: ForgeTokens.of(context).primary),
+                          title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          subtitle: count != null ? Text('$count videos') : null,
+                          onTap: id == null ? null : () => context.push('/playlists/$id'),
+                        ),
+                      );
+                    },
+                    childCount: playlists.length,
                   ),
                 ),
         ),
