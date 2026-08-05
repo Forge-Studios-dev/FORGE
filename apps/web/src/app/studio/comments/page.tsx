@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { EmptyState, ListSkeleton, PageHeader } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { getRecentCommentsOnMyVideos } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -16,6 +17,9 @@ export default function StudioCommentsPage() {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [error, setError] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<{ videoId: string; commentId: string } | null>(
+    null,
+  );
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['studio-comments', user?.id],
@@ -73,6 +77,7 @@ export default function StudioCommentsPage() {
       await api.delete(`/videos/${videoId}/comments/${commentId}`);
     },
     onSuccess: () => {
+      setRemoveTarget(null);
       setError('');
       void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] });
     },
@@ -170,10 +175,7 @@ export default function StudioCommentsPage() {
                   className="text-error hover:underline"
                   disabled={removeMutation.isPending}
                   aria-label="Remove comment"
-                  onClick={() => {
-                    if (!window.confirm('Remove this comment from your video?')) return;
-                    removeMutation.mutate({ videoId: c.videoId, commentId: c.id });
-                  }}
+                  onClick={() => setRemoveTarget({ videoId: c.videoId, commentId: c.id })}
                 >
                   Remove
                 </button>
@@ -218,6 +220,19 @@ export default function StudioCommentsPage() {
           </li>
         ))}
       </ul>
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        title="Remove comment?"
+        description="This removes the comment from your video."
+        confirmLabel="Remove"
+        onConfirm={() => {
+          if (!removeTarget) return;
+          removeMutation.mutate(removeTarget);
+        }}
+        onCancel={() => setRemoveTarget(null)}
+        loading={removeMutation.isPending}
+      />
     </main>
   );
 }

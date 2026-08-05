@@ -15,6 +15,7 @@ import { COMMENT_REPORT_REASONS } from '@/lib/report-reasons';
 import { splitCommentMentions } from '@/lib/comment-text';
 import { parseTimestampToSeconds } from '@/lib/description-timestamps';
 import { Icon } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 
 type CommentsResponse = {
   data: Comment[];
@@ -109,6 +110,7 @@ function CommentRow({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
+  const [confirmAction, setConfirmAction] = useState<'delete' | 'remove' | null>(null);
 
   useEffect(() => {
     if (!reportOpen) return;
@@ -217,7 +219,10 @@ function CommentRow({
     mutationFn: async () => {
       await api.delete(`/videos/${videoId}/comments/${comment.id}`);
     },
-    onSuccess: onRefresh,
+    onSuccess: () => {
+      setConfirmAction(null);
+      onRefresh();
+    },
   });
 
   const reportMut = useMutation({
@@ -377,9 +382,7 @@ function CommentRow({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm('Delete this comment?')) deleteMut.mutate();
-                }}
+                onClick={() => setConfirmAction('delete')}
                 className="text-error hover:underline"
               >
                 Delete
@@ -389,9 +392,7 @@ function CommentRow({
           {isVideoOwner && !isOwn && (
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm('Remove this comment from your video?')) deleteMut.mutate();
-              }}
+              onClick={() => setConfirmAction('remove')}
               className="text-error hover:underline"
               aria-label="Remove comment"
             >
@@ -532,6 +533,24 @@ function CommentRow({
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmAction === 'delete'}
+        title="Delete comment?"
+        description="This permanently removes your comment."
+        confirmLabel="Delete"
+        onConfirm={() => deleteMut.mutate()}
+        onCancel={() => setConfirmAction(null)}
+        loading={deleteMut.isPending}
+      />
+      <ConfirmDialog
+        open={confirmAction === 'remove'}
+        title="Remove comment?"
+        description="This removes the comment from your video."
+        confirmLabel="Remove"
+        onConfirm={() => deleteMut.mutate()}
+        onCancel={() => setConfirmAction(null)}
+        loading={deleteMut.isPending}
+      />
     </article>
   );
 }

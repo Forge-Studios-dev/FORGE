@@ -386,6 +386,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Watch history Clear all → `ConfirmDialog` (parity with unsubscribe confirms)
 - Playlist Clear all / Delete → `ConfirmDialog` (Liked, Watch later, custom)
 
+## Destructive ConfirmDialog sweep (2026-08-06)
+
+- Watch comments Delete/Remove; Studio comments Remove
+- End live stream; Studio cancel upload; upload progress banner cancel
+- Studio subscribers Suspend membership
+
 ## Still open
 
 | Area | Item | Owner |

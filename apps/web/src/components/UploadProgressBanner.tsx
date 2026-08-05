@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import {
   abortActiveUpload,
   getActiveUpload,
@@ -26,6 +27,7 @@ function formatBytes(bytes: number): string {
 export function UploadProgressBanner() {
   const [active, setActive] = useState<ActiveUploadMeta | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   useEffect(() => {
     setActive(getActiveUpload());
@@ -80,11 +82,7 @@ export function UploadProgressBanner() {
           {active.phase === 'uploading' || active.phase === 'presigning' ? (
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm('Cancel this upload and free the slot?')) {
-                  abortActiveUpload();
-                }
-              }}
+              onClick={() => setCancelOpen(true)}
               className="font-semibold text-error hover:underline"
             >
               Cancel upload
@@ -133,6 +131,18 @@ export function UploadProgressBanner() {
           ? 'Safe to leave this page — chunk progress is checkpointed and can resume later if the connection drops.'
           : 'You can leave this page; upload continues in the background.'}
       </p>
+
+      <ConfirmDialog
+        open={cancelOpen}
+        title="Cancel upload?"
+        description="This stops the current upload and frees the slot."
+        confirmLabel="Cancel upload"
+        onConfirm={() => {
+          abortActiveUpload();
+          setCancelOpen(false);
+        }}
+        onCancel={() => setCancelOpen(false)}
+      />
     </div>
   );
 }

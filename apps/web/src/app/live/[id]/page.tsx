@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
 import { EmptyState, PaywallCard, SkeletonBlock } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { resolveStreamPoster } from '@/lib/stream-poster';
 import { AgeGateModal } from '@/components/live/AgeGateModal';
 import { StreamCountdownLobby } from '@/components/live/StreamCountdownLobby';
@@ -51,6 +52,7 @@ export default function LiveWatchPage() {
   const [reconnectDeadlineMs, setReconnectDeadlineMs] = useState<number | null>(null);
   const [lastEndReason, setLastEndReason] = useState<Stream['endReason']>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false);
 
   const checkoutSuccess = searchParams.get('checkout') === 'success';
 
@@ -101,6 +103,7 @@ export default function LiveWatchPage() {
       await api.post(`/streams/${id}/end`);
     },
     onSuccess: () => {
+      setEndConfirmOpen(false);
       void qc.invalidateQueries({ queryKey: ['stream', id] });
       window.location.href = `/studio/live/${id}/debrief`;
     },
@@ -441,9 +444,7 @@ export default function LiveWatchPage() {
                   <button
                     type="button"
                     disabled={endMutation.isPending}
-                    onClick={() => {
-                      if (window.confirm('End this live stream?')) endMutation.mutate();
-                    }}
+                    onClick={() => setEndConfirmOpen(true)}
                     className="rounded-lg border border-outline-variant/40 bg-surface-container-high px-4 py-2 font-medium transition hover:border-primary/30 disabled:opacity-50"
                   >
                     {endMutation.isPending ? 'Ending…' : 'End stream'}
@@ -466,6 +467,16 @@ export default function LiveWatchPage() {
           <StreamRaiseHandPanel streamId={id} isHost={!!isOwner} />
         </div>
       )}
+
+      <ConfirmDialog
+        open={endConfirmOpen}
+        title="End live stream?"
+        description="Viewers will be disconnected and you will go to the post-stream debrief."
+        confirmLabel="End stream"
+        onConfirm={() => endMutation.mutate()}
+        onCancel={() => setEndConfirmOpen(false)}
+        loading={endMutation.isPending}
+      />
     </main>
   );
 }

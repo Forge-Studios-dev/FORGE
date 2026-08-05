@@ -8,6 +8,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { SocketEvents } from '@forge/shared-types';
 import { getActiveUpload, subscribeActiveUpload } from '@/lib/upload-manager';
 import { EmptyState, Icon, ListSkeleton, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { fetchStudioLibrary, type StudioVideoSort } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -152,6 +153,7 @@ function StudioVideosPageInner() {
   const { user, accessToken, isCreator } = useAuth();
   const queryClient = useQueryClient();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [releasing, setReleasing] = useState(false);
   const [browserUploadPct, setBrowserUploadPct] = useState<number | null>(null);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
@@ -237,10 +239,10 @@ function StudioVideosPageInner() {
   const inProgressCount = data.filter((v) => v.status === 'uploading' || v.status === 'processing').length;
 
   const cancelVideo = async (videoId: string) => {
-    if (!window.confirm('Remove this video and free the upload slot?')) return;
     setCancellingId(videoId);
     try {
       await api.post(`/videos/${videoId}/cancel-upload`);
+      setCancelConfirmId(null);
       await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
     } finally {
       setCancellingId(null);
@@ -475,7 +477,7 @@ function StudioVideosPageInner() {
                             <button
                               type="button"
                               disabled={cancellingId === video.id}
-                              onClick={() => cancelVideo(video.id)}
+                              onClick={() => setCancelConfirmId(video.id)}
                               className="text-sm text-error hover:underline disabled:opacity-50"
                             >
                               {cancellingId === video.id ? 'Cancelling…' : 'Cancel'}
@@ -509,7 +511,7 @@ function StudioVideosPageInner() {
                 key={video.id}
                 video={video}
                 cancellingId={cancellingId}
-                onCancel={cancelVideo}
+                onCancel={setCancelConfirmId}
                 browserUploadPct={video.id === activeVideoId ? browserUploadPct : null}
               />
             ))}
@@ -529,6 +531,18 @@ function StudioVideosPageInner() {
           </button>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={!!cancelConfirmId}
+        title="Cancel upload?"
+        description="Remove this video and free the upload slot so you can try again."
+        confirmLabel="Cancel upload"
+        onConfirm={() => {
+          if (cancelConfirmId) void cancelVideo(cancelConfirmId);
+        }}
+        onCancel={() => setCancelConfirmId(null)}
+        loading={!!cancellingId}
+      />
     </main>
   );
 }
