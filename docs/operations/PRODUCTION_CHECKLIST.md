@@ -48,6 +48,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Mobile channel Live tab (live + upcoming)
 - [ ] Smoke: Mobile channel Playlists tab + Videos/Shorts sort
 - [ ] Smoke: Mobile channel Community posts + About tab
+- [ ] Smoke: Mobile Videos list titles; Community image compose
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback

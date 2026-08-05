@@ -200,34 +200,93 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ),
                 )
-              : SliverGrid(
-                  delegate: SliverChildBuilderDelegate(
-                    (_, i) {
-                      final v = videos[i];
-                      return GestureDetector(
-                        onTap: () => context.push('/watch/${v.id}'),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: v.thumbnailUrl != null
-                              ? CachedNetworkImage(
-                                  imageUrl: v.thumbnailUrl!,
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                )
-                              : Container(color: ForgeTokens.of(context).surfaceContainerHighest),
-                        ),
-                      );
-                    },
-                    childCount: videos.length,
-                  ),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: _type == 'short' ? 3 : 2,
-                    mainAxisSpacing: 4,
-                    crossAxisSpacing: 4,
-                    childAspectRatio: _type == 'short' ? 9 / 16 : 16 / 9,
-                  ),
-                ),
+              : _type == 'short'
+                  ? SliverGrid(
+                      delegate: SliverChildBuilderDelegate(
+                        (_, i) {
+                          final v = videos[i];
+                          return GestureDetector(
+                            onTap: () => context.push('/watch/${v.id}'),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: v.thumbnailUrl != null
+                                  ? CachedNetworkImage(
+                                      imageUrl: v.thumbnailUrl!,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                    )
+                                  : Container(
+                                      color: ForgeTokens.of(context).surfaceContainerHighest,
+                                    ),
+                            ),
+                          );
+                        },
+                        childCount: videos.length,
+                      ),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 4,
+                        crossAxisSpacing: 4,
+                        childAspectRatio: 9 / 16,
+                      ),
+                    )
+                  : SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) {
+                          final v = videos[i];
+                          final t = ForgeTokens.of(context);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: InkWell(
+                              onTap: () => context.push('/watch/${v.id}'),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: SizedBox(
+                                      width: 140,
+                                      height: 79,
+                                      child: v.thumbnailUrl != null
+                                          ? CachedNetworkImage(
+                                              imageUrl: v.thumbnailUrl!,
+                                              fit: BoxFit.cover,
+                                            )
+                                          : ColoredBox(color: t.surfaceContainerHighest),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          v.title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: t.onSurface,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${v.viewCount} views',
+                                          style: TextStyle(fontSize: 12, color: t.onSurfaceVariant),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: videos.length,
+                      ),
+                    ),
         ),
       ),
     ];

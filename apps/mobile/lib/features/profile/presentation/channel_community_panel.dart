@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,8 +42,12 @@ class ChannelCommunityPanel extends ConsumerStatefulWidget {
 class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
   final _composeCtrl = TextEditingController();
   bool _posting = false;
+  bool _uploading = false;
   String? _composeMsg;
+  final List<String> _mediaUrls = [];
   final Set<String> _likeBusy = {};
+
+  static const _maxImages = 4;
 
   @override
   void dispose() {
@@ -47,10 +55,65 @@ class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
     super.dispose();
   }
 
+  Future<void> _pickImages() async {
+    if (_mediaUrls.length >= _maxImages) return;
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+      allowMultiple: true,
+      withData: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    setState(() {
+      _uploading = true;
+      _composeMsg = null;
+    });
+    try {
+      final client = ref.read(apiClientProvider);
+      final remaining = _maxImages - _mediaUrls.length;
+      for (final file in result.files.take(remaining)) {
+        final path = file.path;
+        if (path == null) continue;
+        final name = file.name.toLowerCase();
+        final contentType = name.endsWith('.png')
+            ? 'image/png'
+            : name.endsWith('.webp')
+                ? 'image/webp'
+                : 'image/jpeg';
+        final presign = await client.dio.post(
+          '/creators/me/channel-posts/media-upload-url',
+          queryParameters: {'contentType': contentType},
+        );
+        final data = presign.data['data'] as Map<String, dynamic>;
+        final uploadUrl = data['uploadUrl'] as String;
+        final publicUrl = data['publicUrl'] as String;
+        final put = await Dio().put(
+          uploadUrl,
+          data: await File(path).readAsBytes(),
+          options: Options(
+            headers: {'Content-Type': contentType},
+            sendTimeout: const Duration(minutes: 2),
+            receiveTimeout: const Duration(minutes: 2),
+          ),
+        );
+        if (put.statusCode == null || put.statusCode! < 200 || put.statusCode! >= 300) {
+          throw StateError('Upload failed');
+        }
+        _mediaUrls.add(publicUrl);
+      }
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _composeMsg = 'Could not upload image.');
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
   Future<void> _publish() async {
     final text = _composeCtrl.text.trim();
-    if (text.isEmpty) {
-      setState(() => _composeMsg = 'Write something to post.');
+    if (text.isEmpty && _mediaUrls.isEmpty) {
+      setState(() => _composeMsg = 'Write something or add an image to post.');
       return;
     }
     setState(() {
@@ -59,9 +122,12 @@ class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
     });
     try {
       await ref.read(apiClientProvider).dio.post('/creators/me/channel-posts', data: {
-        'body': text,
+        if (text.isNotEmpty) 'body': text,
+        if (text.isEmpty) 'body': ' ',
+        if (_mediaUrls.isNotEmpty) 'mediaUrls': List<String>.from(_mediaUrls),
       });
       _composeCtrl.clear();
+      _mediaUrls.clear();
       ref.invalidate(channelPostsProvider(widget.creatorId));
       if (!mounted) return;
       setState(() => _composeMsg = 'Posted.');
@@ -125,13 +191,57 @@ class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
                     border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton(
-                    onPressed: _posting ? null : _publish,
-                    child: Text(_posting ? 'Posting…' : 'Post'),
+                if (_mediaUrls.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 72,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _mediaUrls.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (_, i) => Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: CachedNetworkImage(
+                              imageUrl: _mediaUrls[i],
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: IconButton(
+                              iconSize: 16,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                              onPressed: () => setState(() => _mediaUrls.removeAt(i)),
+                              icon: Icon(Icons.close, color: t.onSurface),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: _posting || _uploading || _mediaUrls.length >= _maxImages
+                          ? null
+                          : _pickImages,
+                      icon: const Icon(Icons.image_outlined, size: 18),
+                      label: Text(_uploading ? 'Uploading…' : 'Add image'),
+                    ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: _posting || _uploading ? null : _publish,
+                      child: Text(_posting ? 'Posting…' : 'Post'),
+                    ),
+                  ],
                 ),
                 if (_composeMsg != null)
                   Padding(

@@ -464,6 +464,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Community tab: channel posts feed, like, owner compose (`/creators/.../channel-posts`)
 - About tab: bio, links, subscribers/videos/joined (`createdAt` on UserModel)
 
+## Mobile channel Videos list + Community images (2026-08-06)
+
+- Videos tab: thumb + title + views list (Shorts stay 3-col grid)
+- Community compose: multi-image upload via media-upload-url
+
 ## Still open
 
 | Area | Item | Owner |
