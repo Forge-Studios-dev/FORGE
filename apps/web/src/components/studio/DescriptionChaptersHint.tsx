@@ -1,15 +1,16 @@
 'use client';
 
 import { useMemo } from 'react';
-import { extractVideoChapters } from '@/lib/description-timestamps';
-
-const CHAPTER_LINE_RE = /^\s*((?:\d{1,2}:)?[0-5]?\d:[0-5]\d)\s+.+/gm;
+import {
+  countChapterCandidateLines,
+  extractVideoChapters,
+} from '@/lib/description-timestamps';
 
 /** Live preview / validation for YouTube-style chapters in a description field. */
 export function DescriptionChaptersHint({ description }: { description: string }) {
   const chapterPreview = useMemo(() => extractVideoChapters(description), [description]);
   const chapterLineCount = useMemo(
-    () => [...description.matchAll(new RegExp(CHAPTER_LINE_RE.source, CHAPTER_LINE_RE.flags))].length,
+    () => countChapterCandidateLines(description),
     [description],
   );
 

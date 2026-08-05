@@ -55,6 +55,14 @@ redis_data/
 **/playwright-report/
 **/blob-report/
 
+# Local audit / design-prompt scratch (not product source)
+prompt_docs/
+new_prompt.md
+FORGE*Enterprise_Production_Readiness*
+scripts/export-stitch-project.py
+scripts/stitch-generate-batch1.py
+scripts/stitch-generate-batch1.sh
+
 # Local Cursor rules (optional — commit .cursor/rules/ to share team standards)
 .cursor/*
 !.cursor/rules/

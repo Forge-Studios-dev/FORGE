@@ -79,6 +79,12 @@ export type VideoChapter = { seconds: number; title: string; label: string };
 const CHAPTER_LINE_RE =
   /^\s*((?:\d{1,2}:)?[0-5]?\d:[0-5]\d)\s+(.+?)\s*$/gm;
 
+/** Count description lines that look like chapter candidates (may still fail YouTube rules). */
+export function countChapterCandidateLines(description: string): number {
+  if (!description) return 0;
+  return [...description.matchAll(new RegExp(CHAPTER_LINE_RE.source, CHAPTER_LINE_RE.flags))].length;
+}
+
 export function extractVideoChapters(description: string | null | undefined): VideoChapter[] {
   if (!description) return [];
   const chapters: VideoChapter[] = [];

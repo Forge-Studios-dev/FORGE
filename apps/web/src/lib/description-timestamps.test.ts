@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseTimestampToSeconds, splitDescriptionTimestamps, extractVideoChapters } from './description-timestamps';
+import {
+  parseTimestampToSeconds,
+  splitDescriptionTimestamps,
+  extractVideoChapters,
+  countChapterCandidateLines,
+} from './description-timestamps';
 
 describe('description-timestamps', () => {
   it('parses mm:ss and hh:mm:ss', () => {
@@ -61,5 +66,11 @@ describe('description-timestamps', () => {
   it('rejects chapter lists without 0:00 or fewer than 3', () => {
     expect(extractVideoChapters('0:30 Late\n1:00 Next\n2:00 End')).toEqual([]);
     expect(extractVideoChapters('0:00 Only two\n1:00 Chapters')).toEqual([]);
+  });
+
+  it('counts chapter candidate lines even when extract returns empty', () => {
+    expect(countChapterCandidateLines('0:00 A\n1:00 B')).toBe(2);
+    expect(countChapterCandidateLines('0:30 Late\n1:00 Next\n2:00 End')).toBe(3);
+    expect(countChapterCandidateLines('no stamps here')).toBe(0);
   });
 });
