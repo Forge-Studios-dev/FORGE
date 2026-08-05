@@ -152,16 +152,14 @@ test.describe('a11y smoke', () => {
 
   test('embed not-found shell has no serious axe violations', async ({ page }) => {
     await page.goto('/embed/00000000-0000-0000-0000-000000000001');
-    await expect(
-      page.getByRole('heading', { name: /not found|unavailable|video/i }).or(page.locator('body')),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('body')).toBeVisible({ timeout: 20_000 });
     await assertNoSeriousViolations(page);
   });
 
   test('unknown channel page has no serious axe violations', async ({ page }) => {
     await page.goto('/forge-a11y-missing-channel-xyz');
     await expect(
-      page.getByRole('heading', { name: /not found|channel|unavailable/i }).or(page.locator('main')),
+      page.getByRole('heading', { name: /not found|unavailable/i }),
     ).toBeVisible({ timeout: 20_000 });
     await assertNoSeriousViolations(page);
   });
