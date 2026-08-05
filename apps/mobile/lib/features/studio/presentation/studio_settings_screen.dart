@@ -48,6 +48,112 @@ class StudioSettingsScreen extends ConsumerWidget {
               label: 'Edit profile settings',
               onPressed: () => context.push('/profile/settings'),
             ),
+            const SizedBox(height: 16),
+            Text(
+              'Shortcuts',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.0,
+                color: ForgeTokens.of(context).outline,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ForgeCard(
+              onTap: () => context.push('/studio/attention'),
+              child: Row(
+                children: [
+                  Icon(Icons.notifications_active, color: ForgeTokens.of(context).primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Attention queue',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: ForgeTokens.of(context).onSurface,
+                          ),
+                        ),
+                        Text(
+                          'Comments, moderation, and processing failures',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: ForgeTokens.of(context).onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            ForgeCard(
+              onTap: () => context.push('/studio/tiers'),
+              child: Row(
+                children: [
+                  Icon(Icons.workspace_premium, color: ForgeTokens.of(context).primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Memberships',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: ForgeTokens.of(context).onSurface,
+                          ),
+                        ),
+                        Text(
+                          'Configure tiers and entitlements',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: ForgeTokens.of(context).onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            ForgeCard(
+              onTap: () => context.push('/notifications'),
+              child: Row(
+                children: [
+                  Icon(Icons.notifications_outlined, color: ForgeTokens.of(context).primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Notifications',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: ForgeTokens.of(context).onSurface,
+                          ),
+                        ),
+                        Text(
+                          'Creator alerts for comments and live events',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: ForgeTokens.of(context).onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
+                ],
+              ),
+            ),
           ],
         ),
       ),
