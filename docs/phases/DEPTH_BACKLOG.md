@@ -424,6 +424,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Upload: optional custom thumbnail (JPEG/PNG/WebP) via `thumbnail/presigned-url` while UPLOADING
 - Playlist detail: owner Add videos from Studio ready library (`POST /playlists/:id/videos`)
 
+## Mobile watch chapters (2026-08-06)
+
+- Shared `extractVideoChapters` (YouTube ≥3 + 0:00 rule) + unit tests
+- Watch Chapters panel (seek bar + list, active from playback position)
+- Studio edit + upload live chapter preview (`DescriptionChaptersHint`)
+
 ## Still open
 
 | Area | Item | Owner |

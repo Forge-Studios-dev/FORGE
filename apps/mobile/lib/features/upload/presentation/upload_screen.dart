@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/widgets/description_chapters_hint.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../data/upload_repository.dart';
@@ -385,9 +386,10 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
               maxLines: 4,
               decoration: const InputDecoration(
                 labelText: 'Description (optional)',
-                helperText: 'Chapters: lines like 0:00 Intro (need ≥3, start at 0:00)',
               ),
+              onChanged: (_) => setState(() {}),
             ),
+            DescriptionChaptersHint(description: _descCtrl.text),
             const SizedBox(height: 16),
             _buildCategoryAndSkills(),
             const SizedBox(height: 16),

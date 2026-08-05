@@ -41,6 +41,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Mobile Studio captions — upload .vtt + remove track by language
 - [ ] Smoke: Mobile watch Show transcript (seek cue); Studio Super Thanks ledger
 - [ ] Smoke: Mobile upload custom thumbnail; playlist owner Add videos from library
+- [ ] Smoke: Mobile watch chapters seek; Studio/upload chapter preview
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback

@@ -11,11 +11,13 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/socket/forge_socket.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/utils/description_chapters.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/widgets/forge_skeleton.dart';
 import '../../../shared/models/video.dart';
 import '../data/watch_repository.dart';
+import 'chapters_panel.dart';
 import 'transcript_panel.dart';
 
 final videoDetailProvider = FutureProvider.family.autoDispose<VideoModel, String>((ref, id) async {
@@ -27,24 +29,6 @@ final watchSeekSecondsProvider = StateProvider.autoDispose.family<int?, String>(
 
 /// Latest known playback position for share-at-time.
 final watchPositionSecondsProvider = StateProvider.autoDispose.family<int, String>((ref, _) => 0);
-
-int? _parseTimestampToken(String token) {
-  final parts = token.split(':');
-  if (parts.length == 2) {
-    final m = int.tryParse(parts[0]);
-    final s = int.tryParse(parts[1]);
-    if (m == null || s == null || s >= 60) return null;
-    return m * 60 + s;
-  }
-  if (parts.length == 3) {
-    final h = int.tryParse(parts[0]);
-    final m = int.tryParse(parts[1]);
-    final s = int.tryParse(parts[2]);
-    if (h == null || m == null || s == null || m >= 60 || s >= 60) return null;
-    return h * 3600 + m * 60 + s;
-  }
-  return null;
-}
 
 String _accessMessage(String? reason) {
   switch (reason) {
@@ -300,6 +284,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
         video.hlsUrl != null &&
         video.hlsUrl!.isNotEmpty;
     final listId = widget.playlistId;
+    final chapters = extractVideoChapters(video.description);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -405,6 +390,16 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
         if (video.description != null && video.description!.isNotEmpty) ...[
           const SizedBox(height: 12),
           _ExpandableDescription(videoId: videoId, description: video.description!),
+        ],
+        if (chapters.length >= 3) ...[
+          const SizedBox(height: 12),
+          ChaptersPanel(
+            chapters: chapters,
+            durationSeconds: video.durationSeconds,
+            currentSeconds: ref.watch(watchPositionSecondsProvider(videoId)),
+            onSeek: (seconds) =>
+                ref.read(watchSeekSecondsProvider(videoId).notifier).state = seconds,
+          ),
         ],
         if (video.captionTracks.isNotEmpty || (video.captionUrl != null && video.captionUrl!.isNotEmpty)) ...[
           const SizedBox(height: 12),
@@ -617,7 +612,7 @@ class _LinkifiedText extends ConsumerWidget {
           ),
         );
       } else {
-        final seconds = _parseTimestampToken(token);
+        final seconds = parseTimestampToSeconds(token);
         spans.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.baseline,
