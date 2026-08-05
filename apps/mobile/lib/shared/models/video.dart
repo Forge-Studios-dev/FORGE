@@ -154,6 +154,7 @@ class UserModel {
   final String username;
   final String displayName;
   final String? avatarUrl;
+  final String? bannerUrl;
   final String? bio;
   final String? websiteUrl;
   final List<ChannelLink> channelLinks;
@@ -172,6 +173,7 @@ class UserModel {
     required this.username,
     required this.displayName,
     this.avatarUrl,
+    this.bannerUrl,
     this.bio,
     this.websiteUrl,
     this.channelLinks = const [],
@@ -191,6 +193,7 @@ class UserModel {
         username: json['username'] as String,
         displayName: json['displayName'] as String,
         avatarUrl: json['avatarUrl'] as String?,
+        bannerUrl: json['bannerUrl'] as String?,
         bio: json['bio'] as String?,
         websiteUrl: json['websiteUrl'] as String?,
         channelLinks: (json['channelLinks'] as List<dynamic>? ?? [])
@@ -214,6 +217,7 @@ class UserModel {
         'username': username,
         'displayName': displayName,
         'avatarUrl': avatarUrl,
+        'bannerUrl': bannerUrl,
         'bio': bio,
         'websiteUrl': websiteUrl,
         'channelLinks': channelLinks.map((e) => e.toJson()).toList(),

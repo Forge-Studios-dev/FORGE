@@ -11,10 +11,26 @@ final studioCommentsProvider = FutureProvider.autoDispose<List<Map<String, dynam
   return ref.read(studioRepositoryProvider).getRecentComments();
 });
 
-class StudioCommentsScreen extends ConsumerWidget {
+/// Studio comments inbox — pin / heart / reply / remove (YouTube Studio parity).
+class StudioCommentsScreen extends ConsumerStatefulWidget {
   const StudioCommentsScreen({super.key});
 
-  Future<void> _pin(WidgetRef ref, Map<String, dynamic> c, bool next) async {
+  @override
+  ConsumerState<StudioCommentsScreen> createState() => _StudioCommentsScreenState();
+}
+
+class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
+  String? _replyingTo;
+  final _replyCtrl = TextEditingController();
+  bool _replyBusy = false;
+
+  @override
+  void dispose() {
+    _replyCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pin(Map<String, dynamic> c, bool next) async {
     final videoId = c['videoId'] as String?;
     final id = c['id'] as String?;
     if (videoId == null || id == null) return;
@@ -22,7 +38,7 @@ class StudioCommentsScreen extends ConsumerWidget {
     ref.invalidate(studioCommentsProvider);
   }
 
-  Future<void> _heart(WidgetRef ref, Map<String, dynamic> c, bool next) async {
+  Future<void> _heart(Map<String, dynamic> c, bool next) async {
     final videoId = c['videoId'] as String?;
     final id = c['id'] as String?;
     if (videoId == null || id == null) return;
@@ -30,8 +46,70 @@ class StudioCommentsScreen extends ConsumerWidget {
     ref.invalidate(studioCommentsProvider);
   }
 
+  Future<void> _remove(Map<String, dynamic> c) async {
+    final videoId = c['videoId'] as String?;
+    final id = c['id'] as String?;
+    if (videoId == null || id == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove comment?'),
+        content: const Text('This removes the comment from your video.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(watchRepositoryProvider).deleteComment(videoId, id);
+      if (_replyingTo == id) {
+        setState(() {
+          _replyingTo = null;
+          _replyCtrl.clear();
+        });
+      }
+      ref.invalidate(studioCommentsProvider);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not remove comment')),
+      );
+    }
+  }
+
+  Future<void> _postReply(Map<String, dynamic> c) async {
+    final text = _replyCtrl.text.trim();
+    final videoId = c['videoId'] as String?;
+    final id = c['id'] as String?;
+    if (text.isEmpty || videoId == null || id == null || _replyBusy) return;
+    setState(() => _replyBusy = true);
+    try {
+      await ref.read(watchRepositoryProvider).postComment(
+            videoId,
+            content: text,
+            parentId: id,
+          );
+      _replyCtrl.clear();
+      setState(() => _replyingTo = null);
+      ref.invalidate(studioCommentsProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reply posted')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not post reply')),
+      );
+    } finally {
+      if (mounted) setState(() => _replyBusy = false);
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final commentsAsync = ref.watch(studioCommentsProvider);
 
     return Scaffold(
@@ -73,6 +151,10 @@ class StudioCommentsScreen extends ConsumerWidget {
               final user = c['user'] as Map<String, dynamic>?;
               final pinned = c['isPinned'] == true;
               final hearted = c['creatorHearted'] == true;
+              final id = c['id'] as String?;
+              final replying = id != null && _replyingTo == id;
+              final t = ForgeTokens.of(context);
+
               return ForgeCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,36 +170,37 @@ class StudioCommentsScreen extends ConsumerWidget {
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: ForgeTokens.of(context).onSurfaceVariant,
+                                color: t.onSurfaceVariant,
                               ),
                             ),
                           Text(
                             c['videoTitle'] as String? ?? 'Video',
-                            style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).primary),
+                            style: TextStyle(fontSize: 12, color: t.primary),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             c['content'] as String? ?? '',
-                            style: TextStyle(color: ForgeTokens.of(context).onSurface),
+                            style: TextStyle(color: t.onSurface),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             '@${user?['username'] ?? 'user'}',
-                            style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
+                            style: TextStyle(fontSize: 12, color: t.onSurfaceVariant),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
+                    Wrap(
+                      spacing: 4,
                       children: [
                         if (c['parentId'] == null)
                           TextButton(
                             onPressed: () async {
                               try {
-                                await _pin(ref, c, !pinned);
+                                await _pin(c, !pinned);
                               } catch (_) {
-                                if (context.mounted) {
+                                if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text('Could not update pin')),
                                   );
@@ -129,9 +212,9 @@ class StudioCommentsScreen extends ConsumerWidget {
                         TextButton(
                           onPressed: () async {
                             try {
-                              await _heart(ref, c, !hearted);
+                              await _heart(c, !hearted);
                             } catch (_) {
-                              if (context.mounted) {
+                              if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('Could not update heart')),
                                 );
@@ -141,11 +224,48 @@ class StudioCommentsScreen extends ConsumerWidget {
                           child: Text(hearted ? 'Remove heart' : 'Heart'),
                         ),
                         TextButton(
+                          onPressed: () => _remove(c),
+                          child: Text('Remove', style: TextStyle(color: t.error)),
+                        ),
+                        TextButton(
+                          onPressed: id == null
+                              ? null
+                              : () => setState(() {
+                                    if (replying) {
+                                      _replyingTo = null;
+                                      _replyCtrl.clear();
+                                    } else {
+                                      _replyingTo = id;
+                                      _replyCtrl.clear();
+                                    }
+                                  }),
+                          child: Text(replying ? 'Cancel' : 'Reply'),
+                        ),
+                        TextButton(
                           onPressed: () => context.push('/watch/${c['videoId']}'),
                           child: const Text('Open video'),
                         ),
                       ],
                     ),
+                    if (replying) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _replyCtrl,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          hintText: 'Write a helpful reply…',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ForgeButton(
+                          label: _replyBusy ? 'Posting…' : 'Post reply',
+                          onPressed: _replyBusy ? null : () => _postReply(c),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               );

@@ -149,6 +149,8 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                         'unlisted' => 'Unlisted',
                         _ => 'Public',
                       };
+                      final count = p['videoCount'] ?? p['itemCount'];
+                      final meta = count != null ? '$visibilityLabel · $count videos' : visibilityLabel;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: ForgeCard(
@@ -171,7 +173,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                                       ),
                                     ),
                                     Text(
-                                      visibilityLabel,
+                                      meta,
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: ForgeTokens.of(context).onSurfaceVariant,

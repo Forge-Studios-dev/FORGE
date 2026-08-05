@@ -492,6 +492,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - `listByUser` includes `videoCount` via relation count; web channel Home/Playlists show counts
 
+## Mobile Studio comments + channel banner (2026-08-06)
+
+- Studio comments: Reply + Remove (parity with web Studio)
+- Channel profile: `bannerUrl` on UserModel + banner strip on mobile header
+
 ## Still open
 
 | Area | Item | Owner |

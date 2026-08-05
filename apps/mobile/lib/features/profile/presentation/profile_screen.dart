@@ -1060,11 +1060,26 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
   Widget build(BuildContext context) {
     final user = widget.user;
     final profileUsername = widget.profileUsername;
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (user.bannerUrl != null && user.bannerUrl!.isNotEmpty)
+          SizedBox(
+            height: 120,
+            width: double.infinity,
+            child: CachedNetworkImage(
+              imageUrl: user.bannerUrl!,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => ColoredBox(
+                color: ForgeTokens.of(context).surfaceContainerHighest,
+              ),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           Row(
             children: [
               CircleAvatar(
@@ -1319,8 +1334,10 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
               child: const Text('View rejection details'),
             ),
           ],
-        ],
-      ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
