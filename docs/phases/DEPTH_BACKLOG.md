@@ -505,6 +505,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 ## Mobile Studio Attention queue (2026-08-06)
 
 - `/studio/attention` from `GET /creators/me/attention` (counts + inbox); Studio home badge
+- Attention comment items deep-link to `/watch/:id?lc=` (web + mobile highlight)
 
 ## Still open
 

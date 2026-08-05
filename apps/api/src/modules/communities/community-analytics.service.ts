@@ -427,7 +427,7 @@ export class CommunityAnalyticsService {
           kind: 'comment',
           label: `Comment on "${c.video_title}"`,
           detail: c.content.length > 80 ? `${c.content.slice(0, 80)}…` : c.content,
-          href: '/studio/comments',
+          href: `/watch/${c.video_id}?lc=${c.id}`,
           tone: 'primary',
           createdAt: c.created_at,
         }),

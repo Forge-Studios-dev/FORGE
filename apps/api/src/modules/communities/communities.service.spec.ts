@@ -462,7 +462,7 @@ describe('CommunitiesService', () => {
       expect(result.items[0]).toMatchObject({
         id: 'comment-comment-1',
         kind: 'comment',
-        href: '/studio/comments',
+        href: '/watch/video-1?lc=comment-1',
         tone: 'primary',
       });
     });
