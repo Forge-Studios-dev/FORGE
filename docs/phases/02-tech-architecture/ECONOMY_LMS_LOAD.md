@@ -18,13 +18,13 @@ YouTube-replica default: courses, podcasts, and creator programs are **not** par
 
 | Module | Why still imported | Client chrome |
 | --- | --- | --- |
-| `ChannelPointsModule` | Data/API may exist; soft-retire incomplete | Admin nav item removed (Phase 01) |
-| `GamificationModule` | XP/engage remnants | Not primary SideNav |
+| `ChannelPointsModule` | Soft-retire via `register()` when LMS flag off (empty module) | Admin `/channel-points` → dashboard |
+| `GamificationModule` | Soft-retire via `register()` when LMS flag off | Not primary SideNav |
 | `CommunitiesModule` | Channel community / rooms | Secondary surfaces OK |
 
 ## Explicit non-decision (needs product/ops)
 
-Unloading `ChannelPointsModule` / `GamificationModule` from `AppModule` entirely is **deferred** — may break admin tools or migrations that expect entities registered. Prefer 410/hidden UI until a dedicated decommission phase.
+Deleting Nest LMS / channel-points / gamification **source trees** is **deferred** — boot-omit + 410/empty module is enough for YouTube mode. Prefer hidden UI until a dedicated decommission phase.
 
 ## Client soft-redirects
 

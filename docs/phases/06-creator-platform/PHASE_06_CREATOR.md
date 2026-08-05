@@ -25,6 +25,6 @@ YouTube-shaped Creator Studio IA plus end-to-end **Create Short** so `/upload?ty
 
 - Orphan economy Studio routes remain by URL, not primary NAV
 - Deep analytics / branding editor / comment moderation UX
-- Hard reject uploads >60s when type=short (YouTube-style); currently Mux reclassifies by duration
+- Shorts ≤60s hard-reject is shipped (web probe + mobile probe + API `short-duration.util` on Mux ready)
 
 See [PHASE_06_REPORT.md](./PHASE_06_REPORT.md).

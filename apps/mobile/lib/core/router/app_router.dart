@@ -27,6 +27,7 @@ import '../../features/watch/presentation/watch_screen.dart';
 import '../../features/explore/presentation/explore_screen.dart';
 import '../../features/studio/presentation/studio_screen.dart';
 import '../../features/studio/presentation/studio_videos_screen.dart';
+import '../../features/studio/presentation/studio_video_edit_screen.dart';
 import '../../features/studio/presentation/studio_comments_screen.dart';
 import '../../features/studio/presentation/studio_live_screen.dart';
 import '../../features/studio/presentation/studio_live_debrief_screen.dart';
@@ -209,6 +210,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/offline', builder: (_, __) => const OfflineScreen()),
       GoRoute(path: '/maintenance', builder: (_, __) => const MaintenanceScreen()),
       GoRoute(path: '/studio/videos', builder: (_, __) => const StudioVideosScreen()),
+      GoRoute(
+        path: '/studio/videos/:id',
+        builder: (_, state) => StudioVideoEditScreen(videoId: state.pathParameters['id']!),
+      ),
       GoRoute(path: '/studio/comments', builder: (_, __) => const StudioCommentsScreen()),
       GoRoute(path: '/studio/live', builder: (_, __) => const StudioLiveScreen()),
       GoRoute(

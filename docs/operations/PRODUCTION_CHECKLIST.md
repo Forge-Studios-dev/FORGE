@@ -36,6 +36,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: home feed, watch (speed/theater/Thanks + Not interested), subscribe notify bell, Shorts menus, Studio upload/captions/Super Thanks, live create, admin login
 - [ ] Smoke: Library Liked/Watch later remove + Clear all; TopBar search recent history (clear all + per-item ×); Manage subscriptions (web + mobile); change password in profile settings
 - [ ] Smoke: Studio video editor chapter preview (≥3 lines from 0:00); ConfirmDialog on history/playlist clear, comment remove, end live, cancel upload, membership cancel
+- [ ] Smoke: Mobile Studio Content — list shows processing/failed; open edit, change visibility, cancel incomplete upload
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback

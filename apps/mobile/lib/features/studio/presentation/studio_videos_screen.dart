@@ -5,11 +5,6 @@ import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../data/studio_repository.dart';
-import '../../../shared/models/video.dart';
-
-final myVideosProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) async {
-  return ref.read(studioRepositoryProvider).getMyVideos();
-});
 
 class StudioVideosScreen extends ConsumerWidget {
   const StudioVideosScreen({super.key});
@@ -65,7 +60,7 @@ class StudioVideosScreen extends ConsumerWidget {
                 (v) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: ForgeCard(
-                    onTap: () => context.push('/watch/${v.id}'),
+                    onTap: () => context.push('/studio/videos/${v.id}'),
                     child: Row(
                       children: [
                         Expanded(
@@ -75,7 +70,12 @@ class StudioVideosScreen extends ConsumerWidget {
                               Text(v.title, style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface)),
                               const SizedBox(height: 4),
                               Text(
-                                '${_statusLabel(v.status)} · ${v.viewCount} views',
+                                [
+                                  _statusLabel(v.status),
+                                  if (v.visibility != null) v.visibility!,
+                                  '${v.viewCount} views',
+                                  if (v.scheduledPublishAt != null) 'scheduled',
+                                ].join(' · '),
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: _statusColor(context, v.status),
@@ -109,6 +109,8 @@ class StudioVideosScreen extends ConsumerWidget {
         return 'Failed';
       case 'draft':
         return 'Draft';
+      case 'pending':
+        return 'Pending';
       default:
         return status;
     }
@@ -120,6 +122,7 @@ class StudioVideosScreen extends ConsumerWidget {
         return ForgeTokens.of(context).secondary;
       case 'processing':
       case 'uploading':
+      case 'pending':
         return ForgeTokens.of(context).primary;
       case 'failed':
         return ForgeTokens.of(context).error;

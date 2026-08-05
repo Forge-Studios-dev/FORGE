@@ -4,6 +4,7 @@ class VideoModel {
   final String title;
   final String? description;
   final String status;
+  final String? visibility;
   final String? hlsUrl;
   final bool accessDenied;
   final String? accessReason;
@@ -19,6 +20,7 @@ class VideoModel {
   final bool viewerSubscribed;
   final UserModel user;
   final DateTime createdAt;
+  final DateTime? scheduledPublishAt;
 
   const VideoModel({
     required this.id,
@@ -26,6 +28,7 @@ class VideoModel {
     required this.title,
     this.description,
     required this.status,
+    this.visibility,
     this.hlsUrl,
     this.accessDenied = false,
     this.accessReason,
@@ -41,6 +44,7 @@ class VideoModel {
     this.viewerSubscribed = false,
     required this.user,
     required this.createdAt,
+    this.scheduledPublishAt,
   });
 
   factory VideoModel.fromJson(Map<String, dynamic> json) => VideoModel(
@@ -49,6 +53,7 @@ class VideoModel {
         title: json['title'] as String? ?? '',
         description: json['description'] as String?,
         status: json['status'] as String? ?? 'ready',
+        visibility: json['visibility'] as String?,
         hlsUrl: json['hlsUrl'] as String?,
         accessDenied: json['accessDenied'] == true,
         accessReason: json['accessReason'] as String?,
@@ -77,6 +82,7 @@ class VideoModel {
               ),
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
             DateTime.fromMillisecondsSinceEpoch(0),
+        scheduledPublishAt: DateTime.tryParse(json['scheduledPublishAt'] as String? ?? ''),
       );
 
   /// Round-trips through [fromJson] — used for the offline cache (HIGH-07),
@@ -87,6 +93,7 @@ class VideoModel {
         'title': title,
         'description': description,
         'status': status,
+        'visibility': visibility,
         'hlsUrl': hlsUrl,
         'accessDenied': accessDenied,
         'accessReason': accessReason,
@@ -102,6 +109,7 @@ class VideoModel {
         'viewerSubscribed': viewerSubscribed,
         'user': user.toJson(),
         'createdAt': createdAt.toIso8601String(),
+        'scheduledPublishAt': scheduledPublishAt?.toIso8601String(),
       };
 }
 

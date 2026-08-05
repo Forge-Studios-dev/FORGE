@@ -395,6 +395,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Shared `countChapterCandidateLines` for Studio/upload chapter hints (+ tests)
 - `.gitignore` local audit/prompt_docs/stitch scratch files
 
+## Mobile Studio content library (2026-08-06)
+
+- `getMyVideos` uses `GET /videos/studio` (all statuses, not public channel list)
+- `/studio/videos/:id` edit: title, description, visibility, cancel upload, retry, delete
+- List shows visibility + scheduled badge; tap opens editor (Watch from editor when ready)
+
 ## Still open
 
 | Area | Item | Owner |
@@ -402,7 +408,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Ops | Staging soak per load-test runbook | Operator |
 | Launch | Env secrets, Mux/Stripe webhooks; Mux signing keys for private/unlisted | Operator |
 | Launch | DB migrations **185–197 applied** to Neon (2026-08-04) via TypeORM | Done |
-| Ship | PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) **MERGEABLE** — CI + CodeQL green on `c050e18` (2026-08-05); merge when staging checklist passes | Operator |
+| Ship | PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) **MERGEABLE** — CI green; merge when staging checklist passes | Operator |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
 | Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |
 | Analytics | Studio details page uses `topVideos` (impressions/CTR/watch %); SQL uses `watched_at` | Done (2026-08-04) |
@@ -419,6 +425,6 @@ Prefer small focused PRs over another full Master pass. **Viewer/creator YouTube
 
 1. Run [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) on staging.
 2. Confirm Mux/Stripe webhooks + signing keys for private/unlisted.
-3. Merge open PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) (`feature/youtube-replica-wave-1` → `main`) when checklist passes — do not push straight to `main`. **CI + CodeQL are green** on tip `c050e18` (web E2E tab/strict-locator fix included).
+3. Merge open PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) (`feature/youtube-replica-wave-1` → `main`) when checklist passes — do not push straight to `main`.
 4. Product-deferred: ML recs, downloads, Kids Mode, ad breaks — not blocking viewer/creator core loop.
 
