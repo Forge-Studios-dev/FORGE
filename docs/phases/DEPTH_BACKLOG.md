@@ -512,6 +512,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - `/studio/branding` → channel customize (profile settings); Studio home/settings links
 - Library You: Continue watching shelf; CW filter ≥5s progress (web parity)
 
+## Mobile search Live + Watched (2026-08-06)
+
+- Explore/Search: Live chip (streams from `/streams/live`, Live-only hides catalog)
+- Watched / Not watched chips → `?watched=` (web parity)
+
 ## Still open
 
 | Area | Item | Owner |

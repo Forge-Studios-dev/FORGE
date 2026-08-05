@@ -8,8 +8,22 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/network/api_client.dart';
 import '../../../shared/models/video.dart';
+import '../../live/data/live_repository.dart';
 import '../data/search_history_storage.dart';
 import '../data/search_repository.dart';
+
+class _SearchBundle {
+  final SearchResults catalog;
+  final List<Map<String, dynamic>> liveStreams;
+
+  const _SearchBundle({required this.catalog, required this.liveStreams});
+
+  bool get isEmpty =>
+      catalog.videos.isEmpty &&
+      catalog.users.isEmpty &&
+      catalog.playlists.isEmpty &&
+      liveStreams.isEmpty;
+}
 
 final exploreCategoriesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final client = ref.read(apiClientProvider);
@@ -37,14 +51,49 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   Timer? _debounce;
   Timer? _suggestDebounce;
   String _lastQuery = '';
-  Future<SearchResults>? _searchFuture;
+  Future<_SearchBundle>? _searchFuture;
   Future<SearchSuggestions>? _suggestFuture;
   String _sort = 'relevance';
   String _kind = 'any';
   String _duration = 'any';
   String _uploaded = 'any';
   String _captions = 'any';
+  String _watched = 'any';
+  String _live = 'any';
   List<String> _recentSearches = [];
+
+  Future<_SearchBundle> _fetchSearch(String q) async {
+    final includeCatalog = _live != 'yes';
+    final searchRepo = ref.read(searchRepositoryProvider);
+    final liveRepo = ref.read(liveRepositoryProvider);
+    final catalogFuture = includeCatalog
+        ? searchRepo.search(
+            q,
+            sort: _sort,
+            kind: _kind,
+            duration: _duration,
+            uploaded: _uploaded,
+            captions: _captions,
+            watched: _watched,
+          )
+        : Future.value(SearchResults.empty(q));
+    final liveFuture = liveRepo.getLiveStreams().then((streams) {
+      final term = q.toLowerCase();
+      return streams.where((s) {
+        final title = (s['title'] as String? ?? '').toLowerCase();
+        final user = s['user'];
+        final userMap = user is Map ? Map<String, dynamic>.from(user) : null;
+        final channel = ((userMap?['displayName'] as String?) ??
+                (userMap?['username'] as String?) ??
+                '')
+            .toLowerCase();
+        return title.contains(term) || channel.contains(term);
+      }).toList();
+    });
+    final catalog = await catalogFuture;
+    final liveStreams = await liveFuture;
+    return _SearchBundle(catalog: catalog, liveStreams: liveStreams);
+  }
 
   @override
   void initState() {
@@ -96,14 +145,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       if (!mounted || _lastQuery != q) return;
       setState(() {
         _suggestFuture = null;
-        _searchFuture = ref.read(searchRepositoryProvider).search(
-              q,
-              sort: _sort,
-              kind: _kind,
-              duration: _duration,
-              uploaded: _uploaded,
-              captions: _captions,
-            );
+        _searchFuture = _fetchSearch(q);
       });
     });
   }
@@ -127,14 +169,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final q = _controller.text.trim();
     if (q.length >= 2) {
       setState(() {
-        _searchFuture = ref.read(searchRepositoryProvider).search(
-              q,
-              sort: _sort,
-              kind: _kind,
-              duration: _duration,
-              uploaded: _uploaded,
-              captions: _captions,
-            );
+        _searchFuture = _fetchSearch(q);
       });
     }
   }
@@ -177,7 +212,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               autofocus: widget.autofocusSearch,
               style: TextStyle(color: ForgeTokens.of(context).onSurface),
               decoration: InputDecoration(
-                hintText: 'Search videos and creators',
+                hintText: 'Search videos, creators, and live',
                 hintStyle: TextStyle(color: ForgeTokens.of(context).outline),
                 prefixIcon: Icon(Icons.search, color: ForgeTokens.of(context).outline),
                 suffixIcon: _controller.text.isEmpty
@@ -294,6 +329,27 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     value: 'yes',
                     selected: _captions,
                     onSelected: (v) => setState(() => _captions = _captions == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 12),
+                  _filterChip(
+                    label: 'Live',
+                    value: 'yes',
+                    selected: _live,
+                    onSelected: (v) => setState(() => _live = _live == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 12),
+                  _filterChip(
+                    label: 'Watched',
+                    value: 'watched',
+                    selected: _watched,
+                    onSelected: (v) => setState(() => _watched = _watched == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'Not watched',
+                    value: 'unwatched',
+                    selected: _watched,
+                    onSelected: (v) => setState(() => _watched = _watched == v ? 'any' : v),
                   ),
                 ],
               ),
@@ -458,7 +514,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       return Center(child: CircularProgressIndicator(color: ForgeTokens.of(context).primary));
     }
 
-    return FutureBuilder<SearchResults>(
+    return FutureBuilder<_SearchBundle>(
       future: future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -481,9 +537,10 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             ),
           );
         }
-        final data = snapshot.data;
-        if (data == null) return const SizedBox.shrink();
-        if (data.videos.isEmpty && data.users.isEmpty && data.playlists.isEmpty) {
+        final bundle = snapshot.data;
+        if (bundle == null) return const SizedBox.shrink();
+        final data = bundle.catalog;
+        if (bundle.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -492,7 +549,10 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 children: [
                   Icon(Icons.search_off, size: 48, color: ForgeTokens.of(context).outline),
                   const SizedBox(height: 12),
-                  Text('No results for "${data.query}"', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
+                  Text(
+                    'No results for "${data.query.isNotEmpty ? data.query : q}"',
+                    style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                  ),
                 ],
               ),
             ),
@@ -501,6 +561,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
         return ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
+            if (bundle.liveStreams.isNotEmpty) ...[
+              Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Text('Live', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface)),
+              ),
+              ...bundle.liveStreams.map((s) => _LiveSearchTile(stream: s)),
+            ],
             if (data.videos.isNotEmpty) ...[
               Padding(
                 padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -525,6 +592,70 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+class _LiveSearchTile extends StatelessWidget {
+  final Map<String, dynamic> stream;
+  const _LiveSearchTile({required this.stream});
+
+  @override
+  Widget build(BuildContext context) {
+    final id = stream['id'] as String? ?? '';
+    final title = stream['title'] as String? ?? 'Live stream';
+    final thumb = stream['thumbnailUrl'] as String?;
+    final user = stream['user'];
+    final userMap = user is Map ? Map<String, dynamic>.from(user) : null;
+    final channel = (userMap?['displayName'] as String?) ??
+        (userMap?['username'] as String?) ??
+        '';
+    final tokens = ForgeTokens.of(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          width: 96,
+          height: 54,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              thumb != null
+                  ? CachedNetworkImage(
+                      imageUrl: thumb,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(color: tokens.surfaceContainerHigh),
+                      errorWidget: (_, __, ___) => Container(color: tokens.surfaceContainerHigh),
+                    )
+                  : Container(
+                      color: tokens.surfaceContainerHigh,
+                      child: Icon(Icons.sensors, color: tokens.live),
+                    ),
+              Positioned(
+                left: 4,
+                top: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: tokens.live,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'LIVE',
+                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: tokens.onSurface)),
+      subtitle: channel.isEmpty
+          ? null
+          : Text(channel, style: TextStyle(color: tokens.onSurfaceVariant)),
+      onTap: id.isEmpty ? null : () => context.push('/live/$id'),
     );
   }
 }
