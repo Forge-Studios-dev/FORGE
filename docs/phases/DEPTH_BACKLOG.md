@@ -469,6 +469,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Videos tab: thumb + title + views list (Shorts stay 3-col grid)
 - Community compose: multi-image upload via media-upload-url
 
+## Mobile channel Home + Community comments (2026-08-06)
+
+- Home tab (default): Live now shelf, Uploads preview, Shorts rail, links to Community/About
+- Community posts: expand/reply comments via `/communities/:id/posts/:postId/comments`
+
 ## Still open
 
 | Area | Item | Owner |

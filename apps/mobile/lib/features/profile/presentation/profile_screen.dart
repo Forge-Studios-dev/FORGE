@@ -75,10 +75,11 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  String _type = 'video';
+  String _type = 'home';
   String _sort = 'newest';
 
   static const _tabs = <({String id, String label, IconData icon})>[
+    (id: 'home', label: 'Home', icon: Icons.home_outlined),
     (id: 'video', label: 'Videos', icon: Icons.videocam_outlined),
     (id: 'short', label: 'Shorts', icon: Icons.movie_filter_outlined),
     (id: 'live', label: 'Live', icon: Icons.sensors),
@@ -150,7 +151,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
               ),
-              if (_type == 'live')
+              if (_type == 'home')
+                ..._homeSlivers(user, username)
+              else if (_type == 'live')
                 ..._liveSlivers(user.id)
               else if (_type == 'playlists')
                 ..._playlistSlivers(user.id)
@@ -165,6 +168,244 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         },
       ),
     );
+  }
+
+  List<Widget> _homeSlivers(UserModel user, String profileUsername) {
+    final streamsAsync = ref.watch(channelStreamsProvider(user.id));
+    final videosAsync = ref.watch(
+      userVideosProvider((userId: user.id, type: 'video', sort: 'newest')),
+    );
+    final shortsAsync = ref.watch(
+      userVideosProvider((userId: user.id, type: 'short', sort: 'newest')),
+    );
+    final t = ForgeTokens.of(context);
+
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        sliver: SliverList(
+          delegate: SliverChildListDelegate([
+            streamsAsync.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )),
+              ),
+              error: (_, __) => const SizedBox.shrink(),
+              data: (streams) {
+                if (streams.live.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Live now',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => setState(() => _type = 'live'),
+                          child: const Text('See all'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ...streams.live.take(3).map((s) => _StreamTile(stream: s, live: true)),
+                    const SizedBox(height: 16),
+                  ],
+                );
+              },
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Uploads',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() {
+                    _type = 'video';
+                    _sort = 'newest';
+                  }),
+                  child: const Text('See all'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            videosAsync.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (_, __) => Text(
+                'Could not load uploads',
+                style: TextStyle(color: t.onSurfaceVariant),
+              ),
+              data: (videos) {
+                if (videos.isEmpty) {
+                  return Text('No videos yet', style: TextStyle(color: t.onSurfaceVariant));
+                }
+                return Column(
+                  children: videos.take(5).map((v) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: InkWell(
+                        onTap: () => context.push('/watch/${v.id}'),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 140,
+                                height: 79,
+                                child: v.thumbnailUrl != null
+                                    ? CachedNetworkImage(
+                                        imageUrl: v.thumbnailUrl!,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : ColoredBox(color: t.surfaceContainerHighest),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    v.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: t.onSurface,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${v.viewCount} views',
+                                    style: TextStyle(fontSize: 12, color: t.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Shorts',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() {
+                    _type = 'short';
+                    _sort = 'newest';
+                  }),
+                  child: const Text('See all'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            shortsAsync.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (_, __) => Text(
+                'Could not load Shorts',
+                style: TextStyle(color: t.onSurfaceVariant),
+              ),
+              data: (shorts) {
+                if (shorts.isEmpty) {
+                  return Text('No Shorts yet', style: TextStyle(color: t.onSurfaceVariant));
+                }
+                return SizedBox(
+                  height: 180,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: shorts.take(12).length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      final v = shorts[i];
+                      return GestureDetector(
+                        onTap: () => context.push('/watch/${v.id}'),
+                        child: SizedBox(
+                          width: 100,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: v.thumbnailUrl != null
+                                      ? CachedNetworkImage(
+                                          imageUrl: v.thumbnailUrl!,
+                                          width: 100,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : ColoredBox(color: t.surfaceContainerHighest),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                v.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: t.onSurface),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => setState(() => _type = 'community'),
+              icon: const Icon(Icons.forum_outlined, size: 18),
+              label: const Text('Community posts'),
+            ),
+            if (profileUsername.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => setState(() => _type = 'about'),
+                child: const Text('About this channel'),
+              ),
+            ],
+          ]),
+        ),
+      ),
+    ];
   }
 
   List<Widget> _videoSlivers(String userId) {

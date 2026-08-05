@@ -283,6 +283,7 @@ class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
                 for (final post in posts) ...[
                   _PostCard(
                     post: post,
+                    creatorId: widget.creatorId,
                     likeBusy: _likeBusy.contains(post['id']),
                     onLike: () => _toggleLike(post),
                   ),
@@ -301,19 +302,104 @@ class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
   }
 }
 
-class _PostCard extends StatelessWidget {
+class _PostCard extends ConsumerStatefulWidget {
   const _PostCard({
     required this.post,
+    required this.creatorId,
     required this.onLike,
     required this.likeBusy,
   });
 
   final Map<String, dynamic> post;
+  final String creatorId;
   final VoidCallback onLike;
   final bool likeBusy;
 
   @override
+  ConsumerState<_PostCard> createState() => _PostCardState();
+}
+
+class _PostCardState extends ConsumerState<_PostCard> {
+  bool _expanded = false;
+  bool _loadingComments = false;
+  bool _postingComment = false;
+  List<Map<String, dynamic>> _comments = [];
+  final _commentCtrl = TextEditingController();
+  String? _replyToId;
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleExpand() async {
+    final next = !_expanded;
+    setState(() {
+      _expanded = next;
+      if (!next) {
+        _replyToId = null;
+        _commentCtrl.clear();
+      }
+    });
+    if (next) await _loadComments();
+  }
+
+  Future<void> _loadComments() async {
+    final postId = widget.post['id'] as String?;
+    final communityId = widget.post['communityId'] as String?;
+    if (postId == null || communityId == null) return;
+    setState(() => _loadingComments = true);
+    try {
+      final res = await ref.read(apiClientProvider).dio.get(
+            '/communities/$communityId/posts/$postId/comments',
+          );
+      final root = res.data['data'];
+      final list = root is Map ? root['data'] : root;
+      final comments = list is List
+          ? list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          : <Map<String, dynamic>>[];
+      if (!mounted) return;
+      setState(() => _comments = comments);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _comments = []);
+    } finally {
+      if (mounted) setState(() => _loadingComments = false);
+    }
+  }
+
+  Future<void> _submitComment() async {
+    final text = _commentCtrl.text.trim();
+    final postId = widget.post['id'] as String?;
+    final communityId = widget.post['communityId'] as String?;
+    if (text.isEmpty || postId == null || communityId == null) return;
+    setState(() => _postingComment = true);
+    try {
+      await ref.read(apiClientProvider).dio.post(
+        '/communities/$communityId/posts/$postId/comments',
+        data: {
+          'body': text,
+          if (_replyToId != null) 'parentId': _replyToId,
+        },
+      );
+      _commentCtrl.clear();
+      _replyToId = null;
+      await _loadComments();
+      ref.invalidate(channelPostsProvider(widget.creatorId));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in to comment')),
+      );
+    } finally {
+      if (mounted) setState(() => _postingComment = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final post = widget.post;
     final t = ForgeTokens.of(context);
     final author = post['author'] as Map<String, dynamic>?;
     final body = post['body'] as String? ?? '';
@@ -377,22 +463,130 @@ class _PostCard extends StatelessWidget {
           Row(
             children: [
               TextButton.icon(
-                onPressed: likeBusy ? null : onLike,
+                onPressed: widget.likeBusy ? null : widget.onLike,
                 icon: Icon(
                   liked ? Icons.thumb_up : Icons.thumb_up_outlined,
                   size: 18,
                 ),
                 label: Text(likeCount > 0 ? '$likeCount' : 'Like'),
               ),
-              if (commentCount > 0)
-                Text(
-                  '$commentCount ${commentCount == 1 ? 'comment' : 'comments'}',
-                  style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+              TextButton.icon(
+                onPressed: _toggleExpand,
+                icon: Icon(
+                  _expanded ? Icons.chat_bubble : Icons.chat_bubble_outline,
+                  size: 18,
                 ),
+                label: Text(
+                  commentCount > 0
+                      ? '$commentCount ${commentCount == 1 ? 'comment' : 'comments'}'
+                      : 'Comment',
+                ),
+              ),
             ],
           ),
+          if (_expanded) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: t.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_loadingComments)
+                    const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Center(child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )),
+                    )
+                  else if (_comments.isEmpty)
+                    Text('No comments yet.', style: TextStyle(fontSize: 13, color: t.onSurfaceVariant))
+                  else
+                    ..._comments.map((c) {
+                      final cAuthor = c['author'] as Map<String, dynamic>?;
+                      final isReply = c['parentId'] != null;
+                      final cid = c['id'] as String?;
+                      return Padding(
+                        padding: EdgeInsets.only(left: isReply ? 16 : 0, bottom: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: cAuthor?['displayName'] as String? ?? 'Member',
+                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  if (isReply)
+                                    TextSpan(
+                                      text: ' · reply',
+                                      style: TextStyle(fontSize: 12, color: t.onSurfaceVariant),
+                                    ),
+                                  TextSpan(
+                                    text: ' — ${c['body'] as String? ?? ''}',
+                                    style: TextStyle(color: t.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (cid != null)
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                onPressed: () => setState(() => _replyToId = cid),
+                                child: const Text('Reply', style: TextStyle(fontSize: 12)),
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
+                  if (_replyToId != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          Text('Replying', style: TextStyle(fontSize: 12, color: t.onSurfaceVariant)),
+                          TextButton(
+                            onPressed: () => setState(() => _replyToId = null),
+                            child: const Text('Cancel', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _commentCtrl,
+                          decoration: InputDecoration(
+                            hintText: _replyToId != null ? 'Write a reply…' : 'Add a comment…',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _postingComment ? null : _submitComment,
+                        icon: const Icon(Icons.send, size: 20),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
+
