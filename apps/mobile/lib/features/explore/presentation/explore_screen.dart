@@ -60,6 +60,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   String _captions = 'any';
   String _watched = 'any';
   String _live = 'any';
+  String _resultType = 'all'; // all | video | channel | playlist
   List<String> _recentSearches = [];
 
   Future<_SearchBundle> _fetchSearch(String q) async {
@@ -75,21 +76,24 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             uploaded: _uploaded,
             captions: _captions,
             watched: _watched,
+            type: _resultType,
           )
         : Future.value(SearchResults.empty(q));
-    final liveFuture = liveRepo.getLiveStreams().then((streams) {
-      final term = q.toLowerCase();
-      return streams.where((s) {
-        final title = (s['title'] as String? ?? '').toLowerCase();
-        final user = s['user'];
-        final userMap = user is Map ? Map<String, dynamic>.from(user) : null;
-        final channel = ((userMap?['displayName'] as String?) ??
-                (userMap?['username'] as String?) ??
-                '')
-            .toLowerCase();
-        return title.contains(term) || channel.contains(term);
-      }).toList();
-    });
+    final liveFuture = (_resultType == 'all' || _live == 'yes')
+        ? liveRepo.getLiveStreams().then((streams) {
+            final term = q.toLowerCase();
+            return streams.where((s) {
+              final title = (s['title'] as String? ?? '').toLowerCase();
+              final user = s['user'];
+              final userMap = user is Map ? Map<String, dynamic>.from(user) : null;
+              final channel = ((userMap?['displayName'] as String?) ??
+                      (userMap?['username'] as String?) ??
+                      '')
+                  .toLowerCase();
+              return title.contains(term) || channel.contains(term);
+            }).toList();
+          })
+        : Future.value(<Map<String, dynamic>>[]);
     final catalog = await catalogFuture;
     final liveStreams = await liveFuture;
     return _SearchBundle(catalog: catalog, liveStreams: liveStreams);
@@ -255,6 +259,34 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               child: Row(
                 children: [
                   _filterChip(
+                    label: 'All',
+                    value: 'all',
+                    selected: _resultType,
+                    onSelected: (v) => setState(() => _resultType = v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'Videos',
+                    value: 'video',
+                    selected: _resultType,
+                    onSelected: (v) => setState(() => _resultType = v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'Channels',
+                    value: 'channel',
+                    selected: _resultType,
+                    onSelected: (v) => setState(() => _resultType = v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'Playlists',
+                    value: 'playlist',
+                    selected: _resultType,
+                    onSelected: (v) => setState(() => _resultType = v),
+                  ),
+                  const SizedBox(width: 12),
+                  _filterChip(
                     label: 'Relevance',
                     value: 'relevance',
                     selected: _sort,
@@ -276,7 +308,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   ),
                   const SizedBox(width: 12),
                   _filterChip(
-                    label: 'Videos',
+                    label: 'Long-form',
                     value: 'video',
                     selected: _kind,
                     onSelected: (v) => setState(() => _kind = _kind == v ? 'any' : v),

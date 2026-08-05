@@ -332,7 +332,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/studio', builder: (_, __) => const StudioScreen()),
           GoRoute(
             path: '/profile/:username',
-            builder: (_, state) => ProfileScreen(username: state.pathParameters['username']!),
+            builder: (_, state) => ProfileScreen(
+              username: state.pathParameters['username']!,
+              initialTab: state.uri.queryParameters['tab'],
+            ),
           ),
           GoRoute(
             path: '/profile/:username/subscribers',

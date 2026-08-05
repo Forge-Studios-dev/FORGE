@@ -68,14 +68,18 @@ final userProfileProvider = FutureProvider.autoDispose.family<UserModel, String>
 
 class ProfileScreen extends ConsumerStatefulWidget {
   final String username;
-  const ProfileScreen({super.key, required this.username});
+  /// Optional channel tab id (`home`, `video`, `short`, `live`, `playlists`,
+  /// `community`, `about`) or web aliases (`videos`, `shorts`).
+  final String? initialTab;
+
+  const ProfileScreen({super.key, required this.username, this.initialTab});
 
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  String _type = 'home';
+  late String _type;
   String _sort = 'newest';
 
   static const _tabs = <({String id, String label, IconData icon})>[
@@ -87,6 +91,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     (id: 'community', label: 'Community', icon: Icons.forum_outlined),
     (id: 'about', label: 'About', icon: Icons.info_outline),
   ];
+
+  static String _normalizeTab(String? raw) {
+    switch ((raw ?? '').trim().toLowerCase()) {
+      case 'videos':
+      case 'video':
+        return 'video';
+      case 'shorts':
+      case 'short':
+        return 'short';
+      case 'live':
+        return 'live';
+      case 'playlists':
+      case 'playlist':
+        return 'playlists';
+      case 'community':
+        return 'community';
+      case 'about':
+        return 'about';
+      case 'home':
+        return 'home';
+      default:
+        return 'home';
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _type = _normalizeTab(widget.initialTab);
+  }
 
   @override
   Widget build(BuildContext context) {

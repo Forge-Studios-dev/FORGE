@@ -183,6 +183,15 @@ class LibraryScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           ForgeCard(
+            onTap: () => context.push('/profile/me?tab=videos'),
+            child: const _LibraryRow(
+              icon: Icons.video_library_outlined,
+              title: 'Your videos',
+              subtitle: 'Public uploads on your channel',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
             onTap: () => context.push('/playlists/me/watch-later'),
             child: _LibraryRow(
               icon: Icons.watch_later_outlined,

@@ -22,6 +22,8 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
   bool _loading = true;
   bool _error = false;
   bool _clearing = false;
+  String _itemQuery = '';
+  final _itemSearchCtrl = TextEditingController();
 
   String get _title => widget.kind == 'liked' ? 'Liked videos' : 'Watch later';
   String get _path =>
@@ -31,6 +33,12 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _itemSearchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -138,6 +146,18 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final q = _itemQuery.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? _videos
+        : _videos
+            .where(
+              (v) =>
+                  v.title.toLowerCase().contains(q) ||
+                  v.user.displayName.toLowerCase().contains(q) ||
+                  v.user.username.toLowerCase().contains(q),
+            )
+            .toList();
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_title),
@@ -169,10 +189,44 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
                           ? 'Videos you like will show up in this list.'
                           : 'Save videos to Watch later from the watch page.',
                     )
-                  : ListView.builder(
-                      itemCount: _videos.length,
+                  : Column(
+                      children: [
+                        if (_videos.length > 3)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                            child: TextField(
+                              controller: _itemSearchCtrl,
+                              onChanged: (v) => setState(() => _itemQuery = v),
+                              decoration: InputDecoration(
+                                hintText: 'Search this playlist',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: _itemQuery.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: () {
+                                          _itemSearchCtrl.clear();
+                                          setState(() => _itemQuery = '');
+                                        },
+                                      ),
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                        Expanded(
+                          child: filtered.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    'No matching videos',
+                                    style: TextStyle(
+                                      color: ForgeTokens.of(context).onSurfaceVariant,
+                                    ),
+                                  ),
+                                )
+                              : ListView.builder(
+                      itemCount: filtered.length,
                       itemBuilder: (context, index) {
-                        final video = _videos[index];
+                        final video = filtered[index];
                         return Dismissible(
                           key: ValueKey(video.id),
                           direction: DismissDirection.endToStart,
@@ -221,6 +275,9 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
                           ),
                         );
                       },
+                    ),
+                        ),
+                      ],
                     ),
     );
   }

@@ -530,6 +530,13 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Watch Save to playlist → shared create dialog (description + visibility) then add video
 
+## Mobile Library / Playlists / Search depth (2026-08-06)
+
+- Library Your videos → `/profile/me?tab=videos` (channel Videos tab via `?tab=`)
+- Playlists list sort: Recently added / A–Z / Z–A
+- Search type chips: All / Videos / Channels / Playlists
+- Watch later / Liked: Search this playlist when ≥4 videos
+
 ## Still open
 
 | Area | Item | Owner |

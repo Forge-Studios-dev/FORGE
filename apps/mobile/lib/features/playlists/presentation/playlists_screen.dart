@@ -20,6 +20,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
   List<dynamic> _items = [];
   bool _loading = true;
   bool _creating = false;
+  String _sort = 'recent'; // recent | az | za
 
   @override
   void initState() {
@@ -41,6 +42,24 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
     }
   }
 
+  List<Map<String, dynamic>> get _sortedItems {
+    final list = _items
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    if (_sort == 'az') {
+      list.sort((a, b) => ((a['title'] as String?) ?? '')
+          .toLowerCase()
+          .compareTo(((b['title'] as String?) ?? '').toLowerCase()));
+    } else if (_sort == 'za') {
+      list.sort((a, b) => ((b['title'] as String?) ?? '')
+          .toLowerCase()
+          .compareTo(((a['title'] as String?) ?? '').toLowerCase()));
+    }
+    // recent = API order
+    return list;
+  }
+
   Future<void> _createPlaylist() async {
     setState(() => _creating = true);
     try {
@@ -57,10 +76,23 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final display = _sortedItems;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Playlists'),
         actions: [
+          if (display.length > 1)
+            PopupMenuButton<String>(
+              tooltip: 'Sort playlists',
+              initialValue: _sort,
+              onSelected: (v) => setState(() => _sort = v),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'recent', child: Text('Recently added')),
+                PopupMenuItem(value: 'az', child: Text('A–Z')),
+                PopupMenuItem(value: 'za', child: Text('Z–A')),
+              ],
+              icon: const Icon(Icons.sort),
+            ),
           IconButton(
             onPressed: _creating ? null : _createPlaylist,
             icon: _creating
@@ -76,7 +108,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _items.isEmpty
+          : display.isEmpty
               ? ForgeEmptyState(
                   icon: Icons.playlist_play,
                   title: 'No playlists yet',
@@ -88,9 +120,9 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    itemCount: _items.length,
+                    itemCount: display.length,
                     itemBuilder: (_, i) {
-                      final p = _items[i] as Map<String, dynamic>;
+                      final p = display[i];
                       final visibility = p['visibility'] as String? ?? 'public';
                       final visibilityLabel = switch (visibility) {
                         'private' => 'Private',
