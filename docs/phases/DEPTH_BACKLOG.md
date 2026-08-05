@@ -488,6 +488,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Web channel Home: Community post previews
 - Mobile: migrate `Share.share` → `SharePlus.instance.share(ShareParams…)`
 
+## Playlist list videoCount (2026-08-06)
+
+- `listByUser` includes `videoCount` via relation count; web channel Home/Playlists show counts
+
 ## Still open
 
 | Area | Item | Owner |

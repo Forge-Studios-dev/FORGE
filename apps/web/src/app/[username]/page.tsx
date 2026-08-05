@@ -281,9 +281,14 @@ export default async function ChannelPage({ params, searchParams }: Props) {
                     <li key={pl.id}>
                       <Link
                         href={`/playlists/${pl.id}`}
-                        className="glass-panel block rounded-xl px-4 py-3 hover:border-primary/30"
+                        className="glass-panel flex items-center justify-between gap-3 rounded-xl px-4 py-3 hover:border-primary/30"
                       >
-                        {pl.title}
+                        <span className="font-medium text-on-surface">{pl.title}</span>
+                        {typeof pl.videoCount === 'number' ? (
+                          <span className="shrink-0 text-xs text-outline">
+                            {pl.videoCount} {pl.videoCount === 1 ? 'video' : 'videos'}
+                          </span>
+                        ) : null}
                       </Link>
                     </li>
                   ))}
@@ -491,9 +496,14 @@ export default async function ChannelPage({ params, searchParams }: Props) {
                   <li key={pl.id}>
                     <Link
                       href={`/playlists/${pl.id}`}
-                      className="glass-panel block rounded-xl px-4 py-3 hover:border-primary/30"
+                      className="glass-panel flex items-center justify-between gap-3 rounded-xl px-4 py-3 hover:border-primary/30"
                     >
-                      {pl.title}
+                      <span className="font-medium text-on-surface">{pl.title}</span>
+                      {typeof pl.videoCount === 'number' ? (
+                        <span className="shrink-0 text-xs text-outline">
+                          {pl.videoCount} {pl.videoCount === 1 ? 'video' : 'videos'}
+                        </span>
+                      ) : null}
                     </Link>
                   </li>
                 ))}

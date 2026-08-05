@@ -49,6 +49,9 @@ export class Playlist {
   @OneToMany(() => PlaylistVideo, (pv) => pv.playlist)
   items: PlaylistVideo[];
 
+  /** Populated by list queries via relation count — not a DB column. */
+  videoCount?: number;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

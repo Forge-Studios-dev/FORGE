@@ -75,6 +75,7 @@ export class PlaylistsService {
     }
     const qb = this.playlistRepository
       .createQueryBuilder('p')
+      .loadRelationCountAndMap('p.videoCount', 'p.items')
       .where('p.userId = :userId', { userId })
       .orderBy('p.systemType', 'ASC', 'NULLS LAST')
       .addOrderBy('p.createdAt', 'DESC');

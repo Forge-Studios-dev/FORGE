@@ -19,6 +19,7 @@ describe('PlaylistsService', () => {
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     addOrderBy: jest.fn().mockReturnThis(),
+    loadRelationCountAndMap: jest.fn().mockReturnThis(),
     getMany: jest.fn(),
   };
 
@@ -150,8 +151,9 @@ describe('PlaylistsService', () => {
 
   describe('listByUser', () => {
     it('returns all playlists for the owner', async () => {
-      qb.getMany.mockResolvedValue([{ id: 'pl-1' }]);
+      qb.getMany.mockResolvedValue([{ id: 'pl-1', videoCount: 2 }]);
       await service.listByUser(ownerId, ownerId);
+      expect(qb.loadRelationCountAndMap).toHaveBeenCalledWith('p.videoCount', 'p.items');
       expect(qb.andWhere).not.toHaveBeenCalled();
     });
 

@@ -176,6 +176,8 @@ export interface Playlist {
   description?: string | null;
   visibility?: 'public' | 'unlisted' | 'private';
   systemType?: 'watch_later' | 'liked' | null;
+  /** Present on list endpoints (channel / library). */
+  videoCount?: number;
   createdAt: string;
   updatedAt: string;
   items?: Array<{
