@@ -25,7 +25,7 @@ import { FeedService, FeedSort } from '../feed/feed.service';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { PresignedUrlDto } from './dto/presigned-url.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
-import { ThumbnailPresignedDto } from './dto/thumbnail-presigned.dto';
+import { ThumbnailPresignedDto, SetThumbnailUrlDto } from './dto/thumbnail-presigned.dto';
 import { CaptionPresignedDto, SetCaptionUrlDto } from './dto/caption.dto';
 import { RecordWatchDto } from './dto/record-watch.dto';
 import { RecordViewDto } from './dto/record-view.dto';
@@ -304,6 +304,18 @@ export class VideosController {
     @Body() dto: ThumbnailPresignedDto,
   ) {
     return this.videosService.getThumbnailPresignedUrl(user.sub, id, dto.contentType);
+  }
+
+  @Put(':id/thumbnail')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.UPLOAD_VIDEO)
+  @ApiOperation({ summary: 'Set or clear custom thumbnail URL after S3 PUT' })
+  setThumbnail(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetThumbnailUrlDto,
+  ) {
+    return this.videosService.setThumbnailUrl(user.sub, id, dto.thumbnailUrl);
   }
 
   @Post(':id/caption/presigned-url')

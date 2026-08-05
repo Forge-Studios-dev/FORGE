@@ -666,17 +666,22 @@ export class VideosService {
     );
   }
 
-  /** Presigned PUT for optional custom thumbnail (before /complete). */
+  /** Presigned PUT for custom thumbnail (upload-time or Studio replace after ready). */
   async getThumbnailPresignedUrl(
     userId: string,
     videoId: string,
     contentType: string,
-  ): Promise<{ uploadUrl: string; key: string; expiresIn: number }> {
+  ): Promise<{ uploadUrl: string; key: string; publicUrl: string; expiresIn: number }> {
     const video = await this.videoRepository.findOne({ where: { id: videoId } });
     if (!video) throw new NotFoundException('Video not found');
     if (video.userId !== userId) throw new ForbiddenException();
-    if (video.status !== VideoStatus.UPLOADING) {
-      throw new BadRequestException('Video is not in uploading state');
+    const allowedStatuses = [
+      VideoStatus.UPLOADING,
+      VideoStatus.PROCESSING,
+      VideoStatus.READY,
+    ];
+    if (!allowedStatuses.includes(video.status)) {
+      throw new BadRequestException('Thumbnail can only be set while uploading, processing, or ready');
     }
 
     const ext =
@@ -693,8 +698,39 @@ export class VideosService {
       expiresIn: 600,
       signableHeaders: new Set(['content-type']),
     });
+    const cdnDomain = this.configService.get<string>('aws.cloudfrontDomain');
+    const publicUrl = cdnDomain
+      ? `https://${cdnDomain.replace(/^https?:\/\//, '')}/${key}`
+      : `https://${this.bucket}.s3.amazonaws.com/${key}`;
 
-    return { uploadUrl, key, expiresIn: 600 };
+    return { uploadUrl, key, publicUrl, expiresIn: 600 };
+  }
+
+  async setThumbnailUrl(userId: string, videoId: string, thumbnailUrl: string | null) {
+    const video = await this.videoRepository.findOne({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+    if (video.userId !== userId) throw new ForbiddenException();
+
+    if (thumbnailUrl === null || thumbnailUrl === '') {
+      video.thumbnailUrl = null;
+    } else {
+      const trimmed = thumbnailUrl.trim();
+      const cdnDomain = this.configService.get<string>('aws.cloudfrontDomain');
+      const allowedPrefixes = [
+        cdnDomain
+          ? `https://${cdnDomain.replace(/^https?:\/\//, '')}/videos/${userId}/${videoId}/thumbnail.custom.`
+          : null,
+        `https://${this.bucket}.s3.amazonaws.com/videos/${userId}/${videoId}/thumbnail.custom.`,
+      ].filter(Boolean) as string[];
+      if (!allowedPrefixes.some((p) => trimmed.startsWith(p))) {
+        throw new BadRequestException('Thumbnail URL must match this video custom thumbnail object');
+      }
+      video.thumbnailUrl = trimmed;
+    }
+
+    await this.videoRepository.save(video);
+    await this.bustVideoDetailCache(videoId);
+    return this.mapToPublicVideo(video);
   }
 
   /** Presigned PUT for a WebVTT caption file (Studio manual captions). */

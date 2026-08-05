@@ -49,6 +49,8 @@ export default function StudioVideoDetailEditorPage() {
   const [captionBusy, setCaptionBusy] = useState(false);
   const [captionMsg, setCaptionMsg] = useState('');
   const [captionLang, setCaptionLang] = useState('en');
+  const [thumbBusy, setThumbBusy] = useState(false);
+  const [thumbMsg, setThumbMsg] = useState('');
 
   const CAPTION_LANG_OPTIONS = [
     { code: 'en', label: 'English' },
@@ -176,6 +178,58 @@ export default function StudioVideoDetailEditorPage() {
       setCaptionMsg(getApiErrorMessage(e, 'Could not remove captions.'));
     } finally {
       setCaptionBusy(false);
+    }
+  }
+
+  async function uploadThumbnail(file: File) {
+    const type =
+      file.type === 'image/png' || file.type === 'image/webp' || file.type === 'image/jpeg'
+        ? file.type
+        : file.name.toLowerCase().endsWith('.png')
+          ? 'image/png'
+          : file.name.toLowerCase().endsWith('.webp')
+            ? 'image/webp'
+            : 'image/jpeg';
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) {
+      setThumbMsg('Choose a JPEG, PNG, or WebP image.');
+      return;
+    }
+    setThumbBusy(true);
+    setThumbMsg('');
+    try {
+      const { data } = await api.post<{
+        data: { uploadUrl: string; publicUrl: string };
+      }>(`/videos/${id}/thumbnail/presigned-url`, { contentType: type });
+      const { uploadUrl, publicUrl } = data.data;
+      const put = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': type },
+      });
+      if (!put.ok) throw new Error(`Upload failed (${put.status})`);
+      await api.put(`/videos/${id}/thumbnail`, { thumbnailUrl: publicUrl });
+      setThumbMsg('Thumbnail updated.');
+      await qc.invalidateQueries({ queryKey: ['studio-video', id] });
+      await qc.invalidateQueries({ queryKey: ['studio-videos'] });
+    } catch (e) {
+      setThumbMsg(getApiErrorMessage(e, 'Could not upload thumbnail.'));
+    } finally {
+      setThumbBusy(false);
+    }
+  }
+
+  async function clearThumbnail() {
+    setThumbBusy(true);
+    setThumbMsg('');
+    try {
+      await api.put(`/videos/${id}/thumbnail`, { thumbnailUrl: null });
+      setThumbMsg('Custom thumbnail cleared.');
+      await qc.invalidateQueries({ queryKey: ['studio-video', id] });
+      await qc.invalidateQueries({ queryKey: ['studio-videos'] });
+    } catch (e) {
+      setThumbMsg(getApiErrorMessage(e, 'Could not clear thumbnail.'));
+    } finally {
+      setThumbBusy(false);
     }
   }
 
@@ -429,6 +483,40 @@ export default function StudioVideoDetailEditorPage() {
                 {formatCount(video.viewCount)} views · {formatCount(video.likeCount)} likes ·{' '}
                 {formatCount(video.commentCount)} comments
               </p>
+              {(video.status === 'ready' ||
+                video.status === 'processing' ||
+                video.status === 'uploading') && (
+                <div className="space-y-2 border-t border-outline-variant/30 pt-3">
+                  <p className="font-label-caps text-xs text-outline">Thumbnail</p>
+                  <div className="flex flex-wrap gap-2">
+                    <label className="cursor-pointer rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:border-primary">
+                      {thumbBusy ? 'Uploading…' : 'Change thumbnail'}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                        className="hidden"
+                        disabled={thumbBusy}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = '';
+                          if (file) void uploadThumbnail(file);
+                        }}
+                      />
+                    </label>
+                    {video.thumbnailUrl ? (
+                      <button
+                        type="button"
+                        disabled={thumbBusy}
+                        onClick={() => void clearThumbnail()}
+                        className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:border-primary disabled:opacity-50"
+                      >
+                        Clear
+                      </button>
+                    ) : null}
+                  </div>
+                  {thumbMsg ? <p className="text-xs text-on-surface-variant">{thumbMsg}</p> : null}
+                </div>
+              )}
               {video.sourceStreamId ? (
                 <Link
                   href={`/studio/live/${video.sourceStreamId}/debrief`}

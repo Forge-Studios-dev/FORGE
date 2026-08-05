@@ -436,6 +436,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Loop video toggle (Hive pref; disables end-screen; Chewie looping)
 - Persist Autoplay / Loop prefs; reset end-fired after seek-back
 
+## Studio replace thumbnail (2026-08-06)
+
+- API: thumbnail presign allowed for uploading/processing/ready; returns `publicUrl`
+- `PUT /videos/:id/thumbnail` sets/clears URL (scoped to this video’s custom object)
+- Web + mobile Studio editors: Change / Clear custom thumbnail
+
 ## Still open
 
 | Area | Item | Owner |

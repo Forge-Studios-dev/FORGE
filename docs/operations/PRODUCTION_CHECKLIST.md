@@ -43,6 +43,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Mobile upload custom thumbnail; playlist owner Add videos from library
 - [ ] Smoke: Mobile watch chapters seek; Studio/upload chapter preview
 - [ ] Smoke: Mobile watch Up next end-screen + Loop video
+- [ ] Smoke: Studio Change thumbnail (web + mobile) on a ready video
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback

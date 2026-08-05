@@ -54,9 +54,11 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
   bool _saving = false;
   bool _busy = false;
   bool _captionBusy = false;
+  bool _thumbBusy = false;
   String? _error;
   String? _savedMsg;
   String? _captionMsg;
+  String? _thumbMsg;
 
   @override
   void dispose() {
@@ -222,6 +224,65 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
     }
   }
 
+  Future<void> _uploadThumbnail() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+      allowMultiple: false,
+      withData: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.single;
+    final path = file.path;
+    if (path == null) return;
+    final name = file.name.toLowerCase();
+    final contentType = name.endsWith('.png')
+        ? 'image/png'
+        : name.endsWith('.webp')
+            ? 'image/webp'
+            : 'image/jpeg';
+    setState(() {
+      _thumbBusy = true;
+      _thumbMsg = null;
+      _error = null;
+    });
+    try {
+      await ref.read(studioRepositoryProvider).uploadThumbnail(
+            videoId: widget.videoId,
+            filePath: path,
+            contentType: contentType,
+          );
+      ref.invalidate(studioVideoProvider(widget.videoId));
+      ref.invalidate(myVideosProvider);
+      if (!mounted) return;
+      setState(() => _thumbMsg = 'Thumbnail updated.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _thumbMsg = 'Could not upload thumbnail.');
+    } finally {
+      if (mounted) setState(() => _thumbBusy = false);
+    }
+  }
+
+  Future<void> _clearThumbnail() async {
+    setState(() {
+      _thumbBusy = true;
+      _thumbMsg = null;
+    });
+    try {
+      await ref.read(studioRepositoryProvider).clearThumbnail(widget.videoId);
+      ref.invalidate(studioVideoProvider(widget.videoId));
+      ref.invalidate(myVideosProvider);
+      if (!mounted) return;
+      setState(() => _thumbMsg = 'Custom thumbnail cleared.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _thumbMsg = 'Could not clear thumbnail.');
+    } finally {
+      if (mounted) setState(() => _thumbBusy = false);
+    }
+  }
+
   Future<void> _uploadCaption() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
@@ -352,6 +413,48 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
                       '${video.viewCount} views · ${video.likeCount} likes',
                       style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
                     ),
+                    if (video.status == 'ready' ||
+                        video.status == 'processing' ||
+                        video.status == 'uploading') ...[
+                      const SizedBox(height: 12),
+                      if (video.thumbnailUrl != null && video.thumbnailUrl!.isNotEmpty)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: Image.network(
+                              video.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => ColoredBox(
+                                color: t.surfaceContainerHigh,
+                                child: Icon(Icons.broken_image_outlined, color: t.onSurfaceVariant),
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Thumbnail',
+                        style: TextStyle(fontWeight: FontWeight.w600, color: t.onSurface),
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: _thumbBusy || _busy || _saving ? null : _uploadThumbnail,
+                            child: Text(_thumbBusy ? 'Uploading…' : 'Change thumbnail'),
+                          ),
+                          if (video.thumbnailUrl != null && video.thumbnailUrl!.isNotEmpty)
+                            TextButton(
+                              onPressed: _thumbBusy || _busy || _saving ? null : _clearThumbnail,
+                              child: const Text('Clear'),
+                            ),
+                        ],
+                      ),
+                      if (_thumbMsg != null)
+                        Text(_thumbMsg!, style: TextStyle(fontSize: 13, color: t.onSurfaceVariant)),
+                    ],
                   ],
                 ),
               ),

@@ -97,6 +97,48 @@ class StudioRepository {
     });
   }
 
+  /// Presign → S3 PUT → attach custom thumbnail (works for ready videos too).
+  Future<void> uploadThumbnail({
+    required String videoId,
+    required String filePath,
+    required String contentType,
+  }) async {
+    final allowed = {'image/jpeg', 'image/png', 'image/webp'};
+    if (!allowed.contains(contentType)) {
+      throw ArgumentError('Thumbnail must be JPEG, PNG, or WebP');
+    }
+    final presignRes = await _api.dio.post(
+      '/videos/$videoId/thumbnail/presigned-url',
+      data: {'contentType': contentType},
+    );
+    final data = presignRes.data['data'] as Map<String, dynamic>;
+    final uploadUrl = data['uploadUrl'] as String;
+    final publicUrl = data['publicUrl'] as String;
+
+    final put = await Dio().put(
+      uploadUrl,
+      data: await File(filePath).readAsBytes(),
+      options: Options(
+        headers: {'Content-Type': contentType},
+        sendTimeout: const Duration(minutes: 2),
+        receiveTimeout: const Duration(minutes: 2),
+      ),
+    );
+    if (put.statusCode == null || put.statusCode! < 200 || put.statusCode! >= 300) {
+      throw StateError('Thumbnail upload failed (${put.statusCode})');
+    }
+
+    await _api.dio.put('/videos/$videoId/thumbnail', data: {
+      'thumbnailUrl': publicUrl,
+    });
+  }
+
+  Future<void> clearThumbnail(String videoId) async {
+    await _api.dio.put('/videos/$videoId/thumbnail', data: {
+      'thumbnailUrl': null,
+    });
+  }
+
   Future<Map<String, dynamic>> getMe() async {
     final res = await _api.dio.get('/users/me');
     return res.data['data'] as Map<String, dynamic>;
