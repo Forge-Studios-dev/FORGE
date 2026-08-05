@@ -380,6 +380,15 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.history, color: ForgeTokens.of(context).outline),
                 title: Text(term),
+                trailing: IconButton(
+                  tooltip: 'Remove from search history',
+                  icon: Icon(Icons.close, size: 18, color: ForgeTokens.of(context).outline),
+                  onPressed: () async {
+                    final next = await removeSearchHistoryItem(term);
+                    if (!mounted) return;
+                    setState(() => _recentSearches = next);
+                  },
+                ),
                 onTap: () {
                   _controller.text = term;
                   setState(() {});

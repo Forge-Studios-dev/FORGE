@@ -9,6 +9,7 @@ import {
   clearSearchHistory,
   pushSearchHistory,
   readSearchHistory,
+  removeSearchHistoryItem,
 } from '@/lib/search-history';
 
 type Props = {
@@ -200,13 +201,14 @@ export function SearchSuggest({ className = '', compact = false }: Props) {
                 role="option"
                 aria-selected={i === activeIndex}
                 id={`${listId}-opt-${i}`}
+                className={`flex items-center gap-1 pr-2 ${
+                  i === activeIndex ? 'bg-surface-container-highest' : ''
+                } hover:bg-surface-container-highest`}
+                onMouseEnter={() => setActiveIndex(i)}
               >
                 <button
                   type="button"
-                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-surface-container-highest ${
-                    i === activeIndex ? 'bg-surface-container-highest' : ''
-                  }`}
-                  onMouseEnter={() => setActiveIndex(i)}
+                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left text-sm"
                   onClick={() => activate(item)}
                 >
                   <Icon
@@ -226,6 +228,20 @@ export function SearchSuggest({ className = '', compact = false }: Props) {
                     </span>
                   ) : null}
                 </button>
+                {item.kind === 'history' ? (
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-full p-1.5 text-outline hover:bg-surface-container-low hover:text-on-surface"
+                    aria-label={`Remove ${item.value} from search history`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setHistory(removeSearchHistoryItem(item.value));
+                    }}
+                  >
+                    <Icon name="close" className="text-base" />
+                  </button>
+                ) : null}
               </li>
             );
           })}

@@ -373,6 +373,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Home feed For you / Subscriptions: tablist keyboard + roving tabindex
 - E2E: home feed tablist smoke in `critical-chrome.spec.ts`
 
+## Search history per-item remove (2026-08-06)
+
+- Web `removeSearchHistoryItem` + Clear all; TopBar suggest row × control
+- Mobile Explore recent list trailing close + storage helper
+- Studio video editor: live chapter preview from description timestamp lines
+
 ## Still open
 
 | Area | Item | Owner |
@@ -380,7 +386,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Ops | Staging soak per load-test runbook | Operator |
 | Launch | Env secrets, Mux/Stripe webhooks; Mux signing keys for private/unlisted | Operator |
 | Launch | DB migrations **185–197 applied** to Neon (2026-08-04) via TypeORM | Done |
-| Ship | Commit depth-drive working tree on `feature/youtube-replica-wave-1`, open PR → `main` (do not push straight to `main`) | Operator |
+| Ship | PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) open (`feature/youtube-replica-wave-1` → `main`); merge when checklist passes | Operator |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
 | Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |
 | Analytics | Studio details page uses `topVideos` (impressions/CTR/watch %); SQL uses `watched_at` | Done (2026-08-04) |
@@ -397,6 +403,6 @@ Prefer small focused PRs over another full Master pass. **Viewer/creator YouTube
 
 1. Run [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) on staging.
 2. Confirm Mux/Stripe webhooks + signing keys for private/unlisted.
-3. Open/merge PR from `feature/youtube-replica-wave-1` → `main` (do not push straight to `main`). Batch the uncommitted depth-drive work into one reviewable PR first if still local.
+3. Merge open PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) (`feature/youtube-replica-wave-1` → `main`) when checklist passes — do not push straight to `main`.
 4. Product-deferred: ML recs, downloads, Kids Mode, ad breaks — not blocking viewer/creator core loop.
 

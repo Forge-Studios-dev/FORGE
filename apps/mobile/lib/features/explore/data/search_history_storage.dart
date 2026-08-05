@@ -33,6 +33,15 @@ Future<List<String>> pushSearchHistory(String query) async {
   return next;
 }
 
+Future<List<String>> removeSearchHistoryItem(String query) async {
+  final term = query.trim().toLowerCase();
+  if (term.isEmpty) return readSearchHistory();
+  final next =
+      (await readSearchHistory()).where((q) => q.toLowerCase() != term).toList();
+  await LocalCache.write(_storageKey, jsonEncode(next));
+  return next;
+}
+
 Future<void> clearSearchHistory() async {
   await LocalCache.write(_storageKey, jsonEncode(const <String>[]));
 }

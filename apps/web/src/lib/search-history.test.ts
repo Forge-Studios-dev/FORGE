@@ -3,6 +3,7 @@ import {
   clearSearchHistory,
   pushSearchHistory,
   readSearchHistory,
+  removeSearchHistoryItem,
 } from './search-history';
 
 describe('search-history', () => {
@@ -32,5 +33,12 @@ describe('search-history', () => {
     pushSearchHistory('hello');
     clearSearchHistory();
     expect(readSearchHistory()).toEqual([]);
+  });
+
+  it('removes one entry case-insensitively', () => {
+    pushSearchHistory('React');
+    pushSearchHistory('Flutter');
+    expect(removeSearchHistoryItem('react')).toEqual(['Flutter']);
+    expect(readSearchHistory()).toEqual(['Flutter']);
   });
 });

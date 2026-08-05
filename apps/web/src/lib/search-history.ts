@@ -32,6 +32,19 @@ export function pushSearchHistory(query: string): string[] {
   return next;
 }
 
+export function removeSearchHistoryItem(query: string): string[] {
+  const term = query.trim().toLowerCase();
+  if (!term || typeof window === 'undefined') return readSearchHistory();
+  const next = readSearchHistory().filter((q) => q.toLowerCase() !== term);
+  try {
+    if (next.length === 0) window.localStorage.removeItem(STORAGE_KEY);
+    else window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    /* quota / private mode */
+  }
+  return next;
+}
+
 export function clearSearchHistory(): void {
   if (typeof window === 'undefined') return;
   try {

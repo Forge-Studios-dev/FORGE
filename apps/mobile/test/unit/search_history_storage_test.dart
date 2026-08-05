@@ -42,4 +42,11 @@ void main() {
     await clearSearchHistory();
     expect(await readSearchHistory(), isEmpty);
   });
+
+  test('removes one entry case-insensitively', () async {
+    await pushSearchHistory('React');
+    await pushSearchHistory('Flutter');
+    expect(await removeSearchHistoryItem('react'), ['Flutter']);
+    expect(await readSearchHistory(), ['Flutter']);
+  });
 }

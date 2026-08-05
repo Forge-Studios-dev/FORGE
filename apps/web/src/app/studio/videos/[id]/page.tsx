@@ -4,12 +4,13 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Icon, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
 import { fetchCategorySkillTags, type UploadSkillTag } from '@/lib/categories';
+import { extractVideoChapters } from '@/lib/description-timestamps';
 import { formatCount } from '@/lib/utils';
 import type { UploadVisibility } from '@/lib/upload-draft';
 import type { Video } from '@/types';
@@ -206,6 +207,11 @@ export default function StudioVideoDetailEditorPage() {
   }
 
   const canEditTags = !!video.categoryId && availableTags.length > 0;
+  const chapterPreview = useMemo(() => extractVideoChapters(description), [description]);
+  const chapterLineCount = useMemo(() => {
+    const re = /^\s*((?:\d{1,2}:)?[0-5]?\d:[0-5]\d)\s+.+/gm;
+    return [...description.matchAll(re)].length;
+  }, [description]);
 
   return (
     <main className="space-y-6">
@@ -248,8 +254,33 @@ export default function StudioVideoDetailEditorPage() {
               onChange={(e) => setDescription(e.target.value)}
               rows={5}
               maxLength={2000}
+              placeholder={'Tell viewers about your video. Optional chapters:\n0:00 Intro\n1:30 Main topic\n5:00 Outro'}
               className="mt-1 w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-3 outline-none focus:border-primary"
             />
+            <p className="mt-1.5 text-xs text-outline">
+              Chapters need ≥3 timestamp lines starting at 0:00 (e.g. <code className="font-mono">0:00 Intro</code>).
+            </p>
+            {chapterPreview.length > 0 ? (
+              <div className="mt-2 rounded-xl border border-primary/25 bg-primary/5 px-3 py-2">
+                <p className="text-xs font-semibold text-primary">
+                  {chapterPreview.length} chapters will show on watch
+                </p>
+                <ul className="mt-1 max-h-28 space-y-0.5 overflow-y-auto text-xs text-on-surface-variant">
+                  {chapterPreview.map((c) => (
+                    <li key={`${c.seconds}-${c.title}`} className="flex gap-2 font-mono">
+                      <span className="shrink-0 text-outline">{c.label}</span>
+                      <span className="truncate font-sans">{c.title}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : chapterLineCount > 0 ? (
+              <p className="mt-2 text-xs text-on-surface-variant">
+                {chapterLineCount < 3
+                  ? `Add ${3 - chapterLineCount} more timestamp line${3 - chapterLineCount === 1 ? '' : 's'} (and start at 0:00) for chapters.`
+                  : 'First chapter must start at 0:00 for chapters to appear.'}
+              </p>
+            ) : null}
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
