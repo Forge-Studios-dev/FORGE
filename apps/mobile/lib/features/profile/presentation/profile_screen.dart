@@ -9,6 +9,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../live/data/live_repository.dart';
 import '../../watch/data/watch_repository.dart';
 import '../../../shared/models/video.dart';
 import 'membership_panel.dart';
@@ -22,6 +23,17 @@ final userVideosProvider =
   );
   final list = response.data['data']['data'] as List<dynamic>? ?? [];
   return list.map((e) => VideoModel.fromJson(e as Map<String, dynamic>)).toList();
+});
+
+final channelStreamsProvider = FutureProvider.autoDispose
+    .family<({List<Map<String, dynamic>> live, List<Map<String, dynamic>> upcoming}), String>(
+        (ref, creatorId) async {
+  final repo = ref.read(liveRepositoryProvider);
+  final results = await Future.wait([
+    repo.getLiveStreams(creatorId: creatorId),
+    repo.getUpcomingStreams(creatorId: creatorId),
+  ]);
+  return (live: results[0], upcoming: results[1]);
 });
 
 final userProfileProvider = FutureProvider.autoDispose.family<UserModel, String>((ref, username) async {
@@ -54,9 +66,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => const Center(child: Text('User not found')),
         data: (user) {
-          final videosAsync = ref.watch(
-            userVideosProvider((userId: user.id, type: _type)),
-          );
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(child: _ProfileHeader(user: user, profileUsername: username)),
@@ -67,72 +76,204 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: SegmentedButton<String>(
                     segments: const [
-                      ButtonSegment(value: 'video', label: Text('Videos'), icon: Icon(Icons.videocam_outlined, size: 16)),
-                      ButtonSegment(value: 'short', label: Text('Shorts'), icon: Icon(Icons.movie_filter_outlined, size: 16)),
+                      ButtonSegment(
+                        value: 'video',
+                        label: Text('Videos'),
+                        icon: Icon(Icons.videocam_outlined, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: 'short',
+                        label: Text('Shorts'),
+                        icon: Icon(Icons.movie_filter_outlined, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: 'live',
+                        label: Text('Live'),
+                        icon: Icon(Icons.sensors, size: 16),
+                      ),
                     ],
                     selected: {_type},
                     onSelectionChanged: (s) => setState(() => _type = s.first),
                   ),
                 ),
               ),
-              videosAsync.when(
-                loading: () => const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                ),
-                error: (_, __) => SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('Could not load videos', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
-                  ),
-                ),
-                data: (videos) => SliverPadding(
-                  padding: const EdgeInsets.all(8),
-                  sliver: videos.isEmpty
-                      ? SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(
-                              _type == 'short' ? 'No Shorts yet' : 'No videos yet',
-                              style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
-                            ),
-                          ),
-                        )
-                      : SliverGrid(
-                          delegate: SliverChildBuilderDelegate(
-                            (_, i) {
-                              final v = videos[i];
-                              return GestureDetector(
-                                onTap: () => context.push('/watch/${v.id}'),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: v.thumbnailUrl != null
-                                      ? CachedNetworkImage(
-                                          imageUrl: v.thumbnailUrl!,
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                        )
-                                      : Container(color: ForgeTokens.of(context).surfaceContainerHighest),
-                                ),
-                              );
-                            },
-                            childCount: videos.length,
-                          ),
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: _type == 'short' ? 3 : 2,
-                            mainAxisSpacing: 4,
-                            crossAxisSpacing: 4,
-                            childAspectRatio: _type == 'short' ? 9 / 16 : 16 / 9,
-                          ),
-                        ),
-                ),
-              ),
+              if (_type == 'live')
+                ..._liveSlivers(user.id)
+              else
+                ..._videoSlivers(user.id),
             ],
           );
         },
+      ),
+    );
+  }
+
+  List<Widget> _videoSlivers(String userId) {
+    final videosAsync = ref.watch(
+      userVideosProvider((userId: userId, type: _type)),
+    );
+    return [
+      videosAsync.when(
+        loading: () => const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ),
+        error: (_, __) => SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Could not load videos',
+              style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+            ),
+          ),
+        ),
+        data: (videos) => SliverPadding(
+          padding: const EdgeInsets.all(8),
+          sliver: videos.isEmpty
+              ? SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      _type == 'short' ? 'No Shorts yet' : 'No videos yet',
+                      style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                    ),
+                  ),
+                )
+              : SliverGrid(
+                  delegate: SliverChildBuilderDelegate(
+                    (_, i) {
+                      final v = videos[i];
+                      return GestureDetector(
+                        onTap: () => context.push('/watch/${v.id}'),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: v.thumbnailUrl != null
+                              ? CachedNetworkImage(
+                                  imageUrl: v.thumbnailUrl!,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                )
+                              : Container(color: ForgeTokens.of(context).surfaceContainerHighest),
+                        ),
+                      );
+                    },
+                    childCount: videos.length,
+                  ),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: _type == 'short' ? 3 : 2,
+                    mainAxisSpacing: 4,
+                    crossAxisSpacing: 4,
+                    childAspectRatio: _type == 'short' ? 9 / 16 : 16 / 9,
+                  ),
+                ),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _liveSlivers(String creatorId) {
+    final streamsAsync = ref.watch(channelStreamsProvider(creatorId));
+    return [
+      streamsAsync.when(
+        loading: () => const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ),
+        error: (_, __) => SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Could not load streams',
+              style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+            ),
+          ),
+        ),
+        data: (streams) => SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              Text(
+                'Live now',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              if (streams.live.isEmpty)
+                Text(
+                  'Not live right now.',
+                  style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                )
+              else
+                ...streams.live.map((s) => _StreamTile(stream: s, live: true)),
+              const SizedBox(height: 20),
+              Text(
+                'Upcoming',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              if (streams.upcoming.isEmpty)
+                Text(
+                  'No upcoming streams scheduled.',
+                  style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                )
+              else
+                ...streams.upcoming.map((s) => _StreamTile(stream: s, live: false)),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => context.push('/live'),
+                child: const Text('Browse all live'),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    ];
+  }
+}
+
+class _StreamTile extends StatelessWidget {
+  const _StreamTile({required this.stream, required this.live});
+
+  final Map<String, dynamic> stream;
+  final bool live;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = stream['id'] as String?;
+    final title = stream['title'] as String? ?? 'Stream';
+    final viewers = stream['viewerCount'];
+    final scheduled = stream['scheduledAt'] as String?;
+    DateTime? when;
+    if (scheduled != null) when = DateTime.tryParse(scheduled)?.toLocal();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: ForgeTokens.of(context).outlineVariant),
+        ),
+        title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+        trailing: live
+            ? Text(
+                viewers is num ? 'LIVE · $viewers' : 'LIVE',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: ForgeTokens.of(context).error,
+                ),
+              )
+            : when != null
+                ? Text(
+                    '${when.month}/${when.day} ${when.hour.toString().padLeft(2, '0')}:${when.minute.toString().padLeft(2, '0')}',
+                    style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
+                  )
+                : null,
+        onTap: id == null ? null : () => context.push('/live/$id'),
       ),
     );
   }

@@ -87,8 +87,31 @@ class LiveRepository {
     await _api.dio.post('/streams/$streamId/rsvp/cancel');
   }
 
-  Future<List<Map<String, dynamic>>> getLiveStreams() async {
-    final res = await _api.dio.get('/streams/live');
-    return (res.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+  Future<List<Map<String, dynamic>>> getLiveStreams({String? creatorId}) async {
+    final res = await _api.dio.get(
+      '/streams/live',
+      queryParameters: {
+        if (creatorId != null && creatorId.isNotEmpty) 'creatorId': creatorId,
+      },
+    );
+    final data = res.data['data'];
+    if (data is List) {
+      return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getUpcomingStreams({String? creatorId}) async {
+    final res = await _api.dio.get(
+      '/streams/upcoming',
+      queryParameters: {
+        if (creatorId != null && creatorId.isNotEmpty) 'creatorId': creatorId,
+      },
+    );
+    final data = res.data['data'];
+    if (data is List) {
+      return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    return [];
   }
 }

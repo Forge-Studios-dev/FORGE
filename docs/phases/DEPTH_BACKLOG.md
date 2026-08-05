@@ -448,6 +448,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Copy link / at current time / embed iframe from watch engage row
 - Upload path finalizes custom thumb via `PUT /thumbnail` when `publicUrl` returned
 
+## Mobile channel Live tab (2026-08-06)
+
+- Profile Videos / Shorts / Live segmented control
+- Live now + Upcoming from `/streams/live|upcoming?creatorId=`
+
 ## Still open
 
 | Area | Item | Owner |
