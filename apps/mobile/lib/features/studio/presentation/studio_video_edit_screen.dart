@@ -33,6 +33,8 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
   final _titleCtrl = TextEditingController();
   final _descriptionCtrl = TextEditingController();
   String _visibility = 'public';
+  bool _scheduleEnabled = false;
+  DateTime? _scheduledAt;
   bool _hydrated = false;
   bool _saving = false;
   bool _busy = false;
@@ -51,7 +53,39 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
     _titleCtrl.text = video.title;
     _descriptionCtrl.text = video.description ?? '';
     _visibility = video.visibility ?? 'public';
+    final scheduled = video.scheduledPublishAt;
+    if (scheduled != null && scheduled.isAfter(DateTime.now())) {
+      _scheduleEnabled = true;
+      _scheduledAt = scheduled.toLocal();
+    }
     _hydrated = true;
+  }
+
+  Future<void> _pickSchedule() async {
+    final now = DateTime.now();
+    final initial = _scheduledAt ?? now.add(const Duration(hours: 1));
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(now) ? now.add(const Duration(days: 1)) : initial,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+    final picked = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (picked.isBefore(now.add(const Duration(minutes: 15)))) {
+      setState(() => _error = 'Schedule at least 15 minutes from now.');
+      return;
+    }
+    setState(() {
+      _scheduledAt = picked;
+      _scheduleEnabled = true;
+      _error = null;
+    });
   }
 
   Future<void> _save() async {
@@ -59,6 +93,13 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
     if (title.isEmpty) {
       setState(() => _error = 'Title is required.');
       return;
+    }
+    if (_scheduleEnabled) {
+      final at = _scheduledAt;
+      if (at == null || at.isBefore(DateTime.now().add(const Duration(minutes: 15)))) {
+        setState(() => _error = 'Pick a publish time at least 15 minutes from now.');
+        return;
+      }
     }
     setState(() {
       _saving = true;
@@ -71,7 +112,10 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
             title: title,
             description: _descriptionCtrl.text,
             visibility: _visibility,
+            scheduledPublishAt:
+                _scheduleEnabled && _scheduledAt != null ? _scheduledAt!.toUtc().toIso8601String() : null,
           );
+      _hydrated = false;
       ref.invalidate(studioVideoProvider(widget.videoId));
       ref.invalidate(myVideosProvider);
       if (!mounted) return;
@@ -269,6 +313,39 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
                   setState(() => _visibility = value);
                 },
               ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Schedule publish'),
+                subtitle: Text(
+                  _scheduleEnabled && _scheduledAt != null
+                      ? _scheduledAt!.toLocal().toString()
+                      : 'Publish immediately when processing finishes',
+                  style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+                ),
+                value: _scheduleEnabled,
+                onChanged: (on) {
+                  setState(() {
+                    _scheduleEnabled = on;
+                    if (on && _scheduledAt == null) {
+                      _scheduledAt = DateTime.now().add(const Duration(hours: 1));
+                    }
+                    if (!on) _error = null;
+                  });
+                  if (on) {
+                    _pickSchedule();
+                  }
+                },
+              ),
+              if (_scheduleEnabled)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _pickSchedule,
+                    icon: const Icon(Icons.event, size: 18),
+                    label: const Text('Pick date & time'),
+                  ),
+                ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Text(_error!, style: TextStyle(color: t.error)),

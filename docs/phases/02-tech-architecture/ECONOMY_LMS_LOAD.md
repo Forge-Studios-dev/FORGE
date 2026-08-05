@@ -20,7 +20,7 @@ YouTube-replica default: courses, podcasts, and creator programs are **not** par
 | --- | --- | --- |
 | `ChannelPointsModule` | Soft-retire via `register()` when LMS flag off (empty module) | Admin `/channel-points` → dashboard |
 | `GamificationModule` | Soft-retire via `register()` when LMS flag off | Not primary SideNav |
-| `CommunitiesModule` | Channel community / rooms | Secondary surfaces OK |
+| `CommunitiesModule` | Channel community / rooms always on; Brands / Mentorship / **CommunityEngagement** (wiki/challenges/surveys) controllers only when LMS on | Secondary surfaces OK |
 
 ## Explicit non-decision (needs product/ops)
 

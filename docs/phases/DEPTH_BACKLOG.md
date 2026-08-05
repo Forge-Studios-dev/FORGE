@@ -401,6 +401,13 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - `/studio/videos/:id` edit: title, description, visibility, cancel upload, retry, delete
 - List shows visibility + scheduled badge; tap opens editor (Watch from editor when ready)
 
+## Mobile schedule + Studio analytics (2026-08-06 cont.)
+
+- Studio edit + upload: schedule publish (date/time, ≥15m ahead) → `scheduledPublishAt`
+- Upload complete lands on Studio editor (not watch) when scheduling/managing
+- Mobile Studio analytics: `GET /analytics/studio/video-performance` impressions / CTR / avg watch % + top videos
+- Boot-omit `CommunityEngagementController` when LMS flag off (with Brands/Mentorship)
+
 ## Still open
 
 | Area | Item | Owner |

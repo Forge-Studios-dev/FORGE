@@ -61,6 +61,8 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
   final Set<String> _skillTagIds = {};
   String _visibility = 'public';
   String _videoType = 'video';
+  bool _scheduleEnabled = false;
+  DateTime? _scheduledAt;
   bool _uploading = false;
   int _progress = 0;
   String? _error;
@@ -152,6 +154,13 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
         return;
       }
     }
+    if (_scheduleEnabled) {
+      final at = _scheduledAt;
+      if (at == null || at.isBefore(DateTime.now().add(const Duration(minutes: 15)))) {
+        setState(() => _error = 'Pick a publish time at least 15 minutes from now.');
+        return;
+      }
+    }
     setState(() {
       _uploading = true;
       _error = null;
@@ -169,6 +178,8 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             skillTagIds: _skillTagIds.toList(),
             visibility: _visibility,
             videoType: _videoType,
+            scheduledPublishAt:
+                _scheduleEnabled && _scheduledAt != null ? _scheduledAt!.toUtc().toIso8601String() : null,
             onProgress: (p) {
               if (mounted) setState(() => _progress = p);
             },
@@ -176,9 +187,15 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
       if (!mounted) return;
       setState(() => _pendingResume = null);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Upload complete — processing started.')),
+        SnackBar(
+          content: Text(
+            _scheduleEnabled
+                ? 'Upload complete — will publish at ${_scheduledAt!.toLocal()}.'
+                : 'Upload complete — processing started.',
+          ),
+        ),
       );
-      context.go('/watch/$videoId');
+      context.go('/studio/videos/$videoId');
     } catch (e) {
       if (mounted) setState(() => _error = 'Upload failed. Check connection and try again.');
     } finally {
@@ -313,6 +330,8 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             _buildCategoryAndSkills(),
             const SizedBox(height: 16),
             _buildVisibilitySelector(),
+            const SizedBox(height: 8),
+            _buildScheduleSelector(),
             if (_uploading) ...[
               const SizedBox(height: 24),
               LinearProgressIndicator(value: _progress / 100),
@@ -423,6 +442,70 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
       onChanged: _uploading
           ? null
           : (value) => setState(() => _visibility = value ?? 'public'),
+    );
+  }
+
+  Future<void> _pickSchedule() async {
+    final now = DateTime.now();
+    final initial = _scheduledAt ?? now.add(const Duration(hours: 1));
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(now) ? now.add(const Duration(days: 1)) : initial,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+    final picked = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (picked.isBefore(now.add(const Duration(minutes: 15)))) {
+      setState(() => _error = 'Schedule at least 15 minutes from now.');
+      return;
+    }
+    setState(() {
+      _scheduledAt = picked;
+      _scheduleEnabled = true;
+      _error = null;
+    });
+  }
+
+  Widget _buildScheduleSelector() {
+    final t = ForgeTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Schedule publish'),
+          subtitle: Text(
+            _scheduleEnabled && _scheduledAt != null
+                ? _scheduledAt!.toLocal().toString()
+                : 'Publish when processing finishes',
+            style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+          ),
+          value: _scheduleEnabled,
+          onChanged: _uploading
+              ? null
+              : (on) {
+                  setState(() {
+                    _scheduleEnabled = on;
+                    if (on && _scheduledAt == null) {
+                      _scheduledAt = DateTime.now().add(const Duration(hours: 1));
+                    }
+                  });
+                  if (on) _pickSchedule();
+                },
+        ),
+        if (_scheduleEnabled && !_uploading)
+          TextButton.icon(
+            onPressed: _pickSchedule,
+            icon: const Icon(Icons.event, size: 18),
+            label: const Text('Pick date & time'),
+          ),
+      ],
     );
   }
 }

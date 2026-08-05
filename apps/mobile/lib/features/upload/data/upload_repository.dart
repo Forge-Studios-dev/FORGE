@@ -35,6 +35,7 @@ class PendingUpload {
   final List<String> skillTagIds;
   final String visibility;
   final String videoType;
+  final String? scheduledPublishAt;
   final bool backgrounded;
 
   const PendingUpload({
@@ -49,6 +50,7 @@ class PendingUpload {
     required this.skillTagIds,
     required this.visibility,
     this.videoType = 'video',
+    this.scheduledPublishAt,
     this.backgrounded = false,
   });
 
@@ -64,6 +66,7 @@ class PendingUpload {
         skillTagIds: skillTagIds,
         visibility: visibility,
         videoType: videoType,
+        scheduledPublishAt: scheduledPublishAt,
         backgrounded: backgrounded ?? this.backgrounded,
       );
 
@@ -79,6 +82,7 @@ class PendingUpload {
         'skillTagIds': skillTagIds,
         'visibility': visibility,
         'videoType': videoType,
+        'scheduledPublishAt': scheduledPublishAt,
         'backgrounded': backgrounded,
       };
 
@@ -94,6 +98,7 @@ class PendingUpload {
         skillTagIds: (json['skillTagIds'] as List).cast<String>(),
         visibility: json['visibility'] as String,
         videoType: json['videoType'] as String? ?? 'video',
+        scheduledPublishAt: json['scheduledPublishAt'] as String?,
         backgrounded: json['backgrounded'] as bool? ?? false,
       );
 }
@@ -120,6 +125,7 @@ class UploadRepository {
     required List<String> skillTagIds,
     required String visibility,
     String videoType = 'video',
+    String? scheduledPublishAt,
     void Function(int percent)? onProgress,
   }) async {
     final presignRes = await _client.dio.post('/videos/presigned-url', data: {
@@ -147,6 +153,7 @@ class UploadRepository {
         skillTagIds: skillTagIds,
         visibility: visibility,
         videoType: videoType,
+        scheduledPublishAt: scheduledPublishAt,
       ));
       await MultipartVideoUpload(_client.dio).upload(
         videoId: videoId,
@@ -185,6 +192,7 @@ class UploadRepository {
       categoryId: categoryId,
       skillTagIds: skillTagIds,
       videoType: videoType,
+      scheduledPublishAt: scheduledPublishAt,
     );
     await clearResumableUpload();
     return videoId;
@@ -216,6 +224,7 @@ class UploadRepository {
       categoryId: pending.categoryId,
       skillTagIds: pending.skillTagIds,
       videoType: pending.videoType,
+      scheduledPublishAt: pending.scheduledPublishAt,
     );
     await clearResumableUpload();
     return pending.videoId;
@@ -229,6 +238,7 @@ class UploadRepository {
     required String categoryId,
     required List<String> skillTagIds,
     String videoType = 'video',
+    String? scheduledPublishAt,
   }) async {
     await _client.dio.post('/videos/$videoId/complete', data: {
       'title': title.trim(),
@@ -237,6 +247,7 @@ class UploadRepository {
       'categoryId': categoryId,
       'skillTagIds': skillTagIds,
       'videoType': videoType == 'short' ? 'short' : 'video',
+      if (scheduledPublishAt != null) 'scheduledPublishAt': scheduledPublishAt,
     });
   }
 

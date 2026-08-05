@@ -19,6 +19,16 @@ final businessAnalyticsProvider = FutureProvider.autoDispose<Map<String, dynamic
   }
 });
 
+final videoPerformanceProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+  try {
+    final client = ref.read(apiClientProvider);
+    final res = await client.dio.get('/analytics/studio/video-performance');
+    return res.data['data'] as Map<String, dynamic>?;
+  } catch (_) {
+    return null;
+  }
+});
+
 final studioAnalyticsProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) {
   return ref.read(studioRepositoryProvider).getMyVideos();
 });
@@ -57,6 +67,7 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
   Widget build(BuildContext context) {
     final videosAsync = ref.watch(studioAnalyticsProvider);
     final businessAsync = ref.watch(businessAnalyticsProvider);
+    final performanceAsync = ref.watch(videoPerformanceProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -104,10 +115,43 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
           final totalViews = videos.fold<int>(0, (s, v) => s + v.viewCount);
           final totalLikes = videos.fold<int>(0, (s, v) => s + v.likeCount);
           final ready = videos.where((v) => v.status == 'ready').length;
+          final perf = performanceAsync.value;
+          final impressions = (perf?['impressions'] as num?)?.toInt();
+          final ctr = (perf?['ctr'] as num?)?.toDouble();
+          final avgWatch = (perf?['avgWatchPercent'] as num?)?.toDouble();
+          final periodDays = (perf?['periodDays'] as num?)?.toInt() ?? 28;
+          final topVideos = (perf?['topVideos'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              if (impressions != null || ctr != null || avgWatch != null) ...[
+                Text(
+                  'Last $periodDays days',
+                  style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: _stat('Impressions', '${impressions ?? 0}')),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _stat(
+                        'CTR',
+                        ctr != null ? '${(ctr * 1000).round() / 10}%' : '—',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _stat(
+                        'Avg watch',
+                        avgWatch != null ? '${avgWatch.round()}%' : '—',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
               businessAsync.when(
                 loading: () => const SizedBox.shrink(),
                 error: (_, __) => const SizedBox.shrink(),
@@ -192,27 +236,60 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
               const SizedBox(height: 24),
               const Text('Top videos', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
               const SizedBox(height: 12),
-              ...videos.take(8).map(
-                (v) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: ForgeCard(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            v.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: ForgeTokens.of(context).onSurface),
+              if (topVideos.isNotEmpty)
+                ...topVideos.take(8).map(
+                      (row) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: ForgeCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                row['title'] as String? ?? 'Video',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: ForgeTokens.of(context).onSurface),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${row['views'] ?? 0} views · ${row['impressions'] ?? 0} impr. · '
+                                '${row['ctr'] != null ? '${(((row['ctr'] as num) * 1000).round() / 10)}% CTR' : '—'} · '
+                                '${row['avgWatchPercent'] != null ? '${(row['avgWatchPercent'] as num).round()}% watch' : '—'}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: ForgeTokens.of(context).onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        Text('${v.viewCount} views', style: TextStyle(color: ForgeTokens.of(context).primary, fontSize: 13)),
-                      ],
+                      ),
+                    )
+              else
+                ...videos.take(8).map(
+                      (v) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: ForgeCard(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  v.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: ForgeTokens.of(context).onSurface),
+                                ),
+                              ),
+                              Text(
+                                '${v.viewCount} views',
+                                style: TextStyle(color: ForgeTokens.of(context).primary, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
             ],
           );
         },

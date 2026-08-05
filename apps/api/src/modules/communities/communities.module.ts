@@ -151,10 +151,11 @@ import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lm
   controllers: [
     CommunitiesController,
     CommunityModerationController,
-    ...(isSkillEconomyLmsEnabled() ? [BrandsController, MentorshipController] : []),
+    ...(isSkillEconomyLmsEnabled()
+      ? [BrandsController, MentorshipController, CommunityEngagementController]
+      : []),
     CommunityPostsController,
     CommunityPollsController,
-    CommunityEngagementController,
     CommunityRoomsController,
     CommunityAiController,
     CommunityMembersController,
