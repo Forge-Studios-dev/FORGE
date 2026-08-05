@@ -22,11 +22,19 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   bool _loading = true;
   bool _error = false;
   String? _currentUserId;
+  String _itemQuery = '';
+  final _itemSearchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _itemSearchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -287,6 +295,22 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final playlist = _playlist;
     final isOwner = playlist != null && playlist['userId'] == _currentUserId;
     final items = (playlist?['items'] as List?) ?? [];
+    final q = _itemQuery.trim().toLowerCase();
+    final filteredItems = q.isEmpty
+        ? items
+        : items.where((raw) {
+            if (raw is! Map) return false;
+            final item = Map<String, dynamic>.from(raw);
+            final video = item['video'] as Map<String, dynamic>?;
+            final title = (video?['title'] as String? ?? '').toLowerCase();
+            final user = video?['user'] as Map<String, dynamic>?;
+            final channel = ((user?['displayName'] as String?) ??
+                    (user?['username'] as String?) ??
+                    '')
+                .toLowerCase();
+            return title.contains(q) || channel.contains(q);
+          }).toList();
+    final filtering = q.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -390,15 +414,57 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             ),
                           ),
                         ),
+                        if (items.length > 3)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: TextField(
+                              controller: _itemSearchCtrl,
+                              onChanged: (v) => setState(() => _itemQuery = v),
+                              decoration: InputDecoration(
+                                hintText: 'Search this playlist',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: _itemQuery.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: () {
+                                          _itemSearchCtrl.clear();
+                                          setState(() => _itemQuery = '');
+                                        },
+                                      ),
+                                filled: true,
+                                fillColor: ForgeTokens.of(context).surfaceContainerLow,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
                         Expanded(
-                          child: ListView.builder(
+                          child: filteredItems.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    'No videos match "$_itemQuery"',
+                                    style: TextStyle(
+                                      color: ForgeTokens.of(context).onSurfaceVariant,
+                                    ),
+                                  ),
+                                )
+                              : ListView.builder(
                             padding: const EdgeInsets.all(16),
-                            itemCount: items.length,
+                            itemCount: filteredItems.length,
                             itemBuilder: (_, i) {
-                              final item = items[i] as Map<String, dynamic>;
+                              final item = filteredItems[i] as Map<String, dynamic>;
                               final video = item['video'] as Map<String, dynamic>?;
                               final videoId =
                                   item['videoId'] as String? ?? video?['id'] as String?;
+                              final originalIndex = items.indexWhere((raw) {
+                                if (raw is! Map) return false;
+                                final m = Map<String, dynamic>.from(raw);
+                                final id = m['videoId'] as String? ??
+                                    (m['video'] as Map?)?['id'] as String?;
+                                return id != null && id == videoId;
+                              });
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
                                 child: ForgeCard(
@@ -420,16 +486,20 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                           style: TextStyle(color: ForgeTokens.of(context).onSurface),
                                         ),
                                       ),
-                                      if (isOwner) ...[
+                                      if (isOwner && !filtering && originalIndex >= 0) ...[
                                         IconButton(
                                           icon: Icon(Icons.arrow_upward, size: 18),
                                           tooltip: 'Move up',
-                                          onPressed: i == 0 ? null : () => _moveItem(i, -1),
+                                          onPressed: originalIndex == 0
+                                              ? null
+                                              : () => _moveItem(originalIndex, -1),
                                         ),
                                         IconButton(
                                           icon: const Icon(Icons.arrow_downward, size: 18),
                                           tooltip: 'Move down',
-                                          onPressed: i >= items.length - 1 ? null : () => _moveItem(i, 1),
+                                          onPressed: originalIndex >= items.length - 1
+                                              ? null
+                                              : () => _moveItem(originalIndex, 1),
                                         ),
                                       ],
                                       if (isOwner && videoId != null)

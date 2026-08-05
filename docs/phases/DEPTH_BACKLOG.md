@@ -522,6 +522,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - You tab: New playlist action + shelf card (title, optional description, visibility)
 - Shared create dialog; opens playlist detail after create
 
+## Mobile playlist search filter (2026-08-06)
+
+- Playlist detail: Search this playlist when ≥4 videos (title/channel; web parity)
+
 ## Still open
 
 | Area | Item | Owner |
