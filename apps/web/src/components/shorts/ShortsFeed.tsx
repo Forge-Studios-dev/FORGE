@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { EmptyState, Icon, IconButton } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { Video } from '@/types';
 import { formatCount } from '@/lib/utils';
@@ -20,6 +21,7 @@ import {
 } from '@/lib/engage-access';
 import {
   engageErrorReason,
+  getChannelSubscription,
   setChannelNotifyLevel,
   toggleSubscribe,
   toggleVideoDislike,
@@ -28,6 +30,7 @@ import {
 } from '@/lib/engage-mutations';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { CommentsPanel } from '@/components/Comments/CommentsPanel';
+import { PopoverMenu } from '@/components/shell/PopoverMenu';
 
 type ShortsPage = {
   data: Video[];
@@ -58,8 +61,7 @@ function ShortSlide({
   const [subscribed, setSubscribed] = useState(
     !!(video.viewerSubscribed ?? video.viewerFollowingCreator),
   );
-  const [notifyOpen, setNotifyOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [confirmUnsub, setConfirmUnsub] = useState(false);
   const [notifyLevel, setNotifyLevel] = useState<ChannelNotifyLevel>('all');
   const [engageBlock, setEngageBlock] = useState<EngageBlockReason | null>(null);
   const [heartBurst, setHeartBurst] = useState(false);
@@ -75,8 +77,8 @@ function ShortSlide({
     setDisliked(!!video.viewerDisliked);
     setLikeCount(video.likeCount ?? 0);
     setSubscribed(!!(video.viewerSubscribed ?? video.viewerFollowingCreator));
-    setNotifyOpen(false);
-    setMoreOpen(false);
+    setConfirmUnsub(false);
+    setNotifyLevel('all');
   }, [
     video.id,
     video.viewerLiked,
@@ -85,6 +87,21 @@ function ShortSlide({
     video.viewerSubscribed,
     video.viewerFollowingCreator,
   ]);
+
+  useEffect(() => {
+    if (!subscribed || isGuest || !me || isOwn || !video.userId) return;
+    let cancelled = false;
+    void getChannelSubscription(video.userId)
+      .then((sub) => {
+        if (!cancelled && sub.notifyLevel) setNotifyLevel(sub.notifyLevel);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [subscribed, isGuest, me, isOwn, video.userId, video.id]);
 
   const gated = (action: () => void) => {
     if (onGuestAction) {
@@ -123,7 +140,7 @@ function ShortSlide({
     }
   };
 
-  const notInterested = async () => {
+  const notInterested = async (close: () => void) => {
     try {
       await api.post(`/videos/${video.id}/not-interested`);
       onHidden?.(video.id);
@@ -131,11 +148,11 @@ function ShortSlide({
       const reason = engageErrorReason(err);
       if (reason === 'guest' || reason === 'unverified') setEngageBlock(reason);
     } finally {
-      setMoreOpen(false);
+      close();
     }
   };
 
-  const dontRecommend = async () => {
+  const dontRecommend = async (close: () => void) => {
     try {
       await api.post(`/videos/${video.id}/dont-recommend-channel`);
       onHidden?.(video.id);
@@ -143,7 +160,7 @@ function ShortSlide({
       const reason = engageErrorReason(err);
       if (reason === 'guest' || reason === 'unverified') setEngageBlock(reason);
     } finally {
-      setMoreOpen(false);
+      close();
     }
   };
 
@@ -209,7 +226,6 @@ function ShortSlide({
     },
     onMutate: (next) => {
       setSubscribed(next);
-      if (!next) setNotifyOpen(false);
     },
     onError: (err) => {
       setSubscribed(!!(video.viewerSubscribed ?? video.viewerFollowingCreator));
@@ -223,7 +239,6 @@ function ShortSlide({
       await setChannelNotifyLevel(video.userId, level);
     },
     onMutate: (level) => setNotifyLevel(level),
-    onSuccess: () => setNotifyOpen(false),
     onError: (err) => {
       const reason = engageErrorReason(err);
       if (reason === 'guest' || reason === 'unverified') setEngageBlock(reason);
@@ -274,46 +289,42 @@ function ShortSlide({
         ) : null}
 
         <div className="absolute right-3 top-3 z-[3]">
-          <button
-            type="button"
-            aria-label="More options"
-            aria-haspopup="menu"
-            aria-expanded={moreOpen}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70"
-            onClick={() => setMoreOpen((o) => !o)}
+          <PopoverMenu
+            label="More options"
+            align="right"
+            panelClassName="w-48 p-0"
+            triggerClassName="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70"
+            trigger={<Icon name="more_vert" />}
           >
-            <Icon name="more_vert" />
-          </button>
-          {moreOpen ? (
-            <div
-              role="menu"
-              className="absolute right-0 top-11 z-10 w-48 overflow-hidden rounded-xl bg-surface-container-high text-on-surface shadow-lg"
-            >
-              <button
-                type="button"
-                role="menuitem"
-                className="block w-full px-3 py-2 text-left text-xs hover:bg-surface-container-highest"
-                onClick={() => gated(() => void notInterested())}
-              >
-                Not interested
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="block w-full px-3 py-2 text-left text-xs hover:bg-surface-container-highest"
-                onClick={() => gated(() => void dontRecommend())}
-              >
-                Don&apos;t recommend channel
-              </button>
-              <div className="border-t border-outline-variant/30 px-1 py-1">
-                <ReportContentButton
-                  targetType="video"
-                  targetId={video.id}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-on-surface hover:bg-surface-container-highest"
-                />
-              </div>
-            </div>
-          ) : null}
+            {(close) => (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="block w-full px-3 py-2 text-left text-xs hover:bg-surface-container-highest"
+                  onClick={() => gated(() => void notInterested(close))}
+                >
+                  Not interested
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="block w-full px-3 py-2 text-left text-xs hover:bg-surface-container-highest"
+                  onClick={() => gated(() => void dontRecommend(close))}
+                >
+                  Don&apos;t recommend channel
+                </button>
+                <div className="border-t border-outline-variant/30 px-1 py-1">
+                  <ReportContentButton
+                    targetType="video"
+                    targetId={video.id}
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-on-surface hover:bg-surface-container-highest"
+                  />
+                </div>
+              </>
+            )}
+          </PopoverMenu>
         </div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[3] bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pb-6">
@@ -360,67 +371,96 @@ function ShortSlide({
 
           {!isOwn ? (
             <div className="relative flex flex-col items-center gap-1">
-              <button
-                type="button"
-                disabled={subscribeMutation.isPending}
-                onClick={() =>
+              {subscribed ? (
+                <PopoverMenu
+                  label="Subscription options"
+                  placement="top"
+                  align="right"
+                  panelClassName="w-40 p-0"
+                  triggerClassName="flex flex-col items-center gap-1"
+                  trigger={
+                    <>
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-black backdrop-blur-sm">
+                        <Icon name="notifications" />
+                      </span>
+                      <span className="text-xs font-medium text-white">Subscribed</span>
+                    </>
+                  }
+                >
+                  {(close) => (
+                    <>
+                      {(
+                        [
+                          ['all', 'All'],
+                          ['personalized', 'Personalized'],
+                          ['none', 'None'],
+                        ] as const
+                      ).map(([level, label]) => (
+                        <button
+                          key={level}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={notifyLevel === level}
+                          className={`block w-full px-3 py-2 text-left text-xs hover:bg-surface-container-highest ${
+                            notifyLevel === level ? 'text-primary' : ''
+                          }`}
+                          onClick={() =>
+                            gated(() => {
+                              notifyMutation.mutate(level);
+                              close();
+                            })
+                          }
+                        >
+                          {label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full border-t border-outline-variant/30 px-3 py-2 text-left text-xs text-error hover:bg-surface-container-highest"
+                        onClick={() =>
+                          gated(() => {
+                            close();
+                            setConfirmUnsub(true);
+                          })
+                        }
+                      >
+                        Unsubscribe
+                      </button>
+                    </>
+                  )}
+                </PopoverMenu>
+              ) : (
+                <button
+                  type="button"
+                  disabled={subscribeMutation.isPending}
+                  onClick={() => gated(() => subscribeMutation.mutate(true))}
+                  className="flex flex-col items-center gap-1"
+                  aria-pressed={false}
+                  aria-label="Subscribe"
+                >
+                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70">
+                    <Icon name="subscriptions" />
+                  </span>
+                  <span className="text-xs font-medium text-white">Subscribe</span>
+                </button>
+              )}
+              <ConfirmDialog
+                open={confirmUnsub}
+                title="Unsubscribe?"
+                description="You will stop receiving updates from this channel."
+                confirmLabel="Unsubscribe"
+                cancelLabel="Cancel"
+                variant="danger"
+                loading={subscribeMutation.isPending}
+                onCancel={() => setConfirmUnsub(false)}
+                onConfirm={() =>
                   gated(() => {
-                    if (subscribed) setNotifyOpen((o) => !o);
-                    else subscribeMutation.mutate(true);
+                    setConfirmUnsub(false);
+                    subscribeMutation.mutate(false);
                   })
                 }
-                className="flex flex-col items-center gap-1"
-                aria-pressed={subscribed}
-                aria-label={subscribed ? 'Subscription options' : 'Subscribe'}
-                aria-haspopup={subscribed ? 'menu' : undefined}
-                aria-expanded={subscribed ? notifyOpen : undefined}
-              >
-                <span
-                  className={`flex h-12 w-12 items-center justify-center rounded-full backdrop-blur-sm ${
-                    subscribed ? 'bg-white text-black' : 'bg-black/50 text-white hover:bg-black/70'
-                  }`}
-                >
-                  <Icon name={subscribed ? 'notifications' : 'subscriptions'} />
-                </span>
-                <span className="text-xs font-medium text-white">
-                  {subscribed ? 'Subscribed' : 'Subscribe'}
-                </span>
-              </button>
-              {subscribed && notifyOpen ? (
-                <div
-                  role="menu"
-                  className="absolute bottom-full right-0 z-10 mb-2 w-40 overflow-hidden rounded-xl bg-surface-container-high text-on-surface shadow-lg"
-                >
-                  {(
-                    [
-                      ['all', 'All'],
-                      ['personalized', 'Personalized'],
-                      ['none', 'None'],
-                    ] as const
-                  ).map(([level, label]) => (
-                    <button
-                      key={level}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={notifyLevel === level}
-                      className={`block w-full px-3 py-2 text-left text-xs hover:bg-surface-container-highest ${
-                        notifyLevel === level ? 'text-primary' : ''
-                      }`}
-                      onClick={() => gated(() => notifyMutation.mutate(level))}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="block w-full border-t border-outline-variant/30 px-3 py-2 text-left text-xs text-error hover:bg-surface-container-highest"
-                    onClick={() => gated(() => subscribeMutation.mutate(false))}
-                  >
-                    Unsubscribe
-                  </button>
-                </div>
-              ) : null}
+              />
             </div>
           ) : null}
 

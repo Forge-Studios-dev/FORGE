@@ -15,7 +15,10 @@
 
 ## Deferred
 
-- Notification bell granularity (All / Personalized / None) per channel
-- Unsubscribe confirmation menu polish
+- Push-matrix notification prefs beyond per-channel bell (All / Personalized / None) — bell shipped on web + mobile
+
+## Closed (2026-08-05)
+
+- Unsubscribe confirmation: web `SubscribeChannelControl` + Shorts; mobile watch / Shorts / profile
 
 See [PHASE_13_REPORT.md](./PHASE_13_REPORT.md).

@@ -67,7 +67,32 @@ export function PopoverMenu({
         triggerRef.current?.focus();
         return;
       }
-      if (e.key !== 'Tab' || !panel) return;
+      if (!panel) return;
+      if (panelRole === 'menu' && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        e.preventDefault();
+        const focusable = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+        if (focusable.length === 0) return;
+        const active = document.activeElement as HTMLElement | null;
+        const idx = focusable.findIndex((el) => el === active);
+        const next =
+          e.key === 'ArrowDown'
+            ? focusable[(idx + 1) % focusable.length]
+            : focusable[(idx - 1 + focusable.length) % focusable.length];
+        next.focus();
+        return;
+      }
+      if (panelRole === 'menu' && e.key === 'Home') {
+        e.preventDefault();
+        panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)[0]?.focus();
+        return;
+      }
+      if (panelRole === 'menu' && e.key === 'End') {
+        e.preventDefault();
+        const all = panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+        all[all.length - 1]?.focus();
+        return;
+      }
+      if (e.key !== 'Tab') return;
       const focusable = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
       if (focusable.length === 0) {
         e.preventDefault();
@@ -93,7 +118,7 @@ export function PopoverMenu({
       document.removeEventListener('mousedown', onDoc);
       window.removeEventListener('keydown', onKey);
     };
-  }, [open, close]);
+  }, [open, close, panelRole]);
 
   useEffect(() => {
     if (open) return;

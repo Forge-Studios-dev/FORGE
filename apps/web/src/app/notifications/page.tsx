@@ -7,7 +7,7 @@ import { EmptyState, Icon, ListSkeleton, PageHeader } from '@forge/design-system
 import { api } from '@/lib/api';
 import { Notification } from '@/types';
 import { useAuth } from '@/lib/auth';
-import { CATEGORY_LABEL, notificationMeta, type NotificationCategory } from '@/lib/notification-category';
+import { CATEGORY_LABEL, isRetiredLmsNotification, notificationMeta, type NotificationCategory } from '@/lib/notification-category';
 import { notificationHref } from '@/lib/notification-href';
 
 type NotificationsPage = {
@@ -77,10 +77,10 @@ export default function NotificationsPage() {
     );
   }
 
-  const items = data?.data ?? [];
+  const items = (data?.data ?? []).filter((n) => !isRetiredLmsNotification(n.type));
 
-  const presentCategories = (Object.keys(CATEGORY_LABEL) as NotificationCategory[]).filter((cat) =>
-    items.some((n) => notificationMeta(n.type).category === cat),
+  const presentCategories = (Object.keys(CATEGORY_LABEL) as NotificationCategory[]).filter(
+    (cat) => cat !== 'reward' && items.some((n) => notificationMeta(n.type).category === cat),
   );
   const visibleItems = items.filter((n) => {
     if (unreadOnly && n.readAt) return false;

@@ -1,11 +1,12 @@
 import {
+  BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { PlaylistsService } from './playlists.service';
-import { Playlist, PlaylistVisibility } from './entities/playlist.entity';
+import { Playlist, PlaylistSystemType, PlaylistVisibility } from './entities/playlist.entity';
 import { PlaylistVideo } from './entities/playlist-video.entity';
 import { Video } from '../content/entities/video.entity';
 import { Like } from '../engagement/entities/like.entity';
@@ -25,11 +26,13 @@ describe('PlaylistsService', () => {
     create: jest.fn((dto: Partial<Playlist>) => dto),
     save: jest.fn(async (dto: Partial<Playlist>) => ({ id: 'pl-1', ...dto })),
     findOne: jest.fn(),
+    remove: jest.fn(),
     createQueryBuilder: jest.fn(() => qb),
   };
   const playlistVideoRepository = {
     create: jest.fn((dto: Partial<PlaylistVideo>) => dto),
     save: jest.fn(async (dto: Partial<PlaylistVideo>) => ({ id: 'pv-1', ...dto })),
+    find: jest.fn(),
     findOne: jest.fn(),
     delete: jest.fn(),
     createQueryBuilder: jest.fn(() => ({
@@ -41,8 +44,16 @@ describe('PlaylistsService', () => {
       getRawOne: jest.fn().mockResolvedValue({ max: '-1' }),
     })),
   };
-  const videoRepository = { findOne: jest.fn() };
-  const likeRepository = { find: jest.fn().mockResolvedValue([]) };
+  const videoRepository = {
+    findOne: jest.fn(),
+    find: jest.fn(),
+    decrement: jest.fn().mockResolvedValue(undefined),
+  };
+  const likeRepository = {
+    find: jest.fn().mockResolvedValue([]),
+    findOne: jest.fn(),
+    remove: jest.fn().mockResolvedValue(undefined),
+  };
 
   const ownerId = 'user-1';
   const otherId = 'user-2';
@@ -78,6 +89,13 @@ describe('PlaylistsService', () => {
       await service.create(ownerId, 'Secret', PlaylistVisibility.PRIVATE);
       expect(playlistRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ visibility: PlaylistVisibility.PRIVATE }),
+      );
+    });
+
+    it('honors unlisted visibility', async () => {
+      await service.create(ownerId, 'Share link', PlaylistVisibility.UNLISTED);
+      expect(playlistRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ visibility: PlaylistVisibility.UNLISTED }),
       );
     });
   });
@@ -118,6 +136,16 @@ describe('PlaylistsService', () => {
       playlistRepository.findOne.mockResolvedValue(playlist);
       await expect(service.findById('pl-1', otherId)).resolves.toBe(playlist);
     });
+
+    it('allows non-owners to view an unlisted playlist by id', async () => {
+      const playlist = {
+        id: 'pl-1',
+        userId: ownerId,
+        visibility: PlaylistVisibility.UNLISTED,
+      };
+      playlistRepository.findOne.mockResolvedValue(playlist);
+      await expect(service.findById('pl-1', otherId)).resolves.toBe(playlist);
+    });
   });
 
   describe('listByUser', () => {
@@ -133,6 +161,105 @@ describe('PlaylistsService', () => {
       expect(qb.andWhere).toHaveBeenCalledWith('p.visibility = :vis', {
         vis: PlaylistVisibility.PUBLIC,
       });
+    });
+  });
+
+  describe('update', () => {
+    it('updates title description and unlisted visibility for owner', async () => {
+      const playlist = {
+        id: 'pl-1',
+        userId: ownerId,
+        title: 'Old',
+        description: null,
+        visibility: PlaylistVisibility.PUBLIC,
+        systemType: null,
+      };
+      playlistRepository.findOne.mockResolvedValue(playlist);
+      playlistRepository.save.mockImplementation(async (p: Partial<Playlist>) => ({
+        id: 'pl-1',
+        ...p,
+      }));
+      const result = await service.update(ownerId, 'pl-1', {
+        title: 'New',
+        description: 'Desc',
+        visibility: PlaylistVisibility.UNLISTED,
+      });
+      expect(result.title).toBe('New');
+      expect(result.description).toBe('Desc');
+      expect(result.visibility).toBe(PlaylistVisibility.UNLISTED);
+    });
+
+    it('forbids non-owner updates', async () => {
+      playlistRepository.findOne.mockResolvedValue({
+        id: 'pl-1',
+        userId: ownerId,
+        systemType: null,
+      });
+      await expect(
+        service.update(otherId, 'pl-1', { title: 'Nope' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('blocks title or visibility changes on system playlists', async () => {
+      playlistRepository.findOne.mockResolvedValue({
+        id: 'pl-1',
+        userId: ownerId,
+        systemType: PlaylistSystemType.WATCH_LATER,
+        description: null,
+      });
+      await expect(
+        service.update(ownerId, 'pl-1', { title: 'Nope' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('reorder', () => {
+    it('reorders when every video id is included once', async () => {
+      playlistRepository.findOne
+        .mockResolvedValueOnce({
+          id: 'pl-1',
+          userId: ownerId,
+          systemType: null,
+        })
+        .mockResolvedValueOnce({
+          id: 'pl-1',
+          userId: ownerId,
+          visibility: PlaylistVisibility.PUBLIC,
+          items: [],
+        });
+      const itemA = { videoId: 'v-a', position: 0 };
+      const itemB = { videoId: 'v-b', position: 1 };
+      playlistVideoRepository.find.mockResolvedValue([itemA, itemB]);
+      await service.reorder(ownerId, 'pl-1', ['v-b', 'v-a']);
+      expect(itemB.position).toBe(0);
+      expect(itemA.position).toBe(1);
+      expect(playlistVideoRepository.save).toHaveBeenCalledTimes(2);
+    });
+
+    it('rejects incomplete reorder payloads', async () => {
+      playlistRepository.findOne.mockResolvedValue({
+        id: 'pl-1',
+        userId: ownerId,
+        systemType: null,
+      });
+      playlistVideoRepository.find.mockResolvedValue([
+        { videoId: 'v-a', position: 0 },
+        { videoId: 'v-b', position: 1 },
+      ]);
+      await expect(service.reorder(ownerId, 'pl-1', ['v-a'])).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('forbids non-owner reorder', async () => {
+      playlistRepository.findOne.mockResolvedValue({
+        id: 'pl-1',
+        userId: ownerId,
+        systemType: null,
+      });
+      await expect(service.reorder(otherId, 'pl-1', [])).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
   });
 
@@ -206,6 +333,49 @@ describe('PlaylistsService', () => {
         videoId: 'v-1',
       });
       expect(result).toEqual({ ok: true });
+    });
+
+    it('unlikes when removing from Liked system playlist', async () => {
+      playlistRepository.findOne.mockResolvedValue({
+        id: 'liked-1',
+        userId: ownerId,
+        systemType: PlaylistSystemType.LIKED,
+      });
+      likeRepository.findOne.mockResolvedValue({
+        id: 'like-1',
+        userId: ownerId,
+        videoId: 'v-1',
+        reaction: 'like',
+      });
+      const result = await service.removeVideo(ownerId, 'liked-1', 'v-1');
+      expect(likeRepository.remove).toHaveBeenCalled();
+      expect(videoRepository.decrement).toHaveBeenCalledWith({ id: 'v-1' }, 'likeCount', 1);
+      expect(result).toEqual({ ok: true });
+    });
+  });
+
+  describe('clearWatchLater / clearLikedVideos', () => {
+    it('clears watch later items', async () => {
+      playlistRepository.findOne.mockResolvedValue({
+        id: 'wl-1',
+        userId: ownerId,
+        systemType: PlaylistSystemType.WATCH_LATER,
+      });
+      playlistVideoRepository.delete.mockResolvedValue({ affected: 3 });
+      const result = await service.clearWatchLater(ownerId);
+      expect(playlistVideoRepository.delete).toHaveBeenCalledWith({ playlistId: 'wl-1' });
+      expect(result).toEqual({ ok: true });
+    });
+
+    it('clears liked videos and decrements counts', async () => {
+      likeRepository.find.mockResolvedValue([
+        { id: 'l1', userId: ownerId, videoId: 'v-1' },
+        { id: 'l2', userId: ownerId, videoId: 'v-2' },
+      ]);
+      const result = await service.clearLikedVideos(ownerId);
+      expect(likeRepository.remove).toHaveBeenCalledTimes(2);
+      expect(videoRepository.decrement).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ ok: true, cleared: 2 });
     });
   });
 

@@ -424,6 +424,40 @@ export class AuthService {
     await this.refreshTokenRepository.update({ userId: user.id }, { revoked: true });
   }
 
+  /** Authenticated password change — verifies current password, then revokes other sessions. */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    keepSessionId?: string | null,
+  ) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const passwordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!passwordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    if (currentPassword === newPassword) {
+      throw new BadRequestException('New password must be different from the current password');
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, this.BCRYPT_ROUNDS);
+    await this.userRepository.save(user);
+
+    const activeSessions = await this.refreshTokenRepository.find({
+      where: { userId, revoked: false },
+      select: ['id'],
+    });
+    for (const session of activeSessions) {
+      if (keepSessionId && session.id === keepSessionId) continue;
+      await this.refreshTokenRepository.update(session.id, { revoked: true });
+      await this.authSessionCache.markRevoked(session.id);
+    }
+    await this.authUserCache.bust(userId);
+    return { ok: true };
+  }
+
   async resendVerification(userId: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');

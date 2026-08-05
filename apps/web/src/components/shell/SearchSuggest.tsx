@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Icon } from '@forge/design-system';
 import { api } from '@/lib/api';
+import {
+  clearSearchHistory,
+  pushSearchHistory,
+  readSearchHistory,
+} from '@/lib/search-history';
 
 type Props = {
   className?: string;
@@ -17,6 +22,7 @@ type SuggestionPayload = {
 };
 
 type FlatItem =
+  | { kind: 'history'; value: string }
   | { kind: 'title'; value: string }
   | { kind: 'channel'; username: string; displayName: string };
 
@@ -28,11 +34,16 @@ export function SearchSuggest({ className = '', compact = false }: Props) {
   const [debounced, setDebounced] = useState('');
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [history, setHistory] = useState<string[]>([]);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(query.trim()), 200);
     return () => window.clearTimeout(t);
   }, [query]);
+
+  useEffect(() => {
+    if (open) setHistory(readSearchHistory());
+  }, [open]);
 
   const { data } = useQuery({
     queryKey: ['search-suggestions', debounced],
@@ -49,20 +60,23 @@ export function SearchSuggest({ className = '', compact = false }: Props) {
     },
   });
 
-  const items: FlatItem[] = [
-    ...(data?.channels ?? []).map(
-      (c): FlatItem => ({
-        kind: 'channel',
-        username: c.username,
-        displayName: c.displayName,
-      }),
-    ),
-    ...(data?.titles ?? []).map((value): FlatItem => ({ kind: 'title', value })),
-  ];
+  const showHistory = open && query.trim().length === 0 && history.length > 0;
+  const items: FlatItem[] = showHistory
+    ? history.map((value): FlatItem => ({ kind: 'history', value }))
+    : [
+        ...(data?.channels ?? []).map(
+          (c): FlatItem => ({
+            kind: 'channel',
+            username: c.username,
+            displayName: c.displayName,
+          }),
+        ),
+        ...(data?.titles ?? []).map((value): FlatItem => ({ kind: 'title', value })),
+      ];
 
   useEffect(() => {
     setActiveIndex(-1);
-  }, [items.length, debounced]);
+  }, [items.length, debounced, showHistory]);
 
   useEffect(() => {
     const onPointer = (e: MouseEvent) => {
@@ -73,13 +87,16 @@ export function SearchSuggest({ className = '', compact = false }: Props) {
   }, []);
 
   const goSearch = (q: string) => {
+    const term = q.trim();
+    if (!term) return;
+    setHistory(pushSearchHistory(term));
     setOpen(false);
-    router.push(`/search?q=${encodeURIComponent(q.trim())}`);
+    router.push(`/search?q=${encodeURIComponent(term)}`);
   };
 
   const activate = (item: FlatItem) => {
-    setOpen(false);
     if (item.kind === 'channel') {
+      setOpen(false);
       router.push(`/${item.username}`);
       return;
     }
@@ -87,7 +104,8 @@ export function SearchSuggest({ className = '', compact = false }: Props) {
     goSearch(item.value);
   };
 
-  const showList = open && debounced.length >= 2 && items.length > 0;
+  const showList =
+    showHistory || (open && debounced.length >= 2 && items.length > 0);
 
   return (
     <div ref={rootRef} className={`relative ${className}`}>
@@ -150,6 +168,23 @@ export function SearchSuggest({ className = '', compact = false }: Props) {
           role="listbox"
           className="absolute left-0 right-0 z-50 mt-2 max-h-72 overflow-y-auto rounded-xl border border-outline-variant/30 bg-surface-container-high py-1 shadow-lg"
         >
+          {showHistory ? (
+            <li className="flex items-center justify-between px-4 py-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-outline">
+                Recent searches
+              </span>
+              <button
+                type="button"
+                className="text-xs font-medium text-primary hover:underline"
+                onClick={() => {
+                  clearSearchHistory();
+                  setHistory([]);
+                }}
+              >
+                Clear
+              </button>
+            </li>
+          ) : null}
           {items.map((item, i) => {
             const label =
               item.kind === 'channel'
@@ -157,7 +192,11 @@ export function SearchSuggest({ className = '', compact = false }: Props) {
                 : item.value;
             return (
               <li
-                key={item.kind === 'channel' ? `ch-${item.username}` : `t-${item.value}-${i}`}
+                key={
+                  item.kind === 'channel'
+                    ? `ch-${item.username}`
+                    : `${item.kind}-${item.value}-${i}`
+                }
                 role="option"
                 aria-selected={i === activeIndex}
                 id={`${listId}-opt-${i}`}
@@ -171,7 +210,13 @@ export function SearchSuggest({ className = '', compact = false }: Props) {
                   onClick={() => activate(item)}
                 >
                   <Icon
-                    name={item.kind === 'channel' ? 'person' : 'search'}
+                    name={
+                      item.kind === 'channel'
+                        ? 'person'
+                        : item.kind === 'history'
+                          ? 'history'
+                          : 'search'
+                    }
                     className="shrink-0 text-base text-outline"
                   />
                   <span className="min-w-0 flex-1 truncate text-on-surface">{label}</span>

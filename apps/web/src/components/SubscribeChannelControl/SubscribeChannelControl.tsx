@@ -1,8 +1,9 @@
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { useAuth } from '@/lib/auth';
 import {
   engageErrorReason,
@@ -15,6 +16,7 @@ import {
   getEngageBlockReason,
   type EngageBlockReason,
 } from '@/lib/engage-access';
+import { PopoverMenu } from '@/components/shell/PopoverMenu';
 
 type Variant = 'pill' | 'channel';
 
@@ -46,14 +48,13 @@ export function SubscribeChannelControl({
 }: Props) {
   const { user: me, isGuest } = useAuth();
   const [subscribed, setSubscribed] = useState(initialSubscribed);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmUnsub, setConfirmUnsub] = useState(false);
   const [notifyLevel, setNotifyLevel] = useState<ChannelNotifyLevel>('all');
-  const rootRef = useRef<HTMLDivElement>(null);
   const blockReason = onGuestAction ? null : getEngageBlockReason(me, isGuest);
 
   useEffect(() => {
     setSubscribed(initialSubscribed);
-    setMenuOpen(false);
+    setConfirmUnsub(false);
   }, [channelId, initialSubscribed]);
 
   useEffect(() => {
@@ -71,22 +72,6 @@ export function SubscribeChannelControl({
     };
   }, [channelId, isGuest, me, subscribed]);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onPointer = (e: MouseEvent | PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointer);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointer);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [menuOpen]);
-
   const gated = (fn: () => void) => {
     if (onGuestAction) {
       onGuestAction();
@@ -103,7 +88,6 @@ export function SubscribeChannelControl({
     mutationFn: (nextSubscribed: boolean) => toggleSubscribe(channelId, !nextSubscribed),
     onMutate: (nextSubscribed) => {
       setSubscribed(nextSubscribed);
-      if (!nextSubscribed) setMenuOpen(false);
       if (nextSubscribed) setNotifyLevel('all');
     },
     onError: (err, nextSubscribed) => {
@@ -121,7 +105,6 @@ export function SubscribeChannelControl({
     mutationFn: (level: ChannelNotifyLevel) => setChannelNotifyLevel(channelId, level),
     onMutate: (level) => {
       setNotifyLevel(level);
-      setMenuOpen(false);
     },
     onError: () => {
       onEngageError?.('Could not update notification preference.');
@@ -150,63 +133,85 @@ export function SubscribeChannelControl({
   }
 
   return (
-    <div ref={rootRef} className={`relative ${className}`}>
+    <div className={`relative ${className}`}>
       {subscribed ? (
         <>
-          <button
-            type="button"
-            disabled={subscribeMutation.isPending}
-            onClick={() => setMenuOpen((o) => !o)}
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-            className={subscribedBtn}
+          <PopoverMenu
+            label="Subscription options"
+            align="left"
+            panelClassName="min-w-[220px] p-1"
+            triggerClassName={subscribedBtn}
+            trigger={
+              <>
+                <Icon
+                  name={
+                    notifyLevel === 'none'
+                      ? 'notifications_off'
+                      : notifyLevel === 'personalized'
+                        ? 'notifications'
+                        : 'notifications_active'
+                  }
+                  className="text-base"
+                />
+                Subscribed
+                <Icon name="expand_more" className="text-base" />
+              </>
+            }
           >
-            <Icon
-              name={
-                notifyLevel === 'none'
-                  ? 'notifications_off'
-                  : notifyLevel === 'personalized'
-                    ? 'notifications'
-                    : 'notifications_active'
-              }
-              className="text-base"
-            />
-            Subscribed
-            <Icon name="expand_more" className="text-base" />
-          </button>
-          {menuOpen ? (
-            <div
-              role="menu"
-              className="absolute left-0 z-20 mt-2 min-w-[220px] rounded-xl border border-outline-variant/30 bg-surface-container-high p-1 shadow-lg"
-            >
-              {NOTIFY_OPTIONS.map((opt) => (
+            {(close) => (
+              <>
+                {NOTIFY_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.level}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={notifyLevel === opt.level}
+                    disabled={notifyMutation.isPending || subscribeMutation.isPending}
+                    onClick={() => {
+                      notifyMutation.mutate(opt.level);
+                      close();
+                    }}
+                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-container ${
+                      notifyLevel === opt.level ? 'text-primary' : 'text-on-surface'
+                    }`}
+                  >
+                    <Icon name={opt.icon} className="text-base" />
+                    {opt.label}
+                  </button>
+                ))}
+                <div className="my-1 border-t border-outline-variant/20" />
                 <button
-                  key={opt.level}
                   type="button"
                   role="menuitem"
-                  disabled={notifyMutation.isPending}
-                  onClick={() => notifyMutation.mutate(opt.level)}
-                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-container ${
-                    notifyLevel === opt.level ? 'text-primary' : 'text-on-surface'
-                  }`}
+                  disabled={subscribeMutation.isPending}
+                  onClick={() => {
+                    close();
+                    setConfirmUnsub(true);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-error hover:bg-surface-container"
                 >
-                  <Icon name={opt.icon} className="text-base" />
-                  {opt.label}
+                  <Icon name="person_remove" className="text-base" />
+                  Unsubscribe
                 </button>
-              ))}
-              <div className="my-1 border-t border-outline-variant/20" />
-              <button
-                type="button"
-                role="menuitem"
-                disabled={subscribeMutation.isPending}
-                onClick={() => gated(() => subscribeMutation.mutate(false))}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-error hover:bg-surface-container"
-              >
-                <Icon name="person_remove" className="text-base" />
-                Unsubscribe
-              </button>
-            </div>
-          ) : null}
+              </>
+            )}
+          </PopoverMenu>
+          <ConfirmDialog
+            open={confirmUnsub}
+            title="Unsubscribe?"
+            description="You will stop receiving updates from this channel."
+            confirmLabel="Unsubscribe"
+            cancelLabel="Cancel"
+            variant="danger"
+            loading={subscribeMutation.isPending}
+            onCancel={() => setConfirmUnsub(false)}
+            onConfirm={() =>
+              gated(() => {
+                setConfirmUnsub(false);
+                subscribeMutation.mutate(false);
+              })
+            }
+          />
         </>
       ) : (
         <button

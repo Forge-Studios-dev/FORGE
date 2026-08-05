@@ -11,9 +11,11 @@ type Props = {
   targetType: 'video' | 'user' | 'comment';
   targetId: string;
   className?: string;
+  /** e.g. menuitem when rendered inside PopoverMenu */
+  role?: string;
 };
 
-export function ReportContentButton({ targetType, targetId, className }: Props) {
+export function ReportContentButton({ targetType, targetId, className, role }: Props) {
   const { isGuest } = useAuth();
   const [authGate, setAuthGate] = useState(false);
   const [open, setOpen] = useState(false);
@@ -76,6 +78,7 @@ export function ReportContentButton({ targetType, targetId, className }: Props) 
     <>
       <button
         type="button"
+        role={role}
         onClick={handleClick}
         className={className ?? 'text-sm text-on-surface-variant hover:text-error'}
       >

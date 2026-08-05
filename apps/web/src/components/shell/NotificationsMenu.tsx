@@ -7,7 +7,7 @@ import { Icon } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { Notification } from '@/types';
 import { notificationHref } from '@/lib/notification-href';
-import { notificationMeta } from '@/lib/notification-category';
+import { isRetiredLmsNotification, notificationMeta } from '@/lib/notification-category';
 import { timeAgo } from '@/lib/utils';
 import { PopoverMenu } from '@/components/shell/PopoverMenu';
 
@@ -69,7 +69,7 @@ function NotificationsPanel({
       const { data } = await api.get<{
         data: { data: Notification[]; meta: { cursor: string | null; hasMore: boolean } };
       }>('/notifications?limit=8');
-      return data.data.data ?? [];
+      return (data.data.data ?? []).filter((n) => !isRetiredLmsNotification(n.type));
     },
   });
 

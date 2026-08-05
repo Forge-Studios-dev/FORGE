@@ -19,11 +19,12 @@ import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { PlaylistQueueRail } from '@/components/watch/PlaylistQueueRail';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
-import { PaywallCard } from '@forge/design-system';
+import { PaywallCard, Icon } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
 import { useAccessSession } from '@/lib/access-session';
 import { AccessSessionConflict } from '@/components/Community/AccessSessionConflict';
 import { api } from '@/lib/api';
+import { PopoverMenu } from '@/components/shell/PopoverMenu';
 import { parseTimeQueryParam } from '@/lib/watch-url';
 import { extractVideoChapters } from '@/lib/description-timestamps';
 import { ChaptersBar } from '@/components/watch/ChaptersBar';
@@ -36,6 +37,8 @@ import {
   writeLoopPlaylistPreference,
 } from '@/lib/playlist-watch-prefs';
 
+const menuItemClass =
+  'flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container';
 const AUTOPLAY_KEY = 'forge.watch.autoplay';
 const LOOP_KEY = 'forge.watch.loop';
 const THEATER_KEY = 'forge.watch.theater';
@@ -560,7 +563,71 @@ export function WatchExperience({
                     listId={listId}
                   />
                 </div>
-                <ReportContentButton targetType="video" targetId={video.id} />
+                <div className="flex shrink-0 items-center gap-1">
+                  {!isGuest && !isOwner ? (
+                    <PopoverMenu
+                      label="More options"
+                      align="right"
+                      panelClassName="w-56 p-1"
+                      triggerClassName="rounded-full p-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                      trigger={<Icon name="more_vert" className="text-xl" />}
+                    >
+                      {(close) => (
+                        <>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className={menuItemClass}
+                            onClick={() => {
+                              if (onEngageBlocked) {
+                                onEngageBlocked();
+                                close();
+                                return;
+                              }
+                              void (async () => {
+                                try {
+                                  await api.post(`/videos/${video.id}/not-interested`);
+                                  close();
+                                  router.push('/');
+                                } catch {
+                                  close();
+                                }
+                              })();
+                            }}
+                          >
+                            <Icon name="visibility_off" className="text-base" />
+                            Not interested
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className={menuItemClass}
+                            onClick={() => {
+                              if (onEngageBlocked) {
+                                onEngageBlocked();
+                                close();
+                                return;
+                              }
+                              void (async () => {
+                                try {
+                                  await api.post(`/videos/${video.id}/dont-recommend-channel`);
+                                  close();
+                                  router.push('/');
+                                } catch {
+                                  close();
+                                }
+                              })();
+                            }}
+                          >
+                            <Icon name="block" className="text-base" />
+                            Don’t recommend channel
+                          </button>
+                        </>
+                      )}
+                    </PopoverMenu>
+                  ) : null}
+                  <ReportContentButton targetType="video" targetId={video.id} />
+                </div>
               </div>
               {video.sourceStreamId ? (
                 <StreamChatReplayPanel

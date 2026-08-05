@@ -6,10 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/forge_tokens.dart';
-import '../../../core/widgets/forge_card.dart';
-import '../../../core/motion/forge_motion.dart';
-import '../../../shared/models/video.dart';
 import '../../../core/network/api_client.dart';
+import '../../../shared/models/video.dart';
+import '../data/search_history_storage.dart';
 import '../data/search_repository.dart';
 
 final exploreCategoriesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
@@ -18,15 +17,6 @@ final exploreCategoriesProvider = FutureProvider.autoDispose<List<Map<String, dy
   final list = res.data['data'] as List<dynamic>? ?? [];
   return list.map((e) => e as Map<String, dynamic>).toList();
 });
-
-const _disciplines = [
-  ('physical-crafts', 'Physical Crafts', Icons.handyman),
-  ('art-design', 'Art & Design', Icons.palette),
-  ('building-tech', 'Building & Tech', Icons.construction),
-  ('fitness', 'Fitness', Icons.fitness_center),
-  ('learning-journeys', 'Education', Icons.school),
-  ('music', 'Music', Icons.music_note),
-];
 
 class ExploreScreen extends ConsumerStatefulWidget {
   /// Optional query to prefill the search box (used by the dedicated `/search`
@@ -54,10 +44,12 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   String _duration = 'any';
   String _uploaded = 'any';
   String _captions = 'any';
+  List<String> _recentSearches = [];
 
   @override
   void initState() {
     super.initState();
+    _loadRecentSearches();
     final q = widget.initialQuery?.trim() ?? '';
     if (q.length >= 2) {
       _controller.text = q;
@@ -65,6 +57,20 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       // synchronous setState); the result loads after the first frame.
       _scheduleSearch(q);
     }
+  }
+
+  Future<void> _loadRecentSearches() async {
+    final history = await readSearchHistory();
+    if (!mounted) return;
+    setState(() => _recentSearches = history);
+  }
+
+  Future<void> _rememberSearch(String raw) async {
+    final term = raw.trim();
+    if (term.length < 2) return;
+    final next = await pushSearchHistory(term);
+    if (!mounted) return;
+    setState(() => _recentSearches = next);
   }
 
   @override
@@ -133,6 +139,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     }
   }
 
+  void _commitSearch(String raw) {
+    final q = raw.trim();
+    if (q.length < 2) return;
+    unawaited(_rememberSearch(q));
+    _scheduleSearch(q);
+  }
+
   Widget _filterChip({
     required String label,
     required String value,
@@ -192,6 +205,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 ),
               ),
               textInputAction: TextInputAction.search,
+              onSubmitted: _commitSearch,
               onChanged: (v) {
                 setState(() {});
                 _scheduleSuggestions(v);
@@ -321,7 +335,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   onTap: () {
                     _controller.text = t;
                     setState(() {});
-                    _scheduleSearch(t);
+                    _commitSearch(t);
                   },
                 ),
               ),
@@ -335,6 +349,46 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (_recentSearches.isNotEmpty) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Recent searches',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      letterSpacing: 0.08,
+                      color: ForgeTokens.of(context).outline,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    await clearSearchHistory();
+                    if (!mounted) return;
+                    setState(() => _recentSearches = []);
+                  },
+                  child: const Text('Clear'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ..._recentSearches.map(
+              (term) => ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.history, color: ForgeTokens.of(context).outline),
+                title: Text(term),
+                onTap: () {
+                  _controller.text = term;
+                  setState(() {});
+                  _commitSearch(term);
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           categoriesAsync.when(
             data: (cats) {
               if (cats.isEmpty) return const SizedBox.shrink();
@@ -361,7 +415,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                         onPressed: () {
                           _controller.text = name;
                           setState(() {});
-                          _scheduleSearch(name);
+                          _commitSearch(name);
                         },
                       );
                     }).toList(),
@@ -373,60 +427,6 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
-          Text(
-            'Core disciplines',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-              letterSpacing: 0.08,
-              color: ForgeTokens.of(context).outline,
-            ),
-          ),
-          const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 1.35,
-            ),
-            itemCount: _disciplines.length,
-            itemBuilder: (context, index) {
-              final d = _disciplines[index];
-              return ForgeMotion.fadeIn(
-                index: index,
-                child: ForgeCard(
-                  padding: const EdgeInsets.all(14),
-                  onTap: () {
-                    _controller.text = d.$2;
-                    setState(() {});
-                    _scheduleSearch(d.$2);
-                  },
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(d.$3, color: ForgeTokens.of(context).primary, size: 28),
-                      const SizedBox(height: 10),
-                      Text(
-                        d.$2,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: ForgeTokens.of(context).onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 20),
           Text(
             'Or search above for videos and creators.',
             textAlign: TextAlign.center,

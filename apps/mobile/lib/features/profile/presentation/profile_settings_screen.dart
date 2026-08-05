@@ -363,6 +363,10 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
             onTap: () => context.push('/settings/memberships'),
           ),
           const SizedBox(height: 24),
+          const Text('Security', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const _ChangePasswordSection(),
+          const SizedBox(height: 24),
           const Text('Active sessions', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           const _ActiveSessionsSection(),
@@ -408,6 +412,144 @@ class _ThemeModeTile extends ConsumerWidget {
         };
         await ref.read(themeModeProvider.notifier).setMode(next);
       },
+    );
+  }
+}
+
+class _ChangePasswordSection extends ConsumerStatefulWidget {
+  const _ChangePasswordSection();
+
+  @override
+  ConsumerState<_ChangePasswordSection> createState() => _ChangePasswordSectionState();
+}
+
+class _ChangePasswordSectionState extends ConsumerState<_ChangePasswordSection> {
+  static final _passwordPattern = RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)');
+  final _current = TextEditingController();
+  final _next = TextEditingController();
+  final _confirm = TextEditingController();
+  bool _saving = false;
+  bool _emailPending = false;
+  String? _error;
+  String? _message;
+
+  @override
+  void dispose() {
+    _current.dispose();
+    _next.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _error = null;
+      _message = null;
+    });
+    if (_next.text != _confirm.text) {
+      setState(() => _error = 'New passwords do not match.');
+      return;
+    }
+    if (_next.text.length < 8 || !_passwordPattern.hasMatch(_next.text)) {
+      setState(() => _error = 'Include uppercase, lowercase, and a number (8+ chars).');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await ref.read(authRepositoryProvider).changePassword(
+            currentPassword: _current.text,
+            newPassword: _next.text,
+          );
+      _current.clear();
+      _next.clear();
+      _confirm.clear();
+      if (mounted) {
+        setState(() => _message = 'Password updated. Other devices were signed out.');
+      }
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      String? msg;
+      if (data is Map) {
+        final m = data['message'];
+        if (m is String) msg = m;
+        if (m is List) msg = m.cast<String>().join(', ');
+      }
+      if (mounted) setState(() => _error = msg ?? 'Could not change password.');
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not change password.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _emailReset() async {
+    setState(() {
+      _emailPending = true;
+      _error = null;
+      _message = null;
+    });
+    try {
+      final me = await ref.read(apiClientProvider).dio.get('/users/me');
+      final email = (me.data['data'] as Map<String, dynamic>?)?['email'] as String?;
+      if (email == null || email.isEmpty) {
+        throw StateError('missing email');
+      }
+      await ref.read(authRepositoryProvider).forgotPassword(email: email);
+      if (mounted) {
+        setState(() => _message = 'If that email is registered, a reset link is on its way.');
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not start password reset.');
+    } finally {
+      if (mounted) setState(() => _emailPending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Change your password. Other sessions will be signed out.',
+          style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _current,
+          obscureText: true,
+          decoration: const InputDecoration(labelText: 'Current password'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _next,
+          obscureText: true,
+          decoration: const InputDecoration(labelText: 'New password'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _confirm,
+          obscureText: true,
+          decoration: const InputDecoration(labelText: 'Confirm new password'),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Text(_error!, style: TextStyle(color: ForgeTokens.of(context).error, fontSize: 13)),
+        ],
+        if (_message != null) ...[
+          const SizedBox(height: 8),
+          Text(_message!, style: TextStyle(color: ForgeTokens.of(context).secondary, fontSize: 13)),
+        ],
+        const SizedBox(height: 12),
+        ForgeButton(
+          label: _saving ? 'Updating…' : 'Update password',
+          onPressed: _saving || _emailPending ? null : _submit,
+        ),
+        TextButton(
+          onPressed: _saving || _emailPending ? null : _emailReset,
+          child: Text(_emailPending ? 'Sending…' : 'Email password reset link'),
+        ),
+      ],
     );
   }
 }

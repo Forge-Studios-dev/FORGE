@@ -12,6 +12,10 @@ import { addToWatchLater } from '@/lib/engage-mutations';
 import { trackVideoImpression } from '@/lib/analytics';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
+import { PopoverMenu } from '@/components/shell/PopoverMenu';
+
+const menuItemClass =
+  'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container disabled:opacity-60';
 
 export type FeedCardLayout = 'grid' | 'carousel' | 'sidebar';
 
@@ -56,7 +60,6 @@ export function FeedCard({
   const creatorName = video.user?.displayName ?? 'Creator';
   const creatorInitial = creatorName[0] ?? '?';
   const { isGuest } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [watchLaterSaved, setWatchLaterSaved] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -93,7 +96,7 @@ export function FeedCard({
 
   const showMenu = !isGuest && (layout === 'grid' || layout === 'sidebar' || layout === 'carousel');
 
-  const hideVideo = async () => {
+  const hideVideo = async (close: () => void) => {
     if (!onNotInterested || pending) return;
     setPending(true);
     try {
@@ -103,11 +106,11 @@ export function FeedCard({
       /* keep card visible on failure */
     } finally {
       setPending(false);
-      setMenuOpen(false);
+      close();
     }
   };
 
-  const muteChannel = async () => {
+  const muteChannel = async (close: () => void) => {
     if (!onDontRecommendChannel || pending) return;
     setPending(true);
     try {
@@ -117,11 +120,11 @@ export function FeedCard({
       /* keep card visible on failure */
     } finally {
       setPending(false);
-      setMenuOpen(false);
+      close();
     }
   };
 
-  const saveWatchLater = async () => {
+  const saveWatchLater = async (close: () => void) => {
     if (pending || watchLaterSaved) return;
     setPending(true);
     try {
@@ -131,11 +134,11 @@ export function FeedCard({
       /* ignore */
     } finally {
       setPending(false);
-      setMenuOpen(false);
+      close();
     }
   };
 
-  const copyLink = async () => {
+  const copyLink = async (close: () => void) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const url = `${origin}${watchHref}`;
     try {
@@ -143,7 +146,7 @@ export function FeedCard({
     } catch {
       /* ignore */
     }
-    setMenuOpen(false);
+    close();
   };
 
   return (
@@ -255,43 +258,26 @@ export function FeedCard({
               ? 'absolute right-0 top-2 z-10'
               : 'absolute right-0 top-[calc(56.25%+0.75rem)] z-10'
           }
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
         >
-          <button
-            type="button"
-            aria-label="More options"
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setMenuOpen((o) => !o);
-            }}
-            className="rounded-full p-1.5 text-on-surface-variant opacity-80 hover:bg-surface-container-high hover:text-on-surface"
+          <PopoverMenu
+            label="More options"
+            align="right"
+            panelClassName="min-w-[220px] p-1"
+            triggerClassName="rounded-full p-1.5 text-on-surface-variant opacity-80 hover:bg-surface-container-high hover:text-on-surface"
+            trigger={<Icon name="more_vert" className="text-xl" />}
           >
-            <Icon name="more_vert" className="text-xl" />
-          </button>
-          {menuOpen ? (
-            <>
-              <button
-                type="button"
-                aria-label="Close menu"
-                className="fixed inset-0 z-10 cursor-default"
-                onClick={() => setMenuOpen(false)}
-              />
-              <div
-                role="menu"
-                className="absolute right-0 z-20 mt-1 min-w-[220px] rounded-xl border border-outline-variant/30 bg-surface-container-high p-1 shadow-lg"
-              >
+            {(close) => (
+              <>
                 <button
                   type="button"
                   role="menuitem"
                   disabled={pending || watchLaterSaved}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    void saveWatchLater();
-                  }}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container disabled:opacity-60"
+                  onClick={() => void saveWatchLater(close)}
+                  className={menuItemClass}
                 >
                   <Icon name="watch_later" className="text-base" />
                   {watchLaterSaved ? 'Saved to Watch later' : 'Save to Watch later'}
@@ -299,13 +285,11 @@ export function FeedCard({
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setMenuOpen(false);
+                  onClick={() => {
+                    close();
                     setSaveOpen(true);
                   }}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container"
+                  className={menuItemClass}
                 >
                   <Icon name="playlist_add" className="text-base" />
                   Save to playlist
@@ -313,39 +297,25 @@ export function FeedCard({
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    void copyLink();
-                  }}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container"
+                  onClick={() => void copyLink(close)}
+                  className={menuItemClass}
                 >
                   <Icon name="link" className="text-base" />
                   Copy link
                 </button>
-                <div
+                <ReportContentButton
+                  targetType="video"
+                  targetId={video.id}
                   role="menuitem"
-                  className="rounded-lg px-3 py-2 hover:bg-surface-container"
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                >
-                  <ReportContentButton
-                    targetType="video"
-                    targetId={video.id}
-                    className="flex w-full items-center gap-2 text-left text-sm text-on-surface"
-                  />
-                </div>
+                  className={menuItemClass}
+                />
                 {onNotInterested ? (
                   <button
                     type="button"
                     role="menuitem"
                     disabled={pending}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void hideVideo();
-                    }}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container disabled:opacity-60"
+                    onClick={() => void hideVideo(close)}
+                    className={menuItemClass}
                   >
                     <Icon name="visibility_off" className="text-base" />
                     {pending ? 'Hiding…' : 'Not interested'}
@@ -356,20 +326,16 @@ export function FeedCard({
                     type="button"
                     role="menuitem"
                     disabled={pending}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void muteChannel();
-                    }}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container disabled:opacity-60"
+                    onClick={() => void muteChannel(close)}
+                    className={menuItemClass}
                   >
                     <Icon name="block" className="text-base" />
                     Don’t recommend channel
                   </button>
                 ) : null}
-              </div>
-            </>
-          ) : null}
+              </>
+            )}
+          </PopoverMenu>
         </div>
       ) : null}
 

@@ -57,6 +57,11 @@ const NOTIFICATION_META: Record<NotificationType, { icon: string; tone: StatusTo
 
 const DEFAULT_META = { icon: 'notifications', tone: 'neutral' as StatusTone, category: 'social' as NotificationCategory };
 
+/** LMS soft-retire: hide XP/achievement noise in YouTube-mode notification UIs. */
+export function isRetiredLmsNotification(type: NotificationType | string): boolean {
+  return type === 'achievement_unlocked' || type === 'xp_level_up';
+}
+
 export function notificationMeta(type: NotificationType | string): {
   icon: string;
   tone: StatusTone;

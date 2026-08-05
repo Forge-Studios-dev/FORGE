@@ -21,6 +21,7 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
   List<VideoModel> _videos = [];
   bool _loading = true;
   bool _error = false;
+  bool _clearing = false;
 
   String get _title => widget.kind == 'liked' ? 'Liked videos' : 'Watch later';
   String get _path =>
@@ -44,6 +45,8 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
       List list;
       if (root is Map && root['videos'] is List) {
         list = root['videos'] as List;
+      } else if (root is Map && root['items'] is List) {
+        list = root['items'] as List;
       } else if (root is Map && root['data'] is List) {
         list = root['data'] as List;
       } else if (root is List) {
@@ -78,10 +81,74 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
     }
   }
 
+  Future<void> _remove(VideoModel video) async {
+    try {
+      final client = ref.read(apiClientProvider);
+      if (widget.kind == 'liked') {
+        await client.dio.delete('/videos/${video.id}/like');
+      } else {
+        await client.dio.delete('/playlists/me/watch-later/videos/${video.id}');
+      }
+      if (!mounted) return;
+      setState(() {
+        _videos = _videos.where((v) => v.id != video.id).toList();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not remove video')),
+      );
+    }
+  }
+
+  Future<void> _clearAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Clear $_title?'),
+        content: Text('Remove all videos from $_title?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear all')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _clearing = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      if (widget.kind == 'liked') {
+        await client.dio.delete('/playlists/me/liked/videos');
+      } else {
+        await client.dio.delete('/playlists/me/watch-later/videos');
+      }
+      if (!mounted) return;
+      setState(() {
+        _videos = [];
+        _clearing = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _clearing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not clear list')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_title)),
+      appBar: AppBar(
+        title: Text(_title),
+        actions: [
+          if (_videos.isNotEmpty)
+            TextButton(
+              onPressed: _clearing ? null : _clearAll,
+              child: Text(_clearing ? 'Clearing…' : 'Clear all'),
+            ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error
@@ -106,33 +173,52 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
                       itemCount: _videos.length,
                       itemBuilder: (context, index) {
                         final video = _videos[index];
-                        return ListTile(
-                          onTap: () => context.push('/watch/${video.id}'),
-                          leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: SizedBox(
-                              width: 96,
-                              height: 54,
-                              child: video.thumbnailUrl != null
-                                  ? CachedNetworkImage(
-                                      imageUrl: video.thumbnailUrl!,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : ColoredBox(
-                                      color: ForgeTokens.of(context).surfaceContainerHigh,
-                                      child: Icon(
-                                        Icons.play_arrow,
-                                        color: ForgeTokens.of(context).onSurfaceVariant,
+                        return Dismissible(
+                          key: ValueKey(video.id),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20),
+                            color: ForgeTokens.of(context).error.withValues(alpha: 0.15),
+                            child: Icon(Icons.delete_outline, color: ForgeTokens.of(context).error),
+                          ),
+                          confirmDismiss: (_) async {
+                            await _remove(video);
+                            return false;
+                          },
+                          child: ListTile(
+                            onTap: () => context.push('/watch/${video.id}'),
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 96,
+                                height: 54,
+                                child: video.thumbnailUrl != null
+                                    ? CachedNetworkImage(
+                                        imageUrl: video.thumbnailUrl!,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : ColoredBox(
+                                        color: ForgeTokens.of(context).surfaceContainerHigh,
+                                        child: Icon(
+                                          Icons.play_arrow,
+                                          color: ForgeTokens.of(context).onSurfaceVariant,
+                                        ),
                                       ),
-                                    ),
+                              ),
+                            ),
+                            title: Text(
+                              video.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(video.user.displayName),
+                            trailing: IconButton(
+                              tooltip: 'Remove',
+                              icon: const Icon(Icons.close),
+                              onPressed: () => _remove(video),
                             ),
                           ),
-                          title: Text(
-                            video.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(video.user.displayName),
                         );
                       },
                     ),

@@ -39,6 +39,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto';
 import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
 import { ConsumeImpersonationDto } from './dto/consume-impersonation.dto';
@@ -252,6 +253,19 @@ export class AuthController {
   @ApiOperation({ summary: 'Complete password reset with token from email' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.authService.resetPassword(dto.token, dto.password);
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 3_600_000 } })
+  @ApiOperation({ summary: 'Change password while signed in (revokes other sessions)' })
+  changePassword(@CurrentUser() user: JwtPayload, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(
+      user.sub,
+      dto.currentPassword,
+      dto.newPassword,
+      user.sid,
+    );
   }
 
   @Post('verify-email/resend')

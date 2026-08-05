@@ -73,6 +73,16 @@ class AuthRepository {
     });
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _apiClient.dio.post('/auth/change-password', data: {
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
+    });
+  }
+
   Future<void> logout({bool allDevices = false}) async {
     // Revoke the push token while the access token is still valid (before the
     // session is invalidated server-side), so the device stops receiving pushes.

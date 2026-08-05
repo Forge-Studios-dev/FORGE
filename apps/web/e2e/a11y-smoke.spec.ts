@@ -142,6 +142,50 @@ test.describe('a11y smoke', () => {
     await assertNoSeriousViolations(page);
   });
 
+  test('messages guest redirect has no serious axe violations', async ({ page }) => {
+    await page.goto('/messages');
+    await expect(page.getByRole('heading', { name: /welcome back|messages/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    await assertNoSeriousViolations(page);
+  });
+
+  test('embed not-found shell has no serious axe violations', async ({ page }) => {
+    await page.goto('/embed/00000000-0000-0000-0000-000000000001');
+    await expect(
+      page.getByRole('heading', { name: /not found|unavailable|video/i }).or(page.locator('body')),
+    ).toBeVisible({ timeout: 20_000 });
+    await assertNoSeriousViolations(page);
+  });
+
+  test('unknown channel page has no serious axe violations', async ({ page }) => {
+    await page.goto('/forge-a11y-missing-channel-xyz');
+    await expect(
+      page.getByRole('heading', { name: /not found|channel|unavailable/i }).or(page.locator('main')),
+    ).toBeVisible({ timeout: 20_000 });
+    await assertNoSeriousViolations(page);
+  });
+
+  test('public playlist has no serious axe violations when one exists', async ({ page, request }) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+    let playlistId: string | null = null;
+    try {
+      const res = await request.get(`${apiBase}/search?q=a&type=playlist&limit=1`);
+      if (res.ok()) {
+        const body = (await res.json()) as {
+          data?: { playlists?: { id: string }[] };
+        };
+        playlistId = body.data?.playlists?.[0]?.id ?? null;
+      }
+    } catch {
+      /* API unavailable in some CI shards */
+    }
+    test.skip(!playlistId, 'No public playlist available for playlist axe smoke');
+    await page.goto(`/playlists/${playlistId}`);
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 20_000 });
+    await assertNoSeriousViolations(page);
+  });
+
   test('home light theme has no serious axe violations', async ({ page }) => {
     await page.addInitScript(() => {
       try {

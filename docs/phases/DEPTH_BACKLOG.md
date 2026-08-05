@@ -306,6 +306,73 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Shorts feed: mute/not-interested filters + freshness/engagement rank + creator diversity
 - Studio analytics foundation: `video.impression` beacons, `GET /analytics/studio/video-performance` (impressions / CTR / avg watch %)
 
+## Production Completion Drive (2026-08-05)
+
+- Tablist keyboard (Arrow/Home/End + roving tabindex): `CategoryFilter`, Community Panel tabs, search result-type tabs
+- `RealtimeToasts`: `role="status"` + dismiss
+- Removed empty LMS orphan route dirs (`courses`, `studio/courses`, `studio/programs`, `discover/courses`, `communities/id/[id]`)
+- Mobile onboarding: fetch `GET /categories`, persist + `PUT /users/me/interests`
+- Web unsubscribe confirm via `ConfirmDialog` on `SubscribeChannelControl`
+- Playlist service unit tests: unlisted create/find, update, reorder
+- Axe smoke: messages guest redirect, embed shell, unknown channel, playlist (skip-if-empty)
+- Guest critical chrome e2e: search type tablist keyboard; home category tabindex
+- Vitest: `SubscribeChannelControl.test.tsx` (subscribe + confirm unsubscribe)
+
+## Manage subscriptions + LMS notif soft-hide (2026-08-05)
+
+- Own `/[username]/subscriptions` Manage list: per-channel `SubscribeChannelControl` (notify + unsubscribe)
+- Hide LMS-era `achievement_unlocked` / `xp_level_up` in web notifications page/menu + mobile notifications list
+
+## Library hygiene + search history + FeedCard a11y (2026-08-05)
+
+- Liked remove via playlist DELETE (unlikes + likeCount sync); Watch later / Liked **Clear all** API + web/mobile UI
+- SearchSuggest: local recent searches + Clear (localStorage)
+- FeedCard overflow → `PopoverMenu` (Arrow/Home/End keyboard)
+- Studio Create menu → `PopoverMenu` keyboard parity
+
+## Manage subs mobile + watch hide + Shorts menus (2026-08-05)
+
+- Mobile own subscriptions list: Manage title + per-channel notify/unsubscribe (confirm)
+- Watch: Not interested / Don’t recommend channel overflow (home after action)
+- Shorts more + subscribe notify → `PopoverMenu`
+- Vitest: `search-history.test.ts`
+- `SubscribeChannelControl` notify menu → shared `PopoverMenu` (last hand-rolled menu)
+
+## Mobile search history + LMS chrome + password UI test (2026-08-05)
+
+- Mobile Explore: recent searches via Hive `LocalCache` + Clear; removed LMS “Core disciplines” grid
+- Studio live title placeholder → YouTube-tone stream copy
+- Vitest: `PasswordResetSettings` mismatch + happy path
+
+## Depth polish / bugfix (2026-08-05)
+
+- Mobile search history: remember on submit/chip only (not debounce prefixes)
+- FeedCard/Shorts Report: `role="menuitem"` on button (no nested interactive)
+- Shorts + mobile manage: load saved `notifyLevel` from subscription API
+- Flutter unit: `search_history_storage_test.dart`
+- Studio live: “Stream title” placeholder
+
+## A11y keyboard follow-on (2026-08-05)
+
+- Comments sort Top/Newest/Oldest → tablist + Arrow/Home/End
+- Search `FilterChipRow` → radiogroup + Arrow/Home/End roving tabindex
+- `PopoverMenu` ArrowUp/Down/Home/End for `role="menu"`
+- Subscribe notify menu: focus first item + Arrow/Home/End
+
+## In-app change-password (2026-08-05)
+
+- `POST /auth/change-password` — verifies current password, hashes new, revokes other sessions (keeps current `sid`)
+- Web `/profile/settings` Security: current + new + confirm + email reset fallback
+- Mobile Settings Security section (same API + email reset)
+- Unit coverage in `auth.service.spec.ts` (changePassword)
+
+## Unsubscribe confirm parity (2026-08-05 cont.)
+
+- Web Shorts rail: `ConfirmDialog` before unsubscribe (matches `SubscribeChannelControl`)
+- Mobile watch / Shorts / profile: `AlertDialog` before unsubscribe
+- Home feed For you / Subscriptions: tablist keyboard + roving tabindex
+- E2E: home feed tablist smoke in `critical-chrome.spec.ts`
+
 ## Still open
 
 | Area | Item | Owner |
@@ -313,7 +380,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Ops | Staging soak per load-test runbook | Operator |
 | Launch | Env secrets, Mux/Stripe webhooks; Mux signing keys for private/unlisted | Operator |
 | Launch | DB migrations **185–197 applied** to Neon (2026-08-04) via TypeORM | Done |
-| Ship | Review + merge `feature/youtube-replica-wave-1` (do not push straight to `main`) | Operator |
+| Ship | Commit depth-drive working tree on `feature/youtube-replica-wave-1`, open PR → `main` (do not push straight to `main`) | Operator |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
 | Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |
 | Analytics | Studio details page uses `topVideos` (impressions/CTR/watch %); SQL uses `watched_at` | Done (2026-08-04) |
@@ -324,5 +391,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Legal | Kids / Restricted Mode / made-for-kids | Product + legal |
 | Monetization | Ad breaks / VAST | Product + partners |
 
-Prefer small focused PRs over another full Master pass. Remaining Master phases 09–24 are documented as verified/complete for the shipped codebase; execute [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) before merge to `main`.
+Prefer small focused PRs over another full Master pass. **Viewer/creator YouTube-parity eng depth on this branch is complete** for the Production Completion Drive; remaining Master phases 09–24 are documented as verified/complete for the shipped codebase. Execute [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) before merge to `main`.
+
+### Ship handoff (operator)
+
+1. Run [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) on staging.
+2. Confirm Mux/Stripe webhooks + signing keys for private/unlisted.
+3. Open/merge PR from `feature/youtube-replica-wave-1` → `main` (do not push straight to `main`). Batch the uncommitted depth-drive work into one reviewable PR first if still local.
+4. Product-deferred: ML recs, downloads, Kids Mode, ad breaks — not blocking viewer/creator core loop.
 

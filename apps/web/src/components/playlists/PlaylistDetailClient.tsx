@@ -45,6 +45,22 @@ export function PlaylistDetailClient({ playlistId }: { playlistId: string }) {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['playlist', playlistId] }),
   });
 
+  const clearMutation = useMutation({
+    mutationFn: async (systemType: 'watch_later' | 'liked') => {
+      if (systemType === 'liked') {
+        await api.delete('/playlists/me/liked/videos');
+        return;
+      }
+      await api.delete('/playlists/me/watch-later/videos');
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['playlist', playlistId] });
+      void qc.invalidateQueries({ queryKey: ['playlists', 'me'] });
+      void qc.invalidateQueries({ queryKey: ['playlist-liked'] });
+      void qc.invalidateQueries({ queryKey: ['playlist-watch-later'] });
+    },
+  });
+
   const reorderMutation = useMutation({
     mutationFn: (videoIds: string[]) =>
       api.put(`/playlists/${playlistId}/reorder`, { videoIds }),
@@ -297,6 +313,27 @@ export function PlaylistDetailClient({ playlistId }: { playlistId: string }) {
                   : 'Public'}
             </span>
           )}
+          {isOwner && !isGuest && isSystem && items.length > 0 ? (
+            <button
+              type="button"
+              disabled={clearMutation.isPending}
+              onClick={() => {
+                const label =
+                  playlist.systemType === 'liked' ? 'Liked videos' : 'Watch later';
+                if (
+                  typeof window !== 'undefined' &&
+                  window.confirm(`Remove all videos from ${label}?`)
+                ) {
+                  clearMutation.mutate(
+                    playlist.systemType === 'liked' ? 'liked' : 'watch_later',
+                  );
+                }
+              }}
+              className="rounded-full border border-error/40 px-4 py-2 text-sm font-semibold text-error hover:bg-error/10 disabled:opacity-50"
+            >
+              {clearMutation.isPending ? 'Clearing…' : 'Clear all'}
+            </button>
+          ) : null}
           {isOwner && !isGuest && !isSystem ? (
             <button
               type="button"
@@ -394,13 +431,19 @@ export function PlaylistDetailClient({ playlistId }: { playlistId: string }) {
                   </button>
                 </div>
               ) : null}
-              {isOwner && !isGuest && playlist.systemType !== 'liked' ? (
+              {isOwner && !isGuest ? (
                 <button
                   type="button"
                   disabled={removeMutation.isPending}
                   onClick={() => removeMutation.mutate(item.videoId)}
                   className="shrink-0 rounded-full p-2 text-on-surface-variant hover:bg-surface-container-highest hover:text-error"
-                  aria-label="Remove from playlist"
+                  aria-label={
+                    playlist.systemType === 'liked'
+                      ? 'Remove from Liked videos'
+                      : playlist.systemType === 'watch_later'
+                        ? 'Remove from Watch later'
+                        : 'Remove from playlist'
+                  }
                 >
                   <Icon name="close" />
                 </button>

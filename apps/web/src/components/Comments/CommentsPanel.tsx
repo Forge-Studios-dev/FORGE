@@ -679,28 +679,63 @@ export function CommentsPanel({
           Comments{' '}
           <span className="text-lg font-normal text-on-surface-variant">{formatCount(count)}</span>
         </h3>
-        <div className="flex gap-1 rounded-full bg-surface-container-high p-1" role="group" aria-label="Sort comments">
+        <div
+          className="flex gap-1 rounded-full bg-surface-container-high p-1"
+          role="tablist"
+          aria-label="Sort comments"
+          aria-orientation="horizontal"
+        >
           {(
             [
               { id: 'top' as const, label: 'Top' },
               { id: 'newest' as const, label: 'Newest' },
               { id: 'oldest' as const, label: 'Oldest' },
             ] as const
-          ).map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setSort(opt.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                sort === opt.id
-                  ? 'bg-primary text-on-primary'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-              aria-pressed={sort === opt.id}
-            >
-              {opt.label}
-            </button>
-          ))}
+          ).map((opt, i, arr) => {
+            const selected = sort === opt.id;
+            const focusSort = (index: number) => {
+              const next = arr[(index + arr.length) % arr.length];
+              const btn = document.getElementById(`comment-sort-${next.id}`);
+              btn?.focus();
+              setSort(next.id);
+            };
+            return (
+              <button
+                key={opt.id}
+                id={`comment-sort-${opt.id}`}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => setSort(opt.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    focusSort(i + 1);
+                  }
+                  if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    focusSort(i - 1);
+                  }
+                  if (e.key === 'Home') {
+                    e.preventDefault();
+                    focusSort(0);
+                  }
+                  if (e.key === 'End') {
+                    e.preventDefault();
+                    focusSort(arr.length - 1);
+                  }
+                }}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  selected
+                    ? 'bg-primary text-on-primary'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

@@ -88,6 +88,14 @@ export class PlaylistsController {
     return this.playlistsService.addToWatchLater(user.sub, dto.videoId);
   }
 
+  @Delete('me/watch-later/videos')
+  @Permissions(Permission.USE_LIBRARY)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear all videos from Watch later' })
+  clearWatchLater(@CurrentUser() user: JwtPayload) {
+    return this.playlistsService.clearWatchLater(user.sub);
+  }
+
   @Delete('me/watch-later/videos/:videoId')
   @Permissions(Permission.USE_LIBRARY)
   @HttpCode(HttpStatus.OK)
@@ -108,6 +116,14 @@ export class PlaylistsController {
       PlaylistSystemType.LIKED,
       user.sub,
     );
+  }
+
+  @Delete('me/liked/videos')
+  @Permissions(Permission.USE_LIBRARY)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear Liked videos (unlike all on the Liked shelf)' })
+  clearLiked(@CurrentUser() user: JwtPayload) {
+    return this.playlistsService.clearLikedVideos(user.sub);
   }
 
   @Public()

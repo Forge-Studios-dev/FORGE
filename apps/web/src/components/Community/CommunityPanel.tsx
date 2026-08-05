@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, EmptyState, Icon, Input } from '@forge/design-system';
 import { SocketEvents } from '@forge/shared-types';
@@ -103,7 +103,19 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
+  const viewTabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const viewTabs = [
+    { id: 'posts' as const, label: 'Posts' },
+    { id: 'polls' as const, label: 'Polls' },
+    { id: 'engage' as const, label: 'Rooms' },
+  ];
   const isCreator = user?.id === creatorId;
+
+  function focusViewTab(index: number) {
+    const tab = viewTabs[(index + viewTabs.length) % viewTabs.length];
+    viewTabRefs.current[tab.id]?.focus();
+    setView(tab.id);
+  }
 
   const { data: myMembership } = useQuery({
     queryKey: ['membership-me', creatorId],
@@ -311,34 +323,49 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
           onDismiss={() => undefined}
         />
       ) : null}
-      <div className="flex gap-2" role="tablist" aria-label="Community sections">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === 'posts'}
-          onClick={() => setView('posts')}
-          className={`rounded-full px-4 py-1.5 text-sm ${view === 'posts' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
-        >
-          Posts
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === 'polls'}
-          onClick={() => setView('polls')}
-          className={`rounded-full px-4 py-1.5 text-sm ${view === 'polls' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
-        >
-          Polls
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === 'engage'}
-          onClick={() => setView('engage')}
-          className={`rounded-full px-4 py-1.5 text-sm ${view === 'engage' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
-        >
-          Rooms
-        </button>
+      <div
+        className="flex gap-2"
+        role="tablist"
+        aria-label="Community sections"
+        aria-orientation="horizontal"
+      >
+        {viewTabs.map((tab, i) => {
+          const selected = view === tab.id;
+          return (
+            <button
+              key={tab.id}
+              ref={(el) => {
+                viewTabRefs.current[tab.id] = el;
+              }}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => setView(tab.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowRight') {
+                  e.preventDefault();
+                  focusViewTab(i + 1);
+                }
+                if (e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  focusViewTab(i - 1);
+                }
+                if (e.key === 'Home') {
+                  e.preventDefault();
+                  focusViewTab(0);
+                }
+                if (e.key === 'End') {
+                  e.preventDefault();
+                  focusViewTab(viewTabs.length - 1);
+                }
+              }}
+              className={`rounded-full px-4 py-1.5 text-sm ${selected ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
       {(communityLive ?? []).length > 0 ? (
         <div className="glass-panel space-y-2 rounded-xl border border-primary/30 p-4">

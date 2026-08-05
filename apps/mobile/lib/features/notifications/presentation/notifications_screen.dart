@@ -139,7 +139,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       if (cursor != null) params['cursor'] = cursor;
       final res = await api.dio.get('/notifications', queryParameters: params);
       final payload = res.data['data'] as Map<String, dynamic>;
-      final data = payload['data'] as List<dynamic>? ?? [];
+      final data = (payload['data'] as List<dynamic>? ?? [])
+          .where((raw) {
+            final type = (raw as Map)['type']?.toString();
+            return type != 'achievement_unlocked' && type != 'xp_level_up';
+          })
+          .toList();
       final meta = payload['meta'] as Map<String, dynamic>? ?? {};
       if (!mounted) return;
       setState(() {

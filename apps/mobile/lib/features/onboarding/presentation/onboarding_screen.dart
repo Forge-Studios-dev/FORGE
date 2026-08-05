@@ -1,40 +1,48 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/topic_chip.dart';
 import '../data/onboarding_storage.dart';
 
-const _interestOptions = <String>[
-  'Music',
-  'Coding',
-  'Design',
-  'Fitness',
-  'Cooking',
-  'Photography',
-  'Business',
-  'Language',
-  'Art',
-  'Writing',
-  'Gaming',
-  'Finance',
-];
-
 const _maxInterests = 5;
 
-/// Three-screen, first-run onboarding: value prop, live + community, then an
-/// interest picker (reusing [TopicChip]) so the feed can be personalized.
-/// Shown once per signed-in user — see the onboarding gate in
-/// `core/router/app_router.dart`.
-class OnboardingScreen extends StatefulWidget {
+class _CategoryOption {
+  final String id;
+  final String name;
+  const _CategoryOption({required this.id, required this.name});
+}
+
+final onboardingCategoriesProvider =
+    FutureProvider.autoDispose<List<_CategoryOption>>((ref) async {
+  final client = ref.read(apiClientProvider);
+  final res = await client.dio.get('/categories');
+  final list = res.data['data'] as List<dynamic>? ?? [];
+  return list
+      .map((e) {
+        final m = e as Map<String, dynamic>;
+        final id = m['id']?.toString() ?? '';
+        final name = m['name']?.toString() ?? '';
+        if (id.isEmpty || name.isEmpty) return null;
+        return _CategoryOption(id: id, name: name);
+      })
+      .whereType<_CategoryOption>()
+      .toList();
+});
+
+/// Three-screen, first-run onboarding: value prop, subscribe, then interest
+/// picker seeded from `GET /categories` and synced via `PUT /users/me/interests`.
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _pageController = PageController();
   int _page = 0;
   final Set<String> _selected = {};
@@ -61,7 +69,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (_finishing) return;
     setState(() => _finishing = true);
     try {
-      await saveOnboardingInterests(_selected.toList());
+      await saveOnboardingInterests(
+        _selected.toList(),
+        apiClient: ref.read(apiClientProvider),
+      );
       await markOnboardingComplete();
     } finally {
       if (mounted) {
@@ -70,18 +81,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void _toggleInterest(String label) {
+  void _toggleInterest(String id) {
     setState(() {
-      if (_selected.contains(label)) {
-        _selected.remove(label);
+      if (_selected.contains(id)) {
+        _selected.remove(id);
       } else if (_selected.length < _maxInterests) {
-        _selected.add(label);
+        _selected.add(id);
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final categoriesAsync = ref.watch(onboardingCategoriesProvider);
     final canFinish = _page != 2 || _selected.isNotEmpty;
     return Scaffold(
       backgroundColor: ForgeTokens.of(context).background,
@@ -122,6 +134,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   _InterestPickerSlide(
                     selected: _selected,
                     onToggle: _toggleInterest,
+                    categoriesAsync: categoriesAsync,
                   ),
                 ],
               ),
@@ -216,8 +229,13 @@ class _OnboardingSlide extends StatelessWidget {
 class _InterestPickerSlide extends StatelessWidget {
   final Set<String> selected;
   final void Function(String) onToggle;
+  final AsyncValue<List<_CategoryOption>> categoriesAsync;
 
-  const _InterestPickerSlide({required this.selected, required this.onToggle});
+  const _InterestPickerSlide({
+    required this.selected,
+    required this.onToggle,
+    required this.categoriesAsync,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -227,7 +245,7 @@ class _InterestPickerSlide extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            'What do you want to learn?',
+            'What are you into?',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 22,
@@ -242,31 +260,42 @@ class _InterestPickerSlide extends StatelessWidget {
             style: TextStyle(fontSize: 14, color: ForgeTokens.of(context).onSurfaceVariant),
           ),
           const SizedBox(height: 24),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 10,
-            runSpacing: 10,
-            children: _interestOptions.map((label) {
-              final isSelected = selected.contains(label);
-              return GestureDetector(
-                onTap: () => onToggle(label),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: isSelected ? ForgeTokens.of(context).primary : Colors.transparent,
-                      width: 2,
+          categoriesAsync.when(
+            loading: () => Text(
+              'Loading categories…',
+              style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+            ),
+            error: (_, __) => Text(
+              'Could not load categories. Skip or try again later.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+            ),
+            data: (categories) => Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 10,
+              runSpacing: 10,
+              children: categories.map((cat) {
+                final isSelected = selected.contains(cat.id);
+                return GestureDetector(
+                  onTap: () => onToggle(cat.id),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: isSelected ? ForgeTokens.of(context).primary : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                    child: Opacity(
+                      opacity: isSelected ? 1 : 0.6,
+                      child: TopicChip(label: cat.name),
                     ),
                   ),
-                  child: Opacity(
-                    opacity: isSelected ? 1 : 0.6,
-                    child: TopicChip(label: label),
-                  ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
+            ),
           ),
         ],
       ),

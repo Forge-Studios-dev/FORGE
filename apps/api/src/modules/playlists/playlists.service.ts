@@ -15,6 +15,8 @@ import { PlaylistVideo } from './entities/playlist-video.entity';
 import { Video } from '../content/entities/video.entity';
 import { Like, VideoReactionType } from '../engagement/entities/like.entity';
 
+const LIKED_CLEAR_BATCH = 200;
+
 @Injectable()
 export class PlaylistsService {
   constructor(
@@ -238,11 +240,46 @@ export class PlaylistsService {
       throw new ForbiddenException('Cannot modify another user’s playlist');
     }
     if (playlist.systemType === PlaylistSystemType.LIKED) {
-      throw new BadRequestException('Unlike the video to remove it from Liked videos');
+      return this.removeLikedVideo(requesterId, videoId);
     }
 
     await this.playlistVideoRepository.delete({ playlistId, videoId });
     return { ok: true };
+  }
+
+  /** Unlike a video (Liked playlist remove). Keeps likeCount in sync. */
+  async removeLikedVideo(userId: string, videoId: string) {
+    const like = await this.likeRepository.findOne({
+      where: { userId, videoId, reaction: VideoReactionType.LIKE },
+    });
+    if (like) {
+      await this.likeRepository.remove(like);
+      await this.videoRepository.decrement({ id: videoId }, 'likeCount', 1);
+    }
+    return { ok: true };
+  }
+
+  async clearWatchLater(userId: string) {
+    const playlist = await this.getOrCreateSystemPlaylist(
+      userId,
+      PlaylistSystemType.WATCH_LATER,
+    );
+    await this.playlistVideoRepository.delete({ playlistId: playlist.id });
+    return { ok: true };
+  }
+
+  /** Remove all likes (Liked videos clear). Caps at recent Liked shelf size. */
+  async clearLikedVideos(userId: string) {
+    const likes = await this.likeRepository.find({
+      where: { userId, reaction: VideoReactionType.LIKE },
+      order: { createdAt: 'DESC' },
+      take: LIKED_CLEAR_BATCH,
+    });
+    for (const like of likes) {
+      await this.likeRepository.remove(like);
+      await this.videoRepository.decrement({ id: like.videoId }, 'likeCount', 1);
+    }
+    return { ok: true, cleared: likes.length };
   }
 
   async reorder(

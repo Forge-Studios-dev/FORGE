@@ -427,7 +427,26 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                       tooltip: 'Subscription options',
                       onSelected: (value) async {
                         if (value == 'unsubscribe') {
-                          await _toggleFollow();
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Unsubscribe?'),
+                              content: const Text(
+                                'You will stop receiving updates from this channel.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Unsubscribe'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (ok == true) await _toggleFollow();
                         } else {
                           await _setNotify(value);
                         }

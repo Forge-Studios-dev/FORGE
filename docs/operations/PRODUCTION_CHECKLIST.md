@@ -30,11 +30,13 @@ Use before promoting a release to production (`main`).
 
 ## Quality
 
-- [ ] `npm install` then targeted API tests (`billing`, `mux-vod`, `search`, diversity)
-- [ ] Smoke: home feed, watch (speed/theater/Thanks), subscribe, Studio upload/captions/Super Thanks, live create, admin login
+- [ ] `npm install` then targeted API tests (`billing`, `mux-vod`, `search`, diversity, `playlists.service.spec`, `auth.service` changePassword)
+- [ ] Web vitest: `SubscribeChannelControl`, `PasswordResetSettings`, `search-history`
+- [ ] Flutter: `test/unit/search_history_storage_test.dart`
+- [ ] Smoke: home feed, watch (speed/theater/Thanks + Not interested), subscribe notify bell, Shorts menus, Studio upload/captions/Super Thanks, live create, admin login
+- [ ] Smoke: Library Liked/Watch later remove + Clear all; TopBar search recent history; Manage subscriptions (web + mobile); change password in profile settings
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
-- [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke
-
+- [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback
 
 - [ ] Health endpoint green (DB/Redis)

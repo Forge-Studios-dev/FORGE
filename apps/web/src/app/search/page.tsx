@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useRef, useState } from 'react';
 import { EmptyState, FeedGridSkeleton, Icon, Input, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -139,17 +139,55 @@ function FilterChipRow<T extends string>({
   value: T;
   onChange: (next: T) => void;
 }) {
+  const refs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  function focusOption(index: number) {
+    const opt = options[(index + options.length) % options.length];
+    refs.current[opt.value]?.focus();
+    onChange(opt.value);
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={label}>
-      <span className="font-label-caps mr-1 text-outline">{label}</span>
-      {options.map((f) => {
+    <div
+      className="flex flex-wrap items-center gap-2"
+      role="radiogroup"
+      aria-label={label}
+      aria-orientation="horizontal"
+    >
+      <span className="font-label-caps mr-1 text-outline" id={`${label}-legend`}>
+        {label}
+      </span>
+      {options.map((f, i) => {
         const active = value === f.value;
         return (
           <button
             key={f.value}
+            ref={(el) => {
+              refs.current[f.value] = el;
+            }}
             type="button"
-            aria-pressed={active}
+            role="radio"
+            aria-checked={active}
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(f.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                focusOption(i + 1);
+              }
+              if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                focusOption(i - 1);
+              }
+              if (e.key === 'Home') {
+                e.preventDefault();
+                focusOption(0);
+              }
+              if (e.key === 'End') {
+                e.preventDefault();
+                focusOption(options.length - 1);
+              }
+            }}
             className={`rounded-full px-3 py-1 text-sm ${
               active
                 ? 'bg-on-surface text-surface'
@@ -414,6 +452,7 @@ function SearchPageContent() {
       ? watchedParam
       : 'any';
   const [input, setInput] = useState(q);
+  const typeTabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const pushSearch = (next: Partial<SearchQuery> & { q?: string }) => {
     router.push(
@@ -458,16 +497,48 @@ function SearchPageContent() {
 
       {q.length >= 2 ? (
         <div className="mb-8 space-y-3">
-          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Result type">
-            {TYPE_FILTERS.map((f) => {
+          <div
+            className="flex flex-wrap gap-2"
+            role="tablist"
+            aria-label="Result type"
+            aria-orientation="horizontal"
+          >
+            {TYPE_FILTERS.map((f, i) => {
               const active = type === f.value;
+              const focusTypeTab = (index: number) => {
+                const tab = TYPE_FILTERS[(index + TYPE_FILTERS.length) % TYPE_FILTERS.length];
+                typeTabRefs.current[tab.value]?.focus();
+                pushSearch({ type: tab.value });
+              };
               return (
                 <button
                   key={f.value}
+                  ref={(el) => {
+                    typeTabRefs.current[f.value] = el;
+                  }}
                   type="button"
                   role="tab"
                   aria-selected={active}
+                  tabIndex={active ? 0 : -1}
                   onClick={() => pushSearch({ type: f.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowRight') {
+                      e.preventDefault();
+                      focusTypeTab(i + 1);
+                    }
+                    if (e.key === 'ArrowLeft') {
+                      e.preventDefault();
+                      focusTypeTab(i - 1);
+                    }
+                    if (e.key === 'Home') {
+                      e.preventDefault();
+                      focusTypeTab(0);
+                    }
+                    if (e.key === 'End') {
+                      e.preventDefault();
+                      focusTypeTab(TYPE_FILTERS.length - 1);
+                    }
+                  }}
                   className={`rounded-full px-4 py-1.5 text-sm ${
                     active
                       ? 'bg-on-surface text-surface'

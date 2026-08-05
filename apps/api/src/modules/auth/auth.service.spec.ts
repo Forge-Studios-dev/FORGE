@@ -28,6 +28,7 @@ describe('AuthService', () => {
     save: jest.fn(),
     update: jest.fn(),
     findOne: jest.fn(),
+    find: jest.fn().mockResolvedValue([]),
   };
   const resetRepoMock = {
     save: jest.fn(),
@@ -150,6 +151,43 @@ describe('AuthService', () => {
     const svc = await setupService();
     await svc.forgotPassword('missing@example.com');
     expect(resetRepoMock.save).not.toHaveBeenCalled();
+  });
+
+  describe('changePassword', () => {
+    it('updates the hash and revokes other sessions', async () => {
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.hash('OldPass1a', 4);
+      userRepoMock.findOne.mockResolvedValue({ id: 'u1', passwordHash: hash });
+      userRepoMock.save.mockImplementation(async (u: unknown) => u);
+      refreshRepoMock.find.mockResolvedValue([{ id: 'keep' }, { id: 'other' }]);
+      refreshRepoMock.update.mockResolvedValue({});
+      const svc = await setupService();
+      const result = await svc.changePassword('u1', 'OldPass1a', 'NewPass1a', 'keep');
+      expect(result).toEqual({ ok: true });
+      expect(userRepoMock.save).toHaveBeenCalled();
+      expect(refreshRepoMock.update).toHaveBeenCalledWith('other', { revoked: true });
+      expect(refreshRepoMock.update).not.toHaveBeenCalledWith('keep', { revoked: true });
+    });
+
+    it('rejects an incorrect current password', async () => {
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.hash('OldPass1a', 4);
+      userRepoMock.findOne.mockResolvedValue({ id: 'u1', passwordHash: hash });
+      const svc = await setupService();
+      await expect(svc.changePassword('u1', 'WrongPass1a', 'NewPass1a')).rejects.toThrow(
+        /Current password is incorrect/,
+      );
+    });
+
+    it('rejects when new password matches current', async () => {
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.hash('SamePass1a', 4);
+      userRepoMock.findOne.mockResolvedValue({ id: 'u1', passwordHash: hash });
+      const svc = await setupService();
+      await expect(svc.changePassword('u1', 'SamePass1a', 'SamePass1a')).rejects.toThrow(
+        /must be different/,
+      );
+    });
   });
 
   it('refreshWithToken rotates opaque refresh token', async () => {

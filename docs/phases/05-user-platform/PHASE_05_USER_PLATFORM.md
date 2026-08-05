@@ -14,7 +14,7 @@
 | OAuth `next` return | Present |
 | **Avatar upload in settings** | Present — `AvatarUploadSettings` |
 | **Banner upload in settings** | **Wired** — `BannerUploadSettings` (presign API already existed) |
-| **Password reset from settings** | Present — email reset link via forgot-password |
+| **Password reset from settings** | Present — in-app change-password + email reset link via forgot-password |
 | Channel links / website | Present |
 
 ## Deferred

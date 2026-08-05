@@ -148,13 +148,13 @@ export default function StudioLivePage() {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Session title (min 3 characters)"
+              placeholder="Stream title (min 3 characters)"
               className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-3 outline-none focus:border-primary"
             />
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What will you teach live?"
+              placeholder="Tell viewers about your stream"
               rows={3}
               className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-3 outline-none focus:border-primary"
             />
