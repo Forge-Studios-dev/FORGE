@@ -479,6 +479,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile Home: Playlists shelf + Community post previews
 - Web channel Home: Playlists shelf; `getUserPlaylists` falls back to `/users/:id/playlists`
 
+## Channel Community owner pin/delete (2026-08-06)
+
+- Mobile + web: owner Pin/Unpin + Delete on channel Community posts
+
 ## Still open
 
 | Area | Item | Owner |

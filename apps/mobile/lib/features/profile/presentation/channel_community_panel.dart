@@ -284,6 +284,7 @@ class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
                   _PostCard(
                     post: post,
                     creatorId: widget.creatorId,
+                    isOwner: widget.isOwner,
                     likeBusy: _likeBusy.contains(post['id']),
                     onLike: () => _toggleLike(post),
                   ),
@@ -306,12 +307,14 @@ class _PostCard extends ConsumerStatefulWidget {
   const _PostCard({
     required this.post,
     required this.creatorId,
+    required this.isOwner,
     required this.onLike,
     required this.likeBusy,
   });
 
   final Map<String, dynamic> post;
   final String creatorId;
+  final bool isOwner;
   final VoidCallback onLike;
   final bool likeBusy;
 
@@ -323,6 +326,7 @@ class _PostCardState extends ConsumerState<_PostCard> {
   bool _expanded = false;
   bool _loadingComments = false;
   bool _postingComment = false;
+  bool _pinBusy = false;
   List<Map<String, dynamic>> _comments = [];
   final _commentCtrl = TextEditingController();
   String? _replyToId;
@@ -331,6 +335,57 @@ class _PostCardState extends ConsumerState<_PostCard> {
   void dispose() {
     _commentCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _togglePin() async {
+    final postId = widget.post['id'] as String?;
+    final communityId = widget.post['communityId'] as String?;
+    if (postId == null || communityId == null || _pinBusy) return;
+    final next = widget.post['isPinned'] != true;
+    setState(() => _pinBusy = true);
+    try {
+      await ref.read(apiClientProvider).dio.post(
+        '/creators/me/communities/$communityId/posts/$postId/pin',
+        data: {'isPinned': next},
+      );
+      ref.invalidate(channelPostsProvider(widget.creatorId));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update pin')),
+      );
+    } finally {
+      if (mounted) setState(() => _pinBusy = false);
+    }
+  }
+
+  Future<void> _deletePost() async {
+    final postId = widget.post['id'] as String?;
+    final communityId = widget.post['communityId'] as String?;
+    if (postId == null || communityId == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete post?'),
+        content: const Text('This community post will be removed.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(apiClientProvider).dio.delete(
+            '/creators/me/communities/$communityId/posts/$postId',
+          );
+      ref.invalidate(channelPostsProvider(widget.creatorId));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete post')),
+      );
+    }
   }
 
   Future<void> _toggleExpand() async {
@@ -421,10 +476,34 @@ class _PostCardState extends ConsumerState<_PostCard> {
               'Pinned',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: t.onSurfaceVariant),
             ),
-          Text(
-            author?['displayName'] as String? ??
-                (author?['username'] != null ? '@${author!['username']}' : 'Creator'),
-            style: TextStyle(fontWeight: FontWeight.w600, color: t.onSurface),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  author?['displayName'] as String? ??
+                      (author?['username'] != null ? '@${author!['username']}' : 'Creator'),
+                  style: TextStyle(fontWeight: FontWeight.w600, color: t.onSurface),
+                ),
+              ),
+              if (widget.isOwner)
+                PopupMenuButton<String>(
+                  onSelected: (v) {
+                    if (v == 'pin') _togglePin();
+                    if (v == 'delete') _deletePost();
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'pin',
+                      enabled: !_pinBusy,
+                      child: Text(pinned ? 'Unpin' : 'Pin to top'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete'),
+                    ),
+                  ],
+                ),
+            ],
           ),
           if (created != null)
             Text(

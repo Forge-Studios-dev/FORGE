@@ -113,6 +113,26 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
     },
   });
 
+  const pin = useMutation({
+    mutationFn: async ({ post, isPinned }: { post: ChannelPost; isPinned: boolean }) => {
+      await api.post(`/creators/me/communities/${post.communityId}/posts/${post.id}/pin`, {
+        isPinned,
+      });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['channel-posts', creatorId] });
+    },
+  });
+
+  const removePost = useMutation({
+    mutationFn: async (post: ChannelPost) => {
+      await api.delete(`/creators/me/communities/${post.communityId}/posts/${post.id}`);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['channel-posts', creatorId] });
+    },
+  });
+
   const expandedCommunityId =
     (data?.data ?? []).find((p) => p.id === expandedPostId)?.communityId ?? null;
 
@@ -299,6 +319,35 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
                         {post.community.name}
                       </Link>
                     </>
+                  ) : null}
+                  {isOwner && isCreator ? (
+                    <span className="ml-auto flex gap-2">
+                      <button
+                        type="button"
+                        disabled={pin.isPending}
+                        onClick={() =>
+                          pin.mutate({ post, isPinned: !post.isPinned })
+                        }
+                        className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                      >
+                        {post.isPinned ? 'Unpin' : 'Pin'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={removePost.isPending}
+                        onClick={() => {
+                          if (
+                            typeof window !== 'undefined' &&
+                            window.confirm('Delete this community post?')
+                          ) {
+                            removePost.mutate(post);
+                          }
+                        }}
+                        className="text-xs font-medium text-error hover:underline disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </span>
                   ) : null}
                 </div>
                 {post.title ? (
