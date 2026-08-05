@@ -1,9 +1,12 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
+import '../../../shared/models/video.dart';
+import '../../history/data/history_repository.dart';
 
 final libraryUnreadCountProvider = FutureProvider.autoDispose<int>((ref) async {
   try {
@@ -61,6 +64,7 @@ class LibraryScreen extends ConsumerWidget {
           data: (c) => c,
           orElse: () => (watchLater: null, liked: null, playlists: null),
         );
+    final continueWatching = ref.watch(continueWatchingProvider);
 
     String shelfSubtitle(String fallback, int? count) {
       if (count == null) return fallback;
@@ -83,6 +87,46 @@ class LibraryScreen extends ConsumerWidget {
           Text(
             'History, playlists, and your channel',
             style: TextStyle(color: t.onSurfaceVariant),
+          ),
+          continueWatching.when(
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+            data: (videos) {
+              if (videos.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Continue watching',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: t.onSurface,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => context.push('/history'),
+                        child: const Text('See all'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 118,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: videos.length.clamp(0, 12),
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (_, i) => _ContinueWatchTile(video: videos[i]),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
           ForgeCard(
@@ -176,6 +220,67 @@ class LibraryScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ContinueWatchTile extends StatelessWidget {
+  const _ContinueWatchTile({required this.video});
+
+  final VideoModel video;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
+    final progress = video.viewerProgressSeconds ?? 0;
+    final duration = video.durationSeconds ?? 0;
+    final ratio = duration > 0 ? (progress / duration).clamp(0.0, 1.0) : 0.0;
+
+    return InkWell(
+      onTap: () {
+        final tSec = progress > 0 ? '?t=$progress' : '';
+        context.push('/watch/${video.id}$tSec');
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 168,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                height: 84,
+                width: 168,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    video.thumbnailUrl != null
+                        ? CachedNetworkImage(imageUrl: video.thumbnailUrl!, fit: BoxFit.cover)
+                        : ColoredBox(color: t.surfaceContainerHighest),
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: LinearProgressIndicator(
+                        value: ratio,
+                        minHeight: 3,
+                        backgroundColor: Colors.black26,
+                        color: t.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              video.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: t.onSurface),
+            ),
+          ],
+        ),
       ),
     );
   }

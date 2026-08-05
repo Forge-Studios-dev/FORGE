@@ -226,7 +226,13 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: Text(
+          GoRouterState.of(context).uri.path.startsWith('/studio/branding')
+              ? 'Customize channel'
+              : 'Settings',
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

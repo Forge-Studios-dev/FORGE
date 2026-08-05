@@ -261,6 +261,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/studio/channel-points', redirect: (_, __) => '/studio'),
       GoRoute(path: '/studio/mentorship', redirect: (_, __) => '/studio'),
       GoRoute(path: '/studio/settings', builder: (_, __) => const StudioSettingsScreen()),
+      GoRoute(path: '/studio/branding', builder: (_, __) => const ProfileSettingsScreen()),
       GoRoute(path: '/studio/copilot', redirect: (_, __) => '/studio'),
       GoRoute(path: '/profile/settings', builder: (_, __) => const ProfileSettingsScreen()),
       GoRoute(path: '/settings/memberships', builder: (_, __) => const MyMembershipsScreen()),

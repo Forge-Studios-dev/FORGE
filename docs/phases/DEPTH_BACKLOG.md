@@ -507,6 +507,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - `/studio/attention` from `GET /creators/me/attention` (counts + inbox); Studio home badge
 - Attention comment items deep-link to `/watch/:id?lc=` (web + mobile highlight)
 
+## Mobile Studio branding + Library continue watching (2026-08-06)
+
+- `/studio/branding` → channel customize (profile settings); Studio home/settings links
+- Library You: Continue watching shelf; CW filter ≥5s progress (web parity)
+
 ## Still open
 
 | Area | Item | Owner |

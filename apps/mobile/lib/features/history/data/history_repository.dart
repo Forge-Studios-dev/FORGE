@@ -13,7 +13,9 @@ final historyRepositoryProvider = Provider<HistoryRepository>((ref) {
 /// Incomplete / in-progress watches for continue watching (requires auth).
 final continueWatchingProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) async {
   try {
-    return await ref.read(historyRepositoryProvider).getContinueWatching(limit: 12);
+    final videos = await ref.read(historyRepositoryProvider).getContinueWatching(limit: 12);
+    // Match web ContinueWatching: skip tiny progress blips.
+    return videos.where((v) => (v.viewerProgressSeconds ?? 0) >= 5).toList();
   } catch (_) {
     return [];
   }

@@ -259,6 +259,7 @@ class StudioScreen extends ConsumerWidget {
           _link(context, 'Memberships', 'Configure tiers', Icons.workspace_premium, '/studio/tiers'),
           _link(context, 'Members', 'Manage channel memberships', Icons.people, '/studio/subscribers'),
           _zoneLabel(context, 'Channel'),
+          _link(context, 'Customize channel', 'Name, about, banner & links', Icons.palette_outlined, '/studio/branding'),
           _link(context, 'Settings', 'Customization', Icons.settings, '/studio/settings'),
         ],
       ),

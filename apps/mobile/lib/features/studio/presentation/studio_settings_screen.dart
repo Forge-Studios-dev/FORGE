@@ -60,6 +60,38 @@ class StudioSettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             ForgeCard(
+              onTap: () => context.push('/studio/branding'),
+              child: Row(
+                children: [
+                  Icon(Icons.palette_outlined, color: ForgeTokens.of(context).primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Customize channel',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: ForgeTokens.of(context).onSurface,
+                          ),
+                        ),
+                        Text(
+                          'Name, about, banner, avatar, and links',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: ForgeTokens.of(context).onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            ForgeCard(
               onTap: () => context.push('/studio/attention'),
               child: Row(
                 children: [
