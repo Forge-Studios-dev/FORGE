@@ -391,6 +391,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Watch comments Delete/Remove; Studio comments Remove
 - End live stream; Studio cancel upload; upload progress banner cancel
 - Studio subscribers Suspend membership
+- Settings memberships: cancel / cancel-at-period-end / tier change
 
 ## Still open
 

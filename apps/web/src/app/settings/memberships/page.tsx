@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button, PageHeader } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { getApiErrorMessage } from '@/lib/api-message';
 import { trackEvent } from '@/lib/analytics';
@@ -40,6 +41,8 @@ function TierChangeSelect({
   onChanged: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [pendingTierId, setPendingTierId] = useState<string | null>(null);
+  const [pendingMessage, setPendingMessage] = useState('');
 
   const { data: tiers } = useQuery({
     queryKey: ['creator-tiers', subscription.creatorId],
@@ -60,6 +63,7 @@ function TierChangeSelect({
       return data.data;
     },
     onSuccess: (result) => {
+      setPendingTierId(null);
       // The backend either applies an immediate (prorated) tier change or, when a
       // new checkout is required, returns a hosted checkout URL — follow it.
       if (result?.checkoutUrl) {
@@ -89,46 +93,65 @@ function TierChangeSelect({
   };
 
   return (
-    <label className="mt-2 block text-xs">
-      <span className="text-on-surface-variant">Change tier</span>
-      <select
-        className="mt-1 w-full rounded-lg border border-outline-variant/30 bg-surface-container-high px-2 py-1.5 text-sm disabled:opacity-60"
-        defaultValue=""
-        disabled={changeMutation.isPending}
-        onChange={(e) => {
-          const tierId = e.target.value;
-          if (!tierId) return;
-          const target = otherTiers.find((t) => t.id === tierId);
-          const isUpgrade = !!currentTier && !!target && target.priceCents > currentTier.priceCents;
-          const message = isUpgrade
-            ? 'Upgrade now? Your card is charged a prorated amount immediately and access updates right away.'
-            : 'Change your tier? Billing is adjusted on your subscription and access updates accordingly.';
-          if (window.confirm(message)) {
+    <div className="mt-2 text-xs">
+      <label className="block">
+        <span className="text-on-surface-variant">Change tier</span>
+        <select
+          className="mt-1 w-full rounded-lg border border-outline-variant/30 bg-surface-container-high px-2 py-1.5 text-sm disabled:opacity-60"
+          defaultValue=""
+          disabled={changeMutation.isPending}
+          onChange={(e) => {
+            const tierId = e.target.value;
+            if (!tierId) return;
+            const target = otherTiers.find((t) => t.id === tierId);
+            const isUpgrade = !!currentTier && !!target && target.priceCents > currentTier.priceCents;
+            setPendingMessage(
+              isUpgrade
+                ? 'Upgrade now? Your card is charged a prorated amount immediately and access updates right away.'
+                : 'Change your tier? Billing is adjusted on your subscription and access updates accordingly.',
+            );
+            setPendingTierId(tierId);
             setError(null);
-            changeMutation.mutate(tierId);
-          }
-          e.target.value = '';
-        }}
-      >
-        <option value="">
-          {changeMutation.isPending ? 'Updating…' : 'Select new tier…'}
-        </option>
-        {otherTiers.map((t) => (
-          <option key={t.id} value={t.id}>
-            {optionLabel(t)}
+            e.target.value = '';
+          }}
+        >
+          <option value="">
+            {changeMutation.isPending ? 'Updating…' : 'Select new tier…'}
           </option>
-        ))}
-      </select>
+          {otherTiers.map((t) => (
+            <option key={t.id} value={t.id}>
+              {optionLabel(t)}
+            </option>
+          ))}
+        </select>
+      </label>
       {error ? <p className="mt-1 text-xs text-error">{error}</p> : null}
-    </label>
+      <ConfirmDialog
+        open={!!pendingTierId}
+        title="Change membership tier?"
+        description={pendingMessage}
+        confirmLabel="Confirm"
+        variant="primary"
+        onConfirm={() => {
+          if (pendingTierId) changeMutation.mutate(pendingTierId);
+        }}
+        onCancel={() => setPendingTierId(null)}
+        loading={changeMutation.isPending}
+      />
+    </div>
   );
 }
+
+type CancelConfirm =
+  | { creatorId: string; mode: 'period_end' | 'now' | 'generic' }
+  | null;
 
 export default function MembershipsPage() {
   const { user, isGuest } = useAuth();
   const qc = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [cancelConfirm, setCancelConfirm] = useState<CancelConfirm>(null);
 
   useEffect(() => {
     if (searchParams.get('billing_return') !== '1') return;
@@ -159,6 +182,7 @@ export default function MembershipsPage() {
       await api.delete(`/subscriptions/me/${creatorId}${qs}`);
     },
     onSuccess: (_data, variables) => {
+      setCancelConfirm(null);
       void trackEvent('billing.subscription_canceled', {
         creatorId: variables.creatorId,
         cancelAtPeriodEnd: !!variables.cancelAtPeriodEnd,
@@ -191,6 +215,25 @@ export default function MembershipsPage() {
       </main>
     );
   }
+
+  const cancelCopy =
+    cancelConfirm?.mode === 'period_end'
+      ? {
+          title: 'Cancel at period end?',
+          description: 'You keep access until the end of your billing period.',
+          confirmLabel: 'Cancel at period end',
+        }
+      : cancelConfirm?.mode === 'now'
+        ? {
+            title: 'Cancel membership now?',
+            description: 'You may lose access to member-only content immediately.',
+            confirmLabel: 'Cancel now',
+          }
+        : {
+            title: 'Cancel membership?',
+            description: 'You may lose access to member-only content.',
+            confirmLabel: 'Cancel membership',
+          };
 
   return (
     <main className="mx-auto max-w-2xl px-5 py-8 md:px-12">
@@ -243,15 +286,9 @@ export default function MembershipsPage() {
                       variant="ghost"
                       className="h-auto px-0 py-0 text-xs text-on-surface-variant"
                       disabled={cancelMutation.isPending}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            'Cancel at the end of your billing period? You keep access until then.',
-                          )
-                        ) {
-                          cancelMutation.mutate({ creatorId: sub.creatorId, cancelAtPeriodEnd: true });
-                        }
-                      }}
+                      onClick={() =>
+                        setCancelConfirm({ creatorId: sub.creatorId, mode: 'period_end' })
+                      }
                     >
                       Cancel at period end
                     </Button>
@@ -261,15 +298,7 @@ export default function MembershipsPage() {
                       variant="ghost"
                       className="h-auto px-0 py-0 text-xs text-error"
                       disabled={cancelMutation.isPending}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            'Cancel this membership immediately? You may lose access to member-only content.',
-                          )
-                        ) {
-                          cancelMutation.mutate({ creatorId: sub.creatorId });
-                        }
-                      }}
+                      onClick={() => setCancelConfirm({ creatorId: sub.creatorId, mode: 'now' })}
                     >
                       Cancel now
                     </Button>
@@ -279,15 +308,9 @@ export default function MembershipsPage() {
                       variant="ghost"
                       className="h-auto px-0 py-0 text-xs text-error"
                       disabled={cancelMutation.isPending}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            'Cancel this membership? You may lose access to member-only content.',
-                          )
-                        ) {
-                          cancelMutation.mutate({ creatorId: sub.creatorId });
-                        }
-                      }}
+                      onClick={() =>
+                        setCancelConfirm({ creatorId: sub.creatorId, mode: 'generic' })
+                      }
                     >
                       Cancel membership
                     </Button>
@@ -317,6 +340,22 @@ export default function MembershipsPage() {
           ) : null}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={!!cancelConfirm}
+        title={cancelCopy.title}
+        description={cancelCopy.description}
+        confirmLabel={cancelCopy.confirmLabel}
+        onConfirm={() => {
+          if (!cancelConfirm) return;
+          cancelMutation.mutate({
+            creatorId: cancelConfirm.creatorId,
+            cancelAtPeriodEnd: cancelConfirm.mode === 'period_end',
+          });
+        }}
+        onCancel={() => setCancelConfirm(null)}
+        loading={cancelMutation.isPending}
+      />
 
       <Link href="/profile/settings" className="mt-8 inline-block text-sm text-primary hover:underline">
         ← Back to settings
