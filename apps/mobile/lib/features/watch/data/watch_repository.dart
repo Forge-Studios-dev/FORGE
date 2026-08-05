@@ -123,10 +123,16 @@ class WatchRepository {
   Future<Map<String, dynamic>> createPlaylist({
     required String title,
     String visibility = 'private',
+    String? description,
   }) async {
     final res = await _client.dio.post(
       '/playlists',
-      data: {'title': title, 'visibility': visibility},
+      data: {
+        'title': title,
+        'visibility': visibility,
+        if (description != null && description.trim().isNotEmpty)
+          'description': description.trim(),
+      },
     );
     final data = res.data['data'] ?? res.data;
     if (data is Map) return Map<String, dynamic>.from(data);

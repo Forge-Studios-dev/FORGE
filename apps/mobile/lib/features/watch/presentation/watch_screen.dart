@@ -20,6 +20,7 @@ import '../../../core/widgets/forge_card.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/widgets/forge_skeleton.dart';
 import '../../../shared/models/video.dart';
+import '../../playlists/presentation/create_playlist_dialog.dart';
 import '../data/watch_repository.dart';
 import 'chapters_panel.dart';
 import 'transcript_panel.dart';
@@ -1093,43 +1094,26 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
             }
 
             Future<void> createNew() async {
-              final titleCtrl = TextEditingController();
-              final title = await showDialog<String>(
-                context: ctx,
-                builder: (dCtx) => AlertDialog(
-                  title: const Text('New playlist'),
-                  content: TextField(
-                    controller: titleCtrl,
-                    autofocus: true,
-                    decoration: const InputDecoration(hintText: 'Playlist title'),
-                  ),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Cancel')),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(dCtx, titleCtrl.text.trim()),
-                      child: const Text('Create'),
-                    ),
-                  ],
-                ),
-              );
-              titleCtrl.dispose();
-              if (title == null || title.isEmpty) return;
+              final id = await showCreatePlaylistDialog(ctx, ref);
+              if (id == null) return;
               try {
-                final created = await repo.createPlaylist(title: title);
-                final id = created['id'] as String?;
-                if (id == null) return;
                 await repo.addVideoToPlaylist(playlistId: id, videoId: videoId);
+                Map<String, dynamic> created = {'id': id, 'title': 'Playlist'};
+                try {
+                  final list = await repo.listMyPlaylists();
+                  created = list.firstWhere(
+                    (p) => p['id'] == id,
+                    orElse: () => created,
+                  );
+                } catch (_) {}
                 setModal(() {
-                  playlists = [
-                    {...created, 'title': title},
-                    ...playlists,
-                  ];
+                  playlists = [created, ...playlists.where((p) => p['id'] != id)];
                   selected.add(id);
                 });
               } catch (_) {
                 if (ctx.mounted) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('Could not create playlist')),
+                    const SnackBar(content: Text('Could not save to new playlist')),
                   );
                 }
               }

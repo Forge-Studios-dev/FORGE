@@ -526,6 +526,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Playlist detail: Search this playlist when ≥4 videos (title/channel; web parity)
 
+## Mobile Save sheet New playlist (2026-08-06)
+
+- Watch Save to playlist → shared create dialog (description + visibility) then add video
+
 ## Still open
 
 | Area | Item | Owner |
