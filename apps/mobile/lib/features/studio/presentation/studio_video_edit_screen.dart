@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +14,18 @@ const _visibilityOptions = <({String value, String label})>[
   (value: 'private', label: 'Private'),
   (value: 'followers', label: 'Subscribers only'),
   (value: 'subscribers', label: 'Members only'),
+];
+
+const _captionLanguages = <({String code, String label})>[
+  (code: 'en', label: 'English'),
+  (code: 'es', label: 'Spanish'),
+  (code: 'hi', label: 'Hindi'),
+  (code: 'pt', label: 'Portuguese'),
+  (code: 'fr', label: 'French'),
+  (code: 'de', label: 'German'),
+  (code: 'ja', label: 'Japanese'),
+  (code: 'ko', label: 'Korean'),
+  (code: 'ar', label: 'Arabic'),
 ];
 
 final studioVideoProvider =
@@ -35,11 +48,14 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
   String _visibility = 'public';
   bool _scheduleEnabled = false;
   DateTime? _scheduledAt;
+  String _captionLang = 'en';
   bool _hydrated = false;
   bool _saving = false;
   bool _busy = false;
+  bool _captionBusy = false;
   String? _error;
   String? _savedMsg;
+  String? _captionMsg;
 
   @override
   void dispose() {
@@ -202,6 +218,62 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
       setState(() => _error = 'Could not delete video.');
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _uploadCaption() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['vtt'],
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.single.path;
+    final name = result.files.single.name.toLowerCase();
+    if (path == null || !name.endsWith('.vtt')) {
+      setState(() => _captionMsg = 'Please choose a .vtt WebVTT file.');
+      return;
+    }
+    setState(() {
+      _captionBusy = true;
+      _captionMsg = null;
+      _error = null;
+    });
+    try {
+      await ref.read(studioRepositoryProvider).uploadCaption(
+            videoId: widget.videoId,
+            filePath: path,
+            language: _captionLang,
+          );
+      ref.invalidate(studioVideoProvider(widget.videoId));
+      if (!mounted) return;
+      setState(() => _captionMsg = 'Captions uploaded ($_captionLang).');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _captionMsg = 'Could not upload captions.');
+    } finally {
+      if (mounted) setState(() => _captionBusy = false);
+    }
+  }
+
+  Future<void> _clearCaption() async {
+    setState(() {
+      _captionBusy = true;
+      _captionMsg = null;
+    });
+    try {
+      await ref.read(studioRepositoryProvider).clearCaption(
+            widget.videoId,
+            language: _captionLang,
+          );
+      ref.invalidate(studioVideoProvider(widget.videoId));
+      if (!mounted) return;
+      setState(() => _captionMsg = 'Captions removed ($_captionLang).');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _captionMsg = 'Could not remove captions.');
+    } finally {
+      if (mounted) setState(() => _captionBusy = false);
     }
   }
 
@@ -376,10 +448,49 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
                 ),
               ],
               if (video.status == 'ready') ...[
+                const SizedBox(height: 24),
+                Text('Captions', style: TextStyle(fontWeight: FontWeight.w600, color: t.onSurface)),
+                const SizedBox(height: 8),
+                if (video.captionTracks.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Tracks: ${video.captionTracks.map((c) => c.language).join(', ')}',
+                      style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+                    ),
+                  ),
+                DropdownButtonFormField<String>(
+                  value: _captionLang,
+                  decoration: const InputDecoration(labelText: 'Language'),
+                  items: _captionLanguages
+                      .map((o) => DropdownMenuItem(value: o.code, child: Text(o.label)))
+                      .toList(),
+                  onChanged: _captionBusy
+                      ? null
+                      : (value) {
+                          if (value == null) return;
+                          setState(() => _captionLang = value);
+                        },
+                ),
+                const SizedBox(height: 12),
+                ForgeButton(
+                  label: _captionBusy ? 'Uploading…' : 'Upload .vtt captions',
+                  onPressed: _captionBusy || _busy || _saving ? null : _uploadCaption,
+                  primary: false,
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _captionBusy || _busy || _saving ? null : _clearCaption,
+                  child: Text('Remove $_captionLang captions'),
+                ),
+                if (_captionMsg != null) ...[
+                  const SizedBox(height: 8),
+                  Text(_captionMsg!, style: TextStyle(color: t.onSurfaceVariant)),
+                ],
                 const SizedBox(height: 12),
                 ForgeButton(
                   label: 'Delete video',
-                  onPressed: _busy || _saving ? null : _delete,
+                  onPressed: _busy || _saving || _captionBusy ? null : _delete,
                   primary: false,
                 ),
               ],

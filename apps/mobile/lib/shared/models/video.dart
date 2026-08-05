@@ -9,6 +9,8 @@ class VideoModel {
   final bool accessDenied;
   final String? accessReason;
   final String? thumbnailUrl;
+  final String? captionUrl;
+  final List<CaptionTrack> captionTracks;
   final double? durationSeconds;
   final String? videoType;
   final int? viewerProgressSeconds;
@@ -33,6 +35,8 @@ class VideoModel {
     this.accessDenied = false,
     this.accessReason,
     this.thumbnailUrl,
+    this.captionUrl,
+    this.captionTracks = const [],
     this.durationSeconds,
     this.videoType,
     this.viewerProgressSeconds,
@@ -58,6 +62,12 @@ class VideoModel {
         accessDenied: json['accessDenied'] == true,
         accessReason: json['accessReason'] as String?,
         thumbnailUrl: json['thumbnailUrl'] as String?,
+        captionUrl: json['captionUrl'] as String?,
+        captionTracks: (json['captionTracks'] as List<dynamic>? ?? [])
+            .whereType<Map>()
+            .map((e) => CaptionTrack.fromJson(Map<String, dynamic>.from(e)))
+            .where((t) => t.url.isNotEmpty)
+            .toList(),
         durationSeconds: (json['durationSeconds'] as num?)?.toDouble(),
         videoType: json['videoType'] as String?,
         viewerProgressSeconds: (json['viewerProgressSeconds'] as num?)?.toInt(),
@@ -98,6 +108,8 @@ class VideoModel {
         'accessDenied': accessDenied,
         'accessReason': accessReason,
         'thumbnailUrl': thumbnailUrl,
+        'captionUrl': captionUrl,
+        'captionTracks': captionTracks.map((e) => e.toJson()).toList(),
         'durationSeconds': durationSeconds,
         'videoType': videoType,
         'viewerProgressSeconds': viewerProgressSeconds,
@@ -110,6 +122,30 @@ class VideoModel {
         'user': user.toJson(),
         'createdAt': createdAt.toIso8601String(),
         'scheduledPublishAt': scheduledPublishAt?.toIso8601String(),
+      };
+}
+
+class CaptionTrack {
+  final String language;
+  final String label;
+  final String url;
+
+  const CaptionTrack({
+    required this.language,
+    required this.label,
+    required this.url,
+  });
+
+  factory CaptionTrack.fromJson(Map<String, dynamic> json) => CaptionTrack(
+        language: json['language'] as String? ?? 'en',
+        label: json['label'] as String? ?? '',
+        url: json['url'] as String? ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {
+        'language': language,
+        'label': label,
+        'url': url,
       };
 }
 

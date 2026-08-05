@@ -84,4 +84,35 @@ void main() {
     expect(video.scheduledPublishAt, isNotNull);
     expect(video.toJson()['visibility'], 'unlisted');
   });
+
+  test('VideoModel parses captionTracks', () {
+    final video = VideoModel.fromJson({
+      'id': 'vid-4',
+      'userId': 'user-1',
+      'title': 'Captioned',
+      'status': 'ready',
+      'captionUrl': 'https://cdn.example/en.vtt',
+      'captionTracks': [
+        {'language': 'en', 'label': 'English', 'url': 'https://cdn.example/en.vtt'},
+        {'language': 'es', 'label': 'Spanish', 'url': 'https://cdn.example/es.vtt'},
+      ],
+      'viewCount': 0,
+      'likeCount': 0,
+      'commentCount': 0,
+      'createdAt': '2026-06-04T12:00:00.000Z',
+      'user': {
+        'id': 'user-1',
+        'username': 'creator',
+        'displayName': 'Creator',
+        'role': 'creator',
+        'followerCount': 0,
+        'followingCount': 0,
+        'videoCount': 1,
+      },
+    });
+
+    expect(video.captionTracks, hasLength(2));
+    expect(video.captionTracks.first.language, 'en');
+    expect(video.toJson()['captionTracks'], isA<List>());
+  });
 }

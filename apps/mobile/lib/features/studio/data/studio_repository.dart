@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+import 'dart:io';
 import '../../../core/network/api_client.dart';
 import '../../../shared/models/video.dart';
 
@@ -53,6 +55,46 @@ class StudioRepository {
 
   Future<void> deleteVideo(String videoId) async {
     await _api.dio.delete('/videos/$videoId');
+  }
+
+  /// Presign → S3 PUT → attach WebVTT caption track for [language].
+  Future<void> uploadCaption({
+    required String videoId,
+    required String filePath,
+    required String language,
+  }) async {
+    final presignRes = await _api.dio.post(
+      '/videos/$videoId/caption/presigned-url',
+      data: {'contentType': 'text/vtt', 'language': language},
+    );
+    final data = presignRes.data['data'] as Map<String, dynamic>;
+    final uploadUrl = data['uploadUrl'] as String;
+    final publicUrl = data['publicUrl'] as String;
+
+    final put = await Dio().put(
+      uploadUrl,
+      data: await File(filePath).readAsBytes(),
+      options: Options(
+        headers: {'Content-Type': 'text/vtt'},
+        sendTimeout: const Duration(minutes: 5),
+        receiveTimeout: const Duration(minutes: 5),
+      ),
+    );
+    if (put.statusCode == null || put.statusCode! < 200 || put.statusCode! >= 300) {
+      throw StateError('Caption upload failed (${put.statusCode})');
+    }
+
+    await _api.dio.put('/videos/$videoId/caption', data: {
+      'captionUrl': publicUrl,
+      'language': language,
+    });
+  }
+
+  Future<void> clearCaption(String videoId, {required String language}) async {
+    await _api.dio.put('/videos/$videoId/caption', data: {
+      'captionUrl': null,
+      'language': language,
+    });
   }
 
   Future<Map<String, dynamic>> getMe() async {

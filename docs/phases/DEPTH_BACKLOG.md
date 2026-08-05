@@ -408,6 +408,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile Studio analytics: `GET /analytics/studio/video-performance` impressions / CTR / avg watch % + top videos
 - Boot-omit `CommunityEngagementController` when LMS flag off (with Brands/Mentorship)
 
+## Mobile Studio captions (2026-08-06)
+
+- Studio edit: upload / remove WebVTT by language (`presigned-url` + `PUT /caption`)
+- `VideoModel.captionTracks` / `captionUrl` for track list display
+
 ## Still open
 
 | Area | Item | Owner |
