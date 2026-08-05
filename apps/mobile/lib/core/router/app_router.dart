@@ -33,6 +33,7 @@ import '../../features/studio/presentation/studio_live_screen.dart';
 import '../../features/studio/presentation/studio_live_debrief_screen.dart';
 import '../../features/studio/presentation/studio_settings_screen.dart';
 import '../../features/studio/presentation/studio_analytics_screen.dart';
+import '../../features/studio/presentation/studio_super_thanks_screen.dart';
 import '../../features/studio/presentation/studio_tiers_screen.dart';
 import '../../features/studio/presentation/studio_subscribers_screen.dart';
 import '../../features/studio/presentation/studio_community_screen.dart';
@@ -221,6 +222,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => StudioLiveDebriefScreen(streamId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/studio/analytics', builder: (_, __) => const StudioAnalyticsScreen()),
+      GoRoute(path: '/studio/super-thanks', builder: (_, __) => const StudioSuperThanksScreen()),
       GoRoute(path: '/studio/tiers', builder: (_, __) => const StudioTiersScreen()),
       // Skill-economy LMS soft-retire — keep deep links from crashing; send to YouTube-parity surfaces.
       GoRoute(path: '/studio/bundles', redirect: (_, __) => '/studio/tiers'),

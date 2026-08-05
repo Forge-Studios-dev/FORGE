@@ -279,6 +279,7 @@ class StudioScreen extends StatelessWidget {
           _link(context, 'Moderation', 'Reports & trust queue', Icons.shield, '/studio/moderation'),
           _zoneLabel(context, 'Grow'),
           _link(context, 'Analytics', 'Performance insights', Icons.analytics, '/studio/analytics'),
+          _link(context, 'Super Thanks', 'Tips from viewers', Icons.volunteer_activism, '/studio/super-thanks'),
           _link(context, 'Memberships', 'Configure tiers', Icons.workspace_premium, '/studio/tiers'),
           _link(context, 'Members', 'Manage channel memberships', Icons.people, '/studio/subscribers'),
           _zoneLabel(context, 'Channel'),

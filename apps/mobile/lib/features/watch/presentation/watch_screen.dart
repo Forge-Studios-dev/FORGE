@@ -16,6 +16,7 @@ import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/widgets/forge_skeleton.dart';
 import '../../../shared/models/video.dart';
 import '../data/watch_repository.dart';
+import 'transcript_panel.dart';
 
 final videoDetailProvider = FutureProvider.family.autoDispose<VideoModel, String>((ref, id) async {
   return ref.read(watchRepositoryProvider).getVideo(id);
@@ -404,6 +405,15 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
         if (video.description != null && video.description!.isNotEmpty) ...[
           const SizedBox(height: 12),
           _ExpandableDescription(videoId: videoId, description: video.description!),
+        ],
+        if (video.captionTracks.isNotEmpty || (video.captionUrl != null && video.captionUrl!.isNotEmpty)) ...[
+          const SizedBox(height: 12),
+          TranscriptPanel(
+            video: video,
+            currentSeconds: ref.watch(watchPositionSecondsProvider(videoId)),
+            onSeek: (seconds) =>
+                ref.read(watchSeekSecondsProvider(videoId).notifier).state = seconds,
+          ),
         ],
         const SizedBox(height: 16),
         _ReportVideoButton(videoId: videoId),

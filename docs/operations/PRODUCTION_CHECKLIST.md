@@ -39,6 +39,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Mobile Studio Content — list shows processing/failed; open edit, change visibility, cancel incomplete upload
 - [ ] Smoke: Mobile schedule publish (upload + Studio edit ≥15m ahead); Studio analytics impressions/CTR/avg watch
 - [ ] Smoke: Mobile Studio captions — upload .vtt + remove track by language
+- [ ] Smoke: Mobile watch Show transcript (seek cue); Studio Super Thanks ledger
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback

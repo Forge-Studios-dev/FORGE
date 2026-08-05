@@ -413,6 +413,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Studio edit: upload / remove WebVTT by language (`presigned-url` + `PUT /caption`)
 - `VideoModel.captionTracks` / `captionUrl` for track list display
 
+## Mobile watch transcript + Super Thanks ledger (2026-08-06)
+
+- Watch: Show transcript panel (API-proxied VTT cues, seek on tap, multi-lang)
+- Shared `parseWebVtt` + unit tests
+- Studio Super Thanks ledger (`/studio/super-thanks`) wired to received tips API
+
 ## Still open
 
 | Area | Item | Owner |

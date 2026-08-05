@@ -306,4 +306,15 @@ class WatchRepository {
     final payload = res.data['data'] as Map<String, dynamic>;
     return payload['data'] as List<dynamic>? ?? [];
   }
+
+  /// Server-proxied WebVTT text for transcript UI (avoids CDN CORS on mobile).
+  Future<String> getCaptionText(String videoId, {required String language}) async {
+    final res = await _client.dio.get(
+      '/videos/$videoId/captions',
+      queryParameters: {'language': language},
+    );
+    final data = res.data['data'];
+    if (data is Map && data['text'] is String) return data['text'] as String;
+    return '';
+  }
 }
