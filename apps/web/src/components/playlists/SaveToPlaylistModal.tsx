@@ -139,6 +139,11 @@ export function SaveToPlaylistModal({ videoId, open, onClose }: Props) {
                   />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-on-surface">
                     {pl.title}
+                    {typeof pl.videoCount === 'number' ? (
+                      <span className="ml-2 font-normal text-on-surface-variant">
+                        · {pl.videoCount}
+                      </span>
+                    ) : null}
                   </span>
                   {pl.systemType === 'watch_later' ? (
                     <Icon name="watch_later" className="text-sm text-outline" />

@@ -18,6 +18,35 @@ final libraryUnreadCountProvider = FutureProvider.autoDispose<int>((ref) async {
   }
 });
 
+final libraryPlaylistCountsProvider =
+    FutureProvider.autoDispose<({int? watchLater, int? liked, int? playlists})>((ref) async {
+  try {
+    final api = ref.read(apiClientProvider);
+    final res = await api.dio.get('/playlists/me');
+    final list = res.data['data'];
+    if (list is! List) return (watchLater: null, liked: null, playlists: null);
+    int? watchLater;
+    int? liked;
+    var custom = 0;
+    for (final raw in list) {
+      if (raw is! Map) continue;
+      final p = Map<String, dynamic>.from(raw);
+      final system = p['systemType'] as String?;
+      final count = (p['videoCount'] as num?)?.toInt();
+      if (system == 'watch_later') {
+        watchLater = count;
+      } else if (system == 'liked') {
+        liked = count;
+      } else if (system == null) {
+        custom += 1;
+      }
+    }
+    return (watchLater: watchLater, liked: liked, playlists: custom);
+  } catch (_) {
+    return (watchLater: null, liked: null, playlists: null);
+  }
+});
+
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
 
@@ -28,6 +57,15 @@ class LibraryScreen extends ConsumerWidget {
           data: (c) => c,
           orElse: () => 0,
         );
+    final counts = ref.watch(libraryPlaylistCountsProvider).maybeWhen(
+          data: (c) => c,
+          orElse: () => (watchLater: null, liked: null, playlists: null),
+        );
+
+    String shelfSubtitle(String fallback, int? count) {
+      if (count == null) return fallback;
+      return '$fallback · $count';
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('You')),
@@ -85,28 +123,28 @@ class LibraryScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           ForgeCard(
             onTap: () => context.push('/playlists/me/watch-later'),
-            child: const _LibraryRow(
+            child: _LibraryRow(
               icon: Icons.watch_later_outlined,
               title: 'Watch later',
-              subtitle: 'Videos saved for later',
+              subtitle: shelfSubtitle('Videos saved for later', counts.watchLater),
             ),
           ),
           const SizedBox(height: 12),
           ForgeCard(
             onTap: () => context.push('/playlists/me/liked'),
-            child: const _LibraryRow(
+            child: _LibraryRow(
               icon: Icons.thumb_up_outlined,
               title: 'Liked videos',
-              subtitle: 'Videos you liked',
+              subtitle: shelfSubtitle('Videos you liked', counts.liked),
             ),
           ),
           const SizedBox(height: 12),
           ForgeCard(
             onTap: () => context.push('/playlists'),
-            child: const _LibraryRow(
+            child: _LibraryRow(
               icon: Icons.playlist_play,
               title: 'Playlists',
-              subtitle: 'Playlists you created or saved',
+              subtitle: shelfSubtitle('Playlists you created or saved', counts.playlists),
             ),
           ),
           const SizedBox(height: 12),
