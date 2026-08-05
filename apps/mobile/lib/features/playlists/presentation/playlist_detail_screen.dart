@@ -65,6 +65,118 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     }
   }
 
+  Future<void> _addVideos() async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final res = await api.dio.get('/videos/studio', queryParameters: {'limit': 50, 'status': 'ready'});
+      final data = res.data['data'] as Map<String, dynamic>?;
+      final list = (data?['data'] as List?) ?? [];
+      final studioVideos = list
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((v) => v['id'] is String && v['status'] == 'ready')
+          .toList();
+
+      final existing = <String>{};
+      for (final raw in (_playlist?['items'] as List?) ?? []) {
+        final item = raw as Map<String, dynamic>;
+        final video = item['video'] as Map<String, dynamic>?;
+        final id = item['videoId'] as String? ?? video?['id'] as String?;
+        if (id != null) existing.add(id);
+      }
+      final candidates = studioVideos.where((v) => !existing.contains(v['id'])).toList();
+      if (!mounted) return;
+      if (candidates.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No more ready videos to add')),
+        );
+        return;
+      }
+
+      final selected = await showModalBottomSheet<Set<String>>(
+        context: context,
+        isScrollControlled: true,
+        builder: (ctx) {
+          final picked = <String>{};
+          return StatefulBuilder(
+            builder: (ctx, setSheet) {
+              return SafeArea(
+                child: SizedBox(
+                  height: MediaQuery.of(ctx).size.height * 0.7,
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Add videos',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: picked.isEmpty
+                                  ? null
+                                  : () => Navigator.pop(ctx, picked),
+                              child: Text('Add (${picked.length})'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: candidates.length,
+                          itemBuilder: (_, i) {
+                            final v = candidates[i];
+                            final id = v['id'] as String;
+                            final checked = picked.contains(id);
+                            return CheckboxListTile(
+                              value: checked,
+                              title: Text(
+                                v['title'] as String? ?? 'Video',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onChanged: (on) {
+                                setSheet(() {
+                                  if (on == true) {
+                                    picked.add(id);
+                                  } else {
+                                    picked.remove(id);
+                                  }
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+
+      if (selected == null || selected.isEmpty || !mounted) return;
+      for (final videoId in selected) {
+        await api.dio.post(
+          '/playlists/${widget.playlistId}/videos',
+          data: {'videoId': videoId},
+        );
+      }
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not add videos')),
+        );
+      }
+    }
+  }
+
   Future<void> _editDetails() async {
     final playlist = _playlist;
     if (playlist == null) return;
@@ -182,6 +294,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         actions: [
           if (isOwner)
             IconButton(
+              tooltip: 'Add videos',
+              icon: const Icon(Icons.playlist_add),
+              onPressed: _addVideos,
+            ),
+          if (isOwner)
+            IconButton(
               tooltip: 'Edit details',
               icon: const Icon(Icons.edit_outlined),
               onPressed: _editDetails,
@@ -198,6 +316,13 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             ),
         ],
       ),
+      floatingActionButton: isOwner
+          ? FloatingActionButton.extended(
+              onPressed: _addVideos,
+              icon: const Icon(Icons.playlist_add),
+              label: const Text('Add videos'),
+            )
+          : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error || playlist == null
@@ -207,8 +332,23 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 )
               : items.isEmpty
                   ? Center(
-                      child: Text('This playlist is empty.',
-                          style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'This playlist is empty.',
+                            style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                          ),
+                          if (isOwner) ...[
+                            const SizedBox(height: 12),
+                            FilledButton.icon(
+                              onPressed: _addVideos,
+                              icon: const Icon(Icons.playlist_add),
+                              label: const Text('Add videos'),
+                            ),
+                          ],
+                        ],
+                      ),
                     )
                   : Column(
                       children: [

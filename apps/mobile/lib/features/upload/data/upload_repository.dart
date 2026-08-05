@@ -36,6 +36,8 @@ class PendingUpload {
   final String visibility;
   final String videoType;
   final String? scheduledPublishAt;
+  final String? thumbnailPath;
+  final String? thumbnailContentType;
   final bool backgrounded;
 
   const PendingUpload({
@@ -51,6 +53,8 @@ class PendingUpload {
     required this.visibility,
     this.videoType = 'video',
     this.scheduledPublishAt,
+    this.thumbnailPath,
+    this.thumbnailContentType,
     this.backgrounded = false,
   });
 
@@ -67,6 +71,8 @@ class PendingUpload {
         visibility: visibility,
         videoType: videoType,
         scheduledPublishAt: scheduledPublishAt,
+        thumbnailPath: thumbnailPath,
+        thumbnailContentType: thumbnailContentType,
         backgrounded: backgrounded ?? this.backgrounded,
       );
 
@@ -83,6 +89,8 @@ class PendingUpload {
         'visibility': visibility,
         'videoType': videoType,
         'scheduledPublishAt': scheduledPublishAt,
+        'thumbnailPath': thumbnailPath,
+        'thumbnailContentType': thumbnailContentType,
         'backgrounded': backgrounded,
       };
 
@@ -99,6 +107,8 @@ class PendingUpload {
         visibility: json['visibility'] as String,
         videoType: json['videoType'] as String? ?? 'video',
         scheduledPublishAt: json['scheduledPublishAt'] as String?,
+        thumbnailPath: json['thumbnailPath'] as String?,
+        thumbnailContentType: json['thumbnailContentType'] as String?,
         backgrounded: json['backgrounded'] as bool? ?? false,
       );
 }
@@ -126,6 +136,8 @@ class UploadRepository {
     required String visibility,
     String videoType = 'video',
     String? scheduledPublishAt,
+    String? thumbnailPath,
+    String? thumbnailContentType,
     void Function(int percent)? onProgress,
   }) async {
     final presignRes = await _client.dio.post('/videos/presigned-url', data: {
@@ -134,6 +146,15 @@ class UploadRepository {
     });
     final presign = presignRes.data['data'] as Map<String, dynamic>;
     final videoId = presign['videoId'] as String;
+
+    // Custom thumb must land while status=UPLOADING (before /complete).
+    if (thumbnailPath != null && thumbnailContentType != null) {
+      await _uploadCustomThumbnail(
+        videoId: videoId,
+        filePath: thumbnailPath,
+        contentType: thumbnailContentType,
+      );
+    }
 
     if (isMultipartPresign(presign)) {
       final partSize = presign['partSize'] as int;
@@ -154,6 +175,8 @@ class UploadRepository {
         visibility: visibility,
         videoType: videoType,
         scheduledPublishAt: scheduledPublishAt,
+        thumbnailPath: thumbnailPath,
+        thumbnailContentType: thumbnailContentType,
       ));
       await MultipartVideoUpload(_client.dio).upload(
         videoId: videoId,
@@ -216,6 +239,16 @@ class UploadRepository {
       partCount: pending.partCount,
       onProgress: onProgress,
     );
+    // Best-effort re-PUT if thumb wasn't uploaded before interrupt.
+    if (pending.thumbnailPath != null && pending.thumbnailContentType != null) {
+      try {
+        await _uploadCustomThumbnail(
+          videoId: pending.videoId,
+          filePath: pending.thumbnailPath!,
+          contentType: pending.thumbnailContentType!,
+        );
+      } catch (_) {}
+    }
     await _completeUpload(
       videoId: pending.videoId,
       title: pending.title,
@@ -249,6 +282,34 @@ class UploadRepository {
       'videoType': videoType == 'short' ? 'short' : 'video',
       if (scheduledPublishAt != null) 'scheduledPublishAt': scheduledPublishAt,
     });
+  }
+
+  Future<void> _uploadCustomThumbnail({
+    required String videoId,
+    required String filePath,
+    required String contentType,
+  }) async {
+    final allowed = {'image/jpeg', 'image/png', 'image/webp'};
+    if (!allowed.contains(contentType)) {
+      throw ArgumentError('Thumbnail must be JPEG, PNG, or WebP');
+    }
+    final presignRes = await _client.dio.post(
+      '/videos/$videoId/thumbnail/presigned-url',
+      data: {'contentType': contentType},
+    );
+    final uploadUrl = presignRes.data['data']['uploadUrl'] as String;
+    final put = await Dio().put(
+      uploadUrl,
+      data: await File(filePath).readAsBytes(),
+      options: Options(
+        headers: {'Content-Type': contentType},
+        sendTimeout: const Duration(minutes: 2),
+        receiveTimeout: const Duration(minutes: 2),
+      ),
+    );
+    if (put.statusCode == null || put.statusCode! < 200 || put.statusCode! >= 300) {
+      throw StateError('Thumbnail upload failed (${put.statusCode})');
+    }
   }
 
   Future<void> _savePendingUpload(PendingUpload pending) async {

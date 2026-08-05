@@ -57,6 +57,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   PlatformFile? _file;
+  PlatformFile? _thumbnail;
   String? _categoryId;
   final Set<String> _skillTagIds = {};
   String _visibility = 'public';
@@ -134,6 +135,39 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
     });
   }
 
+  Future<void> _pickThumbnail() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.single;
+    if (file.path == null) {
+      setState(() => _error = 'Could not read thumbnail file.');
+      return;
+    }
+    setState(() {
+      _thumbnail = file;
+      _error = null;
+    });
+  }
+
+  String? _thumbnailContentType(PlatformFile file) {
+    final ext = (file.extension ?? '').toLowerCase();
+    switch (ext) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      default:
+        return null;
+    }
+  }
+
   Future<void> _upload() async {
     if (_file?.path == null) {
       setState(() => _error = 'Select a video file first.');
@@ -168,6 +202,14 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
     });
     try {
       final type = _file!.extension == 'mov' ? 'video/quicktime' : 'video/mp4';
+      final thumbType = _thumbnail != null ? _thumbnailContentType(_thumbnail!) : null;
+      if (_thumbnail != null && thumbType == null) {
+        setState(() {
+          _uploading = false;
+          _error = 'Thumbnail must be JPEG, PNG, or WebP.';
+        });
+        return;
+      }
       final videoId = await ref.read(uploadRepositoryProvider).uploadVideo(
             filePath: _file!.path!,
             contentType: type,
@@ -180,6 +222,8 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             videoType: _videoType,
             scheduledPublishAt:
                 _scheduleEnabled && _scheduledAt != null ? _scheduledAt!.toUtc().toIso8601String() : null,
+            thumbnailPath: _thumbnail?.path,
+            thumbnailContentType: thumbType,
             onProgress: (p) {
               if (mounted) setState(() => _progress = p);
             },
@@ -312,6 +356,24 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
               icon: const Icon(Icons.video_file_outlined),
               label: Text(_file == null ? 'Choose video (MP4/MOV)' : _file!.name),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _uploading ? null : _pickThumbnail,
+              icon: const Icon(Icons.image_outlined),
+              label: Text(
+                _thumbnail == null
+                    ? 'Custom thumbnail (optional)'
+                    : _thumbnail!.name,
+              ),
+            ),
+            if (_thumbnail != null && !_uploading)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setState(() => _thumbnail = null),
+                  child: const Text('Remove thumbnail'),
+                ),
+              ),
             const SizedBox(height: 20),
             TextField(
               controller: _titleCtrl,

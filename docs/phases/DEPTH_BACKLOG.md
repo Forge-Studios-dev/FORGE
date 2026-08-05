@@ -419,6 +419,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Shared `parseWebVtt` + unit tests
 - Studio Super Thanks ledger (`/studio/super-thanks`) wired to received tips API
 
+## Mobile upload thumbnail + playlist attach (2026-08-06)
+
+- Upload: optional custom thumbnail (JPEG/PNG/WebP) via `thumbnail/presigned-url` while UPLOADING
+- Playlist detail: owner Add videos from Studio ready library (`POST /playlists/:id/videos`)
+
 ## Still open
 
 | Area | Item | Owner |
