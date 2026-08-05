@@ -298,6 +298,7 @@ class UploadRepository {
       data: {'contentType': contentType},
     );
     final uploadUrl = presignRes.data['data']['uploadUrl'] as String;
+    final publicUrl = presignRes.data['data']['publicUrl'] as String?;
     final put = await Dio().put(
       uploadUrl,
       data: await File(filePath).readAsBytes(),
@@ -309,6 +310,11 @@ class UploadRepository {
     );
     if (put.statusCode == null || put.statusCode! < 200 || put.statusCode! >= 300) {
       throw StateError('Thumbnail upload failed (${put.statusCode})');
+    }
+    if (publicUrl != null && publicUrl.isNotEmpty) {
+      await _client.dio.put('/videos/$videoId/thumbnail', data: {
+        'thumbnailUrl': publicUrl,
+      });
     }
   }
 

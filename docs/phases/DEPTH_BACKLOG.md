@@ -442,6 +442,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - `PUT /videos/:id/thumbnail` sets/clears URL (scoped to this video’s custom object)
 - Web + mobile Studio editors: Change / Clear custom thumbnail
 
+## Mobile playback speed + embed share (2026-08-06)
+
+- Watch playback speed 0.5×–2× (Hive pref `forge.watch.playbackRate`)
+- Copy link / at current time / embed iframe from watch engage row
+- Upload path finalizes custom thumb via `PUT /thumbnail` when `publicUrl` returned
+
 ## Still open
 
 | Area | Item | Owner |

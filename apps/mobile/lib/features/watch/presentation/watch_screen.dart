@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +26,19 @@ import 'transcript_panel.dart';
 
 const _autoplayPrefKey = 'forge.watch.autoplay';
 const _loopPrefKey = 'forge.watch.loop';
+const _ratePrefKey = 'forge.watch.playbackRate';
+const _playbackRates = <double>[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+double _readPreferredPlaybackRate() {
+  final raw = double.tryParse(LocalCache.read(_ratePrefKey) ?? '');
+  if (raw == null) return 1;
+  for (final r in _playbackRates) {
+    if ((r - raw).abs() < 0.01) return r;
+  }
+  return 1;
+}
+
+String _rateLabel(double rate) => rate == 1 ? 'Normal' : '${rate}×';
 
 final videoDetailProvider = FutureProvider.family.autoDispose<VideoModel, String>((ref, id) async {
   return ref.read(watchRepositoryProvider).getVideo(id);
@@ -175,6 +189,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
   bool _autoplay = true;
   bool _loopVideo = false;
   bool _loopPlaylist = false;
+  double _playbackRate = 1;
   bool _endedHandled = false;
   bool _showEndScreen = false;
   int _endCountdown = 5;
@@ -188,6 +203,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
     if (autoplayPref == '1') _autoplay = true;
     final loopPref = LocalCache.read(_loopPrefKey);
     if (loopPref == '1') _loopVideo = true;
+    _playbackRate = _readPreferredPlaybackRate();
     _loadPlaylist();
     _loadRelatedNext();
   }
@@ -224,6 +240,10 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
 
   Future<void> _persistLoop(bool value) async {
     await LocalCache.write(_loopPrefKey, value ? '1' : '0');
+  }
+
+  Future<void> _persistRate(double value) async {
+    await LocalCache.write(_ratePrefKey, value.toString());
   }
 
   void _cancelEndScreen() {
@@ -402,6 +422,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
                   videoId: videoId,
                   url: video.hlsUrl!,
                   looping: _loopVideo,
+                  playbackRate: _playbackRate,
                   onEnded: _onPlaybackEnded,
                 ),
                 if (_showEndScreen && _upNextHref != null)
@@ -551,6 +572,26 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
             _endTimer?.cancel();
             _persistLoop(v);
           },
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Playback speed', style: TextStyle(fontSize: 14)),
+          trailing: DropdownButton<double>(
+            value: _playbackRate,
+            underline: const SizedBox.shrink(),
+            items: [
+              for (final rate in _playbackRates)
+                DropdownMenuItem(
+                  value: rate,
+                  child: Text(_rateLabel(rate)),
+                ),
+            ],
+            onChanged: (rate) {
+              if (rate == null) return;
+              setState(() => _playbackRate = rate);
+              _persistRate(rate);
+            },
+          ),
         ),
         if (listId != null) ...[
           SwitchListTile.adaptive(
@@ -931,6 +972,29 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
     final base = '${AppConstants.webBaseUrl}/watch/${widget.video.id}';
     final url = pos > 0 ? '$base?t=$pos' : base;
     await Share.share('${widget.video.title}\n$url');
+  }
+
+  Future<void> _copyWatchLink({bool atTime = false}) async {
+    final pos = ref.read(watchPositionSecondsProvider(widget.video.id));
+    final base = '${AppConstants.webBaseUrl}/watch/${widget.video.id}';
+    final url = atTime && pos > 0 ? '$base?t=$pos' : base;
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(atTime && pos > 0 ? 'Link at $pos s copied' : 'Link copied')),
+    );
+  }
+
+  Future<void> _copyEmbed() async {
+    final src = '${AppConstants.webBaseUrl}/embed/${widget.video.id}';
+    final title = widget.video.title.replaceAll('"', '');
+    final snippet =
+        '<iframe width="560" height="315" src="$src" title="$title" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>';
+    await Clipboard.setData(ClipboardData(text: snippet));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Embed code copied')),
+    );
   }
 
   Future<void> _notInterested() async {
@@ -1393,6 +1457,20 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
           onPressed: _share,
           icon: const Icon(Icons.share_outlined, size: 18),
           tooltip: 'Share',
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'Copy link',
+          onSelected: (value) {
+            if (value == 'link') _copyWatchLink();
+            if (value == 'time') _copyWatchLink(atTime: true);
+            if (value == 'embed') _copyEmbed();
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(value: 'link', child: Text('Copy link')),
+            PopupMenuItem(value: 'time', child: Text('Copy link at current time')),
+            PopupMenuItem(value: 'embed', child: Text('Copy embed code')),
+          ],
+          icon: const Icon(Icons.link, size: 20),
         ),
         const SizedBox(width: 8),
         PopupMenuButton<String>(
@@ -2207,11 +2285,13 @@ class _HlsPlayerBlock extends ConsumerStatefulWidget {
   final String videoId;
   final String url;
   final bool looping;
+  final double playbackRate;
   final VoidCallback? onEnded;
   const _HlsPlayerBlock({
     required this.videoId,
     required this.url,
     this.looping = false,
+    this.playbackRate = 1,
     this.onEnded,
   });
 
@@ -2265,6 +2345,9 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
         });
       }
     }
+    if (oldWidget.playbackRate != widget.playbackRate) {
+      _video?.setPlaybackSpeed(widget.playbackRate);
+    }
   }
 
   Future<void> _bootstrap() async {
@@ -2272,6 +2355,7 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
     await vc.initialize();
     if (!mounted) return;
     await vc.setLooping(widget.looping);
+    await vc.setPlaybackSpeed(widget.playbackRate);
     vc.addListener(() {
       if (!mounted) return;
       final sec = vc.value.position.inSeconds;
