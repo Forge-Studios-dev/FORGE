@@ -19,10 +19,14 @@ final businessAnalyticsProvider = FutureProvider.autoDispose<Map<String, dynamic
   }
 });
 
-final videoPerformanceProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+final videoPerformanceProvider =
+    FutureProvider.autoDispose.family<Map<String, dynamic>?, int>((ref, days) async {
   try {
     final client = ref.read(apiClientProvider);
-    final res = await client.dio.get('/analytics/studio/video-performance');
+    final res = await client.dio.get(
+      '/analytics/studio/video-performance',
+      queryParameters: {'days': days},
+    );
     return res.data['data'] as Map<String, dynamic>?;
   } catch (_) {
     return null;
@@ -43,6 +47,7 @@ class StudioAnalyticsScreen extends ConsumerStatefulWidget {
 
 class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
   bool _exporting = false;
+  int _periodDays = 28;
 
   Future<void> _exportCsv() async {
     setState(() => _exporting = true);
@@ -68,7 +73,7 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
   Widget build(BuildContext context) {
     final videosAsync = ref.watch(studioAnalyticsProvider);
     final businessAsync = ref.watch(businessAnalyticsProvider);
-    final performanceAsync = ref.watch(videoPerformanceProvider);
+    final performanceAsync = ref.watch(videoPerformanceProvider(_periodDays));
 
     return Scaffold(
       appBar: AppBar(
@@ -78,6 +83,26 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
         actions: [
+          PopupMenuButton<int>(
+            tooltip: 'Performance window',
+            initialValue: _periodDays,
+            onSelected: (d) => setState(() => _periodDays = d),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 7, child: Text('Last 7 days')),
+              PopupMenuItem(value: 28, child: Text('Last 28 days')),
+              PopupMenuItem(value: 90, child: Text('Last 90 days')),
+            ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${_periodDays}d', style: const TextStyle(fontSize: 13)),
+                  const Icon(Icons.arrow_drop_down),
+                ],
+              ),
+            ),
+          ),
           TextButton.icon(
             onPressed: _exporting ? null : _exportCsv,
             icon: _exporting

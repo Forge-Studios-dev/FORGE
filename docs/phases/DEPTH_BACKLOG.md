@@ -587,6 +587,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile Super Thanks: Export CSV via shared `CsvExportUtil` (web parity)
 - Subscriptions feed: Manage → `/profile/:username/subscriptions`
 
+## Studio analytics period window (2026-08-06)
+
+- Web + mobile: video performance `days` selector (7 / 28 / 90) on Studio analytics
+
 ## Still open
 
 | Area | Item | Owner |

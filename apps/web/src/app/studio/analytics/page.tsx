@@ -13,6 +13,7 @@ import { CreatorCohortChart } from '@/components/Community/CreatorCohortChart';
 
 export default function StudioAnalyticsPage() {
   const { user, isCreator } = useAuth();
+  const [perfDays, setPerfDays] = useState(28);
   const { data: videos, isLoading, isError } = useQuery({
     queryKey: ['studio-analytics', user?.id],
     queryFn: async () => {
@@ -80,7 +81,7 @@ export default function StudioAnalyticsPage() {
   });
 
   const { data: videoPerformance } = useQuery({
-    queryKey: ['studio-video-performance', user?.id],
+    queryKey: ['studio-video-performance', user?.id, perfDays],
     enabled: !!user?.id && isCreator,
     queryFn: async () => {
       const { data } = await api.get<{
@@ -91,7 +92,7 @@ export default function StudioAnalyticsPage() {
           ctr: number | null;
           avgWatchPercent: number | null;
         };
-      }>('/analytics/studio/video-performance');
+      }>('/analytics/studio/video-performance', { params: { days: perfDays } });
       return data.data;
     },
   });
@@ -142,6 +143,19 @@ export default function StudioAnalyticsPage() {
         />
         <div className="flex flex-col items-end gap-2">
           <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+              Video performance
+              <select
+                value={perfDays}
+                onChange={(e) => setPerfDays(Number(e.target.value))}
+                className="rounded-lg border border-outline-variant bg-transparent px-2 py-1.5 text-sm text-on-surface"
+                aria-label="Video performance window"
+              >
+                <option value={7}>Last 7 days</option>
+                <option value={28}>Last 28 days</option>
+                <option value={90}>Last 90 days</option>
+              </select>
+            </label>
             <button
               type="button"
               onClick={() => exportMutation.mutate()}
@@ -168,7 +182,9 @@ export default function StudioAnalyticsPage() {
           <p className="font-display-forge mt-1 text-2xl font-bold text-primary">{formatCount(totalViews)}</p>
         </article>
         <article className="glass-panel rounded-2xl p-5">
-          <p className="text-sm text-on-surface-variant">Impressions (28d)</p>
+          <p className="text-sm text-on-surface-variant">
+            Impressions ({videoPerformance?.periodDays ?? perfDays}d)
+          </p>
           <p className="font-display-forge mt-1 text-2xl font-bold">
             {formatCount(videoPerformance?.impressions ?? 0)}
           </p>
