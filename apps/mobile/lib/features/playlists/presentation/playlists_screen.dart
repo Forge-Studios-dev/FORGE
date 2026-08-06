@@ -21,11 +21,20 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
   bool _loading = true;
   bool _creating = false;
   String _sort = 'recent'; // recent | az | za
+  String _visibility = ''; // '' | public | unlisted | private
+  String _query = '';
+  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -43,10 +52,22 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
   }
 
   List<Map<String, dynamic>> get _sortedItems {
-    final list = _items
+    var list = _items
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
+        .where((p) => p['systemType'] == null)
         .toList();
+    if (_visibility.isNotEmpty) {
+      list = list.where((p) => (p['visibility'] as String?) == _visibility).toList();
+    }
+    final q = _query.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      list = list.where((p) {
+        final title = ((p['title'] as String?) ?? '').toLowerCase();
+        final desc = ((p['description'] as String?) ?? '').toLowerCase();
+        return title.contains(q) || desc.contains(q);
+      }).toList();
+    }
     if (_sort == 'az') {
       list.sort((a, b) => ((a['title'] as String?) ?? '')
           .toLowerCase()
@@ -56,7 +77,6 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
           .toLowerCase()
           .compareTo(((a['title'] as String?) ?? '').toLowerCase()));
     }
-    // recent = API order
     return list;
   }
 
@@ -108,77 +128,136 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : display.isEmpty
-              ? ForgeEmptyState(
-                  icon: Icons.playlist_play,
-                  title: 'No playlists yet',
-                  description: 'Create a playlist to organize videos you love.',
-                  actionLabel: 'New playlist',
-                  onAction: _createPlaylist,
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: display.length,
-                    itemBuilder: (_, i) {
-                      final p = display[i];
-                      final visibility = p['visibility'] as String? ?? 'public';
-                      final visibilityLabel = switch (visibility) {
-                        'private' => 'Private',
-                        'unlisted' => 'Unlisted',
-                        _ => 'Public',
-                      };
-                      final count = p['videoCount'] ?? p['itemCount'];
-                      final meta = count != null ? '$visibilityLabel · $count videos' : visibilityLabel;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: ForgeCard(
-                          onTap: () => context.push('/playlists/${p['id']}'),
-                          child: Row(
-                            children: [
-                              Icon(Icons.playlist_play, color: ForgeTokens.of(context).primary, size: 28),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      p['title'] as String? ?? 'Playlist',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        color: ForgeTokens.of(context).onSurface,
-                                      ),
-                                    ),
-                                    Text(
-                                      meta,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: ForgeTokens.of(context).onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (visibility == 'private' || visibility == 'unlisted')
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: Icon(
-                                    visibility == 'private' ? Icons.lock_outline : Icons.link,
-                                    size: 16,
-                                    color: ForgeTokens.of(context).onSurfaceVariant,
-                                  ),
-                                ),
-                              Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (v) => setState(() => _query = v),
+                    decoration: InputDecoration(
+                      hintText: 'Search playlists',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _query = '');
+                              },
+                            ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
                 ),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Row(
+                    children: [
+                      for (final f in const [
+                        ('', 'All'),
+                        ('public', 'Public'),
+                        ('unlisted', 'Unlisted'),
+                        ('private', 'Private'),
+                      ]) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ChoiceChip(
+                            label: Text(f.$2),
+                            selected: _visibility == f.$1,
+                            onSelected: (_) => setState(() => _visibility = f.$1),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: display.isEmpty
+                      ? ForgeEmptyState(
+                          icon: Icons.playlist_play,
+                          title: _query.isNotEmpty || _visibility.isNotEmpty
+                              ? 'No playlists match'
+                              : 'No playlists yet',
+                          description: _query.isNotEmpty || _visibility.isNotEmpty
+                              ? 'Try a different search or visibility filter.'
+                              : 'Create a playlist to organize videos you love.',
+                          actionLabel: 'New playlist',
+                          onAction: _createPlaylist,
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _load,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: display.length,
+                            itemBuilder: (_, i) {
+                              final p = display[i];
+                              final visibility = p['visibility'] as String? ?? 'public';
+                              final visibilityLabel = switch (visibility) {
+                                'private' => 'Private',
+                                'unlisted' => 'Unlisted',
+                                _ => 'Public',
+                              };
+                              final count = p['videoCount'] ?? p['itemCount'];
+                              final meta =
+                                  count != null ? '$visibilityLabel · $count videos' : visibilityLabel;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: ForgeCard(
+                                  onTap: () => context.push('/playlists/${p['id']}'),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.playlist_play,
+                                          color: ForgeTokens.of(context).primary, size: 28),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              p['title'] as String? ?? 'Playlist',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: ForgeTokens.of(context).onSurface,
+                                              ),
+                                            ),
+                                            Text(
+                                              meta,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: ForgeTokens.of(context).onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (visibility == 'private' || visibility == 'unlisted')
+                                        Padding(
+                                          padding: const EdgeInsets.only(right: 8),
+                                          child: Icon(
+                                            visibility == 'private'
+                                                ? Icons.lock_outline
+                                                : Icons.link,
+                                            size: 16,
+                                            color: ForgeTokens.of(context).onSurfaceVariant,
+                                          ),
+                                        ),
+                                      Icon(Icons.chevron_right,
+                                          color: ForgeTokens.of(context).outline),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                ),
+              ],
+            ),
     );
   }
 }

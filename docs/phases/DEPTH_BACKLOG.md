@@ -665,6 +665,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Web + mobile Studio content: filter by upload category (`?categoryId=`)
 
+## Studio playlists management depth (2026-08-06)
+
+- Web Studio playlists: search, visibility filter, sort, description on create, edit details, delete
+- Hides system Watch later / Liked from Studio custom list
+- Mobile playlists: search + visibility chips; custom playlists only
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)
