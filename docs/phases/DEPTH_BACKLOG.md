@@ -691,6 +691,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - `GET /creators/me/attention` includes upcoming `scheduled` items + `scheduledUpcoming` count
 - Web + mobile Attention chips / Studio home badge include scheduled
 
+## Studio post-upload category edit (2026-08-06)
+
+- `PATCH /videos/:id` accepts `categoryId`; category change clears tags unless new `skillTagIds` sent
+- Web + mobile Studio video editors: category select + retag for new category
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

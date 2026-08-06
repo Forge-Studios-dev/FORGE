@@ -1433,6 +1433,17 @@ export class VideosService {
       if (typeErr) throw new BadRequestException(typeErr);
       video.videoType = dto.videoType;
     }
+    if (dto.categoryId !== undefined) {
+      const category = await this.categoryRepository.findOne({ where: { id: dto.categoryId } });
+      if (!category) throw new BadRequestException('Category not found');
+      const categoryChanged = video.categoryId !== dto.categoryId;
+      video.categoryId = category.id;
+      // Tags are category-scoped — clear them on category change unless the
+      // caller is also sending a fresh skillTagIds list for the new category.
+      if (categoryChanged && dto.skillTagIds === undefined) {
+        await this.applySkillTagUpdate(video, []);
+      }
+    }
     if (dto.skillTagIds !== undefined) {
       await this.applySkillTagUpdate(video, dto.skillTagIds);
     }

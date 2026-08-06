@@ -66,6 +66,7 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
   String? _categoryId;
   final Set<String> _skillTagIds = {};
   List<Map<String, dynamic>> _availableTags = [];
+  List<Map<String, dynamic>> _categoryOptions = [];
   bool _tagsLoading = false;
   List<Map<String, dynamic>> _myPlaylists = [];
   final Set<String> _playlistIds = {};
@@ -98,6 +99,8 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
     _hydrated = true;
     if (_categoryId != null) {
       unawaited(_loadTags(_categoryId!));
+    } else {
+      unawaited(_ensureCategoryOptions());
     }
     unawaited(_loadPlaylists());
   }
@@ -173,6 +176,7 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
           [];
       if (!mounted) return;
       setState(() {
+        _categoryOptions = cats;
         _availableTags = tags;
         _tagsLoading = false;
       });
@@ -184,6 +188,24 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
         });
       }
     }
+  }
+
+  Future<void> _ensureCategoryOptions() async {
+    if (_categoryOptions.isNotEmpty) return;
+    try {
+      final cats = await ref.read(studioRepositoryProvider).getUploadCategoryOptions();
+      if (!mounted) return;
+      setState(() => _categoryOptions = cats);
+    } catch (_) {}
+  }
+
+  Future<void> _changeCategory(String? nextId) async {
+    if (nextId == null || nextId.isEmpty) return;
+    setState(() {
+      _categoryId = nextId;
+      _skillTagIds.clear();
+    });
+    await _loadTags(nextId);
   }
 
   Future<void> _pickSchedule() async {
@@ -233,8 +255,9 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
             description: _descriptionCtrl.text,
             visibility: _visibility,
             videoType: _videoType,
+            categoryId: _categoryId,
             scheduledPublishAt: null,
-            skillTagIds: _categoryId != null && _availableTags.isNotEmpty ? _skillTagIds.toList() : null,
+            skillTagIds: _categoryId != null ? _skillTagIds.toList() : null,
           );
       _hydrated = false;
       ref.invalidate(studioVideoProvider(widget.videoId));
@@ -270,8 +293,9 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
             description: _descriptionCtrl.text,
             visibility: 'private',
             videoType: _videoType,
+            categoryId: _categoryId,
             scheduledPublishAt: null,
-            skillTagIds: _categoryId != null && _availableTags.isNotEmpty ? _skillTagIds.toList() : null,
+            skillTagIds: _categoryId != null ? _skillTagIds.toList() : null,
           );
       _hydrated = false;
       ref.invalidate(studioVideoProvider(widget.videoId));
@@ -311,9 +335,10 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
             description: _descriptionCtrl.text,
             visibility: _visibility,
             videoType: _videoType,
+            categoryId: _categoryId,
             scheduledPublishAt:
                 _scheduleEnabled && _scheduledAt != null ? _scheduledAt!.toUtc().toIso8601String() : null,
-            skillTagIds: _categoryId != null && _availableTags.isNotEmpty ? _skillTagIds.toList() : null,
+            skillTagIds: _categoryId != null ? _skillTagIds.toList() : null,
           );
       _hydrated = false;
       ref.invalidate(studioVideoProvider(widget.videoId));
@@ -662,8 +687,30 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
                 textCapitalization: TextCapitalization.sentences,
                 onChanged: (_) => setState(() {}),
               ),
+              const SizedBox(height: 16),
+              if (_categoryOptions.isNotEmpty || _categoryId != null) ...[
+                DropdownButtonFormField<String>(
+                  value: _categoryId != null &&
+                          (_categoryOptions.isEmpty ||
+                              _categoryOptions.any((c) => c['id'] == _categoryId))
+                      ? _categoryId
+                      : null,
+                  decoration: const InputDecoration(labelText: 'Category'),
+                  items: [
+                    if (_categoryOptions.isEmpty && _categoryId != null)
+                      DropdownMenuItem(value: _categoryId, child: const Text('Current category')),
+                    ..._categoryOptions.map(
+                      (c) => DropdownMenuItem(
+                        value: c['id'] as String?,
+                        child: Text(c['name'] as String? ?? 'Category'),
+                      ),
+                    ),
+                  ],
+                  onChanged: _saving || _busy ? null : (v) => _changeCategory(v),
+                ),
+                const SizedBox(height: 12),
+              ],
               if (_categoryId != null) ...[
-                const SizedBox(height: 16),
                 Text(
                   'Topic tags',
                   style: TextStyle(

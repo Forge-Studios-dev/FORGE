@@ -41,7 +41,7 @@ export class UpdateVideoDto {
 
   @ApiPropertyOptional({
     description:
-      'Replace the video\'s topic tags (empty clears tags). All tags must belong to the video\'s current category.',
+      "Replace the video's topic tags (empty clears tags). All tags must belong to the video's current category.",
     type: [String],
   })
   @IsOptional()
@@ -49,4 +49,12 @@ export class UpdateVideoDto {
   @ArrayMaxSize(20)
   @IsUUID('4', { each: true })
   skillTagIds?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Change the video category. When the category changes and skillTagIds is omitted, existing tags are cleared.',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  categoryId?: string;
 }

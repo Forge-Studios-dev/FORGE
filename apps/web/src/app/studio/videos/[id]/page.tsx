@@ -9,7 +9,7 @@ import { Icon, PageHeader, StatusPill, type StatusTone } from '@forge/design-sys
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
-import { fetchCategorySkillTags, type UploadSkillTag } from '@/lib/categories';
+import { fetchCategorySkillTags, fetchUploadOptions, type UploadCategoryOption, type UploadSkillTag } from '@/lib/categories';
 import { studioPublicPath } from '@/lib/creator-studio';
 import { DescriptionChaptersHint } from '@/components/studio/DescriptionChaptersHint';
 import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
@@ -44,6 +44,8 @@ export default function StudioVideoDetailEditorPage() {
   const [visibility, setVisibility] = useState<UploadVisibility>('public');
   const [videoType, setVideoType] = useState<'video' | 'short'>('video');
   const [schedule, setSchedule] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [categories, setCategories] = useState<UploadCategoryOption[]>([]);
   const [availableTags, setAvailableTags] = useState<UploadSkillTag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [tagsLoading, setTagsLoading] = useState(false);
@@ -89,6 +91,12 @@ export default function StudioVideoDetailEditorPage() {
   });
 
   useEffect(() => {
+    void fetchUploadOptions()
+      .then(setCategories)
+      .catch(() => setCategories([]));
+  }, []);
+
+  useEffect(() => {
     if (!video) return;
     setTitle(video.title ?? '');
     setDescription(video.description ?? '');
@@ -99,6 +107,7 @@ export default function StudioVideoDetailEditorPage() {
         ? new Date(video.scheduledPublishAt).toISOString().slice(0, 16)
         : '',
     );
+    setCategoryId(video.categoryId ?? '');
     setSelectedTagIds((video.skillTags ?? []).map((t) => t.id));
     if (video.categoryId) {
       setTagsLoading(true);
@@ -111,16 +120,29 @@ export default function StudioVideoDetailEditorPage() {
     }
   }, [video]);
 
+  const loadTagsForCategory = (nextCategoryId: string) => {
+    setCategoryId(nextCategoryId);
+    setSelectedTagIds([]);
+    if (!nextCategoryId) {
+      setAvailableTags([]);
+      return;
+    }
+    setTagsLoading(true);
+    void fetchCategorySkillTags(nextCategoryId)
+      .then(setAvailableTags)
+      .catch(() => setAvailableTags([]))
+      .finally(() => setTagsLoading(false));
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const canEditTags = !!video?.categoryId && availableTags.length > 0;
       await api.patch(`/videos/${id}`, {
         title: title.trim(),
         description: description.trim() || null,
         visibility,
         videoType,
         scheduledPublishAt: schedule ? new Date(schedule).toISOString() : null,
-        ...(canEditTags ? { skillTagIds: selectedTagIds } : {}),
+        ...(categoryId ? { categoryId, skillTagIds: selectedTagIds } : {}),
       });
     },
     onSuccess: async () => {
@@ -135,14 +157,13 @@ export default function StudioVideoDetailEditorPage() {
 
   const publishNowMutation = useMutation({
     mutationFn: async () => {
-      const canEditTags = !!video?.categoryId && availableTags.length > 0;
       await api.patch(`/videos/${id}`, {
         title: title.trim() || video?.title,
         description: description.trim() || null,
         visibility,
         videoType,
         scheduledPublishAt: null,
-        ...(canEditTags ? { skillTagIds: selectedTagIds } : {}),
+        ...(categoryId ? { categoryId, skillTagIds: selectedTagIds } : {}),
       });
     },
     onSuccess: async () => {
@@ -319,7 +340,7 @@ export default function StudioVideoDetailEditorPage() {
     );
   }
 
-  const canEditTags = !!video.categoryId && availableTags.length > 0;
+  const canEditTags = !!categoryId;
   const hasFutureSchedule =
     !!schedule ||
     (!!video.scheduledPublishAt && new Date(video.scheduledPublishAt).getTime() > Date.now());
@@ -329,7 +350,7 @@ export default function StudioVideoDetailEditorPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title="Video detail editor"
-          subtitle="Update title, visibility, schedule, and tags for this video."
+          subtitle="Update title, visibility, category, schedule, and tags for this video."
         />
         <div className="flex flex-wrap gap-3 text-sm">
           <Link href="/studio/videos" className="text-primary hover:underline">
@@ -480,38 +501,75 @@ export default function StudioVideoDetailEditorPage() {
           </div>
 
           {canEditTags ? (
-            <div>
-              <p className="mb-2 text-sm text-on-surface-variant">Topic tags</p>
-              {tagsLoading ? (
-                <p className="text-sm text-on-surface-variant">Loading tags…</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {availableTags.map((tag) => {
-                    const active = selectedTagIds.includes(tag.id);
-                    return (
-                      <button
-                        key={tag.id}
-                        type="button"
-                        onClick={() =>
-                          setSelectedTagIds((prev) =>
-                            prev.includes(tag.id)
-                              ? prev.filter((t) => t !== tag.id)
-                              : [...prev, tag.id],
-                          )
-                        }
-                        className={`rounded-full border px-3 py-1.5 text-xs ${
-                          active
-                            ? 'border-primary bg-primary/15 text-on-surface'
-                            : 'border-outline-variant/40 text-on-surface-variant'
-                        }`}
-                      >
-                        {tag.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+            <div className="space-y-3">
+              <label className="block text-sm text-on-surface-variant">
+                Category
+                <select
+                  value={categoryId}
+                  onChange={(e) => loadTagsForCategory(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-2.5 text-sm"
+                >
+                  {categories.length === 0 ? (
+                    <option value={categoryId}>Current category</option>
+                  ) : null}
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div>
+                <p className="mb-2 text-sm text-on-surface-variant">Topic tags</p>
+                {tagsLoading ? (
+                  <p className="text-sm text-on-surface-variant">Loading tags…</p>
+                ) : availableTags.length === 0 ? (
+                  <p className="text-sm text-on-surface-variant">No tags for this category.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {availableTags.map((tag) => {
+                      const active = selectedTagIds.includes(tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() =>
+                            setSelectedTagIds((prev) =>
+                              prev.includes(tag.id)
+                                ? prev.filter((t) => t !== tag.id)
+                                : [...prev, tag.id],
+                            )
+                          }
+                          className={`rounded-full border px-3 py-1.5 text-xs ${
+                            active
+                              ? 'border-primary bg-primary/15 text-on-surface'
+                              : 'border-outline-variant/40 text-on-surface-variant'
+                          }`}
+                        >
+                          {tag.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
+          ) : categories.length > 0 ? (
+            <label className="block text-sm text-on-surface-variant">
+              Category
+              <select
+                value=""
+                onChange={(e) => loadTagsForCategory(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-2.5 text-sm"
+              >
+                <option value="">Select a category</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           ) : null}
 
           {(video.status === 'ready' || video.status === 'processing') && (

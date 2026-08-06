@@ -80,6 +80,7 @@ class StudioRepository {
     String? description,
     required String visibility,
     String? videoType,
+    String? categoryId,
     String? scheduledPublishAt,
     List<String>? skillTagIds,
   }) async {
@@ -88,6 +89,7 @@ class StudioRepository {
       'description': (description ?? '').trim().isEmpty ? null : description!.trim(),
       'visibility': visibility,
       if (videoType != null) 'videoType': videoType,
+      if (categoryId != null) 'categoryId': categoryId,
       'scheduledPublishAt': scheduledPublishAt,
       if (skillTagIds != null) 'skillTagIds': skillTagIds,
     });
