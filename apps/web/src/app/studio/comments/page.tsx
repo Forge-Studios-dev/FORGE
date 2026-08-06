@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { EmptyState, ListSkeleton, PageHeader } from '@forge/design-system';
+import { useMemo, useState } from 'react';
+import { EmptyState, Icon, Input, ListSkeleton, PageHeader } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
 import { getRecentCommentsOnMyVideos } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
@@ -11,12 +11,22 @@ import { api } from '@/lib/api';
 import { timeAgo } from '@/lib/utils';
 import { getApiErrorMessage } from '@/lib/api-message';
 
+type CommentFilter = 'all' | 'pinned' | 'hearted';
+
+const FILTERS: { id: CommentFilter; label: string }[] = [
+  { id: 'all', label: 'Published' },
+  { id: 'pinned', label: 'Pinned' },
+  { id: 'hearted', label: 'Hearted' },
+];
+
 export default function StudioCommentsPage() {
   const { user, isCreator } = useAuth();
   const qc = useQueryClient();
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<CommentFilter>('all');
   const [removeTarget, setRemoveTarget] = useState<{ videoId: string; commentId: string } | null>(
     null,
   );
@@ -27,8 +37,33 @@ export default function StudioCommentsPage() {
     enabled: !!user?.id && isCreator,
   });
 
+  const filtered = useMemo(() => {
+    const list = data ?? [];
+    const q = query.trim().toLowerCase();
+    return list.filter((c) => {
+      if (filter === 'pinned' && !c.isPinned) return false;
+      if (filter === 'hearted' && !c.creatorHearted) return false;
+      if (!q) return true;
+      const content = (c.content ?? '').toLowerCase();
+      const title = (c.videoTitle ?? '').toLowerCase();
+      const username = (c.user?.username ?? '').toLowerCase();
+      const display = (c.user?.displayName ?? '').toLowerCase();
+      return (
+        content.includes(q) || title.includes(q) || username.includes(q) || display.includes(q)
+      );
+    });
+  }, [data, filter, query]);
+
   const replyMutation = useMutation({
-    mutationFn: async ({ videoId, parentId, content }: { videoId: string; parentId: string; content: string }) => {
+    mutationFn: async ({
+      videoId,
+      parentId,
+      content,
+    }: {
+      videoId: string;
+      parentId: string;
+      content: string;
+    }) => {
       await api.post(`/videos/${videoId}/comments`, { content, parentId });
     },
     onSuccess: () => {
@@ -117,10 +152,66 @@ export default function StudioCommentsPage() {
         />
       )}
 
+      {!isLoading && !isError && !!data?.length ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="relative min-w-[200px] flex-1">
+            <Icon
+              name="search"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-outline"
+            />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search comments"
+              aria-label="Search comments"
+              className="pl-10"
+            />
+          </div>
+          <div role="tablist" aria-label="Comment filters" className="flex flex-wrap gap-2">
+            {FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={filter === f.id}
+                onClick={() => setFilter(f.id)}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                  filter === f.id
+                    ? 'bg-on-surface text-surface'
+                    : 'border border-outline-variant/40 text-on-surface-variant hover:border-primary'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {!isLoading && !isError && !!data?.length && !filtered.length ? (
+        <EmptyState
+          icon="search_off"
+          title="No matching comments"
+          description={
+            query.trim() ? `Nothing matched “${query.trim()}”.` : 'No comments in this filter.'
+          }
+          action={{ label: 'Clear filters', href: '/studio/comments' }}
+          onAction={() => {
+            setQuery('');
+            setFilter('all');
+          }}
+        />
+      ) : null}
+
       <ul className="space-y-3">
-        {data?.map((c) => (
+        {filtered.map((c) => (
           <li key={c.id} className="glass-panel rounded-2xl p-4">
             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-outline">
+              {c.isPinned ? (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                  Pinned
+                </span>
+              ) : null}
               <Link href={`/watch/${c.videoId}`} className="text-primary hover:underline">
                 {c.videoTitle}
               </Link>
@@ -156,7 +247,9 @@ export default function StudioCommentsPage() {
                 ) : null}
                 <button
                   type="button"
-                  className={c.creatorHearted ? 'text-error' : 'text-on-surface-variant hover:text-error'}
+                  className={
+                    c.creatorHearted ? 'text-error' : 'text-on-surface-variant hover:text-error'
+                  }
                   disabled={heartMutation.isPending}
                   aria-label={c.creatorHearted ? 'Remove heart' : 'Heart comment'}
                   aria-pressed={!!c.creatorHearted}
