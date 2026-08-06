@@ -679,6 +679,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 ## Studio comments deep links (2026-08-06)
 
 - Web + mobile Studio comments: `?lc=` View comment; Short badge; wider ready-video sample (12 videos / 40 comments)
+- Copy comment link from Studio inbox (web + mobile)
 
 ## Interests settings + upload playlists (2026-08-06)
 

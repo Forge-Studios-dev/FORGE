@@ -35,6 +35,7 @@ export default function StudioCommentsPage() {
   const [removeTarget, setRemoveTarget] = useState<{ videoId: string; commentId: string } | null>(
     null,
   );
+  const [linkHintId, setLinkHintId] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['studio-comments', user?.id],
@@ -123,6 +124,18 @@ export default function StudioCommentsPage() {
     },
     onError: (e) => setError(getApiErrorMessage(e, 'Could not remove comment.')),
   });
+
+  const copyCommentLink = async (videoId: string, commentId: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const path = studioCommentWatchHref(videoId, commentId);
+    try {
+      await navigator.clipboard.writeText(`${origin}${path}`);
+      setLinkHintId(commentId);
+      window.setTimeout(() => setLinkHintId(null), 2000);
+    } catch {
+      setError('Could not copy comment link.');
+    }
+  };
 
   if (!isCreator) {
     return (
@@ -243,6 +256,13 @@ export default function StudioCommentsPage() {
                 >
                   View comment
                 </Link>
+                <button
+                  type="button"
+                  className="text-on-surface-variant hover:text-primary"
+                  onClick={() => void copyCommentLink(c.videoId, c.id)}
+                >
+                  {linkHintId === c.id ? 'Copied' : 'Copy link'}
+                </button>
                 {!c.parentId ? (
                   <button
                     type="button"

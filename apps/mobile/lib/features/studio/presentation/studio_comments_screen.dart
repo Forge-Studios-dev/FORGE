@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
@@ -348,6 +350,20 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
                                           ? null
                                           : () => context.push(commentHref),
                                       child: const Text('View comment'),
+                                    ),
+                                    TextButton(
+                                      onPressed: commentHref == null
+                                          ? null
+                                          : () async {
+                                              final url =
+                                                  '${AppConstants.webBaseUrl}$commentHref';
+                                              await Clipboard.setData(ClipboardData(text: url));
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Comment link copied')),
+                                              );
+                                            },
+                                      child: const Text('Copy link'),
                                     ),
                                   ],
                                 ),
