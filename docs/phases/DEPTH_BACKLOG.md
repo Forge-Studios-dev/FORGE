@@ -547,6 +547,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Studio videos: search, sort, status/visibility filters, pagination (`GET /videos/studio`)
 - Studio home Content zone: Playlists → `/playlists`
 
+## Mobile Studio topic tags edit (2026-08-06)
+
+- Studio video editor: Topic tags when video has `categoryId` (`skillTagIds` on PATCH)
+
 ## Still open
 
 | Area | Item | Owner |

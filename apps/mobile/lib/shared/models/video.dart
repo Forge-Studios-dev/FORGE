@@ -23,6 +23,8 @@ class VideoModel {
   final UserModel user;
   final DateTime createdAt;
   final DateTime? scheduledPublishAt;
+  final String? categoryId;
+  final List<SkillTagRef> skillTags;
 
   const VideoModel({
     required this.id,
@@ -49,6 +51,8 @@ class VideoModel {
     required this.user,
     required this.createdAt,
     this.scheduledPublishAt,
+    this.categoryId,
+    this.skillTags = const [],
   });
 
   factory VideoModel.fromJson(Map<String, dynamic> json) => VideoModel(
@@ -93,6 +97,12 @@ class VideoModel {
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
             DateTime.fromMillisecondsSinceEpoch(0),
         scheduledPublishAt: DateTime.tryParse(json['scheduledPublishAt'] as String? ?? ''),
+        categoryId: json['categoryId'] as String?,
+        skillTags: (json['skillTags'] as List<dynamic>? ?? [])
+            .whereType<Map>()
+            .map((e) => SkillTagRef.fromJson(Map<String, dynamic>.from(e)))
+            .where((t) => t.id.isNotEmpty)
+            .toList(),
       );
 
   /// Round-trips through [fromJson] — used for the offline cache (HIGH-07),
@@ -122,6 +132,8 @@ class VideoModel {
         'user': user.toJson(),
         'createdAt': createdAt.toIso8601String(),
         'scheduledPublishAt': scheduledPublishAt?.toIso8601String(),
+        'categoryId': categoryId,
+        'skillTags': skillTags.map((e) => e.toJson()).toList(),
       };
 }
 
@@ -147,6 +159,20 @@ class CaptionTrack {
         'label': label,
         'url': url,
       };
+}
+
+class SkillTagRef {
+  final String id;
+  final String name;
+
+  const SkillTagRef({required this.id, required this.name});
+
+  factory SkillTagRef.fromJson(Map<String, dynamic> json) => SkillTagRef(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name};
 }
 
 class UserModel {

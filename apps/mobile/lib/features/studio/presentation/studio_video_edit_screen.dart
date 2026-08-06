@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -59,6 +61,10 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
   String? _savedMsg;
   String? _captionMsg;
   String? _thumbMsg;
+  String? _categoryId;
+  final Set<String> _skillTagIds = {};
+  List<Map<String, dynamic>> _availableTags = [];
+  bool _tagsLoading = false;
 
   @override
   void dispose() {
@@ -77,7 +83,39 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
       _scheduleEnabled = true;
       _scheduledAt = scheduled.toLocal();
     }
+    _categoryId = video.categoryId;
+    _skillTagIds
+      ..clear()
+      ..addAll(video.skillTags.map((t) => t.id));
     _hydrated = true;
+    if (_categoryId != null) {
+      unawaited(_loadTags(_categoryId!));
+    }
+  }
+
+  Future<void> _loadTags(String categoryId) async {
+    setState(() => _tagsLoading = true);
+    try {
+      final cats = await ref.read(studioRepositoryProvider).getUploadCategoryOptions();
+      final match = cats.firstWhere(
+        (c) => c['id'] == categoryId,
+        orElse: () => const <String, dynamic>{},
+      );
+      final tags = (match['skillTags'] as List?)?.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() ??
+          [];
+      if (!mounted) return;
+      setState(() {
+        _availableTags = tags;
+        _tagsLoading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _availableTags = [];
+          _tagsLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _pickSchedule() async {
@@ -133,6 +171,7 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
             visibility: _visibility,
             scheduledPublishAt:
                 _scheduleEnabled && _scheduledAt != null ? _scheduledAt!.toUtc().toIso8601String() : null,
+            skillTagIds: _categoryId != null && _availableTags.isNotEmpty ? _skillTagIds.toList() : null,
           );
       _hydrated = false;
       ref.invalidate(studioVideoProvider(widget.videoId));
@@ -476,6 +515,49 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
                 textCapitalization: TextCapitalization.sentences,
                 onChanged: (_) => setState(() {}),
               ),
+              if (_categoryId != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Topic tags',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: ForgeTokens.of(context).onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_tagsLoading)
+                  Text(
+                    'Loading tags…',
+                    style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                  )
+                else if (_availableTags.isEmpty)
+                  Text(
+                    'No tags for this category.',
+                    style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: _availableTags.map((tag) {
+                      final id = tag['id'] as String? ?? '';
+                      final selected = _skillTagIds.contains(id);
+                      return FilterChip(
+                        label: Text(tag['name'] as String? ?? ''),
+                        selected: selected,
+                        onSelected: _saving || _busy
+                            ? null
+                            : (on) => setState(() {
+                                  if (on) {
+                                    _skillTagIds.add(id);
+                                  } else {
+                                    _skillTagIds.remove(id);
+                                  }
+                                }),
+                      );
+                    }).toList(),
+                  ),
+              ],
               DescriptionChaptersHint(description: _descriptionCtrl.text),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(

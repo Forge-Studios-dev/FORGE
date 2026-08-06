@@ -74,14 +74,22 @@ class StudioRepository {
     String? description,
     required String visibility,
     String? scheduledPublishAt,
+    List<String>? skillTagIds,
   }) async {
     final res = await _api.dio.patch('/videos/$videoId', data: {
       'title': title.trim(),
       'description': (description ?? '').trim().isEmpty ? null : description!.trim(),
       'visibility': visibility,
       'scheduledPublishAt': scheduledPublishAt,
+      if (skillTagIds != null) 'skillTagIds': skillTagIds,
     });
     return VideoModel.fromJson(res.data['data'] as Map<String, dynamic>);
+  }
+
+  Future<List<Map<String, dynamic>>> getUploadCategoryOptions() async {
+    final res = await _api.dio.get('/categories/upload-options');
+    final list = res.data['data'] as List? ?? [];
+    return list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
   Future<void> cancelUpload(String videoId) async {
