@@ -268,6 +268,21 @@ export class EngagementController {
     return this.engagementService.setNotifyLevel(user.sub, channelId, dto.notifyLevel);
   }
 
+  @Get('me/disliked-videos')
+  @Permissions(Permission.USE_LIBRARY)
+  @ApiOperation({ summary: 'List videos the current user disliked (Library shelf)' })
+  listDislikedVideos(@CurrentUser() user: JwtPayload, @Query('limit') limit?: number) {
+    return this.engagementService.listDislikedVideos(user.sub, clampLimit(limit, 50, 200));
+  }
+
+  @Delete('me/disliked-videos')
+  @Permissions(Permission.USE_LIBRARY)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear Disliked videos shelf (remove dislike reactions)' })
+  clearDislikedVideos(@CurrentUser() user: JwtPayload) {
+    return this.engagementService.clearDislikedVideos(user.sub);
+  }
+
   @Get('me/muted-channels')
   @Permissions(Permission.ENGAGE)
   @ApiOperation({ summary: 'List channels muted via Don’t recommend channel' })

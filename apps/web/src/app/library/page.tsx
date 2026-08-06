@@ -101,7 +101,7 @@ export default function LibraryPage() {
         </Link>
       </div>
 
-      <section className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Link
           href="/history"
           className="glass-panel flex items-center gap-3 rounded-2xl px-4 py-4 hover:border-primary/30"
@@ -136,6 +136,13 @@ export default function LibraryPage() {
               </span>
             ) : null}
           </span>
+        </Link>
+        <Link
+          href="/library/disliked"
+          className="glass-panel flex items-center gap-3 rounded-2xl px-4 py-4 hover:border-primary/30"
+        >
+          <Icon name="thumb_down" className="text-primary" />
+          <span className="font-semibold">Disliked videos</span>
         </Link>
         {user?.username ? (
           <Link

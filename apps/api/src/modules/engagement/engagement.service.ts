@@ -19,6 +19,7 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { toPublicComment } from './comment.mapper';
+import { toPublicVideo } from '../content/video.mapper';
 import { toPublicUser } from '../users/user.mapper';
 import { UserRole } from '../users/entities/user.entity';
 import {
@@ -27,6 +28,8 @@ import {
 } from '../feed/not-interested.util';
 
 const COMMENT_RATE_LIMIT_SEC = 3;
+/** Cap for Disliked videos shelf (YouTube-style private list). */
+const DISLIKED_LIST_LIMIT = 200;
 
 @Injectable()
 export class EngagementService {
@@ -61,6 +64,56 @@ export class EngagementService {
 
   async undislikeVideo(userId: string, videoId: string) {
     return this.clearVideoReaction(userId, videoId, VideoReactionType.DISLIKE);
+  }
+
+  /** Private Disliked videos shelf (Library → Disliked videos). */
+  async listDislikedVideos(userId: string, limit = 50) {
+    const take = Math.min(Math.max(Number(limit) || 50, 1), DISLIKED_LIST_LIMIT);
+    const dislikes = await this.likeRepository.find({
+      where: { userId, reaction: VideoReactionType.DISLIKE },
+      order: { createdAt: 'DESC' },
+      take,
+    });
+    const videoIds = dislikes.map((d) => d.videoId);
+    const videos =
+      videoIds.length === 0
+        ? []
+        : await this.videoRepository.find({
+            where: { id: In(videoIds) },
+            relations: ['user', 'skillTags'],
+          });
+    const byId = new Map(videos.map((v) => [v.id, v]));
+    const data = dislikes
+      .map((row) => {
+        const video = byId.get(row.videoId);
+        if (!video) return null;
+        return {
+          ...toPublicVideo(video),
+          viewerDisliked: true as const,
+          dislikedAt: row.createdAt,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x != null);
+
+    const total = await this.likeRepository.count({
+      where: { userId, reaction: VideoReactionType.DISLIKE },
+    });
+
+    return { data, meta: { total, limit: take } };
+  }
+
+  /** Clear recent Disliked shelf (batched; keeps dislikeCount in sync). */
+  async clearDislikedVideos(userId: string) {
+    const dislikes = await this.likeRepository.find({
+      where: { userId, reaction: VideoReactionType.DISLIKE },
+      order: { createdAt: 'DESC' },
+      take: DISLIKED_LIST_LIMIT,
+    });
+    for (const row of dislikes) {
+      await this.likeRepository.remove(row);
+      await this.videoRepository.decrement({ id: row.videoId }, 'dislikeCount', 1);
+    }
+    return { ok: true, cleared: dislikes.length };
   }
 
   private async setVideoReaction(

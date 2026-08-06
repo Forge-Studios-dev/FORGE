@@ -47,6 +47,7 @@ import '../../features/messages/presentation/messages_screen.dart';
 import '../../features/profile/presentation/follower_list_screen.dart';
 import '../../features/upload/presentation/upload_screen.dart';
 import '../../features/library/presentation/library_screen.dart';
+import '../../features/library/presentation/disliked_videos_screen.dart';
 import '../../features/shell/presentation/offline_screen.dart';
 import '../../features/shell/presentation/maintenance_screen.dart';
 import '../../features/shorts/presentation/shorts_screen.dart';
@@ -279,6 +280,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/playlists/me/liked',
         builder: (_, __) => const SystemPlaylistScreen(kind: 'liked'),
+      ),
+      GoRoute(
+        path: '/library/disliked',
+        builder: (_, __) => const DislikedVideosScreen(),
       ),
       GoRoute(
         path: '/playlists/:id',

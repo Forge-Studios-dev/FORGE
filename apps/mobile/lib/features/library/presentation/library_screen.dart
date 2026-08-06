@@ -210,6 +210,15 @@ class LibraryScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           ForgeCard(
+            onTap: () => context.push('/library/disliked'),
+            child: const _LibraryRow(
+              icon: Icons.thumb_down_outlined,
+              title: 'Disliked videos',
+              subtitle: 'Private list of videos you disliked',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
             onTap: () => context.push('/playlists'),
             child: _LibraryRow(
               icon: Icons.playlist_play,

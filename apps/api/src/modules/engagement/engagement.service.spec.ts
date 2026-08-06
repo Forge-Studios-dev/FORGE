@@ -20,6 +20,7 @@ describe('EngagementService', () => {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    remove: jest.fn(),
     increment: jest.fn(),
     decrement: jest.fn(),
     count: jest.fn().mockResolvedValue(0),
@@ -284,5 +285,65 @@ describe('EngagementService', () => {
     const result = await service.getComment('v1', 'c1', 'viewer');
     expect(result.id).toBe('c1');
     expect(result.replyCount).toBe(3);
+  });
+
+  it('lists disliked videos newest first with public shape', async () => {
+    const likeRepo = (service as any).likeRepository;
+    const videoRepo = (service as any).videoRepository;
+    const dislikedAt = new Date('2026-08-01');
+    likeRepo.find.mockResolvedValue([{ id: 'l1', videoId: 'v1', createdAt: dislikedAt }]);
+    likeRepo.count.mockResolvedValue(1);
+    videoRepo.find.mockResolvedValue([
+      {
+        id: 'v1',
+        userId: 'c1',
+        title: 'Nope',
+        description: null,
+        status: 'ready',
+        visibility: 'public',
+        hlsUrl: null,
+        thumbnailUrl: null,
+        captionUrl: null,
+        captionTracks: null,
+        durationSeconds: 10,
+        videoType: 'video',
+        viewCount: 1,
+        likeCount: 0,
+        dislikeCount: 1,
+        commentCount: 0,
+        skillTags: [],
+        categoryId: null,
+        createdAt: new Date(),
+        publishedAt: new Date(),
+        scheduledPublishAt: null,
+        requiredTierId: null,
+        sourceStreamId: null,
+        user: { id: 'c1', username: 'creator', displayName: 'Creator' },
+      },
+    ]);
+
+    const result = await service.listDislikedVideos('u1', 50);
+    expect(result.meta.total).toBe(1);
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].id).toBe('v1');
+    expect(result.data[0].viewerDisliked).toBe(true);
+    expect(result.data[0].dislikedAt).toEqual(dislikedAt);
+  });
+
+  it('clearDislikedVideos removes reactions and decrements counts', async () => {
+    const likeRepo = (service as any).likeRepository;
+    const videoRepo = (service as any).videoRepository;
+    likeRepo.find.mockResolvedValue([
+      { id: 'l1', videoId: 'v1' },
+      { id: 'l2', videoId: 'v2' },
+    ]);
+    likeRepo.remove.mockResolvedValue(undefined);
+    videoRepo.decrement.mockResolvedValue(undefined);
+
+    const result = await service.clearDislikedVideos('u1');
+    expect(result).toEqual({ ok: true, cleared: 2 });
+    expect(likeRepo.remove).toHaveBeenCalledTimes(2);
+    expect(videoRepo.decrement).toHaveBeenCalledWith({ id: 'v1' }, 'dislikeCount', 1);
+    expect(videoRepo.decrement).toHaveBeenCalledWith({ id: 'v2' }, 'dislikeCount', 1);
   });
 });

@@ -610,6 +610,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Web home Continue watching: remove (X) clears history item via `DELETE /users/me/watch-history/:videoId`
 - Mobile feed + Library Continue watching tiles: same remove control
 
+## Disliked videos Library shelf (2026-08-06)
+
+- API: `GET/DELETE /me/disliked-videos` (private shelf from dislike reactions)
+- Web Library tile + `/library/disliked` (search, remove, clear all)
+- Mobile Library row + `/library/disliked` screen
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)
