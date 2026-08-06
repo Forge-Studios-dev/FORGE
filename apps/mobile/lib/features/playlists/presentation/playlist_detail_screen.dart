@@ -259,6 +259,43 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     }
   }
 
+  Future<void> _deletePlaylist() async {
+    final playlist = _playlist;
+    if (playlist == null) return;
+    if (playlist['systemType'] != null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete playlist?'),
+        content: const Text('Videos themselves are not deleted — only this playlist.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final api = ref.read(apiClientProvider);
+      await api.dio.delete('/playlists/${widget.playlistId}');
+      if (!mounted) return;
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/playlists');
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete playlist')),
+        );
+      }
+    }
+  }
+
   Future<void> _moveItem(int index, int delta) async {
     final playlist = _playlist;
     if (playlist == null) return;
@@ -337,6 +374,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 final title = playlist['title'] as String? ?? 'Playlist';
                 SharePlus.instance.share(ShareParams(text: '$title\n$url'));
               },
+            ),
+          if (isOwner && playlist?['systemType'] == null)
+            IconButton(
+              tooltip: 'Delete playlist',
+              icon: Icon(Icons.delete_outline, color: ForgeTokens.of(context).error),
+              onPressed: _deletePlaylist,
             ),
         ],
       ),

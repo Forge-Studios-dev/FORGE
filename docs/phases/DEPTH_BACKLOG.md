@@ -577,6 +577,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Mobile Watch later / Liked: Play all + Shuffle with `?list=` queue (custom playlist parity)
 
+## Mobile playlist delete (2026-08-06)
+
+- Owner Delete playlist on detail (non-system; web ConfirmDialog parity)
+
 ## Still open
 
 | Area | Item | Owner |
