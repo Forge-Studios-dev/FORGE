@@ -38,6 +38,7 @@ class StudioRepository {
     String sort = 'recent',
     String? status,
     String? visibility,
+    bool scheduled = false,
     int page = 1,
     int limit = 24,
   }) async {
@@ -50,6 +51,7 @@ class StudioRepository {
     if (q != null && q.isNotEmpty) params['search'] = q;
     if (status != null && status.isNotEmpty) params['status'] = status;
     if (visibility != null && visibility.isNotEmpty) params['visibility'] = visibility;
+    if (scheduled) params['scheduled'] = 'true';
 
     final videosRes = await _api.dio.get('/videos/studio', queryParameters: params);
     final data = videosRes.data['data'] as Map<String, dynamic>;

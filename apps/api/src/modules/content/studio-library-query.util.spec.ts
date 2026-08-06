@@ -49,6 +49,14 @@ describe('buildStudioVideoFindOptions', () => {
     });
   });
 
+  it('filters to future scheduled publishes when scheduled=true', () => {
+    const opts = buildStudioVideoFindOptions('user-1', { scheduled: true });
+    expect(opts.where.userId).toBe('user-1');
+    const op = opts.where.scheduledPublishAt as FindOperator<Date>;
+    expect(op).toBeInstanceOf(FindOperator);
+    expect(op.type).toBe('moreThan');
+  });
+
   it('builds a case-insensitive title search', () => {
     const opts = buildStudioVideoFindOptions('user-1', { search: '  Guitar  ' });
     const title = opts.where.title as unknown as FindOperator<string>;

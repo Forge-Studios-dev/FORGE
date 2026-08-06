@@ -162,6 +162,7 @@ function StudioVideosPageInner() {
   const [sort, setSort] = useState<StudioVideoSort>('recent');
   const [statusFilter, setStatusFilter] = useState('');
   const [visibilityFilter, setVisibilityFilter] = useState('');
+  const [scheduledOnly, setScheduledOnly] = useState(false);
 
   const PAGE_SIZE = 30;
 
@@ -208,7 +209,7 @@ function StudioVideosPageInner() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['studio-videos', debouncedSearch, sort, statusFilter, visibilityFilter],
+    queryKey: ['studio-videos', debouncedSearch, sort, statusFilter, visibilityFilter, scheduledOnly],
     enabled: !!user?.id && isCreator,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
@@ -217,6 +218,7 @@ function StudioVideosPageInner() {
         sort,
         status: statusFilter || undefined,
         visibility: visibilityFilter || undefined,
+        scheduled: scheduledOnly || undefined,
         page: pageParam,
         limit: PAGE_SIZE,
       }),
@@ -345,6 +347,15 @@ function StudioVideosPageInner() {
             <option value="followers">Subscribers</option>
             <option value="subscribers">Members</option>
           </select>
+        </label>
+        <label className="inline-flex items-center gap-2 text-sm text-on-surface-variant">
+          <input
+            type="checkbox"
+            checked={scheduledOnly}
+            onChange={(e) => setScheduledOnly(e.target.checked)}
+            className="rounded border-outline-variant"
+          />
+          Scheduled only
         </label>
         <label className="flex items-center gap-2 text-sm text-on-surface-variant">
           Sort

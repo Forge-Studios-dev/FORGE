@@ -211,6 +211,41 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
     });
   }
 
+  Future<void> _publishNow() async {
+    final title = _titleCtrl.text.trim();
+    if (title.isEmpty) {
+      setState(() => _error = 'Title is required.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+      _savedMsg = null;
+      _scheduleEnabled = false;
+      _scheduledAt = null;
+    });
+    try {
+      await ref.read(studioRepositoryProvider).updateVideo(
+            widget.videoId,
+            title: title,
+            description: _descriptionCtrl.text,
+            visibility: _visibility,
+            scheduledPublishAt: null,
+            skillTagIds: _categoryId != null && _availableTags.isNotEmpty ? _skillTagIds.toList() : null,
+          );
+      _hydrated = false;
+      ref.invalidate(studioVideoProvider(widget.videoId));
+      ref.invalidate(myVideosProvider);
+      if (!mounted) return;
+      setState(() => _savedMsg = 'Published now');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Could not publish now.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _save() async {
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) {
@@ -705,6 +740,16 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
                     onPressed: _pickSchedule,
                     icon: const Icon(Icons.event, size: 18),
                     label: const Text('Pick date & time'),
+                  ),
+                ),
+              if (_scheduleEnabled ||
+                  (video.scheduledPublishAt != null &&
+                      video.scheduledPublishAt!.isAfter(DateTime.now())))
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: _saving || _busy ? null : _publishNow,
+                    child: const Text('Publish now'),
                   ),
                 ),
               if (_error != null) ...[

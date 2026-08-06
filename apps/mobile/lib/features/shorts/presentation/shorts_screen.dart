@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
@@ -342,7 +343,47 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
   Future<void> _share() async {
     final video = widget.video;
     final url = '${AppConstants.webBaseUrl}/shorts?v=${video.id}';
-    await SharePlus.instance.share(ShareParams(text: '${video.title}\n$url'));
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.share_outlined),
+                  title: const Text('Share'),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await SharePlus.instance.share(
+                      ShareParams(text: '${video.title}\n$url'),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.link),
+                  title: const Text('Copy link'),
+                  onTap: () async {
+                    await Clipboard.setData(ClipboardData(text: url));
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Link copied')),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _openComments() async {

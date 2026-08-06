@@ -129,6 +129,28 @@ export default function StudioVideoDetailEditorPage() {
     onError: (e) => setError(getApiErrorMessage(e, 'Could not save video.')),
   });
 
+  const publishNowMutation = useMutation({
+    mutationFn: async () => {
+      const canEditTags = !!video?.categoryId && availableTags.length > 0;
+      await api.patch(`/videos/${id}`, {
+        title: title.trim() || video?.title,
+        description: description.trim() || null,
+        visibility,
+        scheduledPublishAt: null,
+        ...(canEditTags ? { skillTagIds: selectedTagIds } : {}),
+      });
+    },
+    onSuccess: async () => {
+      setSchedule('');
+      setError('');
+      setSaved(true);
+      await qc.invalidateQueries({ queryKey: ['studio-video', id] });
+      await qc.invalidateQueries({ queryKey: ['studio-videos'] });
+      window.setTimeout(() => setSaved(false), 2500);
+    },
+    onError: (e) => setError(getApiErrorMessage(e, 'Could not publish now.')),
+  });
+
   const retryMutation = useMutation({
     mutationFn: async () => {
       await api.post(`/videos/${id}/retry-transcode`);
@@ -274,6 +296,9 @@ export default function StudioVideoDetailEditorPage() {
   }
 
   const canEditTags = !!video.categoryId && availableTags.length > 0;
+  const hasFutureSchedule =
+    !!schedule ||
+    (!!video.scheduledPublishAt && new Date(video.scheduledPublishAt).getTime() > Date.now());
 
   return (
     <main className="space-y-6">
@@ -347,6 +372,25 @@ export default function StudioVideoDetailEditorPage() {
               />
             </label>
           </div>
+          {hasFutureSchedule ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-on-surface-variant">
+                This video is scheduled
+                {video.scheduledPublishAt
+                  ? ` for ${new Date(video.scheduledPublishAt).toLocaleString()}`
+                  : ''}
+                .
+              </p>
+              <button
+                type="button"
+                disabled={publishNowMutation.isPending || saveMutation.isPending}
+                onClick={() => publishNowMutation.mutate()}
+                className="rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-on-surface hover:bg-primary/15 disabled:opacity-50"
+              >
+                {publishNowMutation.isPending ? 'Publishing…' : 'Publish now'}
+              </button>
+            </div>
+          ) : null}
 
           <div className="space-y-2 rounded-xl border border-outline-variant/30 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">

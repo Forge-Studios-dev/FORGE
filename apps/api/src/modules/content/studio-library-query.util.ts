@@ -1,4 +1,4 @@
-import { FindManyOptions, FindOptionsWhere, ILike } from 'typeorm';
+import { FindManyOptions, FindOptionsWhere, ILike, MoreThan } from 'typeorm';
 import { Video } from './entities/video.entity';
 import { StudioVideosQueryDto, StudioVideoSort } from './dto/studio-videos-query.dto';
 
@@ -42,6 +42,9 @@ export function buildStudioVideoFindOptions(
   if (query.categoryId) where.categoryId = query.categoryId;
   const search = query.search?.trim();
   if (search) where.title = ILike(`%${search}%`);
+  if (query.scheduled) {
+    where.scheduledPublishAt = MoreThan(new Date());
+  }
 
   let order: FindManyOptions<Video>['order'];
   switch (query.sort) {

@@ -598,6 +598,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile Shorts comments: like + reply (watch parity)
 - Create menus + Studio dashboard link Community post; watch transcript Copy (web + mobile)
 
+## Publish now + Scheduled library filter (2026-08-06)
+
+- Studio video editor: **Publish now** clears future `scheduledPublishAt` (web + mobile)
+- Studio content library: `scheduled=true` API filter + Scheduled only UI (web checkbox / mobile chip)
+- Mobile Shorts share sheet: Share + Copy link
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

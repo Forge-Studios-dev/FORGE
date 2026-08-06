@@ -23,6 +23,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
   String _sort = 'recent';
   String _status = '';
   String _visibility = '';
+  bool _scheduledOnly = false;
   final List<VideoModel> _videos = [];
   int _page = 1;
   bool _hasMore = false;
@@ -61,6 +62,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
             sort: _sort,
             status: _status.isEmpty ? null : _status,
             visibility: _visibility.isEmpty ? null : _visibility,
+            scheduled: _scheduledOnly,
             page: nextPage,
             limit: 24,
           );
@@ -215,6 +217,15 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                   selected: _status == 'failed',
                   onTap: () {
                     setState(() => _status = _status == 'failed' ? '' : 'failed');
+                    _load();
+                  },
+                ),
+                const SizedBox(width: 6),
+                _filterChip(
+                  label: 'Scheduled',
+                  selected: _scheduledOnly,
+                  onTap: () {
+                    setState(() => _scheduledOnly = !_scheduledOnly);
                     _load();
                   },
                 ),
