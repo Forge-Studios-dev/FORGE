@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
@@ -323,6 +325,8 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
         final v = _videos[i - 1];
         final scheduledFuture =
             v.scheduledPublishAt != null && v.scheduledPublishAt!.isAfter(DateTime.now());
+        final canCopy = v.status == 'ready' || v.visibility == 'unlisted';
+        final canDelete = v.status != 'uploading';
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: ForgeCard(
@@ -353,34 +357,100 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                           color: _statusColor(context, v.status),
                         ),
                       ),
-                      if (scheduledFuture)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton(
-                            onPressed: () async {
-                              try {
-                                await ref.read(studioRepositoryProvider).updateVideo(
-                                      v.id,
-                                      title: v.title,
-                                      description: v.description,
-                                      visibility: v.visibility ?? 'public',
-                                      scheduledPublishAt: null,
-                                    );
-                                await _load();
-                              } catch (_) {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Could not publish now')),
-                                );
-                              }
-                            },
-                            child: const Text('Publish now'),
-                          ),
-                        ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, color: ForgeTokens.of(context).outline),
+                  onSelected: (action) async {
+                    if (action == 'edit') {
+                      context.push('/studio/videos/${v.id}');
+                      return;
+                    }
+                    if (action == 'view') {
+                      context.push('/watch/${v.id}');
+                      return;
+                    }
+                    if (action == 'copy') {
+                      await Clipboard.setData(
+                        ClipboardData(text: '${AppConstants.webBaseUrl}/watch/${v.id}'),
+                      );
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Link copied')),
+                      );
+                      return;
+                    }
+                    if (action == 'publish') {
+                      try {
+                        await ref.read(studioRepositoryProvider).updateVideo(
+                              v.id,
+                              title: v.title,
+                              description: v.description,
+                              visibility: v.visibility ?? 'public',
+                              scheduledPublishAt: null,
+                            );
+                        await _load();
+                      } catch (_) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not publish now')),
+                        );
+                      }
+                      return;
+                    }
+                    if (action == 'delete') {
+                      final ok = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Delete video?'),
+                          content: const Text(
+                            'This permanently deletes the video. You can’t undo this.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: Text(
+                                'Delete',
+                                style: TextStyle(color: ForgeTokens.of(ctx).error),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (ok != true) return;
+                      try {
+                        await ref.read(studioRepositoryProvider).deleteVideo(v.id);
+                        await _load();
+                      } catch (_) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not delete video')),
+                        );
+                      }
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    if (v.status == 'ready')
+                      const PopupMenuItem(value: 'view', child: Text('View')),
+                    if (canCopy) const PopupMenuItem(value: 'copy', child: Text('Copy link')),
+                    if (scheduledFuture)
+                      const PopupMenuItem(value: 'publish', child: Text('Publish now')),
+                    if (canDelete)
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text(
+                          'Delete',
+                          style: TextStyle(color: ForgeTokens.of(context).error),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
           ),

@@ -616,6 +616,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Web Library tile + `/library/disliked` (search, remove, clear all)
 - Mobile Library row + `/library/disliked` screen
 
+## Studio content row actions + own-channel Share (2026-08-06)
+
+- Studio content library: Copy link + Delete (confirm) on web table/mobile menu
+- Own channel ProfileHeader: Share alongside Customize channel
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

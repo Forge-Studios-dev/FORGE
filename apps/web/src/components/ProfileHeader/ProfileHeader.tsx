@@ -92,12 +92,36 @@ export function ProfileHeader({ user }: Props) {
           </div>
 
           {isOwnProfile ? (
-            <Link
-              href="/studio/branding"
-              className="shrink-0 rounded-xl border border-outline-variant px-6 py-2 font-semibold text-on-surface transition hover:border-primary"
-            >
-              Customize channel
-            </Link>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Link
+                href="/studio/branding"
+                className="rounded-xl border border-outline-variant px-6 py-2 font-semibold text-on-surface transition hover:border-primary"
+              >
+                Customize channel
+              </Link>
+              <button
+                type="button"
+                onClick={async () => {
+                  const url = `${window.location.origin}/${user.username}`;
+                  try {
+                    if (navigator.share) {
+                      await navigator.share({ title: user.displayName, url });
+                      return;
+                    }
+                  } catch {
+                    /* fall through */
+                  }
+                  if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(url);
+                    setShareHint('Channel link copied');
+                    setTimeout(() => setShareHint(null), 2000);
+                  }
+                }}
+                className="rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold text-on-surface-variant transition hover:border-primary hover:text-on-surface"
+              >
+                Share
+              </button>
+            </div>
           ) : (
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               <SubscribeChannelControl

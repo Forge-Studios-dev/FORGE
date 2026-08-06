@@ -69,15 +69,21 @@ function VideoRow({
   video,
   cancellingId,
   publishingId,
+  deletingId,
   onCancel,
   onPublishNow,
+  onDelete,
+  onCopyLink,
   browserUploadPct,
 }: {
   video: Video;
   cancellingId: string | null;
   publishingId: string | null;
+  deletingId: string | null;
   onCancel: (id: string) => void;
   onPublishNow: (id: string) => void;
+  onDelete: (id: string) => void;
+  onCopyLink: (id: string) => void;
   browserUploadPct?: number | null;
 }) {
   const inProgress = video.status === 'uploading' || video.status === 'processing';
@@ -87,6 +93,8 @@ function VideoRow({
     video.status === 'failed' ||
     video.status === 'pending';
   const canPublishNow = isFutureScheduled(video);
+  const canDelete = video.status !== 'uploading';
+  const canCopy = video.status === 'ready' || video.visibility === 'unlisted';
 
   return (
     <li className="glass-panel flex items-center justify-between gap-4 rounded-xl p-4">
@@ -135,6 +143,15 @@ function VideoRow({
             {publishingId === video.id ? 'Publishing…' : 'Publish now'}
           </button>
         ) : null}
+        {canCopy ? (
+          <button
+            type="button"
+            onClick={() => onCopyLink(video.id)}
+            className="text-sm text-on-surface-variant hover:underline"
+          >
+            Copy link
+          </button>
+        ) : null}
         {canCancel ? (
           <button
             type="button"
@@ -143,6 +160,16 @@ function VideoRow({
             className="text-sm text-error hover:underline disabled:opacity-50"
           >
             {cancellingId === video.id ? 'Cancelling…' : 'Cancel'}
+          </button>
+        ) : null}
+        {canDelete ? (
+          <button
+            type="button"
+            disabled={deletingId === video.id}
+            onClick={() => onDelete(video.id)}
+            className="text-sm text-error hover:underline disabled:opacity-50"
+          >
+            {deletingId === video.id ? 'Deleting…' : 'Delete'}
           </button>
         ) : null}
         {video.status !== 'uploading' ? (
@@ -174,7 +201,10 @@ function StudioVideosPageInner() {
   const queryClient = useQueryClient();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [copyHint, setCopyHint] = useState<string | null>(null);
   const [releasing, setReleasing] = useState(false);
   const [browserUploadPct, setBrowserUploadPct] = useState<number | null>(null);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
@@ -279,6 +309,29 @@ function StudioVideosPageInner() {
       await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
     } finally {
       setPublishingId(null);
+    }
+  };
+
+  const deleteVideo = async (videoId: string) => {
+    setDeletingId(videoId);
+    try {
+      await api.delete(`/videos/${videoId}`);
+      setDeleteConfirmId(null);
+      await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const copyVideoLink = async (videoId: string) => {
+    const url = `${window.location.origin}/watch/${videoId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyHint('Link copied');
+      setTimeout(() => setCopyHint(null), 2000);
+    } catch {
+      setCopyHint('Could not copy link');
+      setTimeout(() => setCopyHint(null), 2000);
     }
   };
 
@@ -404,6 +457,12 @@ function StudioVideosPageInner() {
         </label>
       </div>
 
+      {copyHint ? (
+        <p className="text-sm text-secondary" role="status">
+          {copyHint}
+        </p>
+      ) : null}
+
       {inProgressCount > 0 ? (
         <div className="rounded-2xl border border-tertiary/30 bg-tertiary/5 p-4">
           <p className="text-sm font-medium text-on-surface">
@@ -525,6 +584,15 @@ function StudioVideosPageInner() {
                               {publishingId === video.id ? 'Publishing…' : 'Publish now'}
                             </button>
                           ) : null}
+                          {video.status === 'ready' || video.visibility === 'unlisted' ? (
+                            <button
+                              type="button"
+                              onClick={() => void copyVideoLink(video.id)}
+                              className="text-sm text-on-surface-variant hover:underline"
+                            >
+                              Copy link
+                            </button>
+                          ) : null}
                           {canCancel ? (
                             <button
                               type="button"
@@ -533,6 +601,16 @@ function StudioVideosPageInner() {
                               className="text-sm text-error hover:underline disabled:opacity-50"
                             >
                               {cancellingId === video.id ? 'Cancelling…' : 'Cancel'}
+                            </button>
+                          ) : null}
+                          {video.status !== 'uploading' ? (
+                            <button
+                              type="button"
+                              disabled={deletingId === video.id}
+                              onClick={() => setDeleteConfirmId(video.id)}
+                              className="text-sm text-error hover:underline disabled:opacity-50"
+                            >
+                              {deletingId === video.id ? 'Deleting…' : 'Delete'}
                             </button>
                           ) : null}
                           {video.status !== 'uploading' ? (
@@ -564,8 +642,11 @@ function StudioVideosPageInner() {
                 video={video}
                 cancellingId={cancellingId}
                 publishingId={publishingId}
+                deletingId={deletingId}
                 onCancel={setCancelConfirmId}
                 onPublishNow={(id) => void publishNow(id)}
+                onDelete={setDeleteConfirmId}
+                onCopyLink={(id) => void copyVideoLink(id)}
                 browserUploadPct={video.id === activeVideoId ? browserUploadPct : null}
               />
             ))}
@@ -596,6 +677,17 @@ function StudioVideosPageInner() {
         }}
         onCancel={() => setCancelConfirmId(null)}
         loading={!!cancellingId}
+      />
+      <ConfirmDialog
+        open={!!deleteConfirmId}
+        title="Delete video?"
+        description="This permanently deletes the video and its analytics. You can’t undo this."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (deleteConfirmId) void deleteVideo(deleteConfirmId);
+        }}
+        onCancel={() => setDeleteConfirmId(null)}
+        loading={!!deletingId}
       />
     </main>
   );
