@@ -207,7 +207,7 @@ class StudioRepository {
   Future<List<Map<String, dynamic>>> getRecentComments() async {
     final page = await getMyVideos(limit: 50);
     final comments = <Map<String, dynamic>>[];
-    for (final v in page.items.where((v) => v.status == 'ready').take(6)) {
+    for (final v in page.items.where((v) => v.status == 'ready').take(12)) {
       try {
         final res = await _api.dio.get('/videos/${v.id}/comments', queryParameters: {'limit': 5});
         final list = res.data['data']['data'] as List;
@@ -215,6 +215,7 @@ class StudioRepository {
           final m = Map<String, dynamic>.from(c as Map);
           m['videoTitle'] = v.title;
           m['videoId'] = v.id;
+          m['videoType'] = v.videoType;
           comments.add(m);
         }
       } catch (_) {}
@@ -224,6 +225,6 @@ class StudioRepository {
       final bd = DateTime.tryParse(b['createdAt'] as String? ?? '') ?? DateTime(1970);
       return bd.compareTo(ad);
     });
-    return comments.take(25).toList();
+    return comments.take(40).toList();
   }
 }

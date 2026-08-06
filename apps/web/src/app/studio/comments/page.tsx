@@ -11,6 +11,11 @@ import { api } from '@/lib/api';
 import { timeAgo } from '@/lib/utils';
 import { getApiErrorMessage } from '@/lib/api-message';
 
+/** Comments open on watch with `?lc=` highlight (including Shorts). */
+function studioCommentWatchHref(videoId: string, commentId: string): string {
+  return `/watch/${videoId}?lc=${encodeURIComponent(commentId)}`;
+}
+
 type CommentFilter = 'all' | 'pinned' | 'hearted';
 
 const FILTERS: { id: CommentFilter; label: string }[] = [
@@ -212,7 +217,15 @@ export default function StudioCommentsPage() {
                   Pinned
                 </span>
               ) : null}
-              <Link href={`/watch/${c.videoId}`} className="text-primary hover:underline">
+              {c.videoType === 'short' ? (
+                <span className="rounded-full bg-surface-container-high px-2 py-0.5 font-semibold uppercase tracking-wide text-on-surface-variant">
+                  Short
+                </span>
+              ) : null}
+              <Link
+                href={studioCommentWatchHref(c.videoId, c.id)}
+                className="text-primary hover:underline"
+              >
                 {c.videoTitle}
               </Link>
               <span>·</span>
@@ -224,8 +237,11 @@ export default function StudioCommentsPage() {
                 @{c.user?.username ?? 'user'} · {c.user?.displayName ?? 'User'}
               </p>
               <div className="flex gap-3 text-sm">
-                <Link href={`/watch/${c.videoId}`} className="text-on-surface-variant hover:underline">
-                  Open video
+                <Link
+                  href={studioCommentWatchHref(c.videoId, c.id)}
+                  className="text-on-surface-variant hover:underline"
+                >
+                  View comment
                 </Link>
                 {!c.parentId ? (
                   <button

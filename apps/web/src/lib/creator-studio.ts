@@ -74,22 +74,34 @@ export async function getMyVideos(userId: string | undefined): Promise<Video[]> 
   return getStudioVideos();
 }
 
-export type StudioCommentItem = Comment & { videoTitle: string };
+export type StudioCommentItem = Comment & {
+  videoTitle: string;
+  videoType?: string | null;
+};
 
 export async function getRecentCommentsOnMyVideos(
   userId: string | undefined,
   limitPerVideo = 5,
 ): Promise<StudioCommentItem[]> {
-  const videos = (await getStudioVideos()).filter((v) => v.status === 'ready');
+  if (!userId) return [];
+  const { items: videos } = await fetchStudioLibrary({
+    status: 'ready',
+    sort: 'recent',
+    limit: 24,
+  });
   if (!videos.length) return [];
 
   const batches = await Promise.all(
-    videos.slice(0, 8).map(async (video) => {
+    videos.slice(0, 12).map(async (video) => {
       try {
         const { data } = await api.get<{ data: { data: Comment[] } }>(
           `/videos/${video.id}/comments?limit=${limitPerVideo}`,
         );
-        return (data.data.data ?? []).map((c) => ({ ...c, videoTitle: video.title }));
+        return (data.data.data ?? []).map((c) => ({
+          ...c,
+          videoTitle: video.title,
+          videoType: video.videoType,
+        }));
       } catch {
         return [];
       }
@@ -99,5 +111,5 @@ export async function getRecentCommentsOnMyVideos(
   return batches
     .flat()
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 30);
+    .slice(0, 40);
 }

@@ -676,6 +676,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Studio manage panel: move up/down reorder (`PUT /playlists/:id/reorder`); Copy link on cards
 - Studio Content library: duration on ready rows + thumbnail badge (web); duration in mobile library meta
 
+## Studio comments deep links (2026-08-06)
+
+- Web + mobile Studio comments: `?lc=` View comment; Short badge; wider ready-video sample (12 videos / 40 comments)
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

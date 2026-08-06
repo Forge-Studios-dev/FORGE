@@ -7,6 +7,9 @@ import '../../../core/widgets/forge_card.dart';
 import '../../watch/data/watch_repository.dart';
 import '../data/studio_repository.dart';
 
+String _studioCommentHref(String videoId, String commentId) =>
+    '/watch/$videoId?lc=${Uri.encodeComponent(commentId)}';
+
 final studioCommentsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
   return ref.read(studioRepositoryProvider).getRecentComments();
 });
@@ -235,6 +238,11 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
                           final pinned = c['isPinned'] == true;
                           final hearted = c['creatorHearted'] == true;
                           final id = c['id'] as String?;
+                          final videoId = c['videoId'] as String?;
+                          final isShort = c['videoType'] == 'short';
+                          final commentHref = (videoId != null && id != null)
+                              ? _studioCommentHref(videoId, id)
+                              : null;
                           final replying = id != null && _replyingTo == id;
                           final t = ForgeTokens.of(context);
 
@@ -243,13 +251,24 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 InkWell(
-                                  onTap: () => context.push('/watch/${c['videoId']}'),
+                                  onTap: commentHref == null
+                                      ? null
+                                      : () => context.push(commentHref),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       if (pinned)
                                         Text(
                                           'Pinned',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: t.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      if (isShort)
+                                        Text(
+                                          'Short',
                                           style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w600,
@@ -325,8 +344,10 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
                                       child: Text(replying ? 'Cancel' : 'Reply'),
                                     ),
                                     TextButton(
-                                      onPressed: () => context.push('/watch/${c['videoId']}'),
-                                      child: const Text('Open video'),
+                                      onPressed: commentHref == null
+                                          ? null
+                                          : () => context.push(commentHref),
+                                      child: const Text('View comment'),
                                     ),
                                   ],
                                 ),
