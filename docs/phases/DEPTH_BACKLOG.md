@@ -573,6 +573,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Web Messages: reply composer in active conversation
 - Live Now “Go live” → `/studio/live` (was web-only stub)
 
+## System playlist Play all (2026-08-06)
+
+- Mobile Watch later / Liked: Play all + Shuffle with `?list=` queue (custom playlist parity)
+
 ## Still open
 
 | Area | Item | Owner |

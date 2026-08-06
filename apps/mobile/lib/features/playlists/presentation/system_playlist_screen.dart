@@ -19,6 +19,7 @@ class SystemPlaylistScreen extends ConsumerStatefulWidget {
 
 class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
   List<VideoModel> _videos = [];
+  String? _playlistId;
   bool _loading = true;
   bool _error = false;
   bool _clearing = false;
@@ -50,13 +51,17 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
       final client = ref.read(apiClientProvider);
       final response = await client.dio.get(_path);
       final root = response.data['data'];
+      String? playlistId;
       List list;
       if (root is Map && root['videos'] is List) {
         list = root['videos'] as List;
+        playlistId = root['id'] as String?;
       } else if (root is Map && root['items'] is List) {
         list = root['items'] as List;
+        playlistId = root['id'] as String?;
       } else if (root is Map && root['data'] is List) {
         list = root['data'] as List;
+        playlistId = root['id'] as String?;
       } else if (root is List) {
         list = root;
       } else {
@@ -77,6 +82,7 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
       if (!mounted) return;
       setState(() {
         _videos = videos;
+        _playlistId = playlistId;
         _loading = false;
       });
     } catch (_) {
@@ -191,6 +197,29 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
                     )
                   : Column(
                       children: [
+                        if (_videos.isNotEmpty && _playlistId != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: Row(
+                              children: [
+                                FilledButton.icon(
+                                  onPressed: () => context.push(
+                                    '/watch/${_videos.first.id}?list=$_playlistId',
+                                  ),
+                                  icon: const Icon(Icons.play_arrow),
+                                  label: const Text('Play all'),
+                                ),
+                                const SizedBox(width: 8),
+                                OutlinedButton.icon(
+                                  onPressed: () => context.push(
+                                    '/watch/${_videos.first.id}?list=$_playlistId&shuffle=1',
+                                  ),
+                                  icon: const Icon(Icons.shuffle),
+                                  label: const Text('Shuffle'),
+                                ),
+                              ],
+                            ),
+                          ),
                         if (_videos.length > 3)
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -227,6 +256,7 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {
                         final video = filtered[index];
+                        final listId = _playlistId;
                         return Dismissible(
                           key: ValueKey(video.id),
                           direction: DismissDirection.endToStart,
@@ -241,7 +271,11 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
                             return false;
                           },
                           child: ListTile(
-                            onTap: () => context.push('/watch/${video.id}'),
+                            onTap: () => context.push(
+                              listId != null
+                                  ? '/watch/${video.id}?list=$listId'
+                                  : '/watch/${video.id}',
+                            ),
                             leading: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: SizedBox(
