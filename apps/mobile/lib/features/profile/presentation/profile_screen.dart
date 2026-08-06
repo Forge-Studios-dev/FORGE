@@ -1195,6 +1195,30 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
           ],
           if (profileUsername == 'me') ...[
             const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () {
+                final url = '${AppConstants.webBaseUrl}/${user.username}';
+                SharePlus.instance.share(ShareParams(text: '${user.displayName}\n$url'));
+              },
+              icon: const Icon(Icons.share_outlined, size: 18),
+              label: const Text('Share channel'),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: ForgeTokens.of(context).outlineVariant),
+              ),
+            ),
+            if (user.role == 'creator' ||
+                user.role == 'admin' ||
+                user.creatorStatus == 'approved') ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => context.push('/studio/branding'),
+                icon: const Icon(Icons.palette_outlined, size: 18),
+                label: const Text('Customize channel'),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: ForgeTokens.of(context).outlineVariant),
+                ),
+              ),
+            ],
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.settings, color: ForgeTokens.of(context).onSurfaceVariant),

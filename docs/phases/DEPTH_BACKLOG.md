@@ -620,6 +620,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Studio content library: Copy link + Delete (confirm) on web table/mobile menu
 - Own channel ProfileHeader: Share alongside Customize channel
+- Mobile own profile: Share channel + Customize channel shortcuts
 
 ## Interests settings + upload playlists (2026-08-06)
 
