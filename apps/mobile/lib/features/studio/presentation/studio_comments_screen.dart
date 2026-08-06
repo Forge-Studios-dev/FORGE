@@ -24,6 +24,7 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
   final _replyCtrl = TextEditingController();
   final _searchCtrl = TextEditingController();
   String _query = '';
+  String _filter = 'all'; // all | pinned | hearted
   bool _replyBusy = false;
 
   @override
@@ -35,8 +36,10 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
 
   List<Map<String, dynamic>> _filtered(List<Map<String, dynamic>> comments) {
     final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return comments;
     return comments.where((c) {
+      if (_filter == 'pinned' && c['isPinned'] != true) return false;
+      if (_filter == 'hearted' && c['creatorHearted'] != true) return false;
+      if (q.isEmpty) return true;
       final content = (c['content'] as String? ?? '').toLowerCase();
       final title = (c['videoTitle'] as String? ?? '').toLowerCase();
       final user = c['user'] as Map<String, dynamic>?;
@@ -194,11 +197,31 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
                   ),
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final f in const [
+                      ('all', 'Published'),
+                      ('pinned', 'Pinned'),
+                      ('hearted', 'Hearted'),
+                    ])
+                      ChoiceChip(
+                        label: Text(f.$2),
+                        selected: _filter == f.$1,
+                        onSelected: (_) => setState(() => _filter = f.$1),
+                      ),
+                  ],
+                ),
+              ),
               Expanded(
                 child: filtered.isEmpty
                     ? Center(
                         child: Text(
-                          'No comments match "$_query"',
+                          _query.isNotEmpty
+                              ? 'No comments match "$_query"'
+                              : 'No comments in this filter',
                           style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                         ),
                       )

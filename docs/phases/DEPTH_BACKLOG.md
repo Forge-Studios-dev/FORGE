@@ -628,6 +628,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - FeedCard overflow: Save ↔ Remove from Watch later (toggle)
 - Mobile feed overflow: same Watch later toggle
 
+## Studio comments search + filters (2026-08-06)
+
+- Web Studio comments: search + Published / Pinned / Hearted chips
+- Mobile Studio comments: same filter chips (search already present)
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)
