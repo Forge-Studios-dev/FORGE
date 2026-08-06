@@ -7,27 +7,17 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../network/api_client.dart';
+import '../notifications/notification_href.dart';
 import '../router/navigation_key.dart';
 
 /// Route to open when a push notification is tapped, based on the `data.type`
 /// the backend sends (see apps/api notifications.listener.ts). Falls back to
-/// the notifications list for types with no dedicated screen, rather than
-/// guessing at an unknown payload shape.
+/// the notifications list for types with no dedicated screen.
 String _routeForMessage(RemoteMessage message) {
   final data = message.data;
-  switch (data['type']) {
-    case 'video_ready':
-    case 'comment_reply':
-    case 'comment_on_video':
-      final videoId = data['videoId'];
-      return videoId != null ? '/watch/$videoId' : '/notifications';
-    case 'stream_reminder':
-    case 'stream_started':
-      final streamId = data['streamId'];
-      return streamId != null ? '/live/$streamId' : '/notifications';
-    default:
-      return '/notifications';
-  }
+  final type = data['type']?.toString();
+  final href = notificationHref(type, Map<String, dynamic>.from(data));
+  return href ?? '/notifications';
 }
 
 void _handleNotificationTap(RemoteMessage message) {

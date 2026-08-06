@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/notifications/notification_href.dart';
 import '../../../core/theme/forge_palette.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
@@ -90,63 +91,6 @@ String _timeAgo(String? iso) {
   return '${dt.month}/${dt.day}/${dt.year}';
 }
 
-/// Mirrors apps/web/src/lib/notification-href.ts for mobile deep links.
-String? _notificationHref(String? type, Map<String, dynamic>? metadata) {
-  final meta = metadata ?? const <String, dynamic>{};
-  final videoId = meta['videoId'] as String?;
-  final streamId = meta['streamId'] as String?;
-  final username = meta['username'] as String?;
-  final followerUsername = meta['followerUsername'] as String?;
-
-  switch (type) {
-    case 'video_ready':
-    case 'premium_content_new':
-    case 'video_liked':
-    case 'super_thanks':
-      return videoId != null ? '/watch/$videoId' : '/library';
-    case 'comment_on_video':
-    case 'comment_reply':
-      if (videoId == null) return '/library';
-      final commentId = meta['commentId'] as String?;
-      if (commentId != null && commentId.isNotEmpty) {
-        return '/watch/$videoId?lc=${Uri.encodeComponent(commentId)}';
-      }
-      return '/watch/$videoId';
-    case 'stream_started':
-    case 'stream_started_followed':
-      return streamId != null ? '/live/$streamId' : '/live';
-    case 'new_follower':
-      if (followerUsername != null && followerUsername.isNotEmpty) {
-        return '/profile/$followerUsername';
-      }
-      if (username != null && username.isNotEmpty) return '/profile/$username';
-      return null;
-    case 'creator_approved':
-      return '/studio';
-    case 'creator_rejected':
-      return '/approval-rejected';
-    case 'subscription_expiring':
-      return '/settings/memberships';
-    case 'direct_message':
-      return '/messages';
-    case 'community_role_assigned':
-    case 'community_banned':
-    case 'community_post_new':
-      final creatorId = meta['creatorId'] as String?;
-      final slug = meta['slug'] as String?;
-      if (creatorId != null && creatorId.isNotEmpty) {
-        if (slug != null && slug.isNotEmpty) return '/community/$creatorId/c/$slug';
-        return '/community/$creatorId';
-      }
-      return username != null ? '/profile/$username' : null;
-    case 'achievement_unlocked':
-    case 'xp_level_up':
-      return null;
-    default:
-      return videoId != null ? '/watch/$videoId' : null;
-  }
-}
-
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -230,7 +174,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (id != null && !read) await _markRead(id);
     final metaRaw = n['metadata'];
     final metadata = metaRaw is Map ? Map<String, dynamic>.from(metaRaw) : null;
-    final href = _notificationHref(n['type']?.toString(), metadata);
+    final href = notificationHref(n['type']?.toString(), metadata);
     if (!mounted) return;
     if (href != null) {
       context.push(href);

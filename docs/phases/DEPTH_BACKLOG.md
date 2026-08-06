@@ -557,6 +557,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Studio settings shortcut: Playlists
 - Web notifications page: relative `timeAgo` (menu parity)
 
+## Mobile push deep-link parity (2026-08-06)
+
+- Shared `notificationHref` used by in-app notifications + FCM tap routing
+
 ## Still open
 
 | Area | Item | Owner |
