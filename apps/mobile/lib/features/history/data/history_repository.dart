@@ -67,6 +67,13 @@ class HistoryRepository {
         await LocalCache.write(_watchHistoryCacheKey, _encodeVideoList(videos));
       }
     } catch (_) {}
+    try {
+      final cwCached = LocalCache.read(_continueWatchingCacheKey);
+      if (cwCached != null) {
+        final videos = _decodeVideoList(cwCached).where((v) => v.id != videoId).toList();
+        await LocalCache.write(_continueWatchingCacheKey, _encodeVideoList(videos));
+      }
+    } catch (_) {}
   }
 
   Future<List<VideoModel>> getContinueWatching({int limit = 12}) async {

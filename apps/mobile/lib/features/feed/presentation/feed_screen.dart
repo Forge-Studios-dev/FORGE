@@ -264,12 +264,12 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
   }
 }
 
-class _ContinueTile extends StatelessWidget {
+class _ContinueTile extends ConsumerWidget {
   final VideoModel video;
   const _ContinueTile({required this.video});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final progress = video.viewerProgressSeconds;
     final duration = video.durationSeconds;
     final progressFrac =
@@ -284,56 +284,83 @@ class _ContinueTile extends StatelessWidget {
 
     return SizedBox(
       width: 168,
-      child: GestureDetector(
-        onTap: () => context.push(href),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (video.thumbnailUrl != null)
-                CachedNetworkImage(
-                  imageUrl: video.thumbnailUrl!,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(color: ForgeTokens.of(context).surfaceContainerHighest),
-                  errorWidget: (_, __, ___) => Container(color: ForgeTokens.of(context).surfaceContainerHighest),
-                )
-              else
-                Container(color: ForgeTokens.of(context).surfaceContainerHighest),
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black87],
-                  ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            GestureDetector(
+              onTap: () => context.push(href),
+              child: video.thumbnailUrl != null
+                  ? CachedNetworkImage(
+                      imageUrl: video.thumbnailUrl!,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) =>
+                          Container(color: ForgeTokens.of(context).surfaceContainerHighest),
+                      errorWidget: (_, __, ___) =>
+                          Container(color: ForgeTokens.of(context).surfaceContainerHighest),
+                    )
+                  : Container(color: ForgeTokens.of(context).surfaceContainerHighest),
+            ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black87],
                 ),
               ),
-              if (progressFrac != null)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: LinearProgressIndicator(
-                    value: progressFrac,
-                    minHeight: 3,
-                    backgroundColor: Colors.black38,
-                    color: ForgeTokens.of(context).primary,
-                  ),
-                ),
+            ),
+            if (progressFrac != null)
               Positioned(
-                left: 8,
-                right: 8,
-                bottom: 8,
-                child: Text(
-                  video.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: LinearProgressIndicator(
+                  value: progressFrac,
+                  minHeight: 3,
+                  backgroundColor: Colors.black38,
+                  color: ForgeTokens.of(context).primary,
                 ),
               ),
-            ],
-          ),
+            Positioned(
+              left: 8,
+              right: 8,
+              bottom: 8,
+              child: Text(
+                video.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Material(
+                color: Colors.black54,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () async {
+                    try {
+                      await ref.read(historyRepositoryProvider).removeFromWatchHistory(video.id);
+                      ref.invalidate(continueWatchingProvider);
+                    } catch (_) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Could not remove')),
+                      );
+                    }
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.close, size: 16, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

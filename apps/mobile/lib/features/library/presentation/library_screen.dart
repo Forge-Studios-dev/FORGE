@@ -276,62 +276,89 @@ class LibraryScreen extends ConsumerWidget {
   }
 }
 
-class _ContinueWatchTile extends StatelessWidget {
+class _ContinueWatchTile extends ConsumerWidget {
   const _ContinueWatchTile({required this.video});
 
   final VideoModel video;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = ForgeTokens.of(context);
     final progress = video.viewerProgressSeconds ?? 0;
     final duration = video.durationSeconds ?? 0;
     final ratio = duration > 0 ? (progress / duration).clamp(0.0, 1.0) : 0.0;
 
-    return InkWell(
-      onTap: () {
-        final tSec = progress > 0 ? '?t=$progress' : '';
-        context.push('/watch/${video.id}$tSec');
-      },
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: 168,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox(
-                height: 84,
-                width: 168,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    video.thumbnailUrl != null
+    return SizedBox(
+      width: 168,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              height: 84,
+              width: 168,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  InkWell(
+                    onTap: () {
+                      final tSec = progress > 0 ? '?t=$progress' : '';
+                      context.push('/watch/${video.id}$tSec');
+                    },
+                    child: video.thumbnailUrl != null
                         ? CachedNetworkImage(imageUrl: video.thumbnailUrl!, fit: BoxFit.cover)
                         : ColoredBox(color: t.surfaceContainerHighest),
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: LinearProgressIndicator(
-                        value: ratio,
-                        minHeight: 3,
-                        backgroundColor: Colors.black26,
-                        color: t.primary,
+                  ),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: LinearProgressIndicator(
+                      value: ratio,
+                      minHeight: 3,
+                      backgroundColor: Colors.black26,
+                      color: t.primary,
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Material(
+                      color: Colors.black54,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () async {
+                          try {
+                            await ref
+                                .read(historyRepositoryProvider)
+                                .removeFromWatchHistory(video.id);
+                            ref.invalidate(continueWatchingProvider);
+                          } catch (_) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Could not remove')),
+                            );
+                          }
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(Icons.close, size: 16, color: Colors.white),
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              video.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: t.onSurface),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            video.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: t.onSurface),
+          ),
+        ],
       ),
     );
   }

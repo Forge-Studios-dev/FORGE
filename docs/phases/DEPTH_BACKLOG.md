@@ -605,6 +605,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Studio content list: **Publish now** action on scheduled rows (web + mobile)
 - Mobile Shorts share sheet: Share + Copy link
 
+## Continue watching remove (2026-08-06)
+
+- Web home Continue watching: remove (X) clears history item via `DELETE /users/me/watch-history/:videoId`
+- Mobile feed + Library Continue watching tiles: same remove control
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)
