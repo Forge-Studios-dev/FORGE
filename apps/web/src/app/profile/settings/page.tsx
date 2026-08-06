@@ -10,6 +10,7 @@ import { ActiveSessions } from '@/components/settings/ActiveSessions';
 import { AvatarUploadSettings } from '@/components/settings/AvatarUploadSettings';
 import { BannerUploadSettings } from '@/components/settings/BannerUploadSettings';
 import { MutedChannelsSettings } from '@/components/settings/MutedChannelsSettings';
+import { InterestsSettings } from '@/components/settings/InterestsSettings';
 import { PasswordResetSettings } from '@/components/settings/PasswordResetSettings';
 import { WatchHistoryPrivacyToggle } from '@/components/settings/WatchHistoryPrivacyToggle';
 
@@ -251,6 +252,8 @@ export default function ProfileSettingsPage() {
       </section>
 
       <MutedChannelsSettings />
+
+      <InterestsSettings />
 
       <section className="glass-panel mt-8 rounded-2xl p-6">
         <div className="mt-4">

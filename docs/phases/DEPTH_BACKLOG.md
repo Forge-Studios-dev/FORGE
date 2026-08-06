@@ -591,6 +591,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Web + mobile: video performance `days` selector (7 / 28 / 90) on Studio analytics
 
+## Interests settings + upload playlists (2026-08-06)
+
+- Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)
+- Mobile upload: optional attach to custom playlists on complete (`playlistIds`)
+
 ## Still open
 
 | Area | Item | Owner |

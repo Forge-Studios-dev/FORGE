@@ -69,12 +69,31 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
   int _progress = 0;
   String? _error;
   PendingUpload? _pendingResume;
+  final Set<String> _playlistIds = {};
+  List<Map<String, dynamic>> _myPlaylists = [];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkForResumableUpload();
+    _loadPlaylists();
+  }
+
+  Future<void> _loadPlaylists() async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final res = await api.dio.get('/playlists/me');
+      final list = (res.data['data'] as List?) ?? [];
+      if (!mounted) return;
+      setState(() {
+        _myPlaylists = list
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .where((p) => p['systemType'] == null && p['id'] is String)
+            .toList();
+      });
+    } catch (_) {}
   }
 
   Future<void> _checkForResumableUpload() async {
@@ -225,6 +244,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
                 _scheduleEnabled && _scheduledAt != null ? _scheduledAt!.toUtc().toIso8601String() : null,
             thumbnailPath: _thumbnail?.path,
             thumbnailContentType: thumbType,
+            playlistIds: _playlistIds.toList(),
             onProgress: (p) {
               if (mounted) setState(() => _progress = p);
             },
@@ -396,6 +416,10 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             _buildVisibilitySelector(),
             const SizedBox(height: 8),
             _buildScheduleSelector(),
+            if (_myPlaylists.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildPlaylistSelector(),
+            ],
             if (_uploading) ...[
               const SizedBox(height: 24),
               LinearProgressIndicator(value: _progress / 100),
@@ -569,6 +593,47 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             icon: const Icon(Icons.event, size: 18),
             label: const Text('Pick date & time'),
           ),
+      ],
+    );
+  }
+
+  Widget _buildPlaylistSelector() {
+    final t = ForgeTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Add to playlists',
+          style: TextStyle(fontWeight: FontWeight.w600, color: t.onSurface),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Optional — attach this video when upload completes.',
+          style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        ..._myPlaylists.map((p) {
+          final id = p['id'] as String;
+          final title = p['title'] as String? ?? 'Playlist';
+          final checked = _playlistIds.contains(id);
+          return CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: checked,
+            title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            onChanged: _uploading
+                ? null
+                : (on) {
+                    setState(() {
+                      if (on == true) {
+                        _playlistIds.add(id);
+                      } else {
+                        _playlistIds.remove(id);
+                      }
+                    });
+                  },
+          );
+        }),
       ],
     );
   }

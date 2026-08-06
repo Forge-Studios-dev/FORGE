@@ -389,6 +389,8 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
           const _ThemeModeTile(),
           const SizedBox(height: 16),
           const _MutedChannelsSection(),
+          const SizedBox(height: 16),
+          const _InterestsSection(),
           const SizedBox(height: 8),
           ListTile(
             title: const Text('My memberships'),
@@ -743,6 +745,152 @@ class _MutedChannelsSectionState extends ConsumerState<_MutedChannelsSection> {
               ),
             );
           }),
+      ],
+    );
+  }
+}
+
+class _InterestsSection extends ConsumerStatefulWidget {
+  const _InterestsSection();
+
+  @override
+  ConsumerState<_InterestsSection> createState() => _InterestsSectionState();
+}
+
+class _InterestsSectionState extends ConsumerState<_InterestsSection> {
+  static const _maxInterests = 5;
+  List<Map<String, dynamic>> _categories = [];
+  final Set<String> _selected = {};
+  Set<String> _saved = {};
+  bool _loading = true;
+  bool _saving = false;
+  bool _error = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = false;
+    });
+    try {
+      final client = ref.read(apiClientProvider);
+      final results = await Future.wait([
+        client.dio.get('/categories'),
+        client.dio.get('/users/me/interests'),
+      ]);
+      final cats = (results[0].data['data'] as List?) ?? [];
+      final interestsPayload = results[1].data['data'];
+      final ids = interestsPayload is Map
+          ? ((interestsPayload['categoryIds'] as List?) ?? []).whereType<String>()
+          : <String>[];
+      if (!mounted) return;
+      setState(() {
+        _categories = cats.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _selected
+          ..clear()
+          ..addAll(ids);
+        _saved = Set<String>.from(ids);
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = true;
+        });
+      }
+    }
+  }
+
+  void _toggle(String id) {
+    setState(() {
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+      } else if (_selected.length < _maxInterests) {
+        _selected.add(id);
+      }
+    });
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.dio.put('/users/me/interests', data: {
+        'categoryIds': _selected.toList(),
+      });
+      if (!mounted) return;
+      setState(() => _saved = Set<String>.from(_selected));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Interests saved')),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save interests')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  bool get _dirty =>
+      _selected.length != _saved.length || _selected.any((id) => !_saved.contains(id));
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Interests', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text(
+          'Pick up to $_maxInterests topics for your For You feed.',
+          style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        if (_loading)
+          const LinearProgressIndicator()
+        else if (_error)
+          TextButton(onPressed: _load, child: const Text('Retry interests'))
+        else ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _categories.map((c) {
+              final id = c['id'] as String? ?? '';
+              final name = c['name'] as String? ?? 'Category';
+              if (id.isEmpty) return const SizedBox.shrink();
+              final on = _selected.contains(id);
+              return FilterChip(
+                label: Text(name),
+                selected: on,
+                onSelected: (_) => _toggle(id),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                '${_selected.length}/$_maxInterests selected',
+                style: TextStyle(fontSize: 12, color: t.onSurfaceVariant),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: !_dirty || _saving ? null : _save,
+                child: Text(_saving ? 'Saving…' : 'Save interests'),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
