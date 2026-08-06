@@ -581,6 +581,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Owner Delete playlist on detail (non-system; web ConfirmDialog parity)
 
+## Studio settings + Super Thanks CSV + Subs Manage (2026-08-06)
+
+- Mobile Studio settings: Super Thanks, Moderation, Messages shortcuts + view channel
+- Mobile Super Thanks: Export CSV via shared `CsvExportUtil` (web parity)
+- Subscriptions feed: Manage → `/profile/:username/subscriptions`
+
 ## Still open
 
 | Area | Item | Owner |

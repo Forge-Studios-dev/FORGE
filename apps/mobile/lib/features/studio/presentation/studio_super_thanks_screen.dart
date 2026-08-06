@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/utils/csv_export_util.dart';
 import '../../../core/widgets/forge_card.dart';
 
 final superThanksReceivedProvider =
@@ -29,18 +30,47 @@ final superThanksReceivedProvider =
   return (tips: tips, summary: summary);
 });
 
-class StudioSuperThanksScreen extends ConsumerWidget {
+class StudioSuperThanksScreen extends ConsumerStatefulWidget {
   const StudioSuperThanksScreen({super.key});
+
+  @override
+  ConsumerState<StudioSuperThanksScreen> createState() => _StudioSuperThanksScreenState();
+}
+
+class _StudioSuperThanksScreenState extends ConsumerState<StudioSuperThanksScreen> {
+  bool _exporting = false;
 
   String _money(num? cents) {
     final v = ((cents ?? 0) / 100);
     return '\$${v.toStringAsFixed(2)}';
   }
 
+  Future<void> _exportCsv() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      await CsvExportUtil.downloadAndShare(
+        dio: ref.read(apiClientProvider).dio,
+        apiPath: '/billing/super-thanks/received/export',
+        filename: 'super-thanks.csv',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not export CSV')),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final async = ref.watch(superThanksReceivedProvider);
     final t = ForgeTokens.of(context);
+    final tipCount = async.asData?.value.summary?['totalTips'] as num? ??
+        async.asData?.value.tips.length ??
+        0;
 
     return Scaffold(
       appBar: AppBar(
@@ -49,6 +79,12 @@ class StudioSuperThanksScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
+        actions: [
+          TextButton(
+            onPressed: tipCount == 0 || _exporting ? null : _exportCsv,
+            child: Text(_exporting ? 'Exporting…' : 'Export CSV'),
+          ),
+        ],
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),

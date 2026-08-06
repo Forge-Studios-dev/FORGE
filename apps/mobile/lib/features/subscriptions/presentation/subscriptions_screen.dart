@@ -21,6 +21,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
   final List<Map<String, dynamic>> _channels = [];
   String? _nextCursor;
   String? _channelFilterId;
+  String? _myUsername;
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasMore = true;
@@ -37,7 +38,9 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
     try {
       final api = ref.read(apiClientProvider);
       final me = await api.dio.get('/users/me');
-      final meId = (me.data['data'] as Map?)?['id'] as String?;
+      final meData = me.data['data'] as Map?;
+      final meId = meData?['id'] as String?;
+      final username = meData?['username'] as String?;
       if (meId == null) return;
       final res = await api.dio.get('/channels/$meId/subscriptions', queryParameters: {'limit': 40});
       final payload = res.data['data'];
@@ -46,6 +49,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
           : (payload is List ? payload : []);
       if (!mounted) return;
       setState(() {
+        _myUsername = username;
         _channels
           ..clear()
           ..addAll(
@@ -111,7 +115,16 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Subscriptions')),
+      appBar: AppBar(
+        title: const Text('Subscriptions'),
+        actions: [
+          if (_myUsername != null && _myUsername!.isNotEmpty)
+            TextButton(
+              onPressed: () => context.push('/profile/$_myUsername/subscriptions'),
+              child: const Text('Manage'),
+            ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error

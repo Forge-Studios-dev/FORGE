@@ -48,6 +48,13 @@ class StudioSettingsScreen extends ConsumerWidget {
               label: 'Edit profile settings',
               onPressed: () => context.push('/profile/settings'),
             ),
+            if ((me['username'] as String?)?.isNotEmpty == true) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => context.push('/profile/${me['username']}'),
+                child: const Text('View public channel'),
+              ),
+            ],
             const SizedBox(height: 16),
             Text(
               'Shortcuts',
@@ -59,167 +66,111 @@ class StudioSettingsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 8),
-            ForgeCard(
+            _shortcut(
+              context,
+              icon: Icons.palette_outlined,
+              title: 'Customize channel',
+              subtitle: 'Name, about, banner, avatar, and links',
               onTap: () => context.push('/studio/branding'),
-              child: Row(
-                children: [
-                  Icon(Icons.palette_outlined, color: ForgeTokens.of(context).primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Customize channel',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: ForgeTokens.of(context).onSurface,
-                          ),
-                        ),
-                        Text(
-                          'Name, about, banner, avatar, and links',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: ForgeTokens.of(context).onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
-                ],
-              ),
             ),
             const SizedBox(height: 10),
-            ForgeCard(
+            _shortcut(
+              context,
+              icon: Icons.playlist_play,
+              title: 'Playlists',
+              subtitle: 'Create and organize channel playlists',
               onTap: () => context.push('/playlists'),
-              child: Row(
-                children: [
-                  Icon(Icons.playlist_play, color: ForgeTokens.of(context).primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Playlists',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: ForgeTokens.of(context).onSurface,
-                          ),
-                        ),
-                        Text(
-                          'Create and organize channel playlists',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: ForgeTokens.of(context).onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
-                ],
-              ),
             ),
             const SizedBox(height: 10),
-            ForgeCard(
+            _shortcut(
+              context,
+              icon: Icons.notifications_active,
+              title: 'Attention queue',
+              subtitle: 'Comments, moderation, and processing failures',
               onTap: () => context.push('/studio/attention'),
-              child: Row(
-                children: [
-                  Icon(Icons.notifications_active, color: ForgeTokens.of(context).primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Attention queue',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: ForgeTokens.of(context).onSurface,
-                          ),
-                        ),
-                        Text(
-                          'Comments, moderation, and processing failures',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: ForgeTokens.of(context).onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
-                ],
-              ),
             ),
             const SizedBox(height: 10),
-            ForgeCard(
+            _shortcut(
+              context,
+              icon: Icons.volunteer_activism,
+              title: 'Super Thanks',
+              subtitle: 'Review tips from viewers and export CSV',
+              onTap: () => context.push('/studio/super-thanks'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.workspace_premium,
+              title: 'Memberships',
+              subtitle: 'Configure tiers and entitlements',
               onTap: () => context.push('/studio/tiers'),
-              child: Row(
-                children: [
-                  Icon(Icons.workspace_premium, color: ForgeTokens.of(context).primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Memberships',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: ForgeTokens.of(context).onSurface,
-                          ),
-                        ),
-                        Text(
-                          'Configure tiers and entitlements',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: ForgeTokens.of(context).onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
-                ],
-              ),
             ),
             const SizedBox(height: 10),
-            ForgeCard(
+            _shortcut(
+              context,
+              icon: Icons.shield_outlined,
+              title: 'Moderation',
+              subtitle: 'Reports, bans, and community trust tools',
+              onTap: () => context.push('/studio/moderation'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.chat_outlined,
+              title: 'Direct messages',
+              subtitle: 'Reply to member conversations',
+              onTap: () => context.push('/messages'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.notifications_outlined,
+              title: 'Notifications',
+              subtitle: 'Creator alerts for comments and live events',
               onTap: () => context.push('/notifications'),
-              child: Row(
-                children: [
-                  Icon(Icons.notifications_outlined, color: ForgeTokens.of(context).primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Notifications',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: ForgeTokens.of(context).onSurface,
-                          ),
-                        ),
-                        Text(
-                          'Creator alerts for comments and live events',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: ForgeTokens.of(context).onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
-                ],
-              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _shortcut(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ForgeCard(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(icon, color: ForgeTokens.of(context).primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: ForgeTokens.of(context).onSurface,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: ForgeTokens.of(context).onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
+        ],
       ),
     );
   }
