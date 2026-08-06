@@ -22,6 +22,7 @@ export interface StudioLibraryParams {
   visibility?: string;
   /** `video` | `short` */
   videoType?: string;
+  categoryId?: string;
   scheduled?: boolean;
   page?: number;
   limit?: number;
@@ -52,6 +53,7 @@ export async function fetchStudioLibrary(
   if (params.status) qs.set('status', params.status);
   if (params.visibility) qs.set('visibility', params.visibility);
   if (params.videoType) qs.set('videoType', params.videoType);
+  if (params.categoryId) qs.set('categoryId', params.categoryId);
   if (params.scheduled) qs.set('scheduled', 'true');
   if (params.page) qs.set('page', String(params.page));
   if (params.limit) qs.set('limit', String(params.limit));

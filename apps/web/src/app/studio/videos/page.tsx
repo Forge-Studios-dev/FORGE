@@ -10,6 +10,7 @@ import { getActiveUpload, subscribeActiveUpload } from '@/lib/upload-manager';
 import { EmptyState, Icon, ListSkeleton, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
 import { fetchStudioLibrary, studioPublicPath, type StudioVideoSort } from '@/lib/creator-studio';
+import { fetchUploadOptions, type UploadCategoryOption } from '@/lib/categories';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { formatCount, timeAgo } from '@/lib/utils';
@@ -260,9 +261,18 @@ function StudioVideosPageInner() {
   const [statusFilter, setStatusFilter] = useState('');
   const [visibilityFilter, setVisibilityFilter] = useState('');
   const [videoTypeFilter, setVideoTypeFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [scheduledOnly, setScheduledOnly] = useState(false);
+  const [categories, setCategories] = useState<UploadCategoryOption[]>([]);
 
   const PAGE_SIZE = 30;
+
+  useEffect(() => {
+    if (!isCreator) return;
+    void fetchUploadOptions()
+      .then(setCategories)
+      .catch(() => setCategories([]));
+  }, [isCreator]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -314,6 +324,7 @@ function StudioVideosPageInner() {
       statusFilter,
       visibilityFilter,
       videoTypeFilter,
+      categoryFilter,
       scheduledOnly,
     ],
     enabled: !!user?.id && isCreator,
@@ -325,6 +336,7 @@ function StudioVideosPageInner() {
         status: statusFilter || undefined,
         visibility: visibilityFilter || undefined,
         videoType: videoTypeFilter || undefined,
+        categoryId: categoryFilter || undefined,
         scheduled: scheduledOnly || undefined,
         page: pageParam,
         limit: PAGE_SIZE,
@@ -498,6 +510,24 @@ function StudioVideosPageInner() {
             <option value="short">Shorts</option>
           </select>
         </label>
+        {categories.length > 0 ? (
+          <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+            Category
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              aria-label="Filter by category"
+              className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface"
+            >
+              <option value="">All</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <label className="flex items-center gap-2 text-sm text-on-surface-variant">
           Visibility
           <select

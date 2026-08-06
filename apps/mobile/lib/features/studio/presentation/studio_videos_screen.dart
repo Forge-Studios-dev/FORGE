@@ -26,6 +26,8 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
   String _status = '';
   String _visibility = '';
   String _videoType = '';
+  String _categoryId = '';
+  List<Map<String, dynamic>> _categories = [];
   bool _scheduledOnly = false;
   final List<VideoModel> _videos = [];
   int _page = 1;
@@ -37,7 +39,18 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCategories();
     _load();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final cats = await ref.read(studioRepositoryProvider).getUploadCategoryOptions();
+      if (!mounted) return;
+      setState(() => _categories = cats);
+    } catch (_) {
+      /* optional filter */
+    }
   }
 
   @override
@@ -66,6 +79,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
             status: _status.isEmpty ? null : _status,
             visibility: _visibility.isEmpty ? null : _visibility,
             videoType: _videoType.isEmpty ? null : _videoType,
+            categoryId: _categoryId.isEmpty ? null : _categoryId,
             scheduled: _scheduledOnly,
             page: nextPage,
             limit: 24,
@@ -251,6 +265,21 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                     _load();
                   },
                 ),
+                if (_categories.isNotEmpty) ...[
+                  const SizedBox(width: 12),
+                  for (final c in _categories) ...[
+                    _filterChip(
+                      label: (c['name'] as String?) ?? 'Category',
+                      selected: _categoryId == (c['id'] as String? ?? ''),
+                      onTap: () {
+                        final id = c['id'] as String? ?? '';
+                        setState(() => _categoryId = _categoryId == id ? '' : id);
+                        _load();
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                ],
                 const SizedBox(width: 12),
                 _filterChip(
                   label: 'Public',
@@ -314,6 +343,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                         _status.isNotEmpty ||
                         _visibility.isNotEmpty ||
                         _videoType.isNotEmpty ||
+                        _categoryId.isNotEmpty ||
                         _scheduledOnly
                     ? 'No videos match these filters.'
                     : 'No videos yet. Upload your first video.',
