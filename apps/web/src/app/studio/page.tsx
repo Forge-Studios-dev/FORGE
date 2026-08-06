@@ -32,6 +32,7 @@ function StudioAttentionLink({ href, className, children }: { href: string; clas
 const QUICK_ACTIONS = [
   { href: '/upload', label: 'Upload video', icon: 'upload', desc: 'Publish a new video' },
   { href: '/studio/live', label: 'Go live', icon: 'sensors', desc: 'Start or schedule a stream' },
+  { href: '/studio/community', label: 'Community', icon: 'campaign', desc: 'Post to your channel Community tab' },
   { href: '/studio/comments', label: 'Comments', icon: 'forum', desc: 'Reply to viewer comments' },
   { href: '/studio/analytics', label: 'Analytics', icon: 'analytics', desc: 'Views, watch time, and growth' },
 ] as const;
@@ -48,6 +49,12 @@ const OPERATING_PILLARS = [
     href: '/studio/live',
     icon: 'sensors',
     summary: 'Start streams, schedule events, and run your host control room.',
+  },
+  {
+    title: 'Community',
+    href: '/studio/community',
+    icon: 'campaign',
+    summary: 'Share updates on your public channel Community tab.',
   },
   {
     title: 'Engagement',

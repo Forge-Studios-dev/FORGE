@@ -596,6 +596,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Web Studio: `/studio/community` channel posts (sidebar + settings); video editor Manage playlists (`SaveToPlaylistModal`)
 - Mobile Studio: `/studio/channel-posts` compose surface; video editor playlist membership toggles
 - Mobile Shorts comments: like + reply (watch parity)
+- Create menus + Studio dashboard link Community post; watch transcript Copy (web + mobile)
 
 ## Interests settings + upload playlists (2026-08-06)
 

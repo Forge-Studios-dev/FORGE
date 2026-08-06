@@ -65,6 +65,13 @@ class StudioScreen extends ConsumerWidget {
                 ),
                 _sheetAction(
                   sheetContext,
+                  icon: Icons.campaign_outlined,
+                  title: 'Community post',
+                  subtitle: 'Update your channel Community tab',
+                  route: '/studio/channel-posts',
+                ),
+                _sheetAction(
+                  sheetContext,
                   icon: Icons.video_library,
                   title: 'Content',
                   subtitle: 'Manage your videos',

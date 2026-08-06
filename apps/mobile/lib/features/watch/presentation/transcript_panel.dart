@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/utils/webvtt.dart';
@@ -123,48 +124,71 @@ class _TranscriptPanelState extends ConsumerState<TranscriptPanel> {
                         break;
                       }
                     }
-                    return ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 280),
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: cues.length,
-                        itemBuilder: (context, i) {
-                          final cue = cues[i];
-                          final active = i == activeIndex;
-                          return InkWell(
-                            onTap: () => widget.onSeek(cue.startSeconds.round()),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SizedBox(
-                                    width: 44,
-                                    child: Text(
-                                      formatCueTimestamp(cue.startSeconds),
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 12,
-                                        color: t.outline,
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () async {
+                              final text = cues
+                                  .map((c) => c.text.trim())
+                                  .where((s) => s.isNotEmpty)
+                                  .join('\n');
+                              await Clipboard.setData(ClipboardData(text: text));
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Transcript copied')),
+                              );
+                            },
+                            icon: const Icon(Icons.copy, size: 16),
+                            label: const Text('Copy transcript'),
+                          ),
+                        ),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 280),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: cues.length,
+                            itemBuilder: (context, i) {
+                              final cue = cues[i];
+                              final active = i == activeIndex;
+                              return InkWell(
+                                onTap: () => widget.onSeek(cue.startSeconds.round()),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 6),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      SizedBox(
+                                        width: 44,
+                                        child: Text(
+                                          formatCueTimestamp(cue.startSeconds),
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            fontSize: 12,
+                                            color: t.outline,
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      cue.text,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: active ? t.primary : t.onSurfaceVariant,
-                                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                                      Expanded(
+                                        child: Text(
+                                          cue.text,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: active ? t.primary : t.onSurfaceVariant,
+                                            fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     );
                   },
                 ),

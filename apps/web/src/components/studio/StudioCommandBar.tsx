@@ -14,6 +14,7 @@ const CREATE_ITEMS = [
   { href: '/upload', label: 'Upload video', icon: 'upload' },
   { href: '/upload?type=short', label: 'Create Short', icon: 'smart_display' },
   { href: '/studio/live', label: 'Go live', icon: 'sensors' },
+  { href: '/studio/community', label: 'Community post', icon: 'campaign' },
   { href: '/playlists/new', label: 'New playlist', icon: 'playlist_add' },
 ] as const;
 

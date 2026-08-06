@@ -30,11 +30,13 @@ export function TranscriptPanel({
 
   const [trackLang, setTrackLang] = useState('');
   const [open, setOpen] = useState(false);
+  const [copyMsg, setCopyMsg] = useState('');
   const firstLang = tracks[0]?.language ?? '';
 
   useEffect(() => {
     setTrackLang(firstLang);
     setOpen(false);
+    setCopyMsg('');
   }, [videoId, firstLang]);
 
   const activeLang = trackLang || firstLang;
@@ -62,6 +64,19 @@ export function TranscriptPanel({
     return idx;
   }, [cues, currentSeconds]);
 
+  const copyTranscript = async () => {
+    if (!cues.length) return;
+    const text = cues.map((c) => c.text.trim()).filter(Boolean).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyMsg('Copied');
+      window.setTimeout(() => setCopyMsg(''), 2000);
+    } catch {
+      setCopyMsg('Could not copy');
+      window.setTimeout(() => setCopyMsg(''), 2000);
+    }
+  };
+
   if (!tracks.length) return null;
 
   return (
@@ -75,22 +90,33 @@ export function TranscriptPanel({
         >
           {open ? 'Hide transcript' : 'Show transcript'}
         </button>
-        {open && tracks.length > 1 ? (
-          <label className="flex items-center gap-2 text-xs text-on-surface-variant">
-            Language
-            <select
-              value={activeLang}
-              onChange={(e) => setTrackLang(e.target.value)}
-              className="rounded-md border border-outline-variant/40 bg-surface-container-low px-2 py-1 text-sm text-on-surface"
+        <div className="flex flex-wrap items-center gap-2">
+          {open && cues.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => void copyTranscript()}
+              className="rounded-full border border-outline-variant/40 px-3 py-1 text-xs font-medium text-on-surface-variant hover:border-primary hover:text-on-surface"
             >
-              {tracks.map((t) => (
-                <option key={`${t.language}-${t.url}`} value={t.language}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
+              {copyMsg || 'Copy transcript'}
+            </button>
+          ) : null}
+          {open && tracks.length > 1 ? (
+            <label className="flex items-center gap-2 text-xs text-on-surface-variant">
+              Language
+              <select
+                value={activeLang}
+                onChange={(e) => setTrackLang(e.target.value)}
+                className="rounded-md border border-outline-variant/40 bg-surface-container-low px-2 py-1 text-sm text-on-surface"
+              >
+                {tracks.map((t) => (
+                  <option key={`${t.language}-${t.url}`} value={t.language}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </div>
       </div>
       {open ? (
         <div className="mt-4 max-h-72 overflow-y-auto pr-1" role="list" aria-label="Transcript">
