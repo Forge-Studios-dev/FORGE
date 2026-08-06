@@ -602,6 +602,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Studio video editor: **Publish now** clears future `scheduledPublishAt` (web + mobile)
 - Studio content library: `scheduled=true` API filter + Scheduled only UI (web checkbox / mobile chip)
+- Studio content list: **Publish now** action on scheduled rows (web + mobile)
 - Mobile Shorts share sheet: Share + Copy link
 
 ## Interests settings + upload playlists (2026-08-06)

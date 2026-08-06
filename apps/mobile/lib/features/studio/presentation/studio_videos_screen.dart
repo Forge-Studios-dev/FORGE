@@ -321,6 +321,8 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
           );
         }
         final v = _videos[i - 1];
+        final scheduledFuture =
+            v.scheduledPublishAt != null && v.scheduledPublishAt!.isAfter(DateTime.now());
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: ForgeCard(
@@ -344,13 +346,37 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                           _statusLabel(v.status),
                           if (v.visibility != null) v.visibility!,
                           '${v.viewCount} views',
-                          if (v.scheduledPublishAt != null) 'scheduled',
+                          if (scheduledFuture) 'scheduled',
                         ].join(' · '),
                         style: TextStyle(
                           fontSize: 13,
                           color: _statusColor(context, v.status),
                         ),
                       ),
+                      if (scheduledFuture)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton(
+                            onPressed: () async {
+                              try {
+                                await ref.read(studioRepositoryProvider).updateVideo(
+                                      v.id,
+                                      title: v.title,
+                                      description: v.description,
+                                      visibility: v.visibility ?? 'public',
+                                      scheduledPublishAt: null,
+                                    );
+                                await _load();
+                              } catch (_) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Could not publish now')),
+                                );
+                              }
+                            },
+                            child: const Text('Publish now'),
+                          ),
+                        ),
                     ],
                   ),
                 ),

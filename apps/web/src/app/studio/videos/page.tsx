@@ -60,15 +60,24 @@ function formatPublishedAt(video: Video): string {
   return new Date(raw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function isFutureScheduled(video: Video): boolean {
+  if (!video.scheduledPublishAt) return false;
+  return new Date(video.scheduledPublishAt).getTime() > Date.now();
+}
+
 function VideoRow({
   video,
   cancellingId,
+  publishingId,
   onCancel,
+  onPublishNow,
   browserUploadPct,
 }: {
   video: Video;
   cancellingId: string | null;
+  publishingId: string | null;
   onCancel: (id: string) => void;
+  onPublishNow: (id: string) => void;
   browserUploadPct?: number | null;
 }) {
   const inProgress = video.status === 'uploading' || video.status === 'processing';
@@ -77,6 +86,7 @@ function VideoRow({
     video.status === 'processing' ||
     video.status === 'failed' ||
     video.status === 'pending';
+  const canPublishNow = isFutureScheduled(video);
 
   return (
     <li className="glass-panel flex items-center justify-between gap-4 rounded-xl p-4">
@@ -114,7 +124,17 @@ function VideoRow({
           </div>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
+        {canPublishNow ? (
+          <button
+            type="button"
+            disabled={publishingId === video.id}
+            onClick={() => onPublishNow(video.id)}
+            className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+          >
+            {publishingId === video.id ? 'Publishing…' : 'Publish now'}
+          </button>
+        ) : null}
         {canCancel ? (
           <button
             type="button"
@@ -153,6 +173,7 @@ function StudioVideosPageInner() {
   const { user, accessToken, isCreator } = useAuth();
   const queryClient = useQueryClient();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [releasing, setReleasing] = useState(false);
   const [browserUploadPct, setBrowserUploadPct] = useState<number | null>(null);
@@ -248,6 +269,16 @@ function StudioVideosPageInner() {
       await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const publishNow = async (videoId: string) => {
+    setPublishingId(videoId);
+    try {
+      await api.patch(`/videos/${videoId}`, { scheduledPublishAt: null });
+      await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } finally {
+      setPublishingId(null);
     }
   };
 
@@ -484,6 +515,16 @@ function StudioVideosPageInner() {
                       <td className="px-4 py-3 text-on-surface-variant">{formatPublishedAt(video)}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-3">
+                          {isFutureScheduled(video) ? (
+                            <button
+                              type="button"
+                              disabled={publishingId === video.id}
+                              onClick={() => void publishNow(video.id)}
+                              className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+                            >
+                              {publishingId === video.id ? 'Publishing…' : 'Publish now'}
+                            </button>
+                          ) : null}
                           {canCancel ? (
                             <button
                               type="button"
@@ -522,7 +563,9 @@ function StudioVideosPageInner() {
                 key={video.id}
                 video={video}
                 cancellingId={cancellingId}
+                publishingId={publishingId}
                 onCancel={setCancelConfirmId}
+                onPublishNow={(id) => void publishNow(id)}
                 browserUploadPct={video.id === activeVideoId ? browserUploadPct : null}
               />
             ))}
