@@ -254,6 +254,15 @@ class LibraryScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           ForgeCard(
+            onTap: () => context.push('/messages'),
+            child: const _LibraryRow(
+              icon: Icons.chat_outlined,
+              title: 'Messages',
+              subtitle: 'Direct messages with creators and viewers',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
             onTap: () => context.push('/studio'),
             child: const _LibraryRow(
               icon: Icons.video_camera_front_outlined,

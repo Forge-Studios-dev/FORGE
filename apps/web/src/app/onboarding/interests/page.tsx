@@ -60,7 +60,11 @@ export default function InterestsOnboardingPage() {
     <main className="mx-auto flex min-h-[70vh] max-w-lg flex-col justify-center px-6 py-12">
       <h1 className="font-display-forge text-3xl font-semibold text-on-surface">What are you into?</h1>
       <p className="mt-2 text-on-surface-variant">
-        Pick a few interests so we can seed your For You feed. You can change this later.
+        Pick a few interests so we can seed your For You feed. You can change this later in{' '}
+        <Link href="/profile/settings#interests" className="text-primary hover:underline">
+          Settings
+        </Link>
+        .
       </p>
       {isLoading ? (
         <p className="mt-8 text-sm text-on-surface-variant" aria-busy="true">

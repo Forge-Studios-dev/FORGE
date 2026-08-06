@@ -95,6 +95,12 @@ export default function ProfileSettingsPage() {
         >
           Privacy
         </a>
+        <a
+          href="#interests"
+          className="rounded-full bg-surface-container-high px-4 py-1.5 text-sm text-on-surface-variant hover:text-on-surface"
+        >
+          Interests
+        </a>
         <Link
           href="/notifications"
           className="rounded-full bg-surface-container-high px-4 py-1.5 text-sm text-on-surface-variant hover:text-on-surface"

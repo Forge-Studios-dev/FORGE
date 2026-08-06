@@ -595,6 +595,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)
 - Mobile upload: optional attach to custom playlists on complete (`playlistIds`)
+- Library Messages row; onboarding interests → Settings `#interests`
 
 ## Still open
 
