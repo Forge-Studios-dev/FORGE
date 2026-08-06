@@ -649,6 +649,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Studio View / Copy link use `/shorts?v=` for Shorts (web + mobile)
 - Short badge on Studio content library rows
 
+## Short-aware public paths (2026-08-06)
+
+- `publicVideoPath` / share URL: Shorts → `/shorts?v=` (FeedCard, Continue watching, share)
+- `video.ready` notifications include `videoType`; deep links open Shorts feed when applicable
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

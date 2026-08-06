@@ -274,13 +274,15 @@ class _ContinueTile extends ConsumerWidget {
     final duration = video.durationSeconds;
     final progressFrac =
         (progress != null && duration != null && duration > 0) ? (progress / duration).clamp(0.0, 1.0) : null;
-    final href = (progress != null &&
-            progress > 0 &&
-            duration != null &&
-            duration > 0 &&
-            progress < duration * 0.95)
-        ? '/watch/${video.id}?t=$progress'
-        : '/watch/${video.id}';
+    final href = video.videoType == 'short'
+        ? '/shorts?v=${video.id}'
+        : (progress != null &&
+                progress > 0 &&
+                duration != null &&
+                duration > 0 &&
+                progress < duration * 0.95)
+            ? '/watch/${video.id}?t=$progress'
+            : '/watch/${video.id}';
 
     return SizedBox(
       width: 168,
@@ -416,7 +418,8 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
 
   Future<void> _share() async {
     final video = widget.video;
-    final url = '${AppConstants.webBaseUrl}/watch/${video.id}';
+    final path = video.videoType == 'short' ? '/shorts?v=${video.id}' : '/watch/${video.id}';
+    final url = '${AppConstants.webBaseUrl}$path';
     await SharePlus.instance.share(ShareParams(text: '${video.title}\n$url'));
   }
 
@@ -526,7 +529,11 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
   Widget build(BuildContext context) {
     final video = widget.video;
     return GestureDetector(
-      onTap: () => context.push('/watch/${video.id}'),
+      onTap: () {
+        final path =
+            video.videoType == 'short' ? '/shorts?v=${video.id}' : '/watch/${video.id}';
+        context.push(path);
+      },
       child: Stack(
         fit: StackFit.expand,
         children: [

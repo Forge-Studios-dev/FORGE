@@ -106,18 +106,29 @@ export class NotificationsListener {
   }
 
   @OnEvent('video.ready')
-  async onVideoReady(payload: { videoId: string; userId: string }) {
+  async onVideoReady(payload: {
+    videoId: string;
+    userId: string;
+    videoType?: string | null;
+  }) {
     await this.notificationsService.create({
       userId: payload.userId,
       type: NotificationType.VIDEO_READY,
       title: 'Your video is ready',
       body: 'Your upload has finished processing.',
-      metadata: { videoId: payload.videoId },
+      metadata: {
+        videoId: payload.videoId,
+        ...(payload.videoType ? { videoType: payload.videoType } : {}),
+      },
     });
     await this.pushDispatch.enqueueForUser(payload.userId, {
       title: 'Your video is ready',
       body: 'Your upload has finished processing.',
-      data: { type: 'video_ready', videoId: payload.videoId },
+      data: {
+        type: 'video_ready',
+        videoId: payload.videoId,
+        ...(payload.videoType ? { videoType: payload.videoType } : {}),
+      },
     });
     await this.maybeEmailUser(
       payload.userId,

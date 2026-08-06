@@ -13,6 +13,7 @@ import { trackVideoImpression } from '@/lib/analytics';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
 import { PopoverMenu } from '@/components/shell/PopoverMenu';
+import { publicVideoPath } from '@/lib/watch-url';
 
 const menuItemClass =
   'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container disabled:opacity-60';
@@ -71,10 +72,7 @@ export function FeedCard({
     video.durationSeconds > 0
       ? Math.min(100, Math.round((progress / video.durationSeconds) * 100))
       : null;
-  const watchHref =
-    progress != null && progress > 5
-      ? `/watch/${video.id}?t=${Math.floor(progress)}`
-      : `/watch/${video.id}`;
+  const watchHref = publicVideoPath(video, { progressSeconds: progress });
   const channelHref = video.user?.username ? `/${video.user.username}` : null;
   const rootRef = useRef<HTMLDivElement | null>(null);
 

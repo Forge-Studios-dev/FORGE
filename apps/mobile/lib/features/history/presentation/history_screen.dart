@@ -81,6 +81,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   String _watchHref(VideoModel v) {
+    if (v.videoType == 'short') return '/shorts?v=${v.id}';
     final progress = v.viewerProgressSeconds;
     final duration = v.durationSeconds;
     if (progress != null &&

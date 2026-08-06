@@ -27,14 +27,35 @@ export function parseTimeQueryParam(raw: string | null | undefined): number | nu
   return h * 3600 + m * 60 + s;
 }
 
+/** Public viewer path — Shorts open in the vertical feed; videos on `/watch`. */
+export function publicVideoPath(
+  video: { id: string; videoType?: string | null },
+  opts?: { progressSeconds?: number | null },
+): string {
+  if (video.videoType === 'short') {
+    return `/shorts?v=${video.id}`;
+  }
+  const progress = opts?.progressSeconds;
+  if (progress != null && progress > 5) {
+    return `/watch/${video.id}?t=${Math.floor(progress)}`;
+  }
+  return `/watch/${video.id}`;
+}
+
 export function buildWatchShareUrl(opts: {
   videoId: string;
   origin?: string;
   seconds?: number | null;
   listId?: string | null;
+  videoType?: string | null;
 }): string {
   const origin =
     opts.origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
+  if (opts.videoType === 'short' && !opts.listId) {
+    const url = new URL('/shorts', origin || 'https://forge.local');
+    url.searchParams.set('v', opts.videoId);
+    return url.toString();
+  }
   const url = new URL(`/watch/${opts.videoId}`, origin || 'https://forge.local');
   if (opts.listId) url.searchParams.set('list', opts.listId);
   if (opts.seconds != null && opts.seconds > 0) {

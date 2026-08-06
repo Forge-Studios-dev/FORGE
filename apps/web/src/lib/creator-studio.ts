@@ -1,3 +1,4 @@
+import { publicVideoPath } from '@/lib/watch-url';
 import { api } from '@/lib/api';
 import { Comment, Video } from '@/types';
 
@@ -9,9 +10,9 @@ export async function getStudioVideos(): Promise<Video[]> {
 
 export type StudioVideoSort = 'recent' | 'oldest' | 'views' | 'title';
 
-/** Public viewer URL path for Studio View / Copy link (Shorts vs watch). */
+/** @deprecated prefer `publicVideoPath` from `@/lib/watch-url` */
 export function studioPublicPath(video: Pick<Video, 'id' | 'videoType'>): string {
-  return video.videoType === 'short' ? `/shorts?v=${video.id}` : `/watch/${video.id}`;
+  return publicVideoPath(video);
 }
 
 export interface StudioLibraryParams {

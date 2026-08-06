@@ -253,6 +253,7 @@ export class MuxVodService {
       videoId: video.id,
       userId: video.userId,
       categoryId: video.categoryId ?? null,
+      videoType: video.videoType,
       status: VideoStatus.READY,
       hlsUrl,
       thumbnailUrl,

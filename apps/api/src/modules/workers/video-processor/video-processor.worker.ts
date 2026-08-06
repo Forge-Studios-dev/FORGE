@@ -214,6 +214,7 @@ export class VideoProcessorWorker extends WorkerHost {
         videoId,
         userId: job.data.userId,
         categoryId: row?.categoryId ?? null,
+        videoType: typeResolution.videoType,
         status: VideoStatus.READY,
         hlsUrl,
         thumbnailUrl,

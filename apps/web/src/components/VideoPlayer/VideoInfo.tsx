@@ -192,6 +192,7 @@ export function VideoInfo({
       videoId: video.id,
       seconds: atCurrentTime ? playbackSeconds : null,
       listId,
+      videoType: video.videoType,
     });
     setShareHint(null);
     if (!atCurrentTime && navigator.share) {

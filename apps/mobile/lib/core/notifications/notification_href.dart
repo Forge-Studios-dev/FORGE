@@ -4,16 +4,20 @@
 String? notificationHref(String? type, Map<String, dynamic>? metadata) {
   final meta = metadata ?? const <String, dynamic>{};
   final videoId = meta['videoId'] as String?;
+  final videoType = meta['videoType'] as String?;
   final streamId = meta['streamId'] as String?;
   final username = meta['username'] as String?;
   final followerUsername = meta['followerUsername'] as String?;
+
+  String videoPath(String id) =>
+      videoType == 'short' ? '/shorts?v=$id' : '/watch/$id';
 
   switch (type) {
     case 'video_ready':
     case 'premium_content_new':
     case 'video_liked':
     case 'super_thanks':
-      return videoId != null ? '/watch/$videoId' : '/library';
+      return videoId != null ? videoPath(videoId) : '/library';
     case 'comment_on_video':
     case 'comment_reply':
       if (videoId == null) return '/library';
@@ -54,6 +58,6 @@ String? notificationHref(String? type, Map<String, dynamic>? metadata) {
     case 'xp_level_up':
       return null;
     default:
-      return videoId != null ? '/watch/$videoId' : null;
+      return videoId != null ? videoPath(videoId) : null;
   }
 }

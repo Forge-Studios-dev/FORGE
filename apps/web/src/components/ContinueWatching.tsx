@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Video } from '@/types';
 import { formatDuration } from '@/lib/utils';
+import { publicVideoPath } from '@/lib/watch-url';
 
 function progressPct(video: Video): number | null {
   const progress = video.viewerProgressSeconds;
@@ -23,11 +24,7 @@ function progressPct(video: Video): number | null {
 }
 
 function watchHref(video: Video): string {
-  const progress = video.viewerProgressSeconds;
-  if (progress != null && progress > 5) {
-    return `/watch/${video.id}?t=${Math.floor(progress)}`;
-  }
-  return `/watch/${video.id}`;
+  return publicVideoPath(video, { progressSeconds: video.viewerProgressSeconds });
 }
 
 export function ContinueWatching() {

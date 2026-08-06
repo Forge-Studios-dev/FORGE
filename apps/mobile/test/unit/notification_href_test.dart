@@ -29,4 +29,11 @@ void main() {
       '/live/s1',
     );
   });
+
+  test('video_ready Short opens shorts deep link', () {
+    expect(
+      notificationHref('video_ready', {'videoId': 's1', 'videoType': 'short'}),
+      '/shorts?v=s1',
+    );
+  });
 }

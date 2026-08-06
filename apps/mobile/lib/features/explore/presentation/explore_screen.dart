@@ -717,7 +717,11 @@ class _VideoSearchTile extends StatelessWidget {
       ),
       title: Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: ForgeTokens.of(context).onSurface)),
       subtitle: Text('@${video.user.username}', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
-      onTap: () => context.push('/watch/${video.id}'),
+      onTap: () {
+        final path =
+            video.videoType == 'short' ? '/shorts?v=${video.id}' : '/watch/${video.id}';
+        context.push(path);
+      },
     );
   }
 }

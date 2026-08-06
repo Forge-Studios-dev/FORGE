@@ -1,4 +1,5 @@
 import type { Notification, NotificationType } from '@/types';
+import { publicVideoPath } from '@/lib/watch-url';
 
 type NotificationMeta = Notification['metadata'];
 
@@ -12,22 +13,28 @@ export function notificationHref(
 ): string | null {
   const meta = (metadata ?? {}) as Record<string, unknown>;
   const videoId = typeof meta.videoId === 'string' ? meta.videoId : null;
+  const videoType = typeof meta.videoType === 'string' ? meta.videoType : null;
   const streamId = typeof meta.streamId === 'string' ? meta.streamId : null;
   const username = typeof meta.username === 'string' ? meta.username : null;
   const followerUsername =
     typeof meta.followerUsername === 'string' ? meta.followerUsername : null;
+
+  const videoHref = (id: string) => publicVideoPath({ id, videoType });
 
   switch (type) {
     case 'video_ready':
     case 'premium_content_new':
     case 'video_liked':
     case 'super_thanks':
-      return videoId ? `/watch/${videoId}` : '/library';
+      return videoId ? videoHref(videoId) : '/library';
     case 'comment_on_video':
     case 'comment_reply': {
       if (!videoId) return '/library';
       const commentId = typeof meta.commentId === 'string' ? meta.commentId : null;
-      return commentId ? `/watch/${videoId}?lc=${encodeURIComponent(commentId)}` : `/watch/${videoId}`;
+      // Comments live on the watch page even for Shorts.
+      return commentId
+        ? `/watch/${videoId}?lc=${encodeURIComponent(commentId)}`
+        : `/watch/${videoId}`;
     }
     case 'stream_started':
     case 'stream_started_followed':
@@ -57,6 +64,6 @@ export function notificationHref(
       // LMS soft-retired: no dedicated rewards surface in YouTube mode
       return null;
     default:
-      return videoId ? `/watch/${videoId}` : null;
+      return videoId ? videoHref(videoId) : null;
   }
 }
