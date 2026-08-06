@@ -95,6 +95,26 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
     }
   }
 
+  Future<bool> _confirmRemove(VideoModel video) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove video?'),
+        content: Text('Remove this video from $_title?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return false;
+    await _remove(video);
+    return false;
+  }
+
   Future<void> _remove(VideoModel video) async {
     try {
       final client = ref.read(apiClientProvider);
@@ -266,10 +286,7 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
                             color: ForgeTokens.of(context).error.withValues(alpha: 0.15),
                             child: Icon(Icons.delete_outline, color: ForgeTokens.of(context).error),
                           ),
-                          confirmDismiss: (_) async {
-                            await _remove(video);
-                            return false;
-                          },
+                          confirmDismiss: (_) => _confirmRemove(video),
                           child: ListTile(
                             onTap: () => context.push(
                               listId != null
@@ -304,7 +321,7 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
                             trailing: IconButton(
                               tooltip: 'Remove',
                               icon: const Icon(Icons.close),
-                              onPressed: () => _remove(video),
+                              onPressed: () => _confirmRemove(video),
                             ),
                           ),
                         );

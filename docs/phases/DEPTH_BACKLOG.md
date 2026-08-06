@@ -705,6 +705,13 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Web + mobile Settings: Autoplay next + Loop toggles (same `forge.watch.*` keys as watch UI)
 
+## Upload cancel + playlist remove bugfixes (2026-08-06)
+
+- `UploadProgressBanner`: clear sticky `cancelOpen` when upload ends; hoist ConfirmDialog
+- `upload-manager`: skip `POST …/complete` after abort cleared active meta mid-PUT
+- `ConfirmDialog`: ignore Escape/backdrop close while `loading`; unique `labelledBy`
+- Mobile playlist detail + system Liked/Watch later: confirm before remove
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

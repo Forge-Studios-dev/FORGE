@@ -7,7 +7,6 @@ import { ConfirmDialog } from '@forge/design-system/client';
 import {
   abortActiveUpload,
   getActiveUpload,
-  isUploadInFlight,
   subscribeActiveUpload,
   type ActiveUploadMeta,
 } from '@/lib/upload-manager';
@@ -35,6 +34,10 @@ export function UploadProgressBanner() {
   }, []);
 
   useEffect(() => {
+    if (!active) setCancelOpen(false);
+  }, [active]);
+
+  useEffect(() => {
     if (!active || active.phase === 'completing') return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
@@ -49,12 +52,29 @@ export function UploadProgressBanner() {
     return `~${Math.ceil(remainingSec / 60)}m remaining`;
   }, [active, now]);
 
-  if (!active && !isUploadInFlight()) return null;
-  if (!active) return null;
+  const cancelDialog = (
+    <ConfirmDialog
+      open={cancelOpen}
+      title="Cancel upload?"
+      description="This stops the current upload and frees the slot."
+      confirmLabel="Cancel upload"
+      onConfirm={() => {
+        abortActiveUpload();
+        setCancelOpen(false);
+      }}
+      onCancel={() => setCancelOpen(false)}
+    />
+  );
+
+  if (!active) {
+    // Keep dialog mounted only while open so finish/fail mid-confirm cannot leave sticky state.
+    return cancelOpen ? cancelDialog : null;
+  }
 
   const isMultipart = active.uploadVia === 'multipart' && !!active.multipart;
 
   return (
+    <>
     <div
       role="status"
       aria-live="polite"
@@ -131,18 +151,8 @@ export function UploadProgressBanner() {
           ? 'Safe to leave this page — chunk progress is checkpointed and can resume later if the connection drops.'
           : 'You can leave this page; upload continues in the background.'}
       </p>
-
-      <ConfirmDialog
-        open={cancelOpen}
-        title="Cancel upload?"
-        description="This stops the current upload and frees the slot."
-        confirmLabel="Cancel upload"
-        onConfirm={() => {
-          abortActiveUpload();
-          setCancelOpen(false);
-        }}
-        onCancel={() => setCancelOpen(false)}
-      />
     </div>
+    {cancelDialog}
+    </>
   );
 }
