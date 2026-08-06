@@ -47,6 +47,7 @@ export default function StudioPlaylistsPage() {
   const [editDescription, setEditDescription] = useState('');
   const [editVisibility, setEditVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
   const [itemSearch, setItemSearch] = useState('');
+  const [shareHint, setShareHint] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['studio-playlists'],
@@ -173,6 +174,41 @@ export default function StudioPlaylistsPage() {
     },
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: async (videoIds: string[]) => {
+      if (!manageId) return;
+      await api.put(`/playlists/${manageId}/reorder`, { videoIds });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['studio-playlist-detail', manageId] });
+    },
+    onError: (e) => setAttachError(getApiErrorMessage(e, 'Could not reorder playlist.')),
+  });
+
+  const moveItem = (index: number, direction: -1 | 1) => {
+    const items = managedPlaylist?.items ?? [];
+    const next = index + direction;
+    if (next < 0 || next >= items.length) return;
+    const ids = items.map((i) => i.video?.id ?? i.videoId).filter(Boolean) as string[];
+    if (ids.length !== items.length) return;
+    const tmp = ids[index]!;
+    ids[index] = ids[next]!;
+    ids[next] = tmp;
+    reorderMutation.mutate(ids);
+  };
+
+  const copyPlaylistLink = async (playlistId: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const url = `${origin}/playlists/${playlistId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareHint(playlistId);
+      window.setTimeout(() => setShareHint(null), 2000);
+    } catch {
+      setError('Could not copy playlist link.');
+    }
+  };
+
   const openManage = (playlist: Playlist) => {
     setManageId(playlist.id);
     setAttachVideoId('');
@@ -196,6 +232,7 @@ export default function StudioPlaylistsPage() {
   }
 
   const managedItems = managedPlaylist?.items ?? [];
+  const canReorder = !itemSearch.trim();
   const filteredItems = itemSearch.trim()
     ? managedItems.filter((item) =>
         (item.video?.title ?? '').toLowerCase().includes(itemSearch.trim().toLowerCase()),
@@ -347,6 +384,13 @@ export default function StudioPlaylistsPage() {
                 </Link>
                 <button
                   type="button"
+                  onClick={() => void copyPlaylistLink(playlist.id)}
+                  className="text-sm text-on-surface-variant hover:underline"
+                >
+                  {shareHint === playlist.id ? 'Copied' : 'Copy link'}
+                </button>
+                <button
+                  type="button"
                   onClick={() => setDeleteId(playlist.id)}
                   className="text-sm text-error hover:underline"
                 >
@@ -465,20 +509,52 @@ export default function StudioPlaylistsPage() {
                 const videoId = item.video?.id ?? item.videoId;
                 const itemTitle = item.video?.title ?? 'Video';
                 if (!videoId) return null;
+                const index = managedItems.findIndex((i) => i.id === item.id);
                 return (
                   <li
                     key={item.id}
                     className="flex items-center justify-between gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-sm"
                   >
-                    <span className="font-medium">{itemTitle}</span>
-                    <button
-                      type="button"
-                      disabled={removeMutation.isPending}
-                      onClick={() => removeMutation.mutate(videoId)}
-                      className="text-sm text-error hover:underline disabled:opacity-50"
-                    >
-                      Remove
-                    </button>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="w-5 shrink-0 text-center text-xs text-outline">
+                        {index >= 0 ? index + 1 : '·'}
+                      </span>
+                      <span className="truncate font-medium">{itemTitle}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {canReorder && index >= 0 ? (
+                        <div className="flex flex-col">
+                          <button
+                            type="button"
+                            disabled={index === 0 || reorderMutation.isPending}
+                            onClick={() => moveItem(index, -1)}
+                            className="rounded p-0.5 text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30"
+                            aria-label="Move up"
+                          >
+                            <Icon name="keyboard_arrow_up" className="text-lg" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={
+                              index === managedItems.length - 1 || reorderMutation.isPending
+                            }
+                            onClick={() => moveItem(index, 1)}
+                            className="rounded p-0.5 text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30"
+                            aria-label="Move down"
+                          >
+                            <Icon name="keyboard_arrow_down" className="text-lg" />
+                          </button>
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={removeMutation.isPending}
+                        onClick={() => removeMutation.mutate(videoId)}
+                        className="text-sm text-error hover:underline disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </li>
                 );
               })}

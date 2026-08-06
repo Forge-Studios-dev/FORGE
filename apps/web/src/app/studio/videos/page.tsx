@@ -13,7 +13,7 @@ import { fetchStudioLibrary, studioPublicPath, type StudioVideoSort } from '@/li
 import { fetchUploadOptions, type UploadCategoryOption } from '@/lib/categories';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { formatCount, timeAgo } from '@/lib/utils';
+import { formatCount, formatDuration, timeAgo } from '@/lib/utils';
 import { getSocket } from '@/lib/socket';
 import type { Video } from '@/types';
 
@@ -157,7 +157,11 @@ function VideoRow({
             ? ` · scheduled ${new Date(video.scheduledPublishAt).toLocaleString()}`
             : ''}
           {video.status === 'ready'
-            ? ` · ${formatCount(video.viewCount)} views · ${timeAgo(video.createdAt)}`
+            ? ` · ${formatCount(video.viewCount)} views${
+                video.durationSeconds != null && video.durationSeconds > 0
+                  ? ` · ${formatDuration(video.durationSeconds)}`
+                  : ''
+              } · ${timeAgo(video.createdAt)}`
             : ` · started ${timeAgo(video.createdAt)}`}
         </p>
         {inProgress ? (
@@ -644,6 +648,11 @@ function StudioVideosPageInner() {
                                 <Icon name="movie" />
                               </div>
                             )}
+                            {video.durationSeconds != null && video.durationSeconds > 0 ? (
+                              <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 text-[10px] font-medium text-white">
+                                {formatDuration(video.durationSeconds)}
+                              </span>
+                            ) : null}
                           </div>
                           <div className="min-w-0">
                             <p className="truncate font-medium">
@@ -719,7 +728,16 @@ function StudioVideosPageInner() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-on-surface-variant">
-                        {video.status === 'ready' ? formatCount(video.viewCount) : '—'}
+                        {video.status === 'ready' ? (
+                          <span>
+                            {formatCount(video.viewCount)}
+                            {video.durationSeconds != null && video.durationSeconds > 0
+                              ? ` · ${formatDuration(video.durationSeconds)}`
+                              : ''}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="px-4 py-3 text-on-surface-variant">{formatPublishedAt(video)}</td>
                       <td className="px-4 py-3">

@@ -405,6 +405,8 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                           if (v.videoType == 'short') 'Short',
                           if (v.visibility != null) v.visibility!,
                           '${v.viewCount} views',
+                          if (v.durationSeconds != null && v.durationSeconds! > 0)
+                            _formatDuration(v.durationSeconds!),
                           if (scheduledFuture) 'scheduled',
                         ].join(' · '),
                         style: TextStyle(
@@ -562,6 +564,17 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
         );
       },
     );
+  }
+
+  String _formatDuration(double seconds) {
+    final total = seconds.round();
+    final h = total ~/ 3600;
+    final m = (total % 3600) ~/ 60;
+    final s = total % 60;
+    if (h > 0) {
+      return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '$m:${s.toString().padLeft(2, '0')}';
   }
 
   String _statusLabel(String status) {
