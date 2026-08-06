@@ -591,6 +591,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Web + mobile: video performance `days` selector (7 / 28 / 90) on Studio analytics
 
+## Studio Community + video playlists (2026-08-06)
+
+- Web Studio: `/studio/community` channel posts (sidebar + settings); video editor Manage playlists (`SaveToPlaylistModal`)
+- Mobile Studio: `/studio/channel-posts` compose surface; video editor playlist membership toggles
+- Mobile Shorts comments: like + reply (watch parity)
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

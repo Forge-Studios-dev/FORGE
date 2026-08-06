@@ -31,6 +31,12 @@ const CREATOR_LINKS = [
     icon: 'volunteer_activism',
   },
   {
+    href: '/studio/community',
+    title: 'Community posts',
+    desc: 'Publish updates to your channel Community tab.',
+    icon: 'campaign',
+  },
+  {
     href: '/studio/attention',
     title: 'Attention queue',
     desc: 'Comments needing reply, moderation, and processing failures.',

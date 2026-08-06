@@ -38,6 +38,7 @@ import '../../features/studio/presentation/studio_super_thanks_screen.dart';
 import '../../features/studio/presentation/studio_tiers_screen.dart';
 import '../../features/studio/presentation/studio_subscribers_screen.dart';
 import '../../features/studio/presentation/studio_community_screen.dart';
+import '../../features/studio/presentation/studio_channel_posts_screen.dart';
 import '../../features/community/presentation/discover_communities_screen.dart';
 import '../../features/profile/presentation/my_memberships_screen.dart';
 import '../../features/profile/presentation/profile_settings_screen.dart';
@@ -217,6 +218,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => StudioVideoEditScreen(videoId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/studio/comments', builder: (_, __) => const StudioCommentsScreen()),
+      GoRoute(path: '/studio/channel-posts', builder: (_, __) => const StudioChannelPostsScreen()),
       GoRoute(path: '/studio/attention', builder: (_, __) => const StudioAttentionScreen()),
       GoRoute(path: '/studio/live', builder: (_, __) => const StudioLiveScreen()),
       GoRoute(

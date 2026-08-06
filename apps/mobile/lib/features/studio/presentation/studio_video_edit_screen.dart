@@ -9,6 +9,7 @@ import '../../../core/widgets/description_chapters_hint.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../shared/models/video.dart';
+import '../../watch/data/watch_repository.dart';
 import '../data/studio_repository.dart';
 
 const _visibilityOptions = <({String value, String label})>[
@@ -65,6 +66,11 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
   final Set<String> _skillTagIds = {};
   List<Map<String, dynamic>> _availableTags = [];
   bool _tagsLoading = false;
+  List<Map<String, dynamic>> _myPlaylists = [];
+  final Set<String> _playlistIds = {};
+  bool _playlistsLoading = false;
+  bool _playlistBusy = false;
+  String? _playlistMsg;
 
   @override
   void dispose() {
@@ -90,6 +96,66 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
     _hydrated = true;
     if (_categoryId != null) {
       unawaited(_loadTags(_categoryId!));
+    }
+    unawaited(_loadPlaylists());
+  }
+
+  Future<void> _loadPlaylists() async {
+    setState(() => _playlistsLoading = true);
+    try {
+      final repo = ref.read(watchRepositoryProvider);
+      final playlists = await repo.listMyPlaylists();
+      final containing = await repo.playlistsContaining(widget.videoId);
+      if (!mounted) return;
+      setState(() {
+        _myPlaylists = playlists
+            .where((p) => p['systemType'] == null && p['id'] is String)
+            .toList();
+        _playlistIds
+          ..clear()
+          ..addAll(containing);
+        _playlistsLoading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _myPlaylists = [];
+          _playlistsLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _togglePlaylist(String playlistId, bool next) async {
+    if (_playlistBusy) return;
+    setState(() {
+      _playlistBusy = true;
+      _playlistMsg = null;
+      if (next) {
+        _playlistIds.add(playlistId);
+      } else {
+        _playlistIds.remove(playlistId);
+      }
+    });
+    try {
+      final repo = ref.read(watchRepositoryProvider);
+      if (next) {
+        await repo.addVideoToPlaylist(playlistId: playlistId, videoId: widget.videoId);
+      } else {
+        await repo.removeVideoFromPlaylist(playlistId: playlistId, videoId: widget.videoId);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (next) {
+          _playlistIds.remove(playlistId);
+        } else {
+          _playlistIds.add(playlistId);
+        }
+        _playlistMsg = 'Could not update playlist.';
+      });
+    } finally {
+      if (mounted) setState(() => _playlistBusy = false);
     }
   }
 
@@ -559,6 +625,41 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
                   ),
               ],
               DescriptionChaptersHint(description: _descriptionCtrl.text),
+              const SizedBox(height: 16),
+              Text(
+                'Playlists',
+                style: TextStyle(fontWeight: FontWeight.w600, color: t.onSurface),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Add or remove this video from your custom playlists.',
+                style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
+              if (_playlistsLoading)
+                Text('Loading playlists…', style: TextStyle(color: t.onSurfaceVariant))
+              else if (_myPlaylists.isEmpty)
+                Text(
+                  'No custom playlists yet. Create one from Library.',
+                  style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+                )
+              else
+                ..._myPlaylists.map((p) {
+                  final id = p['id'] as String? ?? '';
+                  final title = p['title'] as String? ?? 'Playlist';
+                  final checked = _playlistIds.contains(id);
+                  return CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    value: checked,
+                    title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    onChanged: _playlistBusy || id.isEmpty
+                        ? null
+                        : (on) => _togglePlaylist(id, on == true),
+                  );
+                }),
+              if (_playlistMsg != null)
+                Text(_playlistMsg!, style: TextStyle(fontSize: 13, color: t.error)),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _visibilityOptions.any((o) => o.value == _visibility)

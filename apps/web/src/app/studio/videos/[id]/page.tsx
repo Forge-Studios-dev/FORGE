@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
 import { fetchCategorySkillTags, type UploadSkillTag } from '@/lib/categories';
 import { DescriptionChaptersHint } from '@/components/studio/DescriptionChaptersHint';
+import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
 import { formatCount } from '@/lib/utils';
 import type { UploadVisibility } from '@/lib/upload-draft';
 import type { Video } from '@/types';
@@ -51,6 +52,7 @@ export default function StudioVideoDetailEditorPage() {
   const [captionLang, setCaptionLang] = useState('en');
   const [thumbBusy, setThumbBusy] = useState(false);
   const [thumbMsg, setThumbMsg] = useState('');
+  const [playlistOpen, setPlaylistOpen] = useState(false);
 
   const CAPTION_LANG_OPTIONS = [
     { code: 'en', label: 'English' },
@@ -70,6 +72,17 @@ export default function StudioVideoDetailEditorPage() {
     queryFn: async () => {
       const { data } = await api.get<{ data: Video }>(`/videos/${id}`);
       return data.data;
+    },
+  });
+
+  const { data: containingPlaylistIds = [] } = useQuery({
+    queryKey: ['playlists', 'containing', id],
+    enabled: !!id && isCreator,
+    queryFn: async () => {
+      const { data } = await api.get<{ data: { playlistIds: string[] } }>(
+        `/playlists/me/containing/${id}`,
+      );
+      return data.data.playlistIds ?? [];
     },
   });
 
@@ -335,6 +348,30 @@ export default function StudioVideoDetailEditorPage() {
             </label>
           </div>
 
+          <div className="space-y-2 rounded-xl border border-outline-variant/30 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-label-caps text-xs text-outline">Playlists</p>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  {containingPlaylistIds.length > 0
+                    ? `In ${containingPlaylistIds.length} playlist${containingPlaylistIds.length === 1 ? '' : 's'}`
+                    : 'Not in any playlist yet'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPlaylistOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:border-primary"
+              >
+                <Icon name="playlist_add" />
+                Manage playlists
+              </button>
+            </div>
+            <Link href="/studio/playlists" className="text-xs text-primary hover:underline">
+              Open playlist manager
+            </Link>
+          </div>
+
           {canEditTags ? (
             <div>
               <p className="mb-2 text-sm text-on-surface-variant">Topic tags</p>
@@ -564,6 +601,12 @@ export default function StudioVideoDetailEditorPage() {
           </div>
         </aside>
       </section>
+
+      <SaveToPlaylistModal
+        videoId={id}
+        open={playlistOpen}
+        onClose={() => setPlaylistOpen(false)}
+      />
     </main>
   );
 }

@@ -351,6 +351,8 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
     List<dynamic> comments = [];
     var loading = true;
     var loadStarted = false;
+    String? replyToId;
+    String? replyToName;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -360,18 +362,19 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
+        bool stillMounted() => ctx.mounted;
         return StatefulBuilder(
           builder: (ctx, setModal) {
             if (loading && !loadStarted) {
               loadStarted = true;
               ref.read(watchRepositoryProvider).getComments(videoId).then((page) {
-                if (!ctx.mounted) return;
+                if (!stillMounted()) return;
                 setModal(() {
                   comments = page.comments;
                   loading = false;
                 });
               }).catchError((_) {
-                if (ctx.mounted) setModal(() => loading = false);
+                if (stillMounted()) setModal(() => loading = false);
               });
             }
 
@@ -379,14 +382,45 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
               final text = ctrl.text.trim();
               if (text.isEmpty) return;
               try {
-                await ref.read(watchRepositoryProvider).postComment(videoId, content: text);
+                await ref.read(watchRepositoryProvider).postComment(
+                      videoId,
+                      content: text,
+                      parentId: replyToId,
+                    );
                 ctrl.clear();
+                setModal(() {
+                  replyToId = null;
+                  replyToName = null;
+                });
                 final page = await ref.read(watchRepositoryProvider).getComments(videoId);
+                if (!stillMounted()) return;
                 setModal(() => comments = page.comments);
               } catch (_) {
-                if (ctx.mounted) {
+                if (stillMounted()) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                     const SnackBar(content: Text('Sign in to comment')),
+                  );
+                }
+              }
+            }
+
+            Future<void> toggleLike(Map<String, dynamic> comment) async {
+              final id = comment['id'] as String?;
+              if (id == null) return;
+              final liked = comment['viewerLiked'] == true;
+              try {
+                await ref.read(watchRepositoryProvider).setCommentLiked(
+                      videoId,
+                      id,
+                      liked: liked,
+                    );
+                final page = await ref.read(watchRepositoryProvider).getComments(videoId);
+                if (!stillMounted()) return;
+                setModal(() => comments = page.comments);
+              } catch (_) {
+                if (stillMounted()) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Sign in to like comments')),
                   );
                 }
               }
@@ -405,19 +439,42 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text('Comments', style: Theme.of(ctx).textTheme.titleMedium),
+                    if (replyToId != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Replying to ${replyToName ?? 'comment'}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: ForgeTokens.of(context).onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => setModal(() {
+                              replyToId = null;
+                              replyToName = null;
+                            }),
+                            child: const Text('Cancel'),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
                             controller: ctrl,
-                            decoration: const InputDecoration(
-                              hintText: 'Add a comment…',
+                            decoration: InputDecoration(
+                              hintText: replyToId != null ? 'Add a reply…' : 'Add a comment…',
                               isDense: true,
                             ),
                           ),
                         ),
-                        IconButton(onPressed: post, icon: Icon(Icons.send)),
+                        IconButton(onPressed: post, icon: const Icon(Icons.send)),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -436,12 +493,35 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                                   itemBuilder: (_, i) {
                                     final m = comments[i] as Map<String, dynamic>;
                                     final user = m['user'] as Map<String, dynamic>?;
+                                    final liked = m['viewerLiked'] == true;
+                                    final likeCount = (m['likeCount'] as num?)?.toInt() ?? 0;
                                     return ListTile(
                                       contentPadding: EdgeInsets.zero,
                                       title: Text(user?['displayName'] as String? ?? 'User'),
                                       subtitle: Text(
                                         m['content'] as String? ?? '',
                                         style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                                      ),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: Icon(
+                                              liked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                                              size: 18,
+                                            ),
+                                            onPressed: () => toggleLike(m),
+                                          ),
+                                          if (likeCount > 0)
+                                            Text('$likeCount', style: const TextStyle(fontSize: 12)),
+                                          IconButton(
+                                            icon: const Icon(Icons.reply, size: 18),
+                                            onPressed: () => setModal(() {
+                                              replyToId = m['id'] as String?;
+                                              replyToName = user?['displayName'] as String?;
+                                            }),
+                                          ),
+                                        ],
                                       ),
                                     );
                                   },

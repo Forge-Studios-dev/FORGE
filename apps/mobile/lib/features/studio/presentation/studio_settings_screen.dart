@@ -76,6 +76,14 @@ class StudioSettingsScreen extends ConsumerWidget {
             const SizedBox(height: 10),
             _shortcut(
               context,
+              icon: Icons.campaign_outlined,
+              title: 'Community posts',
+              subtitle: 'Publish updates to your channel Community tab',
+              onTap: () => context.push('/studio/channel-posts'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
               icon: Icons.playlist_play,
               title: 'Playlists',
               subtitle: 'Create and organize channel playlists',

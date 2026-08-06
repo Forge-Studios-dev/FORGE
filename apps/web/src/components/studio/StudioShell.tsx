@@ -26,6 +26,7 @@ const CREATOR_NAV: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { href: '/studio/videos', label: 'Content', icon: 'video_library' },
       { href: '/studio/playlists', label: 'Playlists', icon: 'playlist_play' },
+      { href: '/studio/community', label: 'Community', icon: 'campaign' },
       { href: '/studio/comments', label: 'Comments', icon: 'forum' },
       { href: '/studio/live', label: 'Live', icon: 'sensors' },
     ],
