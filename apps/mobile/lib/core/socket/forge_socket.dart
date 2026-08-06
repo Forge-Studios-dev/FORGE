@@ -75,6 +75,14 @@ class ForgeSocket {
     _socket?.emit('leave-live-feed');
   }
 
+  static void joinConversation(String conversationId) {
+    _socket?.emit('join-conversation', {'conversationId': conversationId});
+  }
+
+  static void leaveConversation(String conversationId) {
+    _socket?.emit('leave-conversation', {'conversationId': conversationId});
+  }
+
   static void joinVideo(String videoId) {
     _socket?.emit('join-video', {'videoId': videoId});
   }

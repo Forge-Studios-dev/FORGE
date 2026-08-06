@@ -31,6 +31,7 @@ export default function MessagesPage() {
   const qc = useQueryClient();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [threadDraft, setThreadDraft] = useState('');
   const [recipientQuery, setRecipientQuery] = useState('');
   const [selectedRecipient, setSelectedRecipient] = useState<SearchUser | null>(null);
 
@@ -114,6 +115,8 @@ export default function MessagesPage() {
 
   const activeConv = conversations.find((c) => c.conversationId === activeId);
   const canSend = !!selectedRecipient && draft.trim().length > 0 && !send.isPending;
+  const canReply =
+    !!activeConv?.participants[0]?.id && threadDraft.trim().length > 0 && !send.isPending;
 
   return (
     <main className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl flex-col gap-4 px-5 py-8 md:flex-row md:px-12">
@@ -236,6 +239,32 @@ export default function MessagesPage() {
                   {m.content}
                 </div>
               ))}
+            </div>
+            <div className="flex gap-2 border-t border-outline-variant/20 p-4">
+              <textarea
+                value={threadDraft}
+                onChange={(e) => setThreadDraft(e.target.value)}
+                placeholder="Message…"
+                rows={2}
+                className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-transparent px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                disabled={!canReply}
+                onClick={() => {
+                  const peerId = activeConv?.participants[0]?.id;
+                  if (!peerId) return;
+                  send.mutate(
+                    { recipientId: peerId, content: threadDraft.trim() },
+                    {
+                      onSuccess: () => setThreadDraft(''),
+                    },
+                  );
+                }}
+                className="primary-button shrink-0 self-end rounded-lg px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
+              >
+                Send
+              </button>
             </div>
           </>
         ) : (

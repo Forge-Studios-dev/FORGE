@@ -567,6 +567,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile watch: persist volume/mute prefs (`forge.watch.volume` / `forge.watch.muted`)
 - Mobile Studio comments: client search by text / author / video title
 
+## Messages username search + thread reply (2026-08-06)
+
+- Mobile Messages: `@username` search compose, thread reply composer, `dm:message` socket
+- Web Messages: reply composer in active conversation
+- Live Now “Go live” → `/studio/live` (was web-only stub)
+
 ## Still open
 
 | Area | Item | Owner |

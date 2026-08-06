@@ -100,16 +100,7 @@ class _LiveScreenState extends ConsumerState<LiveScreen> {
   }
 
   void _showGoLiveDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Go Live'),
-        content: const Text('Use Studio on web to start a live stream with Mux.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
-        ],
-      ),
-    );
+    context.push('/studio/live');
   }
 }
 
