@@ -249,6 +249,43 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
     }
   }
 
+  Future<void> _cancelSchedule() async {
+    final title = _titleCtrl.text.trim();
+    if (title.isEmpty) {
+      setState(() => _error = 'Title is required.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+      _savedMsg = null;
+      _scheduleEnabled = false;
+      _scheduledAt = null;
+      _visibility = 'private';
+    });
+    try {
+      await ref.read(studioRepositoryProvider).updateVideo(
+            widget.videoId,
+            title: title,
+            description: _descriptionCtrl.text,
+            visibility: 'private',
+            videoType: _videoType,
+            scheduledPublishAt: null,
+            skillTagIds: _categoryId != null && _availableTags.isNotEmpty ? _skillTagIds.toList() : null,
+          );
+      _hydrated = false;
+      ref.invalidate(studioVideoProvider(widget.videoId));
+      ref.invalidate(myVideosProvider);
+      if (!mounted) return;
+      setState(() => _savedMsg = 'Schedule cancelled — video is private');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Could not cancel schedule.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _save() async {
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) {
@@ -777,9 +814,18 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
                       video.scheduledPublishAt!.isAfter(DateTime.now())))
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: _saving || _busy ? null : _publishNow,
-                    child: const Text('Publish now'),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      TextButton(
+                        onPressed: _saving || _busy ? null : _publishNow,
+                        child: const Text('Publish now'),
+                      ),
+                      TextButton(
+                        onPressed: _saving || _busy ? null : _cancelSchedule,
+                        child: const Text('Cancel schedule'),
+                      ),
+                    ],
                   ),
                 ),
               if (_error != null) ...[

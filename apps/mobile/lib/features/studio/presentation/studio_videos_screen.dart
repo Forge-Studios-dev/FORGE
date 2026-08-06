@@ -462,6 +462,24 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                       }
                       return;
                     }
+                    if (action == 'cancel_schedule') {
+                      try {
+                        await ref.read(studioRepositoryProvider).updateVideo(
+                              v.id,
+                              title: v.title,
+                              description: v.description,
+                              visibility: 'private',
+                              scheduledPublishAt: null,
+                            );
+                        await _load();
+                      } catch (_) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not cancel schedule')),
+                        );
+                      }
+                      return;
+                    }
                     if (action == 'delete') {
                       final ok = await showDialog<bool>(
                         context: context,
@@ -517,6 +535,11 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                     if (canCopy) const PopupMenuItem(value: 'copy', child: Text('Copy link')),
                     if (scheduledFuture)
                       const PopupMenuItem(value: 'publish', child: Text('Publish now')),
+                    if (scheduledFuture)
+                      const PopupMenuItem(
+                        value: 'cancel_schedule',
+                        child: Text('Cancel schedule'),
+                      ),
                     if (canDelete) ...[
                       const PopupMenuDivider(),
                       PopupMenuItem(

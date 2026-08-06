@@ -156,6 +156,25 @@ export default function StudioVideoDetailEditorPage() {
     onError: (e) => setError(getApiErrorMessage(e, 'Could not publish now.')),
   });
 
+  const cancelScheduleMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/videos/${id}`, {
+        scheduledPublishAt: null,
+        visibility: 'private',
+      });
+    },
+    onSuccess: async () => {
+      setSchedule('');
+      setVisibility('private');
+      setError('');
+      setSaved(true);
+      await qc.invalidateQueries({ queryKey: ['studio-video', id] });
+      await qc.invalidateQueries({ queryKey: ['studio-videos'] });
+      window.setTimeout(() => setSaved(false), 2500);
+    },
+    onError: (e) => setError(getApiErrorMessage(e, 'Could not cancel schedule.')),
+  });
+
   const retryMutation = useMutation({
     mutationFn: async () => {
       await api.post(`/videos/${id}/retry-transcode`);
@@ -411,11 +430,27 @@ export default function StudioVideoDetailEditorPage() {
               </p>
               <button
                 type="button"
-                disabled={publishNowMutation.isPending || saveMutation.isPending}
+                disabled={
+                  publishNowMutation.isPending ||
+                  cancelScheduleMutation.isPending ||
+                  saveMutation.isPending
+                }
                 onClick={() => publishNowMutation.mutate()}
                 className="rounded-full border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-on-surface hover:bg-primary/15 disabled:opacity-50"
               >
                 {publishNowMutation.isPending ? 'Publishing…' : 'Publish now'}
+              </button>
+              <button
+                type="button"
+                disabled={
+                  publishNowMutation.isPending ||
+                  cancelScheduleMutation.isPending ||
+                  saveMutation.isPending
+                }
+                onClick={() => cancelScheduleMutation.mutate()}
+                className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high disabled:opacity-50"
+              >
+                {cancelScheduleMutation.isPending ? 'Cancelling…' : 'Cancel schedule'}
               </button>
             </div>
           ) : null}

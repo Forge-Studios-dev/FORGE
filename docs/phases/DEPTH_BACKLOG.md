@@ -681,6 +681,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Web + mobile Studio comments: `?lc=` View comment; Short badge; wider ready-video sample (12 videos / 40 comments)
 - Copy comment link from Studio inbox (web + mobile)
 
+## Studio schedule cancel + video performance CSV (2026-08-06)
+
+- Cancel schedule → clear `scheduledPublishAt` + set private (web/mobile library + editors); distinct from Publish now
+- Video performance Export CSV (web details + mobile); mobile top-video cards open Studio edit
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

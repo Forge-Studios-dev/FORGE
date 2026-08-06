@@ -69,6 +69,45 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
     }
   }
 
+  Future<void> _exportVideoPerformanceCsv(List<Map<String, dynamic>> topVideos) async {
+    setState(() => _exporting = true);
+    try {
+      String esc(Object? v) {
+        final s = '${v ?? ''}';
+        if (s.contains(',') || s.contains('"') || s.contains('\n')) {
+          return '"${s.replaceAll('"', '""')}"';
+        }
+        return s;
+      }
+
+      final buf = StringBuffer('title,videoId,views,impressions,ctr_percent,avg_watch_percent\n');
+      for (final row in topVideos) {
+        final ctr = row['ctr'];
+        final ctrPct = ctr is num ? (ctr * 1000).round() / 10 : '';
+        buf.writeln([
+          esc(row['title']),
+          esc(row['videoId']),
+          esc(row['views'] ?? 0),
+          esc(row['impressions'] ?? 0),
+          esc(ctrPct),
+          esc(row['avgWatchPercent'] ?? ''),
+        ].join(','));
+      }
+      await CsvExportUtil.shareCsvText(
+        csv: buf.toString(),
+        filename: 'video-performance-${_periodDays}d.csv',
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not export video performance')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final videosAsync = ref.watch(studioAnalyticsProvider);
@@ -112,7 +151,7 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.download_outlined, size: 18),
-            label: const Text('Export'),
+            label: const Text('Business'),
           ),
         ],
       ),
@@ -261,12 +300,24 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
               ),
               const SizedBox(height: 24),
               const Text('Top videos', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+              if (topVideos.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _exporting ? null : () => _exportVideoPerformanceCsv(topVideos),
+                    child: const Text('Export videos CSV'),
+                  ),
+                ),
               const SizedBox(height: 12),
               if (topVideos.isNotEmpty)
                 ...topVideos.take(8).map(
                       (row) => Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: ForgeCard(
+                          onTap: () {
+                            final id = row['videoId'] as String?;
+                            if (id != null) context.push('/studio/videos/$id');
+                          },
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -296,6 +347,7 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
                       (v) => Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: ForgeCard(
+                          onTap: () => context.push('/studio/videos/${v.id}'),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [

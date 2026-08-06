@@ -77,10 +77,12 @@ function VideoRow({
   video,
   cancellingId,
   publishingId,
+  cancellingScheduleId,
   deletingId,
   visibilityBusyId,
   onCancel,
   onPublishNow,
+  onCancelSchedule,
   onDelete,
   onCopyLink,
   onVisibilityChange,
@@ -89,17 +91,20 @@ function VideoRow({
   video: Video;
   cancellingId: string | null;
   publishingId: string | null;
+  cancellingScheduleId: string | null;
   deletingId: string | null;
   visibilityBusyId: string | null;
   onCancel: (id: string) => void;
   onPublishNow: (id: string) => void;
+  onCancelSchedule: (id: string) => void;
   onDelete: (id: string) => void;
   onCopyLink: (video: Video) => void;
   onVisibilityChange: (id: string, visibility: string) => void;
   browserUploadPct?: number | null;
 }) {
   const inProgress = video.status === 'uploading' || video.status === 'processing';
-  const publicPath = studioPublicPath(video);  const canCancel =
+  const publicPath = studioPublicPath(video);
+  const canCancel =
     video.status === 'uploading' ||
     video.status === 'processing' ||
     video.status === 'failed' ||
@@ -184,14 +189,24 @@ function VideoRow({
       </div>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
         {canPublishNow ? (
-          <button
-            type="button"
-            disabled={publishingId === video.id}
-            onClick={() => onPublishNow(video.id)}
-            className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
-          >
-            {publishingId === video.id ? 'Publishing…' : 'Publish now'}
-          </button>
+          <>
+            <button
+              type="button"
+              disabled={publishingId === video.id || cancellingScheduleId === video.id}
+              onClick={() => onPublishNow(video.id)}
+              className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+            >
+              {publishingId === video.id ? 'Publishing…' : 'Publish now'}
+            </button>
+            <button
+              type="button"
+              disabled={publishingId === video.id || cancellingScheduleId === video.id}
+              onClick={() => onCancelSchedule(video.id)}
+              className="text-sm text-on-surface-variant hover:underline disabled:opacity-50"
+            >
+              {cancellingScheduleId === video.id ? 'Cancelling…' : 'Cancel schedule'}
+            </button>
+          </>
         ) : null}
         {canCopy ? (
           <button
@@ -251,6 +266,7 @@ function StudioVideosPageInner() {
   const queryClient = useQueryClient();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [cancellingScheduleId, setCancellingScheduleId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [visibilityBusyId, setVisibilityBusyId] = useState<string | null>(null);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
@@ -381,6 +397,19 @@ function StudioVideosPageInner() {
       await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
     } finally {
       setPublishingId(null);
+    }
+  };
+
+  const cancelSchedule = async (videoId: string) => {
+    setCancellingScheduleId(videoId);
+    try {
+      await api.patch(`/videos/${videoId}`, {
+        scheduledPublishAt: null,
+        visibility: 'private',
+      });
+      await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } finally {
+      setCancellingScheduleId(null);
     }
   };
 
@@ -743,14 +772,32 @@ function StudioVideosPageInner() {
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-3">
                           {isFutureScheduled(video) ? (
-                            <button
-                              type="button"
-                              disabled={publishingId === video.id}
-                              onClick={() => void publishNow(video.id)}
-                              className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
-                            >
-                              {publishingId === video.id ? 'Publishing…' : 'Publish now'}
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                disabled={
+                                  publishingId === video.id ||
+                                  cancellingScheduleId === video.id
+                                }
+                                onClick={() => void publishNow(video.id)}
+                                className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+                              >
+                                {publishingId === video.id ? 'Publishing…' : 'Publish now'}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={
+                                  publishingId === video.id ||
+                                  cancellingScheduleId === video.id
+                                }
+                                onClick={() => void cancelSchedule(video.id)}
+                                className="text-sm text-on-surface-variant hover:underline disabled:opacity-50"
+                              >
+                                {cancellingScheduleId === video.id
+                                  ? 'Cancelling…'
+                                  : 'Cancel schedule'}
+                              </button>
+                            </>
                           ) : null}
                           {video.status === 'ready' || video.visibility === 'unlisted' ? (
                             <button
@@ -813,10 +860,12 @@ function StudioVideosPageInner() {
                 video={video}
                 cancellingId={cancellingId}
                 publishingId={publishingId}
+                cancellingScheduleId={cancellingScheduleId}
                 deletingId={deletingId}
                 visibilityBusyId={visibilityBusyId}
                 onCancel={setCancelConfirmId}
                 onPublishNow={(id) => void publishNow(id)}
+                onCancelSchedule={(id) => void cancelSchedule(id)}
                 onDelete={setDeleteConfirmId}
                 onCopyLink={(video) => void copyVideoLink(video)}
                 onVisibilityChange={(id, visibility) => void setVisibility(id, visibility)}

@@ -17,6 +17,30 @@ type TopVideo = {
   avgWatchPercent: number | null;
 };
 
+function downloadVideoPerformanceCsv(videos: TopVideo[], periodDays: number) {
+  const escape = (v: string | number) => {
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const header = ['title', 'videoId', 'views', 'impressions', 'ctr_percent', 'avg_watch_percent'];
+  const rows = videos.map((v) => [
+    escape(v.title),
+    escape(v.videoId),
+    escape(v.views),
+    escape(v.impressions),
+    escape(v.ctr != null ? Math.round(v.ctr * 1000) / 10 : ''),
+    escape(v.avgWatchPercent ?? ''),
+  ]);
+  const csv = [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `video-performance-${periodDays}d.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function StudioAnalyticsDetailsPage() {
   const { user, isCreator } = useAuth();
   const [perfDays, setPerfDays] = useState(28);
@@ -43,6 +67,7 @@ export default function StudioAnalyticsDetailsPage() {
   }
 
   const videos = data?.topVideos ?? [];
+  const periodDays = data?.periodDays ?? perfDays;
 
   return (
     <main className="space-y-6">
@@ -52,21 +77,32 @@ export default function StudioAnalyticsDetailsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader
           title="Video performance"
-          subtitle={`Top videos by views · last ${data?.periodDays ?? perfDays} days (impressions, CTR, avg watch %)`}
+          subtitle={`Top videos by views · last ${periodDays} days (impressions, CTR, avg watch %)`}
         />
-        <label className="flex items-center gap-2 text-sm text-on-surface-variant">
-          Window
-          <select
-            value={perfDays}
-            onChange={(e) => setPerfDays(Number(e.target.value))}
-            className="rounded-lg border border-outline-variant bg-transparent px-2 py-1.5 text-sm text-on-surface"
-            aria-label="Video performance window"
-          >
-            <option value={7}>Last 7 days</option>
-            <option value={28}>Last 28 days</option>
-            <option value={90}>Last 90 days</option>
-          </select>
-        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+            Window
+            <select
+              value={perfDays}
+              onChange={(e) => setPerfDays(Number(e.target.value))}
+              className="rounded-lg border border-outline-variant bg-transparent px-2 py-1.5 text-sm text-on-surface"
+              aria-label="Video performance window"
+            >
+              <option value={7}>Last 7 days</option>
+              <option value={28}>Last 28 days</option>
+              <option value={90}>Last 90 days</option>
+            </select>
+          </label>
+          {videos.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => downloadVideoPerformanceCsv(videos, periodDays)}
+              className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm font-semibold hover:bg-surface-container-high"
+            >
+              Export CSV
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {isLoading && <p className="text-on-surface-variant">Loading…</p>}
