@@ -30,3 +30,17 @@ export function timeAgo(dateStr: string): string {
   if (days < 30) return `${days}d ago`;
   return new Date(dateStr).toLocaleDateString();
 }
+
+/** Future-relative label for scheduled publish times. */
+export function timeUntil(dateStr: string): string {
+  const diff = new Date(dateStr).getTime() - Date.now();
+  if (diff <= 0) return 'soon';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'in under a minute';
+  if (mins < 60) return `in ${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `in ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `in ${days}d`;
+  return new Date(dateStr).toLocaleDateString();
+}

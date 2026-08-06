@@ -696,6 +696,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - `PATCH /videos/:id` accepts `categoryId`; category change clears tags unless new `skillTagIds` sent
 - Web + mobile Studio video editors: category select + retag for new category
 
+## Mobile Studio cancel/retry + relative schedule (2026-08-06)
+
+- Mobile Content list: Cancel upload + Retry processing (existing APIs)
+- Relative scheduled times (`timeUntil` / `in 2h`) on web + mobile Studio library
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

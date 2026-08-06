@@ -13,7 +13,7 @@ import { fetchStudioLibrary, studioPublicPath, type StudioVideoSort } from '@/li
 import { fetchUploadOptions, type UploadCategoryOption } from '@/lib/categories';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { formatCount, formatDuration, timeAgo } from '@/lib/utils';
+import { formatCount, formatDuration, timeAgo, timeUntil } from '@/lib/utils';
 import { getSocket } from '@/lib/socket';
 import type { Video } from '@/types';
 
@@ -64,6 +64,9 @@ function visibilityLabel(visibility: string): string {
 }
 
 function formatPublishedAt(video: Video): string {
+  if (isFutureScheduled(video) && video.scheduledPublishAt) {
+    return `Scheduled ${timeUntil(video.scheduledPublishAt)}`;
+  }
   const raw = video.publishedAt ?? video.scheduledPublishAt ?? video.createdAt;
   return new Date(raw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
@@ -158,9 +161,11 @@ function VideoRow({
           ) : (
             visibilityLabel(video.visibility)
           )}
-          {video.scheduledPublishAt
-            ? ` · scheduled ${new Date(video.scheduledPublishAt).toLocaleString()}`
-            : ''}
+          {video.scheduledPublishAt && isFutureScheduled(video)
+            ? ` · scheduled ${timeUntil(video.scheduledPublishAt)}`
+            : video.scheduledPublishAt
+              ? ` · scheduled ${new Date(video.scheduledPublishAt).toLocaleString()}`
+              : ''}
           {video.status === 'ready'
             ? ` · ${formatCount(video.viewCount)} views${
                 video.durationSeconds != null && video.durationSeconds > 0

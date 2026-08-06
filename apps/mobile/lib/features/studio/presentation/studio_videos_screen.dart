@@ -381,6 +381,11 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
             v.scheduledPublishAt != null && v.scheduledPublishAt!.isAfter(DateTime.now());
         final canCopy = v.status == 'ready' || v.visibility == 'unlisted';
         final canDelete = v.status != 'uploading';
+        final canCancelUpload = v.status == 'uploading' ||
+            v.status == 'processing' ||
+            v.status == 'failed' ||
+            v.status == 'pending';
+        final canRetry = v.status == 'failed';
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: ForgeCard(
@@ -407,7 +412,8 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                           '${v.viewCount} views',
                           if (v.durationSeconds != null && v.durationSeconds! > 0)
                             _formatDuration(v.durationSeconds!),
-                          if (scheduledFuture) 'scheduled',
+                          if (scheduledFuture)
+                            'scheduled ${_formatTimeUntil(v.scheduledPublishAt!)}',
                         ].join(' · '),
                         style: TextStyle(
                           fontSize: 13,
@@ -480,6 +486,53 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                       }
                       return;
                     }
+                    if (action == 'cancel_upload') {
+                      final ok = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Cancel upload?'),
+                          content: const Text(
+                            'This removes the incomplete or failed upload from Studio.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Keep'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: Text(
+                                'Cancel upload',
+                                style: TextStyle(color: ForgeTokens.of(ctx).error),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (ok != true) return;
+                      try {
+                        await ref.read(studioRepositoryProvider).cancelUpload(v.id);
+                        await _load();
+                      } catch (_) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not cancel upload')),
+                        );
+                      }
+                      return;
+                    }
+                    if (action == 'retry') {
+                      try {
+                        await ref.read(studioRepositoryProvider).retryTranscode(v.id);
+                        await _load();
+                      } catch (_) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not retry processing')),
+                        );
+                      }
+                      return;
+                    }
                     if (action == 'delete') {
                       final ok = await showDialog<bool>(
                         context: context,
@@ -540,6 +593,16 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                         value: 'cancel_schedule',
                         child: Text('Cancel schedule'),
                       ),
+                    if (canRetry)
+                      const PopupMenuItem(value: 'retry', child: Text('Retry processing')),
+                    if (canCancelUpload)
+                      PopupMenuItem(
+                        value: 'cancel_upload',
+                        child: Text(
+                          'Cancel upload',
+                          style: TextStyle(color: ForgeTokens.of(context).error),
+                        ),
+                      ),
                     if (canDelete) ...[
                       const PopupMenuDivider(),
                       PopupMenuItem(
@@ -598,6 +661,16 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
       return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
     }
     return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  String _formatTimeUntil(DateTime when) {
+    final diff = when.difference(DateTime.now());
+    if (diff.isNegative) return 'soon';
+    if (diff.inMinutes < 1) return 'in under a minute';
+    if (diff.inMinutes < 60) return 'in ${diff.inMinutes}m';
+    if (diff.inHours < 24) return 'in ${diff.inHours}h';
+    if (diff.inDays < 30) return 'in ${diff.inDays}d';
+    return '${when.month}/${when.day}/${when.year}';
   }
 
   String _statusLabel(String status) {
