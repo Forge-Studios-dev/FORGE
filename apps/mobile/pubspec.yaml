@@ -60,7 +60,7 @@ dependencies:
   livekit_client: ^2.3.6
 
   # Crash reporting (CRIT-02) — enabled via --dart-define=SENTRY_DSN=...
-  sentry_flutter: ^9.25.0
+  sentry_flutter: ^9.26.0
 
 dev_dependencies:
   flutter_test:
