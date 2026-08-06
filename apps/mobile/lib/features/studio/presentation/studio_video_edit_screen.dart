@@ -502,7 +502,12 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
                     IconButton(
                       tooltip: 'Watch',
                       icon: const Icon(Icons.play_circle_outline),
-                      onPressed: () => context.push('/watch/${widget.videoId}'),
+                      onPressed: () {
+                        final path = v.videoType == 'short'
+                            ? '/shorts?v=${widget.videoId}'
+                            : '/watch/${widget.videoId}';
+                        context.push(path);
+                      },
                     ),
                   ]
                 : const <Widget>[],

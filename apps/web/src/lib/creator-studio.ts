@@ -9,6 +9,11 @@ export async function getStudioVideos(): Promise<Video[]> {
 
 export type StudioVideoSort = 'recent' | 'oldest' | 'views' | 'title';
 
+/** Public viewer URL path for Studio View / Copy link (Shorts vs watch). */
+export function studioPublicPath(video: Pick<Video, 'id' | 'videoType'>): string {
+  return video.videoType === 'short' ? `/shorts?v=${video.id}` : `/watch/${video.id}`;
+}
+
 export interface StudioLibraryParams {
   search?: string;
   sort?: StudioVideoSort;

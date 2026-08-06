@@ -372,6 +372,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                       Text(
                         [
                           _statusLabel(v.status),
+                          if (v.videoType == 'short') 'Short',
                           if (v.visibility != null) v.visibility!,
                           '${v.viewCount} views',
                           if (scheduledFuture) 'scheduled',
@@ -392,12 +393,18 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                       return;
                     }
                     if (action == 'view') {
-                      context.push('/watch/${v.id}');
+                      final path = v.videoType == 'short'
+                          ? '/shorts?v=${v.id}'
+                          : '/watch/${v.id}';
+                      context.push(path);
                       return;
                     }
                     if (action == 'copy') {
+                      final path = v.videoType == 'short'
+                          ? '/shorts?v=${v.id}'
+                          : '/watch/${v.id}';
                       await Clipboard.setData(
-                        ClipboardData(text: '${AppConstants.webBaseUrl}/watch/${v.id}'),
+                        ClipboardData(text: '${AppConstants.webBaseUrl}$path'),
                       );
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(

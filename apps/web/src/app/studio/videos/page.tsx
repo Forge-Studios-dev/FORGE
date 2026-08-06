@@ -9,7 +9,7 @@ import { SocketEvents } from '@forge/shared-types';
 import { getActiveUpload, subscribeActiveUpload } from '@/lib/upload-manager';
 import { EmptyState, Icon, ListSkeleton, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
-import { fetchStudioLibrary, type StudioVideoSort } from '@/lib/creator-studio';
+import { fetchStudioLibrary, studioPublicPath, type StudioVideoSort } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { formatCount, timeAgo } from '@/lib/utils';
@@ -93,12 +93,12 @@ function VideoRow({
   onCancel: (id: string) => void;
   onPublishNow: (id: string) => void;
   onDelete: (id: string) => void;
-  onCopyLink: (id: string) => void;
+  onCopyLink: (video: Video) => void;
   onVisibilityChange: (id: string, visibility: string) => void;
   browserUploadPct?: number | null;
 }) {
   const inProgress = video.status === 'uploading' || video.status === 'processing';
-  const canCancel =
+  const publicPath = studioPublicPath(video);  const canCancel =
     video.status === 'uploading' ||
     video.status === 'processing' ||
     video.status === 'failed' ||
@@ -118,7 +118,14 @@ function VideoRow({
   return (
     <li className="glass-panel flex items-center justify-between gap-4 rounded-xl p-4">
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{video.title}</p>
+        <p className="truncate font-medium">
+          {video.title}
+          {video.videoType === 'short' ? (
+            <span className="ml-2 inline-block rounded-full bg-surface-container-high px-2 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">
+              Short
+            </span>
+          ) : null}
+        </p>
         <p className="text-sm text-on-surface-variant">
           <StatusPill
             tone={statusTone(video.status)}
@@ -184,7 +191,7 @@ function VideoRow({
         {canCopy ? (
           <button
             type="button"
-            onClick={() => onCopyLink(video.id)}
+            onClick={() => onCopyLink(video)}
             className="text-sm text-on-surface-variant hover:underline"
           >
             Copy link
@@ -216,7 +223,7 @@ function VideoRow({
           </Link>
         ) : null}
         {video.status === 'ready' ? (
-          <Link href={`/watch/${video.id}`} className="text-sm text-primary hover:underline">
+          <Link href={publicPath} className="text-sm text-primary hover:underline">
             View
           </Link>
         ) : null}
@@ -372,8 +379,8 @@ function StudioVideosPageInner() {
     }
   };
 
-  const copyVideoLink = async (videoId: string) => {
-    const url = `${window.location.origin}/watch/${videoId}`;
+  const copyVideoLink = async (video: Video) => {
+    const url = `${window.location.origin}${studioPublicPath(video)}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopyHint('Link copied');
@@ -609,7 +616,14 @@ function StudioVideosPageInner() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="truncate font-medium">{video.title}</p>
+                            <p className="truncate font-medium">
+                              {video.title}
+                              {video.videoType === 'short' ? (
+                                <span className="ml-2 inline-block rounded-full bg-surface-container-high px-2 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">
+                                  Short
+                                </span>
+                              ) : null}
+                            </p>
                             <div className="mt-1 flex flex-wrap gap-1">
                               {video.skillTags.slice(0, 3).map((tag) => (
                                 <span
@@ -693,7 +707,7 @@ function StudioVideosPageInner() {
                           {video.status === 'ready' || video.visibility === 'unlisted' ? (
                             <button
                               type="button"
-                              onClick={() => void copyVideoLink(video.id)}
+                              onClick={() => void copyVideoLink(video)}
                               className="text-sm text-on-surface-variant hover:underline"
                             >
                               Copy link
@@ -728,7 +742,10 @@ function StudioVideosPageInner() {
                             </Link>
                           ) : null}
                           {video.status === 'ready' ? (
-                            <Link href={`/watch/${video.id}`} className="text-sm text-primary hover:underline">
+                            <Link
+                              href={studioPublicPath(video)}
+                              className="text-sm text-primary hover:underline"
+                            >
                               View
                             </Link>
                           ) : null}
@@ -753,7 +770,7 @@ function StudioVideosPageInner() {
                 onCancel={setCancelConfirmId}
                 onPublishNow={(id) => void publishNow(id)}
                 onDelete={setDeleteConfirmId}
-                onCopyLink={(id) => void copyVideoLink(id)}
+                onCopyLink={(video) => void copyVideoLink(video)}
                 onVisibilityChange={(id, visibility) => void setVisibility(id, visibility)}
                 browserUploadPct={video.id === activeVideoId ? browserUploadPct : null}
               />

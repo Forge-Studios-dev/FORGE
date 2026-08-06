@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
 import { fetchCategorySkillTags, type UploadSkillTag } from '@/lib/categories';
+import { studioPublicPath } from '@/lib/creator-studio';
 import { DescriptionChaptersHint } from '@/components/studio/DescriptionChaptersHint';
 import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
 import { formatCount } from '@/lib/utils';
@@ -316,7 +317,10 @@ export default function StudioVideoDetailEditorPage() {
             Back to library
           </Link>
           {video.status === 'ready' ? (
-            <Link href={`/watch/${video.id}`} className="text-on-surface-variant hover:underline">
+            <Link
+              href={studioPublicPath(video)}
+              className="text-on-surface-variant hover:underline"
+            >
               View public page
             </Link>
           ) : null}

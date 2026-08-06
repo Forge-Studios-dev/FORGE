@@ -644,6 +644,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Studio detail editor: change content type Video / Short (web + mobile)
 - API rejects Short when known duration > 60s (`shortTypeChangeError`)
 
+## Studio Short public URLs (2026-08-06)
+
+- Studio View / Copy link use `/shorts?v=` for Shorts (web + mobile)
+- Short badge on Studio content library rows
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)
