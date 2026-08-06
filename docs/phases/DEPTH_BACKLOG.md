@@ -653,6 +653,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - `publicVideoPath` / share URL: Shorts → `/shorts?v=` (FeedCard, Continue watching, share)
 - `video.ready` notifications include `videoType`; deep links open Shorts feed when applicable
+- Mobile: shared `publicVideoPath` on feed, explore, history, library, profile, subscriptions, disliked
 
 ## Interests settings + upload playlists (2026-08-06)
 

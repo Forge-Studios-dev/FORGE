@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/navigation/public_video_path.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
@@ -223,7 +224,7 @@ class _DislikedVideosScreenState extends ConsumerState<DislikedVideosScreen> {
                                         return false;
                                       },
                                       child: ListTile(
-                                        onTap: () => context.push('/watch/${video.id}'),
+                                        onTap: () => context.push(publicVideoPath(id: video.id, videoType: video.videoType)),
                                         leading: ClipRRect(
                                           borderRadius: BorderRadius.circular(8),
                                           child: SizedBox(

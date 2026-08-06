@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/navigation/public_video_path.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/widgets/forge_skeleton.dart';
 import '../../../core/widgets/forge_empty_state.dart';
@@ -274,15 +275,17 @@ class _ContinueTile extends ConsumerWidget {
     final duration = video.durationSeconds;
     final progressFrac =
         (progress != null && duration != null && duration > 0) ? (progress / duration).clamp(0.0, 1.0) : null;
-    final href = video.videoType == 'short'
-        ? '/shorts?v=${video.id}'
-        : (progress != null &&
-                progress > 0 &&
-                duration != null &&
-                duration > 0 &&
-                progress < duration * 0.95)
-            ? '/watch/${video.id}?t=$progress'
-            : '/watch/${video.id}';
+    final href = publicVideoPath(
+      id: video.id,
+      videoType: video.videoType,
+      progressSeconds: (progress != null &&
+              progress > 0 &&
+              duration != null &&
+              duration > 0 &&
+              progress < duration * 0.95)
+          ? progress
+          : null,
+    );
 
     return SizedBox(
       width: 168,
@@ -418,7 +421,7 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
 
   Future<void> _share() async {
     final video = widget.video;
-    final path = video.videoType == 'short' ? '/shorts?v=${video.id}' : '/watch/${video.id}';
+    final path = publicVideoPath(id: video.id, videoType: video.videoType);
     final url = '${AppConstants.webBaseUrl}$path';
     await SharePlus.instance.share(ShareParams(text: '${video.title}\n$url'));
   }
@@ -529,11 +532,7 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
   Widget build(BuildContext context) {
     final video = widget.video;
     return GestureDetector(
-      onTap: () {
-        final path =
-            video.videoType == 'short' ? '/shorts?v=${video.id}' : '/watch/${video.id}';
-        context.push(path);
-      },
+      onTap: () => context.push(publicVideoPath(id: video.id, videoType: video.videoType)),
       child: Stack(
         fit: StackFit.expand,
         children: [

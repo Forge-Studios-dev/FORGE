@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/navigation/public_video_path.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/access/creator_status_provider.dart';
@@ -297,7 +298,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: InkWell(
-                        onTap: () => context.push('/watch/${v.id}'),
+                        onTap: () => context.push(publicVideoPath(id: v.id, videoType: v.videoType)),
                         borderRadius: BorderRadius.circular(8),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,7 +390,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     itemBuilder: (_, i) {
                       final v = shorts[i];
                       return GestureDetector(
-                        onTap: () => context.push('/watch/${v.id}'),
+                        onTap: () => context.push(publicVideoPath(id: v.id, videoType: v.videoType)),
                         child: SizedBox(
                           width: 100,
                           child: Column(
@@ -483,7 +484,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         (_, i) {
                           final v = videos[i];
                           return GestureDetector(
-                            onTap: () => context.push('/watch/${v.id}'),
+                            onTap: () => context.push(publicVideoPath(id: v.id, videoType: v.videoType)),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: v.thumbnailUrl != null
@@ -516,7 +517,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: InkWell(
-                              onTap: () => context.push('/watch/${v.id}'),
+                              onTap: () => context.push(publicVideoPath(id: v.id, videoType: v.videoType)),
                               borderRadius: BorderRadius.circular(8),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,

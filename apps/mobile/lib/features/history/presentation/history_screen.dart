@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/navigation/public_video_path.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../core/widgets/forge_empty_state.dart';
@@ -81,17 +82,19 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   String _watchHref(VideoModel v) {
-    if (v.videoType == 'short') return '/shorts?v=${v.id}';
     final progress = v.viewerProgressSeconds;
     final duration = v.durationSeconds;
-    if (progress != null &&
-        progress > 0 &&
-        duration != null &&
-        duration > 0 &&
-        progress < duration * 0.95) {
-      return '/watch/${v.id}?t=$progress';
-    }
-    return '/watch/${v.id}';
+    return publicVideoPath(
+      id: v.id,
+      videoType: v.videoType,
+      progressSeconds: (progress != null &&
+              progress > 0 &&
+              duration != null &&
+              duration > 0 &&
+              progress < duration * 0.95)
+          ? progress
+          : null,
+    );
   }
 
   @override

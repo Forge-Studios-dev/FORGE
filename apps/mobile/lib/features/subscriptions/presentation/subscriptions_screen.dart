@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/navigation/public_video_path.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_empty_state.dart';
@@ -218,7 +219,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         subtitle: Text('@${v.user.username}'),
-                                        onTap: () => context.push('/watch/${v.id}'),
+                                        onTap: () => context.push(publicVideoPath(id: v.id, videoType: v.videoType)),
                                       );
                                     },
                                   ),

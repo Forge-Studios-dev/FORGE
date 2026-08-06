@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/navigation/public_video_path.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/network/api_client.dart';
 import '../../../shared/models/video.dart';
@@ -717,11 +718,7 @@ class _VideoSearchTile extends StatelessWidget {
       ),
       title: Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: ForgeTokens.of(context).onSurface)),
       subtitle: Text('@${video.user.username}', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
-      onTap: () {
-        final path =
-            video.videoType == 'short' ? '/shorts?v=${video.id}' : '/watch/${video.id}';
-        context.push(path);
-      },
+      onTap: () => context.push(publicVideoPath(id: video.id, videoType: video.videoType)),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/navigation/public_video_path.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
@@ -312,8 +313,13 @@ class _ContinueWatchTile extends ConsumerWidget {
                 children: [
                   InkWell(
                     onTap: () {
-                      final tSec = progress > 0 ? '?t=$progress' : '';
-                      context.push('/watch/${video.id}$tSec');
+                      context.push(
+                        publicVideoPath(
+                          id: video.id,
+                          videoType: video.videoType,
+                          progressSeconds: progress > 0 ? progress : null,
+                        ),
+                      );
                     },
                     child: video.thumbnailUrl != null
                         ? CachedNetworkImage(imageUrl: video.thumbnailUrl!, fit: BoxFit.cover)
