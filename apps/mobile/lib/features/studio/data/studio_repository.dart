@@ -88,6 +88,11 @@ class StudioRepository {
     return VideoModel.fromJson(res.data['data'] as Map<String, dynamic>);
   }
 
+  /// Visibility-only patch (Studio content list quick change).
+  Future<void> setVisibility(String videoId, String visibility) async {
+    await _api.dio.patch('/videos/$videoId', data: {'visibility': visibility});
+  }
+
   Future<List<Map<String, dynamic>>> getUploadCategoryOptions() async {
     final res = await _api.dio.get('/categories/upload-options');
     final list = res.data['data'] as List? ?? [];

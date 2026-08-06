@@ -8,7 +8,7 @@ import { Video } from '@/types';
 import { formatCount, formatDuration, timeAgo } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { addToWatchLater } from '@/lib/engage-mutations';
+import { toggleWatchLater } from '@/lib/engage-mutations';
 import { trackVideoImpression } from '@/lib/analytics';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
@@ -125,11 +125,12 @@ export function FeedCard({
   };
 
   const saveWatchLater = async (close: () => void) => {
-    if (pending || watchLaterSaved) return;
+    if (pending) return;
     setPending(true);
+    const next = !watchLaterSaved;
     try {
-      await addToWatchLater(video.id);
-      setWatchLaterSaved(true);
+      await toggleWatchLater(video.id, watchLaterSaved);
+      setWatchLaterSaved(next);
     } catch {
       /* ignore */
     } finally {
@@ -275,12 +276,12 @@ export function FeedCard({
                 <button
                   type="button"
                   role="menuitem"
-                  disabled={pending || watchLaterSaved}
+                  disabled={pending}
                   onClick={() => void saveWatchLater(close)}
                   className={menuItemClass}
                 >
-                  <Icon name="watch_later" className="text-base" />
-                  {watchLaterSaved ? 'Saved to Watch later' : 'Save to Watch later'}
+                  <Icon name="watch_later" className="text-base" filled={watchLaterSaved} />
+                  {watchLaterSaved ? 'Remove from Watch later' : 'Save to Watch later'}
                 </button>
                 <button
                   type="button"

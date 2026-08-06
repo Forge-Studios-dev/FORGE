@@ -622,6 +622,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Own channel ProfileHeader: Share alongside Customize channel
 - Mobile own profile: Share channel + Customize channel shortcuts
 
+## Studio visibility quick-change + Watch later toggle (2026-08-06)
+
+- Studio content list: change Public / Unlisted / Private / Subscribers without opening editor (web + mobile)
+- FeedCard overflow: Save ↔ Remove from Watch later (toggle)
+- Mobile feed overflow: same Watch later toggle
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

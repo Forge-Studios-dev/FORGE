@@ -379,6 +379,7 @@ class _VideoCard extends ConsumerStatefulWidget {
 class _VideoCardState extends ConsumerState<_VideoCard> {
   late bool _liked;
   late int _likeCount;
+  bool _inWatchLater = false;
 
   @override
   void initState() {
@@ -455,14 +456,21 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
     }
   }
 
-  Future<void> _addWatchLater() async {
+  Future<void> _toggleWatchLater() async {
+    final next = !_inWatchLater;
     try {
-      await ref.read(watchRepositoryProvider).addToWatchLater(widget.video.id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Saved to Watch later')),
-        );
+      if (next) {
+        await ref.read(watchRepositoryProvider).addToWatchLater(widget.video.id);
+      } else {
+        await ref.read(watchRepositoryProvider).removeFromWatchLater(widget.video.id);
       }
+      if (!mounted) return;
+      setState(() => _inWatchLater = next);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(next ? 'Saved to Watch later' : 'Removed from Watch later'),
+        ),
+      );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -552,16 +560,24 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
               onSelected: (value) {
                 if (value == 'not_interested') _notInterested();
                 if (value == 'dont_recommend') _dontRecommend();
-                if (value == 'watch_later') _addWatchLater();
+                if (value == 'watch_later') _toggleWatchLater();
                 if (value == 'share') _share();
                 if (value == 'report') _report();
               },
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: 'watch_later', child: Text('Save to Watch later')),
-                PopupMenuItem(value: 'share', child: Text('Share')),
-                PopupMenuItem(value: 'not_interested', child: Text('Not interested')),
-                PopupMenuItem(value: 'dont_recommend', child: Text("Don't recommend channel")),
-                PopupMenuItem(value: 'report', child: Text('Report')),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'watch_later',
+                  child: Text(
+                    _inWatchLater ? 'Remove from Watch later' : 'Save to Watch later',
+                  ),
+                ),
+                const PopupMenuItem(value: 'share', child: Text('Share')),
+                const PopupMenuItem(value: 'not_interested', child: Text('Not interested')),
+                const PopupMenuItem(
+                  value: 'dont_recommend',
+                  child: Text("Don't recommend channel"),
+                ),
+                const PopupMenuItem(value: 'report', child: Text('Report')),
               ],
               icon: const Icon(Icons.more_vert, color: Colors.white),
             ),

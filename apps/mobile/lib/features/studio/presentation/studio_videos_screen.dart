@@ -432,6 +432,19 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                           const SnackBar(content: Text('Could not delete video')),
                         );
                       }
+                      return;
+                    }
+                    if (action.startsWith('vis:')) {
+                      final next = action.substring(4);
+                      try {
+                        await ref.read(studioRepositoryProvider).setVisibility(v.id, next);
+                        await _load();
+                      } catch (_) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not update visibility')),
+                        );
+                      }
                     }
                   },
                   itemBuilder: (_) => [
@@ -441,7 +454,37 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                     if (canCopy) const PopupMenuItem(value: 'copy', child: Text('Copy link')),
                     if (scheduledFuture)
                       const PopupMenuItem(value: 'publish', child: Text('Publish now')),
-                    if (canDelete)
+                    if (canDelete) ...[
+                      const PopupMenuDivider(),
+                      PopupMenuItem(
+                        enabled: false,
+                        child: Text(
+                          'Visibility',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: ForgeTokens.of(context).onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'vis:public',
+                        child: Text(v.visibility == 'public' ? '✓ Public' : 'Public'),
+                      ),
+                      PopupMenuItem(
+                        value: 'vis:unlisted',
+                        child: Text(v.visibility == 'unlisted' ? '✓ Unlisted' : 'Unlisted'),
+                      ),
+                      PopupMenuItem(
+                        value: 'vis:private',
+                        child: Text(v.visibility == 'private' ? '✓ Private' : 'Private'),
+                      ),
+                      PopupMenuItem(
+                        value: 'vis:followers',
+                        child: Text(
+                          v.visibility == 'followers' ? '✓ Subscribers' : 'Subscribers',
+                        ),
+                      ),
+                      const PopupMenuDivider(),
                       PopupMenuItem(
                         value: 'delete',
                         child: Text(
@@ -449,6 +492,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                           style: TextStyle(color: ForgeTokens.of(context).error),
                         ),
                       ),
+                    ],
                   ],
                 ),
               ],

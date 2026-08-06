@@ -51,6 +51,13 @@ const VISIBILITY_LABEL: Record<string, string> = {
   paid_event: 'Paid event',
 };
 
+const QUICK_VISIBILITY: { value: string; label: string }[] = [
+  { value: 'public', label: 'Public' },
+  { value: 'unlisted', label: 'Unlisted' },
+  { value: 'private', label: 'Private' },
+  { value: 'followers', label: 'Subscribers' },
+];
+
 function visibilityLabel(visibility: string): string {
   return VISIBILITY_LABEL[visibility] ?? visibility.replace(/_/g, ' ');
 }
@@ -70,20 +77,24 @@ function VideoRow({
   cancellingId,
   publishingId,
   deletingId,
+  visibilityBusyId,
   onCancel,
   onPublishNow,
   onDelete,
   onCopyLink,
+  onVisibilityChange,
   browserUploadPct,
 }: {
   video: Video;
   cancellingId: string | null;
   publishingId: string | null;
   deletingId: string | null;
+  visibilityBusyId: string | null;
   onCancel: (id: string) => void;
   onPublishNow: (id: string) => void;
   onDelete: (id: string) => void;
   onCopyLink: (id: string) => void;
+  onVisibilityChange: (id: string, visibility: string) => void;
   browserUploadPct?: number | null;
 }) {
   const inProgress = video.status === 'uploading' || video.status === 'processing';
@@ -95,6 +106,14 @@ function VideoRow({
   const canPublishNow = isFutureScheduled(video);
   const canDelete = video.status !== 'uploading';
   const canCopy = video.status === 'ready' || video.visibility === 'unlisted';
+  const canSetVisibility = video.status !== 'uploading';
+  const visibilityOptions =
+    QUICK_VISIBILITY.some((o) => o.value === video.visibility)
+      ? QUICK_VISIBILITY
+      : [
+          ...QUICK_VISIBILITY,
+          { value: video.visibility, label: visibilityLabel(video.visibility) },
+        ];
 
   return (
     <li className="glass-panel flex items-center justify-between gap-4 rounded-xl p-4">
@@ -106,7 +125,26 @@ function VideoRow({
             label={STATUS_LABEL[video.status] ?? video.status}
             className="mr-2"
           />
-          {visibilityLabel(video.visibility)}
+          {canSetVisibility ? (
+            <label className="ml-1 inline-flex items-center gap-1">
+              <span className="sr-only">Visibility</span>
+              <select
+                value={video.visibility}
+                disabled={visibilityBusyId === video.id}
+                onChange={(e) => onVisibilityChange(video.id, e.target.value)}
+                className="rounded-full border border-outline-variant bg-surface-container-low px-2 py-0.5 text-xs text-on-surface"
+                aria-label={`Visibility for ${video.title}`}
+              >
+                {visibilityOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            visibilityLabel(video.visibility)
+          )}
           {video.scheduledPublishAt
             ? ` · scheduled ${new Date(video.scheduledPublishAt).toLocaleString()}`
             : ''}
@@ -202,6 +240,7 @@ function StudioVideosPageInner() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [visibilityBusyId, setVisibilityBusyId] = useState<string | null>(null);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [copyHint, setCopyHint] = useState<string | null>(null);
@@ -332,6 +371,19 @@ function StudioVideosPageInner() {
     } catch {
       setCopyHint('Could not copy link');
       setTimeout(() => setCopyHint(null), 2000);
+    }
+  };
+
+  const setVisibility = async (videoId: string, visibility: string) => {
+    setVisibilityBusyId(videoId);
+    try {
+      await api.patch(`/videos/${videoId}`, { visibility });
+      await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } catch {
+      setCopyHint('Could not update visibility');
+      setTimeout(() => setCopyHint(null), 2000);
+    } finally {
+      setVisibilityBusyId(null);
     }
   };
 
@@ -563,10 +615,41 @@ function StudioVideosPageInner() {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1.5 capitalize text-on-surface-variant">
-                          <Icon name={VISIBILITY_ICON[video.visibility] ?? 'visibility'} className="text-base" />
-                          {visibilityLabel(video.visibility)}
-                        </span>
+                        {video.status !== 'uploading' ? (
+                          <label className="inline-flex items-center gap-1.5">
+                            <Icon
+                              name={VISIBILITY_ICON[video.visibility] ?? 'visibility'}
+                              className="text-base text-on-surface-variant"
+                            />
+                            <select
+                              value={video.visibility}
+                              disabled={visibilityBusyId === video.id}
+                              onChange={(e) => void setVisibility(video.id, e.target.value)}
+                              aria-label={`Visibility for ${video.title}`}
+                              className="rounded-full border border-outline-variant bg-surface-container-low px-2 py-1 text-sm text-on-surface disabled:opacity-50"
+                            >
+                              {(QUICK_VISIBILITY.some((o) => o.value === video.visibility)
+                                ? QUICK_VISIBILITY
+                                : [
+                                    ...QUICK_VISIBILITY,
+                                    {
+                                      value: video.visibility,
+                                      label: visibilityLabel(video.visibility),
+                                    },
+                                  ]
+                              ).map((o) => (
+                                <option key={o.value} value={o.value}>
+                                  {o.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 capitalize text-on-surface-variant">
+                            <Icon name={VISIBILITY_ICON[video.visibility] ?? 'visibility'} className="text-base" />
+                            {visibilityLabel(video.visibility)}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-on-surface-variant">
                         {video.status === 'ready' ? formatCount(video.viewCount) : '—'}
@@ -643,10 +726,12 @@ function StudioVideosPageInner() {
                 cancellingId={cancellingId}
                 publishingId={publishingId}
                 deletingId={deletingId}
+                visibilityBusyId={visibilityBusyId}
                 onCancel={setCancelConfirmId}
                 onPublishNow={(id) => void publishNow(id)}
                 onDelete={setDeleteConfirmId}
                 onCopyLink={(id) => void copyVideoLink(id)}
+                onVisibilityChange={(id, visibility) => void setVisibility(id, visibility)}
                 browserUploadPct={video.id === activeVideoId ? browserUploadPct : null}
               />
             ))}
