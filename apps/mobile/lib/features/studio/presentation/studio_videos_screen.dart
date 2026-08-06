@@ -25,6 +25,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
   String _sort = 'recent';
   String _status = '';
   String _visibility = '';
+  String _videoType = '';
   bool _scheduledOnly = false;
   final List<VideoModel> _videos = [];
   int _page = 1;
@@ -64,6 +65,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
             sort: _sort,
             status: _status.isEmpty ? null : _status,
             visibility: _visibility.isEmpty ? null : _visibility,
+            videoType: _videoType.isEmpty ? null : _videoType,
             scheduled: _scheduledOnly,
             page: nextPage,
             limit: 24,
@@ -233,6 +235,24 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                 ),
                 const SizedBox(width: 12),
                 _filterChip(
+                  label: 'Videos',
+                  selected: _videoType == 'video',
+                  onTap: () {
+                    setState(() => _videoType = _videoType == 'video' ? '' : 'video');
+                    _load();
+                  },
+                ),
+                const SizedBox(width: 6),
+                _filterChip(
+                  label: 'Shorts',
+                  selected: _videoType == 'short',
+                  onTap: () {
+                    setState(() => _videoType = _videoType == 'short' ? '' : 'short');
+                    _load();
+                  },
+                ),
+                const SizedBox(width: 12),
+                _filterChip(
                   label: 'Public',
                   selected: _visibility == 'public',
                   onTap: () {
@@ -290,7 +310,11 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
           children: [
             ForgeCard(
               child: Text(
-                _search.isNotEmpty || _status.isNotEmpty || _visibility.isNotEmpty
+                _search.isNotEmpty ||
+                        _status.isNotEmpty ||
+                        _visibility.isNotEmpty ||
+                        _videoType.isNotEmpty ||
+                        _scheduledOnly
                     ? 'No videos match these filters.'
                     : 'No videos yet. Upload your first video.',
                 style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),

@@ -10,7 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { VideoStatus, VideoVisibility } from '../entities/video.entity';
+import { VideoStatus, VideoType, VideoVisibility } from '../entities/video.entity';
 
 export enum StudioVideoSort {
   RECENT = 'recent',
@@ -28,6 +28,11 @@ export class StudioVideosQueryDto {
   @IsOptional()
   @IsEnum(VideoVisibility)
   visibility?: VideoVisibility;
+
+  /** Filter Videos vs Shorts (YouTube Studio content type). */
+  @IsOptional()
+  @IsEnum(VideoType)
+  videoType?: VideoType;
 
   @IsOptional()
   @IsUUID()

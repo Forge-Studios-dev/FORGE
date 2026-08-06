@@ -32,12 +32,13 @@ class StudioRepository {
   final ApiClient _api;
   StudioRepository(this._api);
 
-  /// Creator Studio library — paginated, optional search/sort/status/visibility.
+  /// Creator Studio library — paginated, optional search/sort/status/visibility/type.
   Future<StudioLibraryPage> getMyVideos({
     String? search,
     String sort = 'recent',
     String? status,
     String? visibility,
+    String? videoType,
     bool scheduled = false,
     int page = 1,
     int limit = 24,
@@ -51,6 +52,7 @@ class StudioRepository {
     if (q != null && q.isNotEmpty) params['search'] = q;
     if (status != null && status.isNotEmpty) params['status'] = status;
     if (visibility != null && visibility.isNotEmpty) params['visibility'] = visibility;
+    if (videoType != null && videoType.isNotEmpty) params['videoType'] = videoType;
     if (scheduled) params['scheduled'] = 'true';
 
     final videosRes = await _api.dio.get('/videos/studio', queryParameters: params);

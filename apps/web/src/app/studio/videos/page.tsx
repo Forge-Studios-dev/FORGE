@@ -252,6 +252,7 @@ function StudioVideosPageInner() {
   const [sort, setSort] = useState<StudioVideoSort>('recent');
   const [statusFilter, setStatusFilter] = useState('');
   const [visibilityFilter, setVisibilityFilter] = useState('');
+  const [videoTypeFilter, setVideoTypeFilter] = useState('');
   const [scheduledOnly, setScheduledOnly] = useState(false);
 
   const PAGE_SIZE = 30;
@@ -299,7 +300,15 @@ function StudioVideosPageInner() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['studio-videos', debouncedSearch, sort, statusFilter, visibilityFilter, scheduledOnly],
+    queryKey: [
+      'studio-videos',
+      debouncedSearch,
+      sort,
+      statusFilter,
+      visibilityFilter,
+      videoTypeFilter,
+      scheduledOnly,
+    ],
     enabled: !!user?.id && isCreator,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
@@ -308,6 +317,7 @@ function StudioVideosPageInner() {
         sort,
         status: statusFilter || undefined,
         visibility: visibilityFilter || undefined,
+        videoType: videoTypeFilter || undefined,
         scheduled: scheduledOnly || undefined,
         page: pageParam,
         limit: PAGE_SIZE,
@@ -466,6 +476,19 @@ function StudioVideosPageInner() {
             <option value="uploading">Uploading</option>
             <option value="failed">Failed</option>
             <option value="pending">Pending</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+          Type
+          <select
+            value={videoTypeFilter}
+            onChange={(e) => setVideoTypeFilter(e.target.value)}
+            aria-label="Filter by content type"
+            className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface"
+          >
+            <option value="">All</option>
+            <option value="video">Videos</option>
+            <option value="short">Shorts</option>
           </select>
         </label>
         <label className="flex items-center gap-2 text-sm text-on-surface-variant">

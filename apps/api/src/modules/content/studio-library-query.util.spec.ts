@@ -6,7 +6,7 @@ import {
   STUDIO_VIDEOS_MAX_LIMIT,
 } from './studio-library-query.util';
 import { StudioVideoSort } from './dto/studio-videos-query.dto';
-import { VideoStatus, VideoVisibility } from './entities/video.entity';
+import { VideoStatus, VideoType, VideoVisibility } from './entities/video.entity';
 
 describe('normalizeStudioPagination', () => {
   it('defaults to page 1 and the default limit', () => {
@@ -47,6 +47,13 @@ describe('buildStudioVideoFindOptions', () => {
       visibility: VideoVisibility.SUBSCRIBERS,
       categoryId: 'cat-9',
     });
+  });
+
+  it('filters by videoType Videos vs Shorts', () => {
+    const shorts = buildStudioVideoFindOptions('user-1', { videoType: VideoType.SHORT });
+    expect(shorts.where.videoType).toBe(VideoType.SHORT);
+    const videos = buildStudioVideoFindOptions('user-1', { videoType: VideoType.VIDEO });
+    expect(videos.where.videoType).toBe(VideoType.VIDEO);
   });
 
   it('filters to future scheduled publishes when scheduled=true', () => {

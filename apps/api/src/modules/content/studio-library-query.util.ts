@@ -39,6 +39,7 @@ export function buildStudioVideoFindOptions(
   const where: FindOptionsWhere<Video> = { userId };
   if (query.status) where.status = query.status;
   if (query.visibility) where.visibility = query.visibility;
+  if (query.videoType) where.videoType = query.videoType;
   if (query.categoryId) where.categoryId = query.categoryId;
   const search = query.search?.trim();
   if (search) where.title = ILike(`%${search}%`);
