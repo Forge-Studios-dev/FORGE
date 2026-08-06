@@ -62,6 +62,8 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Mobile notifications category chips + unread badge after mark-read
 - [ ] Smoke: Mobile Studio videos search/sort/filters + Playlists link
 - [ ] Smoke: Mobile Studio edit Topic tags
+- [ ] Smoke: History Pause history → settings privacy toggle
+- [ ] Smoke: Studio settings Playlists shortcut
 - [ ] Smoke: Library Your videos; Playlists A–Z sort; search type chips; system playlist search
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`

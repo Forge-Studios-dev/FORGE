@@ -92,6 +92,38 @@ class StudioSettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
             ForgeCard(
+              onTap: () => context.push('/playlists'),
+              child: Row(
+                children: [
+                  Icon(Icons.playlist_play, color: ForgeTokens.of(context).primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Playlists',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: ForgeTokens.of(context).onSurface,
+                          ),
+                        ),
+                        Text(
+                          'Create and organize channel playlists',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: ForgeTokens.of(context).onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            ForgeCard(
               onTap: () => context.push('/studio/attention'),
               child: Row(
                 children: [

@@ -9,6 +9,7 @@ import { Notification } from '@/types';
 import { useAuth } from '@/lib/auth';
 import { CATEGORY_LABEL, isRetiredLmsNotification, notificationMeta, type NotificationCategory } from '@/lib/notification-category';
 import { notificationHref } from '@/lib/notification-href';
+import { timeAgo } from '@/lib/utils';
 
 type NotificationsPage = {
   data: Notification[];
@@ -203,7 +204,7 @@ export default function NotificationsPage() {
                           </div>
                         </div>
                         <span className="shrink-0 text-xs text-outline">
-                          {new Date(n.createdAt).toLocaleString()}
+                          {timeAgo(n.createdAt)}
                         </span>
                       </div>
                     </button>

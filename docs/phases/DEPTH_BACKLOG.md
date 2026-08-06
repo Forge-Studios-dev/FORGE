@@ -551,6 +551,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Studio video editor: Topic tags when video has `categoryId` (`skillTagIds` on PATCH)
 
+## History Pause deep-link + Studio Playlists settings (2026-08-06)
+
+- History “Pause history” → `/profile/settings?section=privacy` (scrolls to toggle)
+- Studio settings shortcut: Playlists
+- Web notifications page: relative `timeAgo` (menu parity)
+
 ## Still open
 
 | Area | Item | Owner |

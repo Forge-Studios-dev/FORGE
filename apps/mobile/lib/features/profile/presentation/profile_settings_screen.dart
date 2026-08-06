@@ -23,12 +23,15 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
   final _displayName = TextEditingController();
   final _bio = TextEditingController();
   final _websiteUrl = TextEditingController();
+  final _scrollController = ScrollController();
+  final _privacyKey = GlobalKey();
   final List<_ChannelLinkDraft> _channelLinks = [];
   bool _loading = true;
   bool _saving = false;
   bool _mediaUploading = false;
   bool _watchHistoryPaused = false;
   bool _privacySaving = false;
+  bool _didScrollToPrivacy = false;
   String? _userId;
   String? _bannerUrl;
   String? _avatarUrl;
@@ -73,8 +76,29 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
     } catch (_) {
       if (mounted) context.go('/login');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+        WidgetsBinding.instance.addPostFrameCallback((_) => _maybeScrollToPrivacy());
+      }
     }
+  }
+
+  void _maybeScrollToPrivacy() {
+    if (_didScrollToPrivacy || !mounted) return;
+    final section = GoRouterState.of(context).uri.queryParameters['section'];
+    if (section != 'privacy') return;
+    final ctx = _privacyKey.currentContext;
+    if (ctx == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeScrollToPrivacy());
+      return;
+    }
+    _didScrollToPrivacy = true;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+      alignment: 0.15,
+    );
   }
 
   Future<void> _setWatchHistoryPaused(bool next) async {
@@ -210,6 +234,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _displayName.dispose();
     _bio.dispose();
     _websiteUrl.dispose();
@@ -234,6 +259,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
         ),
       ),
       body: ListView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(20),
         children: [
           if (_bannerUrl != null && _bannerUrl!.isNotEmpty)
@@ -352,6 +378,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
           ),
           const SizedBox(height: 24),
           SwitchListTile(
+            key: _privacyKey,
             contentPadding: EdgeInsets.zero,
             title: const Text('Pause watch history'),
             subtitle: const Text("New watches won't be saved to History."),

@@ -106,8 +106,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => context.push('/profile/settings'),
-            child: const Text('Pause'),
+            onPressed: () => context.push('/profile/settings?section=privacy'),
+            child: const Text('Pause history'),
           ),
           if (async.hasValue && async.value!.isNotEmpty)
             TextButton(
