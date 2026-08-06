@@ -537,6 +537,16 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Search type chips: All / Videos / Channels / Playlists
 - Watch later / Liked: Search this playlist when ≥4 videos
 
+## Mobile notifications polish (2026-08-06)
+
+- Category chips (Social / Live / Content / …); relative timestamps; load-error retry
+- Invalidate unread badge after mark-read / mark-all-read
+
+## Mobile Studio library + Playlists IA (2026-08-06)
+
+- Studio videos: search, sort, status/visibility filters, pagination (`GET /videos/studio`)
+- Studio home Content zone: Playlists → `/playlists`
+
 ## Still open
 
 | Area | Item | Owner |

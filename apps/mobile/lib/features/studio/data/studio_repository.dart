@@ -8,20 +8,59 @@ final studioRepositoryProvider = Provider<StudioRepository>((ref) {
   return StudioRepository(ref.read(apiClientProvider));
 });
 
+/// Default provider for analytics / summary callers (first page, no filters).
 final myVideosProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) async {
-  return ref.read(studioRepositoryProvider).getMyVideos();
+  final page = await ref.read(studioRepositoryProvider).getMyVideos();
+  return page.items;
 });
+
+class StudioLibraryPage {
+  final List<VideoModel> items;
+  final int page;
+  final int total;
+  final bool hasMore;
+
+  const StudioLibraryPage({
+    required this.items,
+    required this.page,
+    required this.total,
+    required this.hasMore,
+  });
+}
 
 class StudioRepository {
   final ApiClient _api;
   StudioRepository(this._api);
 
-  /// Creator Studio library — all statuses (uploading / processing / ready / failed).
-  Future<List<VideoModel>> getMyVideos() async {
-    final videosRes = await _api.dio.get('/videos/studio', queryParameters: {'limit': 50});
+  /// Creator Studio library — paginated, optional search/sort/status/visibility.
+  Future<StudioLibraryPage> getMyVideos({
+    String? search,
+    String sort = 'recent',
+    String? status,
+    String? visibility,
+    int page = 1,
+    int limit = 24,
+  }) async {
+    final params = <String, dynamic>{
+      'limit': limit,
+      'page': page,
+      'sort': sort,
+    };
+    final q = search?.trim();
+    if (q != null && q.isNotEmpty) params['search'] = q;
+    if (status != null && status.isNotEmpty) params['status'] = status;
+    if (visibility != null && visibility.isNotEmpty) params['visibility'] = visibility;
+
+    final videosRes = await _api.dio.get('/videos/studio', queryParameters: params);
     final data = videosRes.data['data'] as Map<String, dynamic>;
-    final list = data['data'] as List;
-    return list.map((v) => VideoModel.fromJson(v as Map<String, dynamic>)).toList();
+    final list = data['data'] as List? ?? [];
+    final pagination = data['pagination'] as Map<String, dynamic>? ?? {};
+    return StudioLibraryPage(
+      items: list.map((v) => VideoModel.fromJson(v as Map<String, dynamic>)).toList(),
+      page: (pagination['page'] as num?)?.toInt() ?? page,
+      total: (pagination['total'] as num?)?.toInt() ?? list.length,
+      hasMore: pagination['hasMore'] == true,
+    );
   }
 
   Future<VideoModel> getStudioVideo(String videoId) async {
@@ -145,9 +184,9 @@ class StudioRepository {
   }
 
   Future<List<Map<String, dynamic>>> getRecentComments() async {
-    final videos = await getMyVideos();
+    final page = await getMyVideos(limit: 50);
     final comments = <Map<String, dynamic>>[];
-    for (final v in videos.where((v) => v.status == 'ready').take(6)) {
+    for (final v in page.items.where((v) => v.status == 'ready').take(6)) {
       try {
         final res = await _api.dio.get('/videos/${v.id}/comments', queryParameters: {'limit': 5});
         final list = res.data['data']['data'] as List;

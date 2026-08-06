@@ -247,6 +247,7 @@ class StudioScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           _zoneLabel(context, 'Content'),
           _link(context, 'Videos', 'Manage uploads', Icons.video_library, '/studio/videos'),
+          _link(context, 'Playlists', 'Organize channel playlists', Icons.playlist_play, '/playlists'),
           _link(context, 'Go live', 'Start a stream', Icons.sensors, '/studio/live'),
           _link(context, 'Comments', 'Reply to viewers', Icons.forum, '/studio/comments'),
           _link(context, 'Attention', 'Unified action queue', Icons.notifications_active, '/studio/attention'),

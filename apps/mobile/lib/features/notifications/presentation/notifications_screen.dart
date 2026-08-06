@@ -5,18 +5,29 @@ import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_palette.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
+import '../../library/presentation/library_screen.dart';
 
-/// Icon + semantic color key per notification type — mirrors
-/// apps/web/src/lib/notification-category.ts and
-/// apps/api/.../notification.entity.ts NotificationType, so a member can tell
-/// social vs. live vs. billing vs. reward notifications apart at a glance
-/// instead of every row looking identical.
+/// Icon + tone + category per notification type — mirrors
+/// apps/web/src/lib/notification-category.ts.
 enum _NotifTone { outline, primary, success, critical, live, warning, tertiary }
+
+enum _NotifCategory { social, live, content, community, billing, creator, reward }
+
+const _categoryLabels = <_NotifCategory, String>{
+  _NotifCategory.social: 'Social',
+  _NotifCategory.live: 'Live',
+  _NotifCategory.content: 'Content',
+  _NotifCategory.community: 'Community',
+  _NotifCategory.billing: 'Billing',
+  _NotifCategory.creator: 'Creator status',
+  _NotifCategory.reward: 'Rewards',
+};
 
 class _NotificationMeta {
   final IconData icon;
   final _NotifTone tone;
-  const _NotificationMeta(this.icon, this.tone);
+  final _NotifCategory category;
+  const _NotificationMeta(this.icon, this.tone, this.category);
 
   Color color(ForgePalette t) => switch (tone) {
         _NotifTone.outline => t.outline,
@@ -29,31 +40,55 @@ class _NotificationMeta {
       };
 }
 
-const _defaultNotificationMeta = _NotificationMeta(Icons.notifications, _NotifTone.outline);
+const _defaultNotificationMeta =
+    _NotificationMeta(Icons.notifications, _NotifTone.outline, _NotifCategory.social);
 
 const Map<String, _NotificationMeta> _notificationMetaByType = {
-  'creator_approved': _NotificationMeta(Icons.verified, _NotifTone.success),
-  'creator_rejected': _NotificationMeta(Icons.block, _NotifTone.critical),
-  'video_ready': _NotificationMeta(Icons.video_library, _NotifTone.primary),
-  'stream_started': _NotificationMeta(Icons.sensors, _NotifTone.live),
-  'stream_started_followed': _NotificationMeta(Icons.sensors, _NotifTone.live),
-  'premium_content_new': _NotificationMeta(Icons.workspace_premium, _NotifTone.primary),
-  'subscription_expiring': _NotificationMeta(Icons.schedule, _NotifTone.warning),
-  'comment_on_video': _NotificationMeta(Icons.forum, _NotifTone.outline),
-  'comment_reply': _NotificationMeta(Icons.reply, _NotifTone.outline),
-  'new_follower': _NotificationMeta(Icons.person_add, _NotifTone.outline),
-  'video_liked': _NotificationMeta(Icons.thumb_up, _NotifTone.outline),
-  'super_thanks': _NotificationMeta(Icons.volunteer_activism, _NotifTone.warning),
-  'direct_message': _NotificationMeta(Icons.mail, _NotifTone.outline),
-  'community_role_assigned': _NotificationMeta(Icons.shield, _NotifTone.primary),
-  'community_banned': _NotificationMeta(Icons.gavel, _NotifTone.critical),
-  'community_post_new': _NotificationMeta(Icons.campaign, _NotifTone.outline),
-  'achievement_unlocked': _NotificationMeta(Icons.emoji_events, _NotifTone.tertiary),
-  'xp_level_up': _NotificationMeta(Icons.trending_up, _NotifTone.tertiary),
+  'creator_approved': _NotificationMeta(Icons.verified, _NotifTone.success, _NotifCategory.creator),
+  'creator_rejected': _NotificationMeta(Icons.block, _NotifTone.critical, _NotifCategory.creator),
+  'video_ready': _NotificationMeta(Icons.video_library, _NotifTone.primary, _NotifCategory.content),
+  'stream_started': _NotificationMeta(Icons.sensors, _NotifTone.live, _NotifCategory.live),
+  'stream_started_followed': _NotificationMeta(Icons.sensors, _NotifTone.live, _NotifCategory.live),
+  'premium_content_new':
+      _NotificationMeta(Icons.workspace_premium, _NotifTone.primary, _NotifCategory.content),
+  'subscription_expiring':
+      _NotificationMeta(Icons.schedule, _NotifTone.warning, _NotifCategory.billing),
+  'comment_on_video': _NotificationMeta(Icons.forum, _NotifTone.outline, _NotifCategory.social),
+  'comment_reply': _NotificationMeta(Icons.reply, _NotifTone.outline, _NotifCategory.social),
+  'new_follower': _NotificationMeta(Icons.person_add, _NotifTone.outline, _NotifCategory.social),
+  'video_liked': _NotificationMeta(Icons.thumb_up, _NotifTone.outline, _NotifCategory.social),
+  'super_thanks':
+      _NotificationMeta(Icons.volunteer_activism, _NotifTone.warning, _NotifCategory.billing),
+  'direct_message': _NotificationMeta(Icons.mail, _NotifTone.outline, _NotifCategory.social),
+  'community_role_assigned':
+      _NotificationMeta(Icons.shield, _NotifTone.primary, _NotifCategory.community),
+  'community_banned': _NotificationMeta(Icons.gavel, _NotifTone.critical, _NotifCategory.community),
+  'community_post_new':
+      _NotificationMeta(Icons.campaign, _NotifTone.outline, _NotifCategory.community),
+  'achievement_unlocked':
+      _NotificationMeta(Icons.emoji_events, _NotifTone.tertiary, _NotifCategory.reward),
+  'xp_level_up': _NotificationMeta(Icons.trending_up, _NotifTone.tertiary, _NotifCategory.reward),
 };
 
 _NotificationMeta _metaFor(String? type) =>
     _notificationMetaByType[type] ?? _defaultNotificationMeta;
+
+bool _isRetiredLms(String? type) =>
+    type == 'achievement_unlocked' || type == 'xp_level_up';
+
+/// Relative time for notification rows (web NotificationsMenu `timeAgo` spirit).
+String _timeAgo(String? iso) {
+  if (iso == null || iso.isEmpty) return '';
+  final dt = DateTime.tryParse(iso)?.toLocal();
+  if (dt == null) return '';
+  final diff = DateTime.now().difference(dt);
+  if (diff.inSeconds < 60) return 'Just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
+  return '${dt.month}/${dt.day}/${dt.year}';
+}
 
 /// Mirrors apps/web/src/lib/notification-href.ts for mobile deep links.
 String? _notificationHref(String? type, Map<String, dynamic>? metadata) {
@@ -122,9 +157,11 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   List<dynamic> _items = [];
   bool _loading = true;
+  bool _loadError = false;
   String? _nextCursor;
   bool _hasMore = false;
   bool _unreadOnly = false;
+  _NotifCategory? _categoryFilter; // null = all
 
   @override
   void initState() {
@@ -133,6 +170,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   Future<void> _load({String? cursor}) async {
+    if (cursor == null) {
+      setState(() {
+        _loading = true;
+        _loadError = false;
+      });
+    }
     try {
       final api = ref.read(apiClientProvider);
       final params = <String, dynamic>{'limit': 30};
@@ -140,10 +183,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       final res = await api.dio.get('/notifications', queryParameters: params);
       final payload = res.data['data'] as Map<String, dynamic>;
       final data = (payload['data'] as List<dynamic>? ?? [])
-          .where((raw) {
-            final type = (raw as Map)['type']?.toString();
-            return type != 'achievement_unlocked' && type != 'xp_level_up';
-          })
+          .where((raw) => !_isRetiredLms((raw as Map)['type']?.toString()))
           .toList();
       final meta = payload['meta'] as Map<String, dynamic>? ?? {};
       if (!mounted) return;
@@ -152,10 +192,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         _nextCursor = meta['cursor'] as String?;
         _hasMore = meta['hasMore'] == true;
         _loading = false;
+        _loadError = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          if (cursor == null) _loadError = true;
+        });
+      }
     }
+  }
+
+  void _invalidateUnreadBadge() {
+    ref.invalidate(libraryUnreadCountProvider);
   }
 
   Future<void> _markRead(String id) async {
@@ -170,6 +220,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           return n;
         }).toList();
       });
+      _invalidateUnreadBadge();
     } catch (_) {}
   }
 
@@ -178,28 +229,59 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final read = n['readAt'] != null;
     if (id != null && !read) await _markRead(id);
     final metaRaw = n['metadata'];
-    final metadata = metaRaw is Map
-        ? Map<String, dynamic>.from(metaRaw)
-        : null;
+    final metadata = metaRaw is Map ? Map<String, dynamic>.from(metaRaw) : null;
     final href = _notificationHref(n['type']?.toString(), metadata);
-    if (href != null && mounted) context.push(href);
+    if (!mounted) return;
+    if (href != null) {
+      context.push(href);
+    }
+    // null href: stay on notifications (no-op fallback)
   }
 
   Future<void> _markAllRead() async {
     try {
       final api = ref.read(apiClientProvider);
       await api.dio.post('/notifications/read-all');
+      _invalidateUnreadBadge();
       await _load();
     } catch (_) {}
+  }
+
+  List<_NotifCategory> get _presentCategories {
+    final present = <_NotifCategory>{};
+    for (final raw in _items) {
+      final type = (raw as Map)['type']?.toString();
+      final cat = _metaFor(type).category;
+      if (cat != _NotifCategory.reward) present.add(cat);
+    }
+    return _categoryLabels.keys.where(present.contains).toList();
+  }
+
+  List<dynamic> get _visible {
+    return _items.where((raw) {
+      final n = raw as Map;
+      if (_unreadOnly && n['readAt'] != null) return false;
+      if (_categoryFilter == null) return true;
+      return _metaFor(n['type']?.toString()).category == _categoryFilter;
+    }).toList();
+  }
+
+  String get _emptyMessage {
+    if (_unreadOnly) return 'No unread notifications';
+    if (_categoryFilter != null) {
+      final label = _categoryLabels[_categoryFilter]!.toLowerCase();
+      return 'No $label notifications';
+    }
+    return 'No notifications yet';
   }
 
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens.of(context);
     final hasUnread = _items.any((n) => (n as Map)['readAt'] == null);
-    final visible = _unreadOnly
-        ? _items.where((n) => (n as Map)['readAt'] == null).toList()
-        : _items;
+    final visible = _visible;
+    final presentCategories = _presentCategories;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
@@ -236,51 +318,126 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 ),
               ),
             )
-          : visible.isEmpty
+          : _loadError
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.notifications_none, size: 48, color: t.outline),
+                      Icon(Icons.error_outline, size: 48, color: t.error),
                       const SizedBox(height: 12),
+                      Text("Couldn't load notifications", style: TextStyle(color: t.onSurface)),
+                      const SizedBox(height: 8),
                       Text(
-                        _unreadOnly ? 'No unread notifications' : 'No notifications yet',
+                        'Check your connection and try again.',
                         style: TextStyle(color: t.onSurfaceVariant),
                       ),
                       const SizedBox(height: 12),
-                      TextButton(onPressed: () => _load(), child: const Text('Refresh')),
+                      TextButton(onPressed: () => _load(), child: const Text('Retry')),
                     ],
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: visible.length + (_hasMore && !_unreadOnly ? 1 : 0),
-                  itemBuilder: (_, i) {
-                    if (i == visible.length) {
-                      return TextButton(onPressed: () => _load(cursor: _nextCursor), child: const Text('Load more'));
-                    }
-                    final n = visible[i] as Map<String, dynamic>;
-                    final read = n['readAt'] != null;
-                    final meta = _metaFor(n['type']?.toString());
-                    final color = meta.color(t);
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: ForgeCard(
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: color.withValues(alpha: 0.12),
-                            child: Icon(meta.icon, color: color, size: 20),
-                          ),
-                          title: Text(
-                            n['title']?.toString() ?? 'Notification',
-                            style: TextStyle(fontWeight: read ? FontWeight.normal : FontWeight.bold),
-                          ),
-                          subtitle: n['body'] != null ? Text(n['body'].toString()) : null,
-                          onTap: () => _openNotification(n),
+              : Column(
+                  children: [
+                    if (presentCategories.length > 1)
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                        child: Row(
+                          children: [
+                            FilterChip(
+                              label: const Text('All'),
+                              selected: _categoryFilter == null,
+                              onSelected: (_) => setState(() => _categoryFilter = null),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            const SizedBox(width: 6),
+                            ...presentCategories.map(
+                              (cat) => Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: FilterChip(
+                                  label: Text(_categoryLabels[cat]!),
+                                  selected: _categoryFilter == cat,
+                                  onSelected: (_) => setState(() {
+                                    _categoryFilter = _categoryFilter == cat ? null : cat;
+                                  }),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  },
+                    Expanded(
+                      child: visible.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.notifications_none, size: 48, color: t.outline),
+                                  const SizedBox(height: 12),
+                                  Text(_emptyMessage, style: TextStyle(color: t.onSurfaceVariant)),
+                                  const SizedBox(height: 12),
+                                  TextButton(onPressed: () => _load(), child: const Text('Refresh')),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: visible.length +
+                                  (_hasMore && !_unreadOnly && _categoryFilter == null ? 1 : 0),
+                              itemBuilder: (_, i) {
+                                if (i == visible.length) {
+                                  return TextButton(
+                                    onPressed: () => _load(cursor: _nextCursor),
+                                    child: const Text('Load more'),
+                                  );
+                                }
+                                final n = visible[i] as Map<String, dynamic>;
+                                final read = n['readAt'] != null;
+                                final meta = _metaFor(n['type']?.toString());
+                                final color = meta.color(t);
+                                final ago = _timeAgo(n['createdAt']?.toString());
+                                final body = n['body']?.toString();
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: ForgeCard(
+                                    child: ListTile(
+                                      leading: CircleAvatar(
+                                        backgroundColor: color.withValues(alpha: 0.12),
+                                        child: Icon(meta.icon, color: color, size: 20),
+                                      ),
+                                      title: Text(
+                                        n['title']?.toString() ?? 'Notification',
+                                        style: TextStyle(
+                                          fontWeight: read ? FontWeight.normal : FontWeight.bold,
+                                        ),
+                                      ),
+                                      subtitle: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          if (body != null && body.isNotEmpty) Text(body),
+                                          if (ago.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 2),
+                                              child: Text(
+                                                ago,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: t.outline,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      isThreeLine: body != null && body.isNotEmpty && ago.isNotEmpty,
+                                      onTap: () => _openNotification(n),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
                 ),
     );
   }

@@ -29,8 +29,9 @@ final videoPerformanceProvider = FutureProvider.autoDispose<Map<String, dynamic>
   }
 });
 
-final studioAnalyticsProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) {
-  return ref.read(studioRepositoryProvider).getMyVideos();
+final studioAnalyticsProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) async {
+  final page = await ref.read(studioRepositoryProvider).getMyVideos(limit: 50);
+  return page.items;
 });
 
 class StudioAnalyticsScreen extends ConsumerStatefulWidget {
