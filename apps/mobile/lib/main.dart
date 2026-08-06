@@ -11,6 +11,7 @@ import 'core/push/forge_push.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_provider.dart';
+import 'features/watch/presentation/miniplayer_dock.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -54,6 +55,15 @@ class ForgeApp extends ConsumerWidget {
         supportedLocales: const [Locale('en')],
         routerConfig: router,
         debugShowCheckedModeBanner: false,
+        builder: (context, child) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              child ?? const SizedBox.shrink(),
+              const MiniPlayerDock(),
+            ],
+          );
+        },
       ),
     );
   }

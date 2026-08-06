@@ -67,7 +67,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   const videoRoutes: MetadataRoute.Sitemap = videos.map((video) => ({
-    url: `${SITE_URL}/watch/${video.id}`,
+    url:
+      video.videoType === 'short'
+        ? `${SITE_URL}/shorts?v=${video.id}`
+        : `${SITE_URL}/watch/${video.id}`,
     lastModified: video.publishedAt || video.createdAt,
     changeFrequency: 'weekly',
     priority: 0.7,

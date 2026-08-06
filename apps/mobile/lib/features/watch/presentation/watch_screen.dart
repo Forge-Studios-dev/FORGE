@@ -13,6 +13,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/cache/local_cache.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/router/navigation_key.dart';
 import '../../../core/socket/forge_socket.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/utils/description_chapters.dart';
@@ -21,6 +22,7 @@ import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/widgets/forge_skeleton.dart';
 import '../../../shared/models/video.dart';
 import '../../playlists/presentation/create_playlist_dialog.dart';
+import '../data/miniplayer_provider.dart';
 import '../data/watch_repository.dart';
 import 'chapters_panel.dart';
 import 'transcript_panel.dart';
@@ -208,6 +210,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
   @override
   void initState() {
     super.initState();
+    ref.read(miniPlayerProvider.notifier).close();
     final autoplayPref = LocalCache.read(_autoplayPrefKey);
     if (autoplayPref == '0') _autoplay = false;
     if (autoplayPref == '1') _autoplay = true;
@@ -431,6 +434,9 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
                 _HlsPlayerBlock(
                   videoId: videoId,
                   url: video.hlsUrl!,
+                  title: video.title,
+                  thumbnailUrl: video.thumbnailUrl,
+                  videoType: video.videoType,
                   looping: _loopVideo,
                   playbackRate: _playbackRate,
                   onEnded: _onPlaybackEnded,
@@ -553,6 +559,29 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
             ),
           ),
         const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: canPlay
+                ? () {
+                    final seconds = ref.read(watchPositionSecondsProvider(videoId));
+                    ref.read(miniPlayerProvider.notifier).open(
+                          MiniPlayerSession(
+                            videoId: videoId,
+                            title: video.title,
+                            hlsUrl: video.hlsUrl!,
+                            thumbnailUrl: video.thumbnailUrl,
+                            seconds: seconds,
+                            videoType: video.videoType,
+                          ),
+                        );
+                    context.go('/feed');
+                  }
+                : null,
+            icon: const Icon(Icons.picture_in_picture_alt_outlined, size: 18),
+            label: const Text('Miniplayer'),
+          ),
+        ),
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           title: const Text('Autoplay next', style: TextStyle(fontSize: 14)),
@@ -2277,12 +2306,18 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
 class _HlsPlayerBlock extends ConsumerStatefulWidget {
   final String videoId;
   final String url;
+  final String title;
+  final String? thumbnailUrl;
+  final String? videoType;
   final bool looping;
   final double playbackRate;
   final VoidCallback? onEnded;
   const _HlsPlayerBlock({
     required this.videoId,
     required this.url,
+    required this.title,
+    this.thumbnailUrl,
+    this.videoType,
     this.looping = false,
     this.playbackRate = 1,
     this.onEnded,
@@ -2441,9 +2476,26 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     final pos = _video?.value.position.inSeconds ?? 0;
+    final leaveSession = MiniPlayerSession(
+      videoId: widget.videoId,
+      title: widget.title,
+      hlsUrl: widget.url,
+      thumbnailUrl: widget.thumbnailUrl,
+      seconds: pos,
+      videoType: widget.videoType,
+    );
     _recordWatch(progressSeconds: pos);
     _disposeControllers();
     super.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = rootNavigatorKey.currentContext;
+      if (ctx == null || pos < 2) return;
+      final uri = GoRouter.of(ctx).state.uri;
+      final path = uri.path;
+      if (path.startsWith('/watch/')) return;
+      if (path == '/shorts' && uri.queryParameters['v'] == leaveSession.videoId) return;
+      ProviderScope.containerOf(ctx).read(miniPlayerProvider.notifier).open(leaveSession);
+    });
   }
 
   @override

@@ -655,6 +655,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - `video.ready` notifications include `videoType`; deep links open Shorts feed when applicable
 - Mobile: shared `publicVideoPath` on feed, explore, history, library, profile, subscriptions, disliked
 
+## Sitemap + miniplayer Shorts awareness (2026-08-06)
+
+- Sitemap emits `/shorts?v=` for Shorts
+- Web miniplayer expand/hide respects Shorts deep links + `videoType`
+- Mobile floating miniplayer dock (continue HLS after leaving watch; Miniplayer control)
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)
@@ -676,6 +682,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Community | Channel Community tab expand/reply on posts | Done (2026-08-04) |
 | Recs | Full ML / embeddings stack | Product |
 | Downloads | Real offline download packages (UI hidden) | Product |
+| Mobile | OS-level Picture-in-Picture (floating miniplayer shipped) | Eng (optional) |
 | Legal | Kids / Restricted Mode / made-for-kids | Product + legal |
 | Monetization | Ad breaks / VAST | Product + partners |
 

@@ -15,6 +15,7 @@ export type MiniPlayerSession = {
   hlsUrl: string;
   thumbnailUrl?: string | null;
   seconds: number;
+  videoType?: string | null;
 };
 
 type MiniPlayerContextValue = {

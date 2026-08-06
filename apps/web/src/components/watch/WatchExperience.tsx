@@ -141,6 +141,7 @@ export function WatchExperience({
     const title = video.title;
     const hlsUrl = video.hlsUrl;
     const thumbnailUrl = video.thumbnailUrl;
+    const videoType = video.videoType;
     return () => {
       if (!hlsUrl || typeof window === 'undefined') return;
       const path = window.location.pathname;
@@ -148,6 +149,10 @@ export function WatchExperience({
       if (path.startsWith('/watch/') || path.startsWith('/embed')) {
         closeMiniPlayer();
         return;
+      }
+      if (path === '/shorts') {
+        const v = new URLSearchParams(window.location.search).get('v');
+        if (v === videoId) return;
       }
       const seconds = playbackSecondsRef.current;
       if (seconds < 2) return;
@@ -157,6 +162,7 @@ export function WatchExperience({
         hlsUrl,
         thumbnailUrl,
         seconds,
+        videoType,
       });
     };
   }, [
@@ -164,6 +170,7 @@ export function WatchExperience({
     video.title,
     video.hlsUrl,
     video.thumbnailUrl,
+    video.videoType,
     openMiniPlayer,
     closeMiniPlayer,
   ]);
@@ -176,6 +183,7 @@ export function WatchExperience({
       hlsUrl: video.hlsUrl,
       thumbnailUrl: video.thumbnailUrl,
       seconds: playbackSecondsRef.current,
+      videoType: video.videoType,
     });
     router.push('/');
   };

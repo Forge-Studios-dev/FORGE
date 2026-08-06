@@ -2,25 +2,30 @@
 
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Hls from 'hls.js';
 import { Icon } from '@forge/design-system';
 import { useMiniPlayer } from '@/lib/miniplayer';
+import { publicVideoPath } from '@/lib/watch-url';
 
 /**
  * YouTube-style floating miniplayer — continues HLS playback after leaving watch.
- * Hidden on the same watch page (full player owns playback).
+ * Hidden on the same watch/shorts page (full player owns playback).
  */
 export function MiniPlayerDock() {
   const { session, close, updateSeconds } = useMiniPlayer();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
+  const shortsDeepLink = searchParams.get('v');
   const onSameWatch =
     !!session &&
-    (pathname === `/watch/${session.videoId}` || pathname.startsWith(`/watch/${session.videoId}?`));
+    (pathname === `/watch/${session.videoId}` ||
+      pathname.startsWith(`/watch/${session.videoId}?`) ||
+      (pathname === '/shorts' && shortsDeepLink === session.videoId));
 
   useEffect(() => {
     if (!session || onSameWatch) return;
@@ -67,7 +72,10 @@ export function MiniPlayerDock() {
 
   if (!session || onSameWatch) return null;
 
-  const expandHref = `/watch/${session.videoId}?t=${Math.floor(session.seconds)}`;
+  const expandPath = publicVideoPath(
+    { id: session.videoId, videoType: session.videoType },
+    session.videoType === 'short' ? undefined : { progressSeconds: session.seconds },
+  );
 
   return (
     <div
@@ -87,7 +95,7 @@ export function MiniPlayerDock() {
       </div>
       <div className="flex items-center gap-2 px-3 py-2">
         <Link
-          href={expandHref}
+          href={expandPath}
           className="min-w-0 flex-1 truncate text-sm font-medium text-on-surface hover:text-primary"
           title={session.title}
         >
@@ -96,7 +104,7 @@ export function MiniPlayerDock() {
         <button
           type="button"
           aria-label="Expand to watch page"
-          onClick={() => router.push(expandHref)}
+          onClick={() => router.push(expandPath)}
           className="rounded-full p-1.5 text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
         >
           <Icon name="open_in_full" className="text-lg" />
