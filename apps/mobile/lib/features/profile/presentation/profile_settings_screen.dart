@@ -50,6 +50,11 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
 
   Future<void> _load() async {
     try {
+      final autoplayPref = LocalCache.read(_autoplayPrefKey);
+      if (autoplayPref == '0') _autoplay = false;
+      if (autoplayPref == '1') _autoplay = true;
+      _loopVideo = LocalCache.read(_loopPrefKey) == '1';
+
       final client = ref.read(apiClientProvider);
       final res = await client.dio.get('/users/me');
       final data = res.data['data'] as Map<String, dynamic>;
