@@ -28,6 +28,8 @@ import 'transcript_panel.dart';
 const _autoplayPrefKey = 'forge.watch.autoplay';
 const _loopPrefKey = 'forge.watch.loop';
 const _ratePrefKey = 'forge.watch.playbackRate';
+const _volumePrefKey = 'forge.watch.volume';
+const _mutedPrefKey = 'forge.watch.muted';
 const _playbackRates = <double>[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 double _readPreferredPlaybackRate() {
@@ -37,6 +39,13 @@ double _readPreferredPlaybackRate() {
     if ((r - raw).abs() < 0.01) return r;
   }
   return 1;
+}
+
+({double volume, bool muted}) _readPreferredVolume() {
+  final volumeRaw = double.tryParse(LocalCache.read(_volumePrefKey) ?? '');
+  final volume = (volumeRaw != null && volumeRaw >= 0 && volumeRaw <= 1) ? volumeRaw : 1.0;
+  final muted = LocalCache.read(_mutedPrefKey) == '1';
+  return (volume: volume, muted: muted);
 }
 
 String _rateLabel(double rate) => rate == 1 ? 'Normal' : '${rate}×';
@@ -2287,6 +2296,8 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
   VideoPlayerController? _video;
   ChewieController? _chewie;
   bool _endedFired = false;
+  double _lastVolume = 1;
+  bool _lastMuted = false;
 
   @override
   void initState() {
@@ -2334,14 +2345,39 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
     }
   }
 
+  Future<void> _persistVolumePrefs() async {
+    final vc = _video;
+    if (vc == null) return;
+    final volume = vc.value.volume.clamp(0.0, 1.0);
+    final muted = vc.value.volume == 0;
+    if ((volume - _lastVolume).abs() < 0.01 && muted == _lastMuted) return;
+    _lastVolume = muted ? _lastVolume : volume;
+    _lastMuted = muted;
+    // When muted, keep last non-zero volume in storage for unmute restore.
+    final storedVolume = muted
+        ? (double.tryParse(LocalCache.read(_volumePrefKey) ?? '') ?? 1.0).clamp(0.0, 1.0)
+        : volume;
+    await LocalCache.write(_volumePrefKey, storedVolume.toString());
+    await LocalCache.write(_mutedPrefKey, muted ? '1' : '0');
+  }
+
   Future<void> _bootstrap() async {
     final vc = VideoPlayerController.networkUrl(Uri.parse(widget.url));
     await vc.initialize();
     if (!mounted) return;
     await vc.setLooping(widget.looping);
     await vc.setPlaybackSpeed(widget.playbackRate);
+    final prefs = _readPreferredVolume();
+    _lastVolume = prefs.volume;
+    _lastMuted = prefs.muted;
+    if (prefs.muted) {
+      await vc.setVolume(0);
+    } else {
+      await vc.setVolume(prefs.volume);
+    }
     vc.addListener(() {
       if (!mounted) return;
+      unawaited(_persistVolumePrefs());
       final sec = vc.value.position.inSeconds;
       if (sec != ref.read(watchPositionSecondsProvider(widget.videoId))) {
         ref.read(watchPositionSecondsProvider(widget.videoId).notifier).state = sec;

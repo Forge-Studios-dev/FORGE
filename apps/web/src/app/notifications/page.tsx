@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { EmptyState, Icon, ListSkeleton, PageHeader } from '@forge/design-system';
@@ -23,6 +23,7 @@ export default function NotificationsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<NotificationCategory | 'all'>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const categoryTabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['notifications'],
@@ -83,6 +84,17 @@ export default function NotificationsPage() {
   const presentCategories = (Object.keys(CATEGORY_LABEL) as NotificationCategory[]).filter(
     (cat) => cat !== 'reward' && items.some((n) => notificationMeta(n.type).category === cat),
   );
+  const categoryTabs: { id: NotificationCategory | 'all'; label: string }[] = [
+    { id: 'all', label: 'All' },
+    ...presentCategories.map((cat) => ({ id: cat, label: CATEGORY_LABEL[cat] })),
+  ];
+
+  function focusCategoryTab(index: number) {
+    const tab = categoryTabs[(index + categoryTabs.length) % categoryTabs.length];
+    categoryTabRefs.current[tab.id]?.focus();
+    setCategoryFilter(tab.id);
+  }
+
   const visibleItems = items.filter((n) => {
     if (unreadOnly && n.readAt) return false;
     if (categoryFilter === 'all') return true;
@@ -135,32 +147,53 @@ export default function NotificationsPage() {
       ) : (
         <>
           {presentCategories.length > 1 && (
-            <div className="hide-scrollbar mb-4 flex gap-2 overflow-x-auto pb-1">
-              <button
-                type="button"
-                onClick={() => setCategoryFilter('all')}
-                className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                  categoryFilter === 'all'
-                    ? 'bg-primary text-on-primary'
-                    : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                All
-              </button>
-              {presentCategories.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                    categoryFilter === cat
-                      ? 'bg-primary text-on-primary'
-                      : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  {CATEGORY_LABEL[cat]}
-                </button>
-              ))}
+            <div
+              className="hide-scrollbar mb-4 flex gap-2 overflow-x-auto pb-1"
+              role="tablist"
+              aria-label="Notification categories"
+              aria-orientation="horizontal"
+            >
+              {categoryTabs.map((tab, i) => {
+                const selected = categoryFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    ref={(el) => {
+                      categoryTabRefs.current[tab.id] = el;
+                    }}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    tabIndex={selected ? 0 : -1}
+                    onClick={() => setCategoryFilter(tab.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        focusCategoryTab(i + 1);
+                      }
+                      if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        focusCategoryTab(i - 1);
+                      }
+                      if (e.key === 'Home') {
+                        e.preventDefault();
+                        focusCategoryTab(0);
+                      }
+                      if (e.key === 'End') {
+                        e.preventDefault();
+                        focusCategoryTab(categoryTabs.length - 1);
+                      }
+                    }}
+                    className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                      selected
+                        ? 'bg-primary text-on-primary'
+                        : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
           )}
 

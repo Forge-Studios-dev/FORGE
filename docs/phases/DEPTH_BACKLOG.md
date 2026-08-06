@@ -561,6 +561,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Shared `notificationHref` used by in-app notifications + FCM tap routing
 
+## Notif category a11y + watch volume + Studio comment search (2026-08-06)
+
+- Web notifications: category chips as `tablist` with Arrow/Home/End (CategoryFilter parity)
+- Mobile watch: persist volume/mute prefs (`forge.watch.volume` / `forge.watch.muted`)
+- Mobile Studio comments: client search by text / author / video title
+
 ## Still open
 
 | Area | Item | Owner |
