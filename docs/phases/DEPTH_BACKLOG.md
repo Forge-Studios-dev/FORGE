@@ -701,6 +701,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile Content list: Cancel upload + Retry processing (existing APIs)
 - Relative scheduled times (`timeUntil` / `in 2h`) on web + mobile Studio library
 
+## Settings playback prefs (2026-08-06)
+
+- Web + mobile Settings: Autoplay next + Loop toggles (same `forge.watch.*` keys as watch UI)
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

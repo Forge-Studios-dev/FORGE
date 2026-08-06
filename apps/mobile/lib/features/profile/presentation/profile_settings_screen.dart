@@ -3,12 +3,16 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/cache/local_cache.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../watch/data/watch_repository.dart';
 import '../../../core/theme/forge_tokens.dart';
+
+const _autoplayPrefKey = 'forge.watch.autoplay';
+const _loopPrefKey = 'forge.watch.loop';
 
 class ProfileSettingsScreen extends ConsumerStatefulWidget {
   const ProfileSettingsScreen({super.key});
@@ -32,6 +36,8 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
   bool _watchHistoryPaused = false;
   bool _privacySaving = false;
   bool _didScrollToPrivacy = false;
+  bool _autoplay = true;
+  bool _loopVideo = false;
   String? _userId;
   String? _bannerUrl;
   String? _avatarUrl;
@@ -384,6 +390,26 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
             subtitle: const Text("New watches won't be saved to History."),
             value: _watchHistoryPaused,
             onChanged: _privacySaving ? null : _setWatchHistoryPaused,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Autoplay next video'),
+            subtitle: const Text('Start the next video when one ends.'),
+            value: _autoplay,
+            onChanged: (v) async {
+              setState(() => _autoplay = v);
+              await LocalCache.write(_autoplayPrefKey, v ? '1' : '0');
+            },
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Loop video'),
+            subtitle: const Text('Replay the current video instead of advancing.'),
+            value: _loopVideo,
+            onChanged: (v) async {
+              setState(() => _loopVideo = v);
+              await LocalCache.write(_loopPrefKey, v ? '1' : '0');
+            },
           ),
           const SizedBox(height: 8),
           const _ThemeModeTile(),
