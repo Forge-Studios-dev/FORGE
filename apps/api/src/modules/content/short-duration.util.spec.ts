@@ -2,6 +2,7 @@ import { VideoType } from './entities/video.entity';
 import {
   SHORT_TOO_LONG_MESSAGE,
   resolveVideoTypeOnReady,
+  shortTypeChangeError,
 } from './short-duration.util';
 
 describe('resolveVideoTypeOnReady', () => {
@@ -45,5 +46,20 @@ describe('resolveVideoTypeOnReady', () => {
       ok: true,
       videoType: VideoType.PODCAST,
     });
+  });
+});
+
+describe('shortTypeChangeError', () => {
+  it('blocks Short when duration exceeds 60s', () => {
+    expect(shortTypeChangeError(VideoType.SHORT, 61)).toBe(SHORT_TOO_LONG_MESSAGE);
+  });
+
+  it('allows Short at 60s or unknown duration', () => {
+    expect(shortTypeChangeError(VideoType.SHORT, 60)).toBeNull();
+    expect(shortTypeChangeError(VideoType.SHORT, null)).toBeNull();
+  });
+
+  it('allows Video regardless of duration', () => {
+    expect(shortTypeChangeError(VideoType.VIDEO, 120)).toBeNull();
   });
 });

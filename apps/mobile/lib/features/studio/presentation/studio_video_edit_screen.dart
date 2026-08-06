@@ -50,6 +50,7 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
   final _titleCtrl = TextEditingController();
   final _descriptionCtrl = TextEditingController();
   String _visibility = 'public';
+  String _videoType = 'video';
   bool _scheduleEnabled = false;
   DateTime? _scheduledAt;
   String _captionLang = 'en';
@@ -84,6 +85,7 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
     _titleCtrl.text = video.title;
     _descriptionCtrl.text = video.description ?? '';
     _visibility = video.visibility ?? 'public';
+    _videoType = video.videoType == 'short' ? 'short' : 'video';
     final scheduled = video.scheduledPublishAt;
     if (scheduled != null && scheduled.isAfter(DateTime.now())) {
       _scheduleEnabled = true;
@@ -230,6 +232,7 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
             title: title,
             description: _descriptionCtrl.text,
             visibility: _visibility,
+            videoType: _videoType,
             scheduledPublishAt: null,
             skillTagIds: _categoryId != null && _availableTags.isNotEmpty ? _skillTagIds.toList() : null,
           );
@@ -270,6 +273,7 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
             title: title,
             description: _descriptionCtrl.text,
             visibility: _visibility,
+            videoType: _videoType,
             scheduledPublishAt:
                 _scheduleEnabled && _scheduledAt != null ? _scheduledAt!.toUtc().toIso8601String() : null,
             skillTagIds: _categoryId != null && _availableTags.isNotEmpty ? _skillTagIds.toList() : null,
@@ -709,6 +713,27 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
                   setState(() => _visibility = value);
                 },
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _videoType == 'short' ? 'short' : 'video',
+                decoration: const InputDecoration(labelText: 'Type'),
+                items: const [
+                  DropdownMenuItem(value: 'video', child: Text('Video')),
+                  DropdownMenuItem(value: 'short', child: Text('Short')),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _videoType = value);
+                },
+              ),
+              if (_videoType == 'short')
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Shorts must be 60 seconds or shorter.',
+                    style: TextStyle(fontSize: 12, color: t.onSurfaceVariant),
+                  ),
+                ),
               const SizedBox(height: 8),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

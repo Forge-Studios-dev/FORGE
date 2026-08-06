@@ -40,3 +40,22 @@ export function resolveVideoTypeOnReady(
   }
   return { ok: true, videoType: VideoType.VIDEO };
 }
+
+/**
+ * Studio detail editor may reclassify Video ↔ Short. Returns an error message when
+ * Short is requested but duration is known and over the YouTube 60s threshold.
+ */
+export function shortTypeChangeError(
+  nextType: VideoType,
+  durationSeconds: number | null | undefined,
+): string | null {
+  if (nextType !== VideoType.SHORT) return null;
+  if (
+    durationSeconds != null &&
+    Number.isFinite(durationSeconds) &&
+    durationSeconds > SHORT_DURATION_THRESHOLD_SECONDS
+  ) {
+    return SHORT_TOO_LONG_MESSAGE;
+  }
+  return null;
+}

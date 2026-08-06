@@ -39,6 +39,7 @@ import {
   TranscodeProvider,
   VideoType,
 } from './entities/video.entity';
+import { shortTypeChangeError } from './short-duration.util';
 import { MUX_VOD_INGEST_QUEUE, muxVodIngestJobId } from './mux-vod.constants';
 import { MuxVodService } from './mux-vod.service';
 import {
@@ -1427,7 +1428,11 @@ export class VideosService {
     if (dto.title !== undefined) video.title = dto.title;
     if (dto.description !== undefined) video.description = dto.description;
     if (dto.visibility !== undefined) video.visibility = dto.visibility;
-    if (dto.videoType !== undefined) video.videoType = dto.videoType;
+    if (dto.videoType !== undefined) {
+      const typeErr = shortTypeChangeError(dto.videoType, video.durationSeconds);
+      if (typeErr) throw new BadRequestException(typeErr);
+      video.videoType = dto.videoType;
+    }
     if (dto.skillTagIds !== undefined) {
       await this.applySkillTagUpdate(video, dto.skillTagIds);
     }

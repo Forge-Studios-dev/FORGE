@@ -41,6 +41,7 @@ export default function StudioVideoDetailEditorPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<UploadVisibility>('public');
+  const [videoType, setVideoType] = useState<'video' | 'short'>('video');
   const [schedule, setSchedule] = useState('');
   const [availableTags, setAvailableTags] = useState<UploadSkillTag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -91,6 +92,7 @@ export default function StudioVideoDetailEditorPage() {
     setTitle(video.title ?? '');
     setDescription(video.description ?? '');
     setVisibility((video.visibility as UploadVisibility) ?? 'public');
+    setVideoType(video.videoType === 'short' ? 'short' : 'video');
     setSchedule(
       video.scheduledPublishAt
         ? new Date(video.scheduledPublishAt).toISOString().slice(0, 16)
@@ -115,6 +117,7 @@ export default function StudioVideoDetailEditorPage() {
         title: title.trim(),
         description: description.trim() || null,
         visibility,
+        videoType,
         scheduledPublishAt: schedule ? new Date(schedule).toISOString() : null,
         ...(canEditTags ? { skillTagIds: selectedTagIds } : {}),
       });
@@ -136,6 +139,7 @@ export default function StudioVideoDetailEditorPage() {
         title: title.trim() || video?.title,
         description: description.trim() || null,
         visibility,
+        videoType,
         scheduledPublishAt: null,
         ...(canEditTags ? { skillTagIds: selectedTagIds } : {}),
       });
@@ -363,6 +367,26 @@ export default function StudioVideoDetailEditorPage() {
               </select>
             </label>
             <label className="block text-sm">
+              <span className="text-on-surface-variant">Type</span>
+              <select
+                value={videoType}
+                onChange={(e) => setVideoType(e.target.value as 'video' | 'short')}
+                className="mt-1 w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-2.5"
+              >
+                <option value="video">Video</option>
+                <option value="short">Short</option>
+              </select>
+              {video.durationSeconds != null && video.durationSeconds > 60 && videoType === 'short' ? (
+                <p className="mt-1 text-xs text-error">
+                  Shorts must be 60 seconds or shorter ({Math.round(video.durationSeconds)}s).
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  Shorts appear in the Shorts shelf and feed.
+                </p>
+              )}
+            </label>
+            <label className="block text-sm sm:col-span-2">
               <span className="text-on-surface-variant">Schedule publish</span>
               <input
                 type="datetime-local"

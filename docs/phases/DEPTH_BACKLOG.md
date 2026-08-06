@@ -639,6 +639,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Web Studio content: Type select (All / Videos / Shorts)
 - Mobile Studio content: Videos / Shorts filter chips
 
+## Studio edit Video ↔ Short type (2026-08-06)
+
+- Studio detail editor: change content type Video / Short (web + mobile)
+- API rejects Short when known duration > 60s (`shortTypeChangeError`)
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)
