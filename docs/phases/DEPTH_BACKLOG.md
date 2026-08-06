@@ -686,6 +686,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Cancel schedule → clear `scheduledPublishAt` + set private (web/mobile library + editors); distinct from Publish now
 - Video performance Export CSV (web details + mobile); mobile top-video cards open Studio edit
 
+## Attention queue scheduled publishes (2026-08-06)
+
+- `GET /creators/me/attention` includes upcoming `scheduled` items + `scheduledUpcoming` count
+- Web + mobile Attention chips / Studio home badge include scheduled
+
 ## Interests settings + upload playlists (2026-08-06)
 
 - Web + mobile profile settings: edit cold-start interests (GET/PUT `/users/me/interests`)

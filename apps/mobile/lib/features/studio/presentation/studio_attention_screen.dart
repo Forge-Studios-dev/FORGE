@@ -90,6 +90,7 @@ class StudioAttentionScreen extends ConsumerWidget {
           final moderation = c['pendingModeration'] ?? 0;
           final payments = c['failedPayments'] ?? 0;
           final processing = c['processingFailures'] ?? 0;
+          final scheduled = c['scheduledUpcoming'] ?? 0;
 
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(studioAttentionProvider),
@@ -97,7 +98,7 @@ class StudioAttentionScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
               children: [
                 Text(
-                  'A single queue for replies, moderation, payments, and processing issues.',
+                  'A single queue for replies, moderation, payments, processing, and upcoming publishes.',
                   style: TextStyle(color: t.onSurfaceVariant, height: 1.4),
                 ),
                 const SizedBox(height: 16),
@@ -109,6 +110,7 @@ class StudioAttentionScreen extends ConsumerWidget {
                     _CountChip(label: 'Moderation', value: moderation),
                     _CountChip(label: 'Payments', value: payments),
                     _CountChip(label: 'Processing', value: processing),
+                    _CountChip(label: 'Scheduled', value: scheduled),
                   ],
                 ),
                 const SizedBox(height: 20),

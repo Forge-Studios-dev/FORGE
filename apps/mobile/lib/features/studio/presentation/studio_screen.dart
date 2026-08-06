@@ -147,7 +147,8 @@ class StudioScreen extends ConsumerWidget {
         return (c['commentsNeedingReply'] ?? 0) +
             (c['pendingModeration'] ?? 0) +
             (c['failedPayments'] ?? 0) +
-            (c['processingFailures'] ?? 0);
+            (c['processingFailures'] ?? 0) +
+            (c['scheduledUpcoming'] ?? 0);
       },
       orElse: () => 0,
     );

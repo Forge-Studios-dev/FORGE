@@ -12,6 +12,7 @@ type CreatorAttention = {
     pendingModeration: number;
     failedPayments: number;
     processingFailures?: number;
+    scheduledUpcoming?: number;
   };
   items: Array<{
     id: string;
@@ -50,10 +51,10 @@ export default function StudioAttentionPage() {
     <main className="space-y-6">
       <PageHeader
         title="Attention"
-        subtitle="A single queue for replies, moderation, payments, and processing issues."
+        subtitle="A single queue for replies, moderation, payments, processing, and upcoming publishes."
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Comments needing reply</p>
           <p className="mt-2 text-3xl font-semibold">{data?.counts.commentsNeedingReply ?? 0}</p>
@@ -69,6 +70,10 @@ export default function StudioAttentionPage() {
         <div className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Processing failures</p>
           <p className="mt-2 text-3xl font-semibold">{data?.counts.processingFailures ?? 0}</p>
+        </div>
+        <div className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">Scheduled upcoming</p>
+          <p className="mt-2 text-3xl font-semibold">{data?.counts.scheduledUpcoming ?? 0}</p>
         </div>
       </section>
 

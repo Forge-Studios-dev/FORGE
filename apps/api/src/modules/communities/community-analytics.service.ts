@@ -344,7 +344,8 @@ export class CommunityAnalyticsService {
    * snapshot to compute a real period-over-period delta from yet.
    */
   async getCreatorAttention(creatorId: string) {
-    const [commentRows, moderation, subscriberAnalytics, failedVideos] = await Promise.all([
+    const [commentRows, moderation, subscriberAnalytics, failedVideos, scheduledVideos] =
+      await Promise.all([
       this.dataSource.query<
         Array<{
           id: string;
@@ -392,16 +393,35 @@ export class CommunityAnalyticsService {
          LIMIT 5`,
         [creatorId],
       ),
+      this.dataSource.query<
+        Array<{
+          id: string;
+          title: string;
+          scheduled_publish_at: string;
+          total_count: string;
+        }>
+      >(
+        `SELECT id, title, scheduled_publish_at,
+                COUNT(*) OVER()::int AS total_count
+         FROM videos
+         WHERE user_id = $1
+           AND scheduled_publish_at IS NOT NULL
+           AND scheduled_publish_at > NOW()
+         ORDER BY scheduled_publish_at ASC
+         LIMIT 5`,
+        [creatorId],
+      ),
     ]);
 
     const commentsNeedingReply = Number(commentRows[0]?.total_count ?? 0);
     const pendingModeration = moderation.data.length;
     const failedPayments = subscriberAnalytics.byStatus['failed_payment'] ?? 0;
     const processingFailures = Number(failedVideos[0]?.total_count ?? 0);
+    const scheduledUpcoming = Number(scheduledVideos[0]?.total_count ?? 0);
 
     type AttentionItem = {
       id: string;
-      kind: 'comment' | 'moderation' | 'billing' | 'processing';
+      kind: 'comment' | 'moderation' | 'billing' | 'processing' | 'scheduled';
       label: string;
       detail: string;
       href: string;
@@ -456,6 +476,17 @@ export class CommunityAnalyticsService {
             },
           ]
         : []),
+      ...scheduledVideos.map(
+        (v): AttentionItem => ({
+          id: `scheduled-${v.id}`,
+          kind: 'scheduled',
+          label: `Scheduled: "${v.title}"`,
+          detail: `Publishes ${new Date(v.scheduled_publish_at).toLocaleString()}`,
+          href: `/studio/videos/${v.id}`,
+          tone: 'primary',
+          createdAt: new Date(v.scheduled_publish_at).toISOString(),
+        }),
+      ),
     ];
 
     const TONE_RANK: Record<AttentionItem['tone'], number> = { critical: 0, warning: 1, primary: 2 };
@@ -467,8 +498,9 @@ export class CommunityAnalyticsService {
         pendingModeration,
         failedPayments,
         processingFailures,
+        scheduledUpcoming,
       },
-      items: items.slice(0, 8),
+      items: items.slice(0, 10),
     };
   }
 

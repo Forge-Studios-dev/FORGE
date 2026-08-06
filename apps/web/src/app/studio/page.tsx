@@ -16,6 +16,7 @@ interface CreatorAttention {
     pendingModeration: number;
     failedPayments: number;
     processingFailures?: number;
+    scheduledUpcoming?: number;
   };
   items: Array<{ id: string; kind: string; label: string; detail: string; href: string; tone: StatusTone }>;
 }
@@ -126,7 +127,8 @@ export default function StudioPage() {
     (attention?.counts.commentsNeedingReply ?? 0) +
     (attention?.counts.pendingModeration ?? 0) +
     (attention?.counts.failedPayments ?? 0) +
-    (attention?.counts.processingFailures ?? 0);
+    (attention?.counts.processingFailures ?? 0) +
+    (attention?.counts.scheduledUpcoming ?? 0);
   const isFirstTimeCreator =
     libraryPreview?.pagination.total === 0 && !attentionLoading && !hasAttentionItems;
   const mrrDisplay = ((subscriberStats?.mrrCents ?? 0) / 100).toLocaleString(undefined, {

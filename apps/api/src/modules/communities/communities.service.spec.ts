@@ -429,7 +429,8 @@ describe('CommunitiesService', () => {
     it('returns empty items and zero counts when nothing needs action', async () => {
       dataSource.query
         .mockResolvedValueOnce([]) // unreplied comments
-        .mockResolvedValueOnce([]); // failed videos
+        .mockResolvedValueOnce([]) // failed videos
+        .mockResolvedValueOnce([]); // scheduled
 
       const result = await service.getCreatorAttention('creator-1');
 
@@ -438,6 +439,7 @@ describe('CommunitiesService', () => {
         pendingModeration: 0,
         failedPayments: 0,
         processingFailures: 0,
+        scheduledUpcoming: 0,
       });
       expect(result.items).toEqual([]);
     });
@@ -454,6 +456,7 @@ describe('CommunitiesService', () => {
             total_count: '3',
           },
         ])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
       const result = await service.getCreatorAttention('creator-1');
@@ -468,7 +471,7 @@ describe('CommunitiesService', () => {
     });
 
     it('includes open moderation reports scoped to the creator', async () => {
-      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
       moderationService.listUnifiedReportsForCreator.mockResolvedValue({
         data: [
           { id: 'report-1', reason: 'Spam', communityName: 'Main', createdAt: new Date('2026-07-02') },
@@ -484,7 +487,7 @@ describe('CommunitiesService', () => {
     });
 
     it('ranks failed payments above moderation and comments, and omits the item when there are none', async () => {
-      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
       entitlementsService.getSubscriberAnalytics.mockResolvedValue({
         active: 10,
         trial: 0,
@@ -515,7 +518,8 @@ describe('CommunitiesService', () => {
             updated_at: '2026-07-03T00:00:00.000Z',
             total_count: '1',
           },
-        ]);
+        ])
+        .mockResolvedValueOnce([]);
 
       const result = await service.getCreatorAttention('creator-1');
 
@@ -526,6 +530,32 @@ describe('CommunitiesService', () => {
         href: '/studio/videos/video-fail-1',
         tone: 'critical',
       });
+    });
+
+    it('surfaces upcoming scheduled publishes', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            id: 'video-sched-1',
+            title: 'Friday premiere',
+            scheduled_publish_at: '2026-08-10T18:00:00.000Z',
+            total_count: '2',
+          },
+        ]);
+
+      const result = await service.getCreatorAttention('creator-1');
+
+      expect(result.counts.scheduledUpcoming).toBe(2);
+      expect(result.items).toContainEqual(
+        expect.objectContaining({
+          id: 'scheduled-video-sched-1',
+          kind: 'scheduled',
+          href: '/studio/videos/video-sched-1',
+          tone: 'primary',
+        }),
+      );
     });
   });
 });
