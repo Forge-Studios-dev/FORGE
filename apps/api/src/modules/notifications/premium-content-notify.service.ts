@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { categoryForNotificationType } from '@forge/shared-types';
 import { NotificationsService } from './notifications.service';
 import { PushDispatchService } from './push-dispatch.service';
 import { NotificationType } from './entities/notification.entity';
@@ -71,6 +72,7 @@ export class PremiumContentNotifyService {
       title: notifTitle,
       body: pushBody,
       data: pushData,
+      category: categoryForNotificationType(NotificationType.PREMIUM_CONTENT_NEW),
     });
   }
 }

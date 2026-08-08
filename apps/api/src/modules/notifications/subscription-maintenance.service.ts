@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import { categoryForNotificationType } from '@forge/shared-types';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { MemberSubscriptionStatus } from '../entitlements/entities/member-subscription.entity';
 import { NotificationsService } from './notifications.service';
@@ -132,6 +133,7 @@ export class SubscriptionMaintenanceService {
           title: item.title,
           body: item.body,
           data: item.pushData,
+          category: categoryForNotificationType(NotificationType.SUBSCRIPTION_EXPIRING),
         })),
       ),
     ]);

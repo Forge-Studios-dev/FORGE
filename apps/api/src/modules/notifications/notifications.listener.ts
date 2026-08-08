@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { Repository } from 'typeorm';
+import { categoryForNotificationType } from '@forge/shared-types';
 import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 import { NotificationsService } from './notifications.service';
 import { PushDispatchService } from './push-dispatch.service';
@@ -93,6 +94,7 @@ export class NotificationsListener {
       title: 'Creator access approved',
       body: 'You can now upload videos and go live.',
       data: { type: 'creator_approved' },
+      category: categoryForNotificationType(NotificationType.CREATOR_APPROVED),
     });
   }
 
@@ -131,6 +133,7 @@ export class NotificationsListener {
         videoId: payload.videoId,
         ...(payload.videoType ? { videoType: payload.videoType } : {}),
       },
+      category: categoryForNotificationType(NotificationType.VIDEO_READY),
     });
     await this.maybeEmailUser(
       payload.userId,
@@ -165,6 +168,7 @@ export class NotificationsListener {
       title,
       body,
       data: { type: 'stream_reminder', streamId: payload.streamId },
+      category: 'live',
     });
   }
 
@@ -188,6 +192,7 @@ export class NotificationsListener {
       title: 'You are live',
       body,
       data: { type: 'stream_started', streamId: payload.streamId },
+      category: categoryForNotificationType(NotificationType.STREAM_STARTED),
     });
     await this.maybeEmailUser(
       payload.userId,
@@ -234,6 +239,7 @@ export class NotificationsListener {
         followerId: payload.followerId,
         ...(follower?.username ? { followerUsername: follower.username } : {}),
       },
+      category: categoryForNotificationType(NotificationType.NEW_FOLLOWER),
     });
   }
 
@@ -263,6 +269,7 @@ export class NotificationsListener {
           title: 'New reply',
           body: `${author} replied to your comment`,
           data: { type: 'comment_reply', videoId: payload.videoId, commentId: comment.id },
+          category: categoryForNotificationType(NotificationType.COMMENT_REPLY),
         });
       }
     } else if (payload.videoOwnerId !== comment.userId) {
@@ -277,6 +284,7 @@ export class NotificationsListener {
         title: 'New comment',
         body: `${author} commented on your video`,
         data: { type: 'comment_on_video', videoId: payload.videoId, commentId: comment.id },
+        category: categoryForNotificationType(NotificationType.COMMENT_ON_VIDEO),
       });
     }
   }
@@ -373,7 +381,12 @@ export class NotificationsListener {
         metadata,
       })),
     );
-    await this.pushDispatch.enqueueForUsers(filteredRecipients, { title, body, data: pushData });
+    await this.pushDispatch.enqueueForUsers(filteredRecipients, {
+      title,
+      body,
+      data: pushData,
+      category: categoryForNotificationType(NotificationType.STREAM_STARTED_FOLLOWED),
+    });
   }
 
   @OnEvent('video.super-thanks.paid', { async: true })
@@ -411,6 +424,7 @@ export class NotificationsListener {
         videoId: payload.videoId,
         tipperId: payload.userId,
       },
+      category: categoryForNotificationType(NotificationType.SUPER_THANKS),
     });
   }
 
@@ -434,6 +448,7 @@ export class NotificationsListener {
       title: notifTitle,
       body: '',
       data: { type: 'achievement_unlocked', key: payload.key },
+      category: categoryForNotificationType(NotificationType.ACHIEVEMENT_UNLOCKED),
     });
   }
 
@@ -452,6 +467,7 @@ export class NotificationsListener {
       title: notifTitle,
       body: `${payload.xp} XP total`,
       data: { type: 'xp_level_up', level: String(payload.level) },
+      category: categoryForNotificationType(NotificationType.XP_LEVEL_UP),
     });
   }
 
