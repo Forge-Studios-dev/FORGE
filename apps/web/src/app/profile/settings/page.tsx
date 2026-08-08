@@ -21,6 +21,7 @@ type ChannelLinkDraft = { title: string; url: string };
 export default function ProfileSettingsPage() {
   const router = useRouter();
   const { user: stored, refresh, isGuest } = useAuth();
+  const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
@@ -34,6 +35,7 @@ export default function ProfileSettingsPage() {
       return;
     }
     if (stored) {
+      setUsername(stored.username ?? '');
       setDisplayName(stored.displayName ?? '');
       setBio(stored.bio ?? '');
       setWebsiteUrl(stored.websiteUrl ?? '');
@@ -55,7 +57,9 @@ export default function ProfileSettingsPage() {
         .map((l) => ({ title: l.title.trim(), url: l.url.trim() }))
         .filter((l) => l.title && l.url)
         .slice(0, 5);
+      const nextUsername = username.trim().replace(/^@/, '');
       const { data } = await api.put(`/users/${stored.id}`, {
+        username: nextUsername,
         displayName: displayName.trim(),
         bio: bio.trim() || undefined,
         websiteUrl: websiteUrl.trim() || null,
@@ -64,9 +68,16 @@ export default function ProfileSettingsPage() {
       const updated = data.data;
       localStorage.setItem('forge_user', JSON.stringify(updated));
       refresh();
+      setUsername(updated.username ?? nextUsername);
       setMessage('Settings saved.');
-    } catch {
-      setMessage('Could not save settings. Check that links use http:// or https://.');
+    } catch (err: unknown) {
+      const apiMsg =
+        err &&
+        typeof err === 'object' &&
+        'response' in err &&
+        (err as { response?: { data?: { message?: string | string[] } } }).response?.data?.message;
+      const text = Array.isArray(apiMsg) ? apiMsg[0] : typeof apiMsg === 'string' ? apiMsg : null;
+      setMessage(text || 'Could not save settings. Check username and that links use http:// or https://.');
     } finally {
       setSaving(false);
     }
@@ -146,12 +157,30 @@ export default function ProfileSettingsPage() {
         <h2 className="font-display-forge text-lg font-semibold">Account</h2>
         <AvatarUploadSettings />
         <BannerUploadSettings />
-        <p className="text-sm text-on-surface-variant">
-          @{stored.username} ·{' '}
-          <Link href={`/${stored.username}`} className="text-primary hover:underline">
-            View channel
-          </Link>
-        </p>
+        <label className="block">
+          <span className="font-label-caps text-outline">Username</span>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-on-surface-variant">@</span>
+            <Input
+              className="flex-1"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.replace(/^@/, ''))}
+              autoComplete="username"
+              spellCheck={false}
+            />
+          </div>
+          <p className="mt-1 text-xs text-on-surface-variant">
+            Letters, numbers, and underscores · 3–30 characters
+            {stored.usernameChangedAt
+              ? ' · You can change your handle once every 14 days'
+              : null}
+            . Your channel URL is{' '}
+            <Link href={`/${stored.username}`} className="text-primary hover:underline">
+              /{stored.username}
+            </Link>
+            .
+          </p>
+        </label>
         {message ? <p className="text-sm text-secondary">{message}</p> : null}
         <label className="block">
           <span className="font-label-caps text-outline">Display name</span>

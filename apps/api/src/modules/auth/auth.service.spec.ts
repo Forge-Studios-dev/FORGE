@@ -22,6 +22,10 @@ describe('AuthService', () => {
     save: jest.fn(),
     update: jest.fn().mockResolvedValue({ affected: 1 }),
     create: jest.fn((x) => x),
+    createQueryBuilder: jest.fn(() => ({
+      where: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+    })),
   };
   const refreshRepoMock = {
     create: jest.fn((x) => x),

@@ -27,6 +27,8 @@ export interface User {
   viewerFollowing?: boolean;
   viewerSubscribed?: boolean;
   viewerBlocked?: boolean;
+  /** ISO timestamp of last username change (rename cooldown). */
+  usernameChangedAt?: string | null;
 }
 
 export interface Category {

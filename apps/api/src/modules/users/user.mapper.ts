@@ -30,6 +30,8 @@ export type PublicUser = {
   /** @deprecated Prefer viewerSubscribed. */
   viewerFollowing?: boolean;
   viewerSubscribed?: boolean;
+  /** ISO time of last handle change; clients use for rename cooldown copy. */
+  usernameChangedAt?: string | null;
 };
 
 export function toPublicUser(user: User): PublicUser {
@@ -55,5 +57,8 @@ export function toPublicUser(user: User): PublicUser {
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     permissions: permissionsForUser(user),
+    usernameChangedAt: user.usernameChangedAt
+      ? user.usernameChangedAt.toISOString()
+      : null,
   };
 }

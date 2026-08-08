@@ -21,6 +21,11 @@ import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { ModerationStatus } from '../content/entities/video.entity';
 import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
 import { PresignProfileImageUploadDto } from './dto/profile-image-upload.dto';
+import {
+  isReservedUsername,
+  normalizeUsername,
+  USERNAME_CHANGE_COOLDOWN_DAYS,
+} from './username.util';
 
 const INTERESTS_TTL_SEC = 60 * 60 * 24 * 365;
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -68,7 +73,7 @@ export class UsersService {
     if (!/^[a-zA-Z0-9_]{3,30}$/.test(normalized)) {
       throw new NotFoundException('User not found');
     }
-    const user = await this.userRepository.findOne({ where: { username: normalized } });
+    const user = await this.userRepository.findOne({ where: { username: ILike(normalized) } });
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
@@ -107,6 +112,35 @@ export class UsersService {
   async update(requesterId: string, targetId: string, dto: UpdateUserDto): Promise<User> {
     if (requesterId !== targetId) throw new ForbiddenException('Cannot update another user\'s profile');
     const user = await this.findById(targetId);
+
+    if (dto.username !== undefined) {
+      const next = normalizeUsername(dto.username);
+      if (next !== user.username) {
+        if (isReservedUsername(next)) {
+          throw new BadRequestException('That username is reserved');
+        }
+        if (user.usernameChangedAt) {
+          const unlockAt = new Date(user.usernameChangedAt);
+          unlockAt.setUTCDate(unlockAt.getUTCDate() + USERNAME_CHANGE_COOLDOWN_DAYS);
+          if (unlockAt.getTime() > Date.now()) {
+            throw new BadRequestException(
+              `You can change your username again after ${unlockAt.toISOString().slice(0, 10)}`,
+            );
+          }
+        }
+        const taken = await this.userRepository
+          .createQueryBuilder('u')
+          .where('LOWER(u.username) = LOWER(:username)', { username: next })
+          .andWhere('u.id != :id', { id: user.id })
+          .getOne();
+        if (taken) {
+          throw new BadRequestException('Username already taken');
+        }
+        user.username = next;
+        user.usernameChangedAt = new Date();
+      }
+    }
+
     if (dto.displayName !== undefined) user.displayName = dto.displayName;
     if (dto.bio !== undefined) user.bio = dto.bio;
     if (dto.websiteUrl !== undefined) {

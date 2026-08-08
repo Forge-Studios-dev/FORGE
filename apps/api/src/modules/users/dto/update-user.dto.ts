@@ -4,7 +4,9 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   MaxLength,
+  MinLength,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -24,6 +26,16 @@ export class ChannelLinkDto {
 }
 
 export class UpdateUserDto {
+  @ApiPropertyOptional({ description: 'Public handle (letters, numbers, underscore)' })
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(30)
+  @Matches(/^[a-zA-Z0-9_]+$/, {
+    message: 'Username can only contain letters, numbers and underscores',
+  })
+  username?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

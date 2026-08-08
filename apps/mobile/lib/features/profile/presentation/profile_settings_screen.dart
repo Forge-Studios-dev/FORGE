@@ -25,6 +25,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
   static const int _maxAvatarBytes = 5 * 1024 * 1024;
   static const int _maxBannerBytes = 8 * 1024 * 1024;
   final _displayName = TextEditingController();
+  final _username = TextEditingController();
   final _bio = TextEditingController();
   final _websiteUrl = TextEditingController();
   final _scrollController = ScrollController();
@@ -41,6 +42,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
   String? _userId;
   String? _bannerUrl;
   String? _avatarUrl;
+  String? _usernameChangedAt;
 
   @override
   void initState() {
@@ -59,6 +61,8 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       final res = await client.dio.get('/users/me');
       final data = res.data['data'] as Map<String, dynamic>;
       _userId = data['id'] as String?;
+      _username.text = data['username'] as String? ?? '';
+      _usernameChangedAt = data['usernameChangedAt'] as String?;
       _displayName.text = data['displayName'] as String? ?? '';
       _bio.text = data['bio'] as String? ?? '';
       _websiteUrl.text = data['websiteUrl'] as String? ?? '';
@@ -221,21 +225,36 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
           )
           .where((l) => (l['url'] as String).isNotEmpty)
           .toList();
-      await client.dio.put('/users/$_userId', data: {
+      final nextUsername = _username.text.trim().replaceFirst(RegExp(r'^@'), '');
+      final res = await client.dio.put('/users/$_userId', data: {
+        'username': nextUsername,
         'displayName': _displayName.text.trim(),
         'bio': _bio.text.trim().isEmpty ? null : _bio.text.trim(),
         'websiteUrl': _websiteUrl.text.trim().isEmpty ? null : _websiteUrl.text.trim(),
         'channelLinks': cleanedLinks,
       });
+      final updated = res.data['data'];
+      if (updated is Map<String, dynamic>) {
+        _username.text = updated['username'] as String? ?? nextUsername;
+        _usernameChangedAt = updated['usernameChangedAt'] as String?;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Settings saved')),
         );
       }
-    } catch (_) {
+    } catch (e) {
+      String msg = 'Could not save settings';
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map && data['message'] != null) {
+          final m = data['message'];
+          msg = m is List ? m.first.toString() : m.toString();
+        }
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save settings')),
+          SnackBar(content: Text(msg)),
         );
       }
     } finally {
@@ -246,6 +265,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _username.dispose();
     _displayName.dispose();
     _bio.dispose();
     _websiteUrl.dispose();
@@ -306,6 +326,17 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
             ],
           ),
           const SizedBox(height: 20),
+          TextField(
+            controller: _username,
+            decoration: InputDecoration(
+              labelText: 'Username',
+              prefixText: '@',
+              helperText: _usernameChangedAt != null
+                  ? 'You can change your handle once every 14 days'
+                  : 'Letters, numbers, underscores · 3–30 chars',
+            ),
+          ),
+          const SizedBox(height: 16),
           TextField(
             controller: _displayName,
             decoration: const InputDecoration(labelText: 'Display name'),

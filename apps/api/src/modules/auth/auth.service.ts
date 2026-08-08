@@ -30,6 +30,7 @@ import { AuthUserCacheService } from './auth-user-cache.service';
 import { AuthSessionCacheService } from './auth-session-cache.service';
 import { isDisposableEmail } from './utils/disposable-email.util';
 import { ReferralService } from '../referral/referral.service';
+import { isReservedUsername, normalizeUsername } from '../users/username.util';
 
 export type ClientSessionMeta = {
   userAgent?: string | null;
@@ -67,19 +68,26 @@ export class AuthService {
     if (isDisposableEmail(emailNorm)) {
       throw new BadRequestException('Disposable email addresses are not allowed');
     }
-    const existing = await this.userRepository.findOne({
-      where: [{ email: emailNorm }, { username: dto.username }],
-    });
-    if (existing) {
-      throw new BadRequestException(
-        existing.email === emailNorm ? 'Email already registered' : 'Username already taken',
-      );
+    const username = normalizeUsername(dto.username);
+    if (isReservedUsername(username)) {
+      throw new BadRequestException('That username is reserved');
+    }
+    const existingEmail = await this.userRepository.findOne({ where: { email: emailNorm } });
+    if (existingEmail) {
+      throw new BadRequestException('Email already registered');
+    }
+    const existingUsername = await this.userRepository
+      .createQueryBuilder('u')
+      .where('LOWER(u.username) = LOWER(:username)', { username })
+      .getOne();
+    if (existingUsername) {
+      throw new BadRequestException('Username already taken');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, this.BCRYPT_ROUNDS);
     const user = this.userRepository.create({
       email: dto.email.trim().toLowerCase(),
-      username: dto.username,
+      username,
       displayName: dto.displayName,
       passwordHash,
     });

@@ -40,6 +40,10 @@ export class User {
   @Column({ unique: true, length: 50 })
   username: string;
 
+  /** Last time the user changed their handle (cooldown for self-service rename). */
+  @Column({ name: 'username_changed_at', type: 'timestamptz', nullable: true })
+  usernameChangedAt: Date | null;
+
   @Column({ name: 'display_name', length: 100 })
   displayName: string;
 

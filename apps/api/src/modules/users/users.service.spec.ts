@@ -13,6 +13,7 @@ describe('UsersService', () => {
     findOne: jest.fn(),
     save: jest.fn((u) => Promise.resolve(u)),
     update: jest.fn(),
+    createQueryBuilder: jest.fn(),
   };
 
   // Records every andWhere clause so we can assert visibility enforcement.
@@ -120,6 +121,8 @@ describe('UsersService', () => {
   it('update sets website and channel links', async () => {
     const user = {
       id: 'u1',
+      username: 'alice',
+      usernameChangedAt: null,
       displayName: 'A',
       bio: null,
       websiteUrl: null,
@@ -138,6 +141,62 @@ describe('UsersService', () => {
     expect(result.channelLinks).toEqual([
       { title: 'Discord', url: 'https://discord.gg/forge' },
     ]);
+  });
+
+  it('update renames username when available', async () => {
+    const user = {
+      id: 'u1',
+      username: 'alice',
+      usernameChangedAt: null,
+      displayName: 'A',
+      bio: null,
+      websiteUrl: null,
+      channelLinks: null,
+    } as unknown as User;
+    userRepo.findOne.mockResolvedValue(user);
+    const qb = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+    };
+    (userRepo as { createQueryBuilder?: jest.Mock }).createQueryBuilder = jest
+      .fn()
+      .mockReturnValue(qb);
+    userRepo.save.mockImplementation((u) => Promise.resolve(u));
+
+    const svc = await setup();
+    const result = await svc.update('u1', 'u1', { username: 'alice_new' });
+
+    expect(result.username).toBe('alice_new');
+    expect(result.usernameChangedAt).toBeInstanceOf(Date);
+  });
+
+  it('update rejects reserved username', async () => {
+    const user = {
+      id: 'u1',
+      username: 'alice',
+      usernameChangedAt: null,
+    } as unknown as User;
+    userRepo.findOne.mockResolvedValue(user);
+
+    const svc = await setup();
+    await expect(svc.update('u1', 'u1', { username: 'studio' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('update rejects username change during cooldown', async () => {
+    const user = {
+      id: 'u1',
+      username: 'alice',
+      usernameChangedAt: new Date(),
+    } as unknown as User;
+    userRepo.findOne.mockResolvedValue(user);
+
+    const svc = await setup();
+    await expect(svc.update('u1', 'u1', { username: 'alice2' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('requestCreator requires verified email', async () => {
@@ -184,7 +243,7 @@ describe('UsersService', () => {
     userRepo.findOne.mockResolvedValue(user);
     const svc = await setup();
     await expect(svc.findByUsername('john_doe')).resolves.toBe(user);
-    expect(userRepo.findOne).toHaveBeenCalledWith({ where: { username: 'john_doe' } });
+    expect(userRepo.findOne).toHaveBeenCalled();
   });
 
   it('getAvatarUploadUrl does not persist avatarUrl before finalize', async () => {

@@ -732,6 +732,14 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Block also unsubscribes both ways + mutes channel; DMs and comment create/list respect blocks
 - Profile `viewerBlocked`; web/mobile Block + Settings blocked list
 
+## Username self-service (2026-08-08)
+
+- Migration `200…`: `users.username_changed_at`; 14-day rename cooldown
+- `PUT /users/:id` accepts `username` (signup validators + reserved handles + case-insensitive uniqueness)
+- Signup also rejects reserved handles; profile lookup is case-insensitive
+- Web + mobile Settings: editable `@username`; API errors surface in UI
+- Public user payload includes `usernameChangedAt`
+
 ## Still open
 
 | Area | Item | Owner |
