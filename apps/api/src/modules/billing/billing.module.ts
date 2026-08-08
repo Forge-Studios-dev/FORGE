@@ -68,6 +68,7 @@ import { StripeTierSyncModule } from './stripe-tier-sync.module';
 import { StripeConnectService } from './stripe-connect.service';
 import { SubscriptionChangeService } from './subscription-change.service';
 import { UsersModule } from '../users/users.module';
+import { EngagementModule } from '../engagement/engagement.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { User } from '../users/entities/user.entity';
 
@@ -78,6 +79,7 @@ import { User } from '../users/entities/user.entity';
     // stripe-tier-sync.module.ts) — this is now a genuine one-way edge, so
     // no forwardRef is needed on either side.
     EntitlementsModule,
+    EngagementModule,
     WebhookIdempotencyModule,
     forwardRef(() => StreamingModule),
     UsersModule,

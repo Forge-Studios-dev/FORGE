@@ -1,8 +1,10 @@
+import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { BillingService } from './billing.service';
 import { PAYMENT_PROVIDER } from './payment-provider.interface';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { ConfigService } from '@nestjs/config';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 import { Stream, StreamVisibility } from '../streaming/entities/stream.entity';
@@ -44,6 +46,9 @@ describe('BillingService', () => {
     updateSubscriptionStatusByExternalRef: jest.fn(),
     getSubscriptionByExternalRef: jest.fn().mockResolvedValue(null),
   };
+  const engagementService = {
+    isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+  };
   const stripeTierSync = {
     isEnabled: jest.fn().mockReturnValue(false),
     syncTier: jest.fn(),
@@ -79,6 +84,7 @@ describe('BillingService', () => {
     BillingService,
     { provide: PAYMENT_PROVIDER, useValue: paymentProvider },
     { provide: EntitlementsService, useValue: entitlementsService },
+    { provide: EngagementService, useValue: engagementService },
     { provide: WebhookIdempotencyService, useValue: webhookIdempotency },
     { provide: getRepositoryToken(StreamEventPurchase), useValue: purchaseRepository },
     { provide: getRepositoryToken(Stream), useValue: streamRepository },
@@ -92,6 +98,7 @@ describe('BillingService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    engagementService.isBlockedEitherWay.mockResolvedValue(false);
     webhookIdempotency.isDuplicate.mockResolvedValue(false);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -257,6 +264,23 @@ describe('BillingService', () => {
         body: 'Great video',
       }),
     );
+  });
+
+  it('rejects Super Thanks when tipper is blocked either way', async () => {
+    videoRepository.findOne.mockResolvedValue({
+      id: 'v1',
+      userId: 'creator1',
+      status: VideoStatus.READY,
+    });
+    engagementService.isBlockedEitherWay.mockResolvedValueOnce(true);
+
+    await expect(
+      service.createSuperThanksCheckout('fan1', {
+        videoId: 'v1',
+        amountCents: 200,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(superThanksRepository.save).not.toHaveBeenCalled();
   });
 
   it('emits Super Thanks from completed Stripe webhook', async () => {

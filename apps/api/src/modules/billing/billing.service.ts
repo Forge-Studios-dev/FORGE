@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,6 +10,7 @@ import {
   PaymentProvider,
 } from './payment-provider.interface';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { MemberSubscriptionSource, MemberSubscriptionStatus } from '../entitlements/entities/member-subscription.entity';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 import { Stream, StreamVisibility } from '../streaming/entities/stream.entity';
@@ -30,6 +31,7 @@ export class BillingService {
   constructor(
     @Inject(PAYMENT_PROVIDER) private readonly paymentProvider: PaymentProvider,
     private readonly entitlementsService: EntitlementsService,
+    private readonly engagementService: EngagementService,
     private readonly configService: ConfigService,
     private readonly webhookIdempotency: WebhookIdempotencyService,
     @InjectRepository(StreamEventPurchase)
@@ -47,7 +49,14 @@ export class BillingService {
     private readonly stripeConnectService: StripeConnectService,
   ) {}
 
+  private async assertNotBlockedPeer(viewerId: string, creatorId: string): Promise<void> {
+    if (await this.engagementService.isBlockedEitherWay(viewerId, creatorId)) {
+      throw new ForbiddenException('This channel is not available');
+    }
+  }
+
   async createCheckout(userId: string, input: Omit<CheckoutSessionInput, 'userId'>) {
+    await this.assertNotBlockedPeer(userId, input.creatorId);
     const tier = await this.entitlementsService.getTierById(input.tierId);
     if (tier.creatorId !== input.creatorId) {
       throw new BadRequestException('Tier does not belong to creator');
@@ -112,6 +121,8 @@ export class BillingService {
     const stream = await this.streamRepository.findOne({ where: { id: input.streamId } });
     if (!stream) throw new BadRequestException('Stream not found');
 
+    await this.assertNotBlockedPeer(userId, stream.userId);
+
     if (!this.isBillingEnabled()) {
       throw new BadRequestException('Payments are not enabled');
     }
@@ -147,6 +158,7 @@ export class BillingService {
 
     const video = await this.videoRepository.findOne({ where: { id: input.videoId } });
     if (!video) throw new NotFoundException('Video not found');
+    await this.assertNotBlockedPeer(userId, video.userId);
     if (video.status !== VideoStatus.READY) {
       throw new BadRequestException('Super Thanks are only available on ready videos');
     }
@@ -216,6 +228,7 @@ export class BillingService {
   ) {
     const stream = await this.streamRepository.findOne({ where: { id: input.streamId } });
     if (!stream) throw new BadRequestException('Stream not found');
+    await this.assertNotBlockedPeer(userId, stream.userId);
     if (stream.visibility !== StreamVisibility.PAID_EVENT) {
       throw new BadRequestException('This stream is not a paid event');
     }
