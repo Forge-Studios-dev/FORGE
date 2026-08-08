@@ -25,11 +25,14 @@ class PlayerCaptionsOverlay extends ConsumerStatefulWidget {
     required this.video,
     required this.videoId,
     required this.currentSeconds,
+    this.cueInsetBottom = 48,
   });
 
   final VideoModel video;
   final String videoId;
   final int currentSeconds;
+  /// Distance from bottom for cue text (Shorts needs more clearance).
+  final double cueInsetBottom;
 
   @override
   ConsumerState<PlayerCaptionsOverlay> createState() => _PlayerCaptionsOverlayState();
@@ -69,7 +72,7 @@ class _PlayerCaptionsOverlayState extends ConsumerState<PlayerCaptionsOverlay> {
           Positioned(
             left: 12,
             right: 12,
-            bottom: 48,
+            bottom: widget.cueInsetBottom,
             child: ref
                 .watch(
                   transcriptCuesProvider((videoId: widget.videoId, language: activeLang)),

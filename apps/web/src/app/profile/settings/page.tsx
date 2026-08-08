@@ -15,6 +15,10 @@ import { InterestsSettings } from '@/components/settings/InterestsSettings';
 import { PasswordResetSettings } from '@/components/settings/PasswordResetSettings';
 import { PlaybackSettings } from '@/components/settings/PlaybackSettings';
 import { WatchHistoryPrivacyToggle } from '@/components/settings/WatchHistoryPrivacyToggle';
+import {
+  formatUsernameUnlockDate,
+  usernameRenameUnlockAt,
+} from '@/lib/username-cooldown';
 
 type ChannelLinkDraft = { title: string; url: string };
 
@@ -58,8 +62,9 @@ export default function ProfileSettingsPage() {
         .filter((l) => l.title && l.url)
         .slice(0, 5);
       const nextUsername = username.trim().replace(/^@/, '');
+      const usernameLocked = usernameRenameUnlockAt(stored.usernameChangedAt) !== null;
       const { data } = await api.put(`/users/${stored.id}`, {
-        username: nextUsername,
+        ...(usernameLocked ? {} : { username: nextUsername }),
         displayName: displayName.trim(),
         bio: bio.trim() || undefined,
         websiteUrl: websiteUrl.trim() || null,
@@ -84,6 +89,9 @@ export default function ProfileSettingsPage() {
   };
 
   if (isGuest || !stored) return null;
+
+  const usernameUnlockAt = usernameRenameUnlockAt(stored.usernameChangedAt);
+  const usernameLocked = usernameUnlockAt !== null;
 
   return (
     <main className="mx-auto max-w-xl px-5 py-8 md:px-12">
@@ -167,14 +175,16 @@ export default function ProfileSettingsPage() {
               onChange={(e) => setUsername(e.target.value.replace(/^@/, ''))}
               autoComplete="username"
               spellCheck={false}
+              disabled={usernameLocked}
+              readOnly={usernameLocked}
+              aria-disabled={usernameLocked}
             />
           </div>
           <p className="mt-1 text-xs text-on-surface-variant">
-            Letters, numbers, and underscores · 3–30 characters
-            {stored.usernameChangedAt
-              ? ' · You can change your handle once every 14 days'
-              : null}
-            . Your channel URL is{' '}
+            {usernameLocked && usernameUnlockAt
+              ? `Handle locked until ${formatUsernameUnlockDate(usernameUnlockAt)} (once every 14 days).`
+              : 'Letters, numbers, and underscores · 3–30 characters. You can change your handle once every 14 days.'}{' '}
+            Your channel URL is{' '}
             <Link href={`/${stored.username}`} className="text-primary hover:underline">
               /{stored.username}
             </Link>

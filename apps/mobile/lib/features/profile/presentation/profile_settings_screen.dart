@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/cache/local_cache.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/theme_mode_provider.dart';
+import '../../../core/utils/username_cooldown.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../watch/data/watch_repository.dart';
@@ -226,8 +227,9 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
           .where((l) => (l['url'] as String).isNotEmpty)
           .toList();
       final nextUsername = _username.text.trim().replaceFirst(RegExp(r'^@'), '');
+      final usernameLocked = isUsernameRenameLocked(_usernameChangedAt);
       final res = await client.dio.put('/users/$_userId', data: {
-        'username': nextUsername,
+        if (!usernameLocked) 'username': nextUsername,
         'displayName': _displayName.text.trim(),
         'bio': _bio.text.trim().isEmpty ? null : _bio.text.trim(),
         'websiteUrl': _websiteUrl.text.trim().isEmpty ? null : _websiteUrl.text.trim(),
@@ -326,15 +328,23 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          TextField(
-            controller: _username,
-            decoration: InputDecoration(
-              labelText: 'Username',
-              prefixText: '@',
-              helperText: _usernameChangedAt != null
-                  ? 'You can change your handle once every 14 days'
-                  : 'Letters, numbers, underscores · 3–30 chars',
-            ),
+          Builder(
+            builder: (context) {
+              final unlockAt = usernameRenameUnlockAt(_usernameChangedAt);
+              final locked = unlockAt != null;
+              return TextField(
+                controller: _username,
+                enabled: !locked,
+                readOnly: locked,
+                decoration: InputDecoration(
+                  labelText: 'Username',
+                  prefixText: '@',
+                  helperText: locked
+                      ? 'Handle locked until ${formatUsernameUnlockDate(unlockAt)} (once every 14 days)'
+                      : 'Letters, numbers, underscores · 3–30 chars · change once every 14 days',
+                ),
+              );
+            },
           ),
           const SizedBox(height: 16),
           TextField(

@@ -11,6 +11,7 @@ import '../../../core/widgets/forge_empty_state.dart';
 import '../../../shared/models/video.dart';
 import '../../feed/data/feed_repository.dart';
 import '../../watch/data/watch_repository.dart';
+import '../../watch/presentation/player_captions_overlay.dart';
 
 class ShortsScreen extends ConsumerStatefulWidget {
   const ShortsScreen({super.key, this.initialVideoId});
@@ -232,6 +233,14 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
   bool _busy = false;
   bool _heartBurst = false;
   DateTime? _lastTap;
+  int _positionSeconds = 0;
+
+  void _onControllerTick() {
+    final c = _controller;
+    if (c == null || !mounted) return;
+    final sec = c.value.position.inSeconds;
+    if (sec != _positionSeconds) setState(() => _positionSeconds = sec);
+  }
 
   @override
   void initState() {
@@ -661,9 +670,11 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
         await controller.dispose();
         return;
       }
+      controller.addListener(_onControllerTick);
       setState(() {
         _controller = controller;
         _initFailed = false;
+        _positionSeconds = 0;
       });
       await controller.play();
     } catch (_) {
@@ -676,18 +687,20 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
     final c = _controller;
     _controller = null;
     if (c != null) {
+      c.removeListener(_onControllerTick);
       try {
         await c.pause();
       } catch (_) {}
       await c.dispose();
     }
-    if (mounted) setState(() {});
+    if (mounted) setState(() => _positionSeconds = 0);
   }
 
   @override
   void dispose() {
     final c = _controller;
     _controller = null;
+    c?.removeListener(_onControllerTick);
     c?.dispose();
     super.dispose();
   }
@@ -719,6 +732,13 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
             )
           else
             const ColoredBox(color: Colors.black54),
+          if (playing && widget.active)
+            PlayerCaptionsOverlay(
+              video: video,
+              videoId: video.id,
+              currentSeconds: _positionSeconds,
+              cueInsetBottom: 140,
+            ),
           if (widget.active && !playing && !_initFailed)
             const Center(child: CircularProgressIndicator(color: Colors.white70)),
           if (_heartBurst)

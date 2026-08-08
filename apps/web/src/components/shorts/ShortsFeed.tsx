@@ -259,6 +259,8 @@ function ShortSlide({
               thumbnailUrl={video.thumbnailUrl}
               title={video.title}
               variant="shorts"
+              captionUrl={video.captionUrl}
+              captionTracks={video.captionTracks}
             />
           </div>
         ) : video.thumbnailUrl ? (
