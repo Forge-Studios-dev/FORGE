@@ -234,12 +234,20 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
   bool _heartBurst = false;
   DateTime? _lastTap;
   int _positionSeconds = 0;
+  bool _inWatchLater = false;
 
   void _onControllerTick() {
     final c = _controller;
     if (c == null || !mounted) return;
     final sec = c.value.position.inSeconds;
     if (sec != _positionSeconds) setState(() => _positionSeconds = sec);
+  }
+
+  Future<void> _loadWatchLater() async {
+    try {
+      final inList = await ref.read(watchRepositoryProvider).isInWatchLater(widget.video.id);
+      if (mounted) setState(() => _inWatchLater = inList);
+    } catch (_) {}
   }
 
   @override
@@ -249,7 +257,10 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
     _likeCount = widget.video.likeCount;
     _disliked = widget.video.viewerDisliked;
     _subscribed = widget.video.viewerSubscribed || widget.video.user.viewerFollowing;
-    if (widget.active) _ensurePlayer();
+    if (widget.active) {
+      _ensurePlayer();
+      _loadWatchLater();
+    }
   }
 
   @override
@@ -260,9 +271,12 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
       _likeCount = widget.video.likeCount;
       _disliked = widget.video.viewerDisliked;
       _subscribed = widget.video.viewerSubscribed || widget.video.user.viewerFollowing;
+      _inWatchLater = false;
+      if (widget.active) _loadWatchLater();
     }
     if (widget.active && !oldWidget.active) {
       _ensurePlayer();
+      _loadWatchLater();
     } else if (!widget.active && oldWidget.active) {
       _pauseAndDispose();
     } else if (widget.active && widget.video.id != oldWidget.video.id) {
@@ -655,6 +669,37 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
     } catch (_) {}
   }
 
+  Future<void> _toggleWatchLater() async {
+    if (_busy) return;
+    final next = !_inWatchLater;
+    setState(() {
+      _busy = true;
+      _inWatchLater = next;
+    });
+    try {
+      final repo = ref.read(watchRepositoryProvider);
+      if (next) {
+        await repo.addToWatchLater(widget.video.id);
+      } else {
+        await repo.removeFromWatchLater(widget.video.id);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(next ? 'Saved to Watch later' : 'Removed from Watch later')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _inWatchLater = !next);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to use Watch later')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _ensurePlayer() async {
     final url = widget.video.hlsUrl;
     if (url == null || url.isEmpty) return;
@@ -816,6 +861,12 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                   onTap: () => _openComments(),
                 ),
                 const SizedBox(height: 16),
+                _ShortAction(
+                  icon: _inWatchLater ? Icons.bookmark : Icons.bookmark_border,
+                  label: _inWatchLater ? 'Saved' : 'Save',
+                  onTap: _busy ? null : _toggleWatchLater,
+                ),
+                const SizedBox(height: 16),
                 if (widget.video.user.id.isNotEmpty)
                   _subscribed
                       ? PopupMenuButton<String>(
@@ -886,7 +937,9 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
               onSelected: (value) async {
                 try {
                   final repo = ref.read(watchRepositoryProvider);
-                  if (value == 'not_interested') {
+                  if (value == 'watch_later') {
+                    await _toggleWatchLater();
+                  } else if (value == 'not_interested') {
                     await repo.markNotInterested(widget.video.id);
                     if (!mounted) return;
                     widget.onHidden?.call();
@@ -943,10 +996,14 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                   }
                 }
               },
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: 'not_interested', child: Text('Not interested')),
-                PopupMenuItem(value: 'dont_recommend', child: Text("Don't recommend channel")),
-                PopupMenuItem(value: 'report', child: Text('Report')),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'watch_later',
+                  child: Text(_inWatchLater ? 'Remove from Watch later' : 'Save to Watch later'),
+                ),
+                const PopupMenuItem(value: 'not_interested', child: Text('Not interested')),
+                const PopupMenuItem(value: 'dont_recommend', child: Text("Don't recommend channel")),
+                const PopupMenuItem(value: 'report', child: Text('Report')),
               ],
               icon: const Icon(Icons.more_vert, color: Colors.white),
             ),

@@ -22,15 +22,18 @@ import {
 import {
   engageErrorReason,
   getChannelSubscription,
+  isInWatchLater,
   setChannelNotifyLevel,
   toggleSubscribe,
   toggleVideoDislike,
   toggleVideoLike,
+  toggleWatchLater,
   type ChannelNotifyLevel,
 } from '@/lib/engage-mutations';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { CommentsPanel } from '@/components/Comments/CommentsPanel';
 import { PopoverMenu } from '@/components/shell/PopoverMenu';
+import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
 
 type ShortsPage = {
   data: Video[];
@@ -67,6 +70,9 @@ function ShortSlide({
   const [heartBurst, setHeartBurst] = useState(false);
   const [shareHint, setShareHint] = useState<string | null>(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [watchLaterSaved, setWatchLaterSaved] = useState(false);
+  const [watchLaterPending, setWatchLaterPending] = useState(false);
+  const [savePlaylistOpen, setSavePlaylistOpen] = useState(false);
   const lastTapRef = useRef(0);
   const blockReason = onGuestAction ? null : getEngageBlockReason(me, isGuest);
   const canPlay = active && video.status === 'ready' && !!video.hlsUrl;
@@ -79,6 +85,7 @@ function ShortSlide({
     setSubscribed(!!(video.viewerSubscribed ?? video.viewerFollowingCreator));
     setConfirmUnsub(false);
     setNotifyLevel('all');
+    setWatchLaterSaved(false);
   }, [
     video.id,
     video.viewerLiked,
@@ -87,6 +94,21 @@ function ShortSlide({
     video.viewerSubscribed,
     video.viewerFollowingCreator,
   ]);
+
+  useEffect(() => {
+    if (!active || isGuest || !me) return;
+    let cancelled = false;
+    void isInWatchLater(video.id)
+      .then((inList) => {
+        if (!cancelled) setWatchLaterSaved(inList);
+      })
+      .catch(() => {
+        /* guest / ignore */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, isGuest, me, video.id]);
 
   useEffect(() => {
     if (!subscribed || isGuest || !me || isOwn || !video.userId) return;
@@ -161,6 +183,22 @@ function ShortSlide({
       if (reason === 'guest' || reason === 'unverified') setEngageBlock(reason);
     } finally {
       close();
+    }
+  };
+
+  const saveWatchLater = async () => {
+    if (watchLaterPending) return;
+    setWatchLaterPending(true);
+    const next = !watchLaterSaved;
+    setWatchLaterSaved(next);
+    try {
+      await toggleWatchLater(video.id, watchLaterSaved);
+    } catch (err) {
+      setWatchLaterSaved(!next);
+      const reason = engageErrorReason(err);
+      if (reason === 'guest' || reason === 'unverified') setEngageBlock(reason);
+    } finally {
+      setWatchLaterPending(false);
     }
   };
 
@@ -300,6 +338,19 @@ function ShortSlide({
           >
             {(close) => (
               <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="block w-full px-3 py-2 text-left text-xs hover:bg-surface-container-highest"
+                  onClick={() =>
+                    gated(() => {
+                      close();
+                      setSavePlaylistOpen(true);
+                    })
+                  }
+                >
+                  Save to playlist
+                </button>
                 <button
                   type="button"
                   role="menuitem"
@@ -482,6 +533,22 @@ function ShortSlide({
 
           <button
             type="button"
+            disabled={watchLaterPending}
+            onClick={() => gated(() => void saveWatchLater())}
+            className="flex flex-col items-center gap-1"
+            aria-pressed={watchLaterSaved}
+            aria-label={watchLaterSaved ? 'Remove from Watch later' : 'Save to Watch later'}
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70">
+              <Icon name="playlist_add" filled={watchLaterSaved} className={watchLaterSaved ? 'text-primary' : undefined} />
+            </span>
+            <span className="text-xs font-medium text-white">
+              {watchLaterSaved ? 'Saved' : 'Save'}
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => void share()}
             className="flex flex-col items-center gap-1"
             aria-label="Share"
@@ -542,6 +609,11 @@ function ShortSlide({
           </div>
         </div>
       ) : null}
+      <SaveToPlaylistModal
+        videoId={video.id}
+        open={savePlaylistOpen}
+        onClose={() => setSavePlaylistOpen(false)}
+      />
     </section>
   );
 }

@@ -777,6 +777,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile Shorts: same `PlayerCaptionsOverlay` as watch (higher cue inset)
 - Settings (web + mobile): disable handle edit while cooldown active; show unlock date
 
+## Shorts Save / Watch later (2026-08-08)
+
+- Web Shorts: Save (Watch later toggle) on rail + Save to playlist in ⋮ menu
+- Mobile Shorts: bookmark Save / Watch later on rail + overflow item
+
 ## Still open
 
 | Area | Item | Owner |
@@ -788,6 +793,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Ship | PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) **MERGEABLE** — CI green; merge when staging checklist passes | Operator |
 | Eng (optional) | Mobile in-player CC overlay (transcript API exists; web has tracks) | Done (2026-08-08) |
 | Eng (optional) | Shorts in-player CC (web + mobile) | Done (2026-08-08) |
+| Eng (optional) | Shorts Save / Watch later | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
