@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/cache/local_cache.dart';
@@ -41,6 +42,12 @@ class WatchRepository {
       final video = VideoModel.fromJson(payload);
       await LocalCache.writeWatchedVideo(id, jsonEncode(video.toJson()));
       return video;
+    } on DioException catch (e) {
+      // Blocked / forbidden — never serve a stale cached copy.
+      if (e.response?.statusCode == 403) rethrow;
+      final cached = LocalCache.readWatchedVideo(id);
+      if (cached != null) return VideoModel.fromJson(jsonDecode(cached) as Map<String, dynamic>);
+      rethrow;
     } catch (e) {
       final cached = LocalCache.readWatchedVideo(id);
       if (cached != null) return VideoModel.fromJson(jsonDecode(cached) as Map<String, dynamic>);

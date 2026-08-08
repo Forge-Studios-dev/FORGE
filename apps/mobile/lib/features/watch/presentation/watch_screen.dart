@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:chewie/chewie.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -159,13 +160,18 @@ class _WatchScreenState extends ConsumerState<WatchScreen> {
             ],
           ),
         ),
-        error: (e, _) => ForgeEmptyState(
-          icon: Icons.videocam_off_outlined,
-          title: 'Video unavailable',
-          description: 'This video may have been removed or failed to load.',
-          actionLabel: 'Go back',
-          onAction: () => context.pop(),
-        ),
+        error: (e, _) {
+          final blocked = e is DioException && e.response?.statusCode == 403;
+          return ForgeEmptyState(
+            icon: blocked ? Icons.block : Icons.videocam_off_outlined,
+            title: blocked ? 'This video is not available' : 'Video unavailable',
+            description: blocked
+                ? 'Playback is restricted for this video on your account.'
+                : 'This video may have been removed or failed to load.',
+            actionLabel: 'Go back',
+            onAction: () => context.pop(),
+          );
+        },
         data: (video) => _WatchBody(
           video: video,
           playlistId: widget.playlistId,
