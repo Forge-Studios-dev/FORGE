@@ -19,7 +19,11 @@ class MainActivity : FlutterActivity() {
         when (call.method) {
           "isSupported" -> result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
           "setAutoEnter" -> {
-            autoEnterOnLeave = call.arguments as? Boolean == true
+            autoEnterOnLeave = when (val args = call.arguments) {
+              is Boolean -> args
+              is Map<*, *> -> args["enabled"] as? Boolean == true
+              else -> false
+            }
             result.success(null)
           }
           "enter" -> result.success(enterPip())

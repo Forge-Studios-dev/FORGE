@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -11,7 +9,10 @@ import 'package:flutter/services.dart';
 class PipService {
   static const _channel = MethodChannel('forge/pip');
 
-  static bool get _isMobileOs => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  static bool get _isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  static bool get _isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+  static bool get _isMobileOs => _isAndroid || _isIOS;
 
   static Future<bool> isSupported() async {
     if (!_isMobileOs) return false;
@@ -33,7 +34,7 @@ class PipService {
   }) async {
     if (!_isMobileOs) return;
     try {
-      if (Platform.isIOS) {
+      if (_isIOS) {
         await _channel.invokeMethod<void>('setAutoEnter', {
           'enabled': enabled,
           'url': hlsUrl,
@@ -49,7 +50,7 @@ class PipService {
   static Future<bool> enter({String? hlsUrl, int? positionMs}) async {
     if (!_isMobileOs) return false;
     try {
-      if (Platform.isIOS) {
+      if (_isIOS) {
         if (hlsUrl == null || hlsUrl.isEmpty) return false;
         final ok = await _channel.invokeMethod<bool>('enter', {
           'url': hlsUrl,
