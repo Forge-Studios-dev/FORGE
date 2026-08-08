@@ -2,6 +2,66 @@
 
 Master phases 01–24 are documented. This list tracks **remaining depth** that is intentionally deferred or partially shipped.
 
+## Shipped in fresh Phase 01 re-audit (2026-08-08)
+
+Re-ran a scoped UI/UX audit of `apps/web` + `apps/admin` + `packages/design-system` against the closed [PHASE_01_REPORT](01-ui-ux/PHASE_01_REPORT.md) baseline. Design-system token adoption confirmed clean (zero raw hex / default-Tailwind bypass in either app). Fixed:
+
+- **Admin Fraud queue** (`apps/admin/src/app/fraud/page.tsx`): was hardcoded `limit=100` with no pagination and a hand-rolled `<table>` — now uses `DataTable` + `AdminPagination` (offset-based, backend already supported it) like every other admin list; added success/error toasts on update + re-check
+- **Admin action feedback consistency**: `community/page.tsx` (resolve report, update community visibility) and `live/page.tsx` (force-end, grant access, delete chat message, backfill Mux) had `onSuccess` with no `onError` and no toast — added `useToast` success/error on all five mutations, matching the pattern already used in `content`/`users`/`creator-approvals`/`reports`
+- **Admin Categories** (`apps/admin/src/app/categories/page.tsx`): added success toast on save/delete (was silent on success; inline error kept as-is for form validation)
+- **Community post images** (`ChannelCommunityFeed.tsx:361`): `alt=""` on user-posted content images (not decorative) → `alt="Community post image"`
+- Investigated `AdminUser.permissions` as a possible dead/half-wired nav-gating field — confirmed it's the standard `permissionsForUser()` platform tier (identical for every admin), correctly used only for read-only display on the user detail page. No scoped-admin-role system exists to wire nav to. **No change — false alarm from initial audit pass.**
+
+### EmptyState sweep — resolved with judgment, not blind replace (2026-08-08)
+
+Reviewed all 16 flagged spots individually rather than mechanically swapping every `<p>` for `EmptyState` — the component's fixed `px-6 py-12` card padding is right for full-page/section list-empty states but wrong for compact nested UI (dropdowns, side panels, chat threads, chart placeholders). Converted the ones that are genuinely page/section-level list-empties:
+
+- `[username]/page.tsx` — Videos tab (`icon="video_library"`), Playlists tab (`icon="playlist_play"`)
+- `settings/memberships/page.tsx` — no active memberships, now with a "Discover creators" CTA (was also nested invalid-HTML inside a bare `<ul>`, fixed alongside)
+- `studio/subscribers/page.tsx` — no subscribers (same invalid-nesting-inside-`<ul>` fix)
+- `discover/communities/page.tsx` — no featured communities (file already imported `EmptyState` for its search-empty case, so this was pure inconsistency)
+
+Deliberately left as lightweight inline text (would be a regression to force `EmptyState` here):
+
+| File | Why left inline |
+| --- | --- |
+| `[username]/page.tsx` "No channel description yet." | Bio placeholder copy, not a list-empty state |
+| `messages/page.tsx` | Narrow (`w-72`) sidebar list, not page-width |
+| `NotificationsMenu.tsx` | Fixed-height dropdown panel — `py-12` card would blow out the menu |
+| `StreamHostDashboard.tsx` (highlights, delegated mods) | Compact nested subsections of a live dashboard |
+| `ChannelCommunityFeed.tsx` "No comments yet." | Nested inline comment thread inside an expanded post |
+| `CommunityPanel.tsx` "No community posts yet." | Nested tab pane inside a widget, not a top-level page |
+| `CreatorCohortChart.tsx` | Insufficient-data placeholder for a chart, different semantics than "no items" |
+| `CommunityStageRaiseHandPanel.tsx`, `StreamRaiseHandPanel.tsx` | Compact real-time live-panel queues |
+
+### Notification preferences shipped (2026-08-08)
+
+Closed the "no per-category/email-digest controls" gap:
+
+- `packages/shared-types/src/notification-preferences.ts` — new `NotificationCategory` type, `NOTIFICATION_CATEGORY_BY_TYPE` map (single source of truth, replaces the API/web having two separate copies), `NotificationPreferences` shape, `isCategoryMuted()` helper. `apps/web/src/lib/notification-category.ts` now imports the category map instead of duplicating it.
+- Migration `2020000000000-notification-preferences.ts` — `users.notification_preferences` jsonb, nullable (null = all on, digest off).
+- `GET/PUT /users/me/notification-preferences` (`users.controller.ts`/`users.service.ts`), mirroring the existing `/users/me/privacy` pattern.
+- **Gating is centralized in `NotificationsService.create()`/`createMany()`** rather than touched into each of the ~10 event handlers that call them (`notifications.listener.ts`, `direct-messages.service.ts`, `community-moderation.service.ts`, `community-activity-notify.listener.ts`, `subscription-maintenance.service.ts`, `premium-content-notify.service.ts`, `community-announcement-notify.service.ts`) — since those two methods are the only insert path, this covers unread count, the notification list, and the live socket toast for every notification origin with a one-file change and zero risk of a call site being missed.
+- Web: `NotificationPreferencesSettings.tsx` (per-category checkboxes + digest toggle, optimistic-update-with-rollback shape matching `WatchHistoryPrivacyToggle.tsx`), wired into `/profile/settings#notifications`.
+- Tests: `notifications.service.spec.ts` (+5), `users.service.spec.ts` (+3), `notification-preferences.spec.ts` (+5, new). Full API suite: 1081/1082 passing (1 unrelated pre-existing flake — `getAvatarUploadUrl` timeout under full-parallel load, passes clean in isolation, not touched by this change).
+
+### FCM push gating closed (2026-08-08)
+
+Followed up same-day: `PushDispatchService` now takes the same mute check as `NotificationsService`.
+
+- `PushPayload`/`enqueueMany`'s job type gained a **required** `category: NotificationCategory` field — required on purpose so TypeScript itself force-lists every call site that needed updating (13 across `notifications.listener.ts` ×11, `premium-content-notify.service.ts`, `subscription-maintenance.service.ts`) rather than relying on remembering to touch all of them.
+- `filterMutedJobs()` batch-fetches `notificationPreferences` for the job's recipient IDs and drops muted ones **before** the device-token lookup — a muted category now also saves a wasted token query, not just a wasted push.
+- Tests: `push-dispatch.service.spec.ts` +2 (excludes-muted, no-ops-when-all-muted). Full API suite re-run green after this change.
+
+In-app (bell/list/unread/live-toast) and FCM push now both fully respect a muted category — no remaining gap on the notification-preferences feature.
+
+### Still open (this pass)
+
+| Area | Item | Note |
+| --- | --- | --- |
+| Web maintainability | 6 files 600–900+ lines mixing data-fetching/mutation/UI (`CommentsPanel.tsx` 919, `ShortsFeed.tsx` 866, `studio/videos/page.tsx` 921, `studio/videos/[id]/page.tsx` 780, `WatchExperience.tsx` 784, `search/page.tsx` 625) | Extract on next non-trivial touch to each, not as a standalone refactor |
+| Notifications | `emailDigest` preference is stored but nothing reads it yet | No digest job exists at all (not just unwired) — needs a scheduler + HTML template, product call on cadence |
+
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
 - Primary surface skill/lesson → video voice; subscribe bell; player keys
