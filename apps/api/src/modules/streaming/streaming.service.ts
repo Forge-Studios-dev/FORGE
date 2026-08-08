@@ -272,6 +272,12 @@ export class StreamingService {
     const isOwner = !!viewerId && viewerId === stream.userId;
     const isAdmin = viewerRole === UserRole.ADMIN;
 
+    if (viewerId && !isOwner && !isAdmin) {
+      if (await this.engagementService.isBlockedEitherWay(viewerId, stream.userId)) {
+        throw new ForbiddenException('This stream is not available');
+      }
+    }
+
     const access = await this.entitlementsService.checkAccess({
       creatorId: stream.userId,
       visibility: stream.visibility,

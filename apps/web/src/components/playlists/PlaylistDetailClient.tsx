@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EmptyState, Icon, Input, ListSkeleton, PageHeader } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
+import { isAxiosError } from 'axios';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Playlist } from '@/types';
@@ -101,12 +102,17 @@ export function PlaylistDetailClient({ playlistId }: { playlistId: string }) {
   }
 
   if (query.isError || !query.data) {
+    const unavailable = isAxiosError(query.error) && query.error.response?.status === 403;
     return (
       <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
         <EmptyState
-          icon="error"
-          title="Playlist not found"
-          description="It may be private or deleted."
+          icon={unavailable ? 'block' : 'error'}
+          title={unavailable ? 'This playlist is not available' : 'Playlist not found'}
+          description={
+            unavailable
+              ? 'Access to this playlist is restricted on your account.'
+              : 'It may be private or deleted.'
+          }
           action={{ label: 'Library', href: '/library' }}
         />
       </main>

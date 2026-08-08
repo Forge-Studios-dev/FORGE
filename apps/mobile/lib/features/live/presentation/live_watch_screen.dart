@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:chewie/chewie.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -145,6 +146,13 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
 
       _startCountdown(stream);
       await _initPlayer(stream);
+    } on DioException catch (e) {
+      setState(() {
+        _error = e.response?.statusCode == 403
+            ? 'This stream is not available'
+            : 'Failed to load stream';
+        _loading = false;
+      });
     } catch (e) {
       setState(() {
         _error = 'Failed to load stream';

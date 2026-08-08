@@ -70,6 +70,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: After Block — search/suggestions omit peer; channel videos empty; if they blocked you, channel 403/not found
 - [ ] Smoke: After Block — Liked/Watch later/History hide peer videos; Manage subscriptions + DM inbox omit peer
 - [ ] Smoke: When they blocked you — channel page shows “not available” (not generic 404); watch of their video same
+- [ ] Smoke: Blocked peer live URL / playlist detail show “not available”
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback

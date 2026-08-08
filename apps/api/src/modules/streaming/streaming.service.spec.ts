@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ForbiddenException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -56,6 +57,10 @@ describe('StreamingService access gating', () => {
     checkAccessMany: jest.Mock;
     verifyMediaTierEntitlements: jest.Mock;
   };
+  let engagementService: {
+    getBlockedPeerIds: jest.Mock;
+    isBlockedEitherWay: jest.Mock;
+  };
 
   const streamRepository = {
     findOne: jest.fn(),
@@ -75,6 +80,10 @@ describe('StreamingService access gating', () => {
       checkAccess: jest.fn(),
       checkAccessMany: jest.fn(),
       verifyMediaTierEntitlements: jest.fn().mockResolvedValue(true),
+    };
+    engagementService = {
+      getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+      isBlockedEitherWay: jest.fn().mockResolvedValue(false),
     };
     streamRepository.findOne.mockReset();
     streamRepository.find.mockReset();
@@ -149,10 +158,7 @@ describe('StreamingService access gating', () => {
         },
         {
           provide: EngagementService,
-          useValue: {
-            getBlockedPeerIds: jest.fn().mockResolvedValue([]),
-            isBlockedEitherWay: jest.fn().mockResolvedValue(false),
-          },
+          useValue: engagementService,
         },
         {
           provide: 'default_IORedisModuleConnectionToken',
@@ -184,6 +190,17 @@ describe('StreamingService access gating', () => {
       expect(result.playbackUrl).toBe(stream.playbackUrl);
       expect(result.accessDenied).toBeFalsy();
       expect(result.thumbnailUrl).toContain('image.mux.com/test');
+    });
+
+    it('rejects when viewer and creator are blocked either way', async () => {
+      const stream = mockStream();
+      streamRepository.findOne.mockResolvedValue(stream);
+      engagementService.isBlockedEitherWay.mockResolvedValue(true);
+
+      await expect(service.getStreamForViewer('stream-1', 'viewer-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(entitlementsService.checkAccess).not.toHaveBeenCalled();
     });
 
     it('hides playback and sets accessDenied when not entitled', async () => {

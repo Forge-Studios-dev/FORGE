@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { isAxiosError } from 'axios';
 import { api } from '@/lib/api';
 import { Stream, User } from '@/types';
 import { VideoPlayer } from '@/components/VideoPlayer/VideoPlayerLazy';
@@ -56,7 +57,7 @@ export default function LiveWatchPage() {
 
   const checkoutSuccess = searchParams.get('checkout') === 'success';
 
-  const { data: stream, isLoading, isError, refetch } = useQuery({
+  const { data: stream, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['stream', id],
     enabled: id.length > 0,
     queryFn: async () => {
@@ -366,9 +367,17 @@ export default function LiveWatchPage() {
         </div>
       ) : isError || !stream ? (
         <EmptyState
-          icon="videocam_off"
-          title="Stream unavailable"
-          description="This live session may have ended or could not be loaded."
+          icon={isAxiosError(error) && error.response?.status === 403 ? 'block' : 'videocam_off'}
+          title={
+            isAxiosError(error) && error.response?.status === 403
+              ? 'This stream is not available'
+              : 'Stream unavailable'
+          }
+          description={
+            isAxiosError(error) && error.response?.status === 403
+              ? 'Playback is restricted for this stream on your account.'
+              : 'This live session may have ended or could not be loaded.'
+          }
           action={{ label: 'Browse live', href: '/live' }}
           onAction={() => refetch()}
         />
