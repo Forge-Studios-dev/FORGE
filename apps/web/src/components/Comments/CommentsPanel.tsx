@@ -829,8 +829,9 @@ export function CommentsPanel({
             }}
             placeholder={user ? 'Add to the discussion…' : 'Sign in to comment'}
             rows={2}
-            disabled={!user || post.isPending}
-            className="w-full resize-none border-0 border-b border-outline-variant bg-transparent px-0 py-2 text-sm text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-0 disabled:opacity-60"
+            readOnly={!user}
+            disabled={post.isPending}
+            className={`w-full resize-none border-0 border-b border-outline-variant bg-transparent px-0 py-2 text-sm text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-0 disabled:opacity-60 ${!user ? 'opacity-60' : ''}`}
           />
           <div className="flex justify-end gap-2">
             {content && (

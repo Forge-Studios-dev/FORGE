@@ -55,11 +55,22 @@ Followed up same-day: `PushDispatchService` now takes the same mute check as `No
 
 In-app (bell/list/unread/live-toast) and FCM push now both fully respect a muted category — no remaining gap on the notification-preferences feature.
 
+### CommentsPanel test coverage added (2026-08-08)
+
+First of the 6 oversized files unblocked properly instead of left flagged: `CommentsPanel.tsx` (919 lines) had zero test coverage, which is why the file-split was declined earlier — no safety net to catch a regression. Added `CommentsPanel.test.tsx` (11 tests: render, empty state, post, sort refetch, optimistic like + rollback, author-only Edit/Delete, owner-only Remove/Pin/Heart, reply mention prefill, delete-confirm flow), verified stable across 5 repeat runs.
+
+Writing these surfaced a real bug, fixed alongside: the composer textarea was `disabled` for guests, which made it unfocusable — the `onFocus` handler meant to prompt sign-in could never fire for a mouse or keyboard user. Switched to `readOnly` (blocks typing, allows focus) so the guest sign-in prompt actually works.
+
+Also surfaced, not fixed (needs real verification before touching): `likeMut`/`dislikeMut`'s `mutationFn` reads the `liked`/`disliked` component-state closure instead of receiving it as a mutation argument. Under `@testing-library/user-event`'s `act()`-flushed timing, whichever endpoint (`api.post` vs `api.delete`) fires depends on exact re-render ordering relative to `onMutate`'s optimistic state update. Unconfirmed whether this reorders identically in a real browser (React 18's non-test scheduling may not flush the same way) — flagged rather than fixed blind. Fix would be `likeMut.mutate(liked)` with `mutationFn` taking the value as a parameter instead of closing over state.
+
+Remaining 5 files still have no tests: `ShortsFeed.tsx` 866, `studio/videos/page.tsx` 921, `studio/videos/[id]/page.tsx` 780, `WatchExperience.tsx` 784, `search/page.tsx` 625. Same treatment (tests first, extract later) applies to each — not done in this pass to keep this a reviewable, single-file increment.
+
 ### Still open (this pass)
 
 | Area | Item | Note |
 | --- | --- | --- |
-| Web maintainability | 6 files 600–900+ lines mixing data-fetching/mutation/UI (`CommentsPanel.tsx` 919, `ShortsFeed.tsx` 866, `studio/videos/page.tsx` 921, `studio/videos/[id]/page.tsx` 780, `WatchExperience.tsx` 784, `search/page.tsx` 625) | Extract on next non-trivial touch to each, not as a standalone refactor |
+| Web maintainability | 5 remaining oversized files with no tests (`ShortsFeed.tsx` 866, `studio/videos/page.tsx` 921, `studio/videos/[id]/page.tsx` 780, `WatchExperience.tsx` 784, `search/page.tsx` 625) | Same tests-first treatment as `CommentsPanel.tsx`, one file at a time |
+| Web correctness | `CommentRow` like/dislike `mutationFn` reads state via closure instead of mutation argument — non-deterministic which endpoint fires under certain re-render timing | Needs real-browser verification before fixing; low user-visible impact since both paths converge via `onError` rollback |
 | Notifications | `emailDigest` preference is stored but nothing reads it yet | No digest job exists at all (not just unwired) — needs a scheduler + HTML template, product call on cadence |
 
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
