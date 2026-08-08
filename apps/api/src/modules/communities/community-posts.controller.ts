@@ -24,11 +24,15 @@ import {
   PinCommunityPostDto,
   UpdateCommunityPostDto,
 } from './dto/community-post.dto';
+import { EngagementService } from '../engagement/engagement.service';
 
 @ApiTags('Community Posts')
 @Controller()
 export class CommunityPostsController {
-  constructor(private readonly postsService: CommunityPostsService) {}
+  constructor(
+    private readonly postsService: CommunityPostsService,
+    private readonly engagementService: EngagementService,
+  ) {}
 
   @Get('me/community-updates')
   @ApiOperation({ summary: 'Creator updates feed — announcements across joined communities' })
@@ -46,12 +50,17 @@ export class CommunityPostsController {
   @ApiOperation({
     summary: 'YouTube-style channel Community feed (public posts across creator communities)',
   })
-  listChannelPosts(
+  async listChannelPosts(
     @Param('creatorId', ParseUUIDPipe) creatorId: string,
     @Query('limit') limit = 20,
     @Query('cursor') cursor?: string,
     @CurrentUser() user?: JwtPayload,
   ) {
+    if (user?.sub && user.sub !== creatorId) {
+      if (await this.engagementService.isBlockedEitherWay(user.sub, creatorId)) {
+        return { data: [], meta: { cursor: null, hasMore: false } };
+      }
+    }
     return this.postsService.listChannelPostsForCreator(
       creatorId,
       Number(limit) || 20,

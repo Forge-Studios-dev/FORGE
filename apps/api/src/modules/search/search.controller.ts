@@ -85,9 +85,14 @@ export class SearchController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('suggestions')
   @ApiOperation({ summary: 'Video title prefix suggestions' })
-  suggestions(@Query('q') q = '', @Query('limit') limit?: number) {
-    return this.searchService.suggestions(q, clampLimit(limit, 8, 20));
+  suggestions(
+    @Query('q') q = '',
+    @Query('limit') limit?: number,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.searchService.suggestions(q, clampLimit(limit, 8, 20), user?.sub);
   }
 }

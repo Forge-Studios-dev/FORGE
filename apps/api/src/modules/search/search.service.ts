@@ -433,28 +433,32 @@ export class SearchService {
     };
   }
 
-  async suggestions(q: string, limit = 8) {
+  async suggestions(q: string, limit = 8, viewerId?: string) {
     const prefix = q.trim();
     if (prefix.length < 2) {
       return { titles: [] as string[], channels: [] as { username: string; displayName: string }[] };
     }
     const take = Math.min(limit, 20);
     const channelTake = Math.min(5, take);
+    const excluded = await this.excludedCreatorIds(viewerId);
+    const titleQb = applyDiscoverableVideoFilters(
+      this.videoRepository.createQueryBuilder('v').select('v.title', 'title'),
+    ).andWhere('v.title ILIKE :p', { p: `${prefix}%` });
+    if (excluded.length > 0) {
+      titleQb.andWhere('v.user_id NOT IN (:...excluded)', { excluded });
+    }
+    const channelQb = this.userRepository
+      .createQueryBuilder('u')
+      .select(['u.id', 'u.username', 'u.displayName'])
+      .where('(u.username ILIKE :p OR u.display_name ILIKE :p)', { p: `${prefix}%` })
+      .orderBy('u.username', 'ASC')
+      .take(channelTake);
+    if (excluded.length > 0) {
+      channelQb.andWhere('u.id NOT IN (:...excluded)', { excluded });
+    }
     const [rows, channels] = await Promise.all([
-      applyDiscoverableVideoFilters(
-        this.videoRepository.createQueryBuilder('v').select('v.title', 'title'),
-      )
-        .andWhere('v.title ILIKE :p', { p: `${prefix}%` })
-        .orderBy('v.title', 'ASC')
-        .distinct(true)
-        .take(take)
-        .getRawMany<{ title: string }>(),
-      this.userRepository.find({
-        where: [{ username: ILike(`${prefix}%`) }, { displayName: ILike(`${prefix}%`) }],
-        take: channelTake,
-        order: { username: 'ASC' },
-        select: ['username', 'displayName'],
-      }),
+      titleQb.orderBy('v.title', 'ASC').distinct(true).take(take).getRawMany<{ title: string }>(),
+      channelQb.getMany(),
     ]);
     return {
       titles: rows.map((r) => r.title),

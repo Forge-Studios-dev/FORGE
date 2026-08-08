@@ -21,6 +21,7 @@ import { PlatformModule } from '../platform/platform.module';
 import { AccessSessionsModule } from '../access-sessions/access-sessions.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
+import { EngagementModule } from '../engagement/engagement.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { CommunityPost } from './entities/community-post.entity';
@@ -129,6 +130,7 @@ import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lm
     UsersModule,
     PlatformModule,
     PlatformEventOutboxModule,
+    EngagementModule,
     BullModule.registerQueue({
       name: COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE,
       defaultJobOptions: {

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -141,11 +142,17 @@ export class UsersController {
     const profile = await this.usersService.findByUsername(username);
     const publicUser = toPublicUser(profile);
     if (viewer?.sub && viewer.sub !== profile.id) {
-      const viewerFollowing = await this.engagementService.isFollowing(
-        viewer.sub,
-        profile.id,
-      );
       const viewerBlocked = await this.engagementService.hasBlocked(viewer.sub, profile.id);
+      // They blocked you (and you did not block them) → channel unavailable (YouTube parity).
+      if (
+        !viewerBlocked &&
+        (await this.engagementService.isBlockedEitherWay(viewer.sub, profile.id))
+      ) {
+        throw new ForbiddenException('This channel is not available');
+      }
+      const viewerFollowing = viewerBlocked
+        ? false
+        : await this.engagementService.isFollowing(viewer.sub, profile.id);
       return {
         ...publicUser,
         viewerFollowing,
@@ -191,7 +198,7 @@ export class UsersController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/videos')
   @ApiOperation({ summary: 'Get videos by user' })
-  getUserVideos(
+  async getUserVideos(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('limit') limit?: number,
     @Query('cursor') cursor?: string,
@@ -199,6 +206,11 @@ export class UsersController {
     @Query('sort') sort?: string,
     @CurrentUser() user?: JwtPayload,
   ) {
+    if (user?.sub && user.sub !== id) {
+      if (await this.engagementService.isBlockedEitherWay(user.sub, id)) {
+        return { data: [], meta: { cursor: null, hasMore: false } };
+      }
+    }
     const videoType =
       type === 'short' || type === 'video' || type === 'all' ? type : 'all';
     const videoSort =
@@ -217,7 +229,12 @@ export class UsersController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/playlists')
   @ApiOperation({ summary: 'Get playlists by user' })
-  getUserPlaylists(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
+  async getUserPlaylists(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
+    if (user?.sub && user.sub !== id) {
+      if (await this.engagementService.isBlockedEitherWay(user.sub, id)) {
+        return [];
+      }
+    }
     return this.playlistsService.listByUser(id, user?.sub);
   }
 

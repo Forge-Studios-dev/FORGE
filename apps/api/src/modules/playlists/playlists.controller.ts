@@ -24,11 +24,15 @@ import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
 import { PlaylistSystemType } from './entities/playlist.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 @ApiTags('Playlists')
 @Controller('playlists')
 export class PlaylistsController {
-  constructor(private readonly playlistsService: PlaylistsService) {}
+  constructor(
+    private readonly playlistsService: PlaylistsService,
+    private readonly engagementService: EngagementService,
+  ) {}
 
   @Post()
   @Permissions(Permission.USE_LIBRARY)
@@ -130,10 +134,15 @@ export class PlaylistsController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('user/:userId')
   @ApiOperation({ summary: 'List public playlists for a channel' })
-  listByUser(
+  async listByUser(
     @Param('userId', ParseUUIDPipe) userId: string,
     @CurrentUser() viewer?: JwtPayload,
   ) {
+    if (viewer?.sub && viewer.sub !== userId) {
+      if (await this.engagementService.isBlockedEitherWay(viewer.sub, userId)) {
+        return [];
+      }
+    }
     return this.playlistsService.listByUser(userId, viewer?.sub);
   }
 

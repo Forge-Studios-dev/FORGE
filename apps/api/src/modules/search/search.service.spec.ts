@@ -263,7 +263,7 @@ describe('SearchService', () => {
         { title: 'Forge Basics' },
         { title: 'Forge Advanced' },
       ]);
-      userRepository.find.mockResolvedValue([
+      userQb.getMany.mockResolvedValue([
         { username: 'forge_tv', displayName: 'Forge TV' },
       ]);
 
@@ -274,9 +274,41 @@ describe('SearchService', () => {
       expect(suggestionQb.andWhere).toHaveBeenCalledWith('v.title ILIKE :p', { p: 'for%' });
     });
 
+    it('excludes blocked peers from title and channel suggestions', async () => {
+      const engagement = {
+        getBlockedPeerIds: jest.fn().mockResolvedValue(['blocked-1']),
+      };
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          SearchService,
+          { provide: getRepositoryToken(Video), useValue: videoRepository },
+          { provide: getRepositoryToken(User), useValue: userRepository },
+          { provide: getRepositoryToken(Playlist), useValue: playlistRepository },
+          { provide: VideosService, useValue: videosService },
+          { provide: EngagementService, useValue: engagement },
+          { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
+        ],
+      }).compile();
+      const svc = module.get(SearchService);
+
+      videoRepository.createQueryBuilder.mockImplementation(() => suggestionQb);
+      suggestionQb.getRawMany.mockResolvedValue([{ title: 'Ok Title' }]);
+      userQb.getMany.mockResolvedValue([{ username: 'ok_tv', displayName: 'Ok TV' }]);
+
+      await svc.suggestions('ok', 8, 'viewer-1');
+
+      expect(engagement.getBlockedPeerIds).toHaveBeenCalledWith('viewer-1');
+      expect(suggestionQb.andWhere).toHaveBeenCalledWith('v.user_id NOT IN (:...excluded)', {
+        excluded: ['blocked-1'],
+      });
+      expect(userQb.andWhere).toHaveBeenCalledWith('u.id NOT IN (:...excluded)', {
+        excluded: ['blocked-1'],
+      });
+    });
+
     it('caps suggestion limit at 20', async () => {
       videoRepository.createQueryBuilder.mockImplementation(() => suggestionQb);
-      userRepository.find.mockResolvedValue([]);
+      userQb.getMany.mockResolvedValue([]);
       await service.suggestions('forge', 50);
       expect(suggestionQb.take).toHaveBeenCalledWith(20);
     });
