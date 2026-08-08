@@ -781,6 +781,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Web Shorts: Save (Watch later toggle) on rail + Save to playlist in ⋮ menu
 - Mobile Shorts: bookmark Save / Watch later on rail + overflow item
+- Mobile: shared `showSaveToPlaylistSheet` (watch + Shorts ⋮ Save to playlist)
 
 ## Still open
 

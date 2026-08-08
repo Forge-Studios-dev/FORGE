@@ -814,7 +814,7 @@ export function ShortsFeed() {
       <AuthGateModal
         open={guestGate}
         onClose={() => setGuestGate(false)}
-        message="Sign in to like and subscribe on Shorts."
+        message="Sign in to like, save, and subscribe on Shorts."
       />
     </div>
   );

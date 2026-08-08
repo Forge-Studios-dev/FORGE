@@ -12,6 +12,7 @@ import '../../../shared/models/video.dart';
 import '../../feed/data/feed_repository.dart';
 import '../../watch/data/watch_repository.dart';
 import '../../watch/presentation/player_captions_overlay.dart';
+import '../../watch/presentation/save_to_playlist_sheet.dart';
 
 class ShortsScreen extends ConsumerStatefulWidget {
   const ShortsScreen({super.key, this.initialVideoId});
@@ -939,6 +940,12 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                   final repo = ref.read(watchRepositoryProvider);
                   if (value == 'watch_later') {
                     await _toggleWatchLater();
+                  } else if (value == 'save_playlist') {
+                    await showSaveToPlaylistSheet(
+                      context: context,
+                      ref: ref,
+                      videoId: widget.video.id,
+                    );
                   } else if (value == 'not_interested') {
                     await repo.markNotInterested(widget.video.id);
                     if (!mounted) return;
@@ -1001,6 +1008,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                   value: 'watch_later',
                   child: Text(_inWatchLater ? 'Remove from Watch later' : 'Save to Watch later'),
                 ),
+                const PopupMenuItem(value: 'save_playlist', child: Text('Save to playlist')),
                 const PopupMenuItem(value: 'not_interested', child: Text('Not interested')),
                 const PopupMenuItem(value: 'dont_recommend', child: Text("Don't recommend channel")),
                 const PopupMenuItem(value: 'report', child: Text('Report')),
