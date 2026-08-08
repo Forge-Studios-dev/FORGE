@@ -784,6 +784,8 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
               videoId: video.id,
               currentSeconds: _positionSeconds,
               cueInsetBottom: 140,
+              controlsOnLeft: true,
+              controlsTop: MediaQuery.paddingOf(context).top + 40,
             ),
           if (widget.active && !playing && !_initFailed)
             const Center(child: CircularProgressIndicator(color: Colors.white70)),

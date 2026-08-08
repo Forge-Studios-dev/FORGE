@@ -26,6 +26,8 @@ class PlayerCaptionsOverlay extends ConsumerStatefulWidget {
     required this.videoId,
     required this.currentSeconds,
     this.cueInsetBottom = 48,
+    this.controlsOnLeft = false,
+    this.controlsTop = 8,
   });
 
   final VideoModel video;
@@ -33,6 +35,9 @@ class PlayerCaptionsOverlay extends ConsumerStatefulWidget {
   final int currentSeconds;
   /// Distance from bottom for cue text (Shorts needs more clearance).
   final double cueInsetBottom;
+  /// Place CC toggle on the left (Shorts more-menu owns the top-right).
+  final bool controlsOnLeft;
+  final double controlsTop;
 
   @override
   ConsumerState<PlayerCaptionsOverlay> createState() => _PlayerCaptionsOverlayState();
@@ -111,8 +116,9 @@ class _PlayerCaptionsOverlayState extends ConsumerState<PlayerCaptionsOverlay> {
                 ),
           ),
         Positioned(
-          top: 8,
-          right: 8,
+          top: widget.controlsTop,
+          left: widget.controlsOnLeft ? 8 : null,
+          right: widget.controlsOnLeft ? null : 8,
           child: Material(
             color: Colors.black.withValues(alpha: 0.55),
             borderRadius: BorderRadius.circular(20),
