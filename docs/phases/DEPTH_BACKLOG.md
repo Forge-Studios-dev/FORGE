@@ -750,6 +750,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Web vitest: ConfirmDialog confirm/cancel + Escape ignored while `loading`
 
+## Username history redirects (2026-08-08)
+
+- Migration `201…`: `username_history` — old handles resolve to current user until reclaimed
+- Rename + signup clear colliding history rows; web permanentRedirect to canonical `/{username}`; mobile profile `replace`
+- Neon still needs migrations **198–201** applied (dislike/block/username_changed_at/history)
+
 ## Still open
 
 | Area | Item | Owner |
@@ -757,6 +763,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Ops | Staging soak per load-test runbook | Operator |
 | Launch | Env secrets, Mux/Stripe webhooks; Mux signing keys for private/unlisted | Operator |
 | Launch | DB migrations **185–197 applied** to Neon (2026-08-04) via TypeORM | Done |
+| Launch | DB migrations **198–201** (dislike, blocks, username_changed_at, username_history) | Operator — pending on Neon prod |
 | Ship | PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) **MERGEABLE** — CI green; merge when staging checklist passes | Operator |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
 | Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |

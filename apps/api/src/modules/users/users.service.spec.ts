@@ -6,6 +6,7 @@ import { UsersService } from './users.service';
 import { User, UserRole, CreatorStatus } from './entities/user.entity';
 import { Video, VideoVisibility } from '../content/entities/video.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
+import { UsernameHistory } from './entities/username-history.entity';
 import { VideosService } from '../content/videos.service';
 
 describe('UsersService', () => {
@@ -14,6 +15,18 @@ describe('UsersService', () => {
     save: jest.fn((u) => Promise.resolve(u)),
     update: jest.fn(),
     createQueryBuilder: jest.fn(),
+  };
+
+  const historyRepo = {
+    createQueryBuilder: jest.fn(() => ({
+      innerJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+      delete: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue(undefined),
+    })) as jest.Mock,
+    create: jest.fn((x) => x),
+    save: jest.fn((x) => Promise.resolve(x)),
   };
 
   // Records every andWhere clause so we can assert visibility enforcement.
@@ -42,6 +55,7 @@ describe('UsersService', () => {
       providers: [
         UsersService,
         { provide: getRepositoryToken(User), useValue: userRepo },
+        { provide: getRepositoryToken(UsernameHistory), useValue: historyRepo },
         { provide: getRepositoryToken(Video), useValue: videoRepo },
         { provide: getRepositoryToken(WatchHistory), useValue: {} },
         {
@@ -154,14 +168,18 @@ describe('UsersService', () => {
       channelLinks: null,
     } as unknown as User;
     userRepo.findOne.mockResolvedValue(user);
-    const qb = {
+    const takenQb = {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       getOne: jest.fn().mockResolvedValue(null),
     };
-    (userRepo as { createQueryBuilder?: jest.Mock }).createQueryBuilder = jest
-      .fn()
-      .mockReturnValue(qb);
+    userRepo.createQueryBuilder.mockReturnValue(takenQb);
+    const histQb = {
+      delete: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue(undefined),
+    };
+    historyRepo.createQueryBuilder.mockReturnValue(histQb);
     userRepo.save.mockImplementation((u) => Promise.resolve(u));
 
     const svc = await setup();
@@ -169,6 +187,21 @@ describe('UsersService', () => {
 
     expect(result.username).toBe('alice_new');
     expect(result.usernameChangedAt).toBeInstanceOf(Date);
+    expect(historyRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'u1', username: 'alice' }),
+    );
+  });
+
+  it('findByUsername resolves former handles via username_history', async () => {
+    userRepo.findOne.mockResolvedValue(null);
+    const current = { id: 'u1', username: 'alice_new' } as User;
+    historyRepo.createQueryBuilder.mockReturnValue({
+      innerJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue({ user: current }),
+    });
+    const svc = await setup();
+    await expect(svc.findByUsername('alice')).resolves.toBe(current);
   });
 
   it('update rejects reserved username', async () => {

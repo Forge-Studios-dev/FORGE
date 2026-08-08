@@ -84,6 +84,12 @@ export class AuthService {
       throw new BadRequestException('Username already taken');
     }
 
+    // Claiming a handle ends any redirect from a prior owner's rename.
+    await this.dataSource.query(
+      `DELETE FROM username_history WHERE LOWER(username) = LOWER($1)`,
+      [username],
+    );
+
     const passwordHash = await bcrypt.hash(dto.password, this.BCRYPT_ROUNDS);
     const user = this.userRepository.create({
       email: dto.email.trim().toLowerCase(),
@@ -234,10 +240,21 @@ export class AuthService {
     let candidate = base || 'user';
     for (let i = 0; i < 20; i++) {
       const taken = await this.userRepository.findOne({ where: { username: candidate } });
-      if (!taken) return candidate;
+      if (!taken) {
+        await this.dataSource.query(
+          `DELETE FROM username_history WHERE LOWER(username) = LOWER($1)`,
+          [candidate],
+        );
+        return candidate;
+      }
       candidate = `${base}_${randomBytes(3).toString('hex')}`;
     }
-    return `user_${randomBytes(6).toString('hex')}`;
+    const fallback = `user_${randomBytes(6).toString('hex')}`;
+    await this.dataSource.query(
+      `DELETE FROM username_history WHERE LOWER(username) = LOWER($1)`,
+      [fallback],
+    );
+    return fallback;
   }
 
   async createImpersonationToken(adminId: string, targetUserId: string) {

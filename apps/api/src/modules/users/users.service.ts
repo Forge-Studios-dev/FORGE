@@ -14,6 +14,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 import { CreatorStatus, User, UserRole } from './entities/user.entity';
+import { UsernameHistory } from './entities/username-history.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Video, VideoStatus, VideoType, VideoVisibility } from '../content/entities/video.entity';
 import { VideosService } from '../content/videos.service';
@@ -43,6 +44,8 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(UsernameHistory)
+    private readonly usernameHistoryRepository: Repository<UsernameHistory>,
     @InjectRepository(Video)
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(WatchHistory)
@@ -74,8 +77,16 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
     const user = await this.userRepository.findOne({ where: { username: ILike(normalized) } });
-    if (!user) throw new NotFoundException('User not found');
-    return user;
+    if (user) return user;
+
+    // Former handle → current account (until the name is reclaimed).
+    const prior = await this.usernameHistoryRepository
+      .createQueryBuilder('h')
+      .innerJoinAndSelect('h.user', 'u')
+      .where('LOWER(h.username) = LOWER(:username)', { username: normalized })
+      .getOne();
+    if (!prior?.user) throw new NotFoundException('User not found');
+    return prior.user;
   }
 
   /** Resolve exactly one of userId or username to a user id. */
@@ -136,6 +147,19 @@ export class UsersService {
         if (taken) {
           throw new BadRequestException('Username already taken');
         }
+        const previous = user.username;
+        // Reclaiming a handle clears any stale redirect row for that name.
+        await this.usernameHistoryRepository
+          .createQueryBuilder()
+          .delete()
+          .where('LOWER(username) = LOWER(:username)', { username: next })
+          .execute();
+        await this.usernameHistoryRepository.save(
+          this.usernameHistoryRepository.create({
+            userId: user.id,
+            username: previous,
+          }),
+        );
         user.username = next;
         user.usernameChangedAt = new Date();
       }

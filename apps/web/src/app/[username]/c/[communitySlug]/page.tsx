@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getUserByUsernameCached } from '@/lib/get-user-by-username';
+import { redirectIfStaleProfileUsername } from '@/lib/username-redirect';
 import { ProfileHeader } from '@/components/ProfileHeader/ProfileHeader';
 import { CommunityPanel } from '@/components/Community/CommunityPanel';
 
@@ -19,6 +20,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CommunitySlugPage({ params }: Props) {
   const user = await getUserByUsernameCached(params.username);
   if (!user) notFound();
+  redirectIfStaleProfileUsername(
+    params.username,
+    user.username,
+    `/c/${params.communitySlug}`,
+  );
 
   return (
     <main className="min-h-screen">

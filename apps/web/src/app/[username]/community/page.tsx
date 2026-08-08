@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation';
 import { serverApi } from '@/lib/api';
 import { getUserByUsernameCached } from '@/lib/get-user-by-username';
+import { redirectIfStaleProfileUsername } from '@/lib/username-redirect';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,7 @@ interface Props {
 export default async function CommunityRedirectPage({ params }: Props) {
   const user = await getUserByUsernameCached(params.username);
   if (!user) notFound();
+  redirectIfStaleProfileUsername(params.username, user.username, '/community');
 
   try {
     const { data } = await serverApi.get<{ data: Array<{ slug: string }> }>(
@@ -18,8 +20,8 @@ export default async function CommunityRedirectPage({ params }: Props) {
     );
     const list = data.data ?? [];
     const slug = list[0]?.slug ?? 'community';
-    redirect(`/${params.username}/c/${slug}`);
+    redirect(`/${user.username}/c/${slug}`);
   } catch {
-    redirect(`/${params.username}/c/community`);
+    redirect(`/${user.username}/c/community`);
   }
 }

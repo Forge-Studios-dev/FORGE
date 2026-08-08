@@ -134,6 +134,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => const Center(child: Text('User not found')),
         data: (user) {
+          if (user.username.toLowerCase() != username.toLowerCase() && username != 'me') {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!context.mounted) return;
+              final tab = widget.initialTab;
+              final path = tab == null || tab.isEmpty
+                  ? '/profile/${user.username}'
+                  : '/profile/${user.username}?tab=$tab';
+              context.replace(path);
+            });
+          }
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(child: _ProfileHeader(user: user, profileUsername: username)),

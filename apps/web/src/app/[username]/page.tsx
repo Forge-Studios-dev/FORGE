@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { serverApi } from '@/lib/api';
 import { SITE_URL } from '@/lib/site';
 import { getUserByUsernameCached } from '@/lib/get-user-by-username';
+import { redirectIfStaleProfileUsername } from '@/lib/username-redirect';
 import { PaginatedResponse, Playlist, Video } from '@/types';
 import { ProfileHeader } from '@/components/ProfileHeader/ProfileHeader';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
@@ -140,6 +141,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ChannelPage({ params, searchParams }: Props) {
   const user = await getUserByUsernameCached(params.username);
   if (!user) notFound();
+  redirectIfStaleProfileUsername(params.username, user.username);
 
   const tab = resolveTab(searchParams?.tab);
   const sort = resolveSort(searchParams?.sort);

@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
+import { UsernameHistory } from './entities/username-history.entity';
 import { Video } from '../content/entities/video.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { PlaylistsModule } from '../playlists/playlists.module';
@@ -11,7 +12,7 @@ import { EngagementModule } from '../engagement/engagement.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Video, WatchHistory]),
+    TypeOrmModule.forFeature([User, UsernameHistory, Video, WatchHistory]),
     PlaylistsModule,
     forwardRef(() => ContentModule),
     EngagementModule,
