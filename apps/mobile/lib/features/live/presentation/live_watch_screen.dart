@@ -248,7 +248,6 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   }
 
   Future<void> _initPlayer(Map<String, dynamic> stream) async {
-    _videoController?.removeListener(_syncAutoPip);
     await _videoController?.dispose();
     _chewieController?.dispose();
     _videoController = null;
