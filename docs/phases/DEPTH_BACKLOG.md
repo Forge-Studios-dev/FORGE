@@ -766,6 +766,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Own `GET …/subscriptions` includes `notifyLevel` (viewer must be list owner)
 - Web Manage subscriptions skips per-row subscription GET; mobile seeds bell from list payload
 
+## Mobile in-player CC (2026-08-08)
+
+- Watch player: closed-caption overlay from existing caption tracks / VTT proxy
+- CC toggle (+ language when multi-track); pref `forge.watch.cc` (default on)
+
 ## Still open
 
 | Area | Item | Owner |
@@ -775,7 +780,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Launch | DB migrations **185–197 applied** to Neon (2026-08-04) via TypeORM | Done |
 | Launch | DB migrations **198–201** (dislike, blocks, username_changed_at, username_history) | Done (2026-08-08 Neon) |
 | Ship | PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) **MERGEABLE** — CI green; merge when staging checklist passes | Operator |
-| Eng (optional) | Mobile in-player CC overlay (transcript API exists; web has tracks) | Eng |
+| Eng (optional) | Mobile in-player CC overlay (transcript API exists; web has tracks) | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
 | Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |

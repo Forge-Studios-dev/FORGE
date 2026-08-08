@@ -25,6 +25,7 @@ import '../../playlists/presentation/create_playlist_dialog.dart';
 import '../data/miniplayer_provider.dart';
 import '../data/watch_repository.dart';
 import 'chapters_panel.dart';
+import 'player_captions_overlay.dart';
 import 'transcript_panel.dart';
 
 const _autoplayPrefKey = 'forge.watch.autoplay';
@@ -440,6 +441,11 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
                   looping: _loopVideo,
                   playbackRate: _playbackRate,
                   onEnded: _onPlaybackEnded,
+                ),
+                PlayerCaptionsOverlay(
+                  video: video,
+                  videoId: videoId,
+                  currentSeconds: ref.watch(watchPositionSecondsProvider(videoId)),
                 ),
                 if (_showEndScreen && _upNextHref != null)
                   ColoredBox(

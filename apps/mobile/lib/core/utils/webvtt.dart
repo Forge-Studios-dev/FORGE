@@ -70,6 +70,16 @@ List<VttCue> parseWebVtt(String source) {
   return cues;
 }
 
+/// Active caption line at [seconds], or null if none.
+String? activeCueTextAt(List<VttCue> cues, double seconds) {
+  for (final cue in cues) {
+    if (seconds >= cue.startSeconds && seconds < cue.endSeconds) {
+      return cue.text;
+    }
+  }
+  return null;
+}
+
 String formatCueTimestamp(double seconds) {
   final total = seconds.floor().clamp(0, 24 * 3600);
   final h = total ~/ 3600;
