@@ -131,6 +131,10 @@ export class EngagementService {
     const video = await this.videoRepository.findOne({ where: { id: videoId } });
     if (!video) throw new NotFoundException('Video not found');
 
+    if (await this.isBlockedEitherWay(userId, video.userId)) {
+      throw new ForbiddenException('This video is not available');
+    }
+
     const existing = await this.likeRepository.findOne({ where: { userId, videoId } });
     if (existing?.reaction === reaction) {
       return reaction === VideoReactionType.LIKE
@@ -433,6 +437,10 @@ export class EngagementService {
       relations: ['user'],
     });
     if (!comment) throw new NotFoundException('Comment not found');
+
+    if (viewerId && (await this.isBlockedEitherWay(viewerId, comment.userId))) {
+      throw new NotFoundException('Comment not found');
+    }
 
     const likedIds = viewerId
       ? await this.getViewerLikedCommentIds(viewerId, [comment.id])

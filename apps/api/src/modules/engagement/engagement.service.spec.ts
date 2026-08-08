@@ -259,6 +259,15 @@ describe('EngagementService', () => {
     expect(commentRepo.increment).toHaveBeenCalledWith({ id: 'c1' }, 'likeCount', 1);
   });
 
+  it('rejects like when viewer is blocked either way', async () => {
+    const videoRepo = (service as any).videoRepository;
+    const blockRepo = (service as any).userBlockRepository;
+    videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'owner' });
+    blockRepo.findOne.mockResolvedValue({ blockerId: 'u1', blockedId: 'owner' });
+
+    await expect(service.likeVideo('u1', 'v1')).rejects.toThrow('This video is not available');
+  });
+
   it('blocks a user and mutes channel recommendations', async () => {
     const blockRepo = (service as any).userBlockRepository;
     const userRepo = (service as any).userRepository;

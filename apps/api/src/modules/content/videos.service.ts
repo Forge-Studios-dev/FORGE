@@ -195,6 +195,12 @@ export class VideosService {
       throw new ForbiddenException('This video is private');
     }
 
+    if (viewerId && !isOwner && !isAdmin) {
+      if (await this.engagementService.isBlockedEitherWay(viewerId, video.userId)) {
+        throw new ForbiddenException('This video is not available');
+      }
+    }
+
     if (
       !isOwner &&
       !isAdmin &&
