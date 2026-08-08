@@ -462,6 +462,40 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
     }
   }
 
+  Future<void> _blockUser() async {
+    final userId = widget.video.user.id;
+    if (userId.isEmpty) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Block ${widget.video.user.displayName}?'),
+        content: const Text(
+          'They won’t be able to message you. Their comments will be hidden, and their channel won’t be recommended.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Block')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(watchRepositoryProvider).blockUser(userId);
+      widget.onHidden?.call();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User blocked')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to block users')),
+        );
+      }
+    }
+  }
+
   Future<void> _toggleWatchLater() async {
     final next = !_inWatchLater;
     try {
@@ -566,6 +600,7 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
               onSelected: (value) {
                 if (value == 'not_interested') _notInterested();
                 if (value == 'dont_recommend') _dontRecommend();
+                if (value == 'block') _blockUser();
                 if (value == 'watch_later') _toggleWatchLater();
                 if (value == 'share') _share();
                 if (value == 'report') _report();
@@ -583,6 +618,8 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
                   value: 'dont_recommend',
                   child: Text("Don't recommend channel"),
                 ),
+                if (widget.video.user.id.isNotEmpty)
+                  const PopupMenuItem(value: 'block', child: Text('Block user')),
                 const PopupMenuItem(value: 'report', child: Text('Report')),
               ],
               icon: const Icon(Icons.more_vert, color: Colors.white),

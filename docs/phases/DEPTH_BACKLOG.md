@@ -793,6 +793,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile watch engage ⋮ → Block user (confirm) → home
 - Shared web `blockUser` / `unblockUser` in engage-mutations (ProfileHeader, watch, Shorts)
 
+## Feed Block user (2026-08-08)
+
+- Web FeedCard ⋮ Block user (confirm) → hide card/channel
+- Mobile home feed ⋮ Block user (confirm) → hide
+
 ## Still open
 
 | Area | Item | Owner |
@@ -807,6 +812,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Shorts Save / Watch later | Done (2026-08-08) |
 | Eng (optional) | Shorts Block user | Done (2026-08-08) |
 | Eng (optional) | Watch Block user (web + mobile) | Done (2026-08-08) |
+| Eng (optional) | Feed Block user (web + mobile) | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |

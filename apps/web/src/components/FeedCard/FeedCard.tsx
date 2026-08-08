@@ -8,11 +8,12 @@ import { Video } from '@/types';
 import { formatCount, formatDuration, timeAgo } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { toggleWatchLater } from '@/lib/engage-mutations';
+import { blockUser, toggleWatchLater } from '@/lib/engage-mutations';
 import { trackVideoImpression } from '@/lib/analytics';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
 import { PopoverMenu } from '@/components/shell/PopoverMenu';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { publicVideoPath } from '@/lib/watch-url';
 
 const menuItemClass =
@@ -60,10 +61,12 @@ export function FeedCard({
   const compactMeta = layout === 'carousel' || layout === 'sidebar';
   const creatorName = video.user?.displayName ?? 'Creator';
   const creatorInitial = creatorName[0] ?? '?';
-  const { isGuest } = useAuth();
+  const { isGuest, user: me } = useAuth();
   const [pending, setPending] = useState(false);
   const [watchLaterSaved, setWatchLaterSaved] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const isOwn = !!me?.id && me.id === video.userId;
   const progress = video.viewerProgressSeconds;
   const progressPct =
     progress != null &&
@@ -146,6 +149,21 @@ export function FeedCard({
       /* ignore */
     }
     close();
+  };
+
+  const confirmBlock = async () => {
+    if (!video.userId || pending) return;
+    setPending(true);
+    try {
+      await blockUser(video.userId);
+      onDontRecommendChannel?.(video.userId);
+      onNotInterested?.(video.id);
+      setBlockOpen(false);
+    } catch {
+      /* keep card visible on failure */
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -332,6 +350,21 @@ export function FeedCard({
                     Don’t recommend channel
                   </button>
                 ) : null}
+                {!isOwn && video.userId ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={pending}
+                    onClick={() => {
+                      close();
+                      setBlockOpen(true);
+                    }}
+                    className={`${menuItemClass} text-error`}
+                  >
+                    <Icon name="person_off" className="text-base" />
+                    Block user
+                  </button>
+                ) : null}
               </>
             )}
           </PopoverMenu>
@@ -342,6 +375,17 @@ export function FeedCard({
         videoId={video.id}
         open={saveOpen}
         onClose={() => setSaveOpen(false)}
+      />
+      <ConfirmDialog
+        open={blockOpen}
+        title="Block this user?"
+        description="They won’t be able to message you. Their comments will be hidden, and their channel won’t be recommended."
+        confirmLabel="Block"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={pending}
+        onCancel={() => setBlockOpen(false)}
+        onConfirm={() => void confirmBlock()}
       />
     </div>
   );

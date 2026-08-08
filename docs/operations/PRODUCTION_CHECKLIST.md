@@ -66,7 +66,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Studio settings Playlists shortcut
 - [ ] Smoke: Library Your videos; Playlists A–Z sort; search type chips; system playlist search
 - [ ] Smoke: Shorts CC + Save/Watch later + Block user (web + mobile); Settings username cooldown lock + unlock date
-- [ ] Smoke: Watch ⋮ Block user (web + mobile)
+- [ ] Smoke: Watch ⋮ Block user (web + mobile); Feed ⋮ Block user (web + mobile)
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback
