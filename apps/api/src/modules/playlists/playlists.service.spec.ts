@@ -303,9 +303,21 @@ describe('PlaylistsService', () => {
       );
     });
 
+    it('forbids adding a video from a blocked creator', async () => {
+      playlistRepository.findOne.mockResolvedValue({ id: 'pl-1', userId: ownerId });
+      videoRepository.findOne.mockResolvedValue({ id: 'v-1', userId: 'blocked-creator' });
+      const engagement = (service as any).engagementService as {
+        isBlockedEitherWay: jest.Mock;
+      };
+      engagement.isBlockedEitherWay.mockResolvedValueOnce(true);
+      await expect(service.addVideo(ownerId, 'pl-1', 'v-1')).rejects.toThrow(
+        'This video is not available',
+      );
+    });
+
     it('returns existing row when video is already in the playlist', async () => {
       playlistRepository.findOne.mockResolvedValue({ id: 'pl-1', userId: ownerId });
-      videoRepository.findOne.mockResolvedValue({ id: 'v-1' });
+      videoRepository.findOne.mockResolvedValue({ id: 'v-1', userId: 'creator-1' });
       playlistVideoRepository.findOne.mockResolvedValue({ id: 'pv-existing' });
       const result = await service.addVideo(ownerId, 'pl-1', 'v-1');
       expect(result).toEqual({ id: 'pv-existing' });
@@ -314,7 +326,7 @@ describe('PlaylistsService', () => {
 
     it('adds a new video to the playlist', async () => {
       playlistRepository.findOne.mockResolvedValue({ id: 'pl-1', userId: ownerId });
-      videoRepository.findOne.mockResolvedValue({ id: 'v-1' });
+      videoRepository.findOne.mockResolvedValue({ id: 'v-1', userId: 'creator-1' });
       playlistVideoRepository.findOne.mockResolvedValue(null);
       const result = await service.addVideo(ownerId, 'pl-1', 'v-1');
       expect(playlistVideoRepository.create).toHaveBeenCalledWith({

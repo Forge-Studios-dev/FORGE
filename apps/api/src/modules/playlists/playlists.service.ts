@@ -259,6 +259,13 @@ export class PlaylistsService {
     const video = await this.videoRepository.findOne({ where: { id: videoId } });
     if (!video) throw new NotFoundException('Video not found');
 
+    if (
+      video.userId &&
+      (await this.engagementService.isBlockedEitherWay(requesterId, video.userId))
+    ) {
+      throw new ForbiddenException('This video is not available');
+    }
+
     const existing = await this.playlistVideoRepository.findOne({
       where: { playlistId, videoId },
     });

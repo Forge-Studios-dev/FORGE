@@ -818,6 +818,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Stream chat / Q&A / Super Chat reject blocked peers (`assertNotBlockedFromHost`)
 - Mobile playlist detail + Shorts deep-link show “not available” on 403
 - Captions / watch progress / likes use same host-block gate as video detail; comment deep-link hides blocked authors
+- `GET /videos/:id/similar` + category feed honor viewer JWT exclusions; playlist add / Watch later reject blocked creators
 
 ## Still open
 
@@ -844,6 +845,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Live stream block gate + unavailable UX | Done (2026-08-08) |
 | Eng (optional) | Stream chat block gate + mobile playlist/Shorts 403 UX | Done (2026-08-08) |
 | Eng (optional) | Captions/watch/like/comment-deeplink block gate | Done (2026-08-08) |
+| Eng (optional) | Similar + category feed + playlist-add block gates | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Deferred (LMS off by default) |

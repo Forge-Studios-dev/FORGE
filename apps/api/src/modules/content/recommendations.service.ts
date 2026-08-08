@@ -247,7 +247,24 @@ export class RecommendationsService {
     return rows;
   }
 
-  async getSimilarVideos(videoId: string, limit = 10): Promise<RecommendedVideo[]> {
+  async getSimilarVideos(
+    videoId: string,
+    limit = 10,
+    viewerId?: string | null,
+  ): Promise<RecommendedVideo[]> {
+    const capped = Math.min(Math.max(limit, 1), 50);
+    const mutedChannels = viewerId
+      ? await getMutedChannelIds(this.redis, viewerId, this.logger)
+      : [];
+    const blockedPeers = viewerId
+      ? await this.engagementService.getBlockedPeerIds(viewerId)
+      : [];
+    const excludedCreators = mergeExcludedCreatorIds(mutedChannels, blockedPeers);
+
+    const excludeClause = excludedCreators.length
+      ? `AND v.user_id NOT IN (${excludedCreators.map((_, i) => `$${i + 3}`).join(',')})`
+      : '';
+
     return this.dataSource.query<RecommendedVideo[]>(
       `SELECT v.id, v.title, v.thumbnail_url as "thumbnailUrl", v.duration,
               v.view_count as "viewCount", v.user_id as "userId",
@@ -260,9 +277,10 @@ export class RecommendationsService {
          AND v.publish_status = 'published'
          AND v.status = 'ready'
          AND v.visibility = 'public'
+         ${excludeClause}
        ORDER BY v.view_count DESC, v.created_at DESC
        LIMIT $2`,
-      [videoId, limit],
+      [videoId, capped, ...excludedCreators],
     );
   }
 }

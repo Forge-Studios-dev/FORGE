@@ -524,9 +524,18 @@ export class VideosController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/similar')
   @ApiOperation({ summary: 'Videos similar to a given video (same category ranking)' })
-  similarVideos(@Param('id', ParseUUIDPipe) id: string, @Query('limit') limit?: number) {
-    return this.recommendationsService.getSimilarVideos(id, limit ? Number(limit) : 10);
+  similarVideos(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('limit') limit?: number,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.recommendationsService.getSimilarVideos(
+      id,
+      limit ? Number(limit) : 10,
+      user?.sub,
+    );
   }
 }
