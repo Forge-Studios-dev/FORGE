@@ -15,6 +15,7 @@ import { SendDirectMessageDto } from './dto/direct-message.dto';
 import { toPublicUser } from '../users/user.mapper';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 @Injectable()
 export class DirectMessagesService {
@@ -30,6 +31,7 @@ export class DirectMessagesService {
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
     private readonly notificationsService: NotificationsService,
+    private readonly engagementService: EngagementService,
   ) {}
 
   async listConversations(userId: string) {
@@ -86,6 +88,10 @@ export class DirectMessagesService {
 
     const recipient = await this.userRepository.findOne({ where: { id: dto.recipientId } });
     if (!recipient) throw new NotFoundException('Recipient not found');
+
+    if (await this.engagementService.isBlockedEitherWay(senderId, dto.recipientId)) {
+      throw new ForbiddenException('You cannot message this user');
+    }
 
     const conversation = await this.findOrCreateDmConversation(senderId, dto.recipientId);
 

@@ -421,6 +421,8 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
           const SizedBox(height: 16),
           const _MutedChannelsSection(),
           const SizedBox(height: 16),
+          const _BlockedUsersSection(),
+          const SizedBox(height: 16),
           const _InterestsSection(),
           const SizedBox(height: 8),
           ListTile(
@@ -773,6 +775,95 @@ class _MutedChannelsSectionState extends ConsumerState<_MutedChannelsSection> {
               trailing: TextButton(
                 onPressed: id.isEmpty ? null : () => _unmute(id),
                 child: const Text('Unmute'),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+class _BlockedUsersSection extends ConsumerStatefulWidget {
+  const _BlockedUsersSection();
+
+  @override
+  ConsumerState<_BlockedUsersSection> createState() => _BlockedUsersSectionState();
+}
+
+class _BlockedUsersSectionState extends ConsumerState<_BlockedUsersSection> {
+  List<Map<String, dynamic>> _users = [];
+  bool _loading = true;
+  bool _error = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final list = await ref.read(watchRepositoryProvider).listBlockedUsers();
+      if (!mounted) return;
+      setState(() {
+        _users = list;
+        _loading = false;
+        _error = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _unblock(String id) async {
+    try {
+      await ref.read(watchRepositoryProvider).unblockUser(id);
+      if (!mounted) return;
+      setState(() => _users = _users.where((u) => u['id'] != id).toList());
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not unblock user')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Blocked users', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text(
+          'Blocked accounts can’t message you. Their comments stay hidden.',
+          style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        if (_loading)
+          const LinearProgressIndicator()
+        else if (_error)
+          TextButton(onPressed: _load, child: const Text('Retry blocked users'))
+        else if (_users.isEmpty)
+          Text('No blocked users.', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant))
+        else
+          ..._users.map((u) {
+            final id = u['id'] as String? ?? '';
+            final name = u['displayName'] as String? ?? 'User';
+            final username = u['username'] as String? ?? '';
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(name),
+              subtitle: username.isNotEmpty ? Text('@$username') : null,
+              trailing: TextButton(
+                onPressed: id.isEmpty ? null : () => _unblock(id),
+                child: const Text('Unblock'),
               ),
             );
           }),

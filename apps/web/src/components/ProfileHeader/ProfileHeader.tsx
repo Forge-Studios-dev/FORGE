@@ -17,6 +17,7 @@ import {
 } from '@/lib/engage-access';
 import { SubscribeChannelControl } from '@/components/SubscribeChannelControl/SubscribeChannelControl';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
+import { ConfirmDialog } from '@forge/design-system/client';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -30,6 +31,8 @@ export function ProfileHeader({ user }: Props) {
   const [engageBlock, setEngageBlock] = useState<EngageBlockReason | null>(null);
   const [engageError, setEngageError] = useState<string | null>(null);
   const [shareHint, setShareHint] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(!!user.viewerBlocked);
+  const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const isOwnProfile = !!me?.id && me.id === user.id;
 
   const { data: subscribed = !!(user.viewerSubscribed ?? user.viewerFollowing) } = useQuery({
@@ -54,6 +57,29 @@ export function ProfileHeader({ user }: Props) {
       }
       refresh();
       router.push('/waiting-approval');
+    },
+  });
+
+  const blockMutation = useMutation({
+    mutationFn: async (nextBlocked: boolean) => {
+      if (nextBlocked) {
+        await api.post(`/users/${user.id}/block`);
+      } else {
+        await api.delete(`/users/${user.id}/block`);
+      }
+    },
+    onMutate: (nextBlocked) => {
+      setEngageError(null);
+      setBlocked(nextBlocked);
+    },
+    onError: (_err, nextBlocked) => {
+      setBlocked(!nextBlocked);
+      setEngageError('Could not update block. Try again.');
+    },
+    onSuccess: (_data, nextBlocked) => {
+      setBlockConfirmOpen(false);
+      setShareHint(nextBlocked ? 'User blocked' : 'User unblocked');
+      setTimeout(() => setShareHint(null), 2000);
     },
   });
 
@@ -158,6 +184,24 @@ export function ProfileHeader({ user }: Props) {
                 targetId={user.id}
                 className="rounded-xl px-3 py-2 text-sm text-on-surface-variant hover:text-error"
               />
+              <button
+                type="button"
+                disabled={blockMutation.isPending}
+                onClick={() => {
+                  if (isGuest || !me) {
+                    setEngageBlock('guest');
+                    return;
+                  }
+                  if (blocked) {
+                    blockMutation.mutate(false);
+                  } else {
+                    setBlockConfirmOpen(true);
+                  }
+                }}
+                className="rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold text-on-surface-variant transition hover:border-error hover:text-error disabled:opacity-60"
+              >
+                {blocked ? 'Unblock' : 'Block'}
+              </button>
             </div>
           )}
         </div>
@@ -204,6 +248,16 @@ export function ProfileHeader({ user }: Props) {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={blockConfirmOpen}
+        title={`Block ${user.displayName}?`}
+        description="They won’t be able to message you. Their comments will be hidden, and their channel won’t be recommended. You can unblock anytime in Settings."
+        confirmLabel="Block"
+        loading={blockMutation.isPending}
+        onConfirm={() => blockMutation.mutate(true)}
+        onCancel={() => setBlockConfirmOpen(false)}
+      />
 
       <AuthGateModal
         open={engageBlock === 'guest'}

@@ -984,12 +984,15 @@ class _ProfileHeader extends ConsumerStatefulWidget {
 
 class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
   late bool _following;
+  late bool _blocked;
   bool _followBusy = false;
+  bool _blockBusy = false;
 
   @override
   void initState() {
     super.initState();
     _following = widget.user.viewerFollowing;
+    _blocked = widget.user.viewerBlocked;
   }
 
   @override
@@ -997,6 +1000,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.user.id != widget.user.id) {
       _following = widget.user.viewerFollowing;
+      _blocked = widget.user.viewerBlocked;
     }
   }
 
@@ -1043,6 +1047,47 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
           const SnackBar(content: Text('Could not update notifications')),
         );
       }
+    }
+  }
+
+  Future<void> _toggleBlock(UserModel user) async {
+    if (_blockBusy) return;
+    if (!_blocked) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Block ${user.displayName}?'),
+          content: const Text(
+            'They won’t be able to message you. Their comments will be hidden, and their channel won’t be recommended.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Block')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    setState(() => _blockBusy = true);
+    try {
+      if (_blocked) {
+        await ref.read(watchRepositoryProvider).unblockUser(user.id);
+      } else {
+        await ref.read(watchRepositoryProvider).blockUser(user.id);
+      }
+      if (!mounted) return;
+      setState(() {
+        _blocked = !_blocked;
+        if (_blocked) _following = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to block users')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _blockBusy = false);
     }
   }
 
@@ -1377,6 +1422,14 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                     onPressed: () => _reportChannel(user),
                     icon: const Icon(Icons.flag_outlined, size: 18),
                     label: const Text('Report'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _blockBusy ? null : () => _toggleBlock(user),
+                    icon: Icon(_blocked ? Icons.lock_open : Icons.block, size: 18),
+                    label: Text(_blocked ? 'Unblock' : 'Block'),
                   ),
                 ),
               ],

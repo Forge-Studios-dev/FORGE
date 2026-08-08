@@ -7,6 +7,7 @@ import { Like } from './entities/like.entity';
 import { Comment } from './entities/comment.entity';
 import { CommentLike } from './entities/comment-like.entity';
 import { Follow } from './entities/follow.entity';
+import { UserBlock } from './entities/user-block.entity';
 import { Video } from '../content/entities/video.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 
@@ -43,6 +44,7 @@ describe('EngagementService', () => {
         { provide: getRepositoryToken(CommentLike), useValue: mockRepo() },
         { provide: getRepositoryToken(Like), useValue: mockRepo() },
         { provide: getRepositoryToken(Follow), useValue: mockRepo() },
+        { provide: getRepositoryToken(UserBlock), useValue: mockRepo() },
         { provide: getRepositoryToken(Video), useValue: mockRepo() },
         { provide: getRepositoryToken(User), useValue: mockRepo() },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
@@ -255,6 +257,30 @@ describe('EngagementService', () => {
     expect(result).toEqual({ liked: true, disliked: false });
     expect(commentRepo.decrement).toHaveBeenCalledWith({ id: 'c1' }, 'dislikeCount', 1);
     expect(commentRepo.increment).toHaveBeenCalledWith({ id: 'c1' }, 'likeCount', 1);
+  });
+
+  it('blocks a user and mutes channel recommendations', async () => {
+    const blockRepo = (service as any).userBlockRepository;
+    const userRepo = (service as any).userRepository;
+    const followRepo = (service as any).followRepository;
+    const redis = (service as any).redis;
+    userRepo.findOne.mockResolvedValue({ id: 'u2', username: 'blocked' });
+    blockRepo.findOne.mockResolvedValue(null);
+    blockRepo.create.mockImplementation((row: unknown) => row);
+    blockRepo.save.mockResolvedValue({});
+    followRepo.findOne.mockResolvedValue(null);
+    redis.setex = jest.fn().mockResolvedValue('OK');
+    redis.get = jest.fn().mockResolvedValue(null);
+
+    const result = await service.blockUser('u1', 'u2');
+    expect(result).toEqual({ blocked: true });
+    expect(blockRepo.save).toHaveBeenCalled();
+  });
+
+  it('reports blocked either way', async () => {
+    const blockRepo = (service as any).userBlockRepository;
+    blockRepo.findOne.mockResolvedValue({ blockerId: 'u2', blockedId: 'u1' });
+    await expect(service.isBlockedEitherWay('u1', 'u2')).resolves.toBe(true);
   });
 
   it('subscribe aliases follow', async () => {

@@ -237,6 +237,23 @@ class WatchRepository {
     await _client.dio.delete('/channels/$channelId/dont-recommend');
   }
 
+  Future<List<Map<String, dynamic>>> listBlockedUsers() async {
+    final res = await _client.dio.get('/me/blocked-users');
+    final data = res.data['data'] ?? res.data;
+    if (data is List) {
+      return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    return [];
+  }
+
+  Future<void> blockUser(String userId) async {
+    await _client.dio.post('/users/$userId/block');
+  }
+
+  Future<void> unblockUser(String userId) async {
+    await _client.dio.delete('/users/$userId/block');
+  }
+
   Future<void> postComment(String videoId, {required String content, String? parentId}) async {
     final body = <String, dynamic>{'content': content};
     if (parentId != null) body['parentId'] = parentId;

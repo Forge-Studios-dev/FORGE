@@ -192,6 +192,7 @@ class UserModel {
   final int followingCount;
   final int videoCount;
   final bool viewerFollowing;
+  final bool viewerBlocked;
   final DateTime? createdAt;
 
   const UserModel({
@@ -211,6 +212,7 @@ class UserModel {
     required this.followingCount,
     required this.videoCount,
     this.viewerFollowing = false,
+    this.viewerBlocked = false,
     this.createdAt,
   });
 
@@ -235,6 +237,7 @@ class UserModel {
         followingCount: (json['followingCount'] as num?)?.toInt() ?? 0,
         videoCount: (json['videoCount'] as num?)?.toInt() ?? 0,
         viewerFollowing: json['viewerFollowing'] as bool? ?? false,
+        viewerBlocked: json['viewerBlocked'] as bool? ?? false,
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
       );
 
@@ -255,6 +258,7 @@ class UserModel {
         'followingCount': followingCount,
         'videoCount': videoCount,
         'viewerFollowing': viewerFollowing,
+        'viewerBlocked': viewerBlocked,
         'createdAt': createdAt?.toIso8601String(),
       };
 }

@@ -145,10 +145,12 @@ export class UsersController {
         viewer.sub,
         profile.id,
       );
+      const viewerBlocked = await this.engagementService.hasBlocked(viewer.sub, profile.id);
       return {
         ...publicUser,
         viewerFollowing,
         viewerSubscribed: viewerFollowing,
+        viewerBlocked,
       };
     }
     return publicUser;

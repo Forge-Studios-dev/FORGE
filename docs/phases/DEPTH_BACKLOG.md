@@ -726,6 +726,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Embed copy includes `?t=` at current time (web + mobile); ChannelCommunityFeed delete → ConfirmDialog
 - Live host dashboard: highlights clip list from `GET /streams/:id/clips`
 
+## Viewer user Block (2026-08-08)
+
+- `user_blocks` table (migration `199…`); `POST/DELETE /users/:id/block`, `GET /me/blocked-users`
+- Block also unsubscribes both ways + mutes channel; DMs and comment create/list respect blocks
+- Profile `viewerBlocked`; web/mobile Block + Settings blocked list
+
 ## Still open
 
 | Area | Item | Owner |

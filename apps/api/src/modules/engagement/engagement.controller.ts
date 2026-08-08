@@ -314,6 +314,35 @@ export class EngagementController {
     return this.engagementService.listMutedChannels(user.sub);
   }
 
+  @Get('me/blocked-users')
+  @Permissions(Permission.ENGAGE)
+  @ApiOperation({ summary: 'List users you have blocked' })
+  listBlockedUsers(@CurrentUser() user: JwtPayload) {
+    return this.engagementService.listBlockedUsers(user.sub);
+  }
+
+  @Post('users/:userId/block')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Block a user (hide comments, block DMs, mute channel)' })
+  blockUser(
+    @CurrentUser() user: JwtPayload,
+    @Param('userId', ParseUUIDPipe) targetId: string,
+  ) {
+    return this.engagementService.blockUser(user.sub, targetId);
+  }
+
+  @Delete('users/:userId/block')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unblock a user' })
+  unblockUser(
+    @CurrentUser() user: JwtPayload,
+    @Param('userId', ParseUUIDPipe) targetId: string,
+  ) {
+    return this.engagementService.unblockUser(user.sub, targetId);
+  }
+
   @Delete('channels/:userId/dont-recommend')
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)

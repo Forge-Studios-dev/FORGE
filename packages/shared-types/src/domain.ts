@@ -26,6 +26,7 @@ export interface User {
   createdAt: string;
   viewerFollowing?: boolean;
   viewerSubscribed?: boolean;
+  viewerBlocked?: boolean;
 }
 
 export interface Category {

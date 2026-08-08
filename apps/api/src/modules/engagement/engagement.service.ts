@@ -13,6 +13,7 @@ import { Like, VideoReactionType } from './entities/like.entity';
 import { Comment } from './entities/comment.entity';
 import { CommentLike, CommentReactionType } from './entities/comment-like.entity';
 import { Follow, FollowNotifyLevel } from './entities/follow.entity';
+import { UserBlock } from './entities/user-block.entity';
 import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -24,6 +25,7 @@ import { toPublicUser } from '../users/user.mapper';
 import { UserRole } from '../users/entities/user.entity';
 import {
   getMutedChannelIds,
+  muteChannel,
   unmuteChannel,
 } from '../feed/not-interested.util';
 
@@ -42,6 +44,8 @@ export class EngagementService {
     private readonly commentLikeRepository: Repository<CommentLike>,
     @InjectRepository(Follow)
     private readonly followRepository: Repository<Follow>,
+    @InjectRepository(UserBlock)
+    private readonly userBlockRepository: Repository<UserBlock>,
     @InjectRepository(Video)
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(User)
@@ -268,6 +272,10 @@ export class EngagementService {
     const video = await this.videoRepository.findOne({ where: { id: videoId } });
     if (!video) throw new NotFoundException('Video not found');
 
+    if (await this.isBlockedEitherWay(userId, video.userId)) {
+      throw new ForbiddenException('You cannot comment on this video');
+    }
+
     if (dto.parentId) {
       const parent = await this.commentRepository.findOne({
         where: { id: dto.parentId, videoId, deletedAt: IsNull() },
@@ -275,6 +283,9 @@ export class EngagementService {
       if (!parent) throw new NotFoundException('Parent comment not found');
       if (parent.parentId) {
         throw new BadRequestException('Replies are limited to one level of nesting');
+      }
+      if (await this.isBlockedEitherWay(userId, parent.userId)) {
+        throw new ForbiddenException('You cannot reply to this comment');
       }
     }
 
@@ -318,6 +329,13 @@ export class EngagementService {
       .andWhere('c.parentId IS NULL')
       .andWhere('c.deletedAt IS NULL')
       .take(limit + 1);
+
+    if (viewerId) {
+      const blockedIds = await this.getBlockedPeerIds(viewerId);
+      if (blockedIds.length) {
+        query.andWhere('c.userId NOT IN (:...blockedIds)', { blockedIds });
+      }
+    }
 
     // Pinned comment stays at top of the first page only.
     if (cursor) {
@@ -467,6 +485,13 @@ export class EngagementService {
       .andWhere('c.deletedAt IS NULL')
       .orderBy('c.createdAt', 'ASC')
       .take(limit + 1);
+
+    if (viewerId) {
+      const blockedIds = await this.getBlockedPeerIds(viewerId);
+      if (blockedIds.length) {
+        query.andWhere('c.userId NOT IN (:...blockedIds)', { blockedIds });
+      }
+    }
 
     if (cursor) {
       const cursorDate = new Date(Buffer.from(cursor, 'base64').toString('utf-8'));
@@ -741,6 +766,10 @@ export class EngagementService {
     const target = await this.userRepository.findOne({ where: { id: followingId } });
     if (!target) throw new NotFoundException('User not found');
 
+    if (await this.isBlockedEitherWay(followerId, followingId)) {
+      throw new ForbiddenException('Cannot subscribe to this channel');
+    }
+
     const existing = await this.followRepository.findOne({ where: { followerId, followingId } });
     if (existing) throw new ConflictException('Already following');
 
@@ -829,6 +858,117 @@ export class EngagementService {
 
   async unmuteChannelRecommendations(userId: string, channelId: string) {
     return unmuteChannel(this.redis, userId, channelId);
+  }
+
+  /** Users this viewer has blocked (and who blocked them) — hide interactions both ways. */
+  async getBlockedPeerIds(userId: string): Promise<string[]> {
+    const rows = await this.userBlockRepository.find({
+      where: [{ blockerId: userId }, { blockedId: userId }],
+      select: ['blockerId', 'blockedId'],
+      take: 500,
+    });
+    const ids = new Set<string>();
+    for (const row of rows) {
+      if (row.blockerId !== userId) ids.add(row.blockerId);
+      if (row.blockedId !== userId) ids.add(row.blockedId);
+    }
+    return [...ids];
+  }
+
+  async isBlockedEitherWay(userA: string, userB: string): Promise<boolean> {
+    if (userA === userB) return false;
+    const row = await this.userBlockRepository.findOne({
+      where: [
+        { blockerId: userA, blockedId: userB },
+        { blockerId: userB, blockedId: userA },
+      ],
+    });
+    return !!row;
+  }
+
+  async hasBlocked(blockerId: string, blockedId: string): Promise<boolean> {
+    if (blockerId === blockedId) return false;
+    const row = await this.userBlockRepository.findOne({
+      where: { blockerId, blockedId },
+    });
+    return !!row;
+  }
+
+  async blockUser(blockerId: string, blockedId: string) {
+    if (blockerId === blockedId) {
+      throw new BadRequestException('Cannot block yourself');
+    }
+    const target = await this.userRepository.findOne({ where: { id: blockedId } });
+    if (!target) throw new NotFoundException('User not found');
+
+    const existing = await this.userBlockRepository.findOne({
+      where: { blockerId, blockedId },
+    });
+    if (!existing) {
+      await this.userBlockRepository.save(
+        this.userBlockRepository.create({ blockerId, blockedId }),
+      );
+    }
+
+    // Drop subscriptions both ways + mute from recommendations.
+    try {
+      await this.unsubscribe(blockerId, blockedId);
+    } catch {
+      /* not subscribed */
+    }
+    try {
+      await this.unsubscribe(blockedId, blockerId);
+    } catch {
+      /* not subscribed */
+    }
+    await muteChannel(this.redis, blockerId, blockedId);
+
+    return { blocked: true };
+  }
+
+  async unblockUser(blockerId: string, blockedId: string) {
+    const row = await this.userBlockRepository.findOne({
+      where: { blockerId, blockedId },
+    });
+    if (row) {
+      await this.userBlockRepository.remove(row);
+    }
+    return { blocked: false };
+  }
+
+  async listBlockedUsers(blockerId: string) {
+    const rows = await this.userBlockRepository.find({
+      where: { blockerId },
+      order: { createdAt: 'DESC' },
+      take: 200,
+    });
+    if (!rows.length) {
+      return [] as Array<{
+        id: string;
+        username: string;
+        displayName: string;
+        avatarUrl: string | null;
+        blockedAt: Date;
+      }>;
+    }
+    const users = await this.userRepository.find({
+      where: { id: In(rows.map((r) => r.blockedId)) },
+      select: ['id', 'username', 'displayName', 'avatarUrl'],
+    });
+    const byId = new Map(users.map((u) => [u.id, u]));
+    return rows
+      .map((row) => {
+        const u = byId.get(row.blockedId);
+        if (!u) return null;
+        return {
+          id: u.id,
+          username: u.username,
+          displayName: u.displayName,
+          avatarUrl: (u.avatarUrl ?? null) as string | null,
+          blockedAt: row.createdAt,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x != null);
   }
 
   async isSubscribed(subscriberId: string, channelId: string): Promise<boolean> {

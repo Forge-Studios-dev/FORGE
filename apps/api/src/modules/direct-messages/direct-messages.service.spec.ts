@@ -14,6 +14,7 @@ import { DirectMessage } from './entities/direct-message.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 describe('DirectMessagesService', () => {
   let service: DirectMessagesService;
@@ -42,6 +43,9 @@ describe('DirectMessagesService', () => {
   };
   const eventEmitter = { emit: jest.fn() };
   const notificationsService = { create: jest.fn() };
+  const engagementService = {
+    isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+  };
 
   const sender: User = {
     id: 'user-a',
@@ -127,6 +131,7 @@ describe('DirectMessagesService', () => {
         { provide: DataSource, useValue: dataSource },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: NotificationsService, useValue: notificationsService },
+        { provide: EngagementService, useValue: engagementService },
       ],
     }).compile();
 
@@ -145,6 +150,13 @@ describe('DirectMessagesService', () => {
       await expect(
         service.sendMessage('user-a', { recipientId: 'missing', content: 'hi' }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejects messaging a blocked user', async () => {
+      engagementService.isBlockedEitherWay.mockResolvedValueOnce(true);
+      await expect(
+        service.sendMessage('user-a', { recipientId: 'user-b', content: 'hi' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('sends message, emits socket event, and notifies recipient', async () => {
