@@ -798,6 +798,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Web FeedCard ⋮ Block user (confirm) → hide card/channel
 - Mobile home feed ⋮ Block user (confirm) → hide
 
+## Blocked peers excluded from discovery (2026-08-08)
+
+- Home / following / related feeds, Shorts, and personalized recs exclude `getBlockedPeerIds` (both directions)
+- Direct watch of a blocked peer’s video → 403 not available
+- Helper `mergeExcludedCreatorIds` (muted ∪ blocked)
+
 ## Still open
 
 | Area | Item | Owner |
@@ -813,9 +819,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Shorts Block user | Done (2026-08-08) |
 | Eng (optional) | Watch Block user (web + mobile) | Done (2026-08-08) |
 | Eng (optional) | Feed Block user (web + mobile) | Done (2026-08-08) |
+| Eng (optional) | Exclude blocked peers from feeds/shorts/recs + watch | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
-| API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
+| API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Deferred (LMS off by default) |
 | Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |
 | Analytics | Studio details page uses `topVideos` (impressions/CTR/watch %); SQL uses `watched_at` | Done (2026-08-04) |
 | Comments | Video owner can Remove comments (API + watch/Studio/mobile) | Done (2026-08-04) |

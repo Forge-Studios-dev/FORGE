@@ -78,6 +78,7 @@ import {
   getMutedChannelIds,
   getNotInterestedVideoIds,
 } from '../feed/not-interested.util';
+import { mergeExcludedCreatorIds } from '../feed/viewer-exclusions.util';
 import { rankShortsByScore } from './shorts-rank.util';
 import {
   isRedisQuotaError,
@@ -1105,6 +1106,13 @@ export class VideosService {
       throw new ForbiddenException('This video is private');
     }
 
+    if (viewerId && !isOwner && !isAdmin) {
+      const blocked = await this.engagementService.isBlockedEitherWay(viewerId, video.userId);
+      if (blocked) {
+        throw new ForbiddenException('This video is not available');
+      }
+    }
+
     if (!isOwner && !isAdmin) {
       if (video.status !== VideoStatus.READY) {
         throw new ForbiddenException('This video is not available yet');
@@ -1189,12 +1197,14 @@ export class VideosService {
     }
 
     if (opts.viewerId) {
-      const [mutedChannels, notInterested] = await Promise.all([
+      const [mutedChannels, notInterested, blockedPeers] = await Promise.all([
         getMutedChannelIds(this.redis, opts.viewerId, this.logger),
         getNotInterestedVideoIds(this.redis, opts.viewerId, this.logger),
+        this.engagementService.getBlockedPeerIds(opts.viewerId),
       ]);
-      if (mutedChannels.length) {
-        qb.andWhere('v.user_id NOT IN (:...mutedChannels)', { mutedChannels });
+      const excludedCreators = mergeExcludedCreatorIds(mutedChannels, blockedPeers);
+      if (excludedCreators.length) {
+        qb.andWhere('v.user_id NOT IN (:...mutedChannels)', { mutedChannels: excludedCreators });
       }
       if (notInterested.length) {
         qb.andWhere('v.id NOT IN (:...notInterested)', { notInterested });

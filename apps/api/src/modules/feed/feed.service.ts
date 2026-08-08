@@ -35,6 +35,7 @@ import {
   getNotInterestedVideoIds,
   muteChannel,
 } from './not-interested.util';
+import { mergeExcludedCreatorIds } from './viewer-exclusions.util';
 import { diversifyByCreator } from './feed-diversity.util';
 
 const FEED_CACHE_TTL_BASE = 300;
@@ -282,8 +283,12 @@ export class FeedService {
         options.userId,
         this.logger,
       );
-      if (mutedChannels.length) {
-        query.andWhere('v.user_id NOT IN (:...mutedChannels)', { mutedChannels });
+      const blockedPeers = await this.engagementService.getBlockedPeerIds(options.userId);
+      const excludedCreators = mergeExcludedCreatorIds(mutedChannels, blockedPeers);
+      if (excludedCreators.length) {
+        query.andWhere('v.user_id NOT IN (:...mutedChannels)', {
+          mutedChannels: excludedCreators,
+        });
       }
     }
 
@@ -513,8 +518,12 @@ export class FeedService {
       .take(limit + 1);
 
     const mutedChannels = await getMutedChannelIds(this.redis, options.userId, this.logger);
-    if (mutedChannels.length) {
-      query.andWhere('v.user_id NOT IN (:...mutedChannels)', { mutedChannels });
+    const blockedPeers = await this.engagementService.getBlockedPeerIds(options.userId);
+    const excludedCreators = mergeExcludedCreatorIds(mutedChannels, blockedPeers);
+    if (excludedCreators.length) {
+      query.andWhere('v.user_id NOT IN (:...mutedChannels)', {
+        mutedChannels: excludedCreators,
+      });
     }
 
     if (cursor) {
@@ -612,6 +621,10 @@ export class FeedService {
     const mutedChannels = opts.userId
       ? await getMutedChannelIds(this.redis, opts.userId, this.logger)
       : [];
+    const blockedPeers = opts.userId
+      ? await this.engagementService.getBlockedPeerIds(opts.userId)
+      : [];
+    const excludedCreators = mergeExcludedCreatorIds(mutedChannels, blockedPeers);
     const notInterested = opts.userId
       ? await getNotInterestedVideoIds(this.redis, opts.userId, this.logger)
       : [];
@@ -629,8 +642,8 @@ export class FeedService {
           { relViewerId: opts.userId },
         );
       }
-      if (mutedChannels.length) {
-        q.andWhere('v.user_id NOT IN (:...relMuted)', { relMuted: mutedChannels });
+      if (excludedCreators.length) {
+        q.andWhere('v.user_id NOT IN (:...relMuted)', { relMuted: excludedCreators });
       }
       if (notInterested.length) {
         q.andWhere('v.id NOT IN (:...relNotInterested)', { relNotInterested: notInterested });

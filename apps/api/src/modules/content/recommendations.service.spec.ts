@@ -13,7 +13,10 @@ describe('RecommendationsService', () => {
     queryMock = jest.fn();
     redis.get.mockResolvedValue(null);
     const ds = { query: queryMock } as unknown as DataSource;
-    service = new RecommendationsService(ds, redis as never);
+    const engagement = {
+      getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+    };
+    service = new RecommendationsService(ds, redis as never, engagement as never);
   });
 
   const fakeVideo = (overrides: Partial<RecommendedVideo> = {}): RecommendedVideo => ({

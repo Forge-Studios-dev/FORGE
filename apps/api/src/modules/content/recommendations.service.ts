@@ -4,7 +4,9 @@ import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
 import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
 import { getMutedChannelIds, getNotInterestedVideoIds } from '../feed/not-interested.util';
+import { mergeExcludedCreatorIds } from '../feed/viewer-exclusions.util';
 import { diversifyByCreator } from '../feed/feed-diversity.util';
+import { EngagementService } from '../engagement/engagement.service';
 
 export interface RecommendedVideo {
   id: string;
@@ -27,6 +29,7 @@ export class RecommendationsService {
   constructor(
     private readonly dataSource: DataSource,
     @InjectRedis() private readonly redis: Redis,
+    private readonly engagementService: EngagementService,
   ) {}
 
   /**
@@ -85,16 +88,18 @@ export class RecommendationsService {
       if (!watchedIds.includes(id)) watchedIds.push(id);
     }
     const mutedChannels = await getMutedChannelIds(this.redis, userId, this.logger);
+    const blockedPeers = await this.engagementService.getBlockedPeerIds(userId);
+    const excludedCreators = mergeExcludedCreatorIds(mutedChannels, blockedPeers);
 
     // Compose the recommendation query with score signals
     const excludeClause = watchedIds.length
       ? `AND v.id NOT IN (${watchedIds.map((_, i) => `$${i + 3}`).join(',')})`
       : '';
     const muteStart = watchedIds.length + 3;
-    const muteClause = mutedChannels.length
-      ? `AND v.user_id NOT IN (${mutedChannels.map((_, i) => `$${muteStart + i}`).join(',')})`
+    const muteClause = excludedCreators.length
+      ? `AND v.user_id NOT IN (${excludedCreators.map((_, i) => `$${muteStart + i}`).join(',')})`
       : '';
-    const limitParam = muteStart + mutedChannels.length;
+    const limitParam = muteStart + excludedCreators.length;
     const offsetParam = limitParam + 1;
 
     const query = `
@@ -153,7 +158,7 @@ export class RecommendationsService {
       userId,
       categoryIds.length ? categoryIds : ['00000000-0000-0000-0000-000000000000'],
       ...watchedIds,
-      ...mutedChannels,
+      ...excludedCreators,
       limit,
       offset,
     ];
@@ -166,7 +171,7 @@ export class RecommendationsService {
         ...watchedIds,
       ]);
       const existingIds = new Set(rows.map((r) => r.id));
-      const muted = new Set(mutedChannels);
+      const muted = new Set(excludedCreators);
       for (const f of fallback) {
         if (!existingIds.has(f.id) && !muted.has(f.userId)) rows.push(f);
       }
