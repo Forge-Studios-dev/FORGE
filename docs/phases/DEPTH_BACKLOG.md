@@ -822,6 +822,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Billing checkouts (membership / Super Thanks / Super Chat / paid event) + tier change reject blocked peers
 - Comment list / deep-link / replies / reactions gate on video-owner block; embed player shows unavailable on 403
 - Subscription notify get/set refuse blocked peers; web miniplayer Picture-in-Picture button (browser OS PiP)
+- Android OS PiP (`forge/pip` MethodChannel + manifest); web player `p` shortcut; iOS stays floating miniplayer
 
 ## Still open
 
@@ -852,6 +853,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Billing checkout block gates | Done (2026-08-08) |
 | Eng (optional) | Comment read/react + embed 403 UX | Done (2026-08-08) |
 | Eng (optional) | Web miniplayer browser PiP | Done (2026-08-08) |
+| Eng (optional) | Android OS Picture-in-Picture | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Deferred (LMS off by default) |
@@ -861,7 +863,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Community | Channel Community tab expand/reply on posts | Done (2026-08-04) |
 | Recs | Full ML / embeddings stack | Product |
 | Downloads | Real offline download packages (UI hidden) | Product |
-| Mobile | OS-level Picture-in-Picture (web browser PiP shipped; floating miniplayer remains) | Eng (optional) |
+| Mobile | iOS AVPlayer Picture-in-Picture (Android OS PiP shipped; floating miniplayer remains) | Eng (optional) |
 | Legal | Kids / Restricted Mode / made-for-kids | Product + legal |
 | Monetization | Ad breaks / VAST | Product + partners |
 

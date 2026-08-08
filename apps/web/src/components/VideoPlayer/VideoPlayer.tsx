@@ -103,7 +103,11 @@ export function VideoPlayer({
   };
 
   useEffect(() => {
-    setPipSupported(typeof document !== 'undefined' && 'pictureInPictureEnabled' in document);
+    setPipSupported(
+      typeof document !== 'undefined' &&
+        'pictureInPictureEnabled' in document &&
+        !!document.pictureInPictureEnabled,
+    );
   }, []);
 
   useEffect(() => {
@@ -146,6 +150,20 @@ export function VideoPlayer({
     if (!video || isLive) return;
     video.loop = !!loop;
   }, [loop, isLive, hlsUrl]);
+
+  const enterPiP = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || !document.pictureInPictureEnabled) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await video.requestPictureInPicture();
+      }
+    } catch {
+      /* user cancelled or unsupported */
+    }
+  }, []);
 
   useEffect(() => {
     if (isLive) return;
@@ -248,6 +266,11 @@ export function VideoPlayer({
         onMiniplayer?.();
         return;
       }
+      if (key === 'p' && pipSupported) {
+        e.preventDefault();
+        void enterPiP();
+        return;
+      }
       if (key === 'f') {
         e.preventDefault();
         const root = video.parentElement;
@@ -273,7 +296,7 @@ export function VideoPlayer({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isLive, hasCaptions, onMiniplayer]);
+  }, [isLive, hasCaptions, onMiniplayer, pipSupported, enterPiP]);
 
   const maybeRecordView = useCallback(
     (currentTime: number, duration: number) => {
@@ -403,20 +426,6 @@ export function VideoPlayer({
     video.playbackRate = rate;
     setPlaybackRate(rate);
     writePreferredPlaybackRate(rate);
-  };
-
-  const enterPiP = async () => {
-    const video = videoRef.current;
-    if (!video || !document.pictureInPictureEnabled) return;
-    try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else {
-        await video.requestPictureInPicture();
-      }
-    } catch {
-      /* user cancelled or unsupported */
-    }
   };
 
   useEffect(() => {
@@ -661,6 +670,7 @@ export function VideoPlayer({
                 ['c', 'Captions'],
                 ['< / >', 'Slower / faster'],
                 ['i', 'Miniplayer'],
+                ['p', 'Picture in picture'],
                 ['0–9', 'Jump to % of video'],
                 ['?', 'Toggle this help'],
                 ['Double-click', 'Seek ±10s (side)'],

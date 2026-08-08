@@ -14,6 +14,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/cache/local_cache.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/platform/pip_service.dart';
 import '../../../core/router/navigation_key.dart';
 import '../../../core/socket/forge_socket.dart';
 import '../../../core/theme/forge_tokens.dart';
@@ -213,6 +214,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
   bool _showEndScreen = false;
   int _endCountdown = 5;
   Timer? _endTimer;
+  bool _pipSupported = false;
 
   @override
   void initState() {
@@ -226,6 +228,9 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
     _playbackRate = _readPreferredPlaybackRate();
     _loadPlaylist();
     _loadRelatedNext();
+    PipService.isSupported().then((ok) {
+      if (mounted) setState(() => _pipSupported = ok);
+    });
   }
 
   @override
@@ -573,25 +578,37 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
         const SizedBox(height: 12),
         Align(
           alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: canPlay
-                ? () {
-                    final seconds = ref.read(watchPositionSecondsProvider(videoId));
-                    ref.read(miniPlayerProvider.notifier).open(
-                          MiniPlayerSession(
-                            videoId: videoId,
-                            title: video.title,
-                            hlsUrl: video.hlsUrl!,
-                            thumbnailUrl: video.thumbnailUrl,
-                            seconds: seconds,
-                            videoType: video.videoType,
-                          ),
-                        );
-                    context.go('/feed');
-                  }
-                : null,
-            icon: const Icon(Icons.picture_in_picture_alt_outlined, size: 18),
-            label: const Text('Miniplayer'),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              TextButton.icon(
+                onPressed: canPlay
+                    ? () {
+                        final seconds = ref.read(watchPositionSecondsProvider(videoId));
+                        ref.read(miniPlayerProvider.notifier).open(
+                              MiniPlayerSession(
+                                videoId: videoId,
+                                title: video.title,
+                                hlsUrl: video.hlsUrl!,
+                                thumbnailUrl: video.thumbnailUrl,
+                                seconds: seconds,
+                                videoType: video.videoType,
+                              ),
+                            );
+                        context.go('/feed');
+                      }
+                    : null,
+                icon: const Icon(Icons.picture_in_picture_alt_outlined, size: 18),
+                label: const Text('Miniplayer'),
+              ),
+              if (canPlay && _pipSupported)
+                TextButton.icon(
+                  onPressed: () => PipService.enter(),
+                  icon: const Icon(Icons.picture_in_picture_alt, size: 18),
+                  label: const Text('PiP'),
+                ),
+            ],
           ),
         ),
         SwitchListTile.adaptive(
@@ -2271,12 +2288,32 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
     _bootstrap();
   }
 
-  /// HIGH-08: pause decoding/buffering when the app is backgrounded.
+  void _syncAutoPip() {
+    final playing = _video?.value.isPlaying == true;
+    unawaited(PipService.setAutoEnter(playing));
+  }
+
+  /// Keep playing in Android OS PiP; otherwise pause decode when backgrounded.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _video?.pause();
+    if (state == AppLifecycleState.resumed) {
+      _syncAutoPip();
+      return;
     }
+    if (state != AppLifecycleState.paused && state != AppLifecycleState.inactive) return;
+    final playing = _video?.value.isPlaying == true;
+    if (!playing) return;
+    // onUserLeaveHint may already have entered PiP — don't pause if so.
+    unawaited(
+      PipService.isSupported().then((supported) {
+        if (!mounted) return;
+        if (supported) {
+          _syncAutoPip();
+          return;
+        }
+        _video?.pause();
+      }),
+    );
   }
 
   @override
@@ -2343,6 +2380,7 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
     vc.addListener(() {
       if (!mounted) return;
       unawaited(_persistVolumePrefs());
+      _syncAutoPip();
       final sec = vc.value.position.inSeconds;
       if (sec != ref.read(watchPositionSecondsProvider(widget.videoId))) {
         ref.read(watchPositionSecondsProvider(widget.videoId).notifier).state = sec;
@@ -2405,6 +2443,7 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(PipService.setAutoEnter(false));
     final pos = _video?.value.position.inSeconds ?? 0;
     final leaveSession = MiniPlayerSession(
       videoId: widget.videoId,

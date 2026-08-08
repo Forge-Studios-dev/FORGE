@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/navigation/public_video_path.dart';
+import '../../../core/platform/pip_service.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../data/miniplayer_provider.dart';
 
@@ -27,18 +30,35 @@ class _MiniPlayerDockState extends ConsumerState<MiniPlayerDock> {
   VideoPlayerController? _controller;
   String? _boundKey;
   String? _routeKey;
+  bool _pipSupported = false;
+
+  @override
+  void initState() {
+    super.initState();
+    PipService.isSupported().then((ok) {
+      if (mounted) setState(() => _pipSupported = ok);
+    });
+  }
 
   @override
   void dispose() {
+    unawaited(PipService.setAutoEnter(false));
     _controller?.removeListener(_onTick);
     _controller?.dispose();
     super.dispose();
+  }
+
+  void _syncAutoPip() {
+    final session = ref.read(miniPlayerProvider);
+    final playing = _controller?.value.isPlaying == true;
+    unawaited(PipService.setAutoEnter(session != null && playing && _pipSupported));
   }
 
   void _onTick() {
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
     ref.read(miniPlayerProvider.notifier).updateSeconds(c.value.position.inSeconds);
+    _syncAutoPip();
   }
 
   Future<void> _sync(MiniPlayerSession? session, {required bool hide}) async {
@@ -47,6 +67,7 @@ class _MiniPlayerDockState extends ConsumerState<MiniPlayerDock> {
       await _controller?.dispose();
       _controller = null;
       _boundKey = null;
+      unawaited(PipService.setAutoEnter(false));
       if (mounted) setState(() {});
       return;
     }
@@ -57,6 +78,7 @@ class _MiniPlayerDockState extends ConsumerState<MiniPlayerDock> {
         await _controller!.play();
         if (mounted) setState(() {});
       }
+      _syncAutoPip();
       return;
     }
 
@@ -76,6 +98,7 @@ class _MiniPlayerDockState extends ConsumerState<MiniPlayerDock> {
       await vc.seekTo(Duration(seconds: session.seconds));
       await vc.play();
       vc.addListener(_onTick);
+      _syncAutoPip();
       if (mounted) setState(() {});
     } catch (_) {
       await vc.dispose();
@@ -222,6 +245,13 @@ class _MiniPlayerDockState extends ConsumerState<MiniPlayerDock> {
                       onPressed: () => context.push(expandPath),
                       icon: const Icon(Icons.open_in_full, size: 18),
                     ),
+                    if (_pipSupported)
+                      IconButton(
+                        tooltip: 'Picture in picture',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => PipService.enter(),
+                        icon: const Icon(Icons.picture_in_picture_alt, size: 18),
+                      ),
                     IconButton(
                       tooltip: 'Close',
                       visualDensity: VisualDensity.compact,
