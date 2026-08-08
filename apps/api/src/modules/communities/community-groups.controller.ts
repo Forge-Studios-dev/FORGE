@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import { CommunityGroupsService } from './community-groups.service';
 import { CommunityGroupType } from './entities/community-group.entity';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
+import { Public } from '../../common/decorators/public.decorator';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
 class CreateCommunityGroupDto {
   @ApiProperty()
@@ -49,28 +51,33 @@ export class CommunityGroupsController {
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @Body() body: CreateCommunityGroupDto,
   ) {
-    return this.groupsService.createGroup(user.sub, communityId, body);
+    return this.groupsService.createGroup(user.sub, communityId, body, user.role);
   }
 
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/:communityId/groups')
   @ApiOperation({ summary: 'List groups within a community (optionally filtered by type)' })
   list(
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @Query('type') type?: CommunityGroupType,
+    @CurrentUser() user?: JwtPayload,
   ) {
-    return this.groupsService.listGroups(communityId, type);
+    return this.groupsService.listGroups(communityId, type, user?.sub, user?.role);
   }
 
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('groups/:groupId')
   @ApiOperation({ summary: 'Get a group by ID' })
-  get(@Param('groupId', ParseUUIDPipe) groupId: string) {
-    return this.groupsService.getGroup(groupId);
+  get(@Param('groupId', ParseUUIDPipe) groupId: string, @CurrentUser() user?: JwtPayload) {
+    return this.groupsService.getGroup(groupId, user?.sub, user?.role);
   }
 
   @Post('groups/:groupId/join')
   @ApiOperation({ summary: 'Join a study/accountability group' })
   join(@CurrentUser() user: JwtPayload, @Param('groupId', ParseUUIDPipe) groupId: string) {
-    return this.groupsService.joinGroup(user.sub, groupId);
+    return this.groupsService.joinGroup(user.sub, groupId, user.role);
   }
 
   @Delete('groups/:groupId/leave')
@@ -79,10 +86,12 @@ export class CommunityGroupsController {
     return this.groupsService.leaveGroup(user.sub, groupId);
   }
 
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('groups/:groupId/members')
   @ApiOperation({ summary: 'List group members' })
-  members(@Param('groupId', ParseUUIDPipe) groupId: string) {
-    return this.groupsService.listMembers(groupId);
+  members(@Param('groupId', ParseUUIDPipe) groupId: string, @CurrentUser() user?: JwtPayload) {
+    return this.groupsService.listMembers(groupId, user?.sub, user?.role);
   }
 
   @Delete('groups/:groupId')

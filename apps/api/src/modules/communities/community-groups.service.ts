@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,6 +14,8 @@ import {
   CommunityGroupMemberRole,
   CommunityGroupType,
 } from './entities/community-group.entity';
+import { CommunitiesService } from './communities.service';
+import { UserRole } from '../users/entities/user.entity';
 
 @Injectable()
 export class CommunityGroupsService {
@@ -20,6 +24,8 @@ export class CommunityGroupsService {
     private readonly groupRepository: Repository<CommunityGroup>,
     @InjectRepository(CommunityGroupMember)
     private readonly memberRepository: Repository<CommunityGroupMember>,
+    @Inject(forwardRef(() => CommunitiesService))
+    private readonly communitiesService: CommunitiesService,
   ) {}
 
   async createGroup(
@@ -32,7 +38,10 @@ export class CommunityGroupsService {
       maxMembers?: number;
       weeklyGoal?: string;
     },
+    viewerRole?: UserRole | null,
   ): Promise<CommunityGroup> {
+    await this.communitiesService.assertCommunityAccess(communityId, userId, viewerRole);
+
     const group = await this.groupRepository.save(
       this.groupRepository.create({
         communityId,
@@ -59,21 +68,34 @@ export class CommunityGroupsService {
   async listGroups(
     communityId: string,
     groupType?: CommunityGroupType,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
   ): Promise<CommunityGroup[]> {
+    await this.communitiesService.assertCommunityAccess(communityId, viewerId, viewerRole);
     const where: { communityId: string; groupType?: CommunityGroupType } = { communityId };
     if (groupType) where.groupType = groupType;
     return this.groupRepository.find({ where, order: { createdAt: 'DESC' } });
   }
 
-  async getGroup(groupId: string): Promise<CommunityGroup> {
+  async getGroup(
+    groupId: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ): Promise<CommunityGroup> {
     const group = await this.groupRepository.findOne({ where: { id: groupId } });
     if (!group) throw new NotFoundException('Group not found');
+    await this.communitiesService.assertCommunityAccess(group.communityId, viewerId, viewerRole);
     return group;
   }
 
-  async joinGroup(userId: string, groupId: string): Promise<CommunityGroupMember> {
+  async joinGroup(
+    userId: string,
+    groupId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<CommunityGroupMember> {
     const group = await this.groupRepository.findOne({ where: { id: groupId } });
     if (!group) throw new NotFoundException('Group not found');
+    await this.communitiesService.assertCommunityAccess(group.communityId, userId, viewerRole);
 
     const existing = await this.memberRepository.findOne({ where: { groupId, userId } });
     if (existing) throw new BadRequestException('Already a member');
@@ -104,7 +126,14 @@ export class CommunityGroupsService {
     await this.memberRepository.delete({ id: member.id });
   }
 
-  async listMembers(groupId: string): Promise<CommunityGroupMember[]> {
+  async listMembers(
+    groupId: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ): Promise<CommunityGroupMember[]> {
+    const group = await this.groupRepository.findOne({ where: { id: groupId } });
+    if (!group) throw new NotFoundException('Group not found');
+    await this.communitiesService.assertCommunityAccess(group.communityId, viewerId, viewerRole);
     return this.memberRepository.find({ where: { groupId }, order: { joinedAt: 'ASC' } });
   }
 

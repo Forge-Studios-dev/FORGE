@@ -166,6 +166,13 @@ export class DirectMessagesService {
       throw new BadRequestException('One or more participant IDs are invalid');
     }
 
+    for (const memberId of allIds) {
+      if (memberId === creatorId) continue;
+      if (await this.engagementService.isBlockedEitherWay(creatorId, memberId)) {
+        throw new ForbiddenException('Cannot create a group with a blocked user');
+      }
+    }
+
     const conv = await this.dataSource.transaction(async (manager) => {
       const created = await manager.save(
         manager.create(Conversation, {
@@ -199,6 +206,10 @@ export class DirectMessagesService {
 
     const user = await this.userRepository.findOne({ where: { id: newMemberId } });
     if (!user) throw new NotFoundException('User not found');
+
+    if (await this.engagementService.isBlockedEitherWay(requesterId, newMemberId)) {
+      throw new ForbiddenException('Cannot add a blocked user to this group');
+    }
 
     await this.memberRepository.save(
       this.memberRepository.create({ conversationId, userId: newMemberId }),

@@ -827,6 +827,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Community access / list / join / channels refuse blocked creator peers
 - Community reports keep working after block (`skipBlockGate`); discover search/featured omit blocked creators
 - Web theater: Escape exits theater (watch + live)
+- Community study groups gate on community access (incl. block); group DMs refuse blocked peers; iOS `audio` background mode for playback
 
 ## Still open
 
@@ -862,6 +863,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Community access block gates | Done (2026-08-08) |
 | Eng (optional) | Community report-after-block + discover exclusions | Done (2026-08-08) |
 | Eng (optional) | Theater Escape exit | Done (2026-08-08) |
+| Eng (optional) | Community groups + group DM block gates | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Deferred (LMS off by default) |
@@ -871,7 +873,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Community | Channel Community tab expand/reply on posts | Done (2026-08-04) |
 | Recs | Full ML / embeddings stack | Product |
 | Downloads | Real offline download packages (UI hidden) | Product |
-| Mobile | iOS AVPlayer Picture-in-Picture (Android OS PiP shipped; floating miniplayer remains) | Eng (optional) |
+| Mobile | iOS AVPlayer Picture-in-Picture (Android OS PiP + floating miniplayer + audio background mode shipped) | Eng (optional) |
 | Legal | Kids / Restricted Mode / made-for-kids | Product + legal |
 | Monetization | Ad breaks / VAST | Product + partners |
 

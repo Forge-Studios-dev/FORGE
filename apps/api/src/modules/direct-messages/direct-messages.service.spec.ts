@@ -23,6 +23,7 @@ describe('DirectMessagesService', () => {
     find: jest.fn(),
     findOne: jest.fn(),
     save: jest.fn(async (m: ConversationMember) => m),
+    count: jest.fn(),
   };
   const messageRepository = {
     create: jest.fn((dto: Partial<DirectMessage>) => dto),
@@ -36,10 +37,12 @@ describe('DirectMessagesService', () => {
   };
   const conversationRepository = {
     update: jest.fn(),
+    findOne: jest.fn(),
     createQueryBuilder: jest.fn(),
   };
   const userRepository = {
     findOne: jest.fn(),
+    findByIds: jest.fn(),
   };
   const eventEmitter = { emit: jest.fn() };
   const notificationsService = { create: jest.fn() };
@@ -295,6 +298,41 @@ describe('DirectMessagesService', () => {
 
       const result = await service.listConversations('user-a');
       expect(result).toHaveLength(0);
+    });
+  });
+
+  describe('createGroupConversation', () => {
+    it('rejects creating a group that includes a blocked peer', async () => {
+      userRepository.findByIds.mockResolvedValue([
+        sender,
+        recipient,
+        { ...sender, id: 'user-c', username: 'userc' },
+      ]);
+      engagementService.isBlockedEitherWay.mockImplementation(async (a: string, b: string) =>
+        (a === 'user-a' && b === 'user-b') || (a === 'user-b' && b === 'user-a'),
+      );
+
+      await expect(
+        service.createGroupConversation('user-a', 'Study', ['user-b', 'user-c']),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('addGroupMember', () => {
+    it('rejects adding a blocked peer to a group', async () => {
+      conversationRepository.findOne.mockResolvedValue({
+        id: 'conv-1',
+        isGroup: true,
+      });
+      memberRepository.count.mockResolvedValue(3);
+      memberRepository.findOne
+        .mockResolvedValueOnce({ userId: 'user-a', conversationId: 'conv-1' })
+        .mockResolvedValueOnce(null);
+      engagementService.isBlockedEitherWay.mockResolvedValueOnce(true);
+
+      await expect(
+        service.addGroupMember('user-a', 'conv-1', 'user-b'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 });

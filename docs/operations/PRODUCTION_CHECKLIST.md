@@ -76,6 +76,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke (Android): Watch or miniplayer → Home enters OS Picture-in-Picture; web player `p` toggles browser PiP
 - [ ] Smoke: Blocked peer — community detail/join/posts return unavailable/empty (channel Community tab already empty)
 - [ ] Smoke: After Block — community Report still succeeds; discover search/featured omit that creator
+- [ ] Smoke: Blocked peer cannot list/join community study groups; cannot be added to a group DM
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback
