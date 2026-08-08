@@ -17,6 +17,7 @@ import { CreatorAuditService } from './creator-audit.service';
 
 describe('CommunityModerationService', () => {
   let service: CommunityModerationService;
+  let communitiesService: { assertCommunityAccess: jest.Mock };
   let roleRepository: {
     findOne: jest.Mock;
     save: jest.Mock;
@@ -121,6 +122,7 @@ describe('CommunityModerationService', () => {
     }).compile();
 
     service = module.get(CommunityModerationService);
+    communitiesService = module.get(CommunitiesService);
     jest.clearAllMocks();
     communityRepository.findOne.mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1' });
   });
@@ -145,6 +147,21 @@ describe('CommunityModerationService', () => {
     });
     expect(result.id).toBe('report-1');
     expect(postRepository.findOne).toHaveBeenCalled();
+  });
+
+  it('skips block gate when creating a community report', async () => {
+    await service.createReport('reporter-1', {
+      communityId: 'comm-1',
+      targetType: 'user',
+      reportedUserId: 'user-2',
+      reason: 'harassment',
+    });
+    expect(communitiesService.assertCommunityAccess).toHaveBeenCalledWith(
+      'comm-1',
+      'reporter-1',
+      undefined,
+      { skipBlockGate: true },
+    );
   });
 
   it('rejects report when channel is not in community', async () => {

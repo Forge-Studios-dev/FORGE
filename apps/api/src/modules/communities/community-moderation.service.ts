@@ -92,6 +92,8 @@ export class CommunityModerationService {
       input.communityId,
       reporterId,
       viewerRole,
+      // YouTube parity: reporting remains available after a block.
+      { skipBlockGate: true },
     );
 
     const targetType = input.targetType ?? 'message';

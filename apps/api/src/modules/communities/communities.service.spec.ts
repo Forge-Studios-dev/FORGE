@@ -170,7 +170,10 @@ describe('CommunitiesService', () => {
         { provide: EntitlementsService, useValue: entitlementsService },
         {
           provide: EngagementService,
-          useValue: { isBlockedEitherWay: jest.fn().mockResolvedValue(false) },
+          useValue: {
+            isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+            getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+          },
         },
         { provide: AccessSessionsService, useValue: accessSessionsService },
         { provide: CommunityModerationService, useValue: moderationService },

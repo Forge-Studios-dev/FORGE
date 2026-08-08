@@ -68,10 +68,14 @@ export class CommunityAccessService {
     communityId: string,
     viewerId?: string | null,
     viewerRole?: UserRole | null,
+    options?: { skipBlockGate?: boolean },
   ): Promise<Community> {
     const community = await this.communityRepository.findOne({ where: { id: communityId } });
     if (!community) throw new NotFoundException('Community not found');
-    if (await this.isBlockedFromCreator(viewerId, community.creatorId, viewerRole)) {
+    if (
+      !options?.skipBlockGate &&
+      (await this.isBlockedFromCreator(viewerId, community.creatorId, viewerRole))
+    ) {
       throw new ForbiddenException('This community is not available');
     }
     if (viewerId && (await this.moderationService.isBanned(communityId, viewerId))) {
@@ -89,7 +93,9 @@ export class CommunityAccessService {
         throw new ForbiddenException('Your community membership is suspended');
       }
     }
-    const canView = await this.canViewCommunity(community, viewerId, viewerRole);
+    const canView = await this.canViewCommunity(community, viewerId, viewerRole, {
+      skipBlockGate: options?.skipBlockGate,
+    });
     if (!canView) throw new ForbiddenException('You do not have access to this community');
     return community;
   }
@@ -187,11 +193,17 @@ export class CommunityAccessService {
     community: Community,
     viewerId?: string | null,
     viewerRole?: UserRole | null,
+    options?: { skipBlockGate?: boolean },
   ): Promise<boolean> {
     const creatorId = community.creatorId;
     if (viewerId === creatorId) return true;
     if (viewerRole === UserRole.ADMIN) return true;
-    if (await this.isBlockedFromCreator(viewerId, creatorId, viewerRole)) return false;
+    if (
+      !options?.skipBlockGate &&
+      (await this.isBlockedFromCreator(viewerId, creatorId, viewerRole))
+    ) {
+      return false;
+    }
 
     if (community.visibility === CommunityVisibility.PUBLIC) {
       return true;

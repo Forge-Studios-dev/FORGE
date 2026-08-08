@@ -104,27 +104,36 @@ export class CommunitiesController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/search')
   @ApiOperation({ summary: 'Discover public communities by name or slug (optional type filter)' })
   searchCommunities(
     @Query('q') q = '',
     @Query('limit') limit = 20,
     @Query('type') type?: string,
+    @CurrentUser() user?: JwtPayload,
   ) {
     return this.communitiesService.searchCommunities(
       q,
       Number(limit) || 20,
       parseCommunityType(type),
+      user?.sub,
     );
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/discover/featured')
   @ApiOperation({ summary: 'Featured public communities for discovery browse (optional type filter)' })
-  featuredCommunities(@Query('limit') limit = 12, @Query('type') type?: string) {
+  featuredCommunities(
+    @Query('limit') limit = 12,
+    @Query('type') type?: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
     return this.communitiesService.listFeaturedCommunities(
       Number(limit) || 12,
       parseCommunityType(type),
+      user?.sub,
     );
   }
 
