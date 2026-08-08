@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +33,7 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
   bool _loadingMore = false;
   bool _hasMore = true;
   bool _error = false;
+  bool _deepLinkUnavailable = false;
   int _activeIndex = 0;
 
   bool _isShort(VideoModel v) {
@@ -63,15 +65,19 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
     setState(() {
       _loading = true;
       _error = false;
+      _deepLinkUnavailable = false;
     });
     try {
       final page = await ref.read(feedRepositoryProvider).getShortsFeed();
       VideoModel? pinned;
+      var deepLinkBlocked = false;
       final deepLink = widget.initialVideoId?.trim();
       if (deepLink != null && deepLink.isNotEmpty) {
         try {
           final fetched = await ref.read(watchRepositoryProvider).getVideo(deepLink);
           if (_isShort(fetched)) pinned = fetched;
+        } on DioException catch (e) {
+          deepLinkBlocked = e.response?.statusCode == 403;
         } catch (_) {
           /* fall through to feed only */
         }
@@ -90,6 +96,7 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
         _hasMore = page.hasMore;
         _loading = false;
         _activeIndex = 0;
+        _deepLinkUnavailable = deepLinkBlocked && pinned == null && list.isEmpty;
       });
       if (pinned != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -142,6 +149,19 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
           description: 'Check your connection and try again.',
           actionLabel: 'Retry',
           onAction: _loadInitial,
+        ),
+      );
+    }
+    if (_deepLinkUnavailable) {
+      return Scaffold(
+        backgroundColor: ForgeTokens.of(context).background,
+        appBar: AppBar(title: const Text('Shorts')),
+        body: ForgeEmptyState(
+          icon: Icons.block,
+          title: 'This Short is not available',
+          description: 'Playback is restricted for this video on your account.',
+          actionLabel: 'Explore',
+          onAction: () => context.go('/explore'),
         ),
       );
     }

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
+import '../../../core/widgets/forge_empty_state.dart';
 
 /// Shows a single playlist and its videos. Owners can remove items; tapping a
 /// video opens the watch screen. Mirrors the web `/playlists/:id` page.
@@ -21,6 +23,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   Map<String, dynamic>? _playlist;
   bool _loading = true;
   bool _error = false;
+  bool _unavailable = false;
   String? _currentUserId;
   String _itemQuery = '';
   final _itemSearchCtrl = TextEditingController();
@@ -38,6 +41,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   }
 
   Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = false;
+      _unavailable = false;
+    });
     try {
       final api = ref.read(apiClientProvider);
       final results = await Future.wait([
@@ -51,11 +59,21 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         _currentUserId = me?['id'] as String?;
         _loading = false;
       });
+    } on DioException catch (e) {
+      if (mounted) {
+        setState(() {
+          _unavailable = e.response?.statusCode == 403;
+          _error = true;
+          _loading = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() {
-            _error = true;
-            _loading = false;
-          });
+      if (mounted) {
+        setState(() {
+          _error = true;
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -407,7 +425,16 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _error || playlist == null
+          : _unavailable
+              ? ForgeEmptyState(
+                  icon: Icons.block,
+                  title: 'This playlist is not available',
+                  description:
+                      'Access is restricted for this playlist on your account.',
+                  actionLabel: 'Go back',
+                  onAction: () => context.pop(),
+                )
+              : _error || playlist == null
               ? Center(
                   child: Text('Failed to load playlist',
                       style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),

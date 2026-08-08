@@ -32,6 +32,7 @@ import { StreamingService } from '../streaming/streaming.service';
 import { SetStreamChatSettingsDto } from '../streaming/dto/set-stream-chat-settings.dto';
 import { StreamLiveService } from '../streaming/stream-live.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import {
@@ -69,6 +70,7 @@ export class StreamChatService {
     private readonly streamingService: StreamingService,
     private readonly streamLiveService: StreamLiveService,
     private readonly entitlementsService: EntitlementsService,
+    private readonly engagementService: EngagementService,
     private readonly usersService: UsersService,
     private readonly eventEmitter: EventEmitter2,
     @InjectRedis() private readonly redis: Redis,
@@ -88,6 +90,7 @@ export class StreamChatService {
     replayWindow?: { fromMs?: number; toMs?: number },
   ) {
     const stream = await this.streamingService.findById(streamId);
+    await this.assertNotBlockedFromHost(stream, viewerId, viewerRole);
     const isOwner = !!viewerId && viewerId === stream.userId;
     const isAdmin = viewerRole === UserRole.ADMIN;
     const isMod = viewerId
@@ -190,6 +193,7 @@ export class StreamChatService {
     viewerRole?: UserRole | null,
   ) {
     const stream = await this.streamingService.findById(streamId);
+    await this.assertNotBlockedFromHost(stream, userId, viewerRole);
     if (!stream.chatEnabled) {
       throw new ForbiddenException('Chat is disabled for this stream');
     }
@@ -287,6 +291,7 @@ export class StreamChatService {
     }
 
     const stream = await this.streamingService.findById(streamId);
+    await this.assertNotBlockedFromHost(stream, userId, viewerRole);
     if (!stream.chatEnabled) {
       throw new ForbiddenException('Chat is disabled for this stream');
     }
@@ -393,12 +398,26 @@ export class StreamChatService {
   // chat. Questions are persisted synchronously (low volume vs. chat) and fanned
   // out via dedicated `stream.qa.*` events.
 
+  /** Block either way — same gate as live stream detail / socket join. */
+  private async assertNotBlockedFromHost(
+    stream: Stream,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ): Promise<void> {
+    if (!viewerId) return;
+    if (viewerId === stream.userId || viewerRole === UserRole.ADMIN) return;
+    if (await this.engagementService.isBlockedEitherWay(viewerId, stream.userId)) {
+      throw new ForbiddenException('This stream is not available');
+    }
+  }
+
   /** Shared read-side gating: a viewer may see Q&A iff they could see chat. */
   private async assertCanViewStream(
     stream: Stream,
     viewerId?: string | null,
     viewerRole?: UserRole | null,
   ): Promise<void> {
+    await this.assertNotBlockedFromHost(stream, viewerId, viewerRole);
     if (!stream.chatEnabled) {
       throw new ForbiddenException('Chat is disabled for this stream');
     }
@@ -424,6 +443,7 @@ export class StreamChatService {
     viewerRole?: UserRole | null,
   ) {
     const stream = await this.streamingService.findById(streamId);
+    await this.assertNotBlockedFromHost(stream, userId, viewerRole);
     if (!stream.chatEnabled) {
       throw new ForbiddenException('Chat is disabled for this stream');
     }
