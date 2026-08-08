@@ -1080,6 +1080,39 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
     }
   }
 
+  Future<void> _blockCreator() async {
+    final userId = widget.video.user.id;
+    if (userId.isEmpty) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Block ${widget.video.user.displayName}?'),
+        content: const Text(
+          'They won’t be able to message you. Their comments will be hidden, and their channel won’t be recommended.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Block')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(watchRepositoryProvider).blockUser(userId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User blocked')),
+      );
+      context.go('/');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to block users')),
+        );
+      }
+    }
+  }
+
   Future<void> _openSaveToPlaylist() async {
     await showSaveToPlaylistSheet(
       context: context,
@@ -1369,10 +1402,13 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
           onSelected: (value) {
             if (value == 'not_interested') _notInterested();
             if (value == 'dont_recommend') _dontRecommendChannel();
+            if (value == 'block') _blockCreator();
           },
-          itemBuilder: (context) => const [
-            PopupMenuItem(value: 'not_interested', child: Text('Not interested')),
-            PopupMenuItem(value: 'dont_recommend', child: Text("Don't recommend channel")),
+          itemBuilder: (context) => [
+            const PopupMenuItem(value: 'not_interested', child: Text('Not interested')),
+            const PopupMenuItem(value: 'dont_recommend', child: Text("Don't recommend channel")),
+            if (widget.video.user.id.isNotEmpty)
+              const PopupMenuItem(value: 'block', child: Text('Block user')),
           ],
           icon: const Icon(Icons.more_vert, size: 20),
         ),

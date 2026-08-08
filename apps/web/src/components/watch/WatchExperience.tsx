@@ -20,6 +20,7 @@ import { PlaylistQueueRail } from '@/components/watch/PlaylistQueueRail';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
 import { PaywallCard, Icon } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { useAuth } from '@/lib/auth';
 import { useAccessSession } from '@/lib/access-session';
 import { AccessSessionConflict } from '@/components/Community/AccessSessionConflict';
@@ -94,6 +95,8 @@ export function WatchExperience({
   const [seekToSeconds, setSeekToSeconds] = useState<number | null>(null);
   const [showEndScreen, setShowEndScreen] = useState(false);
   const [endCountdown, setEndCountdown] = useState(5);
+  const [confirmBlock, setConfirmBlock] = useState(false);
+  const [blockPending, setBlockPending] = useState(false);
   const blockReason = getEngageBlockReason(user, isGuest);
   const onEngageBlocked = blockReason ? () => setEngageBlock(blockReason) : undefined;
   const canPlay = video.status === 'ready' && !!video.hlsUrl;
@@ -186,6 +189,20 @@ export function WatchExperience({
       videoType: video.videoType,
     });
     router.push('/');
+  };
+
+  const blockCreator = async () => {
+    if (!video.userId || blockPending) return;
+    setBlockPending(true);
+    try {
+      await api.post(`/users/${video.userId}/block`);
+      setConfirmBlock(false);
+      router.push('/');
+    } catch {
+      /* engage gates handle auth; ignore soft failures */
+    } finally {
+      setBlockPending(false);
+    }
   };
 
   const { data: playlistQueue } = useQuery({
@@ -630,6 +647,23 @@ export function WatchExperience({
                             <Icon name="block" className="text-base" />
                             Don’t recommend channel
                           </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className={`${menuItemClass} text-error`}
+                            onClick={() => {
+                              if (onEngageBlocked) {
+                                onEngageBlocked();
+                                close();
+                                return;
+                              }
+                              close();
+                              setConfirmBlock(true);
+                            }}
+                          >
+                            <Icon name="person_off" className="text-base" />
+                            Block user
+                          </button>
                         </>
                       )}
                     </PopoverMenu>
@@ -683,6 +717,24 @@ export function WatchExperience({
         open={engageBlock === 'unverified'}
         onClose={() => setEngageBlock(null)}
         message={engageBlockedMessage('unverified')}
+      />
+      <ConfirmDialog
+        open={confirmBlock}
+        title="Block this user?"
+        description="They won’t be able to message you. Their comments will be hidden, and their channel won’t be recommended."
+        confirmLabel="Block"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={blockPending}
+        onCancel={() => setConfirmBlock(false)}
+        onConfirm={() => {
+          if (onEngageBlocked) {
+            onEngageBlocked();
+            setConfirmBlock(false);
+            return;
+          }
+          void blockCreator();
+        }}
       />
     </main>
   );

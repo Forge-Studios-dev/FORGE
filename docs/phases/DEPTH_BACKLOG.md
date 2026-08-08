@@ -787,6 +787,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Web + mobile Shorts ⋮ → Block user (confirm) → hide short from feed
 
+## Watch Block user (2026-08-08)
+
+- Web WatchExperience ⋮ → Block user (confirm) → home
+- Mobile watch engage ⋮ → Block user (confirm) → home
+
 ## Still open
 
 | Area | Item | Owner |
@@ -800,6 +805,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Shorts in-player CC (web + mobile) | Done (2026-08-08) |
 | Eng (optional) | Shorts Save / Watch later | Done (2026-08-08) |
 | Eng (optional) | Shorts Block user | Done (2026-08-08) |
+| Eng (optional) | Watch Block user (web + mobile) | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
