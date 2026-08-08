@@ -26,6 +26,7 @@ import { GamificationController } from '../src/modules/gamification/gamification
 import { GamificationService } from '../src/modules/gamification/gamification.service';
 import { CommunityEngagementController } from '../src/modules/communities/community-engagement.controller';
 import { CommunityEngagementService } from '../src/modules/communities/community-engagement.service';
+import { EngagementService } from '../src/modules/engagement/engagement.service';
 import { CommunityRoomsController } from '../src/modules/communities/community-rooms.controller';
 import { CommunityRoomsService } from '../src/modules/communities/community-rooms.service';
 import { CommunityRoomMessagesService } from '../src/modules/communities/community-room-messages.service';
@@ -115,6 +116,10 @@ describe('Community HTTP (mocked e2e)', () => {
     listChallenges: jest.fn().mockResolvedValue({ data: [{ id: 'ch1', title: '30-day streak' }] }),
     listSurveys: jest.fn().mockResolvedValue({ data: [{ id: 's1', title: 'Feedback' }] }),
     joinChallenge: jest.fn().mockResolvedValue({ data: { id: 'p1' } }),
+  };
+
+  const userEngagementService = {
+    isBlockedEitherWay: jest.fn().mockResolvedValue(false),
   };
 
   const roomsService = {
@@ -212,6 +217,7 @@ describe('Community HTTP (mocked e2e)', () => {
         { provide: CommunityModerationService, useValue: moderationService },
         { provide: GamificationService, useValue: gamificationService },
         { provide: CommunityEngagementService, useValue: engagementService },
+        { provide: EngagementService, useValue: userEngagementService },
         { provide: CommunityRoomsService, useValue: roomsService },
         { provide: CommunityRoomMessagesService, useValue: roomMessagesService },
         { provide: CommunityRoomPermissionsService, useValue: roomPermissionsService },
@@ -472,6 +478,7 @@ describe('Community HTTP (mocked e2e)', () => {
       'user-1',
       communityId,
       expect.objectContaining({ name: 'Study Group', description: 'Weekly creators accountability' }),
+      'consumer',
     );
   });
 
