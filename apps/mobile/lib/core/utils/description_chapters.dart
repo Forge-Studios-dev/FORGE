@@ -68,3 +68,57 @@ List<VideoChapter> extractVideoChapters(String? description) {
   if (chapters.first.seconds != 0) return const [];
   return chapters;
 }
+
+String formatSecondsAsTimestamp(int totalSeconds) {
+  final s = totalSeconds < 0 ? 0 : totalSeconds;
+  final h = s ~/ 3600;
+  final m = (s % 3600) ~/ 60;
+  final sec = s % 60;
+  String pad(int n) => n.toString().padLeft(2, '0');
+  if (h > 0) return '$h:${pad(m)}:${pad(sec)}';
+  return '$m:${pad(sec)}';
+}
+
+class ChapterDraftRow {
+  final String time;
+  final String title;
+  const ChapterDraftRow({required this.time, required this.title});
+}
+
+List<ChapterDraftRow> listChapterDraftRows(String? description) {
+  if (description == null || description.isEmpty) return const [];
+  final rows = <ChapterDraftRow>[];
+  for (final match in _chapterLineRe.allMatches(description)) {
+    rows.add(ChapterDraftRow(time: match.group(1)!, title: match.group(2)?.trim() ?? ''));
+  }
+  return rows;
+}
+
+String stripChapterLinesFromDescription(String description) {
+  if (description.isEmpty) return '';
+  final singleLine = RegExp(r'^\s*((?:\d{1,2}:)?[0-5]?\d:[0-5]\d)\s+(.+?)\s*$');
+  final keep = description.split(RegExp(r'\r?\n')).where((line) => !singleLine.hasMatch(line));
+  return keep.join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n').trimRight();
+}
+
+String applyChapterRowsToDescription(String description, List<ChapterDraftRow> rows) {
+  final body = stripChapterLinesFromDescription(description);
+  final seen = <int>{};
+  final lines = <String>[];
+  for (final row in rows) {
+    final time = row.time.trim();
+    final title = row.title.trim();
+    if (time.isEmpty || title.isEmpty) continue;
+    final seconds = parseTimestampToSeconds(time);
+    if (seconds == null || seen.contains(seconds)) continue;
+    seen.add(seconds);
+    lines.add('${formatSecondsAsTimestamp(seconds)} $title');
+  }
+  lines.sort((a, b) {
+    final as = parseTimestampToSeconds(a.split(RegExp(r'\s+')).first) ?? 0;
+    final bs = parseTimestampToSeconds(b.split(RegExp(r'\s+')).first) ?? 0;
+    return as.compareTo(bs);
+  });
+  if (lines.isEmpty) return body;
+  return body.isEmpty ? lines.join('\n') : '$body\n\n${lines.join('\n')}';
+}

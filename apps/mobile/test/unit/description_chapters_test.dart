@@ -36,4 +36,25 @@ void main() {
     expect(countChapterCandidateLines('0:30 Late\n1:00 Next\n2:00 End'), 3);
     expect(countChapterCandidateLines('no stamps here'), 0);
   });
+
+  test('formats and rewrites chapter draft rows', () {
+    expect(formatSecondsAsTimestamp(0), '0:00');
+    expect(formatSecondsAsTimestamp(83), '1:23');
+    expect(formatSecondsAsTimestamp(3723), '1:02:03');
+    const desc = 'Hello world\n\n0:00 Intro\n0:45 Setup\n1:30 Demo';
+    expect(listChapterDraftRows(desc), [
+      const ChapterDraftRow(time: '0:00', title: 'Intro'),
+      const ChapterDraftRow(time: '0:45', title: 'Setup'),
+      const ChapterDraftRow(time: '1:30', title: 'Demo'),
+    ]);
+    expect(stripChapterLinesFromDescription(desc), 'Hello world');
+    expect(
+      applyChapterRowsToDescription(desc, const [
+        ChapterDraftRow(time: '0:00', title: 'Intro'),
+        ChapterDraftRow(time: '1:00', title: 'Middle'),
+        ChapterDraftRow(time: '2:00', title: 'End'),
+      ]),
+      'Hello world\n\n0:00 Intro\n1:00 Middle\n2:00 End',
+    );
+  });
 }

@@ -104,3 +104,67 @@ export function extractVideoChapters(description: string | null | undefined): Vi
   return chapters;
 }
 
+/** Format seconds as `m:ss` or `h:mm:ss` for description chapter lines. */
+export function formatSecondsAsTimestamp(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (h > 0) return `${h}:${pad(m)}:${pad(sec)}`;
+  return `${m}:${pad(sec)}`;
+}
+
+export type ChapterDraftRow = { time: string; title: string };
+
+/** Raw timestamp lines (no ≥3 / 0:00 gate) for the Studio chapters editor. */
+export function listChapterDraftRows(description: string | null | undefined): ChapterDraftRow[] {
+  if (!description) return [];
+  const rows: ChapterDraftRow[] = [];
+  const re = new RegExp(CHAPTER_LINE_RE.source, CHAPTER_LINE_RE.flags);
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(description)) !== null) {
+    rows.push({ time: match[1], title: match[2]?.trim() ?? '' });
+  }
+  return rows;
+}
+
+/** Remove chapter-looking lines; keep the rest of the description body. */
+export function stripChapterLinesFromDescription(description: string): string {
+  if (!description) return '';
+  const keep = description
+    .split(/\r?\n/)
+    .filter((line) => !new RegExp(CHAPTER_LINE_RE.source).test(line));
+  return keep.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd();
+}
+
+/**
+ * Rewrite description chapter block from editor rows.
+ * Incomplete rows (empty time/title) are skipped; body text is preserved.
+ */
+export function applyChapterRowsToDescription(
+  description: string,
+  rows: ChapterDraftRow[],
+): string {
+  const body = stripChapterLinesFromDescription(description);
+  const lines: string[] = [];
+  const seen = new Set<number>();
+  for (const row of rows) {
+    const time = row.time.trim();
+    const title = row.title.trim();
+    if (!time || !title) continue;
+    const seconds = parseTimestampToSeconds(time);
+    if (seconds === null) continue;
+    if (seen.has(seconds)) continue;
+    seen.add(seconds);
+    lines.push(`${formatSecondsAsTimestamp(seconds)} ${title}`);
+  }
+  lines.sort((a, b) => {
+    const as = parseTimestampToSeconds(a.split(/\s+/)[0]) ?? 0;
+    const bs = parseTimestampToSeconds(b.split(/\s+/)[0]) ?? 0;
+    return as - bs;
+  });
+  if (lines.length === 0) return body;
+  return body ? `${body}\n\n${lines.join('\n')}` : lines.join('\n');
+}
+

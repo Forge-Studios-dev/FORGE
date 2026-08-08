@@ -6,7 +6,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Icon, PageHeader } from '@forge/design-system';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
-import { DescriptionChaptersHint } from '@/components/studio/DescriptionChaptersHint';
+import { DescriptionChaptersEditor } from '@/components/studio/DescriptionChaptersEditor';
 import { useAuth } from '@/lib/auth';
 import {
   clearUploadDraft,
@@ -412,7 +412,10 @@ function UploadStepContent() {
                 onChange={(e) => persist({ description: e.target.value })}
               />
               {draft.videoType !== 'short' ? (
-                <DescriptionChaptersHint description={draft.description} />
+                <DescriptionChaptersEditor
+                  description={draft.description}
+                  onDescriptionChange={(description) => persist({ description })}
+                />
               ) : null}
             </label>
             <label className="block">

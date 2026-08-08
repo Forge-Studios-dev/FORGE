@@ -740,6 +740,12 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Web + mobile Settings: editable `@username`; API errors surface in UI
 - Public user payload includes `usernameChangedAt`
 
+## Structured chapters editor (2026-08-08)
+
+- Web Studio + upload: `DescriptionChaptersEditor` row UI writes `m:ss Title` lines into description
+- Mobile Studio + upload: same structured editor; shared apply/strip helpers
+- Helpers: `formatSecondsAsTimestamp`, `listChapterDraftRows`, `stripChapterLinesFromDescription`, `applyChapterRowsToDescription`
+
 ## Still open
 
 | Area | Item | Owner |

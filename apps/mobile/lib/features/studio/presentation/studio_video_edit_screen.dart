@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/forge_tokens.dart';
-import '../../../core/widgets/description_chapters_hint.dart';
+import '../../../core/widgets/description_chapters_editor.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../shared/models/video.dart';
@@ -752,7 +752,7 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
                     }).toList(),
                   ),
               ],
-              DescriptionChaptersHint(description: _descriptionCtrl.text),
+              DescriptionChaptersEditor(controller: _descriptionCtrl),
               const SizedBox(height: 16),
               Text(
                 'Playlists',

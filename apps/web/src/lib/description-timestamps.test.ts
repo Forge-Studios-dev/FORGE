@@ -4,6 +4,10 @@ import {
   splitDescriptionTimestamps,
   extractVideoChapters,
   countChapterCandidateLines,
+  formatSecondsAsTimestamp,
+  listChapterDraftRows,
+  stripChapterLinesFromDescription,
+  applyChapterRowsToDescription,
 } from './description-timestamps';
 
 describe('description-timestamps', () => {
@@ -72,5 +76,28 @@ describe('description-timestamps', () => {
     expect(countChapterCandidateLines('0:00 A\n1:00 B')).toBe(2);
     expect(countChapterCandidateLines('0:30 Late\n1:00 Next\n2:00 End')).toBe(3);
     expect(countChapterCandidateLines('no stamps here')).toBe(0);
+  });
+
+  it('formats seconds as chapter timestamps', () => {
+    expect(formatSecondsAsTimestamp(0)).toBe('0:00');
+    expect(formatSecondsAsTimestamp(83)).toBe('1:23');
+    expect(formatSecondsAsTimestamp(3723)).toBe('1:02:03');
+  });
+
+  it('lists and rewrites chapter draft rows while keeping body text', () => {
+    const desc = 'Hello world\n\n0:00 Intro\n0:45 Setup\n1:30 Demo';
+    expect(listChapterDraftRows(desc)).toEqual([
+      { time: '0:00', title: 'Intro' },
+      { time: '0:45', title: 'Setup' },
+      { time: '1:30', title: 'Demo' },
+    ]);
+    expect(stripChapterLinesFromDescription(desc)).toBe('Hello world');
+    expect(
+      applyChapterRowsToDescription(desc, [
+        { time: '0:00', title: 'Intro' },
+        { time: '1:00', title: 'Middle' },
+        { time: '2:00', title: 'End' },
+      ]),
+    ).toBe('Hello world\n\n0:00 Intro\n1:00 Middle\n2:00 End');
   });
 });

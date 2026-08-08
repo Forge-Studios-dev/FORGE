@@ -11,7 +11,7 @@ import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
 import { fetchCategorySkillTags, fetchUploadOptions, type UploadCategoryOption, type UploadSkillTag } from '@/lib/categories';
 import { studioPublicPath } from '@/lib/creator-studio';
-import { DescriptionChaptersHint } from '@/components/studio/DescriptionChaptersHint';
+import { DescriptionChaptersEditor } from '@/components/studio/DescriptionChaptersEditor';
 import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
 import { formatCount } from '@/lib/utils';
 import type { UploadVisibility } from '@/lib/upload-draft';
@@ -392,7 +392,10 @@ export default function StudioVideoDetailEditorPage() {
               placeholder={'Tell viewers about your video. Optional chapters:\n0:00 Intro\n1:30 Main topic\n5:00 Outro'}
               className="mt-1 w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-3 outline-none focus:border-primary"
             />
-            <DescriptionChaptersHint description={description} />
+            <DescriptionChaptersEditor
+              description={description}
+              onDescriptionChange={setDescription}
+            />
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
