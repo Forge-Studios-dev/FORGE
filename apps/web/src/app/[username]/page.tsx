@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 export const dynamic = 'force-dynamic';
 import { serverApi } from '@/lib/api';
 import { SITE_URL } from '@/lib/site';
-import { getUserByUsernameCached } from '@/lib/get-user-by-username';
+import { lookupUserByUsernameCached } from '@/lib/get-user-by-username';
 import { redirectIfStaleProfileUsername } from '@/lib/username-redirect';
 import { PaginatedResponse, Playlist, Video } from '@/types';
 import { ProfileHeader } from '@/components/ProfileHeader/ProfileHeader';
@@ -13,6 +13,7 @@ import { MembershipPanel } from '@/components/Membership/MembershipPanel';
 import { FeedGrid } from '@/components/FeedCard/FeedGrid';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { ChannelCommunityFeed } from '@/components/Community/ChannelCommunityFeed';
+import { ChannelUnavailable } from '@/components/profile/ChannelUnavailable';
 
 interface Props {
   params: { username: string };
@@ -124,8 +125,10 @@ function resolveSort(raw?: string): ChannelVideoSort {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const user = await getUserByUsernameCached(params.username);
-  if (!user) return { title: 'Channel not found' };
+  const lookup = await lookupUserByUsernameCached(params.username);
+  if (lookup.status === 'unavailable') return { title: 'Channel unavailable' };
+  if (lookup.status !== 'ok') return { title: 'Channel not found' };
+  const user = lookup.user;
 
   return {
     title: `${user.displayName} (@${user.username})`,
@@ -139,8 +142,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ChannelPage({ params, searchParams }: Props) {
-  const user = await getUserByUsernameCached(params.username);
-  if (!user) notFound();
+  const lookup = await lookupUserByUsernameCached(params.username);
+  if (lookup.status === 'unavailable') return <ChannelUnavailable />;
+  if (lookup.status !== 'ok') notFound();
+  const user = lookup.user;
   redirectIfStaleProfileUsername(params.username, user.username);
 
   const tab = resolveTab(searchParams?.tab);

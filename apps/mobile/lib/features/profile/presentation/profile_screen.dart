@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/navigation/public_video_path.dart';
 import 'package:share_plus/share_plus.dart';
@@ -15,6 +16,11 @@ import '../../watch/data/watch_repository.dart';
 import '../../../shared/models/video.dart';
 import 'membership_panel.dart';
 import 'channel_community_panel.dart';
+
+/// Thrown when the API returns 403 for a channel the viewer cannot open.
+class ChannelUnavailableException implements Exception {
+  const ChannelUnavailableException();
+}
 
 final userVideosProvider = FutureProvider.autoDispose
     .family<List<VideoModel>, ({String userId, String type, String sort})>((ref, args) async {
@@ -61,10 +67,17 @@ final channelPlaylistsProvider =
 
 final userProfileProvider = FutureProvider.autoDispose.family<UserModel, String>((ref, username) async {
   final client = ref.read(apiClientProvider);
-  final response = username == 'me'
-      ? await client.dio.get('/users/me')
-      : await client.dio.get('/users/by-username/$username');
-  return UserModel.fromJson(response.data['data'] as Map<String, dynamic>);
+  try {
+    final response = username == 'me'
+        ? await client.dio.get('/users/me')
+        : await client.dio.get('/users/by-username/$username');
+    return UserModel.fromJson(response.data['data'] as Map<String, dynamic>);
+  } on DioException catch (e) {
+    if (e.response?.statusCode == 403) {
+      throw const ChannelUnavailableException();
+    }
+    rethrow;
+  }
 });
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -132,7 +145,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       appBar: AppBar(title: Text('@$username')),
       body: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => const Center(child: Text('User not found')),
+        error: (e, _) {
+          final t = ForgeTokens.of(context);
+          if (e is ChannelUnavailableException) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.block, size: 48, color: t.onSurfaceVariant),
+                    const SizedBox(height: 16),
+                    Text(
+                      'This channel is not available',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'You can’t view this channel. It may be private, or the owner has restricted access.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: t.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: () => context.canPop() ? context.pop() : context.go('/'),
+                      child: const Text('Go home'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          return const Center(child: Text('User not found'));
+        },
         data: (user) {
           if (user.username.toLowerCase() != username.toLowerCase() && username != 'me') {
             WidgetsBinding.instance.addPostFrameCallback((_) {

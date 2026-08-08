@@ -813,6 +813,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Library shelves (Liked / Watch later / Disliked) omit blocked creators’ videos
 - Followers / subscriptions lists + DM inbox hide blocked peers
 - `GET /users/:id` matches by-username block gating
+- Channel / watch 403 surfaces “not available” UI (web + mobile) instead of generic 404
 
 ## Still open
 
@@ -835,6 +836,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Exclude blocked peers from notifs + live lists | Done (2026-08-08) |
 | Eng (optional) | Exclude blocked peers from watch history | Done (2026-08-08) |
 | Eng (optional) | Exclude blocked peers from library + follows + DMs | Done (2026-08-08) |
+| Eng (optional) | Channel/video unavailable UX for block 403 | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Deferred (LMS off by default) |

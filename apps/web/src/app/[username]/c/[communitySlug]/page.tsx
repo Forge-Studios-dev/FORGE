@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getUserByUsernameCached } from '@/lib/get-user-by-username';
+import { ChannelUnavailable } from '@/components/profile/ChannelUnavailable';
+import { lookupUserByUsernameCached } from '@/lib/get-user-by-username';
 import { redirectIfStaleProfileUsername } from '@/lib/username-redirect';
 import { ProfileHeader } from '@/components/ProfileHeader/ProfileHeader';
 import { CommunityPanel } from '@/components/Community/CommunityPanel';
@@ -12,14 +13,16 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const user = await getUserByUsernameCached(params.username);
-  if (!user) return { title: 'Community' };
-  return { title: `${user.displayName} — ${params.communitySlug}` };
+  const lookup = await lookupUserByUsernameCached(params.username);
+  if (lookup.status !== 'ok') return { title: 'Community' };
+  return { title: `${lookup.user.displayName} — ${params.communitySlug}` };
 }
 
 export default async function CommunitySlugPage({ params }: Props) {
-  const user = await getUserByUsernameCached(params.username);
-  if (!user) notFound();
+  const lookup = await lookupUserByUsernameCached(params.username);
+  if (lookup.status === 'unavailable') return <ChannelUnavailable />;
+  if (lookup.status !== 'ok') notFound();
+  const user = lookup.user;
   redirectIfStaleProfileUsername(
     params.username,
     user.username,
