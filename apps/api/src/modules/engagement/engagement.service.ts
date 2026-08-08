@@ -836,6 +836,9 @@ export class EngagementService {
   }
 
   async getSubscription(subscriberId: string, channelId: string) {
+    if (await this.isBlockedEitherWay(subscriberId, channelId)) {
+      return { subscribed: false, notifyLevel: null as FollowNotifyLevel | null };
+    }
     const follow = await this.followRepository.findOne({
       where: { followerId: subscriberId, followingId: channelId },
     });
@@ -850,6 +853,9 @@ export class EngagementService {
     channelId: string,
     notifyLevel: FollowNotifyLevel,
   ) {
+    if (await this.isBlockedEitherWay(subscriberId, channelId)) {
+      throw new ForbiddenException('This channel is not available');
+    }
     const follow = await this.followRepository.findOne({
       where: { followerId: subscriberId, followingId: channelId },
     });

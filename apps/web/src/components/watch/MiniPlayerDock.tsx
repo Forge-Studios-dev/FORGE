@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Hls from 'hls.js';
 import { Icon } from '@forge/design-system';
@@ -19,6 +19,7 @@ export function MiniPlayerDock() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const [pipSupported, setPipSupported] = useState(false);
 
   const shortsDeepLink = searchParams.get('v');
   const onSameWatch =
@@ -26,6 +27,28 @@ export function MiniPlayerDock() {
     (pathname === `/watch/${session.videoId}` ||
       pathname.startsWith(`/watch/${session.videoId}?`) ||
       (pathname === '/shorts' && shortsDeepLink === session.videoId));
+
+  useEffect(() => {
+    setPipSupported(
+      typeof document !== 'undefined' &&
+        'pictureInPictureEnabled' in document &&
+        !!document.pictureInPictureEnabled,
+    );
+  }, []);
+
+  const togglePip = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || !document.pictureInPictureEnabled) return;
+    try {
+      if (document.pictureInPictureElement === video) {
+        await document.exitPictureInPicture();
+      } else {
+        await video.requestPictureInPicture();
+      }
+    } catch {
+      /* user gesture / browser policy */
+    }
+  }, []);
 
   useEffect(() => {
     if (!session || onSameWatch) return;
@@ -101,6 +124,16 @@ export function MiniPlayerDock() {
         >
           {session.title}
         </Link>
+        {pipSupported ? (
+          <button
+            type="button"
+            aria-label="Picture in picture"
+            onClick={() => void togglePip()}
+            className="rounded-full p-1.5 text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+          >
+            <Icon name="picture_in_picture_alt" className="text-lg" />
+          </button>
+        ) : null}
         <button
           type="button"
           aria-label="Expand to watch page"
