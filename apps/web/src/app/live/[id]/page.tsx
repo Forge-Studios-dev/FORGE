@@ -55,6 +55,26 @@ export default function LiveWatchPage() {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key.toLowerCase() !== 't') return;
+      e.preventDefault();
+      setTheaterMode((prev) => !prev);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const checkoutSuccess = searchParams.get('checkout') === 'success';
 
   const { data: stream, isLoading, isError, error, refetch } = useQuery({

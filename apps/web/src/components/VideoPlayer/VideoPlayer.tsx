@@ -671,6 +671,7 @@ export function VideoPlayer({
                 ['< / >', 'Slower / faster'],
                 ['i', 'Miniplayer'],
                 ['p', 'Picture in picture'],
+                ['t', 'Theater mode'],
                 ['0–9', 'Jump to % of video'],
                 ['?', 'Toggle this help'],
                 ['Double-click', 'Seek ±10s (side)'],

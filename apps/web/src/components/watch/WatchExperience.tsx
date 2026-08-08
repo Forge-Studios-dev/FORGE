@@ -136,6 +136,34 @@ export function WatchExperience({
   };
 
   useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key.toLowerCase() !== 't') return;
+      e.preventDefault();
+      setTheaterMode((prev) => {
+        const next = !prev;
+        try {
+          window.localStorage.setItem(THEATER_KEY, next ? '1' : '0');
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
     playbackSecondsRef.current = playbackSeconds;
   }, [playbackSeconds]);
 
