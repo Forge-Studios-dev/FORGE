@@ -1006,7 +1006,7 @@ export class EngagementService {
     };
   }
 
-  async getFollowing(userId: string, limit = 20, cursor?: string) {
+  async getFollowing(userId: string, limit = 20, cursor?: string, viewerId?: string) {
     const query = this.followRepository
       .createQueryBuilder('f')
       .innerJoinAndSelect('f.following', 'user')
@@ -1026,8 +1026,18 @@ export class EngagementService {
       ? Buffer.from(page[page.length - 1].createdAt.toISOString()).toString('base64')
       : null;
 
+    // Only the owner of the subscription list may see their bell prefs.
+    const includeNotify = !!viewerId && viewerId === userId;
+
     return {
-      data: page.map((f) => toPublicUser(f.following)),
+      data: page.map((f) => {
+        const base = toPublicUser(f.following);
+        if (!includeNotify) return base;
+        return {
+          ...base,
+          notifyLevel: f.notifyLevel ?? FollowNotifyLevel.ALL,
+        };
+      }),
       meta: { cursor: nextCursor, hasMore },
     };
   }

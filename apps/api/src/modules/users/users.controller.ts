@@ -182,8 +182,9 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Query('limit') limit?: number,
     @Query('cursor') cursor?: string,
+    @CurrentUser() viewer?: JwtPayload,
   ) {
-    return this.engagementService.getFollowing(id, limit || 20, cursor);
+    return this.engagementService.getFollowing(id, limit || 20, cursor, viewer?.sub);
   }
 
   @Public()

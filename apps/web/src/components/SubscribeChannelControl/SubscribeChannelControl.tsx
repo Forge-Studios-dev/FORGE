@@ -23,6 +23,8 @@ type Variant = 'pill' | 'channel';
 interface Props {
   channelId: string;
   initialSubscribed?: boolean;
+  /** Skip per-row GET /subscription when list already returned notifyLevel. */
+  initialNotifyLevel?: ChannelNotifyLevel;
   /** Guest watch surface: tap Subscribe opens gate instead of mutating. */
   onGuestAction?: () => void;
   onEngageBlock?: (reason: EngageBlockReason) => void;
@@ -40,6 +42,7 @@ const NOTIFY_OPTIONS = [
 export function SubscribeChannelControl({
   channelId,
   initialSubscribed = false,
+  initialNotifyLevel,
   onGuestAction,
   onEngageBlock,
   onEngageError,
@@ -49,16 +52,18 @@ export function SubscribeChannelControl({
   const { user: me, isGuest } = useAuth();
   const [subscribed, setSubscribed] = useState(initialSubscribed);
   const [confirmUnsub, setConfirmUnsub] = useState(false);
-  const [notifyLevel, setNotifyLevel] = useState<ChannelNotifyLevel>('all');
+  const [notifyLevel, setNotifyLevel] = useState<ChannelNotifyLevel>(initialNotifyLevel ?? 'all');
   const blockReason = onGuestAction ? null : getEngageBlockReason(me, isGuest);
 
   useEffect(() => {
     setSubscribed(initialSubscribed);
     setConfirmUnsub(false);
-  }, [channelId, initialSubscribed]);
+    if (initialNotifyLevel) setNotifyLevel(initialNotifyLevel);
+  }, [channelId, initialSubscribed, initialNotifyLevel]);
 
   useEffect(() => {
     if (isGuest || !me || !subscribed) return;
+    if (initialNotifyLevel) return;
     let cancelled = false;
     void getChannelSubscription(channelId)
       .then((sub) => {
@@ -70,7 +75,7 @@ export function SubscribeChannelControl({
     return () => {
       cancelled = true;
     };
-  }, [channelId, isGuest, me, subscribed]);
+  }, [channelId, isGuest, me, subscribed, initialNotifyLevel]);
 
   const gated = (fn: () => void) => {
     if (onGuestAction) {

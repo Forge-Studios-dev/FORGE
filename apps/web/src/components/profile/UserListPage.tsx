@@ -77,7 +77,18 @@ export function UserListPage({
                 </div>
               </Link>
               {isOwnFollowing ? (
-                <SubscribeChannelControl channelId={u.id} initialSubscribed className="shrink-0" />
+                <SubscribeChannelControl
+                  channelId={u.id}
+                  initialSubscribed
+                  initialNotifyLevel={
+                    u.notifyLevel === 'all' ||
+                    u.notifyLevel === 'personalized' ||
+                    u.notifyLevel === 'none'
+                      ? u.notifyLevel
+                      : undefined
+                  }
+                  className="shrink-0"
+                />
               ) : null}
             </li>
           ))}

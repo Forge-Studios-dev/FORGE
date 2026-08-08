@@ -363,13 +363,20 @@ export class EngagementController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('channels/:userId/subscriptions')
   @ApiOperation({ summary: 'List channels this channel is subscribed to' })
   listSubscriptions(
     @Param('userId', ParseUUIDPipe) channelId: string,
     @Query('limit') limit: number,
     @Query('cursor') cursor: string,
+    @CurrentUser() viewer?: JwtPayload,
   ) {
-    return this.engagementService.getFollowing(channelId, clampLimit(limit), cursor);
+    return this.engagementService.getFollowing(
+      channelId,
+      clampLimit(limit),
+      cursor,
+      viewer?.sub,
+    );
   }
 }

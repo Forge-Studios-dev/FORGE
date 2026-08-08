@@ -68,6 +68,14 @@ class _FollowerListScreenState extends ConsumerState<FollowerListScreen> {
         _nextCursor = meta['cursor'] as String?;
         _hasMore = meta['hasMore'] == true;
         _loading = false;
+        for (final raw in data) {
+          if (raw is! Map) continue;
+          final id = raw['id'] as String?;
+          final level = raw['notifyLevel'] as String?;
+          if (id != null && level != null) {
+            _notifyLevels[id] = level;
+          }
+        }
       });
     } catch (_) {
       if (mounted) setState(() => _loading = false);

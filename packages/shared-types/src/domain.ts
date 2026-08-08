@@ -29,6 +29,8 @@ export interface User {
   viewerBlocked?: boolean;
   /** ISO timestamp of last username change (rename cooldown). */
   usernameChangedAt?: string | null;
+  /** Present on own Manage subscriptions list only. */
+  notifyLevel?: 'all' | 'personalized' | 'none';
 }
 
 export interface Category {

@@ -761,6 +761,11 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Host live panel: Mark highlight (~30s at current moment) + clip list via `POST/GET /streams/:id/clips`
 - `LiveRepository.listClips` / `createClip`
 
+## Subscriptions list notifyLevel (2026-08-08)
+
+- Own `GET …/subscriptions` includes `notifyLevel` (viewer must be list owner)
+- Web Manage subscriptions skips per-row subscription GET; mobile seeds bell from list payload
+
 ## Still open
 
 | Area | Item | Owner |
@@ -771,7 +776,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Launch | DB migrations **198–201** (dislike, blocks, username_changed_at, username_history) | Done (2026-08-08 Neon) |
 | Ship | PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) **MERGEABLE** — CI green; merge when staging checklist passes | Operator |
 | Eng (optional) | Mobile in-player CC overlay (transcript API exists; web has tracks) | Eng |
-| Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Eng |
+| Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |
 | Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |
 | Analytics | Studio details page uses `topVideos` (impressions/CTR/watch %); SQL uses `watched_at` | Done (2026-08-04) |
