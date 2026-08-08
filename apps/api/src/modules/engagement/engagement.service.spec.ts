@@ -221,6 +221,42 @@ describe('EngagementService', () => {
     expect(videoRepo.increment).toHaveBeenCalledWith({ id: 'v1' }, 'dislikeCount', 1);
   });
 
+  it('dislikes a comment and clears a prior like', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const commentLikeRepo = (service as any).commentLikeRepository;
+    commentRepo.findOne.mockResolvedValue({ id: 'c1', videoId: 'v1', deletedAt: null });
+    commentLikeRepo.findOne.mockResolvedValue({
+      id: 'cl1',
+      userId: 'u1',
+      commentId: 'c1',
+      reaction: 'like',
+    });
+    commentLikeRepo.save.mockImplementation(async (row: unknown) => row);
+
+    const result = await service.dislikeComment('u1', 'v1', 'c1');
+    expect(result).toEqual({ liked: false, disliked: true });
+    expect(commentRepo.decrement).toHaveBeenCalledWith({ id: 'c1' }, 'likeCount', 1);
+    expect(commentRepo.increment).toHaveBeenCalledWith({ id: 'c1' }, 'dislikeCount', 1);
+  });
+
+  it('likes a comment and clears a prior dislike', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const commentLikeRepo = (service as any).commentLikeRepository;
+    commentRepo.findOne.mockResolvedValue({ id: 'c1', videoId: 'v1', deletedAt: null });
+    commentLikeRepo.findOne.mockResolvedValue({
+      id: 'cl1',
+      userId: 'u1',
+      commentId: 'c1',
+      reaction: 'dislike',
+    });
+    commentLikeRepo.save.mockImplementation(async (row: unknown) => row);
+
+    const result = await service.likeComment('u1', 'v1', 'c1');
+    expect(result).toEqual({ liked: true, disliked: false });
+    expect(commentRepo.decrement).toHaveBeenCalledWith({ id: 'c1' }, 'dislikeCount', 1);
+    expect(commentRepo.increment).toHaveBeenCalledWith({ id: 'c1' }, 'likeCount', 1);
+  });
+
   it('subscribe aliases follow', async () => {
     const followRepo = (service as any).followRepository;
     const userRepo = (service as any).userRepository;

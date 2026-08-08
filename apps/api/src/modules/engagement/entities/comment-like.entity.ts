@@ -11,9 +11,15 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { Comment } from './comment.entity';
 
+export enum CommentReactionType {
+  LIKE = 'like',
+  DISLIKE = 'dislike',
+}
+
 @Entity('comment_likes')
 @Unique(['userId', 'commentId'])
 @Index(['commentId'])
+@Index(['commentId', 'reaction'])
 export class CommentLike {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -31,6 +37,9 @@ export class CommentLike {
 
   @Column({ name: 'comment_id', type: 'uuid' })
   commentId: string;
+
+  @Column({ type: 'varchar', length: 10, default: CommentReactionType.LIKE })
+  reaction: CommentReactionType;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

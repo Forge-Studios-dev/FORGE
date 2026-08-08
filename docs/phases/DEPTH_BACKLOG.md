@@ -718,6 +718,14 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile upload: optional attach to custom playlists on complete (`playlistIds`)
 - Library Messages row; onboarding interests → Settings `#interests`
 
+## Comment dislike + polish (2026-08-08)
+
+- Comment reactions: `comment_likes.reaction` like|dislike + `comments.dislike_count` (migration `198…`)
+- `POST/DELETE …/comments/:id/dislike`; mutual exclusion with like (video reaction parity)
+- Web CommentsPanel + mobile watch/Shorts: dislike control (no public dislike count)
+- Embed copy includes `?t=` at current time (web + mobile); ChannelCommunityFeed delete → ConfirmDialog
+- Live host dashboard: highlights clip list from `GET /streams/:id/clips`
+
 ## Still open
 
 | Area | Item | Owner |

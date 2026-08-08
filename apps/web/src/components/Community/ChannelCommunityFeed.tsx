@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { EmptyState, Icon } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
@@ -66,6 +67,7 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
   const [commentDraft, setCommentDraft] = useState('');
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
   const [guestGateMessage, setGuestGateMessage] = useState('Sign in to like community posts.');
+  const [deletePostTarget, setDeletePostTarget] = useState<ChannelPost | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['channel-posts', creatorId],
@@ -335,14 +337,7 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
                       <button
                         type="button"
                         disabled={removePost.isPending}
-                        onClick={() => {
-                          if (
-                            typeof window !== 'undefined' &&
-                            window.confirm('Delete this community post?')
-                          ) {
-                            removePost.mutate(post);
-                          }
-                        }}
+                        onClick={() => setDeletePostTarget(post)}
                         className="text-xs font-medium text-error hover:underline disabled:opacity-50"
                       >
                         Delete
@@ -497,6 +492,21 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
           </Link>
         </>
       )}
+
+      <ConfirmDialog
+        open={!!deletePostTarget}
+        title="Delete this community post?"
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        loading={removePost.isPending}
+        onConfirm={() => {
+          if (!deletePostTarget) return;
+          removePost.mutate(deletePostTarget, {
+            onSuccess: () => setDeletePostTarget(null),
+          });
+        }}
+        onCancel={() => setDeletePostTarget(null)}
+      />
 
       <AuthGateModal
         open={guestGate}

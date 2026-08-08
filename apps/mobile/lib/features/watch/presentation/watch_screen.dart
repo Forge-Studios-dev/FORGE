@@ -1025,14 +1025,17 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
   }
 
   Future<void> _copyEmbed() async {
-    final src = '${AppConstants.webBaseUrl}/embed/${widget.video.id}';
+    final pos = ref.read(watchPositionSecondsProvider(widget.video.id));
+    final src = pos > 0
+        ? '${AppConstants.webBaseUrl}/embed/${widget.video.id}?t=$pos'
+        : '${AppConstants.webBaseUrl}/embed/${widget.video.id}';
     final title = widget.video.title.replaceAll('"', '');
     final snippet =
         '<iframe width="560" height="315" src="$src" title="$title" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>';
     await Clipboard.setData(ClipboardData(text: snippet));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Embed code copied')),
+      SnackBar(content: Text(pos > 0 ? 'Embed code copied at current time' : 'Embed code copied')),
     );
   }
 
@@ -1995,6 +1998,19 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
     } catch (_) {}
   }
 
+  Future<void> _toggleDislike(Map<String, dynamic> comment) async {
+    final id = comment['id'] as String;
+    final disliked = comment['viewerDisliked'] == true;
+    try {
+      await ref.read(watchRepositoryProvider).setCommentDisliked(
+            widget.videoId,
+            id,
+            disliked: disliked,
+          );
+      await _load();
+    } catch (_) {}
+  }
+
   Future<void> _togglePin(Map<String, dynamic> comment) async {
     final id = comment['id'] as String;
     final pinned = comment['isPinned'] == true;
@@ -2106,6 +2122,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
             final user = m['user'] as Map<String, dynamic>?;
             final likeCount = m['likeCount'] as int? ?? 0;
             final liked = m['viewerLiked'] == true;
+            final disliked = m['viewerDisliked'] == true;
             final pinned = m['isPinned'] == true;
             final hearted = m['creatorHearted'] == true;
             final parentId = m['parentId'];
@@ -2185,6 +2202,11 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                         onPressed: () => _toggleLike(m),
                       ),
                       if (likeCount > 0) Text('$likeCount', style: TextStyle(fontSize: 12)),
+                      IconButton(
+                        tooltip: disliked ? 'Remove dislike' : 'Dislike',
+                        icon: Icon(disliked ? Icons.thumb_down : Icons.thumb_down_outlined, size: 18),
+                        onPressed: () => _toggleDislike(m),
+                      ),
                       if (isOwner && parentId == null)
                         IconButton(
                           tooltip: pinned ? 'Unpin' : 'Pin',

@@ -180,6 +180,25 @@ export function StreamHostDashboard({ stream, displayViewers, broadcastMode }: P
     mutationFn: async () => {
       await api.post(`/streams/${stream.id}/clips`, {});
     },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['stream-clips', stream.id] });
+    },
+  });
+
+  const { data: clips = [] } = useQuery({
+    queryKey: ['stream-clips', stream.id],
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: Array<{
+          id: string;
+          title: string;
+          startOffsetMs: number;
+          endOffsetMs: number;
+          status: string;
+        }>;
+      }>(`/streams/${stream.id}/clips`);
+      return data.data ?? [];
+    },
   });
 
   const chatSettings = useMutation({
@@ -280,12 +299,14 @@ export function StreamHostDashboard({ stream, displayViewers, broadcastMode }: P
         </div>
       ) : null}
 
-      {stream.status === 'live' ? (
-        <div className="glass-panel rounded-xl p-4 text-sm">
-          <p className="mb-2 font-medium">Highlights</p>
-          <p className="mb-3 text-xs text-on-surface-variant">
-            Mark a 30s clip at the current live moment.
-          </p>
+      <div className="glass-panel rounded-xl p-4 text-sm">
+        <p className="mb-2 font-medium">Highlights</p>
+        <p className="mb-3 text-xs text-on-surface-variant">
+          {stream.status === 'live'
+            ? 'Mark a 30s clip at the current live moment.'
+            : 'Clips marked during this stream.'}
+        </p>
+        {stream.status === 'live' ? (
           <button
             type="button"
             aria-label="Mark highlight clip at current moment"
@@ -295,8 +316,29 @@ export function StreamHostDashboard({ stream, displayViewers, broadcastMode }: P
           >
             {markClip.isPending ? 'Saving…' : 'Mark highlight'}
           </button>
-        </div>
-      ) : null}
+        ) : null}
+        {clips.length > 0 ? (
+          <ul className="mt-3 space-y-2 border-t border-outline-variant/20 pt-3">
+            {clips.map((clip) => {
+              const startSec = Math.floor(clip.startOffsetMs / 1000);
+              const endSec = Math.floor(clip.endOffsetMs / 1000);
+              const fmt = (s: number) =>
+                `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+              return (
+                <li key={clip.id} className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-medium text-on-surface">{clip.title}</span>
+                  <span className="text-xs text-on-surface-variant">
+                    {fmt(startSec)}–{fmt(endSec)}
+                    {clip.status !== 'ready' ? ` · ${clip.status}` : ''}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="mt-3 text-xs text-on-surface-variant">No highlights yet.</p>
+        )}
+      </div>
 
       <div className="glass-panel rounded-xl p-4 text-sm">
         <p className="mb-2 font-medium">Chat settings</p>

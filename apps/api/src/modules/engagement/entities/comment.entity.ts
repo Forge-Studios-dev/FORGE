@@ -52,6 +52,9 @@ export class Comment {
   @Column({ name: 'like_count', default: 0 })
   likeCount: number;
 
+  @Column({ name: 'dislike_count', default: 0 })
+  dislikeCount: number;
+
   /** Pinned by the video owner (one top-level pin per video). */
   @Column({ name: 'is_pinned', default: false })
   isPinned: boolean;

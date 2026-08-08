@@ -267,6 +267,14 @@ class WatchRepository {
     }
   }
 
+  Future<void> setCommentDisliked(String videoId, String commentId, {required bool disliked}) async {
+    if (disliked) {
+      await _client.dio.delete('/videos/$videoId/comments/$commentId/dislike');
+    } else {
+      await _client.dio.post('/videos/$videoId/comments/$commentId/dislike');
+    }
+  }
+
   Future<void> setCommentPinned(
     String videoId,
     String commentId, {

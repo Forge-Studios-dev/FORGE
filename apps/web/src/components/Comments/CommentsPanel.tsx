@@ -121,6 +121,7 @@ function CommentRow({
     return () => window.removeEventListener('keydown', onKey);
   }, [reportOpen]);
   const [liked, setLiked] = useState(!!comment.viewerLiked);
+  const [disliked, setDisliked] = useState(!!comment.viewerDisliked);
   const [likeCount, setLikeCount] = useState(comment.likeCount ?? 0);
   const [pinned, setPinned] = useState(!!comment.isPinned);
   const [hearted, setHearted] = useState(!!comment.creatorHearted);
@@ -196,11 +197,39 @@ function CommentRow({
       }
     },
     onMutate: () => {
-      setLiked((v) => !v);
-      setLikeCount((c) => (liked ? Math.max(0, c - 1) : c + 1));
+      const wasLiked = liked;
+      const wasDisliked = disliked;
+      setLiked(!wasLiked);
+      if (!wasLiked && wasDisliked) setDisliked(false);
+      setLikeCount((c) => (wasLiked ? Math.max(0, c - 1) : c + 1));
     },
     onError: () => {
       setLiked(!!comment.viewerLiked);
+      setDisliked(!!comment.viewerDisliked);
+      setLikeCount(comment.likeCount ?? 0);
+    },
+  });
+
+  const dislikeMut = useMutation({
+    mutationFn: async () => {
+      if (disliked) {
+        await api.delete(`/videos/${videoId}/comments/${comment.id}/dislike`);
+      } else {
+        await api.post(`/videos/${videoId}/comments/${comment.id}/dislike`);
+      }
+    },
+    onMutate: () => {
+      const wasLiked = liked;
+      const wasDisliked = disliked;
+      setDisliked(!wasDisliked);
+      if (!wasDisliked && wasLiked) {
+        setLiked(false);
+        setLikeCount((c) => Math.max(0, c - 1));
+      }
+    },
+    onError: () => {
+      setLiked(!!comment.viewerLiked);
+      setDisliked(!!comment.viewerDisliked);
       setLikeCount(comment.likeCount ?? 0);
     },
   });
@@ -336,6 +365,7 @@ function CommentRow({
             type="button"
             aria-label={liked ? `Unlike comment, ${likeCount} likes` : `Like comment, ${likeCount} likes`}
             aria-pressed={liked}
+            disabled={likeMut.isPending || dislikeMut.isPending}
             onClick={() => {
               if (!currentUser) {
                 onGuestInteract?.();
@@ -343,10 +373,26 @@ function CommentRow({
               }
               likeMut.mutate();
             }}
-            className={`font-semibold ${liked ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
+            className={`inline-flex items-center gap-1 font-semibold ${liked ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
           >
-            {liked ? 'Liked' : 'Like'}
-            {likeCount > 0 ? ` · ${formatCount(likeCount)}` : ''}
+            <Icon name="thumb_up" filled={liked} className="text-sm" />
+            {likeCount > 0 ? formatCount(likeCount) : 'Like'}
+          </button>
+          <button
+            type="button"
+            aria-label={disliked ? 'Remove dislike' : 'Dislike comment'}
+            aria-pressed={disliked}
+            disabled={likeMut.isPending || dislikeMut.isPending}
+            onClick={() => {
+              if (!currentUser) {
+                onGuestInteract?.();
+                return;
+              }
+              dislikeMut.mutate();
+            }}
+            className={`inline-flex items-center font-semibold ${disliked ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
+          >
+            <Icon name="thumb_down" filled={disliked} className="text-sm" />
           </button>
           {depth === 0 && (comment.replyCount ?? 0) > 0 ? (
             <button

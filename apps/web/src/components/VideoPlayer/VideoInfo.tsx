@@ -27,7 +27,7 @@ import {
 import { SubscribeChannelControl } from '@/components/SubscribeChannelControl/SubscribeChannelControl';
 import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
 import { splitDescriptionTimestamps } from '@/lib/description-timestamps';
-import { buildWatchShareUrl } from '@/lib/watch-url';
+import { buildWatchShareUrl, formatTimeQueryParam } from '@/lib/watch-url';
 
 interface Props {
   video: Video;
@@ -212,12 +212,16 @@ export function VideoInfo({
 
   const handleCopyEmbed = async () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const src = `${origin}/embed/${video.id}`;
+    const embedUrl = new URL(`/embed/${video.id}`, origin || 'https://forge.local');
+    if (playbackSeconds > 0) {
+      embedUrl.searchParams.set('t', formatTimeQueryParam(playbackSeconds));
+    }
+    const src = embedUrl.toString();
     const snippet = `<iframe width="560" height="315" src="${src}" title="${video.title.replace(/"/g, '')}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`;
     setShareHint(null);
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(snippet);
-      setShareHint('Embed code copied');
+      setShareHint(playbackSeconds > 0 ? 'Embed code copied at current time' : 'Embed code copied');
       setTimeout(() => setShareHint(null), 2000);
     }
   };

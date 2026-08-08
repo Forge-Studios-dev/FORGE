@@ -132,7 +132,7 @@ export class EngagementReconciliationService {
       .select('c.id', 'id')
       .addSelect('c.like_count', 'stored')
       .addSelect('COUNT(cl.id)', 'actual')
-      .leftJoin('comment_likes', 'cl', 'cl.comment_id = c.id')
+      .leftJoin('comment_likes', 'cl', "cl.comment_id = c.id AND cl.reaction = 'like'")
       .groupBy('c.id')
       .addGroupBy('c.like_count')
       .having('c.like_count != COUNT(cl.id)')

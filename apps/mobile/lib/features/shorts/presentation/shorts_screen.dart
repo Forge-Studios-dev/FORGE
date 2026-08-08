@@ -467,6 +467,28 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
               }
             }
 
+            Future<void> toggleDislike(Map<String, dynamic> comment) async {
+              final id = comment['id'] as String?;
+              if (id == null) return;
+              final disliked = comment['viewerDisliked'] == true;
+              try {
+                await ref.read(watchRepositoryProvider).setCommentDisliked(
+                      videoId,
+                      id,
+                      disliked: disliked,
+                    );
+                final page = await ref.read(watchRepositoryProvider).getComments(videoId);
+                if (!stillMounted()) return;
+                setModal(() => comments = page.comments);
+              } catch (_) {
+                if (stillMounted()) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Sign in to dislike comments')),
+                  );
+                }
+              }
+            }
+
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
@@ -535,6 +557,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                                     final m = comments[i] as Map<String, dynamic>;
                                     final user = m['user'] as Map<String, dynamic>?;
                                     final liked = m['viewerLiked'] == true;
+                                    final disliked = m['viewerDisliked'] == true;
                                     final likeCount = (m['likeCount'] as num?)?.toInt() ?? 0;
                                     return ListTile(
                                       contentPadding: EdgeInsets.zero,
@@ -555,6 +578,13 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                                           ),
                                           if (likeCount > 0)
                                             Text('$likeCount', style: const TextStyle(fontSize: 12)),
+                                          IconButton(
+                                            icon: Icon(
+                                              disliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                                              size: 18,
+                                            ),
+                                            onPressed: () => toggleDislike(m),
+                                          ),
                                           IconButton(
                                             icon: const Icon(Icons.reply, size: 18),
                                             onPressed: () => setModal(() {

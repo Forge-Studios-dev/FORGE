@@ -11,7 +11,7 @@ import Redis from 'ioredis';
 import { In, IsNull, Repository } from 'typeorm';
 import { Like, VideoReactionType } from './entities/like.entity';
 import { Comment } from './entities/comment.entity';
-import { CommentLike } from './entities/comment-like.entity';
+import { CommentLike, CommentReactionType } from './entities/comment-like.entity';
 import { Follow, FollowNotifyLevel } from './entities/follow.entity';
 import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
@@ -387,6 +387,9 @@ export class EngagementService {
     const likedIds = viewerId
       ? await this.getViewerLikedCommentIds(viewerId, data.map((c) => c.id))
       : new Set<string>();
+    const dislikedIds = viewerId
+      ? await this.getViewerDislikedCommentIds(viewerId, data.map((c) => c.id))
+      : new Set<string>();
 
     const replyCounts = await this.getReplyCounts(data.map((c) => c.id));
 
@@ -394,6 +397,7 @@ export class EngagementService {
       data: data.map((c) =>
         toPublicComment(c, {
           viewerLiked: likedIds.has(c.id),
+          viewerDisliked: dislikedIds.has(c.id),
           replyCount: replyCounts.get(c.id) ?? 0,
         }),
       ),
@@ -412,6 +416,9 @@ export class EngagementService {
     const likedIds = viewerId
       ? await this.getViewerLikedCommentIds(viewerId, [comment.id])
       : new Set<string>();
+    const dislikedIds = viewerId
+      ? await this.getViewerDislikedCommentIds(viewerId, [comment.id])
+      : new Set<string>();
     const replyCounts =
       comment.parentId == null
         ? await this.getReplyCounts([comment.id])
@@ -419,6 +426,7 @@ export class EngagementService {
 
     return toPublicComment(comment, {
       viewerLiked: likedIds.has(comment.id),
+      viewerDisliked: dislikedIds.has(comment.id),
       replyCount: replyCounts.get(comment.id) ?? 0,
     });
   }
@@ -475,9 +483,17 @@ export class EngagementService {
     const likedIds = viewerId
       ? await this.getViewerLikedCommentIds(viewerId, data.map((c) => c.id))
       : new Set<string>();
+    const dislikedIds = viewerId
+      ? await this.getViewerDislikedCommentIds(viewerId, data.map((c) => c.id))
+      : new Set<string>();
 
     return {
-      data: data.map((c) => toPublicComment(c, { viewerLiked: likedIds.has(c.id) })),
+      data: data.map((c) =>
+        toPublicComment(c, {
+          viewerLiked: likedIds.has(c.id),
+          viewerDisliked: dislikedIds.has(c.id),
+        }),
+      ),
       meta: { cursor: nextCursor, hasMore },
     };
   }
@@ -488,7 +504,23 @@ export class EngagementService {
   ): Promise<Set<string>> {
     if (!commentIds.length) return new Set();
     const rows = await this.commentLikeRepository.find({
-      where: { userId: viewerId, commentId: In(commentIds) },
+      where: { userId: viewerId, commentId: In(commentIds), reaction: CommentReactionType.LIKE },
+      select: ['commentId'],
+    });
+    return new Set(rows.map((r) => r.commentId));
+  }
+
+  private async getViewerDislikedCommentIds(
+    viewerId: string,
+    commentIds: string[],
+  ): Promise<Set<string>> {
+    if (!commentIds.length) return new Set();
+    const rows = await this.commentLikeRepository.find({
+      where: {
+        userId: viewerId,
+        commentId: In(commentIds),
+        reaction: CommentReactionType.DISLIKE,
+      },
       select: ['commentId'],
     });
     return new Set(rows.map((r) => r.commentId));
@@ -548,28 +580,99 @@ export class EngagementService {
   }
 
   async likeComment(userId: string, videoId: string, commentId: string) {
+    return this.setCommentReaction(userId, videoId, commentId, CommentReactionType.LIKE);
+  }
+
+  async unlikeComment(userId: string, videoId: string, commentId: string) {
+    return this.clearCommentReaction(userId, videoId, commentId, CommentReactionType.LIKE);
+  }
+
+  async dislikeComment(userId: string, videoId: string, commentId: string) {
+    return this.setCommentReaction(userId, videoId, commentId, CommentReactionType.DISLIKE);
+  }
+
+  async undislikeComment(userId: string, videoId: string, commentId: string) {
+    return this.clearCommentReaction(userId, videoId, commentId, CommentReactionType.DISLIKE);
+  }
+
+  private async setCommentReaction(
+    userId: string,
+    videoId: string,
+    commentId: string,
+    reaction: CommentReactionType,
+  ) {
     const comment = await this.commentRepository.findOne({
       where: { id: commentId, videoId, deletedAt: IsNull() },
     });
     if (!comment) throw new NotFoundException('Comment not found');
 
     const existing = await this.commentLikeRepository.findOne({ where: { userId, commentId } });
-    if (existing) throw new ConflictException('Already liked');
+    if (existing?.reaction === reaction) {
+      return reaction === CommentReactionType.LIKE
+        ? { liked: true, disliked: false }
+        : { liked: false, disliked: true };
+    }
 
-    await this.commentLikeRepository.save(this.commentLikeRepository.create({ userId, commentId }));
-    await this.commentRepository.increment({ id: commentId }, 'likeCount', 1);
+    if (existing) {
+      const prev = existing.reaction;
+      existing.reaction = reaction;
+      await this.commentLikeRepository.save(existing);
+      if (prev === CommentReactionType.LIKE) {
+        await this.commentRepository.decrement({ id: commentId }, 'likeCount', 1);
+      } else {
+        await this.commentRepository.decrement({ id: commentId }, 'dislikeCount', 1);
+      }
+      if (reaction === CommentReactionType.LIKE) {
+        await this.commentRepository.increment({ id: commentId }, 'likeCount', 1);
+      } else {
+        await this.commentRepository.increment({ id: commentId }, 'dislikeCount', 1);
+      }
+    } else {
+      await this.commentLikeRepository.save(
+        this.commentLikeRepository.create({ userId, commentId, reaction }),
+      );
+      if (reaction === CommentReactionType.LIKE) {
+        await this.commentRepository.increment({ id: commentId }, 'likeCount', 1);
+      } else {
+        await this.commentRepository.increment({ id: commentId }, 'dislikeCount', 1);
+      }
+    }
 
-    return { liked: true };
+    return reaction === CommentReactionType.LIKE
+      ? { liked: true, disliked: false }
+      : { liked: false, disliked: true };
   }
 
-  async unlikeComment(userId: string, videoId: string, commentId: string) {
-    const like = await this.commentLikeRepository.findOne({ where: { userId, commentId } });
-    if (!like) throw new NotFoundException('Like not found');
+  private async clearCommentReaction(
+    userId: string,
+    videoId: string,
+    commentId: string,
+    expected?: CommentReactionType,
+  ) {
+    const comment = await this.commentRepository.findOne({
+      where: { id: commentId, videoId, deletedAt: IsNull() },
+      select: { id: true },
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
 
-    await this.commentLikeRepository.remove(like);
-    await this.commentRepository.decrement({ id: commentId }, 'likeCount', 1);
+    const row = await this.commentLikeRepository.findOne({ where: { userId, commentId } });
+    if (!row) {
+      return { liked: false, disliked: false };
+    }
+    if (expected && row.reaction !== expected) {
+      return row.reaction === CommentReactionType.LIKE
+        ? { liked: true, disliked: false }
+        : { liked: false, disliked: true };
+    }
 
-    return { liked: false };
+    const prev = row.reaction;
+    await this.commentLikeRepository.remove(row);
+    if (prev === CommentReactionType.LIKE) {
+      await this.commentRepository.decrement({ id: commentId }, 'likeCount', 1);
+    } else {
+      await this.commentRepository.decrement({ id: commentId }, 'dislikeCount', 1);
+    }
+    return { liked: false, disliked: false };
   }
 
   private async assertVideoOwner(actorId: string, videoId: string) {

@@ -13,12 +13,13 @@ export type PublicComment = {
   isPinned: boolean;
   creatorHearted: boolean;
   viewerLiked?: boolean;
+  viewerDisliked?: boolean;
   createdAt: Date;
 };
 
 export function toPublicComment(
   comment: Comment,
-  extras?: { viewerLiked?: boolean; replyCount?: number },
+  extras?: { viewerLiked?: boolean; viewerDisliked?: boolean; replyCount?: number },
 ): PublicComment {
   return {
     id: comment.id,
@@ -32,6 +33,7 @@ export function toPublicComment(
     isPinned: !!comment.isPinned,
     creatorHearted: !!comment.creatorHearted,
     viewerLiked: extras?.viewerLiked,
+    viewerDisliked: extras?.viewerDisliked,
     createdAt: comment.createdAt,
   };
 }

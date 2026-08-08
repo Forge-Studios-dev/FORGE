@@ -135,6 +135,7 @@ export interface Comment {
   isPinned?: boolean;
   creatorHearted?: boolean;
   viewerLiked?: boolean;
+  viewerDisliked?: boolean;
   createdAt: string;
 }
 

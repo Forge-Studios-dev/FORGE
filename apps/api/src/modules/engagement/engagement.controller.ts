@@ -182,6 +182,30 @@ export class EngagementController {
     return this.engagementService.unlikeComment(user.sub, videoId, commentId);
   }
 
+  @Post('videos/:videoId/comments/:commentId/dislike')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Dislike a comment (clears like)' })
+  dislikeComment(
+    @CurrentUser() user: JwtPayload,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+  ) {
+    return this.engagementService.dislikeComment(user.sub, videoId, commentId);
+  }
+
+  @Delete('videos/:videoId/comments/:commentId/dislike')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove dislike from a comment' })
+  undislikeComment(
+    @CurrentUser() user: JwtPayload,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+  ) {
+    return this.engagementService.undislikeComment(user.sub, videoId, commentId);
+  }
+
   @Post('videos/:videoId/comments/:commentId/pin')
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
