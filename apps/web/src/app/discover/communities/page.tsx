@@ -102,7 +102,7 @@ export default function DiscoverCommunitiesPage() {
               })}
             </ul>
           ) : (
-            <p className="text-sm text-on-surface-variant">No featured communities yet.</p>
+            <EmptyState icon="groups" title="No featured communities yet" />
           )}
         </div>
       ) : isLoading || isFetching ? (

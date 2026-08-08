@@ -14,6 +14,7 @@ import { FeedGrid } from '@/components/FeedCard/FeedGrid';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { ChannelCommunityFeed } from '@/components/Community/ChannelCommunityFeed';
 import { ChannelUnavailable } from '@/components/profile/ChannelUnavailable';
+import { EmptyState } from '@forge/design-system';
 
 interface Props {
   params: { username: string };
@@ -377,7 +378,7 @@ export default async function ChannelPage({ params, searchParams }: Props) {
             {videos.data.length > 0 ? (
               <FeedGrid initialData={videos} />
             ) : (
-              <p className="text-on-surface-variant">No videos yet.</p>
+              <EmptyState icon="video_library" title="No videos yet" />
             )}
           </>
         ) : null}
@@ -516,7 +517,7 @@ export default async function ChannelPage({ params, searchParams }: Props) {
                 ))}
               </ul>
             ) : (
-              <p className="text-on-surface-variant">No public playlists yet.</p>
+              <EmptyState icon="playlist_play" title="No public playlists yet" />
             )}
           </>
         ) : null}

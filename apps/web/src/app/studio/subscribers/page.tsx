@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Button, Input, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
+import { Button, EmptyState, Input, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -261,6 +261,8 @@ export default function StudioSubscribersPage() {
 
       {isLoading ? (
         <p className="text-sm text-on-surface-variant">Loading…</p>
+      ) : (subscribers ?? []).length === 0 ? (
+        <EmptyState icon="group" title="No subscribers yet" description="Members who join a paid tier will show up here." />
       ) : (
         <ul className="space-y-2">
           {(subscribers ?? []).map((s) => (
@@ -284,9 +286,6 @@ export default function StudioSubscribersPage() {
               </div>
             </li>
           ))}
-          {(subscribers ?? []).length === 0 ? (
-            <p className="text-sm text-on-surface-variant">No subscribers yet.</p>
-          ) : null}
         </ul>
       )}
 

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Button, PageHeader } from '@forge/design-system';
+import { useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 
 type AdminStream = {
@@ -26,6 +27,7 @@ type ChatMessage = {
 
 export default function AdminLivePage() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [grantStreamId, setGrantStreamId] = useState<string | null>(null);
   const [grantUsername, setGrantUsername] = useState('');
   const [grantNote, setGrantNote] = useState('');
@@ -69,7 +71,11 @@ export default function AdminLivePage() {
     mutationFn: async (id: string) => {
       await api.post(`/admin/streams/${id}/force-end`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-streams'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-streams'] });
+      toast({ title: 'Stream ended', variant: 'success' });
+    },
+    onError: () => toast({ title: 'Could not end stream', variant: 'critical' }),
   });
 
   const grantAccess = useMutation({
@@ -92,7 +98,9 @@ export default function AdminLivePage() {
       setGrantUsername('');
       setGrantNote('');
       qc.invalidateQueries({ queryKey: ['admin-streams'] });
+      toast({ title: 'Access granted', variant: 'success' });
     },
+    onError: () => toast({ title: 'Could not grant access', variant: 'critical' }),
   });
 
   const deleteChatMessage = useMutation({
@@ -100,6 +108,7 @@ export default function AdminLivePage() {
       await api.delete(`/admin/streams/${streamId}/chat/${messageId}`);
     },
     onSuccess: () => void refetchChat(),
+    onError: () => toast({ title: 'Could not delete message', variant: 'critical' }),
   });
 
   const backfillMux = useMutation({
@@ -109,6 +118,7 @@ export default function AdminLivePage() {
       );
       return data.data;
     },
+    onError: () => toast({ title: 'Backfill failed', variant: 'critical' }),
   });
 
   return (

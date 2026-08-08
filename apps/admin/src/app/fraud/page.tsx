@@ -1,10 +1,14 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { Button, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
-import { Dialog } from '@forge/design-system/client';
+import { DataTable, Dialog, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
+import { AdminPagination } from '@/components/admin/AdminPagination';
+
+const PAGE_SIZE = 20;
 
 type FraudAlert = {
   id: string;
@@ -39,17 +43,29 @@ const RISK_COLOR = (score: number) => {
 
 export default function FraudPage() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const dialogTitleId = useId();
   const [statusFilter, setStatusFilter] = useState<string>('open');
+  const [page, setPage] = useState(1);
   const [selectedAlert, setSelectedAlert] = useState<FraudAlert | null>(null);
   const [notes, setNotes] = useState('');
   const [newStatus, setNewStatus] = useState('');
 
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['fraud-alerts', statusFilter],
+    queryKey: ['fraud-alerts', statusFilter, page],
     queryFn: async () => {
-      const params = statusFilter ? `?status=${statusFilter}&limit=100` : '?limit=100';
-      const res = await api.get<{ data: FraudAlert[] }>(`/admin/fraud/alerts${params}`);
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String((page - 1) * PAGE_SIZE),
+      });
+      if (statusFilter) params.set('status', statusFilter);
+      const res = await api.get<{ data: FraudAlert[]; total: number }>(
+        `/admin/fraud/alerts?${params}`,
+      );
       return res.data;
     },
   });
@@ -69,6 +85,10 @@ export default function FraudPage() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['fraud-alerts'] });
       setSelectedAlert(null);
+      toast({ title: 'Alert updated', variant: 'success' });
+    },
+    onError: () => {
+      toast({ title: 'Could not update alert', variant: 'critical' });
     },
   });
 
@@ -77,9 +97,89 @@ export default function FraudPage() {
       const res = await api.post(`/admin/fraud/users/${userId}/check`);
       return res.data;
     },
+    onSuccess: () => {
+      toast({ title: 'Re-check complete', variant: 'success' });
+    },
+    onError: () => {
+      toast({ title: 'Re-check failed', variant: 'critical' });
+    },
   });
 
   const alerts = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const columns: ColumnDef<FraudAlert, unknown>[] = [
+    {
+      accessorKey: 'signal',
+      header: 'Signal',
+      cell: ({ getValue }) => <span className="font-mono text-xs">{getValue<string>()}</span>,
+    },
+    {
+      accessorKey: 'riskScore',
+      header: 'Risk',
+      cell: ({ getValue }) => {
+        const score = getValue<number>();
+        return <span className={`font-bold ${RISK_COLOR(score)}`}>{score}</span>;
+      },
+    },
+    {
+      accessorKey: 'userId',
+      header: 'User ID',
+      cell: ({ getValue }) => (
+        <span className="block max-w-[120px] truncate font-mono text-xs">{getValue<string>()}</span>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ getValue }) => {
+        const status = getValue<string>();
+        return <StatusPill tone={STATUS_TONE[status] ?? 'neutral'} label={STATUS_LABELS[status]} />;
+      },
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Created',
+      cell: ({ getValue }) => (
+        <span className="text-xs text-on-surface-variant">
+          {new Date(getValue<string>()).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => {
+        const alert = row.original;
+        return (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="!px-2 !py-1 text-xs"
+              onClick={() => {
+                setSelectedAlert(alert);
+                setNotes(alert.notes ?? '');
+                setNewStatus(alert.status);
+              }}
+            >
+              Review
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="!px-2 !py-1 text-xs"
+              disabled={runCheck.isPending}
+              onClick={() => runCheck.mutate(alert.userId)}
+            >
+              Re-check
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -102,107 +202,24 @@ export default function FraudPage() {
         ))}
       </div>
 
-      {isLoading ? (
-        <div className="overflow-x-auto" aria-busy="true" aria-label="Loading fraud alerts">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-outline-variant/40 text-left text-on-surface-variant">
-                <th className="pb-2 pr-4">Signal</th>
-                <th className="pb-2 pr-4">Risk</th>
-                <th className="pb-2 pr-4">User ID</th>
-                <th className="pb-2 pr-4">Status</th>
-                <th className="pb-2 pr-4">Created</th>
-                <th className="pb-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/20">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="animate-pulse">
-                  <td className="py-3 pr-4">
-                    <div className="h-3 w-24 rounded bg-surface-container-high" />
-                  </td>
-                  <td className="py-3 pr-4">
-                    <div className="h-3 w-8 rounded bg-surface-container-high" />
-                  </td>
-                  <td className="py-3 pr-4">
-                    <div className="h-3 w-20 rounded bg-surface-container-high" />
-                  </td>
-                  <td className="py-3 pr-4">
-                    <div className="h-4 w-16 rounded bg-surface-container-high" />
-                  </td>
-                  <td className="py-3 pr-4">
-                    <div className="h-3 w-16 rounded bg-surface-container-high" />
-                  </td>
-                  <td className="py-3">
-                    <div className="h-6 w-20 rounded bg-surface-container-high" />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : alerts.length === 0 ? (
-        <div className="text-on-surface-variant">No alerts found.</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-outline-variant/40 text-left text-on-surface-variant">
-                <th className="pb-2 pr-4">Signal</th>
-                <th className="pb-2 pr-4">Risk</th>
-                <th className="pb-2 pr-4">User ID</th>
-                <th className="pb-2 pr-4">Status</th>
-                <th className="pb-2 pr-4">Created</th>
-                <th className="pb-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/20">
-              {alerts.map((alert) => (
-                <tr key={alert.id} className="text-on-surface">
-                  <td className="py-3 pr-4 font-mono text-xs">{alert.signal}</td>
-                  <td className={`py-3 pr-4 font-bold ${RISK_COLOR(alert.riskScore)}`}>
-                    {alert.riskScore}
-                  </td>
-                  <td className="max-w-[120px] truncate py-3 pr-4 font-mono text-xs">
-                    {alert.userId}
-                  </td>
-                  <td className="py-3 pr-4">
-                    <StatusPill
-                      tone={STATUS_TONE[alert.status] ?? 'neutral'}
-                      label={STATUS_LABELS[alert.status]}
-                    />
-                  </td>
-                  <td className="py-3 pr-4 text-xs text-on-surface-variant">
-                    {new Date(alert.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="flex gap-2 py-3">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="!px-2 !py-1 text-xs"
-                      onClick={() => {
-                        setSelectedAlert(alert);
-                        setNotes(alert.notes ?? '');
-                        setNewStatus(alert.status);
-                      }}
-                    >
-                      Review
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="!px-2 !py-1 text-xs"
-                      onClick={() => runCheck.mutate(alert.userId)}
-                    >
-                      Re-check
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable<FraudAlert>
+        columns={columns}
+        data={alerts}
+        getRowId={(alert) => alert.id}
+        loading={isLoading}
+        emptyState={{ title: 'No alerts found' }}
+      />
+
+      {!isLoading && total > 0 ? (
+        <AdminPagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          label="alerts"
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        />
+      ) : null}
 
       <Dialog
         open={!!selectedAlert}

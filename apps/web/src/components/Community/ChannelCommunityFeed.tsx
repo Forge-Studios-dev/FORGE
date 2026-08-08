@@ -358,7 +358,7 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
                       <img
                         key={url}
                         src={url}
-                        alt=""
+                        alt="Community post image"
                         className="max-h-48 w-full rounded-lg object-cover"
                       />
                     ))}

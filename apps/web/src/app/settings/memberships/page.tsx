@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Button, PageHeader } from '@forge/design-system';
+import { Button, EmptyState, PageHeader } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { getApiErrorMessage } from '@/lib/api-message';
@@ -241,6 +241,13 @@ export default function MembershipsPage() {
 
       {isLoading ? (
         <p className="text-sm text-on-surface-variant">Loading…</p>
+      ) : (subscriptions ?? []).length === 0 ? (
+        <EmptyState
+          icon="workspace_premium"
+          title="No active memberships yet"
+          description="Join a channel membership to support creators and unlock perks."
+          action={{ label: 'Discover creators', href: '/explore' }}
+        />
       ) : (
         <ul className="space-y-3">
           {(subscriptions ?? []).map((sub) => {
@@ -335,9 +342,6 @@ export default function MembershipsPage() {
               </li>
             );
           })}
-          {(subscriptions ?? []).length === 0 ? (
-            <p className="text-sm text-on-surface-variant">No active memberships yet.</p>
-          ) : null}
         </ul>
       )}
 
