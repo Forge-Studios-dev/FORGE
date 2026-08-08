@@ -5,6 +5,7 @@ import { CreatorBundlesService } from './creator-bundles.service';
 import { CreatorBundle, CreatorBundleItem } from './entities/creator-bundle.entity';
 import { SubscriptionTier } from './entities/subscription-tier.entity';
 import { TierEntitlement, TierEntitlementResourceType } from './entities/tier-entitlement.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 describe('CreatorBundlesService', () => {
   let service: CreatorBundlesService;
@@ -39,6 +40,10 @@ describe('CreatorBundlesService', () => {
         { provide: getRepositoryToken(SubscriptionTier), useValue: tierRepository },
         { provide: getRepositoryToken(TierEntitlement), useValue: tierEntitlementRepository },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        {
+          provide: EngagementService,
+          useValue: { isBlockedEitherWay: jest.fn().mockResolvedValue(false) },
+        },
       ],
     }).compile();
 

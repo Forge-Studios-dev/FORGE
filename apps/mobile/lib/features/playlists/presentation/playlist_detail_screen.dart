@@ -408,7 +408,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 SharePlus.instance.share(ShareParams(text: '$title\n$url'));
               },
             ),
-          if (isOwner && playlist != null && playlist['systemType'] == null)
+          if (isOwner && playlist?['systemType'] == null)
             IconButton(
               tooltip: 'Delete playlist',
               icon: Icon(Icons.delete_outline, color: ForgeTokens.of(context).error),

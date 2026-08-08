@@ -16,6 +16,7 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
 /** LMS-only product bundles. Mounted only when FEATURES_SKILL_ECONOMY_LMS=true. */
 @ApiTags('Creator Bundles')
@@ -25,10 +26,14 @@ export class CreatorBundlesController {
   constructor(private readonly creatorBundlesService: CreatorBundlesService) {}
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('creators/:creatorId/bundles')
   @ApiOperation({ summary: 'List active product bundles for a creator' })
-  listPublicBundles(@Param('creatorId') creatorId: string) {
-    return this.creatorBundlesService.listPublic(creatorId);
+  listPublicBundles(
+    @Param('creatorId') creatorId: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.creatorBundlesService.listPublic(creatorId, user?.sub);
   }
 
   @Get('creators/me/bundles')

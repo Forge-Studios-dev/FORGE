@@ -16,7 +16,11 @@ import { MemberSubscriptionStatus, MemberSubscriptionSource } from './entities/m
 describe('EntitlementsService', () => {
   let service: EntitlementsService;
   let module: TestingModule;
-  let engagementService: { isFollowing: jest.Mock; getFollowingIdsAmong: jest.Mock };
+  let engagementService: {
+    isFollowing: jest.Mock;
+    getFollowingIdsAmong: jest.Mock;
+    isBlockedEitherWay: jest.Mock;
+  };
   let tierRepository: { find: jest.Mock; findOne: jest.Mock; create: jest.Mock; save: jest.Mock };
   let subscriptionRepository: {
     findOne: jest.Mock;
@@ -33,6 +37,7 @@ describe('EntitlementsService', () => {
     engagementService = {
       isFollowing: jest.fn(),
       getFollowingIdsAmong: jest.fn().mockResolvedValue(new Set()),
+      isBlockedEitherWay: jest.fn().mockResolvedValue(false),
     };
     tierRepository = {
       find: jest.fn(),

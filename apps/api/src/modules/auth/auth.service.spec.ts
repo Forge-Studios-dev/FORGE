@@ -98,6 +98,7 @@ describe('AuthService', () => {
         {
           provide: DataSource,
           useValue: {
+            query: jest.fn().mockResolvedValue(undefined),
             transaction: jest.fn(async (work) => work({
               save: jest.fn(async (x) => x),
               create: jest.fn((_e, x) => x),

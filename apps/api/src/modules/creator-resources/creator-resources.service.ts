@@ -20,6 +20,7 @@ import {
   ResourceVisibility,
 } from './entities/creator-resource.entity';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { createS3Client, createS3ClientForBrowserPresign } from '../../common/create-s3-client';
 
 // M-S4: `image/svg+xml` is intentionally NOT included — SVGs can carry inline
@@ -63,6 +64,7 @@ export class CreatorResourcesService {
     private readonly resourceRepository: Repository<CreatorResource>,
     private readonly configService: ConfigService,
     private readonly entitlementsService: EntitlementsService,
+    private readonly engagementService: EngagementService,
   ) {
     const region = configService.get<string>('aws.region') || 'us-east-1';
     const creds = {
@@ -218,6 +220,9 @@ export class CreatorResourcesService {
   }
 
   async listPublic(creatorId: string, viewerId?: string | null) {
+    if (viewerId && (await this.engagementService.isBlockedEitherWay(viewerId, creatorId))) {
+      throw new ForbiddenException('This channel is not available');
+    }
     const resources = await this.resourceRepository.find({
       where: { creatorId, isActive: true },
       order: { createdAt: 'DESC' },
@@ -276,6 +281,9 @@ export class CreatorResourcesService {
 
   private async assertAccess(resource: CreatorResource, userId: string) {
     if (resource.creatorId === userId) return;
+    if (await this.engagementService.isBlockedEitherWay(userId, resource.creatorId)) {
+      throw new ForbiddenException('This channel is not available');
+    }
     if (resource.visibility === ResourceVisibility.PUBLIC) return;
 
     const hasSub = await this.entitlementsService.hasActiveSubscription(userId, resource.creatorId);

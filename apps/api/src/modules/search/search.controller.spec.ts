@@ -69,6 +69,6 @@ describe('SearchController', () => {
 
   it('delegates suggestions with default clamp bounds', async () => {
     await controller.suggestions('for', 5);
-    expect(searchService.suggestions).toHaveBeenCalledWith('for', 5);
+    expect(searchService.suggestions).toHaveBeenCalledWith('for', 5, undefined);
   });
 });

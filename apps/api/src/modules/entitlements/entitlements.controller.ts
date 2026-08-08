@@ -28,10 +28,14 @@ export class EntitlementsController {
   constructor(private readonly entitlementsService: EntitlementsService) {}
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('creators/:creatorId/tiers')
   @ApiOperation({ summary: 'List active membership tiers for a creator' })
-  listTiers(@Param('creatorId', ParseUUIDPipe) creatorId: string) {
-    return this.entitlementsService.listTiersForCreator(creatorId);
+  listTiers(
+    @Param('creatorId', ParseUUIDPipe) creatorId: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.entitlementsService.listTiersForCreator(creatorId, true, user?.sub);
   }
 
   @Post('creators/me/tiers')

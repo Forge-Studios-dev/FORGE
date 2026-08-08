@@ -53,6 +53,7 @@ describe('FeedService', () => {
   };
   const engagementService = {
     getFollowingCreatorIds: jest.fn().mockResolvedValue([]),
+    getBlockedPeerIds: jest.fn().mockResolvedValue([]),
   };
   const entitlementsService = {
     listMySubscriptions: jest.fn().mockResolvedValue([]),

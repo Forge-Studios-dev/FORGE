@@ -4,11 +4,17 @@ import { CreatorResource } from './entities/creator-resource.entity';
 import { CreatorResourcesService } from './creator-resources.service';
 import { CreatorResourcesController } from './creator-resources.controller';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
+import { EngagementModule } from '../engagement/engagement.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CreatorResource]), EntitlementsModule, UsersModule],
+  imports: [
+    TypeOrmModule.forFeature([CreatorResource]),
+    EntitlementsModule,
+    EngagementModule,
+    UsersModule,
+  ],
   controllers: [CreatorResourcesController],
   providers: [CreatorResourcesService, CreatorApprovedGuard],
   exports: [CreatorResourcesService],
