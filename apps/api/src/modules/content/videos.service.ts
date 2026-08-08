@@ -313,8 +313,13 @@ export class VideosService {
   rewritePlaybackUrl(url: string | null | undefined): string | null {
     const safe = sanitizeHlsUrl(url) ?? sanitizeThumbnailUrl(url);
     if (!safe) return null;
-    if (safe.includes('stream.mux.com') || safe.includes('image.mux.com')) {
-      return safe;
+    try {
+      const host = new URL(safe).hostname.toLowerCase();
+      if (host === 'stream.mux.com' || host === 'image.mux.com' || host.endsWith('.mux.com')) {
+        return safe;
+      }
+    } catch {
+      return null;
     }
     if (this.cdnDomain) return rewriteMediaUrlToCdn(safe, this.cdnDomain);
     return safe;

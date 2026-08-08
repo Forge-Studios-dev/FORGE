@@ -5,6 +5,7 @@ import { GamificationService } from './gamification.service';
 import { GamificationController } from './gamification.controller';
 import { GamificationListener } from './gamification.listener';
 import { CommunitiesModule } from '../communities/communities.module';
+import { EngagementModule } from '../engagement/engagement.module';
 import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
@@ -19,6 +20,7 @@ export class GamificationModule {
     const imports = [
       TypeOrmModule.forFeature([MemberXp, MemberBadge, PlatformXp, PlatformXpGrant, UserAchievement]),
       forwardRef(() => CommunitiesModule),
+      EngagementModule,
     ];
     const providers = [GamificationService, GamificationListener];
     if (!isSkillEconomyLmsEnabled()) {

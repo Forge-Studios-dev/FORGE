@@ -1,10 +1,12 @@
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { AccessSessionsService } from './access-sessions.service';
 import { AccessSessionAudit } from './entities/access-session-audit.entity';
 import { AccessSessionType } from './dto/access-session.dto';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 
 describe('AccessSessionsService', () => {
   let service: AccessSessionsService;
@@ -20,6 +22,8 @@ describe('AccessSessionsService', () => {
   };
   let auditRepository: { save: jest.Mock; create: jest.Mock; findOne: jest.Mock };
   let entitlementsService: { getMembershipForViewer: jest.Mock; getMaxConcurrentDevices: jest.Mock };
+  let engagementService: { isBlockedEitherWay: jest.Mock };
+  let dataSource: { query: jest.Mock };
 
   beforeEach(async () => {
     redis = {
@@ -47,6 +51,8 @@ describe('AccessSessionsService', () => {
       getMembershipForViewer: jest.fn().mockResolvedValue({ active: true }),
       getMaxConcurrentDevices: jest.fn().mockResolvedValue(1),
     };
+    engagementService = { isBlockedEitherWay: jest.fn().mockResolvedValue(false) };
+    dataSource = { query: jest.fn().mockResolvedValue([]) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -54,6 +60,8 @@ describe('AccessSessionsService', () => {
         { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
         { provide: getRepositoryToken(AccessSessionAudit), useValue: auditRepository },
         { provide: EntitlementsService, useValue: entitlementsService },
+        { provide: EngagementService, useValue: engagementService },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
 
@@ -84,6 +92,8 @@ describe('AccessSessionsService', () => {
       return chain;
     });
     entitlementsService.getMaxConcurrentDevices.mockResolvedValue(1);
+    engagementService.isBlockedEitherWay.mockResolvedValue(false);
+    dataSource.query.mockResolvedValue([]);
     auditRepository.findOne.mockResolvedValue(null);
   });
 
@@ -99,6 +109,17 @@ describe('AccessSessionsService', () => {
     expect(redis.setex).toHaveBeenCalled();
     expect(redis.sadd).toHaveBeenCalled();
     expect(auditRepository.save).toHaveBeenCalled();
+  });
+
+  it('rejects start when viewer is blocked from the creator', async () => {
+    engagementService.isBlockedEitherWay.mockResolvedValue(true);
+    await expect(
+      service.startSession('user-1', {
+        sessionType: AccessSessionType.PLAYBACK,
+        creatorId: 'creator-1',
+      }),
+    ).rejects.toMatchObject({ message: 'This channel is not available' });
+    expect(redis.setex).not.toHaveBeenCalled();
   });
 
   it('throws concurrent_session when device limit is reached', async () => {

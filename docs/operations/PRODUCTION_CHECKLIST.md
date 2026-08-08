@@ -82,6 +82,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Blocked peer — membership tiers / membership-me / resources (and LMS bundles if on) return unavailable
 - [ ] Smoke: Blocked peer — channel-points balance/rewards/redeem return unavailable when LMS flag on
 - [ ] Smoke: Blocked peer — live poll/clips/captions/RSVP/raise-hand/reactions return unavailable
+- [ ] Smoke: Blocked peer — access-session start fails; LMS public reputation unavailable when flag on
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback

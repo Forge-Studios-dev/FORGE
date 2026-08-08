@@ -832,6 +832,9 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - LMS course catalog / creator library / podcast episodes honor blocks when viewer is signed in
 - iOS system PiP via native `AVPlayer` + `AVPictureInPictureController` (`forge/pip`); Android Activity PiP unchanged
 - Mobile live watch OS PiP (button + Home); web live `m` / `p` / `f` shortcuts
+- Live poll/clips/captions/RSVP/raise-hand/reactions gated on host block; Shorts `m`/`k`/space only
+- Access-session start refuses blocked creators; LMS public reputation refuses blocked peers
+- Mux playback rewrite uses URL hostname checks (not substring)
 
 ## Still open
 
@@ -839,55 +842,17 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | --- | --- | --- |
 | Ops | Staging soak per load-test runbook | Operator |
 | Launch | Env secrets, Mux/Stripe webhooks; Mux signing keys for private/unlisted | Operator |
-| Launch | DB migrations **185–197 applied** to Neon (2026-08-04) via TypeORM | Done |
-| Launch | DB migrations **198–201** (dislike, blocks, username_changed_at, username_history) | Done (2026-08-08 Neon) |
-| Ship | PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) **MERGEABLE** — CI green; merge when staging checklist passes | Operator |
-| Eng (optional) | Mobile in-player CC overlay (transcript API exists; web has tracks) | Done (2026-08-08) |
-| Eng (optional) | Shorts in-player CC (web + mobile) | Done (2026-08-08) |
-| Eng (optional) | Shorts Save / Watch later | Done (2026-08-08) |
-| Eng (optional) | Shorts Block user | Done (2026-08-08) |
-| Eng (optional) | Watch Block user (web + mobile) | Done (2026-08-08) |
-| Eng (optional) | Feed Block user (web + mobile) | Done (2026-08-08) |
-| Eng (optional) | Exclude blocked peers from feeds/shorts/recs + watch | Done (2026-08-08) |
-| Eng (optional) | Exclude blocked peers from search | Done (2026-08-08) |
-| Eng (optional) | Exclude blocked peers from suggestions + channel surfaces | Done (2026-08-08) |
-| Eng (optional) | Exclude blocked peers from notifs + live lists | Done (2026-08-08) |
-| Eng (optional) | Exclude blocked peers from watch history | Done (2026-08-08) |
-| Eng (optional) | Exclude blocked peers from library + follows + DMs | Done (2026-08-08) |
-| Eng (optional) | Channel/video unavailable UX for block 403 | Done (2026-08-08) |
-| Eng (optional) | Live stream block gate + unavailable UX | Done (2026-08-08) |
-| Eng (optional) | Stream chat block gate + mobile playlist/Shorts 403 UX | Done (2026-08-08) |
-| Eng (optional) | Captions/watch/like/comment-deeplink block gate | Done (2026-08-08) |
-| Eng (optional) | Similar + category feed + playlist-add block gates | Done (2026-08-08) |
-| Eng (optional) | Billing checkout block gates | Done (2026-08-08) |
-| Eng (optional) | Comment read/react + embed 403 UX | Done (2026-08-08) |
-| Eng (optional) | Web miniplayer browser PiP | Done (2026-08-08) |
-| Eng (optional) | Android OS Picture-in-Picture | Done (2026-08-08) |
-| Eng (optional) | Web theater `t` shortcut | Done (2026-08-08) |
-| Eng (optional) | Community access block gates | Done (2026-08-08) |
-| Eng (optional) | Community report-after-block + discover exclusions | Done (2026-08-08) |
-| Eng (optional) | Theater Escape exit | Done (2026-08-08) |
-| Eng (optional) | Community groups + group DM block gates | Done (2026-08-08) |
-| Eng (optional) | Membership tiers/bundles/resources block gates | Done (2026-08-08) |
-| Eng (optional) | LMS catalog + creator library block gates | Done (2026-08-08) |
-| Eng (optional) | Channel points balance/rewards/redeem/earn block gates | Done (2026-08-08) |
-| Eng (optional) | Mentorship member surfaces community access block gates | Done (2026-08-08) |
-| Eng (optional) | Live poll/clips/captions/RSVP/raise-hand/reactions host block gates | Done (2026-08-08) |
-| Eng (optional) | Shorts keyboard mute/play (no ArrowUp/Down steal) + live not_available copy | Done (2026-08-08) |
-| Eng (optional) | iOS AVPlayer Picture-in-Picture | Done (2026-08-08) |
-| Eng (optional) | Live watch OS PiP (mobile) + live keyboard PiP/mute/FS (web) | Done (2026-08-08) |
-| Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
-| Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
+| Ship | PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) — CI green when tip ready; **needs human review** then merge after checklist | Operator |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Deferred (LMS off by default) |
 | Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |
-| Analytics | Studio details page uses `topVideos` (impressions/CTR/watch %); SQL uses `watched_at` | Done (2026-08-04) |
-| Comments | Video owner can Remove comments (API + watch/Studio/mobile) | Done (2026-08-04) |
-| Community | Channel Community tab expand/reply on posts | Done (2026-08-04) |
 | Recs | Full ML / embeddings stack | Product |
 | Downloads | Real offline download packages (UI hidden) | Product |
-| Mobile | iOS AVPlayer Picture-in-Picture (Android OS PiP + floating miniplayer + audio background mode shipped) | Done (2026-08-08) |
 | Legal | Kids / Restricted Mode / made-for-kids | Product + legal |
 | Monetization | Ad breaks / VAST | Product + partners |
+
+### Completed eng depth (this wave)
+
+Block-parity (feeds→LMS→live side-channels→access-sessions→reputation), PiP (Android/iOS/web/live), theater Escape/`t`, Shorts CC/Save/Block + mute keys, username cooldown UX, notifyLevel batch, Studio/comment parity — see git history on `feature/youtube-replica-wave-1`. Detail rows archived 2026-08-08.
 
 Prefer small focused PRs over another full Master pass. **Viewer/creator YouTube-parity eng depth on this branch is complete** for the Production Completion Drive; remaining Master phases 09–24 are documented as verified/complete for the shipped codebase. Execute [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) before merge to `main`.
 

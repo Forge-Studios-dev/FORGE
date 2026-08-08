@@ -4,11 +4,13 @@ import { AccessSessionAudit } from './entities/access-session-audit.entity';
 import { AccessSessionsService } from './access-sessions.service';
 import { AccessSessionsController } from './access-sessions.controller';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
+import { EngagementModule } from '../engagement/engagement.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([AccessSessionAudit]),
     forwardRef(() => EntitlementsModule),
+    EngagementModule,
   ],
   controllers: [AccessSessionsController],
   providers: [AccessSessionsService],
