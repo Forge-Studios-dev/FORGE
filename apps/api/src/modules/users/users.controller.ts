@@ -177,8 +177,9 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Query('limit') limit?: number,
     @Query('cursor') cursor?: string,
+    @CurrentUser() viewer?: JwtPayload,
   ) {
-    return this.engagementService.getFollowers(id, limit || 20, cursor);
+    return this.engagementService.getFollowers(id, limit || 20, cursor, viewer?.sub);
   }
 
   @Public()
@@ -279,11 +280,34 @@ export class UsersController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
   @ApiOperation({ summary: 'Get user profile by ID' })
-  async findById(@Param('id', ParseUUIDPipe) id: string) {
+  async findById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() viewer?: JwtPayload,
+  ) {
     const profile = await this.usersService.findById(id);
-    return toPublicUser(profile);
+    const publicUser = toPublicUser(profile);
+    if (viewer?.sub && viewer.sub !== profile.id) {
+      const viewerBlocked = await this.engagementService.hasBlocked(viewer.sub, profile.id);
+      if (
+        !viewerBlocked &&
+        (await this.engagementService.isBlockedEitherWay(viewer.sub, profile.id))
+      ) {
+        throw new ForbiddenException('This channel is not available');
+      }
+      const viewerFollowing = viewerBlocked
+        ? false
+        : await this.engagementService.isFollowing(viewer.sub, profile.id);
+      return {
+        ...publicUser,
+        viewerFollowing,
+        viewerSubscribed: viewerFollowing,
+        viewerBlocked,
+      };
+    }
+    return publicUser;
   }
 
   @Put(':id')

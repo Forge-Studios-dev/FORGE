@@ -10,6 +10,7 @@ import { Playlist, PlaylistSystemType, PlaylistVisibility } from './entities/pla
 import { PlaylistVideo } from './entities/playlist-video.entity';
 import { Video } from '../content/entities/video.entity';
 import { Like } from '../engagement/entities/like.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 describe('PlaylistsService', () => {
   let service: PlaylistsService;
@@ -69,6 +70,13 @@ describe('PlaylistsService', () => {
         { provide: getRepositoryToken(PlaylistVideo), useValue: playlistVideoRepository },
         { provide: getRepositoryToken(Video), useValue: videoRepository },
         { provide: getRepositoryToken(Like), useValue: likeRepository },
+        {
+          provide: EngagementService,
+          useValue: {
+            getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+            isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+          },
+        },
       ],
     }).compile();
     service = module.get(PlaylistsService);

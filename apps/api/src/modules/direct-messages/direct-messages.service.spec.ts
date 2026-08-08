@@ -45,6 +45,7 @@ describe('DirectMessagesService', () => {
   const notificationsService = { create: jest.fn() };
   const engagementService = {
     isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+    getBlockedPeerIds: jest.fn().mockResolvedValue([]),
   };
 
   const sender: User = {
@@ -275,6 +276,25 @@ describe('DirectMessagesService', () => {
       expect(result[0].conversationId).toBe('conv-1');
       expect(result[0].participants).toHaveLength(1);
       expect(result[0].participants[0].id).toBe('user-b');
+    });
+
+    it('hides conversations with blocked peers', async () => {
+      engagementService.getBlockedPeerIds.mockResolvedValueOnce(['user-b']);
+      memberRepository.find.mockResolvedValue([
+        {
+          conversationId: 'conv-1',
+          lastReadAt: null,
+          conversation: {
+            members: [
+              { userId: 'user-a', user: sender },
+              { userId: 'user-b', user: recipient },
+            ],
+          },
+        },
+      ]);
+
+      const result = await service.listConversations('user-a');
+      expect(result).toHaveLength(0);
     });
   });
 });

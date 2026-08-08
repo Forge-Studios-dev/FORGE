@@ -73,10 +73,11 @@ export class EngagementService {
   /** Private Disliked videos shelf (Library → Disliked videos). */
   async listDislikedVideos(userId: string, limit = 50) {
     const take = Math.min(Math.max(Number(limit) || 50, 1), DISLIKED_LIST_LIMIT);
+    const blocked = new Set(await this.getBlockedPeerIds(userId));
     const dislikes = await this.likeRepository.find({
       where: { userId, reaction: VideoReactionType.DISLIKE },
       order: { createdAt: 'DESC' },
-      take,
+      take: take + Math.min(blocked.size, 20),
     });
     const videoIds = dislikes.map((d) => d.videoId);
     const videos =
@@ -91,13 +92,15 @@ export class EngagementService {
       .map((row) => {
         const video = byId.get(row.videoId);
         if (!video) return null;
+        if (blocked.has(video.userId)) return null;
         return {
           ...toPublicVideo(video),
           viewerDisliked: true as const,
           dislikedAt: row.createdAt,
         };
       })
-      .filter((x): x is NonNullable<typeof x> => x != null);
+      .filter((x): x is NonNullable<typeof x> => x != null)
+      .slice(0, take);
 
     const total = await this.likeRepository.count({
       where: { userId, reaction: VideoReactionType.DISLIKE },
@@ -980,17 +983,24 @@ export class EngagementService {
     return !!follow;
   }
 
-  async getFollowers(userId: string, limit = 20, cursor?: string) {
+  async getFollowers(userId: string, limit = 20, cursor?: string, viewerId?: string) {
+    const blocked =
+      viewerId != null
+        ? new Set(await this.getBlockedPeerIds(viewerId))
+        : new Set<string>();
     const query = this.followRepository
       .createQueryBuilder('f')
       .innerJoinAndSelect('f.follower', 'user')
       .where('f.followingId = :userId', { userId })
       .orderBy('f.createdAt', 'DESC')
-      .take(limit + 1);
+      .take(limit + 1 + Math.min(blocked.size, 20));
 
     if (cursor) {
       const cursorDate = new Date(Buffer.from(cursor, 'base64').toString('utf-8'));
       query.andWhere('f.createdAt < :cursor', { cursor: cursorDate });
+    }
+    if (blocked.size > 0) {
+      query.andWhere('f.followerId NOT IN (:...blocked)', { blocked: [...blocked] });
     }
 
     const rows = await query.getMany();
@@ -1007,16 +1017,22 @@ export class EngagementService {
   }
 
   async getFollowing(userId: string, limit = 20, cursor?: string, viewerId?: string) {
+    // Prefer the signed-in viewer's block list; fall back to the list owner's.
+    const blockSubject = viewerId ?? userId;
+    const blocked = new Set(await this.getBlockedPeerIds(blockSubject));
     const query = this.followRepository
       .createQueryBuilder('f')
       .innerJoinAndSelect('f.following', 'user')
       .where('f.followerId = :userId', { userId })
       .orderBy('f.createdAt', 'DESC')
-      .take(limit + 1);
+      .take(limit + 1 + Math.min(blocked.size, 20));
 
     if (cursor) {
       const cursorDate = new Date(Buffer.from(cursor, 'base64').toString('utf-8'));
       query.andWhere('f.createdAt < :cursor', { cursor: cursorDate });
+    }
+    if (blocked.size > 0) {
+      query.andWhere('f.followingId NOT IN (:...blocked)', { blocked: [...blocked] });
     }
 
     const rows = await query.getMany();

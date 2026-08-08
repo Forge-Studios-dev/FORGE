@@ -42,14 +42,19 @@ export class DirectMessagesService {
       take: 50,
     });
 
-    return memberships.map((m) => {
-      const others = m.conversation.members.filter((x) => x.userId !== userId);
-      return {
-        conversationId: m.conversationId,
-        lastReadAt: m.lastReadAt,
-        participants: others.map((o) => toPublicUser(o.user)),
-      };
-    });
+    const blocked = new Set(await this.engagementService.getBlockedPeerIds(userId));
+
+    return memberships
+      .map((m) => {
+        const others = m.conversation.members.filter((x) => x.userId !== userId);
+        if (others.some((o) => blocked.has(o.userId))) return null;
+        return {
+          conversationId: m.conversationId,
+          lastReadAt: m.lastReadAt,
+          participants: others.map((o) => toPublicUser(o.user)),
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row != null);
   }
 
   async getMessages(userId: string, conversationId: string, limit = 50, cursor?: string) {

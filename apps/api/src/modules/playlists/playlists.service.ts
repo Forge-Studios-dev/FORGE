@@ -14,6 +14,7 @@ import {
 import { PlaylistVideo } from './entities/playlist-video.entity';
 import { Video } from '../content/entities/video.entity';
 import { Like, VideoReactionType } from '../engagement/entities/like.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 const LIKED_CLEAR_BATCH = 200;
 
@@ -28,6 +29,7 @@ export class PlaylistsService {
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(Like)
     private readonly likeRepository: Repository<Like>,
+    private readonly engagementService: EngagementService,
   ) {}
 
   async create(
@@ -58,6 +60,13 @@ export class PlaylistsService {
     ) {
       throw new ForbiddenException('This playlist is private');
     }
+    if (
+      viewerId &&
+      viewerId !== playlist.userId &&
+      (await this.engagementService.isBlockedEitherWay(viewerId, playlist.userId))
+    ) {
+      throw new ForbiddenException('This playlist is not available');
+    }
     if (playlist.systemType === PlaylistSystemType.LIKED) {
       return this.buildLikedPlaylistView(playlist.userId, viewerId);
     }
@@ -65,8 +74,24 @@ export class PlaylistsService {
       playlist.items.sort(
         (a, b) => a.position - b.position || a.createdAt.getTime() - b.createdAt.getTime(),
       );
+      if (viewerId) {
+        playlist.items = await this.filterBlockedCreatorItems(viewerId, playlist.items);
+      }
     }
     return playlist;
+  }
+
+  /** Drop playlist rows whose creators are blocked either way for the viewer. */
+  private async filterBlockedCreatorItems(
+    viewerId: string,
+    items: PlaylistVideo[],
+  ): Promise<PlaylistVideo[]> {
+    const blocked = new Set(await this.engagementService.getBlockedPeerIds(viewerId));
+    if (blocked.size === 0) return items;
+    return items.filter((item) => {
+      const creatorId = item.video?.userId;
+      return !creatorId || !blocked.has(creatorId);
+    });
   }
 
   async listByUser(userId: string, viewerId?: string | null): Promise<Playlist[]> {
@@ -158,10 +183,12 @@ export class PlaylistsService {
             relations: ['user', 'skillTags'],
           });
     const byId = new Map(videos.map((v) => [v.id, v]));
+    const blocked = new Set(await this.engagementService.getBlockedPeerIds(userId));
     const items = likes
       .map((like, index) => {
         const video = byId.get(like.videoId);
         if (!video) return null;
+        if (blocked.has(video.userId)) return null;
         return {
           id: like.id,
           playlistId: shell.id,
@@ -172,6 +199,11 @@ export class PlaylistsService {
         } as PlaylistVideo;
       })
       .filter(Boolean) as PlaylistVideo[];
+
+    // Re-index after filtering so UI positions stay contiguous.
+    items.forEach((item, index) => {
+      item.position = index;
+    });
 
     return { ...shell, items };
   }

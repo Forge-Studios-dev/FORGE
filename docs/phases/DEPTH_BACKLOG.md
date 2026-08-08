@@ -810,6 +810,9 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Notifications list hides actor metadata from blocked peers; live fan-out skips blocked recipients
 - Live / upcoming stream lists exclude blocked creators
 - Watch history / continue watching omit videos from blocked peers
+- Library shelves (Liked / Watch later / Disliked) omit blocked creators’ videos
+- Followers / subscriptions lists + DM inbox hide blocked peers
+- `GET /users/:id` matches by-username block gating
 
 ## Still open
 
@@ -831,6 +834,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Exclude blocked peers from suggestions + channel surfaces | Done (2026-08-08) |
 | Eng (optional) | Exclude blocked peers from notifs + live lists | Done (2026-08-08) |
 | Eng (optional) | Exclude blocked peers from watch history | Done (2026-08-08) |
+| Eng (optional) | Exclude blocked peers from library + follows + DMs | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Deferred (LMS off by default) |

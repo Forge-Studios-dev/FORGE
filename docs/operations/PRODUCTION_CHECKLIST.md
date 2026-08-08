@@ -68,6 +68,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Shorts CC + Save/Watch later + Block user (web + mobile); Settings username cooldown lock + unlock date
 - [ ] Smoke: Watch ⋮ Block user (web + mobile); Feed ⋮ Block user (web + mobile)
 - [ ] Smoke: After Block — search/suggestions omit peer; channel videos empty; if they blocked you, channel 403/not found
+- [ ] Smoke: After Block — Liked/Watch later/History hide peer videos; Manage subscriptions + DM inbox omit peer
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback
