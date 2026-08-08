@@ -783,6 +783,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile Shorts: bookmark Save / Watch later on rail + overflow item
 - Mobile: shared `showSaveToPlaylistSheet` (watch + Shorts ⋮ Save to playlist)
 
+## Shorts Block user (2026-08-08)
+
+- Web + mobile Shorts ⋮ → Block user (confirm) → hide short from feed
+
 ## Still open
 
 | Area | Item | Owner |
@@ -795,6 +799,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Mobile in-player CC overlay (transcript API exists; web has tracks) | Done (2026-08-08) |
 | Eng (optional) | Shorts in-player CC (web + mobile) | Done (2026-08-08) |
 | Eng (optional) | Shorts Save / Watch later | Done (2026-08-08) |
+| Eng (optional) | Shorts Block user | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Eng (optional) |

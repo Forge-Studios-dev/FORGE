@@ -948,6 +948,29 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                       ref: ref,
                       videoId: widget.video.id,
                     );
+                  } else if (value == 'block') {
+                    final user = widget.video.user;
+                    if (user.id.isEmpty) return;
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text('Block ${user.displayName}?'),
+                        content: const Text(
+                          'They won’t be able to message you. Their comments will be hidden, and their channel won’t be recommended.',
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Block')),
+                        ],
+                      ),
+                    );
+                    if (ok != true) return;
+                    await repo.blockUser(user.id);
+                    if (!mounted) return;
+                    widget.onHidden?.call();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('User blocked')),
+                    );
                   } else if (value == 'not_interested') {
                     await repo.markNotInterested(widget.video.id);
                     if (!mounted) return;
@@ -1013,6 +1036,8 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                 const PopupMenuItem(value: 'save_playlist', child: Text('Save to playlist')),
                 const PopupMenuItem(value: 'not_interested', child: Text('Not interested')),
                 const PopupMenuItem(value: 'dont_recommend', child: Text("Don't recommend channel")),
+                if (widget.video.user.id.isNotEmpty)
+                  const PopupMenuItem(value: 'block', child: Text('Block user')),
                 const PopupMenuItem(value: 'report', child: Text('Report')),
               ],
               icon: const Icon(Icons.more_vert, color: Colors.white),

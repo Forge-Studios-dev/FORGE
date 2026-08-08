@@ -73,6 +73,8 @@ function ShortSlide({
   const [watchLaterSaved, setWatchLaterSaved] = useState(false);
   const [watchLaterPending, setWatchLaterPending] = useState(false);
   const [savePlaylistOpen, setSavePlaylistOpen] = useState(false);
+  const [confirmBlock, setConfirmBlock] = useState(false);
+  const [blockPending, setBlockPending] = useState(false);
   const lastTapRef = useRef(0);
   const blockReason = onGuestAction ? null : getEngageBlockReason(me, isGuest);
   const canPlay = active && video.status === 'ready' && !!video.hlsUrl;
@@ -199,6 +201,22 @@ function ShortSlide({
       if (reason === 'guest' || reason === 'unverified') setEngageBlock(reason);
     } finally {
       setWatchLaterPending(false);
+    }
+  };
+
+  const blockCreator = async () => {
+    const targetId = video.userId || video.user?.id;
+    if (!targetId || blockPending) return;
+    setBlockPending(true);
+    try {
+      await api.post(`/users/${targetId}/block`);
+      setConfirmBlock(false);
+      onHidden?.(video.id);
+    } catch (err) {
+      const reason = engageErrorReason(err);
+      if (reason === 'guest' || reason === 'unverified') setEngageBlock(reason);
+    } finally {
+      setBlockPending(false);
     }
   };
 
@@ -367,6 +385,21 @@ function ShortSlide({
                 >
                   Don&apos;t recommend channel
                 </button>
+                {!isOwn && (video.userId || video.user?.id) ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="block w-full px-3 py-2 text-left text-xs text-error hover:bg-surface-container-highest"
+                    onClick={() =>
+                      gated(() => {
+                        close();
+                        setConfirmBlock(true);
+                      })
+                    }
+                  >
+                    Block user
+                  </button>
+                ) : null}
                 <div className="border-t border-outline-variant/30 px-1 py-1">
                   <ReportContentButton
                     targetType="video"
@@ -613,6 +646,17 @@ function ShortSlide({
         videoId={video.id}
         open={savePlaylistOpen}
         onClose={() => setSavePlaylistOpen(false)}
+      />
+      <ConfirmDialog
+        open={confirmBlock}
+        title="Block this user?"
+        description="They won’t be able to message you. Their comments will be hidden, and their channel won’t be recommended."
+        confirmLabel="Block"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={blockPending}
+        onCancel={() => setConfirmBlock(false)}
+        onConfirm={() => gated(() => void blockCreator())}
       />
     </section>
   );
