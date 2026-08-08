@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:chewie/chewie.dart';
 import 'package:dio/dio.dart';
@@ -2326,7 +2325,7 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
           _video?.pause();
           return;
         }
-        if (!kIsWeb && Platform.isIOS) {
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
           final positionMs = _video?.value.position.inMilliseconds ?? 0;
           await PipService.enter(hlsUrl: widget.url, positionMs: positionMs);
           await _video?.pause();
