@@ -323,4 +323,42 @@ describe('UsersService', () => {
     });
     expect(result.publicUrl).toBe('https://test-bucket.s3.amazonaws.com/banners/u1/test.webp');
   });
+
+  it('getNotificationPreferences defaults to no muted categories, no digest', async () => {
+    const svc = await setup();
+    userRepo.findOne.mockResolvedValue({ id: 'u1', notificationPreferences: null });
+
+    const prefs = await svc.getNotificationPreferences('u1');
+
+    expect(prefs).toEqual({ mutedCategories: [], emailDigest: false });
+  });
+
+  it('getNotificationPreferences returns the stored value when set', async () => {
+    const svc = await setup();
+    userRepo.findOne.mockResolvedValue({
+      id: 'u1',
+      notificationPreferences: { mutedCategories: ['live'], emailDigest: true },
+    });
+
+    const prefs = await svc.getNotificationPreferences('u1');
+
+    expect(prefs).toEqual({ mutedCategories: ['live'], emailDigest: true });
+  });
+
+  it('setNotificationPreferences saves and dedupes muted categories', async () => {
+    const svc = await setup();
+    userRepo.findOne.mockResolvedValue({ id: 'u1', notificationPreferences: null });
+
+    const result = await svc.setNotificationPreferences('u1', {
+      mutedCategories: ['live', 'live', 'social'],
+      emailDigest: true,
+    });
+
+    expect(result).toEqual({ mutedCategories: ['live', 'social'], emailDigest: true });
+    expect(userRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notificationPreferences: { mutedCategories: ['live', 'social'], emailDigest: true },
+      }),
+    );
+  });
 });

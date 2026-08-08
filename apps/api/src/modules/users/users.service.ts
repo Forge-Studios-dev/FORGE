@@ -14,6 +14,10 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 import { CreatorStatus, User, UserRole } from './entities/user.entity';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type NotificationPreferences,
+} from '@forge/shared-types';
 import { UsernameHistory } from './entities/username-history.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Video, VideoStatus, VideoType, VideoVisibility } from '../content/entities/video.entity';
@@ -439,6 +443,24 @@ export class UsersService {
       select: { id: true, watchHistoryPaused: true },
     });
     return !!row?.watchHistoryPaused;
+  }
+
+  async getNotificationPreferences(userId: string): Promise<NotificationPreferences> {
+    const user = await this.findById(userId);
+    return user.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES;
+  }
+
+  async setNotificationPreferences(
+    userId: string,
+    patch: NotificationPreferences,
+  ): Promise<NotificationPreferences> {
+    const user = await this.findById(userId);
+    user.notificationPreferences = {
+      mutedCategories: [...new Set(patch.mutedCategories)],
+      emailDigest: patch.emailDigest,
+    };
+    await this.userRepository.save(user);
+    return user.notificationPreferences;
   }
 
   async requestCreator(userId: string, applicationNote?: string): Promise<User> {

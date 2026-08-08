@@ -12,6 +12,7 @@ import { BannerUploadSettings } from '@/components/settings/BannerUploadSettings
 import { MutedChannelsSettings } from '@/components/settings/MutedChannelsSettings';
 import { BlockedUsersSettings } from '@/components/settings/BlockedUsersSettings';
 import { InterestsSettings } from '@/components/settings/InterestsSettings';
+import { NotificationPreferencesSettings } from '@/components/settings/NotificationPreferencesSettings';
 import { PasswordResetSettings } from '@/components/settings/PasswordResetSettings';
 import { PlaybackSettings } from '@/components/settings/PlaybackSettings';
 import { WatchHistoryPrivacyToggle } from '@/components/settings/WatchHistoryPrivacyToggle';
@@ -128,12 +129,12 @@ export default function ProfileSettingsPage() {
         >
           Interests
         </a>
-        <Link
-          href="/notifications"
+        <a
+          href="#notifications"
           className="rounded-full bg-surface-container-high px-4 py-1.5 text-sm text-on-surface-variant hover:text-on-surface"
         >
           Notifications
-        </Link>
+        </a>
         <Link
           href="/settings/memberships"
           className="rounded-full bg-surface-container-high px-4 py-1.5 text-sm text-on-surface-variant hover:text-on-surface"
@@ -286,7 +287,7 @@ export default function ProfileSettingsPage() {
 
       <PlaybackSettings />
 
-      <section className="glass-panel mt-8 rounded-2xl p-6">
+      <section id="notifications" className="glass-panel mt-8 rounded-2xl p-6">
         <h2 className="font-display-forge text-lg font-semibold">Notifications</h2>
         <p className="mt-2 text-sm text-on-surface-variant">
           Uploads, live streams, comments, and channel updates.
@@ -294,6 +295,7 @@ export default function ProfileSettingsPage() {
         <Link href="/notifications" className="mt-3 inline-block text-sm text-primary hover:underline">
           Open notifications →
         </Link>
+        <NotificationPreferencesSettings />
       </section>
 
       <section className="glass-panel mt-8 rounded-2xl p-6">

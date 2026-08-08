@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
+import type { NotificationPreferences } from '@forge/shared-types';
 import { Video } from '../../content/entities/video.entity';
 import { Stream } from '../../streaming/entities/stream.entity';
 import { Like } from '../../engagement/entities/like.entity';
@@ -130,6 +131,10 @@ export class User {
   /** When true, VOD watch progress is not written to watch_history (views still count). */
   @Column({ name: 'watch_history_paused', default: false })
   watchHistoryPaused: boolean;
+
+  /** Null means all categories on, no email digest — the zero-row default. */
+  @Column({ name: 'notification_preferences', type: 'jsonb', nullable: true })
+  notificationPreferences: NotificationPreferences | null;
 
   @Column({ name: 'stripe_connect_account_id', type: 'varchar', length: 255, nullable: true })
   stripeConnectAccountId: string | null;

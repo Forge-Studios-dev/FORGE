@@ -74,3 +74,4 @@ export * from './content-visibility';
 export * from './entitlements';
 export * from './csrf';
 export * from './domain';
+export * from './notification-preferences';

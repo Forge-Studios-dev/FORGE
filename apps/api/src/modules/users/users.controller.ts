@@ -30,7 +30,11 @@ import {
   CompleteProfileImageUploadDto,
   PresignProfileImageUploadDto,
 } from './dto/profile-image-upload.dto';
-import { UpdateInterestsDto, UpdatePrivacyDto } from './dto/user-preferences.dto';
+import {
+  UpdateInterestsDto,
+  UpdateNotificationPreferencesDto,
+  UpdatePrivacyDto,
+} from './dto/user-preferences.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -98,6 +102,23 @@ export class UsersController {
     @Body() body: UpdatePrivacyDto,
   ) {
     return this.usersService.setPrivacySettings(user.sub, body);
+  }
+
+  @Get('me/notification-preferences')
+  @Permissions(Permission.USE_LIBRARY)
+  @ApiOperation({ summary: 'Notification preferences (muted categories, email digest opt-in)' })
+  getMyNotificationPreferences(@CurrentUser() user: JwtPayload) {
+    return this.usersService.getNotificationPreferences(user.sub);
+  }
+
+  @Put('me/notification-preferences')
+  @Permissions(Permission.USE_LIBRARY)
+  @ApiOperation({ summary: 'Update notification preferences' })
+  setMyNotificationPreferences(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: UpdateNotificationPreferencesDto,
+  ) {
+    return this.usersService.setNotificationPreferences(user.sub, body);
   }
 
   @Post('me/request-creator')
