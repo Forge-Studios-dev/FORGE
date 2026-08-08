@@ -20,16 +20,20 @@ export class CoursesController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('courses/discover/featured')
   @ApiOperation({ summary: 'List featured published courses (public catalog)' })
-  listFeatured(@Query('limit') limit = 12) {
-    return this.coursesService.listFeaturedCourses(Number(limit) || 12);
+  listFeatured(@Query('limit') limit = 12, @CurrentUser() user?: JwtPayload) {
+    return this.coursesService.listFeaturedCourses(Number(limit) || 12, user?.sub);
   }
 
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @Get('courses/discover')
   @ApiOperation({ summary: 'Search published courses (public catalog)' })
-  discover(@Query('q') q = '', @Query('limit') limit = 20) {
-    return this.coursesService.discoverCourses(q, Number(limit) || 20);
+  discover(
+    @Query('q') q = '',
+    @Query('limit') limit = 20,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.coursesService.discoverCourses(q, Number(limit) || 20, user?.sub);
   }
 
   @Get('creators/me/courses')

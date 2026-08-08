@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
+import { EngagementService } from '../engagement/engagement.service';
 
 export type ContentType = 'video' | 'short' | 'podcast' | 'course' | 'live';
 
@@ -34,7 +35,10 @@ function assertOptionalUuid(value: string | undefined, field: string): void {
 
 @Injectable()
 export class ContentLibraryService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly engagementService: EngagementService,
+  ) {}
 
   async getUnifiedLibrary(
     viewerId: string | undefined,
@@ -125,6 +129,12 @@ export class ContentLibraryService {
     viewerId?: string,
     options: { limit?: number; offset?: number } = {},
   ) {
+    if (
+      viewerId &&
+      (await this.engagementService.isBlockedEitherWay(viewerId, creatorId))
+    ) {
+      throw new ForbiddenException('This channel is not available');
+    }
     return this.getUnifiedLibrary(viewerId, {
       creatorId,
       limit: options.limit,

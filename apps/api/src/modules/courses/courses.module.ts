@@ -23,6 +23,7 @@ import { CreatorProgramsService } from './creator-programs.service';
 import { UsersModule } from '../users/users.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { AccessSessionsModule } from '../access-sessions/access-sessions.module';
+import { EngagementModule } from '../engagement/engagement.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
@@ -62,6 +63,7 @@ export class CoursesModule {
         UsersModule,
         EntitlementsModule,
         AccessSessionsModule,
+        EngagementModule,
       ],
       controllers: [CoursesController, CreatorProgramsController],
       providers: [CoursesService, CreatorProgramsService, CreatorApprovedGuard, SkillEconomyLmsGuard],

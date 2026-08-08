@@ -9,6 +9,7 @@ import { DataSource, Repository } from 'typeorm';
 import { PodcastSeries } from './entities/podcast-series.entity';
 import { Video, VideoType } from './entities/video.entity';
 import { clampLimit, clampPage } from '../../common/utils/pagination.util';
+import { EngagementService } from '../engagement/engagement.service';
 
 @Injectable()
 export class PodcastsService {
@@ -18,6 +19,7 @@ export class PodcastsService {
     @InjectRepository(Video)
     private readonly videoRepository: Repository<Video>,
     private readonly dataSource: DataSource,
+    private readonly engagementService: EngagementService,
   ) {}
 
   async createSeries(
@@ -90,10 +92,13 @@ export class PodcastsService {
 
   async listEpisodes(
     seriesId: string,
-    _viewerId?: string,
+    viewerId?: string,
   ): Promise<{ series: PodcastSeries; episodes: Partial<Video>[] }> {
     const series = await this.seriesRepository.findOne({ where: { id: seriesId } });
     if (!series) throw new NotFoundException('Podcast series not found');
+    if (viewerId && (await this.engagementService.isBlockedEitherWay(viewerId, series.userId))) {
+      throw new ForbiddenException('This channel is not available');
+    }
 
     const episodes = await this.videoRepository.find({
       where: { podcastSeriesId: seriesId, videoType: VideoType.PODCAST },
