@@ -50,8 +50,16 @@ class _MiniPlayerDockState extends ConsumerState<MiniPlayerDock> {
 
   void _syncAutoPip() {
     final session = ref.read(miniPlayerProvider);
-    final playing = _controller?.value.isPlaying == true;
-    unawaited(PipService.setAutoEnter(session != null && playing && _pipSupported));
+    final c = _controller;
+    final playing = c?.value.isPlaying == true;
+    final positionMs = c?.value.position.inMilliseconds ?? (session?.seconds ?? 0) * 1000;
+    unawaited(
+      PipService.setAutoEnter(
+        session != null && playing && _pipSupported,
+        hlsUrl: session?.hlsUrl,
+        positionMs: positionMs,
+      ),
+    );
   }
 
   void _onTick() {
@@ -249,7 +257,16 @@ class _MiniPlayerDockState extends ConsumerState<MiniPlayerDock> {
                       IconButton(
                         tooltip: 'Picture in picture',
                         visualDensity: VisualDensity.compact,
-                        onPressed: () => PipService.enter(),
+                        onPressed: () async {
+                          final c = _controller;
+                          final session = ref.read(miniPlayerProvider);
+                          final url = session?.hlsUrl;
+                          if (url == null) return;
+                          final positionMs =
+                              c?.value.position.inMilliseconds ?? session!.seconds * 1000;
+                          await c?.pause();
+                          await PipService.enter(hlsUrl: url, positionMs: positionMs);
+                        },
                         icon: const Icon(Icons.picture_in_picture_alt, size: 18),
                       ),
                     IconButton(

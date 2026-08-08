@@ -74,6 +74,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Category explore + similar videos omit blocked peers when signed in; Watch later add fails for blocked creator
 - [ ] Smoke: Embed `/embed/:id` shows “not available” (not generic 404) when blocked
 - [ ] Smoke (Android): Watch or miniplayer → Home enters OS Picture-in-Picture; web player `p` toggles browser PiP
+- [ ] Smoke (iOS device): Watch PiP button / Home while playing enters system AVPlayer PiP (simulator unsupported)
 - [ ] Smoke: Blocked peer — community detail/join/posts return unavailable/empty (channel Community tab already empty)
 - [ ] Smoke: After Block — community Report still succeeds; discover search/featured omit that creator
 - [ ] Smoke: Blocked peer cannot list/join community study groups; cannot be added to a group DM

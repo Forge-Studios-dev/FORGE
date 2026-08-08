@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:chewie/chewie.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -604,7 +606,13 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
               ),
               if (canPlay && _pipSupported)
                 TextButton.icon(
-                  onPressed: () => PipService.enter(),
+                  onPressed: () async {
+                    final seconds = ref.read(watchPositionSecondsProvider(videoId));
+                    await PipService.enter(
+                      hlsUrl: video.hlsUrl!,
+                      positionMs: seconds * 1000,
+                    );
+                  },
                   icon: const Icon(Icons.picture_in_picture_alt, size: 18),
                   label: const Text('PiP'),
                 ),
@@ -2290,10 +2298,17 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
 
   void _syncAutoPip() {
     final playing = _video?.value.isPlaying == true;
-    unawaited(PipService.setAutoEnter(playing));
+    final positionMs = _video?.value.position.inMilliseconds ?? 0;
+    unawaited(
+      PipService.setAutoEnter(
+        playing,
+        hlsUrl: widget.url,
+        positionMs: positionMs,
+      ),
+    );
   }
 
-  /// Keep playing in Android OS PiP; otherwise pause decode when backgrounded.
+  /// Keep playing in Android OS PiP / iOS AVPlayer PiP; otherwise pause when backgrounded.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -2303,15 +2318,21 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
     if (state != AppLifecycleState.paused && state != AppLifecycleState.inactive) return;
     final playing = _video?.value.isPlaying == true;
     if (!playing) return;
-    // onUserLeaveHint may already have entered PiP — don't pause if so.
+    // Android onUserLeaveHint / iOS willResignActive may already have entered PiP.
     unawaited(
-      PipService.isSupported().then((supported) {
+      PipService.isSupported().then((supported) async {
         if (!mounted) return;
-        if (supported) {
-          _syncAutoPip();
+        if (!supported) {
+          _video?.pause();
           return;
         }
-        _video?.pause();
+        if (!kIsWeb && Platform.isIOS) {
+          final positionMs = _video?.value.position.inMilliseconds ?? 0;
+          await PipService.enter(hlsUrl: widget.url, positionMs: positionMs);
+          await _video?.pause();
+          return;
+        }
+        _syncAutoPip();
       }),
     );
   }
