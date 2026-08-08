@@ -9,7 +9,9 @@ import { ChannelPointsService } from './channel-points.service';
 import { ChannelPointsController } from './channel-points.controller';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { UsersModule } from '../users/users.module';
+import { EngagementModule } from '../engagement/engagement.module';
 import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
 /**
  * Channel points (skill-economy). Controllers only register when
@@ -31,8 +33,9 @@ export class ChannelPointsModule {
           ChannelPointRedemption,
         ]),
         UsersModule,
+        EngagementModule,
       ],
-      providers: [ChannelPointsService, CreatorApprovedGuard],
+      providers: [ChannelPointsService, CreatorApprovedGuard, OptionalJwtAuthGuard],
       controllers: [ChannelPointsController],
       exports: [ChannelPointsService],
     };

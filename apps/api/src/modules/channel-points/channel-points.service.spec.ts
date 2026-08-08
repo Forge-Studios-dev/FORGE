@@ -11,6 +11,7 @@ import {
   ChannelPointRewardStatus,
   ChannelPointsBalance,
 } from './entities/channel-points.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 const CREATOR_ID = 'creator-1';
 const COMMUNITY_ID = 'community-1';
@@ -32,6 +33,9 @@ describe('ChannelPointsService', () => {
   const dataSource = { query: jest.fn(), transaction: jest.fn() };
   const eventEmitter = { emit: jest.fn() };
   const redis = { set: jest.fn().mockResolvedValue('OK') };
+  const engagementService = {
+    isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+  };
 
   const fakeManager = {
     findOne: jest.fn(),
@@ -55,6 +59,8 @@ describe('ChannelPointsService', () => {
     dataSource.transaction.mockImplementation(async (work: (m: typeof fakeManager) => Promise<unknown>) =>
       work(fakeManager),
     );
+    dataSource.query.mockResolvedValue([{ creator_id: CREATOR_ID }]);
+    engagementService.isBlockedEitherWay.mockResolvedValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -65,6 +71,7 @@ describe('ChannelPointsService', () => {
         { provide: DataSource, useValue: dataSource },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
+        { provide: EngagementService, useValue: engagementService },
       ],
     }).compile();
 
@@ -84,6 +91,29 @@ describe('ChannelPointsService', () => {
       expect(result.balance).toBe(40);
       expect(result.totalEarned).toBe(100);
     });
+
+    it('rejects when viewer is blocked either way from the community creator', async () => {
+      engagementService.isBlockedEitherWay.mockResolvedValue(true);
+      await expect(service.getBalance(USER_ID, COMMUNITY_ID)).rejects.toMatchObject({
+        message: 'This channel is not available',
+      });
+      expect(balanceRepository.findOne).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listRewards', () => {
+    it('skips block check for anonymous viewers', async () => {
+      rewardRepository.find.mockResolvedValue([]);
+      await service.listRewards(COMMUNITY_ID);
+      expect(engagementService.isBlockedEitherWay).not.toHaveBeenCalled();
+    });
+
+    it('rejects authenticated blocked viewers', async () => {
+      engagementService.isBlockedEitherWay.mockResolvedValue(true);
+      await expect(service.listRewards(COMMUNITY_ID, false, USER_ID)).rejects.toMatchObject({
+        message: 'This channel is not available',
+      });
+    });
   });
 
   describe('earnPoints', () => {
@@ -100,6 +130,15 @@ describe('ChannelPointsService', () => {
       await service.earnPoints(USER_ID, COMMUNITY_ID, 0);
       await service.earnPoints(USER_ID, COMMUNITY_ID, -5);
       expect(dataSource.query).not.toHaveBeenCalled();
+    });
+
+    it('skips awarding when the viewer is blocked from the creator', async () => {
+      engagementService.isBlockedEitherWay.mockResolvedValue(true);
+      await service.earnPoints(USER_ID, COMMUNITY_ID, 10);
+      expect(dataSource.query).not.toHaveBeenCalledWith(
+        expect.stringContaining('ON CONFLICT'),
+        expect.anything(),
+      );
     });
   });
 
