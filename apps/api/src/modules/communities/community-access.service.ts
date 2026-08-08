@@ -377,6 +377,7 @@ export class CommunityAccessService {
         canView: false,
         canRequestJoin: false,
         joinRequestStatus: 'none' as const,
+        unavailable: true,
       };
     }
 
@@ -410,6 +411,7 @@ export class CommunityAccessService {
       canView,
       canRequestJoin,
       joinRequestStatus,
+      unavailable: false,
     };
   }
 

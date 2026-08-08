@@ -51,6 +51,7 @@ function CommunityRestrictedAccess({
           canRequestJoin: boolean;
           joinRequestStatus: string;
           visibility: string;
+          unavailable?: boolean;
         };
       }>(accessPath!);
       return data.data;
@@ -65,6 +66,18 @@ function CommunityRestrictedAccess({
       void qc.invalidateQueries({ queryKey: ['community-access-meta', creatorId, communitySlug] });
     },
   });
+
+  if (accessMeta?.unavailable) {
+    return (
+      <div className="glass-panel space-y-4 rounded-xl p-8 text-center">
+        <Icon name="block" className="mx-auto text-3xl text-outline" />
+        <h3 className="font-semibold">This community is not available</h3>
+        <p className="text-sm text-on-surface-variant">
+          You can’t view this community. It may be private, or access has been restricted.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="glass-panel space-y-4 rounded-xl p-8 text-center">

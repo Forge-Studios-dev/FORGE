@@ -9,6 +9,7 @@
 - Wired `BannerUploadSettings` into `/profile/settings` (API already existed; component was unused)
 - Confirmed privacy pause, channel links, avatar, password reset present
 - Neon migrations 185–197 applied (unblocks privacy / Super Thanks / pin columns)
+- Neon migrations **198–201** also applied (2026-08-08): dislike columns, `user_blocks`, `username_changed_at`, `username_history`
 
 ## Closed (2026-08-05)
 

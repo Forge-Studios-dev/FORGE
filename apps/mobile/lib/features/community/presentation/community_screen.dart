@@ -34,6 +34,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   String? _myUserId;
   bool _loading = true;
   bool _communityRestricted = false;
+  bool _communityUnavailable = false;
   bool _canRequestJoin = false;
   bool _joinPending = false;
   String? _communityRestrictedId;
@@ -122,6 +123,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         _communityRestrictedId = meta['communityId'] as String?;
         _canRequestJoin = meta['canRequestJoin'] == true;
         _joinPending = meta['joinRequestStatus'] == 'pending';
+        _communityUnavailable = meta['unavailable'] == true;
         _communityRestricted = true;
         _loading = false;
       });
@@ -631,6 +633,33 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     }
 
     if (_communityRestricted && _communityId == null) {
+      if (_communityUnavailable) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Community')),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.block, size: 48, color: ForgeTokens.of(context).onSurfaceVariant),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'This community is not available',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'You can’t view this community. It may be private, or access has been restricted.',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
       return Scaffold(
         appBar: AppBar(title: const Text('Community')),
         body: Center(

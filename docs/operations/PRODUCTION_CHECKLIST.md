@@ -77,6 +77,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke (iOS device): Watch PiP button / Home while playing enters system AVPlayer PiP (simulator unsupported)
 - [ ] Smoke (mobile): Live watch PiP button / Home keeps live in OS PiP; web live `p` / `m` / `f`
 - [ ] Smoke: Blocked peer — community detail/join/posts return unavailable/empty (channel Community tab already empty)
+- [ ] Smoke: Blocked peer community page shows “not available” (not membership “restricted”) on web + mobile
 - [ ] Smoke: After Block — community Report still succeeds; discover search/featured omit that creator
 - [ ] Smoke: Blocked peer cannot list/join community study groups; cannot be added to a group DM
 - [ ] Smoke: Blocked peer — membership tiers / membership-me / resources (and LMS bundles if on) return unavailable

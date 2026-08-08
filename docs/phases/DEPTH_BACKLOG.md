@@ -835,6 +835,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Live poll/clips/captions/RSVP/raise-hand/reactions gated on host block; Shorts `m`/`k`/space only
 - Access-session start refuses blocked creators; LMS public reputation refuses blocked peers
 - Mux playback rewrite uses URL hostname checks (not substring)
+- Community access meta `unavailable` → web/mobile “not available” (vs membership restricted)
 
 ## Still open
 

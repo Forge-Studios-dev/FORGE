@@ -59,4 +59,12 @@ npm run dev:web    # Web
 npm run dev:admin  # Admin
 ```
 
+Mobile (Flutter, outside npm workspaces):
+
+```bash
+cd apps/mobile && flutter pub get && flutter run
+```
+
+Ship gate: [production checklist](docs/operations/PRODUCTION_CHECKLIST.md) · open PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) (`feature/youtube-replica-wave-1`).
+
 See each app’s `.env.example`. Set `SKIP_ENV_VALIDATION=true` only for tooling that must boot without full env.
