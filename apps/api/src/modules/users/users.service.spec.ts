@@ -8,6 +8,7 @@ import { Video, VideoVisibility } from '../content/entities/video.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { UsernameHistory } from './entities/username-history.entity';
 import { VideosService } from '../content/videos.service';
+import { EngagementService } from '../engagement/engagement.service';
 
 describe('UsersService', () => {
   const userRepo = {
@@ -64,6 +65,13 @@ describe('UsersService', () => {
             listStudioVideos: jest.fn(),
             releaseAllStuckUploads: jest.fn(),
             mapToPublicVideo: jest.fn((v) => v),
+          },
+        },
+        {
+          provide: EngagementService,
+          useValue: {
+            getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+            isBlockedEitherWay: jest.fn().mockResolvedValue(false),
           },
         },
         {

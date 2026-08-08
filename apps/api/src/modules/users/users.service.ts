@@ -19,6 +19,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { Video, VideoStatus, VideoType, VideoVisibility } from '../content/entities/video.entity';
 import { VideosService } from '../content/videos.service';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
+import { EngagementService } from '../engagement/engagement.service';
 import { ModerationStatus } from '../content/entities/video.entity';
 import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
 import { PresignProfileImageUploadDto } from './dto/profile-image-upload.dto';
@@ -51,6 +52,7 @@ export class UsersService {
     @InjectRepository(WatchHistory)
     private readonly watchHistoryRepository: Repository<WatchHistory>,
     private readonly videosService: VideosService,
+    private readonly engagementService: EngagementService,
     private readonly configService: ConfigService,
     @InjectRedis() private readonly redis: Redis,
   ) {
@@ -361,13 +363,20 @@ export class UsersService {
 
   async getWatchHistory(userId: string, limit = 20, incompleteOnly = false) {
     const take = Math.min(limit, 50);
+    const blockedPeers = await this.engagementService.getBlockedPeerIds(userId);
     const qb = this.watchHistoryRepository
       .createQueryBuilder('wh')
       .leftJoinAndSelect('wh.video', 'video')
       .leftJoinAndSelect('video.user', 'user')
       .where('wh.userId = :userId', { userId })
       .orderBy('wh.watchedAt', 'DESC')
-      .take(take);
+      .take(take + Math.min(blockedPeers.length, 20));
+
+    if (blockedPeers.length > 0) {
+      qb.andWhere('(video.user_id IS NULL OR video.user_id NOT IN (:...blockedPeers))', {
+        blockedPeers,
+      });
+    }
 
     if (incompleteOnly) {
       qb.andWhere('video.durationSeconds IS NOT NULL');
@@ -376,7 +385,9 @@ export class UsersService {
     }
 
     const rows = await qb.getMany();
-    const ready = rows.filter((r) => r.video && r.video.status === VideoStatus.READY);
+    const ready = rows
+      .filter((r) => r.video && r.video.status === VideoStatus.READY)
+      .slice(0, take);
     if (incompleteOnly) {
       const videos = ready.map((r) => ({
         ...this.videosService.mapToPublicVideo(r.video as Video),
