@@ -875,7 +875,9 @@ export class VideosService {
       );
     }
 
-    const body = file.buffer?.length ? file.buffer : createReadStream(file.path);
+    const body = file.buffer?.length
+      ? file.buffer
+      : createReadStream(this.requireMulterTempPath(file.path));
 
     try {
       await this.s3.send(
@@ -890,23 +892,31 @@ export class VideosService {
     } finally {
       // diskStorage() writes the proxy-upload multer temp file to os.tmpdir() (LOW-04);
       // always clean it up so a stream of uploads doesn't fill the container's disk.
-      // Multer generates this filename itself (no user-supplied filename callback is
-      // configured), but the containment check below makes that guarantee explicit
-      // instead of implicit, so unlink() can never be pointed outside the temp dir.
       if (file.path) {
-        const resolvedTmpDir = resolvePath(tmpdir()) + pathSep;
-        const resolvedFilePath = resolvePath(file.path);
-        if (resolvedFilePath.startsWith(resolvedTmpDir)) {
+        try {
+          const resolvedFilePath = this.requireMulterTempPath(file.path);
           await fsPromises.unlink(resolvedFilePath).catch((err) =>
-            this.logger.warn(`Failed to remove proxy-upload temp file ${resolvedFilePath}: ${err.message}`),
+            this.logger.warn(
+              `Failed to remove proxy-upload temp file ${resolvedFilePath}: ${err.message}`,
+            ),
           );
-        } else {
+        } catch {
           this.logger.warn(`Refused to remove proxy-upload temp file outside tmpdir: ${file.path}`);
         }
       }
     }
 
     return { ok: true };
+  }
+
+  /** Multer diskStorage paths must resolve under os.tmpdir() (CodeQL path-injection). */
+  private requireMulterTempPath(filePath: string): string {
+    const resolvedTmpDir = resolvePath(tmpdir()) + pathSep;
+    const resolvedFilePath = resolvePath(filePath);
+    if (!resolvedFilePath.startsWith(resolvedTmpDir)) {
+      throw new BadRequestException('Invalid upload path');
+    }
+    return resolvedFilePath;
   }
 
   /**
@@ -916,6 +926,8 @@ export class VideosService {
    * New flow should use: presigned-url -> S3 PUT -> /videos/:id/complete.
    */
   async create(userId: string, dto: CreateVideoDto): Promise<PublicVideo> {
+    this.assertOwnedOriginalS3Key(userId, dto.s3Key);
+
     const skillTags = dto.skillTagIds?.length
       ? await this.skillTagRepository.find({ where: { id: In(dto.skillTagIds) } })
       : [];
@@ -934,6 +946,18 @@ export class VideosService {
     await this.enqueueTranscodeOrThrow(saved.id, dto.s3Key, userId);
 
     return this.mapToPublicVideo(saved);
+  }
+
+  /** Reject cross-user / traversal keys on the legacy register endpoint. */
+  private assertOwnedOriginalS3Key(userId: string, s3Key: string): void {
+    const prefix = `videos/${userId}/`;
+    if (!s3Key.startsWith(prefix) || s3Key.includes('..')) {
+      throw new BadRequestException('Invalid upload key');
+    }
+    const rest = s3Key.slice(prefix.length);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/original\.(mp4|mov)$/i.test(rest)) {
+      throw new BadRequestException('Invalid upload key');
+    }
   }
 
   async completeUpload(userId: string, videoId: string, dto: CompleteUploadDto) {

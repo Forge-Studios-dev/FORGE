@@ -1,7 +1,5 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import { AnalyticsService } from './analytics.service';
 import { KpiService } from './kpi.service';
 import { IngestEventDto } from './dto/ingest-event.dto';
@@ -11,6 +9,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Throttle } from '@nestjs/throttler';
 import { AppCheckGuard } from '../firebase/app-check.guard';
 import { RequireAppCheck } from '../firebase/app-check.decorator';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 
@@ -20,34 +19,20 @@ export class AnalyticsController {
   constructor(
     private readonly analyticsService: AnalyticsService,
     private readonly kpiService: KpiService,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
   ) {}
 
   @Public()
-  @UseGuards(AppCheckGuard)
+  @UseGuards(AppCheckGuard, OptionalJwtAuthGuard)
   @RequireAppCheck()
   @Post('events')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Ingest client analytics event (optional Bearer for attribution)' })
   async ingest(
-    @Headers('authorization') authorization: string | undefined,
+    @CurrentUser() user: JwtPayload | undefined,
     @Body() dto: IngestEventDto,
   ) {
-    let userId: string | null = null;
-    const bearer = authorization?.startsWith('Bearer ') ? authorization.slice(7) : null;
-    if (bearer) {
-      try {
-        const payload = this.jwtService.verify<JwtPayload>(bearer, {
-          secret: this.configService.get<string>('jwt.secret'),
-        });
-        userId = payload.sub;
-      } catch {
-        // ignore invalid token for optional attribution
-      }
-    }
-    await this.analyticsService.ingest(userId, dto);
+    await this.analyticsService.ingest(user?.sub ?? null, dto);
   }
 
   @Get('studio/video-performance')

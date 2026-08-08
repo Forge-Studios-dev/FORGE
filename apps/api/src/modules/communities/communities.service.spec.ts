@@ -40,6 +40,10 @@ describe('CommunitiesService', () => {
     subscriptionCoversCommunity: jest.Mock;
     getSubscriberAnalytics: jest.Mock;
   };
+  let engagementService: {
+    isBlockedEitherWay: jest.Mock;
+    getBlockedPeerIds: jest.Mock;
+  };
   let accessSessionsService: { requirePremiumSession: jest.Mock };
   let moderationService: { isBanned: jest.Mock; listUnifiedReportsForCreator: jest.Mock };
   let aiModerationService: { scoreSpam: jest.Mock };
@@ -146,6 +150,10 @@ describe('CommunitiesService', () => {
       }),
     };
     accessSessionsService = { requirePremiumSession: jest.fn().mockResolvedValue(undefined) };
+    engagementService = {
+      isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+      getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+    };
     moderationService = {
       isBanned: jest.fn().mockResolvedValue(false),
       listUnifiedReportsForCreator: jest.fn().mockResolvedValue({ data: [] }),
@@ -170,10 +178,7 @@ describe('CommunitiesService', () => {
         { provide: EntitlementsService, useValue: entitlementsService },
         {
           provide: EngagementService,
-          useValue: {
-            isBlockedEitherWay: jest.fn().mockResolvedValue(false),
-            getBlockedPeerIds: jest.fn().mockResolvedValue([]),
-          },
+          useValue: engagementService,
         },
         { provide: AccessSessionsService, useValue: accessSessionsService },
         { provide: CommunityModerationService, useValue: moderationService },
@@ -431,6 +436,35 @@ describe('CommunitiesService', () => {
 
     expect(meta.canRequestJoin).toBe(true);
     expect(meta.communityId).toBe('comm-private');
+    expect(meta.unavailable).toBe(false);
+  });
+
+  it('marks community access meta unavailable when blocked either way', async () => {
+    communityRepository.findOne.mockResolvedValue({
+      id: 'comm-blocked',
+      creatorId: 'creator-1',
+      slug: 'club',
+      name: 'Club',
+      visibility: CommunityVisibility.PUBLIC,
+    });
+    engagementService.isBlockedEitherWay.mockResolvedValue(true);
+
+    const meta = await service.getCommunityAccessMeta(
+      'creator-1',
+      'club',
+      'viewer-1',
+      UserRole.USER,
+    );
+
+    expect(meta).toEqual(
+      expect.objectContaining({
+        communityId: 'comm-blocked',
+        canView: false,
+        canRequestJoin: false,
+        unavailable: true,
+      }),
+    );
+    expect(engagementService.isBlockedEitherWay).toHaveBeenCalledWith('viewer-1', 'creator-1');
   });
 
   describe('getCreatorAttention', () => {

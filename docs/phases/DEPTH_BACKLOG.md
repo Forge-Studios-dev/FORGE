@@ -836,6 +836,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Access-session start refuses blocked creators; LMS public reputation refuses blocked peers
 - Mux playback rewrite uses URL hostname checks (not substring)
 - Community access meta `unavailable` → web/mobile “not available” (vs membership restricted)
+- CodeQL hardening: analytics ingest via OptionalJwt (no manual bearer bypass), owned `s3Key` validation, multer temp path containment before read/unlink, video-processor `mkdtemp`, Resend SMTP hostname equality, FCM SW same-origin via Client URL
 
 ## Still open
 

@@ -6,7 +6,15 @@ let messaging = null;
 
 self.addEventListener('message', (event) => {
   // Only accept FIREBASE_CONFIG from same-origin pages (CodeQL: js/missing-origin-check).
-  if (event.origin && event.origin !== self.location.origin) return;
+  let messageOrigin = typeof event.origin === 'string' ? event.origin : '';
+  if (!messageOrigin && event.source && typeof event.source.url === 'string') {
+    try {
+      messageOrigin = new URL(event.source.url).origin;
+    } catch {
+      return;
+    }
+  }
+  if (messageOrigin !== self.location.origin) return;
   if (event.data?.type !== 'FIREBASE_CONFIG' || !event.data.config) return;
   if (!firebase.apps.length) {
     firebase.initializeApp(event.data.config);

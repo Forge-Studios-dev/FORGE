@@ -84,6 +84,7 @@ describe('Community HTTP (mocked e2e)', () => {
       canRequestJoin: true,
       joinRequestStatus: 'none',
       visibility: 'private',
+      unavailable: false,
     }),
   };
 

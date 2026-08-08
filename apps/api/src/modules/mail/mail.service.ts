@@ -7,6 +7,16 @@ import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
+/** Hostname equality for Resend SMTP (avoids substring host spoofing). */
+function isResendSmtpHost(host: string): boolean {
+  const hostname = host.trim().toLowerCase().replace(/^\[|\]$/g, '').split(':')[0];
+  return (
+    hostname === 'smtp.resend.com' ||
+    hostname === 'resend.com' ||
+    hostname.endsWith('.resend.com')
+  );
+}
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
@@ -28,7 +38,7 @@ export class MailService {
           : null;
     this.useResendHttp =
       Boolean(this.resendApiKey) &&
-      (host.includes('resend.com') || Boolean(explicitResend));
+      (isResendSmtpHost(host) || Boolean(explicitResend));
 
     this.smtpConfigured = Boolean(host && user && pass);
     if (this.smtpConfigured && !this.useResendHttp) {

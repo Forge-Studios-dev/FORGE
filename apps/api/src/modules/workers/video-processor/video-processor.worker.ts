@@ -23,6 +23,7 @@ import { resolveVideoTypeOnReady } from '../../content/short-duration.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { buildPublicMediaUrl } from '../../../common/media-url.util';
 import { videoDetailCacheKey } from '../../content/video-cache';
+import { OWNED_VIDEO_S3_KEY_PATTERN } from '../../content/dto/create-video.dto';
 
 interface VideoProcessingJob {
   videoId: string;
@@ -106,25 +107,27 @@ export class VideoProcessorWorker extends WorkerHost {
   }
 
   async process(job: Job<VideoProcessingJob>): Promise<void> {
-    const { videoId, s3Key } = job.data;
-    const tmpDir = path.join(os.tmpdir(), `forge-${videoId}`);
+    const { videoId, s3Key, userId } = job.data;
+    if (!OWNED_VIDEO_S3_KEY_PATTERN.test(s3Key) || !s3Key.startsWith(`videos/${userId}/`)) {
+      throw new Error('Refusing to process video with invalid s3Key');
+    }
+    // Random mkdtemp — never interpolate job fields into the temp path (CodeQL).
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-vid-'));
 
     this.logger.log(
-      JSON.stringify({ msg: 'video_processing_started', videoId, userId: job.data.userId }),
+      JSON.stringify({ msg: 'video_processing_started', videoId, userId }),
     );
 
     await this.videoRepository.update(videoId, { status: VideoStatus.PROCESSING });
 
     try {
-      fs.mkdirSync(tmpDir, { recursive: true });
-
       const rawFilePath = path.join(tmpDir, 'input.mp4');
       await this.downloadFromS3(s3Key, rawFilePath);
 
       await job.updateProgress(20);
 
       const thumbnailPath = path.join(tmpDir, 'thumbnail.jpg');
-      const customThumbKey = await this.findCustomThumbnailKey(job.data.userId, videoId);
+      const customThumbKey = await this.findCustomThumbnailKey(userId, videoId);
       if (customThumbKey) {
         await this.downloadFromS3(customThumbKey, thumbnailPath);
       } else {
@@ -212,7 +215,7 @@ export class VideoProcessorWorker extends WorkerHost {
       this.eventEmitter.emit('video.updated', { videoId });
       this.eventEmitter.emit('video.ready', {
         videoId,
-        userId: job.data.userId,
+        userId,
         categoryId: row?.categoryId ?? null,
         videoType: typeResolution.videoType,
         status: VideoStatus.READY,
