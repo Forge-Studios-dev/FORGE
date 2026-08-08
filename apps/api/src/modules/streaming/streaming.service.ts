@@ -263,20 +263,35 @@ export class StreamingService {
     await safeRedisDel(this.redis, streamDetailCacheKey(streamId), this.logger);
   }
 
+  /**
+   * Shared host-block gate for live sub-resources (poll/clips/RSVP/raise-hand/…).
+   * Mirrors getStreamForViewer so blocked peers cannot scrape side channels.
+   */
+  async assertViewerNotBlockedFromHost(
+    streamId: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ): Promise<Stream> {
+    const stream = await this.findById(streamId);
+    if (
+      viewerId &&
+      viewerId !== stream.userId &&
+      viewerRole !== UserRole.ADMIN &&
+      (await this.engagementService.isBlockedEitherWay(viewerId, stream.userId))
+    ) {
+      throw new ForbiddenException('This stream is not available');
+    }
+    return stream;
+  }
+
   async getStreamForViewer(
     id: string,
     viewerId?: string | null,
     viewerRole?: UserRole | null,
   ) {
-    const stream = await this.findById(id);
+    const stream = await this.assertViewerNotBlockedFromHost(id, viewerId, viewerRole);
     const isOwner = !!viewerId && viewerId === stream.userId;
     const isAdmin = viewerRole === UserRole.ADMIN;
-
-    if (viewerId && !isOwner && !isAdmin) {
-      if (await this.engagementService.isBlockedEitherWay(viewerId, stream.userId)) {
-        throw new ForbiddenException('This stream is not available');
-      }
-    }
 
     const access = await this.entitlementsService.checkAccess({
       creatorId: stream.userId,

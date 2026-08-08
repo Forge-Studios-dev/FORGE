@@ -205,6 +205,22 @@ export function VideoPlayer({
         }
         return;
       }
+      // Shorts: mute / play-pause only — ArrowUp/Down belong to ShortsFeed scroll.
+      if (isShorts) {
+        if (key === 'm') {
+          e.preventDefault();
+          video.muted = !video.muted;
+          setShortsMuted(video.muted);
+          writePreferredVolume(video.volume, video.muted);
+          return;
+        }
+        if (key === 'k' || key === ' ') {
+          e.preventDefault();
+          if (video.paused) void video.play();
+          else video.pause();
+        }
+        return;
+      }
       if (key === '?' || (e.shiftKey && key === '/')) {
         e.preventDefault();
         setShowShortcuts((v) => !v);
@@ -319,7 +335,7 @@ export function VideoPlayer({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isLive, hasCaptions, onMiniplayer, pipSupported, enterPiP]);
+  }, [isLive, isShorts, hasCaptions, onMiniplayer, pipSupported, enterPiP]);
 
   const maybeRecordView = useCallback(
     (currentTime: number, duration: number) => {

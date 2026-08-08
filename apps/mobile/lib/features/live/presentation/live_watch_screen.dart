@@ -798,6 +798,8 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         return 'Confirm you are 18 or older to watch.';
       case 'private':
         return 'This is a private stream.';
+      case 'not_available':
+        return 'This stream is not available.';
       default:
         return 'You cannot watch this stream.';
     }

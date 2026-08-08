@@ -35,6 +35,7 @@ const ACCESS_MESSAGES: Record<string, string> = {
   paid_event: 'This is a paid event. Access is granted by the creator or platform admin.',
   private: 'This is a private stream.',
   age_confirmation_required: 'Confirm you are 18 or older to watch.',
+  not_available: 'This stream is not available.',
 };
 
 const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL;

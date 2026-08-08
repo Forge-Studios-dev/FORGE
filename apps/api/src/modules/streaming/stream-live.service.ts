@@ -122,7 +122,7 @@ export class StreamLiveService {
   }
 
   async rsvp(streamId: string, userId: string) {
-    const stream = await this.streamingService.findById(streamId);
+    const stream = await this.streamingService.assertViewerNotBlockedFromHost(streamId, userId);
     if (!stream.scheduledAt || stream.status === StreamStatus.ENDED) {
       throw new BadRequestException('This stream is not open for RSVP');
     }
@@ -134,11 +134,13 @@ export class StreamLiveService {
   }
 
   async cancelRsvp(streamId: string, userId: string) {
+    await this.streamingService.assertViewerNotBlockedFromHost(streamId, userId);
     await this.rsvpRepository.delete({ streamId, userId });
     return { ok: true, rsvpCount: await this.rsvpCount(streamId) };
   }
 
-  async getRsvpStatus(streamId: string, userId?: string | null) {
+  async getRsvpStatus(streamId: string, userId?: string | null, viewerRole?: UserRole | null) {
+    await this.streamingService.assertViewerNotBlockedFromHost(streamId, userId, viewerRole);
     const hasRsvp = userId
       ? !!(await this.rsvpRepository.findOne({ where: { streamId, userId } }))
       : false;
@@ -197,7 +199,10 @@ export class StreamLiveService {
       throw new BadRequestException('Invalid option');
     }
 
-    const stream = await this.streamingService.findById(poll.streamId);
+    const stream = await this.streamingService.assertViewerNotBlockedFromHost(
+      poll.streamId,
+      userId,
+    );
     const isOwner = userId === stream.userId;
     if (!isOwner) {
       await this.entitlementsService.assertAccessAsync({
@@ -224,7 +229,12 @@ export class StreamLiveService {
     return payload;
   }
 
-  async getActivePoll(streamId: string) {
+  async getActivePoll(
+    streamId: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.streamingService.assertViewerNotBlockedFromHost(streamId, viewerId, viewerRole);
     const poll = await this.pollRepository.findOne({
       where: { streamId, isActive: true },
       order: { createdAt: 'DESC' },
@@ -308,7 +318,12 @@ export class StreamLiveService {
     };
   }
 
-  async listClips(streamId: string) {
+  async listClips(
+    streamId: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.streamingService.assertViewerNotBlockedFromHost(streamId, viewerId, viewerRole);
     const clips = await this.clipRepository.find({
       where: { streamId },
       order: { startOffsetMs: 'ASC' },
@@ -377,7 +392,12 @@ export class StreamLiveService {
     };
   }
 
-  async listCaptions(streamId: string) {
+  async listCaptions(
+    streamId: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.streamingService.assertViewerNotBlockedFromHost(streamId, viewerId, viewerRole);
     const rows = await this.captionRepository.find({
       where: { streamId },
       order: { createdAt: 'DESC' },
@@ -416,7 +436,7 @@ export class StreamLiveService {
   }
 
   async raiseHand(streamId: string, userId: string) {
-    await this.streamingService.findById(streamId);
+    await this.streamingService.assertViewerNotBlockedFromHost(streamId, userId);
     const key = this.raiseHandKey(streamId);
     const raisedAt = Date.now().toString();
     await this.redis.hset(key, userId, raisedAt);
@@ -431,12 +451,18 @@ export class StreamLiveService {
   }
 
   async lowerHand(streamId: string, userId: string) {
+    await this.streamingService.assertViewerNotBlockedFromHost(streamId, userId);
     await this.redis.hdel(this.raiseHandKey(streamId), userId);
     this.eventEmitter.emit('stream.raise-hand', { streamId, userId, raised: false });
     return { raised: false };
   }
 
-  async listRaisedHands(streamId: string) {
+  async listRaisedHands(
+    streamId: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.streamingService.assertViewerNotBlockedFromHost(streamId, viewerId, viewerRole);
     const raw = await this.redis.hgetall(this.raiseHandKey(streamId));
     return Object.entries(raw).map(([uid, ts]) => ({
       userId: uid,
@@ -452,8 +478,7 @@ export class StreamLiveService {
     requestType: AudienceRequestType,
     message?: string,
   ): Promise<StreamAudienceRequest> {
-    const stream = await this.streamRepository.findOne({ where: { id: streamId } });
-    if (!stream) throw new NotFoundException('Stream not found');
+    const stream = await this.streamingService.assertViewerNotBlockedFromHost(streamId, userId);
     if (stream.status !== StreamStatus.LIVE) throw new BadRequestException('Stream is not live');
     if (stream.userId === userId) throw new BadRequestException('Creator cannot request own stream');
 

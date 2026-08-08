@@ -164,7 +164,7 @@ export class StreamingController {
   @Get(':id/rsvp')
   @ApiOperation({ summary: 'Get RSVP status for a scheduled stream' })
   getRsvp(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
-    return this.streamLiveService.getRsvpStatus(id, user?.sub);
+    return this.streamLiveService.getRsvpStatus(id, user?.sub, user?.role);
   }
 
   @Post(':id/rsvp')
@@ -224,17 +224,23 @@ export class StreamingController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/reactions')
   @ApiOperation({ summary: 'Get live reaction counts for a stream' })
-  getReactions(@Param('id', ParseUUIDPipe) id: string) {
+  async getReactions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    await this.streamingService.assertViewerNotBlockedFromHost(id, user?.sub, user?.role);
     return this.streamReactionService.getCounts(id);
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/poll')
   @ApiOperation({ summary: 'Get active poll for stream' })
-  getActivePoll(@Param('id', ParseUUIDPipe) id: string) {
-    return this.streamLiveService.getActivePoll(id);
+  getActivePoll(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
+    return this.streamLiveService.getActivePoll(id, user?.sub, user?.role);
   }
 
   @Post(':id/polls')
@@ -273,10 +279,11 @@ export class StreamingController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/clips')
   @ApiOperation({ summary: 'List highlight clips for a stream' })
-  listClips(@Param('id', ParseUUIDPipe) id: string) {
-    return this.streamLiveService.listClips(id);
+  listClips(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
+    return this.streamLiveService.listClips(id, user?.sub, user?.role);
   }
 
   @Post(':id/clips')
@@ -292,10 +299,11 @@ export class StreamingController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id/captions')
   @ApiOperation({ summary: 'List captions/subtitles for stream replay' })
-  listCaptions(@Param('id', ParseUUIDPipe) id: string) {
-    return this.streamLiveService.listCaptions(id);
+  listCaptions(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user?: JwtPayload) {
+    return this.streamLiveService.listCaptions(id, user?.sub, user?.role);
   }
 
   @Post(':id/raise-hand')
@@ -314,8 +322,8 @@ export class StreamingController {
 
   @Get(':id/raise-hands')
   @ApiOperation({ summary: 'List raised hands for stream' })
-  listRaisedHands(@Param('id', ParseUUIDPipe) id: string) {
-    return this.streamLiveService.listRaisedHands(id);
+  listRaisedHands(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
+    return this.streamLiveService.listRaisedHands(id, user.sub, user.role);
   }
 
   // ── Audience Requests (P07-T027: audience requests, P07-T031: guest speakers) ──
