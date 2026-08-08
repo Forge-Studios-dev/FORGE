@@ -67,7 +67,16 @@ export default function LiveWatchPage() {
       ) {
         return;
       }
-      if (e.key.toLowerCase() !== 't') return;
+      const key = e.key.toLowerCase();
+      if (key === 'escape') {
+        setTheaterMode((prev) => {
+          if (!prev) return prev;
+          e.preventDefault();
+          return false;
+        });
+        return;
+      }
+      if (key !== 't') return;
       e.preventDefault();
       setTheaterMode((prev) => !prev);
     };

@@ -147,7 +147,21 @@ export function WatchExperience({
       ) {
         return;
       }
-      if (e.key.toLowerCase() !== 't') return;
+      const key = e.key.toLowerCase();
+      if (key === 'escape') {
+        setTheaterMode((prev) => {
+          if (!prev) return prev;
+          e.preventDefault();
+          try {
+            window.localStorage.setItem(THEATER_KEY, '0');
+          } catch {
+            /* ignore */
+          }
+          return false;
+        });
+        return;
+      }
+      if (key !== 't') return;
       e.preventDefault();
       setTheaterMode((prev) => {
         const next = !prev;
