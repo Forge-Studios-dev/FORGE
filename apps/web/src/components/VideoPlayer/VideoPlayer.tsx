@@ -166,7 +166,7 @@ export function VideoPlayer({
   }, []);
 
   useEffect(() => {
-    if (isLive) return;
+    // Live keeps a slim shortcut set (mute / PiP / fullscreen) — VOD owns seek/rate keys.
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (
@@ -182,6 +182,29 @@ export function VideoPlayer({
       if (!video) return;
 
       const key = e.key.toLowerCase();
+      if (isLive) {
+        if (key === 'm') {
+          e.preventDefault();
+          video.muted = !video.muted;
+          writePreferredVolume(video.volume, video.muted);
+          return;
+        }
+        if (key === 'p' && pipSupported) {
+          e.preventDefault();
+          void enterPiP();
+          return;
+        }
+        if (key === 'f') {
+          e.preventDefault();
+          const root = video.parentElement;
+          if (!document.fullscreenElement) {
+            void (root ?? video).requestFullscreen?.();
+          } else {
+            void document.exitFullscreen();
+          }
+        }
+        return;
+      }
       if (key === '?' || (e.shiftKey && key === '/')) {
         e.preventDefault();
         setShowShortcuts((v) => !v);

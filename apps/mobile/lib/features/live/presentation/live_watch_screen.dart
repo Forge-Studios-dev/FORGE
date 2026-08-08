@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:chewie/chewie.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +11,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/observability/capture_error.dart';
+import '../../../core/platform/pip_service.dart';
 import '../../../core/socket/forge_socket.dart';
 import 'stream_chat_panel.dart';
 import 'stream_poll_panel.dart';
@@ -43,6 +45,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   bool _raisingHand = false;
   bool _markingClip = false;
   List<Map<String, dynamic>> _clips = [];
+  bool _pipSupported = false;
 
   /// Host disconnect grace-period deadline (epoch ms) — non-null while the
   /// "Host connection lost, waiting for reconnection" overlay should show.
@@ -66,10 +69,39 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
     WidgetsBinding.instance.addObserver(this);
     _loadStream();
     _setupSocket();
+    PipService.isSupported().then((ok) {
+      if (mounted) setState(() => _pipSupported = ok);
+    });
+  }
+
+  String? get _playbackUrl => _stream?['playbackUrl'] as String?;
+
+  void _syncAutoPip() {
+    final url = _playbackUrl;
+    final live = _stream?['status'] == 'live';
+    // Live autoplays; treat initialized controller as eligible for OS PiP.
+    final ready = _videoController?.value.isInitialized == true;
+    unawaited(
+      PipService.setAutoEnter(
+        _pipSupported && live && ready && url != null && url.isNotEmpty,
+        hlsUrl: url,
+        positionMs: 0,
+      ),
+    );
+  }
+
+  Future<void> _enterPip() async {
+    final url = _playbackUrl;
+    if (url == null || url.isEmpty) return;
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      await _videoController?.pause();
+    }
+    await PipService.enter(hlsUrl: url, positionMs: 0);
   }
 
   /// HIGH-08 (partial — video only): pause decoding/buffering when
-  /// backgrounded. Not disconnecting ForgeSocket here: it's a global
+  /// backgrounded unless OS PiP can keep the stream visible.
+  /// Not disconnecting ForgeSocket here: it's a global
   /// singleton also bound independently by StreamChatPanel/StreamPollPanel/
   /// StreamQaPanel with no shared reconnect coordination, so a forced
   /// disconnect+reconnect here would silently break their listeners after a
@@ -77,9 +109,24 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   /// four widgets plus real-device verification, not a blind one-file patch.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _videoController?.pause();
+    if (state == AppLifecycleState.resumed) {
+      _syncAutoPip();
+      return;
     }
+    if (state != AppLifecycleState.paused && state != AppLifecycleState.inactive) return;
+    final playing = _videoController?.value.isPlaying == true;
+    if (!playing) return;
+    unawaited(() async {
+      if (!_pipSupported) {
+        _videoController?.pause();
+        return;
+      }
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        await _enterPip();
+        return;
+      }
+      _syncAutoPip();
+    }());
   }
 
   Future<void> _loadStream() async {
@@ -201,10 +248,12 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   }
 
   Future<void> _initPlayer(Map<String, dynamic> stream) async {
+    _videoController?.removeListener(_syncAutoPip);
     await _videoController?.dispose();
     _chewieController?.dispose();
     _videoController = null;
     _chewieController = null;
+    unawaited(PipService.setAutoEnter(false));
 
     final playbackUrl = stream['playbackUrl'] as String?;
     final accessDenied = stream['accessDenied'] == true;
@@ -217,6 +266,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         looping: false,
         aspectRatio: _videoController!.value.aspectRatio,
       );
+      _syncAutoPip();
       if (mounted) setState(() {});
     }
   }
@@ -429,6 +479,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(PipService.setAutoEnter(false));
     _countdownTimer?.cancel();
     _reconnectTimer?.cancel();
     if (_onViewerCount != null) ForgeSocket.off('stream:viewer-count', _onViewerCount);
@@ -475,6 +526,15 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
       appBar: AppBar(
         title: Text(title),
         actions: [
+          if (_pipSupported &&
+              status == 'live' &&
+              _playbackUrl != null &&
+              _playbackUrl!.isNotEmpty)
+            IconButton(
+              tooltip: 'Picture in picture',
+              icon: const Icon(Icons.picture_in_picture_alt),
+              onPressed: _enterPip,
+            ),
           IconButton(
             tooltip: 'Share',
             icon: const Icon(Icons.share_outlined),

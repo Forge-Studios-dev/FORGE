@@ -831,6 +831,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Public membership tiers / membership-me / LMS bundles / creator resources refuse blocked peers; content `checkAccess` returns not_available when blocked
 - LMS course catalog / creator library / podcast episodes honor blocks when viewer is signed in
 - iOS system PiP via native `AVPlayer` + `AVPictureInPictureController` (`forge/pip`); Android Activity PiP unchanged
+- Mobile live watch OS PiP (button + Home); web live `m` / `p` / `f` shortcuts
 
 ## Still open
 
@@ -870,6 +871,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Membership tiers/bundles/resources block gates | Done (2026-08-08) |
 | Eng (optional) | LMS catalog + creator library block gates | Done (2026-08-08) |
 | Eng (optional) | iOS AVPlayer Picture-in-Picture | Done (2026-08-08) |
+| Eng (optional) | Live watch OS PiP (mobile) + live keyboard PiP/mute/FS (web) | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Deferred (LMS off by default) |
