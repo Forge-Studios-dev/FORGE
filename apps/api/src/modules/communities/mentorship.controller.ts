@@ -36,8 +36,11 @@ export class MentorshipController {
 
   @Get('communities/:communityId/mentorship/mentors')
   @ApiOperation({ summary: 'List active mentors in a community' })
-  listMentors(@Param('communityId') communityId: string) {
-    return this.mentorshipService.listMentors(communityId);
+  listMentors(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+  ) {
+    return this.mentorshipService.listMentors(communityId, user.sub, user.role);
   }
 
   @Put('communities/:communityId/mentorship/profile')

@@ -83,6 +83,13 @@ class ChapterDraftRow {
   final String time;
   final String title;
   const ChapterDraftRow({required this.time, required this.title});
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChapterDraftRow && other.time == time && other.title == title;
+
+  @override
+  int get hashCode => Object.hash(time, title);
 }
 
 List<ChapterDraftRow> listChapterDraftRows(String? description) {

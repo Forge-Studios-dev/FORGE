@@ -13,6 +13,8 @@ import {
   MentorshipProfileStatus,
   MentorshipRole,
 } from './entities/mentorship.entity';
+import { CommunityAccessService } from './community-access.service';
+import { UserRole } from '../users/entities/user.entity';
 
 @Injectable()
 export class MentorshipService {
@@ -22,6 +24,7 @@ export class MentorshipService {
     @InjectRepository(MentorshipMatch)
     private readonly matchRepository: Repository<MentorshipMatch>,
     private readonly dataSource: DataSource,
+    private readonly accessService: CommunityAccessService,
   ) {}
 
   private async assertCommunityOwner(creatorId: string, communityId: string): Promise<void> {
@@ -46,6 +49,7 @@ export class MentorshipService {
       bio?: string;
     },
   ) {
+    await this.accessService.assertCommunityAccess(communityId, userId);
     const existing = await this.profileRepository.findOne({ where: { userId, communityId } });
     if (existing) {
       if (input.skills !== undefined) existing.skills = input.skills.slice(0, 20);
@@ -69,10 +73,16 @@ export class MentorshipService {
   }
 
   async getProfile(userId: string, communityId: string) {
+    await this.accessService.assertCommunityAccess(communityId, userId);
     return this.profileRepository.findOne({ where: { userId, communityId } });
   }
 
-  async listMentors(communityId: string) {
+  async listMentors(
+    communityId: string,
+    viewerId?: string,
+    viewerRole?: UserRole | null,
+  ) {
+    await this.accessService.assertCommunityAccess(communityId, viewerId, viewerRole);
     const mentors = await this.profileRepository.find({
       where: { communityId, role: MentorshipRole.MENTOR, status: MentorshipProfileStatus.ACTIVE },
       order: { createdAt: 'ASC' },
@@ -257,6 +267,7 @@ export class MentorshipService {
   ): Promise<MentorshipMatch> {
     const match = await this.matchRepository.findOne({ where: { id: matchId } });
     if (!match) throw new NotFoundException('Match not found');
+    await this.accessService.assertCommunityAccess(match.communityId, userId);
     if (match.mentorId !== userId)
       throw new BadRequestException('Only the mentor can accept or decline');
     if (match.status !== MentorshipMatchStatus.PENDING)
@@ -267,6 +278,7 @@ export class MentorshipService {
   }
 
   async listMyMatches(userId: string, communityId: string) {
+    await this.accessService.assertCommunityAccess(communityId, userId);
     const [asMentor, asMentee] = await Promise.all([
       this.matchRepository.find({ where: { mentorId: userId, communityId }, order: { createdAt: 'DESC' } }),
       this.matchRepository.find({ where: { menteeId: userId, communityId }, order: { createdAt: 'DESC' } }),
@@ -277,6 +289,7 @@ export class MentorshipService {
   async completeMatch(matchId: string, userId: string): Promise<void> {
     const match = await this.matchRepository.findOne({ where: { id: matchId } });
     if (!match) throw new NotFoundException('Match not found');
+    await this.accessService.assertCommunityAccess(match.communityId, userId);
     if (match.mentorId !== userId && match.menteeId !== userId) {
       throw new BadRequestException('Not a participant in this match');
     }

@@ -871,6 +871,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Membership tiers/bundles/resources block gates | Done (2026-08-08) |
 | Eng (optional) | LMS catalog + creator library block gates | Done (2026-08-08) |
 | Eng (optional) | Channel points balance/rewards/redeem/earn block gates | Done (2026-08-08) |
+| Eng (optional) | Mentorship member surfaces community access block gates | Done (2026-08-08) |
 | Eng (optional) | iOS AVPlayer Picture-in-Picture | Done (2026-08-08) |
 | Eng (optional) | Live watch OS PiP (mobile) + live keyboard PiP/mute/FS (web) | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
