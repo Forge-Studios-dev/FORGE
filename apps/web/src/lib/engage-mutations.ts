@@ -79,8 +79,17 @@ export async function toggleWatchLater(videoId: string, currentlySaved: boolean)
 }
 
 export async function isInWatchLater(videoId: string): Promise<boolean> {
-  const { data } = await api.get<{ data: { inWatchLater: boolean } }>(
+  const { data } = await api.get<{ data?: { inWatchLater?: boolean }; inWatchLater?: boolean }>(
     `/playlists/me/watch-later/contains/${videoId}`,
   );
-  return !!data.data.inWatchLater;
+  const payload = data.data ?? data;
+  return !!payload.inWatchLater;
+}
+
+export async function blockUser(userId: string): Promise<void> {
+  await api.post(`/users/${userId}/block`);
+}
+
+export async function unblockUser(userId: string): Promise<void> {
+  await api.delete(`/users/${userId}/block`);
 }

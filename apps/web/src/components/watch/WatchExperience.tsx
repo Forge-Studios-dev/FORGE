@@ -31,6 +31,7 @@ import { extractVideoChapters } from '@/lib/description-timestamps';
 import { ChaptersBar } from '@/components/watch/ChaptersBar';
 import { TranscriptPanel } from '@/components/watch/TranscriptPanel';
 import { useMiniPlayer } from '@/lib/miniplayer';
+import { blockUser } from '@/lib/engage-mutations';
 import {
   buildWatchListHref,
   pickShuffledNextId,
@@ -195,7 +196,7 @@ export function WatchExperience({
     if (!video.userId || blockPending) return;
     setBlockPending(true);
     try {
-      await api.post(`/users/${video.userId}/block`);
+      await blockUser(video.userId);
       setConfirmBlock(false);
       router.push('/');
     } catch {

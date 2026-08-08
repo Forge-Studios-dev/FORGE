@@ -23,6 +23,7 @@ import {
   engageErrorReason,
   getChannelSubscription,
   isInWatchLater,
+  blockUser,
   setChannelNotifyLevel,
   toggleSubscribe,
   toggleVideoDislike,
@@ -209,7 +210,7 @@ function ShortSlide({
     if (!targetId || blockPending) return;
     setBlockPending(true);
     try {
-      await api.post(`/users/${targetId}/block`);
+      await blockUser(targetId);
       setConfirmBlock(false);
       onHidden?.(video.id);
     } catch (err) {

@@ -18,6 +18,7 @@ import {
 import { SubscribeChannelControl } from '@/components/SubscribeChannelControl/SubscribeChannelControl';
 import { ReportContentButton } from '@/components/watch/ReportContentButton';
 import { ConfirmDialog } from '@forge/design-system/client';
+import { blockUser, unblockUser } from '@/lib/engage-mutations';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -63,9 +64,9 @@ export function ProfileHeader({ user }: Props) {
   const blockMutation = useMutation({
     mutationFn: async (nextBlocked: boolean) => {
       if (nextBlocked) {
-        await api.post(`/users/${user.id}/block`);
+        await blockUser(user.id);
       } else {
-        await api.delete(`/users/${user.id}/block`);
+        await unblockUser(user.id);
       }
     },
     onMutate: (nextBlocked) => {

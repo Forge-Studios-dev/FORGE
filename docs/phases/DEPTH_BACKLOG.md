@@ -791,6 +791,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 
 - Web WatchExperience ⋮ → Block user (confirm) → home
 - Mobile watch engage ⋮ → Block user (confirm) → home
+- Shared web `blockUser` / `unblockUser` in engage-mutations (ProfileHeader, watch, Shorts)
 
 ## Still open
 

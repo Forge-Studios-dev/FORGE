@@ -11,7 +11,7 @@ Use before promoting a release to production (`main`).
 
 ## Data
 
-- [ ] Pending TypeORM migrations applied (incl. `185…` YouTube wave through `197…` watch_history index cleanup; captions, notify_level, Super Thanks, pin/heart, channel links, unlisted playlists, history pause)
+- [ ] Pending TypeORM migrations applied (incl. `185…`–`197…` YouTube wave; captions, notify_level, Super Thanks, pin/heart, channel links, unlisted playlists, history pause; plus `198…`–`201…` dislike columns, `user_blocks`, `username_changed_at`, `username_history`)
 - [ ] Rollback SQL reviewed for risky migrations
 
 ## Media
@@ -65,6 +65,8 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: History Pause history → settings privacy toggle
 - [ ] Smoke: Studio settings Playlists shortcut
 - [ ] Smoke: Library Your videos; Playlists A–Z sort; search type chips; system playlist search
+- [ ] Smoke: Shorts CC + Save/Watch later + Block user (web + mobile); Settings username cooldown lock + unlock date
+- [ ] Smoke: Watch ⋮ Block user (web + mobile)
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback
