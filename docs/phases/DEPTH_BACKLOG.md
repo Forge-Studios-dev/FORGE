@@ -746,6 +746,10 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Mobile Studio + upload: same structured editor; shared apply/strip helpers
 - Helpers: `formatSecondsAsTimestamp`, `listChapterDraftRows`, `stripChapterLinesFromDescription`, `applyChapterRowsToDescription`
 
+## ConfirmDialog loading tests (2026-08-08)
+
+- Web vitest: ConfirmDialog confirm/cancel + Escape ignored while `loading`
+
 ## Still open
 
 | Area | Item | Owner |

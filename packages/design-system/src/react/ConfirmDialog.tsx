@@ -51,7 +51,14 @@ export function ConfirmDialog({
         </div>
       </div>
       <div className="flex justify-end gap-3">
-        <Button variant="ghost" type="button" onClick={onCancel} disabled={loading}>
+        <Button
+          variant="ghost"
+          type="button"
+          onClick={() => {
+            if (!loading) onCancel();
+          }}
+          disabled={loading}
+        >
           {cancelLabel}
         </Button>
         <Button
