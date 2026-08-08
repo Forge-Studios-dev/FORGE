@@ -25,6 +25,7 @@ import { AccessSessionsService } from '../access-sessions/access-sessions.servic
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 import { User, UserRole } from '../users/entities/user.entity';
 import { Community } from '../communities/entities/community.entity';
+import { EngagementService } from '../engagement/engagement.service';
 import {
   muxHlsPlaybackUrl,
   muxPlaybackIdFromHlsUrl,
@@ -93,6 +94,7 @@ export class StreamingService {
     private readonly streamViewerService: StreamViewerService,
     private readonly muxLiveSyncService: MuxLiveSyncService,
     private readonly streamReminderScheduler: StreamReminderScheduler,
+    private readonly engagementService: EngagementService,
     @InjectRedis() private readonly redis: Redis,
     @InjectQueue(PREMIUM_CONTENT_NOTIFY_QUEUE)
     private readonly premiumContentNotifyQueue: Queue<PremiumContentNotifyJobData>,
@@ -389,6 +391,12 @@ export class StreamingService {
     viewerRole?: UserRole | null,
     creatorId?: string | null,
   ) {
+    if (viewerId && creatorId && viewerId !== creatorId) {
+      if (await this.engagementService.isBlockedEitherWay(viewerId, creatorId)) {
+        return [];
+      }
+    }
+
     const viewerKey = streamListViewerKey(viewerId);
     const cacheKey = creatorId
       ? null
@@ -404,6 +412,11 @@ export class StreamingService {
       }
     }
 
+    const blockedPeers =
+      viewerId && !creatorId
+        ? new Set(await this.engagementService.getBlockedPeerIds(viewerId))
+        : null;
+
     const streams = await this.streamRepository.find({
       where: {
         status: StreamStatus.LIVE,
@@ -414,10 +427,15 @@ export class StreamingService {
       take: StreamingService.LIVE_STREAMS_LIST_LIMIT,
     });
 
+    const visibleStreams =
+      blockedPeers && blockedPeers.size > 0
+        ? streams.filter((s) => !blockedPeers.has(s.userId))
+        : streams;
+
     const accessList = await this.entitlementsService.checkAccessMany(
       viewerId,
       viewerRole,
-      streams.map((stream) => ({
+      visibleStreams.map((stream) => ({
         creatorId: stream.userId,
         visibility: stream.visibility,
         requiredTierId: stream.requiredTierId,
@@ -427,7 +445,7 @@ export class StreamingService {
       })),
     );
 
-    const results = streams.map((stream, index) => {
+    const results = visibleStreams.map((stream, index) => {
       const access = accessList[index];
       const isOwner = !!viewerId && viewerId === stream.userId;
       if (!access.allowed && stream.visibility !== StreamVisibility.PUBLIC) {
@@ -535,6 +553,12 @@ export class StreamingService {
     viewerRole?: UserRole | null,
     creatorId?: string | null,
   ) {
+    if (viewerId && creatorId && viewerId !== creatorId) {
+      if (await this.engagementService.isBlockedEitherWay(viewerId, creatorId)) {
+        return [];
+      }
+    }
+
     const viewerKey = streamListViewerKey(viewerId);
     const cacheKey = creatorId ? null : streamListCacheKey('upcoming', viewerKey);
     if (cacheKey) {
@@ -548,6 +572,11 @@ export class StreamingService {
       }
     }
 
+    const blockedPeers =
+      viewerId && !creatorId
+        ? new Set(await this.engagementService.getBlockedPeerIds(viewerId))
+        : null;
+
     const now = new Date();
     const streams = await this.streamRepository.find({
       where: {
@@ -560,10 +589,15 @@ export class StreamingService {
       take: 50,
     });
 
+    const visibleStreams =
+      blockedPeers && blockedPeers.size > 0
+        ? streams.filter((s) => !blockedPeers.has(s.userId))
+        : streams;
+
     const accessList = await this.entitlementsService.checkAccessMany(
       viewerId,
       viewerRole,
-      streams.map((stream) => ({
+      visibleStreams.map((stream) => ({
         creatorId: stream.userId,
         visibility: stream.visibility,
         requiredTierId: stream.requiredTierId,
@@ -573,7 +607,7 @@ export class StreamingService {
       })),
     );
 
-    const filtered = streams
+    const filtered = visibleStreams
       .map((stream, index) => {
         const access = accessList[index];
         if (!access.allowed && stream.visibility !== StreamVisibility.PUBLIC) {

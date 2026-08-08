@@ -21,12 +21,13 @@ import { PremiumContentNotifyService } from './premium-content-notify.service';
 import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/premium-content-notify.constants';
 import { CommunityAnnouncementNotifyService } from './community-announcement-notify.service';
 import { COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE } from '../workers/community-announcement-notify/community-announcement-notify.constants';
+import { EngagementModule } from '../engagement/engagement.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Notification, DeviceToken, User, Follow, Comment, WatchHistory, Community]),
     forwardRef(() => EntitlementsModule),
-    BullModule.registerQueue({
+    EngagementModule,    BullModule.registerQueue({
       name: PUSH_DISPATCH_QUEUE,
       defaultJobOptions: {
         attempts: 3,

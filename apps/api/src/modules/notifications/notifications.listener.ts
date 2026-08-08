@@ -18,6 +18,7 @@ import { VideoVisibility } from '../content/entities/video.entity';
 import { StreamVisibility } from '../streaming/entities/stream.entity';
 import { PremiumContentNotifyService } from './premium-content-notify.service';
 import { recipientIdsForNotifyLevel } from './notify-recipients.util';
+import { EngagementService } from '../engagement/engagement.service';
 
 /** Max in-app + push recipients per fan-out event (matches follower query cap). */
 const FANOUT_RECIPIENT_LIMIT = 1000;
@@ -34,6 +35,7 @@ export class NotificationsListener {
     private readonly mailService: MailService,
     private readonly entitlementsService: EntitlementsService,
     private readonly premiumContentNotify: PremiumContentNotifyService,
+    private readonly engagementService: EngagementService,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(Follow)
@@ -210,6 +212,9 @@ export class NotificationsListener {
   @OnEvent('follow.created')
   async onFollowCreated(payload: { followerId: string; followingId: string }) {
     if (payload.followerId === payload.followingId) return;
+    if (await this.engagementService.isBlockedEitherWay(payload.followerId, payload.followingId)) {
+      return;
+    }
 
     const follower = await this.userRepository.findOne({ where: { id: payload.followerId } });
     const name = follower?.displayName ?? 'Someone';
@@ -340,6 +345,16 @@ export class NotificationsListener {
 
     if (!recipientIds.length) return;
 
+    const blockedPeers = new Set(
+      await this.engagementService.getBlockedPeerIds(payload.userId),
+    );
+    const filteredRecipients =
+      blockedPeers.size === 0
+        ? recipientIds
+        : recipientIds.filter((id) => !blockedPeers.has(id));
+
+    if (!filteredRecipients.length) return;
+
     const title = `${creatorName} is live`;
     const body = payload.title || 'Join the live stream now.';
     const metadata = { streamId: payload.streamId, creatorId: payload.userId };
@@ -350,7 +365,7 @@ export class NotificationsListener {
     };
 
     await this.notificationsService.createMany(
-      recipientIds.map((userId) => ({
+      filteredRecipients.map((userId) => ({
         userId,
         type: NotificationType.STREAM_STARTED_FOLLOWED,
         title,
@@ -358,7 +373,7 @@ export class NotificationsListener {
         metadata,
       })),
     );
-    await this.pushDispatch.enqueueForUsers(recipientIds, { title, body, data: pushData });
+    await this.pushDispatch.enqueueForUsers(filteredRecipients, { title, body, data: pushData });
   }
 
   @OnEvent('video.super-thanks.paid', { async: true })

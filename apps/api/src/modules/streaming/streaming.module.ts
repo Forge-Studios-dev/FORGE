@@ -44,6 +44,8 @@ import { Community } from '../communities/entities/community.entity';
 import { StreamBreakoutService } from './stream-breakout.service';
 import { CommunityRoom } from '../communities/entities/community-room.entity';
 
+import { EngagementModule } from '../engagement/engagement.module';
+
 @Module({
   imports: [
     BullModule.registerQueue({ name: STREAM_REMINDER_QUEUE }),
@@ -100,6 +102,7 @@ import { CommunityRoom } from '../communities/entities/community-room.entity';
       CommunityRoom,
     ]),
     UsersModule,
+    EngagementModule,
     forwardRef(() => ContentModule),
     forwardRef(() => EntitlementsModule),
     forwardRef(() => AccessSessionsModule),

@@ -807,6 +807,8 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Search suggestions: title + channel prefixes exclude muted ∪ blocked
 - Channel profile: if they blocked you → 403 “not available”; if you blocked them → profile + Unblock, empty videos/playlists/community posts
 - Channel videos / playlists / channel-posts gated when blocked either way
+- Notifications list hides actor metadata from blocked peers; live fan-out skips blocked recipients
+- Live / upcoming stream lists exclude blocked creators
 
 ## Still open
 
@@ -826,6 +828,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Exclude blocked peers from feeds/shorts/recs + watch | Done (2026-08-08) |
 | Eng (optional) | Exclude blocked peers from search | Done (2026-08-08) |
 | Eng (optional) | Exclude blocked peers from suggestions + channel surfaces | Done (2026-08-08) |
+| Eng (optional) | Exclude blocked peers from notifs + live lists | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Deferred (LMS off by default) |

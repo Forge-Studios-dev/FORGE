@@ -15,6 +15,7 @@ import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempot
 import { StreamViewerService } from './stream-viewer.service';
 import { MuxLiveSyncService } from './mux-live-sync.service';
 import { StreamReminderScheduler } from './stream-reminder.scheduler';
+import { EngagementService } from '../engagement/engagement.service';
 import { getQueueToken } from '@nestjs/bullmq';
 import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/premium-content-notify.constants';
 
@@ -144,6 +145,13 @@ describe('StreamingService access gating', () => {
           useValue: {
             scheduleReminder: jest.fn().mockResolvedValue(undefined),
             cancelReminder: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: EngagementService,
+          useValue: {
+            getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+            isBlockedEitherWay: jest.fn().mockResolvedValue(false),
           },
         },
         {
@@ -309,6 +317,10 @@ describe('StreamingService endStream', () => {
         cancelReminder: jest.fn().mockResolvedValue(undefined),
       } as never,
       {
+        getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+        isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+      } as never,
+      {
         get: jest.fn().mockResolvedValue(null),
         setex: jest.fn().mockResolvedValue('OK'),
         del: jest.fn(),
@@ -379,6 +391,10 @@ describe('StreamingService createStream', () => {
       {
         scheduleReminder: jest.fn().mockResolvedValue(undefined),
         cancelReminder: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
+        getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+        isBlockedEitherWay: jest.fn().mockResolvedValue(false),
       } as never,
       {
         get: jest.fn().mockResolvedValue(null),

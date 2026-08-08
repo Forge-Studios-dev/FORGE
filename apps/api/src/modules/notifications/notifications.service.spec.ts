@@ -5,6 +5,7 @@ import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { NotificationsService } from './notifications.service';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { DeviceToken } from './entities/device-token.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
@@ -27,8 +28,13 @@ describe('NotificationsService', () => {
     del: jest.fn().mockResolvedValue(1),
   };
 
+  const engagementService = {
+    getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
+    engagementService.getBlockedPeerIds.mockResolvedValue([]);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationsService,
@@ -36,6 +42,7 @@ describe('NotificationsService', () => {
         { provide: getRepositoryToken(DeviceToken), useValue: {} },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: getRedisConnectionToken(), useValue: redis },
+        { provide: EngagementService, useValue: engagementService },
       ],
     }).compile();
     service = module.get(NotificationsService);
@@ -49,6 +56,7 @@ describe('NotificationsService', () => {
           userId: 'u1',
           title: 'Hello',
           createdAt: new Date('2026-06-01T12:00:00Z'),
+          metadata: null,
         },
       ];
       const qb = {
@@ -66,6 +74,40 @@ describe('NotificationsService', () => {
       expect(result.data).toHaveLength(1);
       expect(result.meta.hasMore).toBe(false);
       expect(result.meta.cursor).toBeNull();
+    });
+
+    it('hides notifications from blocked peers', async () => {
+      engagementService.getBlockedPeerIds.mockResolvedValue(['blocked-1']);
+      const rows = [
+        {
+          id: 'n1',
+          userId: 'u1',
+          title: 'From blocked',
+          createdAt: new Date('2026-06-01T12:00:00Z'),
+          metadata: { followerId: 'blocked-1' },
+        },
+        {
+          id: 'n2',
+          userId: 'u1',
+          title: 'Ok',
+          createdAt: new Date('2026-06-01T11:00:00Z'),
+          metadata: { followerId: 'ok-1' },
+        },
+      ];
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(rows),
+      };
+      notificationRepository.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.listForUser('u1');
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].id).toBe('n2');
     });
   });
 
