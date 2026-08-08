@@ -56,6 +56,8 @@ describe('EngagementService', () => {
     }).compile();
 
     service = module.get(EngagementService);
+    const videoRepo = (service as any).videoRepository;
+    videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'owner' });
   });
 
   it('returns paginated comments with empty data', async () => {
@@ -64,6 +66,14 @@ describe('EngagementService', () => {
     expect(result.meta.hasMore).toBe(false);
     expect(result.meta.total).toBe(0);
     expect(result.meta.sort).toBe('newest');
+  });
+
+  it('rejects comments when viewer is blocked from the video owner', async () => {
+    const blockRepo = (service as any).userBlockRepository;
+    blockRepo.findOne.mockResolvedValue({ blockerId: 'viewer-1', blockedId: 'owner' });
+    await expect(
+      service.getComments('video-1', 20, undefined, 'viewer-1'),
+    ).rejects.toThrow('This video is not available');
   });
 
   it('orders top comments by pin then likeCount', async () => {
@@ -226,7 +236,12 @@ describe('EngagementService', () => {
   it('dislikes a comment and clears a prior like', async () => {
     const commentRepo = (service as any).commentRepository;
     const commentLikeRepo = (service as any).commentLikeRepository;
-    commentRepo.findOne.mockResolvedValue({ id: 'c1', videoId: 'v1', deletedAt: null });
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      videoId: 'v1',
+      userId: 'commenter',
+      deletedAt: null,
+    });
     commentLikeRepo.findOne.mockResolvedValue({
       id: 'cl1',
       userId: 'u1',
@@ -244,7 +259,12 @@ describe('EngagementService', () => {
   it('likes a comment and clears a prior dislike', async () => {
     const commentRepo = (service as any).commentRepository;
     const commentLikeRepo = (service as any).commentLikeRepository;
-    commentRepo.findOne.mockResolvedValue({ id: 'c1', videoId: 'v1', deletedAt: null });
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      videoId: 'v1',
+      userId: 'commenter',
+      deletedAt: null,
+    });
     commentLikeRepo.findOne.mockResolvedValue({
       id: 'cl1',
       userId: 'u1',

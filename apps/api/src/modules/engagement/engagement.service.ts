@@ -322,6 +322,15 @@ export class EngagementService {
     throw new NotFoundException('Comment not found after create');
   }
 
+  private async assertCanAccessVideoComments(videoId: string, viewerId?: string): Promise<Video> {
+    const video = await this.videoRepository.findOne({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+    if (viewerId && (await this.isBlockedEitherWay(viewerId, video.userId))) {
+      throw new ForbiddenException('This video is not available');
+    }
+    return video;
+  }
+
   async getComments(
     videoId: string,
     limit = 20,
@@ -329,6 +338,8 @@ export class EngagementService {
     viewerId?: string,
     sort: 'newest' | 'top' | 'oldest' = 'newest',
   ) {
+    await this.assertCanAccessVideoComments(videoId, viewerId);
+
     const query = this.commentRepository
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.user', 'user')
@@ -432,6 +443,8 @@ export class EngagementService {
 
   /** Single comment for deep links (`?lc=`). */
   async getComment(videoId: string, commentId: string, viewerId?: string) {
+    await this.assertCanAccessVideoComments(videoId, viewerId);
+
     const comment = await this.commentRepository.findOne({
       where: { id: commentId, videoId, deletedAt: IsNull() },
       relations: ['user'],
@@ -484,6 +497,8 @@ export class EngagementService {
     cursor?: string,
     viewerId?: string,
   ) {
+    await this.assertCanAccessVideoComments(videoId, viewerId);
+
     const parent = await this.commentRepository.findOne({
       where: { id: commentId, videoId, deletedAt: IsNull() },
     });
@@ -637,10 +652,16 @@ export class EngagementService {
     commentId: string,
     reaction: CommentReactionType,
   ) {
+    await this.assertCanAccessVideoComments(videoId, userId);
+
     const comment = await this.commentRepository.findOne({
       where: { id: commentId, videoId, deletedAt: IsNull() },
     });
     if (!comment) throw new NotFoundException('Comment not found');
+
+    if (await this.isBlockedEitherWay(userId, comment.userId)) {
+      throw new ForbiddenException('You cannot engage with this comment');
+    }
 
     const existing = await this.commentLikeRepository.findOne({ where: { userId, commentId } });
     if (existing?.reaction === reaction) {

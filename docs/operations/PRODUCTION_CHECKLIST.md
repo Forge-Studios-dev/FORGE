@@ -72,6 +72,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: When they blocked you — channel page shows “not available” (not generic 404); watch of their video same
 - [ ] Smoke: Blocked peer live URL / playlist detail / stream chat show “not available”; mobile Shorts deep-link same
 - [ ] Smoke: Category explore + similar videos omit blocked peers when signed in; Watch later add fails for blocked creator
+- [ ] Smoke: Embed `/embed/:id` shows “not available” (not generic 404) when blocked
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback
