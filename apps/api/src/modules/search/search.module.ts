@@ -6,9 +6,14 @@ import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
 import { Playlist } from '../playlists/entities/playlist.entity';
 import { ContentModule } from '../content/content.module';
+import { EngagementModule } from '../engagement/engagement.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Video, User, Playlist]), ContentModule],
+  imports: [
+    TypeOrmModule.forFeature([Video, User, Playlist]),
+    ContentModule,
+    EngagementModule,
+  ],
   controllers: [SearchController],
   providers: [SearchService],
 })

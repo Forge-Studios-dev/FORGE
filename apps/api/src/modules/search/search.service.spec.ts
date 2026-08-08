@@ -5,6 +5,7 @@ import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.e
 import { User, UserRole } from '../users/entities/user.entity';
 import { Playlist } from '../playlists/entities/playlist.entity';
 import { VideosService } from '../content/videos.service';
+import { EngagementService } from '../engagement/engagement.service';
 
 function makeQb<T>(result: T) {
   return {
@@ -95,6 +96,10 @@ describe('SearchService', () => {
         { provide: getRepositoryToken(User), useValue: userRepository },
         { provide: getRepositoryToken(Playlist), useValue: playlistRepository },
         { provide: VideosService, useValue: videosService },
+        {
+          provide: EngagementService,
+          useValue: { getBlockedPeerIds: jest.fn().mockResolvedValue([]) },
+        },
         { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
       ],
     }).compile();

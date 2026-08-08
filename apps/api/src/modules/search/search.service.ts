@@ -14,6 +14,9 @@ import {
   PlaylistVisibility,
 } from '../playlists/entities/playlist.entity';
 import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
+import { getMutedChannelIds } from '../feed/not-interested.util';
+import { mergeExcludedCreatorIds } from '../feed/viewer-exclusions.util';
+import { EngagementService } from '../engagement/engagement.service';
 
 const SEARCH_CACHE_TTL_SEC = 120;
 
@@ -68,8 +71,18 @@ export class SearchService {
     @InjectRepository(Playlist)
     private readonly playlistRepository: Repository<Playlist>,
     private readonly videosService: VideosService,
+    private readonly engagementService: EngagementService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
+
+  private async excludedCreatorIds(viewerId?: string): Promise<string[]> {
+    if (!viewerId) return [];
+    const [muted, blocked] = await Promise.all([
+      getMutedChannelIds(this.redis, viewerId, this.logger),
+      this.engagementService.getBlockedPeerIds(viewerId),
+    ]);
+    return mergeExcludedCreatorIds(muted, blocked);
+  }
 
   private normalizeFilters(filters?: SearchFilters): Required<SearchFilters> {
     const duration =
@@ -180,7 +193,13 @@ export class SearchService {
     qb: SelectQueryBuilder<Video>,
     filters: Required<SearchFilters>,
     viewerId?: string,
+    excludedCreators: string[] = [],
   ): SelectQueryBuilder<Video> {
+    if (excludedCreators.length) {
+      qb.andWhere('v.user_id NOT IN (:...searchExcludedCreators)', {
+        searchExcludedCreators: excludedCreators,
+      });
+    }
     if (filters.duration === 'short') {
       qb.andWhere('v.duration_seconds IS NOT NULL AND v.duration_seconds < 240');
     } else if (filters.duration === 'medium') {
@@ -333,6 +352,7 @@ export class SearchService {
     const includeVideos = type === 'all' || type === 'video';
     const includeChannels = type === 'all' || type === 'channel';
     const includePlaylists = type === 'all' || type === 'playlist';
+    const excludedCreators = await this.excludedCreatorIds(viewerId);
 
     const rankedVideos = includeVideos
       ? await this.applyVideoSort(
@@ -354,6 +374,7 @@ export class SearchService {
             ),
             filters,
             viewerId,
+            excludedCreators,
           ),
           filters.sort,
           term,
@@ -373,7 +394,7 @@ export class SearchService {
     const loadChannels = includeChannels && !(videoFilterActive && type === 'all');
     const loadPlaylists = includePlaylists && !(videoFilterActive && type === 'all');
 
-    const users = loadChannels
+    let users = loadChannels
       ? await this.userRepository
           .createQueryBuilder('u')
           .where(`u.searchVector @@ plainto_tsquery('simple', :uq)`, { uq: term })
@@ -382,8 +403,16 @@ export class SearchService {
           .take(take)
           .getMany()
       : [];
+    if (excludedCreators.length && users.length) {
+      const blocked = new Set(excludedCreators);
+      users = users.filter((u) => !blocked.has(u.id));
+    }
 
-    const playlists = loadPlaylists ? await this.searchPlaylists(term, take) : [];
+    let playlists = loadPlaylists ? await this.searchPlaylists(term, take) : [];
+    if (excludedCreators.length && playlists.length) {
+      const blocked = new Set(excludedCreators);
+      playlists = playlists.filter((p) => !blocked.has(p.userId));
+    }
 
     return {
       videos: rankedVideos.map((v) => this.videosService.mapToPublicVideo(v)),
@@ -458,6 +487,7 @@ export class SearchService {
       filters.captions !== 'any' ||
       filters.kind !== 'any' ||
       filters.watched !== 'any';
+    const excludedCreators = await this.excludedCreatorIds(viewerId);
 
     const videos = includeVideos
       ? await this.applyVideoSort(
@@ -474,6 +504,7 @@ export class SearchService {
               ),
             filters,
             viewerId,
+            excludedCreators,
           ),
           filters.sort,
         )
@@ -481,7 +512,7 @@ export class SearchService {
           .getMany()
       : [];
 
-    const users =
+    let users =
       includeChannels && (!videoFilterActive || type === 'channel')
         ? await this.userRepository.find({
             where: [{ username: ILike(pattern) }, { displayName: ILike(pattern) }],
@@ -489,10 +520,18 @@ export class SearchService {
             take,
           })
         : [];
-    const playlists =
+    if (excludedCreators.length && users.length) {
+      const blocked = new Set(excludedCreators);
+      users = users.filter((u) => !blocked.has(u.id));
+    }
+    let playlists =
       includePlaylists && (!videoFilterActive || type === 'playlist')
         ? await this.searchPlaylists(term, take)
         : [];
+    if (excludedCreators.length && playlists.length) {
+      const blocked = new Set(excludedCreators);
+      playlists = playlists.filter((p) => !blocked.has(p.userId));
+    }
 
     return {
       videos: videos.map((v) => this.videosService.mapToPublicVideo(v)),
