@@ -14,6 +14,7 @@ import 'stream_chat_panel.dart';
 import 'stream_poll_panel.dart';
 import 'stream_qa_panel.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../data/live_repository.dart';
 
 class LiveWatchScreen extends ConsumerStatefulWidget {
   final String streamId;
@@ -39,6 +40,8 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   final Map<String, int> _reactionCounts = {};
   bool _handRaised = false;
   bool _raisingHand = false;
+  bool _markingClip = false;
+  List<Map<String, dynamic>> _clips = [];
 
   /// Host disconnect grace-period deadline (epoch ms) — non-null while the
   /// "Host connection lost, waiting for reconnection" overlay should show.
@@ -119,6 +122,10 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         _loading = false;
         _viewerCount = stream['viewerCount'] as int? ?? 0;
       });
+
+      if (_myUserId != null && stream['userId'] == _myUserId) {
+        unawaited(_loadClips());
+      }
 
       // Seed the reconnect overlay from the REST snapshot (first paint, or a
       // refetch after stream:started/ended) using the server-computed
@@ -285,6 +292,50 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
     await client.dio.post('/streams/${widget.streamId}/end');
     if (!mounted) return;
     context.go('/studio/live/${widget.streamId}/debrief');
+  }
+
+  Future<void> _loadClips() async {
+    try {
+      final clips = await ref.read(liveRepositoryProvider).listClips(widget.streamId);
+      if (!mounted) return;
+      setState(() => _clips = clips);
+    } catch (e, st) {
+      captureError(e, st, 'loadClips');
+    }
+  }
+
+  Future<void> _markHighlight() async {
+    if (_markingClip) return;
+    setState(() => _markingClip = true);
+    try {
+      await ref.read(liveRepositoryProvider).createClip(widget.streamId);
+      await _loadClips();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Highlight marked (~30s at current moment)')),
+      );
+    } catch (e, st) {
+      captureError(e, st, 'markHighlight');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not mark highlight')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _markingClip = false);
+    }
+  }
+
+  String _formatClipRange(Map<String, dynamic> clip) {
+    final startMs = (clip['startOffsetMs'] as num?)?.toInt() ?? 0;
+    final endMs = (clip['endOffsetMs'] as num?)?.toInt() ?? startMs;
+    String stamp(int ms) {
+      final s = ms ~/ 1000;
+      final m = s ~/ 60;
+      final sec = s % 60;
+      return '$m:${sec.toString().padLeft(2, '0')}';
+    }
+    return '${stamp(startMs)}–${stamp(endMs)}';
   }
 
   Future<void> _acknowledgeAge() async {
@@ -591,7 +642,52 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                   Text('RTMP: ${_stream!['rtmpUrl'] ?? 'rtmps://global-live.mux.com:443/app'}'),
                   Text('Key: ${_stream!['streamKey'] ?? '—'}'),
                   const SizedBox(height: 8),
-                  OutlinedButton(onPressed: _endStream, child: const Text('End stream')),
+                  if (status == 'live') ...[
+                    Text(
+                      'Highlights — mark a ~30s clip at the current live moment.',
+                      style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        FilledButton.tonal(
+                          onPressed: _markingClip ? null : _markHighlight,
+                          child: Text(_markingClip ? 'Saving…' : 'Mark highlight'),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton(onPressed: _endStream, child: const Text('End stream')),
+                      ],
+                    ),
+                    if (_clips.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      ..._clips.take(8).map((clip) {
+                        final title = clip['title'] as String? ?? 'Highlight';
+                        final statusLabel = clip['status'] as String? ?? '';
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            '$title · ${_formatClipRange(clip)}'
+                            '${statusLabel.isNotEmpty && statusLabel != 'ready' ? ' · $statusLabel' : ''}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: ForgeTokens.of(context).onSurfaceVariant,
+                            ),
+                          ),
+                        );
+                      }),
+                    ] else
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'No highlights yet.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: ForgeTokens.of(context).onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                  ] else
+                    OutlinedButton(onPressed: _endStream, child: const Text('End stream')),
                 ],
               ),
             ),
