@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SubscriptionChangeService } from './subscription-change.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { BillingService } from './billing.service';
 import { StripeTierSyncService } from './stripe-tier-sync.service';
 import { PAYMENT_PROVIDER } from './payment-provider.interface';
@@ -14,6 +15,9 @@ describe('SubscriptionChangeService', () => {
     getActiveSubscription: jest.fn(),
     updateTierStripeIds: jest.fn(),
     changeSubscriptionTier: jest.fn(),
+  };
+  const engagementService = {
+    isBlockedEitherWay: jest.fn().mockResolvedValue(false),
   };
   const billingService = {
     isBillingEnabled: jest.fn().mockReturnValue(true),
@@ -31,6 +35,7 @@ describe('SubscriptionChangeService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    engagementService.isBlockedEitherWay.mockResolvedValue(false);
     entitlementsService.getTierById.mockResolvedValue({
       id: 'tier-new',
       creatorId: 'creator-1',
@@ -41,6 +46,7 @@ describe('SubscriptionChangeService', () => {
       providers: [
         SubscriptionChangeService,
         { provide: EntitlementsService, useValue: entitlementsService },
+        { provide: EngagementService, useValue: engagementService },
         { provide: BillingService, useValue: billingService },
         { provide: StripeTierSyncService, useValue: stripeTierSync },
         { provide: PAYMENT_PROVIDER, useValue: paymentProvider },
