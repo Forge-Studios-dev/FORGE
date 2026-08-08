@@ -14,6 +14,7 @@ import { Channel } from './entities/channel.entity';
 import { ChannelMember } from './entities/channel-member.entity';
 import { ChannelMessage } from './entities/channel-message.entity';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { CommunityModerationService } from './community-moderation.service';
 import { AiModerationService } from './ai-moderation.service';
@@ -167,6 +168,10 @@ describe('CommunitiesService', () => {
         { provide: getRepositoryToken(CommunityRoom), useValue: roomRepository },
         { provide: getRepositoryToken(ChannelMessage), useValue: messageRepository },
         { provide: EntitlementsService, useValue: entitlementsService },
+        {
+          provide: EngagementService,
+          useValue: { isBlockedEitherWay: jest.fn().mockResolvedValue(false) },
+        },
         { provide: AccessSessionsService, useValue: accessSessionsService },
         { provide: CommunityModerationService, useValue: moderationService },
         { provide: AiModerationService, useValue: aiModerationService },

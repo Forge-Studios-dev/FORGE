@@ -148,6 +148,9 @@ export class CommunitiesService {
   }
 
   async listCommunitiesForCreator(creatorId: string, viewerId?: string | null, viewerRole?: UserRole | null) {
+    if (await this.accessService.isBlockedFromCreator(viewerId, creatorId, viewerRole)) {
+      return [];
+    }
     const communities = await this.communityRepository.find({
       where: { creatorId },
       order: { createdAt: 'ASC' },

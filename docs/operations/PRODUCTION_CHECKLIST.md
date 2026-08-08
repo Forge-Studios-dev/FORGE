@@ -74,6 +74,7 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Category explore + similar videos omit blocked peers when signed in; Watch later add fails for blocked creator
 - [ ] Smoke: Embed `/embed/:id` shows “not available” (not generic 404) when blocked
 - [ ] Smoke (Android): Watch or miniplayer → Home enters OS Picture-in-Picture; web player `p` toggles browser PiP
+- [ ] Smoke: Blocked peer — community detail/join/posts return unavailable/empty (channel Community tab already empty)
 - [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
 ## Observability / rollback

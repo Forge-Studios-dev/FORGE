@@ -824,6 +824,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 - Subscription notify get/set refuse blocked peers; web miniplayer Picture-in-Picture button (browser OS PiP)
 - Android OS PiP (`forge/pip` MethodChannel + manifest); web player `p` shortcut; iOS stays floating miniplayer
 - Web watch/live theater toggle via `t` (persists on watch)
+- Community access / list / join / channels refuse blocked creator peers
 
 ## Still open
 
@@ -856,6 +857,7 @@ Master phases 01–24 are documented. This list tracks **remaining depth** that 
 | Eng (optional) | Web miniplayer browser PiP | Done (2026-08-08) |
 | Eng (optional) | Android OS Picture-in-Picture | Done (2026-08-08) |
 | Eng (optional) | Web theater `t` shortcut | Done (2026-08-08) |
+| Eng (optional) | Community access block gates | Done (2026-08-08) |
 | Eng (optional) | Username cooldown dated lock UX | Done (2026-08-08) |
 | Eng (optional) | `notifyLevel` on Manage subscriptions list (kill N+1) | Done (2026-08-08) |
 | API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Deferred (LMS off by default) |

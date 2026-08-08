@@ -25,6 +25,7 @@ import {
   PLATFORM_EVENT_TYPES,
 } from '../platform-event-outbox/platform-event-outbox.service';
 import { CommunityStorageService } from './community-storage.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { clampLimit } from '../../common/utils/pagination.util';
 
 const MAX_POST_MEDIA = 4;
@@ -60,6 +61,7 @@ export class CommunityPostsService {
     private readonly userRepository: Repository<User>,
     @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
+    private readonly engagementService: EngagementService,
     private readonly moderationService: CommunityModerationService,
     private readonly aiCommunityService: AiCommunityService,
     private readonly moderationQueueService: CommunityModerationQueueService,
@@ -251,7 +253,19 @@ export class CommunityPostsService {
     limit = 20,
     cursor?: string,
   ) {
-    const communityIds = await this.communitiesService.listActiveMemberCommunityIds(viewerId);
+    let communityIds = await this.communitiesService.listActiveMemberCommunityIds(viewerId);
+    if (communityIds.length === 0) {
+      return { data: [], meta: { cursor: null, hasMore: false } };
+    }
+
+    const membershipCommunities = await this.communityRepository.find({
+      where: { id: In(communityIds) },
+      select: { id: true, creatorId: true },
+    });
+    const blocked = new Set(await this.engagementService.getBlockedPeerIds(viewerId));
+    communityIds = membershipCommunities
+      .filter((c) => !blocked.has(c.creatorId))
+      .map((c) => c.id);
     if (communityIds.length === 0) {
       return { data: [], meta: { cursor: null, hasMore: false } };
     }

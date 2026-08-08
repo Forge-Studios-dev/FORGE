@@ -10,6 +10,7 @@ import { CommunityPostReaction } from './entities/community-post-reaction.entity
 import { Community } from './entities/community.entity';
 import { User } from '../users/entities/user.entity';
 import { CommunitiesService } from './communities.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { CommunityModerationService } from './community-moderation.service';
 import { AiCommunityService } from './ai-community.service';
 import { CommunityModerationQueueService } from './community-moderation-queue.service';
@@ -147,6 +148,13 @@ describe('CommunityPostsService', () => {
           },
         },
         { provide: CommunitiesService, useValue: communitiesService },
+        {
+          provide: EngagementService,
+          useValue: {
+            isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+            getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+          },
+        },
         { provide: CommunityModerationService, useValue: moderationService },
         { provide: AiCommunityService, useValue: aiCommunityService },
         { provide: CommunityModerationQueueService, useValue: moderationQueueService },
