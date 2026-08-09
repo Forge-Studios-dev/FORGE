@@ -107,6 +107,14 @@ Added `test/widget/test_support/widget_harness.dart` + first coverage on `FeedSc
 - Separately, `Hive.deleteFromDisk()` also hangs under the widget-test binding (unlike bare `test()`, where it's the established pattern in every repository spec) — the harness's `TestCache.dispose()` uses `Hive.close()` + manual directory delete instead.
 - Since every repository provider in this app derives from `apiClientProvider` (`ref.read(apiClientProvider)`), overriding just that one provider via `ProviderScope` fakes the entire network layer for any screen — no per-repository overrides needed.
 
+**Second pass (`ShortsScreen`, 2026-08-09) found two more harness gaps**, both now fixed in `pumpForgeScreen`/`tapAndSettle`/`_pumpAndDrain`:
+- `pump()` with no argument advances Flutter's own animation clock by *zero*. A still-transitioning route (a `PopupMenuButton` opening, an `AlertDialog` appearing right after) leaves an `IgnorePointer`/`AbsorbPointer` in the hit-test path — a tap on its content gets silently absorbed instead of reaching the target, which reads as "nothing happened" rather than an error. Fixed by pumping with an explicit duration so the fake clock and the real `runAsync` delay advance together.
+- A 3-hop interaction (open menu -> tap item -> confirm dialog) needed more settle margin than a single tap; bumped from 3 to 5 rounds.
+- Not a harness bug, but a real footgun the tests caught: `_ShortAction`'s label `Text` is a sibling of its tappable `InkWell`, not wrapped by it — tapping the label text is a no-op. Tap the icon instead.
+- Quality lesson: a rollback test can pass against a *completely broken* tap, because the rollback's expected end state is identical to "the action never fired at all". Assert the mutation's HTTP call actually happened (via the fake adapter's request log), not just the visual end state, whenever a test's "before" and "after failure" states look the same.
+
+Full mobile suite: 97/97 (unit + widget). Remaining screens with zero widget coverage: `watch_screen.dart` (2681 lines), `studio_*` screens, `subscriptions_screen.dart`, etc.
+
 Full mobile suite: 85/85 (unit + widget). Remaining screens with zero widget coverage: everything else — `ShortsFeed`-equivalent (`shorts_screen.dart`), `watch_screen.dart` (2681 lines), `studio_*` screens, `subscriptions_screen.dart`, etc. Same harness applies; next file should follow `feed_screen_test.dart`'s pattern directly rather than rediscovering the `runAsync` requirement.
 
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
