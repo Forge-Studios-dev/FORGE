@@ -130,6 +130,10 @@ New harness capabilities added for screens like this one:
 
 Full mobile suite: 107/107 (unit + widget). Remaining screens with zero widget coverage: `studio_*` screens, `subscriptions_screen.dart`, etc.
 
+**Fourth pass (`SubscriptionsScreen`, 2026-08-09) — 4 tests, no production bugs found.** Straightforward screen (plain repository + direct `api.dio.get` calls, no gotcha-prone providers or gesture arenas); confirms the harness generalizes without new capabilities needed.
+
+Full mobile suite: 111/111 (unit + widget). Remaining screens with zero widget coverage: the 17 `studio_*` screens (~6,700 lines total, `studio_video_edit_screen.dart` alone is 995 lines) — largest remaining chunk of the mobile test-coverage initiative, likely worth splitting across several focused passes rather than one sweep.
+
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
 - Primary surface skill/lesson → video voice; subscribe bell; player keys
