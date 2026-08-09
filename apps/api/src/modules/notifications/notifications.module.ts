@@ -8,6 +8,9 @@ import { NotificationsController } from './notifications.controller';
 import { NotificationsListener } from './notifications.listener';
 import { PushDispatchService } from './push-dispatch.service';
 import { SubscriptionMaintenanceService } from './subscription-maintenance.service';
+import { EmailDigestService } from './email-digest.service';
+import { EmailDigestScheduler } from './email-digest.scheduler';
+import { EMAIL_DIGEST_QUEUE } from './email-digest.constants';
 import { User } from '../users/entities/user.entity';
 import { Follow } from '../engagement/entities/follow.entity';
 import { Comment } from '../engagement/entities/comment.entity';
@@ -63,6 +66,15 @@ import { EngagementModule } from '../engagement/engagement.module';
         removeOnFail: { age: 86400, count: 500 },
       },
     }),
+    BullModule.registerQueue({
+      name: EMAIL_DIGEST_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        backoff: { type: 'exponential', delay: 60_000 },
+        removeOnComplete: { age: 7 * 86400, count: 30 },
+        removeOnFail: { age: 30 * 86400, count: 100 },
+      },
+    }),
   ],
   providers: [
     NotificationsService,
@@ -72,6 +84,8 @@ import { EngagementModule } from '../engagement/engagement.module';
     SubscriptionMaintenanceScheduler,
     PremiumContentNotifyService,
     CommunityAnnouncementNotifyService,
+    EmailDigestService,
+    EmailDigestScheduler,
   ],
   controllers: [NotificationsController],
   exports: [
@@ -80,6 +94,7 @@ import { EngagementModule } from '../engagement/engagement.module';
     SubscriptionMaintenanceService,
     PremiumContentNotifyService,
     CommunityAnnouncementNotifyService,
+    EmailDigestService,
   ],
 })
 export class NotificationsModule {}

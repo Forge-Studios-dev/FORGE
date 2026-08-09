@@ -136,6 +136,10 @@ export class User {
   @Column({ name: 'notification_preferences', type: 'jsonb', nullable: true })
   notificationPreferences: NotificationPreferences | null;
 
+  /** Watermark for the daily email digest job — null means never sent. */
+  @Column({ name: 'last_email_digest_sent_at', type: 'timestamptz', nullable: true })
+  lastEmailDigestSentAt: Date | null;
+
   @Column({ name: 'stripe_connect_account_id', type: 'varchar', length: 255, nullable: true })
   stripeConnectAccountId: string | null;
 

@@ -46,6 +46,8 @@ import { EngagementModule } from '../engagement/engagement.module';
 import { PlatformEventOutboxWorker } from './platform-event-outbox/platform-event-outbox.worker';
 import { PLATFORM_EVENT_OUTBOX_QUEUE } from './platform-event-outbox/platform-event-outbox.constants';
 import { PlatformEventOutboxModule } from '../platform-event-outbox/platform-event-outbox.module';
+import { EmailDigestWorker } from './email-digest/email-digest.worker';
+import { EMAIL_DIGEST_QUEUE } from '../notifications/email-digest.constants';
 
 function isDedicatedWorkerProcess(): boolean {
   return (
@@ -136,6 +138,12 @@ function shouldRegisterCommunityModeration(): boolean {
 }
 
 function shouldRegisterPlatformEventOutbox(): boolean {
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterEmailDigest(): boolean {
+  if (process.env.DISABLE_EMAIL_DIGEST === 'true') return false;
   if (isDedicatedWorkerProcess()) return true;
   return process.env.NODE_ENV !== 'production';
 }
@@ -291,6 +299,15 @@ function shouldRegisterPlatformEventOutbox(): boolean {
         removeOnFail: { age: 86400, count: 500 },
       },
     }),
+    BullModule.registerQueue({
+      name: EMAIL_DIGEST_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        backoff: { type: 'exponential', delay: 60_000 },
+        removeOnComplete: { age: 7 * 86400, count: 30 },
+        removeOnFail: { age: 30 * 86400, count: 100 },
+      },
+    }),
     PlatformEventOutboxModule,
   ],
   providers: [
@@ -309,6 +326,7 @@ function shouldRegisterPlatformEventOutbox(): boolean {
     ...(shouldRegisterCommunityModeration() ? [CommunityModerationWorker] : []),
     ...(shouldRegisterPlatformEventOutbox() ? [PlatformEventOutboxWorker] : []),
     ...(shouldRegisterEngagementReconciliation() ? [EngagementReconciliationWorker] : []),
+    ...(shouldRegisterEmailDigest() ? [EmailDigestWorker] : []),
   ],
 })
 export class WorkersModule {}
