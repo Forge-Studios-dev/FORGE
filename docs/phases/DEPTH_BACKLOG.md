@@ -85,11 +85,14 @@ All 3 remaining files from the original 6 now have coverage, closing this line i
 - `studio/videos/[id]/page.tsx` (780 lines) — 15 tests (access/loading/error/ownership guards, form save, scheduled publish/cancel, failed-video retry, caption upload end-to-end including a non-.vtt rejection delivered via `fireEvent.change` since `userEvent.upload` itself enforces the input's `accept` filter and won't attach a mismatched file, caption removal, thumbnail clear, playlist count). No product bugs found.
 - `WatchExperience.tsx` (784 lines) — 18 tests (private/access-denied gates, processing/failed states, theater mode incl. keyboard, autoplay/loop persistence, up-next end screen, miniplayer, not-interested, block-user, owner hides menu, playlist queue + shuffle). No product bugs found — this file's guest/unverified gating (`onEngageBlocked`) checks the block reason before deciding where to route, unlike the inverted `ShortsFeed` bug fixed above.
 
+### CommentRow like/dislike closure bug fixed (2026-08-09)
+
+Closed: `likeMut`/`dislikeMut` in `CommentsPanel.tsx` now take the prior liked/disliked value as an explicit `mutate(arg)` argument instead of reading it from the `liked`/`disliked` closure — matching the `pinMut`/`heartMut` pattern already used lower in the same file. Argument values are frozen at the `mutate()` call site, so which mutationFn closure TanStack Query's internal options-ref happens to invoke no longer matters. `CommentsPanel.test.tsx`'s 11 tests pass stably across 5 repeat runs.
+
 ### Still open (this pass)
 
 | Area | Item | Note |
 | --- | --- | --- |
-| Web correctness | `CommentRow` like/dislike `mutationFn` reads state via closure instead of mutation argument — non-deterministic which endpoint fires under certain re-render timing | Needs real-browser verification before fixing; low user-visible impact since both paths converge via `onError` rollback |
 | Notifications | `emailDigest` preference is stored but nothing reads it yet | No digest job exists at all (not just unwired) — needs a scheduler + HTML template, product call on cadence |
 
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
