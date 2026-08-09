@@ -178,6 +178,10 @@ Full mobile suite: 146/146 (unit + widget). Remaining: 7 `studio_*` screens.
 
 Full mobile suite: 149/149 (unit + widget). Remaining: 6 `studio_*` screens.
 
+**Sixteenth pass (`StudioModerationScreen`, 2026-08-09) — 4 tests, no production bugs found.** `IndexedStack` keeps every tab built but only the selected one is hit-testable — tests switch tabs via the `ChoiceChip` before tapping into a non-default tab's controls.
+
+Full mobile suite: 153/153 (unit + widget). Remaining: 5 `studio_*` screens.
+
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
 - Primary surface skill/lesson → video voice; subscribe bell; player keys
