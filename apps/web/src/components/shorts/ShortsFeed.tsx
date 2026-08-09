@@ -77,7 +77,7 @@ function ShortSlide({
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [blockPending, setBlockPending] = useState(false);
   const lastTapRef = useRef(0);
-  const blockReason = onGuestAction ? null : getEngageBlockReason(me, isGuest);
+  const blockReason = getEngageBlockReason(me, isGuest);
   const canPlay = active && video.status === 'ready' && !!video.hlsUrl;
   const isOwn = !!me?.id && me.id === video.userId;
 
@@ -129,7 +129,7 @@ function ShortSlide({
   }, [subscribed, isGuest, me, isOwn, video.userId, video.id]);
 
   const gated = (action: () => void) => {
-    if (onGuestAction) {
+    if (blockReason === 'guest' && onGuestAction) {
       onGuestAction();
       return;
     }
