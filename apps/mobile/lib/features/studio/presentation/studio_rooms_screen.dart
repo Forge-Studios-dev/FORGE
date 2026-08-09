@@ -252,7 +252,7 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
                 if (_permissionsRoomId != null) ...[
                   const SizedBox(height: 24),
                   Text(
-                    'Permissions (${_permissionsRoomId!.substring(0, 8)}…)',
+                    'Permissions (${_permissionsRoomId!.substring(0, _permissionsRoomId!.length.clamp(0, 8))}…)',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   TextField(

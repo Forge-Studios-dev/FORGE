@@ -166,6 +166,10 @@ Full mobile suite: 134/134 (unit + widget). Remaining: 10 `studio_*` screens.
 
 Full mobile suite: 137/137 (unit + widget). Remaining: 9 `studio_*` screens.
 
+**Thirteenth pass (`StudioRoomsScreen`, 2026-08-09) — 5 tests, found 1 real bug.** The room-permissions header did `_permissionsRoomId!.substring(0, 8)` unconditionally — any room id under 8 characters throws a `RangeError` and crashes the screen. Real ids are UUID/cuid-length in practice, so unlikely to hit in production, but still a genuine crash risk with no defensive bound. Fixed with `.substring(0, id.length.clamp(0, 8))`.
+
+Full mobile suite: 142/142 (unit + widget). Remaining: 8 `studio_*` screens.
+
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
 - Primary surface skill/lesson → video voice; subscribe bell; player keys
