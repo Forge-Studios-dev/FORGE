@@ -116,6 +116,41 @@ class TestCache {
 /// doesn't trigger. Runs the initial pump inside [WidgetTester.runAsync] (see
 /// note above) so `initState`-triggered repository/provider fetches actually
 /// resolve, then pumps twice more to reflect the resulting frame(s).
+// One rebuild can mount a *new* widget whose own initState fires *another*
+// real async call (e.g. FeedScreen resolving unmounts its skeleton and
+// mounts a _ShortSlide, whose initState immediately calls
+// isInWatchLater()). That second call is triggered by a `pump()`, so if the
+// pumps happen outside `runAsync` (as a naive "runAsync once, then pump
+// outside" split would do), its continuation lands back in the broken fake
+// zone and its underlying Dio timer never gets cancelled before the test
+// ends — surfacing as a "Pending timers" test failure, not a hang. Fix:
+// interleave the pumps and real delays *inside one runAsync block* so every
+// cascade of mount -> fetch -> rebuild -> mount stays in the real zone.
+// Also comfortably clears Flutter's own kDoubleTapTimeout (300ms): any tap
+// landing on a widget with an ancestor GestureDetector.onDoubleTap (e.g.
+// ShortsScreen's per-slide double-tap-to-like) must win a real gesture-arena
+// wait before its own onTap fires — settling too early makes the tap look
+// like a silent no-op rather than throwing, so watch for a test whose
+// assertions describe "before" state passing when the action should have
+// changed something (that's this happening, not a passing test).
+// Also, `pump()` with no argument advances Flutter's animation clock by
+// zero — a still-transitioning route (e.g. PopupMenuButton's own entrance
+// animation) leaves an IgnorePointer/AbsorbPointer in the hit-test path,
+// so a tap on its content fails with "would not hit test on the specified
+// widget" until that route finishes opening. Pass the same duration to
+// `pump` so the fake clock and the real delay advance together.
+const _kSettleRounds = 5;
+const _kSettleDelay = Duration(milliseconds: 150);
+
+Future<void> _pumpAndDrain(WidgetTester tester) async {
+  await tester.runAsync(() async {
+    for (var i = 0; i < _kSettleRounds; i++) {
+      await tester.pump(_kSettleDelay);
+      await Future<void>.delayed(_kSettleDelay);
+    }
+  });
+}
+
 Future<void> pumpForgeScreen(
   WidgetTester tester,
   Widget child, {
@@ -132,10 +167,9 @@ Future<void> pumpForgeScreen(
         child: MaterialApp(home: child),
       ),
     );
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await Future<void>.delayed(_kSettleDelay);
   });
-  await tester.pump();
-  await tester.pump();
+  await _pumpAndDrain(tester);
 }
 
 /// Taps [finder] and lets the resulting `onTap` async work (e.g. an
@@ -145,10 +179,9 @@ Future<void> pumpForgeScreen(
 Future<void> tapAndSettle(WidgetTester tester, Finder finder) async {
   await tester.runAsync(() async {
     await tester.tap(finder);
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await Future<void>.delayed(_kSettleDelay);
   });
-  await tester.pump();
-  await tester.pump();
+  await _pumpAndDrain(tester);
 }
 
 ResponseBody jsonResponse(Map<String, dynamic> body, {int statusCode = 200}) => ResponseBody.fromString(
