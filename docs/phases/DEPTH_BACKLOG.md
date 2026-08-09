@@ -77,13 +77,18 @@ Writing the guest/unverified gating tests surfaced a real, severe bug, fixed alo
 
 Also hit mid-debug, not a product bug: jsdom implements a real `navigator.clipboard` (unlike `navigator.share`, which is genuinely `undefined`), so replacing the whole `clipboard` property in a test is silently ignored — `vi.spyOn(navigator.clipboard, 'writeText')` is required instead. Noted here since the next oversized-file test pass may hit the same trap if it touches share/clipboard code.
 
-Remaining 3 files still have no tests: `studio/videos/page.tsx` 921, `studio/videos/[id]/page.tsx` 780, `WatchExperience.tsx` 784.
+### Remaining oversized-file tests closed out (2026-08-09)
+
+All 3 remaining files from the original 6 now have coverage, closing this line item entirely:
+
+- `studio/videos/page.tsx` (921 lines) — 13 tests (empty/search-empty/error states, row rendering, scheduled publish-now/cancel-schedule, cancel-upload + delete confirm flows, visibility change, clipboard copy, stuck-upload release, status filter re-query, pagination). No product bugs found. Desktop table + mobile list render simultaneously in jsdom (Tailwind `hidden`/`md:hidden` has no effect without real CSS), so row-scoped queries use `within(table)` to avoid duplicate-match errors — noted for any future test on a similar dual-layout page.
+- `studio/videos/[id]/page.tsx` (780 lines) — 15 tests (access/loading/error/ownership guards, form save, scheduled publish/cancel, failed-video retry, caption upload end-to-end including a non-.vtt rejection delivered via `fireEvent.change` since `userEvent.upload` itself enforces the input's `accept` filter and won't attach a mismatched file, caption removal, thumbnail clear, playlist count). No product bugs found.
+- `WatchExperience.tsx` (784 lines) — 18 tests (private/access-denied gates, processing/failed states, theater mode incl. keyboard, autoplay/loop persistence, up-next end screen, miniplayer, not-interested, block-user, owner hides menu, playlist queue + shuffle). No product bugs found — this file's guest/unverified gating (`onEngageBlocked`) checks the block reason before deciding where to route, unlike the inverted `ShortsFeed` bug fixed above.
 
 ### Still open (this pass)
 
 | Area | Item | Note |
 | --- | --- | --- |
-| Web maintainability | 3 remaining oversized files with no tests (`studio/videos/page.tsx` 921, `studio/videos/[id]/page.tsx` 780, `WatchExperience.tsx` 784) | Same tests-first treatment as `CommentsPanel.tsx`/`ShortsFeed.tsx`, one file at a time |
 | Web correctness | `CommentRow` like/dislike `mutationFn` reads state via closure instead of mutation argument — non-deterministic which endpoint fires under certain re-render timing | Needs real-browser verification before fixing; low user-visible impact since both paths converge via `onError` rollback |
 | Notifications | `emailDigest` preference is stored but nothing reads it yet | No digest job exists at all (not just unwired) — needs a scheduler + HTML template, product call on cadence |
 
