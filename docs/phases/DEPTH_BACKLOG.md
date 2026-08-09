@@ -174,6 +174,10 @@ Full mobile suite: 142/142 (unit + widget). Remaining: 8 `studio_*` screens.
 
 Full mobile suite: 146/146 (unit + widget). Remaining: 7 `studio_*` screens.
 
+**Fifteenth pass (`StudioScreen`, 2026-08-09) — 3 tests, no production bugs found.** Covers the main dashboard: urgent-badge aggregation from `studioAttentionProvider`'s counts, and the FAB's create-sheet quick actions.
+
+Full mobile suite: 149/149 (unit + widget). Remaining: 6 `studio_*` screens.
+
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
 - Primary surface skill/lesson → video voice; subscribe bell; player keys
