@@ -220,7 +220,11 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
   @override
   void initState() {
     super.initState();
-    ref.read(miniPlayerProvider.notifier).close();
+    // Mounts as a direct consequence of videoDetailProvider resolving inside
+    // WatchScreen's own build() — calling this synchronously trips
+    // Riverpod's "modify a provider while the widget tree is building" guard
+    // whenever the fetch resolves fast enough (e.g. cached data).
+    Future(() => ref.read(miniPlayerProvider.notifier).close());
     final autoplayPref = LocalCache.read(_autoplayPrefKey);
     if (autoplayPref == '0') _autoplay = false;
     if (autoplayPref == '1') _autoplay = true;
@@ -1375,8 +1379,17 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    // Wrapped in a horizontal SingleChildScrollView: ~8 action buttons plus
+    // the subscribe control overflow a plain unscrollable Row on real phone
+    // widths (~360-430dp) — confirmed via a RenderFlex overflow, not just a
+    // narrow-test-viewport artifact.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
         FilledButton.tonalIcon(
           onPressed: _busy ? null : _toggleLike,
           icon: Icon(_liked ? Icons.thumb_up : Icons.thumb_up_outlined, size: 18),
@@ -1506,12 +1519,16 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
                   ),
                   child: const Text('Subscribe'),
                 ),
-        const Spacer(),
-        if (widget.video.user.username.isNotEmpty)
+            ],
+          ),
+        ),
+        if (widget.video.user.username.isNotEmpty) ...[
+          const SizedBox(height: 8),
           TextButton(
             onPressed: () => context.push('/profile/${widget.video.user.username}'),
             child: Text(widget.video.user.displayName),
           ),
+        ],
       ],
     );
   }
@@ -2285,6 +2302,7 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
   VideoPlayerController? _video;
   ChewieController? _chewie;
   bool _endedFired = false;
+  bool _initFailed = false;
   double _lastVolume = 1;
   bool _lastMuted = false;
 
@@ -2341,6 +2359,7 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url) {
       _endedFired = false;
+      _initFailed = false;
       _disposeControllers();
       _bootstrap();
       return;
@@ -2385,8 +2404,17 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
 
   Future<void> _bootstrap() async {
     final vc = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-    await vc.initialize();
-    if (!mounted) return;
+    try {
+      await vc.initialize();
+    } catch (_) {
+      await vc.dispose();
+      if (mounted) setState(() => _initFailed = true);
+      return;
+    }
+    if (!mounted) {
+      await vc.dispose();
+      return;
+    }
     await vc.setLooping(widget.looping);
     await vc.setPlaybackSpeed(widget.playbackRate);
     final prefs = _readPreferredVolume();
@@ -2503,7 +2531,29 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
         color: ForgeTokens.of(context).surfaceContainerHigh,
         child: _chewie != null
             ? Chewie(controller: _chewie!)
-            : Center(child: CircularProgressIndicator(color: ForgeTokens.of(context).primary)),
+            : _initFailed
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.error_outline, color: ForgeTokens.of(context).onSurfaceVariant),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Couldn't load video",
+                          style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () {
+                            setState(() => _initFailed = false);
+                            _bootstrap();
+                          },
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  )
+                : Center(child: CircularProgressIndicator(color: ForgeTokens.of(context).primary)),
       ),
     );
   }

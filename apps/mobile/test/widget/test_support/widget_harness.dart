@@ -49,15 +49,17 @@ class MapHttpAdapter implements HttpClientAdapter {
 
 /// A [MapHttpAdapter] response that always fails with a connection error —
 /// for exercising a screen's offline/error branch.
-ResponseBody Function(RequestOptions) failWith(String path) => (_) => throw DioException(
-      requestOptions: RequestOptions(path: path),
-      type: DioExceptionType.connectionError,
-    );
+ResponseBody Function(RequestOptions) failWith(String path) =>
+    (_) => throw DioException(
+          requestOptions: RequestOptions(path: path),
+          type: DioExceptionType.connectionError,
+        );
 
 /// Builds an [ApiClient] backed by [MapHttpAdapter] — the same `dio:` test
 /// seam (HIGH-09) the repository unit tests use, just with path-keyed
 /// responses instead of a strict queue.
-ApiClient fakeApiClient(Map<String, ResponseBody Function(RequestOptions)> handlers) {
+ApiClient fakeApiClient(
+    Map<String, ResponseBody Function(RequestOptions)> handlers) {
   final dio = Dio()..httpClientAdapter = MapHttpAdapter(handlers);
   return ApiClient(dio: dio);
 }
@@ -67,6 +69,21 @@ ApiClient fakeApiClient(Map<String, ResponseBody Function(RequestOptions)> handl
 /// real plugin has no implementation under `flutter test`.
 void installFakeSecureStorage() {
   FlutterSecureStoragePlatform.instance = FakeSecureStoragePlatform({});
+}
+
+/// Widens the test surface to [height] so a long scrollable screen's whole
+/// content is inside the viewport at once. `ListView`/`Sliver`-based screens
+/// only materialize children within the viewport (unlike a plain `Column`
+/// inside a `SingleChildScrollView`, which builds everything regardless of
+/// visibility) — content below the default 800x600 test window's fold
+/// genuinely doesn't exist in the widget tree yet, so `find.text(...)` on it
+/// fails with "0 widgets found" rather than a timing or error symptom.
+/// Reaches for scrolling instead when the content only needs to be tapped,
+/// not universally present. Call `tester.view.resetPhysicalSize()` in
+/// `tearDown` (or via `addTearDown`) to undo this before the next test.
+void useTallViewport(WidgetTester tester, {double height = 3000}) {
+  tester.view.physicalSize = Size(800, height);
+  tester.view.devicePixelRatio = 1.0;
 }
 
 /// Hive-backed [LocalCache] sandbox — several repositories
@@ -142,6 +159,14 @@ class TestCache {
 const _kSettleRounds = 5;
 const _kSettleDelay = Duration(milliseconds: 150);
 
+/// Runs another round of settling beyond what [pumpForgeScreen]/[tapAndSettle]
+/// already do — for a chain that needs more real time than most (e.g. a
+/// second real async hop nested behind the first, like a video controller's
+/// own `initialize()` rejecting after the screen's main data has already
+/// resolved). Safe to call repeatedly; each call is another full
+/// `_kSettleRounds` pass.
+Future<void> drainAsync(WidgetTester tester) => _pumpAndDrain(tester);
+
 Future<void> _pumpAndDrain(WidgetTester tester) async {
   await tester.runAsync(() async {
     for (var i = 0; i < _kSettleRounds; i++) {
@@ -160,6 +185,18 @@ Future<void> pumpForgeScreen(
   await tester.runAsync(() async {
     await tester.pumpWidget(
       ProviderScope(
+        // Riverpod 3's default retry policy re-runs a failed
+        // FutureProvider/AsyncNotifier with exponential backoff, staying in
+        // `AsyncLoading` (carrying the previous error) the whole time —
+        // `.when()` dispatches on runtime type, so that reads as still
+        // "loading" and never reaches the `error:` branch. Confirmed via a
+        // build()-level debug print showing repeated
+        // `AsyncLoading<T>(error: ..., stackTrace: ...)` states that never
+        // settle no matter how long the test waits. Screens that manage
+        // their own load/error state manually (FeedScreen, ShortsScreen)
+        // never hit this; any screen using `ref.watch` on a
+        // FutureProvider/AsyncNotifier directly for its data will.
+        retry: (_, __) => null,
         overrides: [
           apiClientProvider.overrideWithValue(client),
           ...extraOverrides,
@@ -184,7 +221,8 @@ Future<void> tapAndSettle(WidgetTester tester, Finder finder) async {
   await _pumpAndDrain(tester);
 }
 
-ResponseBody jsonResponse(Map<String, dynamic> body, {int statusCode = 200}) => ResponseBody.fromString(
+ResponseBody jsonResponse(Map<String, dynamic> body, {int statusCode = 200}) =>
+    ResponseBody.fromString(
       jsonEncode(body),
       statusCode,
       headers: {
