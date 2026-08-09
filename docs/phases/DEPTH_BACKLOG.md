@@ -182,6 +182,10 @@ Full mobile suite: 149/149 (unit + widget). Remaining: 6 `studio_*` screens.
 
 Full mobile suite: 153/153 (unit + widget). Remaining: 5 `studio_*` screens.
 
+**Seventeenth pass (`StudioCommentsScreen`, 2026-08-09) — 5 tests, no production bugs found.** `getRecentComments()` fans out `GET /videos/studio` then a `GET /videos/:id/comments` per ready video — handlers keyed by path only (query ignored) cover this without needing to pin call order.
+
+Full mobile suite: 158/158 (unit + widget). Remaining: 4 `studio_*` screens.
+
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
 - Primary surface skill/lesson → video voice; subscribe bell; player keys
