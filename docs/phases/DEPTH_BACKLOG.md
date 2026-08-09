@@ -93,7 +93,21 @@ Closed: `likeMut`/`dislikeMut` in `CommentsPanel.tsx` now take the prior liked/d
 
 Closed the last open engineering item: `emailDigest` preference now has a real job behind it. Cadence (daily, 13:00 UTC) confirmed with product before building. `EmailDigestService.runDigest()` batches opted-in users (200/page), queries each user's unread notifications since their `last_email_digest_sent_at` watermark (new migration; defaults to a 24h lookback on first send), and sends a plain-text summary via the existing `MailService` — this codebase has no HTML email template system (every transactional email — verify, reset password — is a plain-text template literal), so the digest follows that convention rather than inventing a new one. Watermark only advances on successful send, so a mail failure retries the same window next day. Wired as a BullMQ repeatable job (`EmailDigestScheduler` + `EmailDigestWorker`) cloning the exact `SubscriptionMaintenanceScheduler`/`Worker` registration pattern (same `shouldRegisterBullScheduler` gate, same dev/production/dedicated-worker-process rules in `workers.module.ts`, `DISABLE_EMAIL_DIGEST` escape hatch matching sibling jobs). 7 unit tests; full API suite 1091/1091 passing.
 
-**With this closed, every remaining open item is ops/product-owned** (see the "Still open" table below) — no unassigned engineering work remains in this backlog.
+**With this closed, every remaining open item from the original backlog is ops/product-owned** (see the "Still open" table below). Separately, a new voluntary initiative started below: mobile widget-test coverage (`apps/mobile/test/` had zero widget tests before this).
+
+### Mobile widget-test infrastructure started (2026-08-09)
+
+`apps/mobile/test/` had unit tests against repositories only — zero widget tests anywhere, despite most business logic living inline in presentation-layer `State` classes (per the earlier mobile audit: `ShortsFeed`-equivalent screens, `WatchScreen` at 2681 lines, etc., all untested at the widget level).
+
+Added `test/widget/test_support/widget_harness.dart` + first coverage on `FeedScreen` (7 tests: load/empty/error states, unread badge, continue-watching rail, like optimistic update + failure rollback). No product bugs found in `FeedScreen` itself.
+
+**The harness took real debugging to get right** — worth reading before writing the next widget test file:
+- A bare `testWidgets` body does not run in a zone that drains real async I/O on its own. `await` on the fake Dio adapter's Future never resolves, even with zero `pump()` calls — proven by reproducing the identical `FeedRepository.getFeed()` call that resolves instantly in `feed_repository_test.dart`'s plain `test()` environment but hangs forever (three-minute timeout) inside `testWidgets`. `pumpAndSettle()` does not fix this either — it only drains Flutter's own frame/animation scheduling, not arbitrary Futures.
+- Fix: per Flutter's own `tester.runAsync` contract, the async call chain must *originate* inside `runAsync` for its continuation to run in the real zone — `initState()`-triggered fire-and-forget work (e.g. `_loadInitial()`) is kicked off synchronously by `pumpWidget`, and an `onTap` handler's work is kicked off synchronously by `tester.tap`, so both calls themselves (not just an `await` afterward) must happen inside `runAsync`. Use `pumpForgeScreen`/`tapAndSettle` from the harness, not raw `pumpWidget`/`tester.tap` + `pumpAndSettle`.
+- Separately, `Hive.deleteFromDisk()` also hangs under the widget-test binding (unlike bare `test()`, where it's the established pattern in every repository spec) — the harness's `TestCache.dispose()` uses `Hive.close()` + manual directory delete instead.
+- Since every repository provider in this app derives from `apiClientProvider` (`ref.read(apiClientProvider)`), overriding just that one provider via `ProviderScope` fakes the entire network layer for any screen — no per-repository overrides needed.
+
+Full mobile suite: 85/85 (unit + widget). Remaining screens with zero widget coverage: everything else — `ShortsFeed`-equivalent (`shorts_screen.dart`), `watch_screen.dart` (2681 lines), `studio_*` screens, `subscriptions_screen.dart`, etc. Same harness applies; next file should follow `feed_screen_test.dart`'s pattern directly rather than rediscovering the `runAsync` requirement.
 
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
