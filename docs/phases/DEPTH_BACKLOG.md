@@ -134,6 +134,10 @@ Full mobile suite: 107/107 (unit + widget). Remaining screens with zero widget c
 
 Full mobile suite: 111/111 (unit + widget). Remaining screens with zero widget coverage: the 17 `studio_*` screens (~6,700 lines total, `studio_video_edit_screen.dart` alone is 995 lines) — largest remaining chunk of the mobile test-coverage initiative, likely worth splitting across several focused passes rather than one sweep.
 
+**Fifth pass (`StudioChannelPostsScreen`, 2026-08-09) — 3 tests, no production bugs found.** Kept scoped to the screen's own logic (sign-in gate, threading `creatorId`/`username` into `ChannelCommunityPanel`) rather than exercising the 671-line `ChannelCommunityPanel` itself (compose/comments/pin/like) — that panel is shared with the public profile Community tab, not studio-specific, and deserves its own dedicated test file if tackled later.
+
+Full mobile suite: 114/114 (unit + widget). Remaining: 16 `studio_*` screens.
+
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
 - Primary surface skill/lesson → video voice; subscribe bell; player keys
