@@ -146,6 +146,10 @@ Full mobile suite: 117/117 (unit + widget). Remaining: 15 `studio_*` screens.
 
 Full mobile suite: 120/120 (unit + widget). Remaining: 14 `studio_*` screens.
 
+**Eighth pass (`StudioSuperThanksScreen`, 2026-08-09) — 3 tests, no production bugs found.** Export-CSV button intentionally left untapped in tests — it drives `SharePlus.instance.share` via a real platform channel with no test-time implementation, same class of gap as `VideoPlayerController`.
+
+Full mobile suite: 123/123 (unit + widget). Remaining: 13 `studio_*` screens.
+
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
 - Primary surface skill/lesson → video voice; subscribe bell; player keys
