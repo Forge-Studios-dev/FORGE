@@ -189,15 +189,14 @@ function CommentRow({
   };
 
   const likeMut = useMutation({
-    mutationFn: async () => {
-      if (liked) {
+    mutationFn: async (wasLiked: boolean) => {
+      if (wasLiked) {
         await api.delete(`/videos/${videoId}/comments/${comment.id}/like`);
       } else {
         await api.post(`/videos/${videoId}/comments/${comment.id}/like`);
       }
     },
-    onMutate: () => {
-      const wasLiked = liked;
+    onMutate: (wasLiked) => {
       const wasDisliked = disliked;
       setLiked(!wasLiked);
       if (!wasLiked && wasDisliked) setDisliked(false);
@@ -211,16 +210,15 @@ function CommentRow({
   });
 
   const dislikeMut = useMutation({
-    mutationFn: async () => {
-      if (disliked) {
+    mutationFn: async (wasDisliked: boolean) => {
+      if (wasDisliked) {
         await api.delete(`/videos/${videoId}/comments/${comment.id}/dislike`);
       } else {
         await api.post(`/videos/${videoId}/comments/${comment.id}/dislike`);
       }
     },
-    onMutate: () => {
+    onMutate: (wasDisliked) => {
       const wasLiked = liked;
-      const wasDisliked = disliked;
       setDisliked(!wasDisliked);
       if (!wasDisliked && wasLiked) {
         setLiked(false);
@@ -371,7 +369,7 @@ function CommentRow({
                 onGuestInteract?.();
                 return;
               }
-              likeMut.mutate();
+              likeMut.mutate(liked);
             }}
             className={`inline-flex items-center gap-1 font-semibold ${liked ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
           >
@@ -388,7 +386,7 @@ function CommentRow({
                 onGuestInteract?.();
                 return;
               }
-              dislikeMut.mutate();
+              dislikeMut.mutate(disliked);
             }}
             className={`inline-flex items-center font-semibold ${disliked ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
           >
