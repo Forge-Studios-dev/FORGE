@@ -89,11 +89,11 @@ All 3 remaining files from the original 6 now have coverage, closing this line i
 
 Closed: `likeMut`/`dislikeMut` in `CommentsPanel.tsx` now take the prior liked/disliked value as an explicit `mutate(arg)` argument instead of reading it from the `liked`/`disliked` closure — matching the `pinMut`/`heartMut` pattern already used lower in the same file. Argument values are frozen at the `mutate()` call site, so which mutationFn closure TanStack Query's internal options-ref happens to invoke no longer matters. `CommentsPanel.test.tsx`'s 11 tests pass stably across 5 repeat runs.
 
-### Still open (this pass)
+### Email digest job shipped (2026-08-09)
 
-| Area | Item | Note |
-| --- | --- | --- |
-| Notifications | `emailDigest` preference is stored but nothing reads it yet | No digest job exists at all (not just unwired) — needs a scheduler + HTML template, product call on cadence |
+Closed the last open engineering item: `emailDigest` preference now has a real job behind it. Cadence (daily, 13:00 UTC) confirmed with product before building. `EmailDigestService.runDigest()` batches opted-in users (200/page), queries each user's unread notifications since their `last_email_digest_sent_at` watermark (new migration; defaults to a 24h lookback on first send), and sends a plain-text summary via the existing `MailService` — this codebase has no HTML email template system (every transactional email — verify, reset password — is a plain-text template literal), so the digest follows that convention rather than inventing a new one. Watermark only advances on successful send, so a mail failure retries the same window next day. Wired as a BullMQ repeatable job (`EmailDigestScheduler` + `EmailDigestWorker`) cloning the exact `SubscriptionMaintenanceScheduler`/`Worker` registration pattern (same `shouldRegisterBullScheduler` gate, same dev/production/dedicated-worker-process rules in `workers.module.ts`, `DISABLE_EMAIL_DIGEST` escape hatch matching sibling jobs). 7 unit tests; full API suite 1091/1091 passing.
+
+**With this closed, every remaining open item is ops/product-owned** (see the "Still open" table below) — no unassigned engineering work remains in this backlog.
 
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
