@@ -158,6 +158,10 @@ Full mobile suite: 126/126 (unit + widget). Remaining: 12 `studio_*` screens.
 
 Full mobile suite: 131/131 (unit + widget). Remaining: 11 `studio_*` screens.
 
+**Eleventh pass (`StudioSubscribersScreen`, 2026-08-09) — 3 tests, no production bugs found.**
+
+Full mobile suite: 134/134 (unit + widget). Remaining: 10 `studio_*` screens.
+
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
 - Primary surface skill/lesson → video voice; subscribe bell; player keys
