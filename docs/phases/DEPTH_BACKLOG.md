@@ -194,6 +194,10 @@ Full mobile suite: 161/161 (unit + widget). Remaining: 3 `studio_*` screens.
 
 Full mobile suite: 166/166 (unit + widget). Remaining: 2 `studio_*` screens (`studio_videos_screen.dart`, `studio_video_edit_screen.dart` — the two largest).
 
+**Twentieth pass (`StudioVideosScreen`, 2026-08-09) — 5 tests, no production bugs found.** Covers the library list, debounced search, filter-chip requery, and delete-with-confirm; the popup menu's other actions (publish now, cancel schedule/upload, retry, visibility toggles) share the same `_load()`-after-mutation pattern already proven here, so left uncovered rather than re-testing the identical shape five more times.
+
+Full mobile suite: 171/171 (unit + widget). Remaining: 1 screen (`studio_video_edit_screen.dart`, 995 lines — the largest in the app).
+
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
 - Primary surface skill/lesson → video voice; subscribe bell; player keys
