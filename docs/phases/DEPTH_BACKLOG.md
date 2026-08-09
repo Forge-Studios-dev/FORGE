@@ -65,11 +65,25 @@ Also surfaced, not fixed (needs real verification before touching): `likeMut`/`d
 
 Remaining 5 files still have no tests: `ShortsFeed.tsx` 866, `studio/videos/page.tsx` 921, `studio/videos/[id]/page.tsx` 780, `WatchExperience.tsx` 784, `search/page.tsx` 625. Same treatment (tests first, extract later) applies to each — not done in this pass to keep this a reviewable, single-file increment.
 
+### SearchPage test coverage added (2026-08-09)
+
+`search/page.tsx` (625 lines) — added `page.test.tsx` (13 tests: no-query/short-query prompts, video/channel/playlist/live result rendering, no-results and error states, type-tab navigation, duration/sort filter visibility by tab, guest hides watch-history filter, trimmed-query submit, live-only skips the catalog fetch).
+
+### ShortsFeed test coverage added + gated() bug fix (2026-08-09)
+
+`ShortsFeed.tsx` (866 lines) — added `ShortsFeed.test.tsx` (17 tests: loading/error/empty states, active-slide player vs. inactive thumbnail, like/dislike mutual exclusion, subscribe + notify-level menu + confirmed unsubscribe, own-video hides Subscribe, guest vs. unverified gating, block/not-interested removing a video, watch-later toggle, share clipboard fallback, deep-link pinning, comments panel).
+
+Writing the guest/unverified gating tests surfaced a real, severe bug, fixed alongside: `ShortSlide`'s `gated()` checked whether the `onGuestAction` prop was passed *before* checking the actual per-user block reason, and `ShortsFeed` always passes `onGuestAction` to every slide — so `blockReason` was unconditionally forced to `null` and `gated()` always short-circuited to the generic feed-level guest modal. In effect, **every engagement action on Shorts (like, dislike, subscribe, watch-later, block, not-interested, don't-recommend) was dead for every viewer, guest or fully verified** — clicking Like as a signed-in verified user just reopened the "sign in" modal and never called the like mutation. Fixed by computing `blockReason` unconditionally and only deferring to `onGuestAction` when the reason is specifically `'guest'` (unverified users now correctly see the inline verify-email prompt instead of being misrouted to a sign-in prompt).
+
+Also hit mid-debug, not a product bug: jsdom implements a real `navigator.clipboard` (unlike `navigator.share`, which is genuinely `undefined`), so replacing the whole `clipboard` property in a test is silently ignored — `vi.spyOn(navigator.clipboard, 'writeText')` is required instead. Noted here since the next oversized-file test pass may hit the same trap if it touches share/clipboard code.
+
+Remaining 3 files still have no tests: `studio/videos/page.tsx` 921, `studio/videos/[id]/page.tsx` 780, `WatchExperience.tsx` 784.
+
 ### Still open (this pass)
 
 | Area | Item | Note |
 | --- | --- | --- |
-| Web maintainability | 5 remaining oversized files with no tests (`ShortsFeed.tsx` 866, `studio/videos/page.tsx` 921, `studio/videos/[id]/page.tsx` 780, `WatchExperience.tsx` 784, `search/page.tsx` 625) | Same tests-first treatment as `CommentsPanel.tsx`, one file at a time |
+| Web maintainability | 3 remaining oversized files with no tests (`studio/videos/page.tsx` 921, `studio/videos/[id]/page.tsx` 780, `WatchExperience.tsx` 784) | Same tests-first treatment as `CommentsPanel.tsx`/`ShortsFeed.tsx`, one file at a time |
 | Web correctness | `CommentRow` like/dislike `mutationFn` reads state via closure instead of mutation argument — non-deterministic which endpoint fires under certain re-render timing | Needs real-browser verification before fixing; low user-visible impact since both paths converge via `onError` rollback |
 | Notifications | `emailDigest` preference is stored but nothing reads it yet | No digest job exists at all (not just unwired) — needs a scheduler + HTML template, product call on cadence |
 
