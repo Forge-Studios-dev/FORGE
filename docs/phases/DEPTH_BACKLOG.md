@@ -190,6 +190,10 @@ Full mobile suite: 158/158 (unit + widget). Remaining: 4 `studio_*` screens.
 
 Full mobile suite: 161/161 (unit + widget). Remaining: 3 `studio_*` screens.
 
+**Nineteenth pass (`StudioCommunityScreen`, 2026-08-09) — 5 tests, no production bugs found.** Harness gap, not a product bug: `MapHttpAdapter` keys by path only, so three calls to the same `/members` path differing only by `?status=` query collide on one handler. Fixed in the test by branching inside the handler on `req.uri.queryParameters['status']` (not `req.queryParameters`, which doesn't carry the value through) — worth remembering for any screen that calls one endpoint with different query filters.
+
+Full mobile suite: 166/166 (unit + widget). Remaining: 2 `studio_*` screens (`studio_videos_screen.dart`, `studio_video_edit_screen.dart` — the two largest).
+
 ## Shipped in depth pass (2026-08-02 → 2026-08-03)
 
 - Primary surface skill/lesson → video voice; subscribe bell; player keys
