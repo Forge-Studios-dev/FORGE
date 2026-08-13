@@ -158,4 +158,16 @@ describe('AuthMfaService', () => {
       });
     });
   });
+
+  describe('isEnabled', () => {
+    it('returns true when the user has MFA on', async () => {
+      userRepository.findOne.mockResolvedValue({ id: 'user-1', mfaEnabled: true });
+      expect(await service.isEnabled('user-1')).toBe(true);
+    });
+
+    it('returns false when the user has MFA off or does not exist', async () => {
+      userRepository.findOne.mockResolvedValue(null);
+      expect(await service.isEnabled('missing')).toBe(false);
+    });
+  });
 });

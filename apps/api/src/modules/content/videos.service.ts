@@ -165,6 +165,7 @@ export class VideosService {
       region: configService.get<string>('aws.region') || 'ap-south-1',
       accessKeyId: configService.get<string>('aws.accessKeyId') || '',
       secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
+      roleArn: configService.get<string>('aws.roleArn') || undefined,
     };
     this.s3 = createS3Client(awsCreds);
     this.presignS3 = createS3ClientForBrowserPresign(awsCreds);

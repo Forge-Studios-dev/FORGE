@@ -141,4 +141,36 @@ export class AccountStrikesService {
   async listForUser(userId: string): Promise<AccountStrike[]> {
     return this.strikeRepository.find({ where: { userId }, order: { createdAt: 'DESC' } });
   }
+
+  /** Admin cross-user browse — defaults to the appeals queue (what actually needs action). */
+  async listAll(options: {
+    page?: number;
+    limit?: number;
+    appealStatus?: AppealStatus;
+    status?: StrikeStatus;
+  }) {
+    const page = Math.max(1, options.page ?? 1);
+    const limit = Math.min(100, Math.max(1, options.limit ?? 20));
+
+    const query = this.strikeRepository
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.user', 'user')
+      .orderBy('s.createdAt', 'DESC');
+    if (options.appealStatus) {
+      query.andWhere('s.appealStatus = :appealStatus', { appealStatus: options.appealStatus });
+    }
+    if (options.status) {
+      query.andWhere('s.status = :status', { status: options.status });
+    }
+
+    const [rows, total] = await query
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data: rows,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
 }

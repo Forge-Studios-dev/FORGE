@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1095.0",
+    "@aws-sdk/credential-providers": "^3.1107.0",
     "@aws-sdk/s3-request-presigner": "^3.1095.0",
     "@forge/shared-types": "1.0.0",
     "@mux/mux-node": "^8.3.0",

@@ -76,6 +76,7 @@ export class MuxVodService {
       region: configService.get<string>('aws.region') || 'ap-south-1',
       accessKeyId: configService.get<string>('aws.accessKeyId') || '',
       secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
+      roleArn: configService.get<string>('aws.roleArn') || undefined,
     });
     this.bucket = configService.get<string>('aws.s3BucketName') || '';
     this.mux = new Mux({

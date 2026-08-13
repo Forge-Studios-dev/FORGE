@@ -23,6 +23,7 @@ import { resolveVideoTypeOnReady } from '../../content/short-duration.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { buildPublicMediaUrl } from '../../../common/media-url.util';
 import { videoDetailCacheKey } from '../../content/video-cache';
+import { createS3Client } from '../../../common/create-s3-client';
 import { OWNED_VIDEO_S3_KEY_PATTERN } from '../../content/dto/create-video.dto';
 import { ContentScanService } from '../../content/content-scan/content-scan.service';
 
@@ -64,12 +65,11 @@ export class VideoProcessorWorker extends WorkerHost {
     private readonly contentScanService: ContentScanService,
   ) {
     super();
-    this.s3 = new S3Client({
-      region: configService.get<string>('aws.region'),
-      credentials: {
-        accessKeyId: configService.get<string>('aws.accessKeyId') || '',
-        secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
-      },
+    this.s3 = createS3Client({
+      region: configService.get<string>('aws.region') || 'ap-south-1',
+      accessKeyId: configService.get<string>('aws.accessKeyId') || '',
+      secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
+      roleArn: configService.get<string>('aws.roleArn') || undefined,
     });
     this.bucket = configService.get<string>('aws.s3BucketName') || '';
     this.cdnDomain = configService.get<string>('aws.cloudfrontDomain') || '';

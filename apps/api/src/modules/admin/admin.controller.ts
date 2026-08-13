@@ -40,7 +40,10 @@ import { clampLimit, clampPage } from '../../common/utils/pagination.util';
 import { AccountStrikesService } from '../account-strikes/account-strikes.service';
 import { IssueStrikeDto } from '../account-strikes/dto/issue-strike.dto';
 import { ResolveAppealDto } from '../account-strikes/dto/resolve-appeal.dto';
+import { AppealStatus, StrikeStatus } from '../account-strikes/entities/account-strike.entity';
 import { CopyrightService } from '../copyright/copyright.service';
+import { CopyrightNoticeStatus } from '../copyright/entities/copyright-notice.entity';
+import { CounterNoticeStatus } from '../copyright/entities/copyright-counter-notice.entity';
 import { AdminAuditLogService } from '../../common/audit/admin-audit-log.service';
 
 class RejectCreatorDto {
@@ -89,6 +92,46 @@ export class AdminController {
     @Query('targetId') targetId?: string,
   ) {
     return this.adminAuditLog.list({ page, limit, action, actorId, targetId });
+  }
+
+  @Get('copyright/notices')
+  @ApiOperation({ summary: 'List DMCA takedown notices (admin)' })
+  listCopyrightNotices(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('status') status?: CopyrightNoticeStatus,
+  ) {
+    return this.copyrightService.listNotices({ page: clampPage(page), limit: clampLimit(limit), status });
+  }
+
+  @Get('copyright/counter-notices')
+  @ApiOperation({ summary: 'List DMCA counter-notices (admin)' })
+  listCopyrightCounterNotices(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('status') status?: CounterNoticeStatus,
+  ) {
+    return this.copyrightService.listCounterNotices({
+      page: clampPage(page),
+      limit: clampLimit(limit),
+      status,
+    });
+  }
+
+  @Get('strikes')
+  @ApiOperation({ summary: 'List account strikes across all users — defaults to the pending-appeals queue (admin)' })
+  listStrikes(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('appealStatus') appealStatus?: AppealStatus,
+    @Query('status') status?: StrikeStatus,
+  ) {
+    return this.accountStrikesService.listAll({
+      page: clampPage(page),
+      limit: clampLimit(limit),
+      appealStatus,
+      status,
+    });
   }
 
   @Post('copyright/counter-notices/:id/reject')

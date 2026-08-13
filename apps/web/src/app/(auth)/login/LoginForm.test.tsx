@@ -135,6 +135,61 @@ describe('LoginForm', () => {
     expect(persistAuthSession).not.toHaveBeenCalled();
   });
 
+  it('shows the MFA challenge step instead of persisting a session when the API requires it', async () => {
+    apiPost.mockResolvedValue({ data: { data: { mfaRequired: true, challengeToken: 'chal-1' } } });
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.type(screen.getByLabelText('Email'), 'user@forge.local');
+    await user.type(screen.getByLabelText('Password'), 'CorrectPass1a');
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+    expect(await screen.findByLabelText('Verification code')).toBeInTheDocument();
+    expect(persistAuthSession).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('completes login after a valid MFA code and persists the session', async () => {
+    apiPost.mockResolvedValueOnce({
+      data: { data: { mfaRequired: true, challengeToken: 'chal-1' } },
+    });
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.type(screen.getByLabelText('Email'), 'user@forge.local');
+    await user.type(screen.getByLabelText('Password'), 'CorrectPass1a');
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await screen.findByLabelText('Verification code');
+
+    apiPost.mockResolvedValueOnce({
+      data: {
+        data: {
+          user: { role: 'user' },
+          accessToken: 'token',
+          refreshToken: 'refresh',
+          sessionId: 'sess-1',
+        },
+      },
+    });
+    await user.type(screen.getByLabelText('Verification code'), '123456');
+    await user.click(screen.getByRole('button', { name: /^verify$/i }));
+
+    await waitFor(() => expect(persistAuthSession).toHaveBeenCalledTimes(1));
+    expect(apiPost).toHaveBeenLastCalledWith('/auth/mfa/login-verify', {
+      challengeToken: 'chal-1',
+      code: '123456',
+    });
+    expect(push).toHaveBeenCalledWith('/');
+  });
+
+  it('picks up an mfaChallengeToken left in the URL hash by the Google OAuth callback', async () => {
+    window.location.hash = '#mfaChallengeToken=from-google';
+    renderForm();
+
+    expect(await screen.findByLabelText('Verification code')).toBeInTheDocument();
+    window.location.hash = '';
+  });
+
   it('redirects to email verification when the API reports an unverified account', async () => {
     apiPost.mockRejectedValue({ response: { data: { code: 'EMAIL_NOT_VERIFIED' } } });
     const user = userEvent.setup();

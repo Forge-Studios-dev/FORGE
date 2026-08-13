@@ -12,12 +12,14 @@ describe('CopyrightService', () => {
     findOne: jest.fn(),
     find: jest.fn(),
     update: jest.fn().mockResolvedValue({ affected: 1 }),
+    createQueryBuilder: jest.fn(),
   };
   const counterNoticeRepository = {
     create: jest.fn((x: unknown) => x),
     save: jest.fn(async (x: any) => ({ id: 'counter-1', ...x })),
     findOne: jest.fn(),
     find: jest.fn(),
+    createQueryBuilder: jest.fn(),
   };
   const videoRepository = {
     findOne: jest.fn(),
@@ -158,6 +160,58 @@ describe('CopyrightService', () => {
       await expect(service.rejectCounterNotice('counter-1')).rejects.toBeInstanceOf(
         BadRequestException,
       );
+    });
+  });
+
+  describe('listNotices', () => {
+    it('filters by status and paginates', async () => {
+      const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[{ id: 'notice-1' }], 1]),
+      };
+      noticeRepository.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.listNotices({ page: 1, limit: 20, status: CopyrightNoticeStatus.PENDING });
+
+      expect(qb.andWhere).toHaveBeenCalledWith('n.status = :status', {
+        status: CopyrightNoticeStatus.PENDING,
+      });
+      expect(result).toEqual({
+        data: [{ id: 'notice-1' }],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      });
+    });
+  });
+
+  describe('listCounterNotices', () => {
+    it('filters by status and paginates', async () => {
+      const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[{ id: 'counter-1' }], 1]),
+      };
+      counterNoticeRepository.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.listCounterNotices({
+        page: 1,
+        limit: 20,
+        status: CounterNoticeStatus.PENDING,
+      });
+
+      expect(qb.andWhere).toHaveBeenCalledWith('cn.status = :status', {
+        status: CounterNoticeStatus.PENDING,
+      });
+      expect(result).toEqual({
+        data: [{ id: 'counter-1' }],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      });
     });
   });
 

@@ -43,6 +43,9 @@ export function LoginForm({
   const [platformConfig, setPlatformConfig] = useState<PlatformPublicConfig | null>(
     initialPlatformConfig ?? null,
   );
+  const [mfaChallengeToken, setMfaChallengeToken] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaPending, setMfaPending] = useState(false);
 
   useEffect(() => {
     void loadPlatformConfig().then((cfg) => {
@@ -50,6 +53,39 @@ export function LoginForm({
       setShowGoogle(isGoogleOAuthEnabled(cfg));
     });
   }, []);
+
+  // Google OAuth login for an MFA-enrolled account redirects here with the
+  // challenge token in a hash fragment (never a query param, so it never
+  // hits server logs / Referer headers) instead of completing sign-in.
+  useEffect(() => {
+    const hash = window.location.hash;
+    const match = /(?:^#|&)mfaChallengeToken=([^&]+)/.exec(hash);
+    if (!match) return;
+    setMfaChallengeToken(decodeURIComponent(match[1]));
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  }, []);
+
+  const completeLogin = (tokens: AuthTokens, method: 'password' | 'mfa') => {
+    persistAuthSession(
+      tokens.accessToken,
+      tokens.refreshToken,
+      JSON.stringify(tokens.user),
+      tokens.sessionId,
+    );
+    void trackEvent('auth.login', { method });
+    refresh();
+    if (
+      tokens.user.role === 'creator' &&
+      tokens.user.creatorStatus &&
+      tokens.user.creatorStatus !== 'approved'
+    ) {
+      router.push(
+        tokens.user.creatorStatus === 'rejected' ? '/approval-rejected' : '/waiting-approval',
+      );
+    } else {
+      router.push(safeReturnPath(nextPath));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,28 +98,22 @@ export function LoginForm({
       };
       const appCheck = await getAppCheckToken();
       const headers = appCheck ? { 'X-Firebase-AppCheck': appCheck } : undefined;
-      const { data } = await api.post<{ data: AuthTokens }>('/auth/login', payload, { headers });
+      const { data } = await api.post<{ data: AuthTokens | { mfaRequired: true; challengeToken: string } }>(
+        '/auth/login',
+        payload,
+        { headers },
+      );
+      if ('mfaRequired' in data.data) {
+        setMfaChallengeToken(data.data.challengeToken);
+        return;
+      }
       if (data.data.user.role === 'admin') {
         setError(
           'Platform administrator accounts cannot sign in here. Use the dedicated admin application.',
         );
         return;
       }
-      persistAuthSession(
-        data.data.accessToken,
-        data.data.refreshToken,
-        JSON.stringify(data.data.user),
-        data.data.sessionId,
-      );
-      void trackEvent('auth.login', { method: 'password' });
-      refresh();
-      if (data.data.user.role === 'creator' && data.data.user.creatorStatus && data.data.user.creatorStatus !== 'approved') {
-        router.push(
-          data.data.user.creatorStatus === 'rejected' ? '/approval-rejected' : '/waiting-approval',
-        );
-      } else {
-        router.push(safeReturnPath(nextPath));
-      }
+      completeLogin(data.data, 'password');
     } catch (err: unknown) {
       const data = (err as { response?: { data?: { message?: string; code?: string } } })?.response
         ?.data;
@@ -112,10 +142,79 @@ export function LoginForm({
     }
   };
 
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setMfaPending(true);
+    try {
+      const { data } = await api.post<{ data: AuthTokens }>('/auth/mfa/login-verify', {
+        challengeToken: mfaChallengeToken,
+        code: mfaCode.trim(),
+      });
+      completeLogin(data.data, 'mfa');
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data
+        ?.message;
+      setError(message || 'Invalid or expired code. Try again.');
+    } finally {
+      setMfaPending(false);
+    }
+  };
+
   const signupHref =
     nextPath && nextPath !== '/'
       ? `/signup?next=${encodeURIComponent(safeReturnPath(nextPath))}`
       : '/signup';
+
+  if (mfaChallengeToken) {
+    return (
+      <AuthScreen
+        title="Two-factor verification"
+        subtitle="Enter the 6-digit code from your authenticator app, or a backup code."
+      >
+        <form className="space-y-6" onSubmit={handleMfaSubmit}>
+          {error && (
+            <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{error}</p>
+          )}
+          <div>
+            <label className={authLabelClass} htmlFor="mfa-code">
+              Verification code
+            </label>
+            <input
+              id="mfa-code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value)}
+              className={authFieldClass}
+              placeholder="123456"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={mfaPending}
+            className="primary-button w-full rounded-full py-4 font-semibold text-on-primary disabled:opacity-60"
+          >
+            {mfaPending ? 'Verifying…' : 'Verify'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMfaChallengeToken('');
+              setMfaCode('');
+              setError('');
+            }}
+            className="w-full text-center text-sm text-on-surface-variant hover:underline"
+          >
+            Back to login
+          </button>
+        </form>
+      </AuthScreen>
+    );
+  }
 
   return (
     <AuthScreen title="Welcome back" subtitle="Sign in to subscribe, comment, and save videos.">

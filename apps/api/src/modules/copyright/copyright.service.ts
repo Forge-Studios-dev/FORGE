@@ -145,6 +145,51 @@ export class CopyrightService {
     return { ok: true };
   }
 
+  /** Admin cross-video browse of DMCA notices. */
+  async listNotices(options: { page?: number; limit?: number; status?: CopyrightNoticeStatus }) {
+    const page = Math.max(1, options.page ?? 1);
+    const limit = Math.min(100, Math.max(1, options.limit ?? 20));
+
+    const query = this.noticeRepository
+      .createQueryBuilder('n')
+      .leftJoinAndSelect('n.video', 'video')
+      .orderBy('n.createdAt', 'DESC');
+    if (options.status) query.andWhere('n.status = :status', { status: options.status });
+
+    const [rows, total] = await query
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data: rows,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  /** Admin cross-video browse of DMCA counter-notices — defaults callers toward the pending/reject-eligible queue. */
+  async listCounterNotices(options: { page?: number; limit?: number; status?: CounterNoticeStatus }) {
+    const page = Math.max(1, options.page ?? 1);
+    const limit = Math.min(100, Math.max(1, options.limit ?? 20));
+
+    const query = this.counterNoticeRepository
+      .createQueryBuilder('cn')
+      .leftJoinAndSelect('cn.notice', 'notice')
+      .leftJoinAndSelect('cn.uploader', 'uploader')
+      .orderBy('cn.createdAt', 'DESC');
+    if (options.status) query.andWhere('cn.status = :status', { status: options.status });
+
+    const [rows, total] = await query
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data: rows,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
   /** Runs on a schedule (see copyright.scheduler.ts) — reinstates videos whose counter-notice window has passed unchallenged. */
   async runDueReinstatements(): Promise<{ reinstated: number }> {
     const now = new Date();

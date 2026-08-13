@@ -12,6 +12,7 @@ import Redis from 'ioredis';
 import { Repository, ILike } from 'typeorm';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { createS3Client } from '../../common/create-s3-client';
 import { v4 as uuidv4 } from 'uuid';
 import { CreatorStatus, User, UserRole } from './entities/user.entity';
 import {
@@ -60,12 +61,11 @@ export class UsersService {
     private readonly configService: ConfigService,
     @InjectRedis() private readonly redis: Redis,
   ) {
-    this.s3 = new S3Client({
-      region: configService.get<string>('aws.region'),
-      credentials: {
-        accessKeyId: configService.get<string>('aws.accessKeyId') || '',
-        secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
-      },
+    this.s3 = createS3Client({
+      region: configService.get<string>('aws.region') || 'ap-south-1',
+      accessKeyId: configService.get<string>('aws.accessKeyId') || '',
+      secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
+      roleArn: configService.get<string>('aws.roleArn') || undefined,
     });
     this.bucket = configService.get<string>('aws.s3BucketName') || '';
   }

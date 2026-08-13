@@ -14,6 +14,8 @@ import { BlockedUsersSettings } from '@/components/settings/BlockedUsersSettings
 import { InterestsSettings } from '@/components/settings/InterestsSettings';
 import { NotificationPreferencesSettings } from '@/components/settings/NotificationPreferencesSettings';
 import { PasswordResetSettings } from '@/components/settings/PasswordResetSettings';
+import { MfaSettings } from '@/components/settings/MfaSettings';
+import { DeleteAccountSettings } from '@/components/settings/DeleteAccountSettings';
 import { PlaybackSettings } from '@/components/settings/PlaybackSettings';
 import { WatchHistoryPrivacyToggle } from '@/components/settings/WatchHistoryPrivacyToggle';
 import {
@@ -274,6 +276,8 @@ export default function ProfileSettingsPage() {
 
       <PasswordResetSettings />
 
+      <MfaSettings />
+
       <section id="privacy" className="glass-panel mt-8 rounded-2xl p-6">
         <h2 className="font-display-forge text-lg font-semibold">Privacy</h2>
         <p className="mt-2 text-sm text-on-surface-variant">
@@ -319,6 +323,8 @@ export default function ProfileSettingsPage() {
           <ActiveSessions />
         </div>
       </section>
+
+      <DeleteAccountSettings />
     </main>
   );
 }

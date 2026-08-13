@@ -78,6 +78,20 @@ export class AuthMfaService {
     });
   }
 
+  /**
+   * Deliberately its own endpoint rather than a field on the shared
+   * `PublicUser` shape — that shape is returned for *other* users too
+   * (comment authors, video owners, DM participants), and broadcasting
+   * whether a stranger has MFA on would leak a targeting signal.
+   */
+  async isEnabled(userId: string): Promise<boolean> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'mfaEnabled'],
+    });
+    return !!user?.mfaEnabled;
+  }
+
   /** Verifies a login-time TOTP or single-use backup code. Rate-limited per user; consumes the backup code on match. */
   async verifyLoginCode(userId: string, code: string): Promise<boolean> {
     const attemptsResult = await safeRedisGetResult(

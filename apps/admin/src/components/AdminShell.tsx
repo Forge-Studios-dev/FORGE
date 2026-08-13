@@ -22,6 +22,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/content', label: 'Content', icon: 'video_library' },
       { href: '/reports', label: 'Reports', icon: 'flag' },
       { href: '/users', label: 'Users', icon: 'group' },
+      { href: '/copyright', label: 'Copyright & Strikes', icon: 'gavel' },
     ],
   },
   {

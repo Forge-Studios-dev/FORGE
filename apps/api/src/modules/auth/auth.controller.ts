@@ -141,6 +141,13 @@ export class AuthController {
     return tokens;
   }
 
+  @Get('mfa/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Whether MFA is currently enabled for the signed-in account' })
+  async mfaStatus(@CurrentUser() user: JwtPayload) {
+    return { enabled: await this.authMfaService.isEnabled(user.sub) };
+  }
+
   @Post('mfa/enroll')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Start TOTP MFA enrollment — returns a secret and otpauth:// URI for a QR code' })

@@ -13,6 +13,7 @@ describe('AccountStrikesService', () => {
     create: jest.fn((x: unknown) => x),
     save: jest.fn(async (x: any) => ({ id: 'strike-1', ...x })),
     findOne: jest.fn(),
+    createQueryBuilder: jest.fn(),
   };
   const userRepository = {
     findOne: jest.fn().mockResolvedValue({ id: 'user-1' }),
@@ -153,6 +154,30 @@ describe('AccountStrikesService', () => {
         appealStatus: AppealStatus.NONE,
       });
       await expect(service.resolveAppeal('s1', true)).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('listAll', () => {
+    it('filters by appealStatus and paginates', async () => {
+      const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[{ id: 's1' }], 1]),
+      };
+      strikeRepository.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.listAll({ page: 1, limit: 20, appealStatus: AppealStatus.PENDING });
+
+      expect(qb.andWhere).toHaveBeenCalledWith('s.appealStatus = :appealStatus', {
+        appealStatus: AppealStatus.PENDING,
+      });
+      expect(result).toEqual({
+        data: [{ id: 's1' }],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      });
     });
   });
 });

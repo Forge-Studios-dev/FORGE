@@ -78,6 +78,8 @@ export default () => ({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
     s3BucketName: process.env.S3_BUCKET_NAME || 'forge-media',
     cloudfrontDomain: process.env.CLOUDFRONT_DOMAIN || '',
+    /** Set to switch S3 auth from static keys to Fly-OIDC/STS federation — see docs/operations/AWS_CREDENTIAL_ROTATION.md. */
+    roleArn: process.env.AWS_ROLE_ARN || '',
   },
 
   mux: {
