@@ -22,6 +22,11 @@ import { DeviceToken } from '../notifications/entities/device-token.entity';
 import { FirebaseModule } from '../firebase/firebase.module';
 import { StreamReminderWorker } from './stream-reminder/stream-reminder.worker';
 import { STREAM_REMINDER_QUEUE } from './stream-reminder/stream-reminder.constants';
+import { ScheduledPublishWorker } from './scheduled-publish/scheduled-publish.worker';
+import { SCHEDULED_PUBLISH_QUEUE } from '../content/scheduled-publish.constants';
+import { CopyrightReinstatementWorker } from './copyright-reinstatement/copyright-reinstatement.worker';
+import { COPYRIGHT_REINSTATEMENT_QUEUE } from '../copyright/copyright-reinstatement.constants';
+import { CopyrightModule } from '../copyright/copyright.module';
 import { StreamChatIngestWorker } from './stream-chat-ingest/stream-chat-ingest.worker';
 import { STREAM_CHAT_INGEST_QUEUE } from './stream-chat-ingest/stream-chat-ingest.constants';
 import { StreamSnapshotRetentionWorker } from './stream-snapshot-retention/stream-snapshot-retention.worker';
@@ -98,6 +103,18 @@ function shouldRegisterStreamReminder(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+function shouldRegisterScheduledPublish(): boolean {
+  if (process.env.DISABLE_SCHEDULED_PUBLISH === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterCopyrightReinstatement(): boolean {
+  if (process.env.DISABLE_COPYRIGHT_REINSTATEMENT === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
 function shouldRegisterStreamChatIngest(): boolean {
   if (isDedicatedWorkerProcess()) return true;
   return process.env.NODE_ENV !== 'production';
@@ -153,6 +170,7 @@ function shouldRegisterEmailDigest(): boolean {
     AnalyticsModule,
     NotificationsModule,
     ContentModule,
+    CopyrightModule,
     FirebaseModule,
     StreamingModule,
     EngagementModule,
@@ -226,6 +244,22 @@ function shouldRegisterEmailDigest(): boolean {
         backoff: { type: 'exponential', delay: 5000 },
         removeOnComplete: { age: 3600, count: 100 },
         removeOnFail: { age: 86400, count: 50 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: SCHEDULED_PUBLISH_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 3600, count: 50 },
+        removeOnFail: { age: 3600, count: 50 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: COPYRIGHT_REINSTATEMENT_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 7 * 86400, count: 50 },
+        removeOnFail: { age: 7 * 86400, count: 50 },
       },
     }),
     BullModule.registerQueue({
@@ -318,6 +352,8 @@ function shouldRegisterEmailDigest(): boolean {
     ...(shouldRegisterSubscriptionMaintenance() ? [SubscriptionMaintenanceWorker] : []),
     ...(shouldRegisterAnalyticsRetention() ? [AnalyticsRetentionWorker] : []),
     ...(shouldRegisterStreamReminder() ? [StreamReminderWorker] : []),
+    ...(shouldRegisterScheduledPublish() ? [ScheduledPublishWorker] : []),
+    ...(shouldRegisterCopyrightReinstatement() ? [CopyrightReinstatementWorker] : []),
     ...(shouldRegisterStreamChatIngest() ? [StreamChatIngestWorker] : []),
     ...(shouldRegisterStreamSnapshotRetention() ? [StreamSnapshotRetentionWorker] : []),
     ...(shouldRegisterStreamMuxSync() ? [StreamMuxSyncWorker] : []),

@@ -173,6 +173,7 @@ class WatchRepository {
       'targetType': 'video',
       'targetId': videoId,
       'reason': reason,
+      'reasonCategory': reason,
     });
   }
 
@@ -181,6 +182,7 @@ class WatchRepository {
       'targetType': 'user',
       'targetId': userId,
       'reason': reason,
+      'reasonCategory': reason,
     });
   }
 
@@ -228,6 +230,7 @@ class WatchRepository {
       'targetType': 'comment',
       'targetId': commentId,
       'reason': reason,
+      'reasonCategory': reason,
     });
   }
 
@@ -242,6 +245,31 @@ class WatchRepository {
 
   Future<void> unmuteChannel(String channelId) async {
     await _client.dio.delete('/channels/$channelId/dont-recommend');
+  }
+
+  /// Fire-and-forget share tracking (creator analytics) — never throws.
+  Future<void> recordShare(String videoId, {String channel = 'native'}) async {
+    try {
+      await _client.dio.post('/videos/$videoId/share', data: {'channel': channel});
+    } catch (_) {
+      // Best-effort — sharing itself already succeeded via the OS share sheet.
+    }
+  }
+
+  Future<Map<String, dynamic>> getNotificationPreferences() async {
+    final res = await _client.dio.get('/users/me/notification-preferences');
+    final data = res.data['data'] ?? res.data;
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  Future<void> setNotificationPreferences({
+    required List<String> mutedCategories,
+    required bool emailDigest,
+  }) async {
+    await _client.dio.put('/users/me/notification-preferences', data: {
+      'mutedCategories': mutedCategories,
+      'emailDigest': emailDigest,
+    });
   }
 
   Future<List<Map<String, dynamic>>> listBlockedUsers() async {

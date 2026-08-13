@@ -1156,6 +1156,8 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
       'Impersonation',
       'Copyright infringement',
       'Privacy violation',
+      'Harmful or dangerous acts',
+      'Child abuse',
       'Other',
     ];
     final reason = await showModalBottomSheet<String>(

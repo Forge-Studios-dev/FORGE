@@ -52,6 +52,7 @@ import {
 } from './community-permissions.constants';
 import { CHANNELS_DEPRECATED_FLAG } from './community-deprecation.constants';
 import { CommunityAccessService } from './community-access.service';
+import { CommunityPermission } from './community-permissions.constants';
 import { CommunityAnalyticsService } from './community-analytics.service';
 import { ChannelLegacyService } from './channel-legacy.service';
 
@@ -599,6 +600,15 @@ export class CommunitiesService {
     return this.accessService.assertCommunityStudioAccess(actorId, communityId, viewerRole);
   }
 
+  async assertCommunityPermission(
+    actorId: string,
+    communityId: string,
+    permission: CommunityPermission,
+    viewerRole?: UserRole | null,
+  ): Promise<Community> {
+    return this.accessService.assertCommunityPermission(actorId, communityId, permission, viewerRole);
+  }
+
   async assertCanRequestJoin(
     communityId: string,
     userId: string,
@@ -648,8 +658,8 @@ export class CommunitiesService {
 
   // --- Analytics delegates (forwarded to CommunityAnalyticsService) ---
 
-  async getCommunityAnalytics(creatorId: string, communityId: string) {
-    return this.analyticsService.getCommunityAnalytics(creatorId, communityId);
+  async getCommunityAnalytics(actorId: string, communityId: string, viewerRole?: UserRole | null) {
+    return this.analyticsService.getCommunityAnalytics(actorId, communityId, viewerRole);
   }
 
   async getCreatorBusinessAnalytics(creatorId: string) {

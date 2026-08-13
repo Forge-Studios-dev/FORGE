@@ -16,7 +16,7 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
-import { Video, VideoStatus, VideoType } from '../../content/entities/video.entity';
+import { ModerationStatus, Video, VideoStatus, VideoType } from '../../content/entities/video.entity';
 import { indexedAtOnReady, publishStatusOnReady } from '../../content/video-publish.util';
 import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../../content/video-processing.constants';
 import { resolveVideoTypeOnReady } from '../../content/short-duration.util';
@@ -24,6 +24,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { buildPublicMediaUrl } from '../../../common/media-url.util';
 import { videoDetailCacheKey } from '../../content/video-cache';
 import { OWNED_VIDEO_S3_KEY_PATTERN } from '../../content/dto/create-video.dto';
+import { ContentScanService } from '../../content/content-scan/content-scan.service';
 
 interface VideoProcessingJob {
   videoId: string;
@@ -60,6 +61,7 @@ export class VideoProcessorWorker extends WorkerHost {
     private readonly redis: Redis,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly contentScanService: ContentScanService,
   ) {
     super();
     this.s3 = new S3Client({
@@ -189,6 +191,20 @@ export class VideoProcessorWorker extends WorkerHost {
         scheduled && scheduled.getTime() > now.getTime() ? scheduled : now;
 
       const publishStatus = publishStatusOnReady();
+
+      const scanVerdict = await this.contentScanService.scanVideo({
+        videoId,
+        userId,
+        hlsUrl,
+        thumbnailUrl,
+      });
+      const moderationStatus =
+        scanVerdict.action === 'block'
+          ? ModerationStatus.BLOCKED
+          : scanVerdict.action === 'hold'
+            ? ModerationStatus.HELD
+            : ModerationStatus.NONE;
+
       const indexedAt = row
         ? indexedAtOnReady({
             ...row,
@@ -197,6 +213,7 @@ export class VideoProcessorWorker extends WorkerHost {
             hlsUrl,
             thumbnailUrl,
             publishedAt,
+            moderationStatus,
           })
         : null;
 
@@ -209,19 +226,36 @@ export class VideoProcessorWorker extends WorkerHost {
         videoType: typeResolution.videoType,
         publishedAt,
         indexedAt,
+        moderationStatus,
+        ...(moderationStatus !== ModerationStatus.NONE
+          ? {
+              moderationNote: `content_scan:${scanVerdict.provider}:${scanVerdict.categories.join('|') || 'unspecified'}`,
+              moderatedAt: now,
+            }
+          : {}),
       });
 
       await this.redis.del(videoDetailCacheKey(videoId));
       this.eventEmitter.emit('video.updated', { videoId });
-      this.eventEmitter.emit('video.ready', {
-        videoId,
-        userId,
-        categoryId: row?.categoryId ?? null,
-        videoType: typeResolution.videoType,
-        status: VideoStatus.READY,
-        hlsUrl,
-        thumbnailUrl,
-      });
+      if (moderationStatus === ModerationStatus.NONE) {
+        this.eventEmitter.emit('video.ready', {
+          videoId,
+          userId,
+          categoryId: row?.categoryId ?? null,
+          videoType: typeResolution.videoType,
+          status: VideoStatus.READY,
+          hlsUrl,
+          thumbnailUrl,
+        });
+      } else {
+        this.eventEmitter.emit('video.content_scan_held', {
+          videoId,
+          userId,
+          moderationStatus,
+          categories: scanVerdict.categories,
+          provider: scanVerdict.provider,
+        });
+      }
 
       await job.updateProgress(100);
       this.logger.log(`Video ${videoId} processed successfully`);

@@ -1,4 +1,4 @@
-import { ForbiddenException, forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { toCsv } from '../../common/utils/csv.util';
@@ -6,7 +6,9 @@ import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lm
 import { Community } from './entities/community.entity';
 import { Channel } from './entities/channel.entity';
 import { CommunityModerationService } from './community-moderation.service';
+import { CommunityAccessService } from './community-access.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { UserRole } from '../users/entities/user.entity';
 
 /**
  * Community + creator analytics and CSV export paths.
@@ -25,14 +27,18 @@ export class CommunityAnalyticsService {
     private readonly entitlementsService: EntitlementsService,
     @Inject(forwardRef(() => CommunityModerationService))
     private readonly moderationService: CommunityModerationService,
+    @Inject(forwardRef(() => CommunityAccessService))
+    private readonly accessService: CommunityAccessService,
     private readonly dataSource: DataSource,
   ) {}
 
-  async getCommunityAnalytics(creatorId: string, communityId: string) {
-    const community = await this.communityRepository.findOne({ where: { id: communityId } });
-    if (!community || community.creatorId !== creatorId) {
-      throw new ForbiddenException('Community not found or not owned');
-    }
+  async getCommunityAnalytics(actorId: string, communityId: string, viewerRole?: UserRole | null) {
+    const community = await this.accessService.assertCommunityPermission(
+      actorId,
+      communityId,
+      'view_analytics',
+      viewerRole,
+    );
 
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
@@ -89,7 +95,7 @@ export class CommunityAnalyticsService {
       postsLast7Days: Number(postsRow?.count ?? 0),
       pollVotesLast7Days: Number(pollVotesRow?.count ?? 0),
       channelCount,
-      retention: await this.getCommunityRetentionMetrics(creatorId, communityId),
+      retention: await this.getCommunityRetentionMetrics(community.creatorId, communityId),
       trends,
     };
   }

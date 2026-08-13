@@ -14,6 +14,7 @@ import {
   PlaylistVisibility,
 } from '../playlists/entities/playlist.entity';
 import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
+import { jitterTtl, singleFlight } from '../../common/redis/cache-stampede.util';
 import { getMutedChannelIds } from '../feed/not-interested.util';
 import { mergeExcludedCreatorIds } from '../feed/viewer-exclusions.util';
 import { EngagementService } from '../engagement/engagement.service';
@@ -169,15 +170,19 @@ export class SearchService {
             /* corrupt */
           }
         }
-        const result = await this.searchUncached(term, limit, searchType, normalized, viewerId);
-        await safeRedisSetex(
-          this.redis,
-          cacheKey,
-          SEARCH_CACHE_TTL_SEC,
-          JSON.stringify(result),
-          this.logger,
-        );
-        return result;
+        // singleFlight: a trending query's cache-miss burst shares one
+        // DB round-trip per instance instead of N concurrent identical queries.
+        return singleFlight(cacheKey, async () => {
+          const result = await this.searchUncached(term, limit, searchType, normalized, viewerId);
+          await safeRedisSetex(
+            this.redis,
+            cacheKey,
+            jitterTtl(SEARCH_CACHE_TTL_SEC),
+            JSON.stringify(result),
+            this.logger,
+          );
+          return result;
+        });
       }
       return this.searchUncached(term, limit, searchType, normalized, viewerId);
     }
@@ -286,9 +291,21 @@ export class SearchService {
     }
   }
 
-  private async searchPlaylists(q: string, take: number): Promise<PublicSearchPlaylist[]> {
+  private async searchPlaylistsRanked(q: string, take: number): Promise<Playlist[]> {
+    return this.playlistRepository
+      .createQueryBuilder('p')
+      .where('p.visibility = :visibility', { visibility: PlaylistVisibility.PUBLIC })
+      .andWhere('p.systemType IS NULL')
+      .andWhere(`p.searchVector @@ plainto_tsquery('english', :q)`, { q })
+      .orderBy(`ts_rank_cd(p.searchVector, plainto_tsquery('english', :q))`, 'DESC')
+      .addOrderBy('p.updatedAt', 'DESC')
+      .take(take)
+      .getMany();
+  }
+
+  private async searchPlaylistsLegacy(q: string, take: number): Promise<Playlist[]> {
     const pattern = `%${q}%`;
-    const playlists = await this.playlistRepository.find({
+    return this.playlistRepository.find({
       where: [
         {
           visibility: PlaylistVisibility.PUBLIC,
@@ -303,6 +320,15 @@ export class SearchService {
       ],
       order: { updatedAt: 'DESC' },
       take,
+    });
+  }
+
+  private async searchPlaylists(q: string, take: number): Promise<PublicSearchPlaylist[]> {
+    const playlists = await this.searchPlaylistsRanked(q, take).catch((err) => {
+      this.logger.warn(
+        `Playlist FTS search failed (${err instanceof Error ? err.message : String(err)}); falling back to ILIKE`,
+      );
+      return this.searchPlaylistsLegacy(q, take);
     });
 
     const unique = [...new Map(playlists.map((p) => [p.id, p])).values()].slice(0, take);

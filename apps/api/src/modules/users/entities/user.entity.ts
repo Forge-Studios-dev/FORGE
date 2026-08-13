@@ -104,6 +104,24 @@ export class User {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
+  /** Set by AccountStrikeService on a 2nd strike within 90 days (YouTube's own ladder) — blocks new uploads/streams until this passes. */
+  @Column({ name: 'upload_restricted_until', type: 'timestamptz', nullable: true })
+  uploadRestrictedUntil: Date | null;
+
+  /** TOTP 2FA enrolled and active. Secret stays set (encrypted) even if this is false mid-enrollment. */
+  @Column({ name: 'mfa_enabled', default: false })
+  mfaEnabled: boolean;
+
+  /** AES-256-GCM encrypted TOTP secret (see common/crypto/encryption.util.ts). Never returned to clients. */
+  @Column({ name: 'mfa_secret_encrypted', type: 'varchar', nullable: true })
+  @Exclude()
+  mfaSecretEncrypted: string | null;
+
+  /** bcrypt hashes of unused single-use backup codes; consumed (removed) on use. */
+  @Column({ name: 'mfa_backup_code_hashes', type: 'jsonb', nullable: true })
+  @Exclude()
+  mfaBackupCodeHashes: string[] | null;
+
   /** Soft-delete timestamp — account removed from admin lists and sign-in. */
   @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
   deletedAt: Date | null;

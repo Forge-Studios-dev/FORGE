@@ -74,11 +74,12 @@ export class CommunityEventsService {
     input: EventInput,
     viewerRole?: UserRole | null,
   ) {
-    // Community-scoped authorization (owner + delegated OWNER/ADMIN + platform
-    // ADMIN), consistent with posts/rooms studio management.
-    const community = await this.communitiesService.assertCommunityStudioAccess(
+    // Community-scoped authorization: owner + delegated OWNER/ADMIN/MODERATOR/COACH
+    // (all hold `manage_events` per COMMUNITY_ROLE_PERMISSION_MATRIX) + platform ADMIN.
+    const community = await this.communitiesService.assertCommunityPermission(
       actorId,
       communityId,
+      'manage_events',
       viewerRole,
     );
     const eventType = input.eventType ?? 'one_off';
@@ -192,7 +193,7 @@ export class CommunityEventsService {
     eventId: string,
     viewerRole?: UserRole | null,
   ) {
-    await this.communitiesService.assertCommunityStudioAccess(actorId, communityId, viewerRole);
+    await this.communitiesService.assertCommunityPermission(actorId, communityId, 'manage_events', viewerRole);
     const event = await this.eventRepository.findOne({ where: { id: eventId, communityId } });
     if (!event) throw new NotFoundException('Event not found');
     const rows = await this.rsvpRepository.find({ where: { eventId }, take: 200 });
@@ -206,7 +207,7 @@ export class CommunityEventsService {
     input: Partial<EventInput>,
     viewerRole?: UserRole | null,
   ) {
-    await this.communitiesService.assertCommunityStudioAccess(actorId, communityId, viewerRole);
+    await this.communitiesService.assertCommunityPermission(actorId, communityId, 'manage_events', viewerRole);
     const event = await this.eventRepository.findOne({ where: { id: eventId, communityId } });
     if (!event) throw new NotFoundException('Event not found');
     if (input.title !== undefined) event.title = input.title.trim();
@@ -239,7 +240,7 @@ export class CommunityEventsService {
     eventId: string,
     viewerRole?: UserRole | null,
   ) {
-    await this.communitiesService.assertCommunityStudioAccess(actorId, communityId, viewerRole);
+    await this.communitiesService.assertCommunityPermission(actorId, communityId, 'manage_events', viewerRole);
     const event = await this.eventRepository.findOne({ where: { id: eventId, communityId } });
     if (!event) throw new NotFoundException('Event not found');
     await this.rsvpRepository.delete({ eventId });

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -408,6 +410,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                     await SharePlus.instance.share(
                       ShareParams(text: '${video.title}\n$url'),
                     );
+                    unawaited(ref.read(watchRepositoryProvider).recordShare(video.id));
                   },
                 ),
                 ListTile(
@@ -415,6 +418,9 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                   title: const Text('Copy link'),
                   onTap: () async {
                     await Clipboard.setData(ClipboardData(text: url));
+                    unawaited(
+                      ref.read(watchRepositoryProvider).recordShare(video.id, channel: 'copy_link'),
+                    );
                     if (ctx.mounted) Navigator.pop(ctx);
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -581,7 +587,11 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                             ),
                           ),
                         ),
-                        IconButton(onPressed: post, icon: const Icon(Icons.send)),
+                        IconButton(
+                          tooltip: 'Post comment',
+                          onPressed: post,
+                          icon: const Icon(Icons.send),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -614,6 +624,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           IconButton(
+                                            tooltip: liked ? 'Unlike comment' : 'Like comment',
                                             icon: Icon(
                                               liked ? Icons.thumb_up : Icons.thumb_up_outlined,
                                               size: 18,
@@ -623,6 +634,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                                           if (likeCount > 0)
                                             Text('$likeCount', style: const TextStyle(fontSize: 12)),
                                           IconButton(
+                                            tooltip: disliked ? 'Remove dislike' : 'Dislike comment',
                                             icon: Icon(
                                               disliked ? Icons.thumb_down : Icons.thumb_down_outlined,
                                               size: 18,
@@ -630,6 +642,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                                             onPressed: () => toggleDislike(m),
                                           ),
                                           IconButton(
+                                            tooltip: 'Reply',
                                             icon: const Icon(Icons.reply, size: 18),
                                             onPressed: () => setModal(() {
                                               replyToId = m['id'] as String?;
@@ -1012,6 +1025,10 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                       'Sexual content',
                       'Violent or repulsive content',
                       'Harmful or dangerous acts',
+                      'Child abuse',
+                      'Promotes terrorism',
+                      'Copyright infringement',
+                      'Privacy violation',
                       'Other',
                     ];
                     final reason = await showModalBottomSheet<String>(
@@ -1082,26 +1099,31 @@ class _ShortAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Material(
-          color: Colors.black54,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Icon(icon, color: Colors.white, size: 26),
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Column(
+        children: [
+          Material(
+            color: Colors.black54,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Icon(icon, color: Colors.white, size: 26),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 }

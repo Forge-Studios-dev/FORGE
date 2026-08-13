@@ -23,14 +23,34 @@ All project documentation lives in `docs/`. Start with **[FORGE_PROJECT_MASTER.m
 | [OBSERVABILITY.md](./OBSERVABILITY.md) | Metrics, Sentry, Grafana |
 | [MEMBERSHIPS.md](./MEMBERSHIPS.md) | Tiers, Stripe Connect, entitlements, access sessions |
 | [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md) | **Single source of truth** — 684 task-level items, 96.6% complete, gaps, roadmap, status |
-| [FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md](../FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md) | Creator Economy OS v3.0 — requirements vision & architecture blueprint |
+| [FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md](../FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md) | **Historical/frozen** — self-describes as a frozen blueprint snapshot, not updated as tasks complete. Superseded as current guidance by [FORGE_PROJECT_MASTER.md §1](./FORGE_PROJECT_MASTER.md#1-executive-summary) + [PLATFORM_AUDIT_2026-08-09.md](./PLATFORM_AUDIT_2026-08-09.md). Kept for historical context only. |
 | [AI-LLM-STRATEGY.md](./AI-LLM-STRATEGY.md) | AI/LLM audit, provider selection, architecture & rollout plan |
 | [DESIGN.md](./DESIGN.md) | Design system & Stitch blueprints |
 | [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) | Stakeholder summary |
 | [LEGAL.md](./LEGAL.md) | Terms & privacy |
+| [COPYRIGHT_DMCA.md](./COPYRIGHT_DMCA.md) | DMCA notice/counter-notice pipeline, account strike ladder |
 | [QA.md](./QA.md) | Test matrix |
 
 **Env templates:** `apps/api/.env.example` · `apps/web/.env.example` · `apps/admin/.env.example`
+
+---
+
+## Platform research (YouTube-parity audit, 2026-08)
+
+Cross-domain research auditing FORGE against YouTube (+ secondary creator platforms) across 8 domains, ground-truthed against the live codebase. Start with the audit summary; see the roadmap for sequencing.
+
+| Doc | Use |
+|-----|-----|
+| [PLATFORM_AUDIT_2026-08-09.md](./PLATFORM_AUDIT_2026-08-09.md) | Cross-domain executive summary — accepted YouTube-parity-core + extension-layer decision, consolidated gaps/conflicts, assumptions |
+| [YOUTUBE_PARITY_ROADMAP.md](./YOUTUBE_PARITY_ROADMAP.md) | Phased build roadmap (MVP / post-MVP / future scale) with dependency ordering across domains |
+| [platform-research/product-vision-data-model.md](./platform-research/product-vision-data-model.md) | Product vision, personas, core data model (User/Channel/Follow/Video/Community) |
+| [platform-research/upload-media-pipeline.md](./platform-research/upload-media-pipeline.md) | Upload, transcode, captions, live streaming pipeline |
+| [platform-research/discovery-search-recommendations.md](./platform-research/discovery-search-recommendations.md) | Search, recommendations, trending, taxonomy |
+| [platform-research/engagement-social.md](./platform-research/engagement-social.md) | Comments, likes, subscriptions, notifications, communities |
+| [platform-research/creator-monetization-analytics.md](./platform-research/creator-monetization-analytics.md) | Memberships, Super Thanks, payouts, creator analytics/KPIs |
+| [platform-research/moderation-safety-admin.md](./platform-research/moderation-safety-admin.md) | Reports, moderation, admin tooling, trust & safety |
+| [platform-research/infra-scalability-reliability.md](./platform-research/infra-scalability-reliability.md) | Scaling, storage/CDN, DB, DR, observability, cost |
+| [platform-research/security-privacy-compliance.md](./platform-research/security-privacy-compliance.md) | Auth/MFA, privacy/DSAR, RBAC, accessibility, compliance |
 
 ---
 

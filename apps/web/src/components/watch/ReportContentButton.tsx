@@ -50,6 +50,7 @@ export function ReportContentButton({ targetType, targetId, className, role }: P
         targetType,
         targetId,
         reason: reason.slice(0, 2000),
+        ...(preset ? { reasonCategory: preset } : {}),
       });
     },
     onSuccess: () => {

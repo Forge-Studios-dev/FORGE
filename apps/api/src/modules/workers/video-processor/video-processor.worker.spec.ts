@@ -14,6 +14,9 @@ describe('VideoProcessorWorker — dead-letter routing', () => {
     get: jest.fn((key: string) => (key === 'aws.region' ? 'us-east-1' : '')),
   };
   const eventEmitter = { emit: jest.fn() };
+  const contentScanService = {
+    scanVideo: jest.fn().mockResolvedValue({ action: 'approve', categories: [], provider: 'noop' }),
+  };
 
   const makeJob = (attemptsMade: number, attempts = 5): Job =>
     ({
@@ -31,6 +34,7 @@ describe('VideoProcessorWorker — dead-letter routing', () => {
       redis as never,
       configService as never,
       eventEmitter as never,
+      contentScanService as never,
     );
   });
 

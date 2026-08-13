@@ -34,6 +34,7 @@ describe('SearchService', () => {
   let videoQb: ReturnType<typeof makeQb<Video[]>>;
   let userQb: ReturnType<typeof makeQb<User[]>>;
   let suggestionQb: ReturnType<typeof makeQb<{ title: string }[]>>;
+  let playlistQb: ReturnType<typeof makeQb<Playlist[]>>;
 
   const videoRepository = {
     createQueryBuilder: jest.fn(),
@@ -44,6 +45,7 @@ describe('SearchService', () => {
   };
   const playlistRepository = {
     find: jest.fn().mockResolvedValue([]),
+    createQueryBuilder: jest.fn(),
   };
   const videosService = {
     mapToPublicVideo: jest.fn((v: Video) => ({ id: v.id, title: v.title })),
@@ -85,6 +87,8 @@ describe('SearchService', () => {
       return videoQb;
     });
     userRepository.createQueryBuilder.mockReturnValue(userQb);
+    playlistQb = makeQb<Playlist[]>([]);
+    playlistRepository.createQueryBuilder.mockReturnValue(playlistQb);
     playlistRepository.find.mockResolvedValue([]);
     userRepository.find.mockResolvedValue([]);
     redis.get.mockResolvedValue(null);
@@ -158,8 +162,8 @@ describe('SearchService', () => {
       expect(redis.setex).toHaveBeenCalled();
     });
 
-    it('searches playlists only when type=playlist', async () => {
-      playlistRepository.find.mockResolvedValue([
+    it('searches playlists only when type=playlist, ranked by relevance', async () => {
+      playlistQb.getMany.mockResolvedValue([
         {
           id: 'pl1',
           title: 'Forge hits',
@@ -181,6 +185,33 @@ describe('SearchService', () => {
       expect(result.playlists[0].title).toBe('Forge hits');
       expect(result.playlists[0].owner?.username).toBe('u1');
       expect(videoRepository.createQueryBuilder).not.toHaveBeenCalled();
+      expect(playlistQb.orderBy).toHaveBeenCalledWith(
+        `ts_rank_cd(p.searchVector, plainto_tsquery('english', :q))`,
+        'DESC',
+      );
+      expect(playlistRepository.find).not.toHaveBeenCalled();
+    });
+
+    it('falls back to ILIKE for playlists when playlist FTS fails', async () => {
+      playlistQb.getMany.mockRejectedValue(new Error('fts unavailable'));
+      playlistRepository.find.mockResolvedValue([
+        {
+          id: 'pl2',
+          title: 'Legacy playlist',
+          description: null,
+          userId: 'u1',
+          visibility: 'public',
+          systemType: null,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-02'),
+        },
+      ]);
+      userRepository.find.mockResolvedValue([sampleUser('u1')]);
+
+      const result = await service.search('forge', 20, 'playlist');
+
+      expect(result.playlists).toHaveLength(1);
+      expect(result.playlists[0].title).toBe('Legacy playlist');
     });
 
     it('falls back to legacy ILIKE search when FTS fails', async () => {

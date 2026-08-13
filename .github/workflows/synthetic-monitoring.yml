@@ -1,0 +1,26 @@
+# Continuous synthetic monitoring: read-only public-API smoke checks against
+# production on a schedule, so an outage is caught between deploys instead of
+# only at the next release. Public mode only — no secrets, no auth, no writes.
+name: Synthetic Monitoring
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: synthetic-monitoring
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Production smoke (public)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+      - name: Public API smoke
+        run: FORGE_SMOKE_MODE=public npm run smoke:api:prod

@@ -17,6 +17,8 @@ Schemas: [API_SCHEMAS.md](./API_SCHEMAS.md). Worker: Fly `forge-studios-worker` 
 | `mux` (default) | S3 → Mux asset → `stream.mux.com` HLS |
 | `ffmpeg` | Worker → HLS on S3/CloudFront |
 
+`ffmpeg` path is a real scalability limit, not just a config choice: BullMQ concurrency is `1` (serial, one video at a time per worker) and the video stays non-`READY` until **all 4** HLS renditions finish (all-or-nothing, no partial/progressive availability). Prefer `mux` for anything beyond local dev / low volume.
+
 Webhook (required for Mux): `POST /api/v1/streams/webhooks/mux`
 
 Proxy fallback if S3 CORS fails: `PUT /videos/:id/upload` — off in prod unless `ALLOW_PROXY_UPLOAD=true`.

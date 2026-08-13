@@ -144,6 +144,7 @@ class _WatchScreenState extends ConsumerState<WatchScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         leading: IconButton(
+          tooltip: 'Back',
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
@@ -2058,7 +2059,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                 ),
               ),
             ),
-            IconButton(onPressed: _post, icon: Icon(Icons.send)),
+            IconButton(tooltip: 'Post comment', onPressed: _post, icon: Icon(Icons.send)),
           ],
         ),
         if (_loading)
@@ -2147,6 +2148,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        tooltip: liked ? 'Unlike comment' : 'Like comment',
                         icon: Icon(liked ? Icons.thumb_up : Icons.thumb_up_outlined, size: 18),
                         onPressed: () => _toggleLike(m),
                       ),
@@ -2173,6 +2175,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                           onPressed: () => _toggleHeart(m),
                         ),
                       IconButton(
+                        tooltip: 'Reply',
                         icon: const Icon(Icons.reply, size: 18),
                         onPressed: () => _startReply(m),
                       ),

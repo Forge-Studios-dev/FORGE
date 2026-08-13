@@ -28,6 +28,7 @@ import { Stream, StreamStatus } from '../streaming/entities/stream.entity';
 import { StreamChatService } from '../stream-chat/stream-chat.service';
 import { Community } from '../communities/entities/community.entity';
 import { CommunityReport } from '../communities/entities/community-moderation.entity';
+import { CommunityRole, CommunityRoleType } from '../communities/entities/community-role.entity';
 import { StripeConnectService } from '../billing/stripe-connect.service';
 import { UpdateAdminCommunityDto } from './dto/update-admin-community.dto';
 
@@ -71,6 +72,8 @@ export class AdminService {
     private readonly communityRepository: Repository<Community>,
     @InjectRepository(CommunityReport)
     private readonly communityReportRepository: Repository<CommunityReport>,
+    @InjectRepository(CommunityRole)
+    private readonly communityRoleRepository: Repository<CommunityRole>,
     private readonly dataSource: DataSource,
     private readonly usersService: UsersService,
     private readonly playlistsService: PlaylistsService,
@@ -260,7 +263,69 @@ export class AdminService {
     user.emailVerificationExpiresAt = null;
     await this.userRepository.save(user);
     await this.authService.logoutAll(id);
+
+    const ownedVideos = await this.videoRepository.find({
+      where: { userId: id },
+    });
+    const videosToHide = ownedVideos.filter((v) => v.visibility !== VideoVisibility.PRIVATE);
+    for (const video of videosToHide) {
+      video.visibility = VideoVisibility.PRIVATE;
+    }
+    if (videosToHide.length) {
+      await this.videoRepository.save(videosToHide);
+      await Promise.all(
+        videosToHide.map(async (video) => {
+          await this.videosService.bustVideoDetailCache(video.id);
+          this.eventEmitter.emit('video.updated', { videoId: video.id });
+        }),
+      );
+    }
+
+    const activeStreams = await this.streamRepository.find({
+      where: { userId: id, status: In([StreamStatus.LIVE, StreamStatus.IDLE]) },
+    });
+    for (const stream of activeStreams) {
+      await this.streamingService.endStream(id, stream.id);
+    }
+
+    await this.transferOwnedCommunities(id);
+
     return { ok: true };
+  }
+
+  /**
+   * A deleted user's owned communities can't stay pointed at an anonymized,
+   * logged-out account with no way to exercise owner-tier actions. Promotes
+   * the longest-standing OWNER-tier delegate if one exists, else the
+   * longest-standing ADMIN-tier delegate. If neither exists, the community
+   * is left as-is (creatorId still points at the anonymized user) — safe
+   * (no crash, no access change) but not resolved; there is no delegate to
+   * promote and inventing a new archival lifecycle is out of scope here.
+   */
+  private async transferOwnedCommunities(deletedUserId: string): Promise<void> {
+    const ownedCommunities = await this.communityRepository.find({
+      where: { creatorId: deletedUserId },
+    });
+    if (!ownedCommunities.length) return;
+
+    for (const community of ownedCommunities) {
+      const roles = await this.communityRoleRepository.find({
+        where: { communityId: community.id },
+        order: { createdAt: 'ASC' },
+      });
+      const delegate =
+        roles.find((r) => r.role === CommunityRoleType.OWNER) ??
+        roles.find((r) => r.role === CommunityRoleType.ADMIN);
+      if (!delegate) continue;
+
+      await this.communityRepository.update(community.id, { creatorId: delegate.userId });
+      this.eventEmitter.emit('community.ownership_transferred', {
+        communityId: community.id,
+        previousOwnerId: deletedUserId,
+        newOwnerId: delegate.userId,
+        reason: 'owner_deleted',
+      });
+    }
   }
 
   async resendUserVerificationEmail(id: string) {

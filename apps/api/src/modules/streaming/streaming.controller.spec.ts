@@ -13,6 +13,7 @@ import { AiCommunityService } from '../communities/ai-community.service';
 import { StreamBreakoutService } from './stream-breakout.service';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
+import { UploadNotRestrictedGuard } from '../../common/guards/upload-not-restricted.guard';
 
 function signMuxBody(body: string, secret: string): string {
   const t = Math.floor(Date.now() / 1000);
@@ -62,6 +63,8 @@ describe('StreamingController Mux webhook', () => {
       .overrideGuard(CreatorApprovedGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(OptionalJwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(UploadNotRestrictedGuard)
       .useValue({ canActivate: () => true })
       .compile();
     return moduleRef.get(StreamingController);

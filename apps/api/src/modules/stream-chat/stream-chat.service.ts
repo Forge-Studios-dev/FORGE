@@ -350,7 +350,17 @@ export class StreamChatService {
       messageType: StreamMessageType.SUPER_CHAT,
       amountCents: dto.amountCents,
       highlightSeconds,
+      ...this.computeSuperChatFeeSplit(dto.amountCents),
     });
+  }
+
+  /** Same platform-fee-percent config Super Thanks uses (billing.stripePlatformFeePercent). */
+  private computeSuperChatFeeSplit(amountCents: number) {
+    const platformFeePercent =
+      this.configService.get<number>('billing.stripePlatformFeePercent') ?? 10;
+    const platformFeeCents = Math.round((amountCents * platformFeePercent) / 100);
+    const creatorNetCents = Math.max(0, amountCents - platformFeeCents);
+    return { platformFeePercent, platformFeeCents, creatorNetCents };
   }
 
   @OnEvent('stream.super-chat.paid')
@@ -359,15 +369,13 @@ export class StreamChatService {
     userId: string;
     body: string;
     amountCents: number;
+    stripeCheckoutSessionId?: string | null;
   }) {
     // Checkout can complete after the stream ended or entered the reconnect
     // grace window (payment already captured by Stripe before this event
     // fires). Posting the message into a dead/paused room would be visibly
     // wrong, so skip persisting it and flag for manual reconciliation rather
-    // than silently attaching a "super chat" to nothing. Full automated
-    // refund/reconciliation routing is tracked as a follow-up — this codebase
-    // has no standalone payment-intent refund path yet (billing.service.ts
-    // only handles subscription refund webhooks).
+    // than silently attaching a "super chat" to nothing.
     const stream = await this.streamingService.findById(payload.streamId);
     if (stream.status !== StreamStatus.LIVE || stream.muxIdleSince) {
       this.logger.warn(
@@ -389,6 +397,8 @@ export class StreamChatService {
       messageType: StreamMessageType.SUPER_CHAT,
       amountCents: payload.amountCents,
       highlightSeconds,
+      stripeCheckoutSessionId: payload.stripeCheckoutSessionId ?? null,
+      ...this.computeSuperChatFeeSplit(payload.amountCents),
     });
   }
 
@@ -622,6 +632,10 @@ export class StreamChatService {
     messageType?: StreamMessageType;
     amountCents?: number | null;
     highlightSeconds?: number | null;
+    platformFeePercent?: number | null;
+    platformFeeCents?: number | null;
+    creatorNetCents?: number | null;
+    stripeCheckoutSessionId?: string | null;
   }) {
     const msg = this.messageRepository.create({
       id: input.messageId,
@@ -633,6 +647,10 @@ export class StreamChatService {
       messageType: input.messageType ?? StreamMessageType.CHAT,
       amountCents: input.amountCents ?? null,
       highlightSeconds: input.highlightSeconds ?? null,
+      platformFeePercent: input.platformFeePercent ?? null,
+      platformFeeCents: input.platformFeeCents ?? null,
+      creatorNetCents: input.creatorNetCents ?? null,
+      stripeCheckoutSessionId: input.stripeCheckoutSessionId ?? null,
     });
     const saved = await this.messageRepository.save(msg);
     const full = await this.messageRepository.findOne({

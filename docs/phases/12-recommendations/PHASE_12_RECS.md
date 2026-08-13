@@ -1,6 +1,6 @@
 # Phase 12 — Recommendation Engine
 
-**Status:** Complete for discovery voice + existing forYou/related stack
+**Status:** Complete for discovery voice + existing forYou/related stack. Corrected 2026-08-09 — diversity re-ranking, Shorts ranking, and "not interested" were listed below as Deferred but are shipped; see `docs/PLATFORM_AUDIT_2026-08-09.md §2.5`.
 
 ## Goal
 
@@ -11,6 +11,9 @@ Keep the existing affinity/`forYou` feed and related rails; remove skill-economy
 - `sort=forYou` personalized feed (affinity)
 - Following / Subscriptions tab
 - `GET /videos/:id/related` content-based up-next
+- Freshness/diversity re-ranker (`feed-diversity.util.ts` — `diversifyByCreator`, used in feed/recommendations/shorts)
+- Shorts-specific ranking (`shorts-rank.util.ts` — freshness + engagement, soft creator diversity)
+- "Not interested" feedback loop (`not-interested.util.ts`, applied in feed/recommendations/shorts queries)
 
 ## Shipped this pass
 
@@ -20,8 +23,8 @@ Keep the existing affinity/`forYou` feed and related rails; remove skill-economy
 
 ## Deferred
 
-- Freshness/diversity re-ranker
-- Shorts-specific ranking
-- Explicit “Not interested” feedback loop
+- Session-based ("this sitting") personalization signal
+- Exploration budget in `forYou` ranking (cold-start for new creators, not just viewers)
+- Regionalization/time-window tuning for `RecommendationsService.getTrending` (only partially verified — see audit assumptions)
 
 See [PHASE_12_REPORT.md](./PHASE_12_REPORT.md).

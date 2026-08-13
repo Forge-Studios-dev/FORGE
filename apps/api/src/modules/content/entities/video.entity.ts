@@ -144,6 +144,10 @@ export class Video {
   @Column({ name: 'caption_tracks', type: 'jsonb', nullable: true })
   captionTracks: { language: string; label: string; url: string }[] | null;
 
+  /** Plain-text transcript of the primary caption track (see webvtt.util.ts), folded into search_vector for FTS. Not for rendering. */
+  @Column({ name: 'caption_text', type: 'text', nullable: true })
+  captionText: string | null;
+
   @Column({ name: 'duration_seconds', nullable: true, type: 'float' })
   durationSeconds: number | null;
 
@@ -161,6 +165,9 @@ export class Video {
 
   @Column({ name: 'dislike_count', default: 0 })
   dislikeCount: number;
+
+  @Column({ name: 'share_count', default: 0 })
+  shareCount: number;
 
   @Column({ name: 'comment_count', default: 0 })
   commentCount: number;

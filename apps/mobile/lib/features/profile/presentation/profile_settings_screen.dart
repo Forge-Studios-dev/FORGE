@@ -460,6 +460,8 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
           const SizedBox(height: 8),
           const _ThemeModeTile(),
           const SizedBox(height: 16),
+          const _NotificationPreferencesSection(),
+          const SizedBox(height: 16),
           const _MutedChannelsSection(),
           const SizedBox(height: 16),
           const _BlockedUsersSection(),
@@ -732,6 +734,137 @@ class _ChannelLinkDraft {
   void dispose() {
     title.dispose();
     url.dispose();
+  }
+}
+
+const Map<String, String> _notificationCategoryLabels = {
+  'social': 'Social',
+  'live': 'Live',
+  'content': 'Content',
+  'community': 'Community',
+  'billing': 'Billing',
+  'creator': 'Creator status',
+  'reward': 'Rewards',
+};
+
+/// Per-category notification toggles + email digest opt-in — mirrors the
+/// web `NotificationPreferencesSettings` component against the same
+/// `/users/me/notification-preferences` endpoint.
+class _NotificationPreferencesSection extends ConsumerStatefulWidget {
+  const _NotificationPreferencesSection();
+
+  @override
+  ConsumerState<_NotificationPreferencesSection> createState() =>
+      _NotificationPreferencesSectionState();
+}
+
+class _NotificationPreferencesSectionState extends ConsumerState<_NotificationPreferencesSection> {
+  List<String> _mutedCategories = [];
+  bool _emailDigest = false;
+  bool _loading = true;
+  bool _saving = false;
+  bool _error = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final prefs = await ref.read(watchRepositoryProvider).getNotificationPreferences();
+      if (!mounted) return;
+      setState(() {
+        _mutedCategories = (prefs['mutedCategories'] as List? ?? [])
+            .whereType<String>()
+            .toList();
+        _emailDigest = prefs['emailDigest'] as bool? ?? false;
+        _loading = false;
+        _error = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _save({List<String>? mutedCategories, bool? emailDigest}) async {
+    final previousMuted = _mutedCategories;
+    final previousDigest = _emailDigest;
+    final nextMuted = mutedCategories ?? _mutedCategories;
+    final nextDigest = emailDigest ?? _emailDigest;
+    setState(() {
+      _mutedCategories = nextMuted;
+      _emailDigest = nextDigest;
+      _saving = true;
+    });
+    try {
+      await ref.read(watchRepositoryProvider).setNotificationPreferences(
+            mutedCategories: nextMuted,
+            emailDigest: nextDigest,
+          );
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _mutedCategories = previousMuted;
+          _emailDigest = previousDigest;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update notification preferences')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _toggleCategory(String category, bool enabled) {
+    final next = enabled
+        ? _mutedCategories.where((c) => c != category).toList()
+        : [..._mutedCategories, if (!_mutedCategories.contains(category)) category];
+    _save(mutedCategories: next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Notify me about', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        if (_loading)
+          const LinearProgressIndicator()
+        else if (_error)
+          TextButton(onPressed: _load, child: const Text('Retry notification preferences'))
+        else ...[
+          ..._notificationCategoryLabels.entries.map((entry) {
+            final enabled = !_mutedCategories.contains(entry.key);
+            return CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
+              title: Text(entry.value),
+              value: enabled,
+              onChanged: _saving ? null : (v) => _toggleCategory(entry.key, v ?? true),
+            );
+          }),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            dense: true,
+            title: const Text('Email digest'),
+            subtitle: const Text('Occasional email summary of activity on your account.'),
+            value: _emailDigest,
+            onChanged: _saving ? null : (v) => _save(emailDigest: v ?? false),
+          ),
+        ],
+      ],
+    );
   }
 }
 

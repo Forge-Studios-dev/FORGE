@@ -28,6 +28,9 @@ import { GatewayModule } from './gateway/gateway.module';
 import { MailModule } from './modules/mail/mail.module';
 import { SearchModule } from './modules/search/search.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { AccountStrikesModule } from './modules/account-strikes/account-strikes.module';
+import { CopyrightModule } from './modules/copyright/copyright.module';
+import { MonetizationModule } from './modules/monetization/monetization.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { EntitlementsModule } from './modules/entitlements/entitlements.module';
@@ -215,8 +218,11 @@ function sentryFilterProviders() {
     GatewayModule,
     SearchModule,
     ReportsModule,
+    AccountStrikesModule,
+    CopyrightModule,
     AnalyticsModule,
     PlatformModule,
+    MonetizationModule,
   ],
 
   controllers: [HealthController, MetricsController],

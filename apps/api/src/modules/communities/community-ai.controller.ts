@@ -86,6 +86,7 @@ export class CommunityAiController {
     const analytics = await this.communitiesService.getCommunityAnalytics(
       user.sub,
       communityId,
+      user.role,
     );
     const retention = analytics.retention;
     const payingMembers = retention?.activeSubscribers ?? 0;

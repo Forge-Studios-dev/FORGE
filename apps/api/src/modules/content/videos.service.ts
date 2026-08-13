@@ -47,6 +47,7 @@ import {
   sanitizeThumbnailUrl,
   sanitizeCaptionUrl,
 } from '../../common/media/playback-url.util';
+import { vttToPlainText } from './webvtt.util';
 import {
   muxPlaybackIdFromHlsUrl,
   muxThumbnailUrl,
@@ -87,6 +88,7 @@ import {
   safeRedisIncrEx,
   safeRedisSetex,
 } from '../../common/redis/redis-safe.util';
+import { jitterTtl, singleFlight } from '../../common/redis/cache-stampede.util';
 import { RecordViewDto } from './dto/record-view.dto';
 import { rewriteMediaUrlToCdn } from '../../common/media-url.util';
 import {
@@ -348,23 +350,32 @@ export class VideosService {
 
     const lang = (language ?? 'en').toLowerCase().replace(/[^a-z-]/g, '').slice(0, 8) || 'en';
     const track = tracks.find((t) => t.language === lang) ?? tracks[0];
-    const sanitized = sanitizeCaptionUrl(track.url);
-    if (!sanitized) {
-      throw new BadRequestException('Caption source is not allowed');
+    const text = await this.fetchCaptionVttText(track.url, videoId);
+    if (text === null) {
+      throw new BadRequestException('Could not load captions');
     }
+    return {
+      language: track.language,
+      label: track.label,
+      text,
+    };
+  }
+
+  /** Resolves, SSRF-checks, and fetches a caption track's raw WebVTT text. Returns null (not a throw) on failure — used by best-effort indexing as well as the user-facing transcript proxy. */
+  private async fetchCaptionVttText(url: string, videoId: string): Promise<string | null> {
+    const sanitized = sanitizeCaptionUrl(url);
+    if (!sanitized) return null;
     let sanitizedHost = '';
     try {
       sanitizedHost = new URL(sanitized).hostname.toLowerCase();
     } catch {
-      throw new BadRequestException('Caption source is not allowed');
+      return null;
     }
     const resolved =
       sanitizedHost === 'stream.mux.com' || sanitizedHost.endsWith('.mux.com') || !this.cdnDomain
         ? sanitized
         : rewriteMediaUrlToCdn(sanitized, this.cdnDomain) ?? sanitized;
-    if (!this.isAllowedCaptionFetchUrl(resolved)) {
-      throw new BadRequestException('Caption source is not allowed');
-    }
+    if (!this.isAllowedCaptionFetchUrl(resolved)) return null;
 
     let res: Response;
     try {
@@ -377,20 +388,12 @@ export class VideosService {
       this.logger.warn(
         `caption fetch failed for ${videoId}: ${err instanceof Error ? err.message : err}`,
       );
-      throw new BadRequestException('Could not load captions');
+      return null;
     }
-    if (!res.ok) {
-      throw new BadRequestException('Could not load captions');
-    }
+    if (!res.ok) return null;
     const text = await res.text();
-    if (text.length > 2_000_000) {
-      throw new BadRequestException('Caption file too large');
-    }
-    return {
-      language: track.language,
-      label: track.label,
-      text,
-    };
+    if (text.length > 2_000_000) return null;
+    return text;
   }
 
   private isAllowedCaptionFetchUrl(url: string): boolean {
@@ -833,6 +836,14 @@ export class VideosService {
       tracks.find((t) => t.language === 'en') ?? tracks[0] ?? null;
     video.captionUrl = primary?.url ?? null;
 
+    // Best-effort transcript indexing (search only) — never blocks the request on fetch failure.
+    if (primary) {
+      const vtt = await this.fetchCaptionVttText(primary.url, videoId);
+      video.captionText = vtt ? vttToPlainText(vtt) : null;
+    } else {
+      video.captionText = null;
+    }
+
     await this.videoRepository.save(video);
     await this.bustVideoDetailCache(videoId);
     return this.mapToPublicVideo(video);
@@ -1101,21 +1112,25 @@ export class VideosService {
         return this.videoRepository.create(JSON.parse(cached) as Video);
       }
     }
-    const video = await this.videoRepository.findOne({
-      where: { id },
-      relations: ['user', 'skillTags'],
+    // singleFlight: a cache-miss burst (viral video, or right after an edit
+    // busts the cache) shares one DB query per instance instead of N.
+    return singleFlight(cacheKey, async () => {
+      const video = await this.videoRepository.findOne({
+        where: { id },
+        relations: ['user', 'skillTags'],
+      });
+      if (!video) throw new NotFoundException('Video not found');
+      if (!opts?.skipCache) {
+        await safeRedisSetex(
+          this.redis,
+          cacheKey,
+          jitterTtl(VIDEO_DETAIL_CACHE_TTL),
+          serializeVideoForCache(video),
+          this.logger,
+        );
+      }
+      return video;
     });
-    if (!video) throw new NotFoundException('Video not found');
-    if (!opts?.skipCache) {
-      await safeRedisSetex(
-        this.redis,
-        cacheKey,
-        VIDEO_DETAIL_CACHE_TTL,
-        serializeVideoForCache(video),
-        this.logger,
-      );
-    }
-    return video;
   }
 
   async bustVideoDetailCache(videoId: string): Promise<void> {
@@ -1472,7 +1487,14 @@ export class VideosService {
     if (video.userId !== requesterId) throw new ForbiddenException();
     if (dto.title !== undefined) video.title = dto.title;
     if (dto.description !== undefined) video.description = dto.description;
+    const previousVisibility = video.visibility;
     if (dto.visibility !== undefined) video.visibility = dto.visibility;
+    if (
+      dto.visibility !== undefined &&
+      requiresMuxSignedPlayback(previousVisibility) !== requiresMuxSignedPlayback(dto.visibility)
+    ) {
+      await this.muxVodService.syncPlaybackPolicy(video);
+    }
     if (dto.videoType !== undefined) {
       const typeErr = shortTypeChangeError(dto.videoType, video.durationSeconds);
       if (typeErr) throw new BadRequestException(typeErr);

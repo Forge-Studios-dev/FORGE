@@ -7,6 +7,7 @@ import { Report, ReportStatus, ReportTargetType } from './entities/report.entity
 import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
 import { Comment } from '../engagement/entities/comment.entity';
+import { ReportReason, ReportSeverity } from '@forge/shared-types';
 
 describe('ReportsService', () => {
   let service: ReportsService;
@@ -78,9 +79,29 @@ describe('ReportsService', () => {
         targetType: ReportTargetType.VIDEO,
         targetId: 'v1',
         reason: 'misleading title',
+        reasonCategory: null,
+        severity: ReportSeverity.P3,
         status: ReportStatus.PENDING,
       });
       expect(result.id).toBe('report-1');
+    });
+
+    it('derives severity from reasonCategory when the client sends one', async () => {
+      videoRepository.findOne.mockResolvedValue({ id: 'v1', userId: otherUserId } as Video);
+
+      await service.create(reporterId, {
+        targetType: 'video',
+        targetId: 'v1',
+        reason: 'Child abuse: this depicts a minor',
+        reasonCategory: ReportReason.CHILD_ABUSE,
+      });
+
+      expect(reportRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reasonCategory: ReportReason.CHILD_ABUSE,
+          severity: ReportSeverity.P0,
+        }),
+      );
     });
 
     it('rejects reporting your own comment', async () => {
@@ -128,6 +149,7 @@ describe('ReportsService', () => {
       const qb = {
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
         take: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
@@ -140,6 +162,8 @@ describe('ReportsService', () => {
       expect(qb.andWhere).toHaveBeenCalledWith('r.status = :status', {
         status: ReportStatus.PENDING,
       });
+      expect(qb.orderBy).toHaveBeenCalledWith(expect.stringContaining('r.severity'), 'ASC');
+      expect(qb.addOrderBy).toHaveBeenCalledWith('r.createdAt', 'DESC');
       expect(result.data).toHaveLength(1);
       expect(result.meta).toEqual({ total: 1, page: 1, limit: 20, totalPages: 1 });
     });

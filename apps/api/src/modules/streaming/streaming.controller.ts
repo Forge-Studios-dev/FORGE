@@ -36,6 +36,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { UploadNotRestrictedGuard } from '../../common/guards/upload-not-restricted.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
@@ -68,7 +69,7 @@ export class StreamingController {
   ) {}
 
   @Post('start')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(CreatorApprovedGuard, UploadNotRestrictedGuard)
   @Permissions(Permission.START_STREAM)
   @ApiOperation({ summary: 'Create a new live stream' })
   async createStream(@CurrentUser() user: JwtPayload, @Body() dto: CreateStreamDto) {

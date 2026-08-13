@@ -67,6 +67,34 @@ export class StreamMessage {
   @Column({ name: 'amount_cents', type: 'int', nullable: true })
   amountCents: number | null;
 
+  /** Super Chat only — platform fee percent applied at payment time (0–100). */
+  @Column({
+    name: 'platform_fee_percent',
+    type: 'numeric',
+    precision: 5,
+    scale: 2,
+    nullable: true,
+    transformer: {
+      to: (v: number | null) => v,
+      from: (v: string | number | null) => (v == null ? null : Number(v)),
+    },
+  })
+  platformFeePercent: number | null;
+
+  @Column({ name: 'platform_fee_cents', type: 'int', nullable: true })
+  platformFeeCents: number | null;
+
+  @Column({ name: 'creator_net_cents', type: 'int', nullable: true })
+  creatorNetCents: number | null;
+
+  /** Super Chat only — checkout session id, needed to reconcile a later refund/dispute. */
+  @Column({ name: 'stripe_checkout_session_id', type: 'varchar', nullable: true })
+  stripeCheckoutSessionId: string | null;
+
+  /** Set when Stripe reports the underlying charge refunded or disputed — excluded from earnings totals. */
+  @Column({ name: 'refunded_at', type: 'timestamptz', nullable: true })
+  refundedAt: Date | null;
+
   @Column({ name: 'highlight_seconds', type: 'int', nullable: true })
   highlightSeconds: number | null;
 

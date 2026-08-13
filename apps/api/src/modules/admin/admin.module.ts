@@ -18,12 +18,23 @@ import { StreamChatModule } from '../stream-chat/stream-chat.module';
 import { Stream } from '../streaming/entities/stream.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CommunityReport } from '../communities/entities/community-moderation.entity';
+import { CommunityRole } from '../communities/entities/community-role.entity';
 import { BillingModule } from '../billing/billing.module';
 import { DatabaseObservabilityService } from '../../database/database-observability.service';
+import { AccountStrikesModule } from '../account-strikes/account-strikes.module';
+import { CopyrightModule } from '../copyright/copyright.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Video, Report, Stream, Community, CommunityReport]),
+    TypeOrmModule.forFeature([
+      User,
+      Video,
+      Report,
+      Stream,
+      Community,
+      CommunityReport,
+      CommunityRole,
+    ]),
     StreamingModule,
     StreamChatModule,
     ContentModule,
@@ -35,8 +46,11 @@ import { DatabaseObservabilityService } from '../../database/database-observabil
     PlaylistsModule,
     AuthModule,
     BillingModule,
+    AccountStrikesModule,
+    CopyrightModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, DatabaseObservabilityService],
+  exports: [AdminService],
 })
 export class AdminModule {}

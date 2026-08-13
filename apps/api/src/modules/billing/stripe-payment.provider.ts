@@ -165,6 +165,11 @@ export class StripePaymentProvider implements PaymentProvider {
   async createSuperChatCheckoutSession(input: SuperChatCheckoutInput): Promise<CheckoutSessionResult> {
     const stripe = this.client();
     const currency = (input.currency ?? 'usd').toLowerCase();
+    const feePercent = input.platformFeePercent ?? 0;
+    const applicationFeeAmount =
+      input.connectAccountId && feePercent > 0
+        ? Math.round((input.amountCents * feePercent) / 100)
+        : 0;
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       success_url: input.successUrl,
@@ -185,6 +190,28 @@ export class StripePaymentProvider implements PaymentProvider {
         creatorId: input.creatorId,
         type: 'super_chat',
         messageBody: input.body.slice(0, 200),
+        platformFeePercent: String(feePercent),
+        platformFeeCents: String(applicationFeeAmount),
+      },
+      payment_intent_data: {
+        // Checkout Session metadata does not propagate to the charge — only
+        // payment_intent_data.metadata does, and charge.refunded/dispute.created
+        // webhooks only see the charge. Without this, a refunded Super Chat is
+        // unmatchable and the creator's ledger is never reversed.
+        metadata: {
+          userId: input.userId,
+          streamId: input.streamId,
+          creatorId: input.creatorId,
+          type: 'super_chat',
+        },
+        ...(input.connectAccountId
+          ? {
+              transfer_data: { destination: input.connectAccountId },
+              ...(applicationFeeAmount > 0
+                ? { application_fee_amount: applicationFeeAmount }
+                : {}),
+            }
+          : {}),
       },
     });
     return {
@@ -225,16 +252,22 @@ export class StripePaymentProvider implements PaymentProvider {
         platformFeePercent: String(feePercent),
         platformFeeCents: String(applicationFeeAmount),
       },
-      ...(input.connectAccountId
-        ? {
-            payment_intent_data: {
+      payment_intent_data: {
+        metadata: {
+          userId: input.userId,
+          videoId: input.videoId,
+          creatorId: input.creatorId,
+          type: 'super_thanks',
+        },
+        ...(input.connectAccountId
+          ? {
               transfer_data: { destination: input.connectAccountId },
               ...(applicationFeeAmount > 0
                 ? { application_fee_amount: applicationFeeAmount }
                 : {}),
-            },
-          }
-        : {}),
+            }
+          : {}),
+      },
     });
     return {
       provider: this.name,
@@ -478,26 +511,81 @@ export class StripePaymentProvider implements PaymentProvider {
 
     if (event.type === 'charge.refunded') {
       const charge = event.data.object as Stripe.Charge;
-      const meta = charge.metadata ?? {};
-      let subId: string | undefined;
-      const invoice = charge.invoice;
-      if (typeof invoice === 'object' && invoice && 'subscription' in invoice) {
-        const sub = (invoice as Stripe.Invoice).subscription;
-        subId = typeof sub === 'string' ? sub : sub?.id;
-      }
-      if (subId || meta.userId) {
-        return {
-          handled: true,
-          checkoutType: 'subscription',
-          subscriptionId: subId,
-          status: 'refunded',
-          userId: meta.userId,
-          creatorId: meta.creatorId,
-          tierId: meta.tierId,
-        };
-      }
+      return this.resolveChargeReversal(charge, 'refunded');
     }
 
+    if (event.type === 'charge.dispute.created') {
+      const dispute = event.data.object as Stripe.Dispute;
+      const chargeId = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id;
+      if (!chargeId) return { handled: false };
+      let charge: Stripe.Charge;
+      try {
+        charge = await this.client().charges.retrieve(chargeId);
+      } catch {
+        return { handled: false };
+      }
+      return this.resolveChargeReversal(charge, 'disputed');
+    }
+
+    return { handled: false };
+  }
+
+  /**
+   * Shared refund/dispute resolution. Checkout Session metadata never reaches
+   * the charge — only `payment_intent_data.metadata` does — so this depends on
+   * `create{SuperChat,SuperThanks}CheckoutSession` setting it there. Without a
+   * type-specific branch here, a refunded tip's `charge.metadata.userId` would
+   * fall through to the generic subscription-refund case below and silently
+   * mis-tag the reversal.
+   */
+  private async resolveChargeReversal(
+    charge: Stripe.Charge,
+    status: 'refunded' | 'disputed',
+  ): Promise<ProviderWebhookResult> {
+    const meta = charge.metadata ?? {};
+
+    if (meta.type === 'super_chat' || meta.type === 'super_thanks') {
+      const paymentIntentId =
+        typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+      let sessionId: string | undefined;
+      if (paymentIntentId) {
+        try {
+          const sessions = await this.client().checkout.sessions.list({
+            payment_intent: paymentIntentId,
+            limit: 1,
+          });
+          sessionId = sessions.data[0]?.id;
+        } catch {
+          /* best-effort — ledger reversal falls back to unmatched if this fails */
+        }
+      }
+      return {
+        handled: true,
+        checkoutType: meta.type,
+        status,
+        sessionId,
+        userId: meta.userId,
+        creatorId: meta.creatorId,
+      };
+    }
+
+    let subId: string | undefined;
+    const invoice = charge.invoice;
+    if (typeof invoice === 'object' && invoice && 'subscription' in invoice) {
+      const sub = (invoice as Stripe.Invoice).subscription;
+      subId = typeof sub === 'string' ? sub : sub?.id;
+    }
+    if (subId || meta.userId) {
+      return {
+        handled: true,
+        checkoutType: 'subscription',
+        subscriptionId: subId,
+        status,
+        userId: meta.userId,
+        creatorId: meta.creatorId,
+        tierId: meta.tierId,
+      };
+    }
     return { handled: false };
   }
 }

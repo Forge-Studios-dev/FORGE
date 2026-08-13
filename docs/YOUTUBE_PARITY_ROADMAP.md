@@ -1,0 +1,144 @@
+# FORGE YouTube-Parity Roadmap
+
+**Audience:** Engineering, product, DevOps.
+**Depends on:** [PLATFORM_AUDIT_2026-08-09.md](./PLATFORM_AUDIT_2026-08-09.md) §1 — this roadmap assumes the audit's recommendation (YouTube's core model as the authoritative frame; courses/mentorship/channel-points/rich-communities as explicitly-labeled, flag-gated extensions) is accepted. If product instead confirms "Creator Economy OS" as the permanent direction, re-scope this roadmap's MVP column accordingly — the phase-doc cross-references below still apply either way.
+**Status:** Planning document. Does not itself change code, flags, or docs elsewhere; sequencing only.
+
+---
+
+## How to read this
+
+Each row is a unit of work, mapped to:
+- **Domain(s)** from the 8 platform-research docs.
+- **Existing phase doc** under `docs/phases/NN-*/`, where one already exists for that surface, with a call-out on whether that phase doc is **ahead of**, **behind**, or **matches** the researched target state.
+- **Tier**: MVP (blocks calling FORGE a coherent YouTube-parity product) / Post-MVP (materially improves parity or closes a real risk, not launch-blocking) / Future scale (only matters at meaningfully higher traffic/creator count).
+
+Dependency ordering matters more than tier labels — several Post-MVP items are prerequisites for MVP items and are called out as such.
+
+---
+
+## 0. Prerequisite (blocks everything below)
+
+| Item | Why it blocks the rest | Owner |
+|---|---|---|
+| Resolve the product-framing decision ([PLATFORM_AUDIT §1](./PLATFORM_AUDIT_2026-08-09.md#1-the-1-open-decision-what-is-forge-actually)) | Every domain's gap-prioritization below assumes an answer. Discovery can't finalize unified-search scope, monetization can't finalize eligibility gating, infra can't finalize capacity planning, security can't finalize privacy-policy scope, admin can't finalize IA — all six said so explicitly in their own docs. | Product + eng lead |
+| Rewrite `FORGE_PROJECT_MASTER.md` §1 fully (this audit only added one callout sentence) | Downstream docs (`CLIENT_OVERVIEW.md`, `docs/README.md`'s framing of the V3.0 blueprint) key off this file | Docs owner, post-decision |
+
+---
+
+## MVP scope — "a coherent, honest YouTube-parity product"
+
+Goal: close gaps that make FORGE's *shipped* video/channel/community core untrustworthy, insecure, or structurally incoherent — independent of which way the framing decision above goes, because these are true regardless of extension scope.
+
+### MVP-1: Security & trust-boundary fixes (do first — these are bugs, not roadmap)
+
+| Item | Domain | Phase doc | Status vs. researched target |
+|---|---|---|---|
+| Enforce `COMMUNITY-PERMISSION-MATRIX.md`'s 14-key permissions in the backend, not just display them in the UI | security, moderation | `docs/COMMUNITY-PERMISSION-MATRIX.md` (no phase doc) | Behind — matrix is currently decorative |
+| Bridge or consolidate the two non-communicating authz systems (platform `Permission`/`UserRole` vs. community role/permission-matrix) | security | none | Behind — `forge-core.md`'s "avoid duplicated logic" already violated today |
+| Merge or explicitly boundary the two disconnected moderation systems (platform `reports` table vs. community-moderation stack) | moderation | `docs/phases/07-admin/PHASE_07_ADMIN.md` | Behind — phase doc calls report queues "deferred UX polish"; gap is data-model, not UX |
+| Fix stale code comment claiming no email-digest job exists (`notification-preferences.ts:54`) — it's live | engagement | `docs/phases/15-communication/PHASE_15_COMMUNICATION.md` | Doc/comment behind code |
+
+### MVP-2: Correct the record — phase docs that already understate shipped work
+
+No code change required; these are pure doc-accuracy fixes that should land before any roadmap prioritization is trusted:
+
+| Phase doc | Understates | Domain |
+|---|---|---|
+| `docs/phases/11-search/PHASE_11_SEARCH.md` | Cache key, `type=playlist`, duration/date/sort/caption/kind/watched filters — all shipped, listed as deferred | discovery |
+| `docs/phases/12-recommendations/PHASE_12_RECS.md` | Diversity re-ranker, Shorts ranking, "not interested" feedback loop — all shipped (Shorts ranking flagged for re-verification), listed as deferred | discovery |
+| `docs/phases/14-monetization/PHASE_14_MONETIZATION.md` vs. `PHASE_14_REPORT.md` | Same-phase self-contradiction on Super Thanks-for-VOD (shipped) | monetization |
+| `docs/phases/15-communication/PHASE_15_COMMUNICATION.md` | Push preference matrix backend (category-mute, dispatch enforcement) is more complete than credited | engagement |
+| `docs/phases/18-infrastructure/PHASE_18_INFRA.md`, `19-performance/PHASE_19_PERFORMANCE.md` | Both one-line "Documented/Verified" stubs; miss single-region risk, worker SPOF, dual-Redis architecture, load-test runbook that already exists | infra |
+| `docs/phases/07-admin/PHASE_07_ADMIN.md` | "Report queues, bulk actions" framed as UX polish; actually thin data model (no severity/strikes) | moderation |
+| `docs/phases/21-accessibility/PHASE_21_A11Y.md` | Scoped to web only; mobile a11y absence isn't even acknowledged as deferred | security |
+
+### MVP-3: Core YouTube-parity gaps (the actual product work)
+
+| Item | Domain | Phase doc | Notes |
+|---|---|---|---|
+| Account-level strike/warning ladder + basic appeals flow | moderation | none exists | Currently binary `isActive` disable only; zero "appeal"/"strike" in codebase |
+| Rate-limit / trust-weight report-creation endpoints | moderation | none | Mass-reporting unmitigated today |
+| Self-service account deletion + data export endpoint | security | `docs/phases/17-security/PHASE_17_SECURITY.md` | Phase doc self-reports "verified complete for baseline" but MFA and this were never in scope |
+| Define owned-content lifecycle on account deletion (videos/streams/communities) | product-vision, security | none | Currently undefined in both code and docs — two domains independently flagged this |
+| MFA/2FA, at minimum gated to creator/admin accounts | security | `docs/phases/17-security/PHASE_17_SECURITY.md` | Payout + admin takeover risk; zero implementation today |
+| Distinct monetization-eligibility gate (subscriber/watch-hour thresholds) separate from `creatorStatus` | monetization, product-vision | `docs/phases/14-monetization/PHASE_14_MONETIZATION.md` | Today any approved creator can monetize immediately — decide if intentional |
+| Transcript/caption search | discovery | `docs/phases/11-search/PHASE_11_SEARCH.md` | Caption infra exists; FTS doesn't index it |
+| Fix scheduled-publish to actually fire a "published" event at the scheduled time, not just query-time visibility filtering | upload-media | `docs/phases/09-media-pipeline/PHASE_09_MEDIA.md` | No cron/scheduler exists for this today |
+| Server-side `Share` tracking (entity + endpoint + analytics event) | engagement | none | Currently entirely untracked |
+| Comment moderation gate for video comments (spam/toxicity), matching what community posts already have | engagement, moderation | none | **Fixed 2026-08-13** — regex fast-path only (see `PLATFORM_AUDIT_2026-08-09.md` §2.7); async LLM tail + held-for-review admin surface still open |
+| Cross-link `docs/SCALE_LIVE.md`'s proposed 100K-viewer design from `docs/LIVE.md`'s capabilities table so it isn't mistaken for current (~10K) capability | upload-media | `docs/LIVE.md` | **Already done** — `docs/LIVE.md` line 3 carries the cross-link |
+
+**MVP dependency notes:**
+- The permissions-enforcement fix (MVP-1) should land before building any *new* role-gated feature in MVP-3, or the new feature inherits the same display-only-enforcement bug pattern.
+- Owned-content-lifecycle decision (MVP-3) blocks a correct self-service account-deletion implementation (also MVP-3) — decide the former first.
+- Monetization-eligibility gate depends on the framing decision (§0): if courses/mentorship stay in scope, eligibility rules may need to consider engagement across both video and non-video surfaces.
+
+---
+
+## Post-MVP — materially improves parity, not launch-blocking
+
+| Item | Domain | Phase doc | Notes |
+|---|---|---|---|
+| Extend `isSkillEconomyLmsEnabled`-style flag-gating to Communities 2.0, Channel Points, Mentorship, Brands | product-vision, monetization | none | Makes the audit's §1 recommendation concrete in code |
+| Copyright/DMCA notice-and-counter-notice pipeline + designated-agent contact in `docs/LEGAL.md` | moderation | none | "Copyright infringement" is already a selectable report reason with no backend differentiation |
+| Automated pre-publish video content scan (malware/CSAM/policy), reusing the AI-judge pattern already built for community text | moderation, upload-media | none | Currently 100% reactive/manual |
+| Admin/privileged-action durable audit log | moderation, security | none | Only a narrower creator-scoped log + a bare impersonation call exist today |
+| Distinct trust-and-safety "moderator" role between community moderator and full platform admin | moderation, security | `docs/QA.md` access tiers | Needs a decision: additive `UserRole` vs. permissions bitset |
+| Session-based personalization signal + exploration budget in `forYou` ranking | discovery | `docs/phases/12-recommendations/PHASE_12_RECS.md` | Addresses creator cold-start, not just viewer relevance |
+| Playlist search ranking (FTS + relevance, not `ILIKE` + date) | discovery | `docs/phases/11-search/PHASE_11_SEARCH.md` | |
+| Unified creator payout ledger (MRR + Super Thanks + future ad revenue in one view) | monetization | `docs/phases/16-analytics/PHASE_16_ANALYTICS.md` | |
+| Verify/fix Stripe refund & dispute webhook handling of creator net earnings | monetization | `docs/phases/14-monetization/PHASE_14_MONETIZATION.md` | Currently unverified, not confirmed broken |
+| Multi-language auto-captions (currently hardcoded `en` at Mux ingest) | upload-media | `docs/phases/09-media-pipeline/PHASE_09_MEDIA.md` | Depends on whether non-English creator base is a near-term priority |
+| Highlight clip export job (schema/API ready, job itself doesn't exist) | upload-media | `docs/LIVE.md` deferred list | |
+| Re-transcode/reprocess trigger for creators (currently delete + re-upload only) | upload-media | `docs/phases/09-media-pipeline/PHASE_09_MEDIA.md` | Depends on confirming S3 original-file retention policy |
+| Push preference matrix UI on web/mobile (backend already built) | engagement | `docs/phases/15-communication/PHASE_15_COMMUNICATION.md` | Frontend-only work |
+| Cookie-consent banner + DSAR intake/tracking beyond a mailto address | security | `docs/LEGAL.md` | Sequencing depends on target-market legal requirements (EEA/UK) |
+| Cache-stampede protection (jittered TTL / single-flight) on hot Redis keys | infra | `docs/phases/19-performance/PHASE_19_PERFORMANCE.md` | Thundering-herd risk on viral content growth |
+| Continuous synthetic/canary monitoring of critical journeys (watch/upload/search) | infra | `docs/phases/18-infrastructure/PHASE_18_INFRA.md` | Currently deploy-time smoke checks only |
+| Live re-verify GitHub branch protection on `main` + Actions SHA-pinning + AWS key rotation | infra | `docs/operations/*` | Last checked 2026-07-26; needs a fresh live check, not re-confirmed by this audit |
+
+---
+
+## Future scale — only matters at materially higher traffic/creator count
+
+| Item | Domain | Phase doc | Trigger condition |
+|---|---|---|---|
+| Multi-region deployment + region-failover runbook | infra | `docs/phases/18-infrastructure/PHASE_18_INFRA.md` | Business SLA/uptime commitment requiring it, or real multi-region traffic |
+| Distributed tracing (OpenTelemetry) end-to-end across upload → transcode webhook → publish | infra | `docs/phases/19-performance/PHASE_19_PERFORMANCE.md` | Debugging pipeline incidents becomes a recurring pain point |
+| `docs/SCALE_LIVE.md`'s 100K-viewer live design (Redis Streams chat, 20+ replica sticky routing) | upload-media, infra | `docs/SCALE_LIVE.md` (proposal only) | Concurrent-live-viewer target actually approaches current ~10K ceiling |
+| Content-ID-style duplicate/rights-matching detection | moderation, upload-media | none | Only relevant if FORGE's content mix shifts toward music/entertainment rather than lesson/skill video |
+| Ad revenue model (`AdsModule`, RPM/CPM, ad-break entities) | monetization | none | Real product decision on whether ads are ever in scope at all — may be permanently N/A |
+| Per-channel delegated access (YouTube Manager/Editor/Viewer via Brand-Account-style ownership) | product-vision, security | none | Only if team/agency-run channels become a real customer segment |
+| DB capacity-planning doc tying MAU/QPS target to Neon connection/CU usage; move `getCreatorBusinessAnalytics` off live multi-query SQL to a cached/materialized snapshot | infra, monetization | `docs/operations/LOAD_TEST_RUNBOOK.md` | A concrete near-term MAU target is set (informs the doc, doesn't yet exist) |
+| Notification-fanout scale plan for very-large-subscriber channels (analogous to `docs/SCALE_MESSAGING.md`) | engagement, infra | `docs/SCALE_MESSAGING.md` (chat-only today) | A channel's subscriber count approaches a scale where fanout latency is observed |
+
+---
+
+## Cross-domain dependency graph (informal)
+
+```
+§0 framing decision
+  ├─→ MVP-1 permission/authz fixes (independent of §0, do regardless)
+  ├─→ MVP-2 doc corrections (independent of §0, do regardless)
+  ├─→ MVP-3 monetization-eligibility gate (shape depends on §0)
+  ├─→ Post-MVP flag-gating extension (directly implements §0's outcome)
+  ├─→ Post-MVP admin IA rework (moderation) (needs §0 to stop hedging)
+  ├─→ Future-scale privacy-policy scope (security) (needs §0 to know what data categories to cover)
+  └─→ Future-scale infra capacity plan (needs §0 to know what load shape to plan for)
+
+MVP-3 owned-content-lifecycle decision
+  └─→ MVP-3 self-service account deletion (can't ship deletion without this)
+
+MVP-1 permission enforcement fix
+  └─→ any new role-gated feature (build after, not before)
+
+Post-MVP S3 original-retention confirmation
+  └─→ Post-MVP re-transcode/reprocess trigger (design depends on the answer)
+```
+
+---
+
+## Maintenance note
+
+When a roadmap item ships, update the relevant `docs/phases/NN-*/PHASE_NN_*.md` status (per `docs/README.md`'s existing maintenance table) rather than only checking it off here — this file is a sequencing plan, not the system of record for feature status. That remains `FORGE_PROJECT_MASTER.md` §16 and the master tracker.

@@ -36,6 +36,7 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { UploadNotRestrictedGuard } from '../../common/guards/upload-not-restricted.guard';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
 import { Throttle } from '@nestjs/throttler';
@@ -97,7 +98,7 @@ export class VideosController {
   }
 
   @Post('presigned-url')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(CreatorApprovedGuard, UploadNotRestrictedGuard)
   @Permissions(Permission.UPLOAD_VIDEO)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({ summary: 'Get presigned S3 URL for video upload' })

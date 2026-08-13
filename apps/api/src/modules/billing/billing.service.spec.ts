@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { BillingService } from './billing.service';
@@ -10,6 +10,7 @@ import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase
 import { Stream, StreamVisibility } from '../streaming/entities/stream.entity';
 import { Video, VideoStatus } from '../content/entities/video.entity';
 import { SuperThanks } from './entities/super-thanks.entity';
+import { StreamMessage } from '../stream-chat/entities/stream-message.entity';
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
 import { StreamingService } from '../streaming/streaming.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -78,6 +79,10 @@ describe('BillingService', () => {
     findAndCount: jest.fn(),
     find: jest.fn(),
     createQueryBuilder: jest.fn(),
+    update: jest.fn(),
+  };
+  const streamMessageRepository = {
+    update: jest.fn(),
   };
 
   const baseProviders = () => [
@@ -90,6 +95,7 @@ describe('BillingService', () => {
     { provide: getRepositoryToken(Stream), useValue: streamRepository },
     { provide: getRepositoryToken(Video), useValue: videoRepository },
     { provide: getRepositoryToken(SuperThanks), useValue: superThanksRepository },
+    { provide: getRepositoryToken(StreamMessage), useValue: streamMessageRepository },
     { provide: StreamingService, useValue: streamingService },
     { provide: EventEmitter2, useValue: eventEmitter },
     { provide: StripeTierSyncService, useValue: stripeTierSync },
@@ -222,6 +228,58 @@ describe('BillingService', () => {
     expect(entitlementsService.cancelByExternalRef).toHaveBeenCalledWith('sub_cancel');
   });
 
+  it('reverses the Super Chat ledger on a refunded webhook by checkout session id', async () => {
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'super_chat',
+      status: 'refunded',
+      sessionId: 'cs_1',
+      userId: 'u1',
+      creatorId: 'c1',
+    });
+    streamMessageRepository.update.mockResolvedValue({ affected: 1 });
+
+    await service.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
+
+    expect(streamMessageRepository.update).toHaveBeenCalledWith(
+      { stripeCheckoutSessionId: 'cs_1', refundedAt: expect.anything() },
+      { refundedAt: expect.any(Date) },
+    );
+  });
+
+  it('reverses the Super Thanks ledger on a disputed webhook by checkout session id', async () => {
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'super_thanks',
+      status: 'disputed',
+      sessionId: 'cs_2',
+      userId: 'u2',
+      creatorId: 'c2',
+    });
+    superThanksRepository.update.mockResolvedValue({ affected: 1 });
+
+    await service.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
+
+    expect(superThanksRepository.update).toHaveBeenCalledWith(
+      { stripeCheckoutSessionId: 'cs_2', refundedAt: expect.anything() },
+      { refundedAt: expect.any(Date) },
+    );
+  });
+
+  it('logs and skips the ledger reversal when no checkout session could be resolved', async () => {
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'super_chat',
+      status: 'refunded',
+      sessionId: undefined,
+      userId: 'u1',
+    });
+
+    await service.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
+
+    expect(streamMessageRepository.update).not.toHaveBeenCalled();
+  });
+
   it('emits Super Thanks immediately when Stripe billing is off', async () => {
     const stubModule = await Test.createTestingModule({
       providers: [
@@ -281,6 +339,50 @@ describe('BillingService', () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(superThanksRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('routes Super Chat through the creator Stripe Connect account with a platform fee', async () => {
+    streamRepository.findOne.mockResolvedValue({ id: 's1', userId: 'creator1' });
+    paymentProvider.createSuperChatCheckoutSession.mockResolvedValue({
+      provider: 'stripe',
+      sessionId: 'cs_sc1',
+      checkoutUrl: 'https://checkout.stripe.com/cs_sc1',
+    });
+
+    await service.createSuperChatCheckout('fan1', {
+      streamId: 's1',
+      body: 'Great stream',
+      amountCents: 500,
+      successUrl: 'https://x/success',
+      cancelUrl: 'https://x/cancel',
+    });
+
+    expect(stripeConnectService.getConnectStatus).toHaveBeenCalledWith('creator1');
+    expect(paymentProvider.createSuperChatCheckoutSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'fan1',
+        streamId: 's1',
+        creatorId: 'creator1',
+        amountCents: 500,
+        connectAccountId: 'acct_test',
+      }),
+    );
+  });
+
+  it('rejects Super Chat when the creator has not completed Stripe Connect onboarding', async () => {
+    streamRepository.findOne.mockResolvedValue({ id: 's1', userId: 'creator1' });
+    stripeConnectService.getConnectStatus.mockResolvedValueOnce({ chargesEnabled: false });
+
+    await expect(
+      service.createSuperChatCheckout('fan1', {
+        streamId: 's1',
+        body: 'Great stream',
+        amountCents: 500,
+        successUrl: 'https://x/success',
+        cancelUrl: 'https://x/cancel',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(paymentProvider.createSuperChatCheckoutSession).not.toHaveBeenCalled();
   });
 
   it('emits Super Thanks from completed Stripe webhook', async () => {

@@ -46,6 +46,10 @@ export class Playlist {
   @Column({ name: 'system_type', type: 'varchar', length: 20, nullable: true })
   systemType: PlaylistSystemType | null;
 
+  /** Generated FTS column (title A, description B) — see migration 2060000000000-playlist-search-vector.ts. Not set from app code. */
+  @Column({ name: 'search_vector', type: 'tsvector', select: false, insert: false, update: false })
+  searchVector?: string;
+
   @OneToMany(() => PlaylistVideo, (pv) => pv.playlist)
   items: PlaylistVideo[];
 

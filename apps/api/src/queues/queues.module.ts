@@ -8,6 +8,7 @@ import { PUSH_DISPATCH_QUEUE } from '../modules/notifications/push-dispatch.cons
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from '../modules/notifications/subscription-maintenance.constants';
 import { ENGAGEMENT_RECONCILIATION_QUEUE } from '../modules/engagement/engagement-reconciliation.constants';
 import { STREAM_REMINDER_QUEUE } from '../modules/workers/stream-reminder/stream-reminder.constants';
+import { SCHEDULED_PUBLISH_QUEUE } from '../modules/content/scheduled-publish.constants';
 import { STREAM_CHAT_INGEST_QUEUE } from '../modules/workers/stream-chat-ingest/stream-chat-ingest.constants';
 import { STREAM_SNAPSHOT_RETENTION_QUEUE } from '../modules/workers/stream-snapshot-retention/stream-snapshot-retention.constants';
 
@@ -84,6 +85,14 @@ import { STREAM_SNAPSHOT_RETENTION_QUEUE } from '../modules/workers/stream-snaps
         backoff: { type: 'exponential', delay: 60_000 },
         removeOnComplete: { age: 7 * 86400, count: 14 },
         removeOnFail: { age: 7 * 86400, count: 50 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: SCHEDULED_PUBLISH_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 3600, count: 50 },
+        removeOnFail: { age: 3600, count: 50 },
       },
     }),
   ],

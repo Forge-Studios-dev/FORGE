@@ -264,6 +264,7 @@ function CommentRow({
         targetType: 'comment',
         targetId: comment.id,
         reason: reason.slice(0, 2000),
+        ...(reportReason ? { reasonCategory: reportReason } : {}),
       });
     },
     onSuccess: () => {

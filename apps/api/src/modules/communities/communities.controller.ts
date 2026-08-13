@@ -36,6 +36,9 @@ import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guar
 import { DeprecatedChannelApi } from '../../common/decorators/deprecated-channel-api.decorator';
 import { DeprecatedChannelApiInterceptor } from '../../common/interceptors/deprecated-channel-api.interceptor';
 import { CommunityType } from './entities/community.entity';
+import { CommunityRoleGuard } from './guards/community-role.guard';
+import { CommunityRoles } from './decorators/community-roles.decorator';
+import { CommunityRoleType } from './entities/community-role.entity';
 
 /** Coerce an untrusted query value into a CommunityType, ignoring invalid input. */
 function parseCommunityType(value?: string): CommunityType | undefined {
@@ -337,13 +340,14 @@ export class CommunitiesController {
   }
 
   @Get('creators/me/communities/:communityId/analytics')
-  @UseGuards(CreatorApprovedGuard)
-  @ApiOperation({ summary: 'Community engagement analytics (creator)' })
+  @UseGuards(CommunityRoleGuard)
+  @CommunityRoles(CommunityRoleType.OWNER, CommunityRoleType.ADMIN, CommunityRoleType.COACH)
+  @ApiOperation({ summary: 'Community engagement analytics (creator + delegated owner/admin/coach)' })
   communityAnalytics(
     @CurrentUser() user: JwtPayload,
     @Param('communityId', ParseUUIDPipe) communityId: string,
   ) {
-    return this.communitiesService.getCommunityAnalytics(user.sub, communityId);
+    return this.communitiesService.getCommunityAnalytics(user.sub, communityId, user.role);
   }
 
   @Get('creators/me/business-analytics')

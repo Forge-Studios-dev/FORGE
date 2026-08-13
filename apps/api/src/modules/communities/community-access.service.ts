@@ -26,6 +26,7 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 import { EngagementService } from '../engagement/engagement.service';
 import { UserRole } from '../users/entities/user.entity';
 import { ChannelType } from '../entitlements/entities/channel-type.enum';
+import { CommunityPermission, permissionsForRole } from './community-permissions.constants';
 
 /**
  * Membership / role / entitlement gates for communities and channels.
@@ -129,6 +130,32 @@ export class CommunityAccessService {
       return community;
     }
     throw new ForbiddenException('Insufficient permissions for community studio');
+  }
+
+  /**
+   * Permission-scoped studio access — for capabilities delegated roles hold
+   * per `COMMUNITY_ROLE_PERMISSION_MATRIX` (e.g. `coach`'s `view_analytics`,
+   * `moderator`/`coach`'s `manage_events`) that `assertCommunityStudioAccess`
+   * doesn't grant (that one is OWNER/ADMIN-only by design for broader studio
+   * mutations). Use this for routes the matrix says a narrower role may reach.
+   */
+  async assertCommunityPermission(
+    actorId: string,
+    communityId: string,
+    permission: CommunityPermission,
+    viewerRole?: UserRole | null,
+  ): Promise<Community> {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) throw new NotFoundException('Community not found');
+    if (viewerRole === UserRole.ADMIN) return community;
+    if (community.creatorId === actorId) return community;
+    const assignment = await this.roleRepository.findOne({
+      where: { communityId, userId: actorId },
+    });
+    if (assignment && permissionsForRole(assignment.role).includes(permission)) {
+      return community;
+    }
+    throw new ForbiddenException(`Insufficient permissions: ${permission}`);
   }
 
   /** Validates a user may submit a join request (PRIVATE or INVITE communities without access). */

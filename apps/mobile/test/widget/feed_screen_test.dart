@@ -142,6 +142,33 @@ void main() {
     expect(find.text('6'), findsOneWidget);
   });
 
+  testWidgets('exposes accessible labels on the like/comment/share buttons', (tester) async {
+    final handle = tester.ensureSemantics();
+
+    final client = fakeApiClient({
+      'GET /videos/feed': (_) => _feedPage([_video('v1', likeCount: 5, viewerLiked: false)]),
+      'GET /users/me/watch-history': (_) => _historyPage([]),
+      'GET /notifications/unread-count': (_) => _unreadCount(0),
+    });
+
+    await pumpForgeScreen(tester, const FeedScreen(), client: client);
+
+    expect(
+      tester.getSemantics(find.byIcon(Icons.thumb_up_outlined)),
+      matchesSemantics(label: 'Like, 5 likes', isButton: true),
+    );
+    expect(
+      tester.getSemantics(find.byIcon(Icons.comment_outlined)),
+      matchesSemantics(label: 'Comment, 0 comments', isButton: true),
+    );
+    expect(
+      tester.getSemantics(find.byIcon(Icons.share_outlined)),
+      matchesSemantics(label: 'Share', isButton: true),
+    );
+
+    handle.dispose();
+  });
+
   testWidgets('rolls back the like and shows a sign-in prompt on failure', (tester) async {
     final client = fakeApiClient({
       'GET /videos/feed': (_) => _feedPage([_video('v1', likeCount: 5, viewerLiked: false)]),

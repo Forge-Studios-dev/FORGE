@@ -47,7 +47,7 @@ describe('CommunityEventsService', () => {
   };
   const communitiesService = {
     assertCommunityAccess: jest.fn().mockResolvedValue(undefined),
-    assertCommunityStudioAccess: jest
+    assertCommunityPermission: jest
       .fn()
       .mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1' }),
   };
@@ -90,9 +90,10 @@ describe('CommunityEventsService', () => {
       { title: 'AMA', startsAt: '2026-07-02T18:00:00Z' },
       undefined,
     );
-    expect(communitiesService.assertCommunityStudioAccess).toHaveBeenCalledWith(
+    expect(communitiesService.assertCommunityPermission).toHaveBeenCalledWith(
       'delegated-admin',
       'comm-1',
+      'manage_events',
       undefined,
     );
     expect(eventRepository.save).toHaveBeenCalled();
@@ -106,7 +107,7 @@ describe('CommunityEventsService', () => {
   });
 
   it('rejects event mutation when studio access is denied', async () => {
-    communitiesService.assertCommunityStudioAccess.mockRejectedValueOnce(
+    communitiesService.assertCommunityPermission.mockRejectedValueOnce(
       new ForbiddenException(),
     );
     await expect(

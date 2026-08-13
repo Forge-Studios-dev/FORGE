@@ -523,4 +523,24 @@ export class UsersService {
       return [];
     }
   }
+
+  /**
+   * Self-service data export (DSAR-style). Covers profile, owned videos,
+   * and watch history — comments, community posts/messages, and analytics
+   * events are not included yet (tracked separately, not a silent gap).
+   */
+  async exportOwnedVideos(userId: string) {
+    const videos = await this.videoRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+    return videos.map((v) => ({
+      id: v.id,
+      title: v.title,
+      description: v.description,
+      status: v.status,
+      visibility: v.visibility,
+      createdAt: v.createdAt,
+    }));
+  }
 }

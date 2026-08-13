@@ -187,6 +187,11 @@ export function VideoInfo({
     action();
   };
 
+  const recordShare = (channel: 'native' | 'copy_link' | 'embed') => {
+    // Fire-and-forget — never blocks the share UX on this.
+    void api.post(`/videos/${video.id}/share`, { channel }).catch(() => {});
+  };
+
   const handleShare = async (atCurrentTime = false) => {
     const url = buildWatchShareUrl({
       videoId: video.id,
@@ -198,6 +203,7 @@ export function VideoInfo({
     if (!atCurrentTime && navigator.share) {
       try {
         await navigator.share({ title: video.title, url });
+        recordShare('native');
         return;
       } catch {
         /* user cancelled or fallback to clipboard */
@@ -205,6 +211,7 @@ export function VideoInfo({
     }
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(url);
+      recordShare('copy_link');
       setShareHint(atCurrentTime ? 'Link copied at current time' : 'Link copied');
       setTimeout(() => setShareHint(null), 2000);
     }
@@ -221,6 +228,7 @@ export function VideoInfo({
     setShareHint(null);
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(snippet);
+      recordShare('embed');
       setShareHint(playbackSeconds > 0 ? 'Embed code copied at current time' : 'Embed code copied');
       setTimeout(() => setShareHint(null), 2000);
     }

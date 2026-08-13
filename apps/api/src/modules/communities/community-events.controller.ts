@@ -5,9 +5,11 @@ import { CommunityEventRsvpStatus } from './entities/community-event.entity';
 import { CommunityEventsService } from './community-events.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
-import { CommunityStudioGuard } from './guards/community-studio.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
+import { CommunityRoleGuard } from './guards/community-role.guard';
+import { CommunityRoles } from './decorators/community-roles.decorator';
+import { CommunityRoleType } from './entities/community-role.entity';
 
 enum CommunityEventType {
   ONE_OFF = 'one_off',
@@ -162,7 +164,8 @@ export class CommunityEventsController {
   }
 
   @Post('creators/me/communities/:communityId/events')
-  @UseGuards(CommunityStudioGuard)
+  @UseGuards(CommunityRoleGuard)
+  @CommunityRoles(CommunityRoleType.OWNER, CommunityRoleType.ADMIN, CommunityRoleType.MODERATOR, CommunityRoleType.COACH)
   @ApiOperation({ summary: 'Create a community event or office hours slot' })
   create(
     @CurrentUser() user: JwtPayload,
@@ -189,7 +192,8 @@ export class CommunityEventsController {
   }
 
   @Get('creators/me/communities/:communityId/events/:eventId/rsvps')
-  @UseGuards(CommunityStudioGuard)
+  @UseGuards(CommunityRoleGuard)
+  @CommunityRoles(CommunityRoleType.OWNER, CommunityRoleType.ADMIN, CommunityRoleType.MODERATOR, CommunityRoleType.COACH)
   @ApiOperation({ summary: 'List RSVPs for an event (creator)' })
   listRsvps(
     @CurrentUser() user: JwtPayload,
@@ -200,7 +204,8 @@ export class CommunityEventsController {
   }
 
   @Patch('creators/me/communities/:communityId/events/:eventId')
-  @UseGuards(CommunityStudioGuard)
+  @UseGuards(CommunityRoleGuard)
+  @CommunityRoles(CommunityRoleType.OWNER, CommunityRoleType.ADMIN, CommunityRoleType.MODERATOR, CommunityRoleType.COACH)
   @ApiOperation({ summary: 'Update a community event' })
   update(
     @CurrentUser() user: JwtPayload,
@@ -212,7 +217,8 @@ export class CommunityEventsController {
   }
 
   @Delete('creators/me/communities/:communityId/events/:eventId')
-  @UseGuards(CommunityStudioGuard)
+  @UseGuards(CommunityRoleGuard)
+  @CommunityRoles(CommunityRoleType.OWNER, CommunityRoleType.ADMIN, CommunityRoleType.MODERATOR, CommunityRoleType.COACH)
   @ApiOperation({ summary: 'Delete a community event' })
   delete(
     @CurrentUser() user: JwtPayload,

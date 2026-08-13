@@ -37,6 +37,10 @@ import { AdminGrantSubscriptionDto } from '../entitlements/dto/tier.dto';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { AuthUserCacheService } from '../auth/auth-user-cache.service';
 import { clampLimit, clampPage } from '../../common/utils/pagination.util';
+import { AccountStrikesService } from '../account-strikes/account-strikes.service';
+import { IssueStrikeDto } from '../account-strikes/dto/issue-strike.dto';
+import { ResolveAppealDto } from '../account-strikes/dto/resolve-appeal.dto';
+import { CopyrightService } from '../copyright/copyright.service';
 
 class RejectCreatorDto {
   @ApiPropertyOptional()
@@ -69,7 +73,42 @@ export class AdminController {
     private readonly entitlementsService: EntitlementsService,
     private readonly authUserCache: AuthUserCacheService,
     private readonly databaseObservability: DatabaseObservabilityService,
+    private readonly accountStrikesService: AccountStrikesService,
+    private readonly copyrightService: CopyrightService,
   ) {}
+
+  @Post('copyright/counter-notices/:id/reject')
+  @ApiOperation({
+    summary: 'Reject a pending counter-notice (e.g. claimant reported litigation)',
+    description: 'Blocks the automatic reinstatement this counter-notice would otherwise get.',
+  })
+  rejectCounterNotice(@Param('id', ParseUUIDPipe) id: string) {
+    return this.copyrightService.rejectCounterNotice(id);
+  }
+
+  @Post('users/:userId/strikes')
+  @ApiOperation({ summary: 'Issue an account strike (community-guideline or copyright)' })
+  issueStrike(@Param('userId', ParseUUIDPipe) userId: string, @Body() dto: IssueStrikeDto) {
+    return this.accountStrikesService.issueStrike(userId, dto.type, dto.reason, {
+      sourceVideoId: dto.sourceVideoId,
+      sourceReportId: dto.sourceReportId,
+    });
+  }
+
+  @Get('users/:userId/strikes')
+  @ApiOperation({ summary: "List a user's account strikes" })
+  listUserStrikes(@Param('userId', ParseUUIDPipe) userId: string) {
+    return this.accountStrikesService.listForUser(userId);
+  }
+
+  @Patch('strikes/:strikeId/appeal')
+  @ApiOperation({ summary: 'Grant or deny a pending strike appeal' })
+  resolveStrikeAppeal(
+    @Param('strikeId', ParseUUIDPipe) strikeId: string,
+    @Body() dto: ResolveAppealDto,
+  ) {
+    return this.accountStrikesService.resolveAppeal(strikeId, dto.granted);
+  }
 
   @Get('users')
   @ApiOperation({ summary: 'List all users (admin)' })

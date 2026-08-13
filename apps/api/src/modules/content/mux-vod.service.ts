@@ -17,12 +17,15 @@ import {
   Video,
   VideoStatus,
   TranscodeProvider,
+  ModerationStatus,
 } from './entities/video.entity';
 import { createS3Client } from '../../common/create-s3-client';
 import { indexedAtOnReady, publishStatusOnReady } from './video-publish.util';
 import { videoDetailCacheKey } from './video-cache';
 import { muxHlsPlaybackUrl, muxThumbnailUrl, muxCaptionVttUrl } from './mux-vod.constants';
 import { resolveVideoTypeOnReady } from './short-duration.util';
+import { ContentScanService } from './content-scan/content-scan.service';
+import { requiresMuxSignedPlayback } from '../../common/media/mux-signing.util';
 
 export interface MuxVodIngestJob {
   videoId: string;
@@ -67,6 +70,7 @@ export class MuxVodService {
     private readonly eventEmitter: EventEmitter2,
     @InjectRedis()
     private readonly redis: Redis,
+    private readonly contentScanService: ContentScanService,
   ) {
     this.s3 = createS3Client({
       region: configService.get<string>('aws.region') || 'ap-south-1',
@@ -113,6 +117,8 @@ export class MuxVodService {
 
     this.logger.log(JSON.stringify({ msg: 'mux_vod_ingest_start', videoId, s3Key }));
 
+    const useSignedPlayback = requiresMuxSignedPlayback(video.visibility);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await this.mux.video.assets.create({
       inputs: [
@@ -126,7 +132,7 @@ export class MuxVodService {
           ],
         },
       ],
-      playback_policy: ['public'],
+      playback_policy: [useSignedPlayback ? 'signed' : 'public'],
       passthrough: videoId,
       max_resolution_tier: '1080p',
       encoding_tier: 'smart',
@@ -217,6 +223,20 @@ export class MuxVodService {
     const publishedAt =
       scheduled && scheduled.getTime() > now.getTime() ? scheduled : now;
     const publishStatus = publishStatusOnReady();
+
+    const scanVerdict = await this.contentScanService.scanVideo({
+      videoId: video.id,
+      userId: video.userId,
+      hlsUrl,
+      thumbnailUrl,
+    });
+    const moderationStatus =
+      scanVerdict.action === 'block'
+        ? ModerationStatus.BLOCKED
+        : scanVerdict.action === 'hold'
+          ? ModerationStatus.HELD
+          : ModerationStatus.NONE;
+
     const indexedAt = indexedAtOnReady({
       ...video,
       status: VideoStatus.READY,
@@ -224,6 +244,7 @@ export class MuxVodService {
       hlsUrl,
       thumbnailUrl,
       publishedAt,
+      moderationStatus,
     });
 
     await this.videoRepository.update(video.id, {
@@ -245,19 +266,36 @@ export class MuxVodService {
       publishedAt,
       indexedAt,
       failureReason: null,
+      moderationStatus,
+      ...(moderationStatus !== ModerationStatus.NONE
+        ? {
+            moderationNote: `content_scan:${scanVerdict.provider}:${scanVerdict.categories.join('|') || 'unspecified'}`,
+            moderatedAt: now,
+          }
+        : {}),
     });
 
     await this.redis.del(videoDetailCacheKey(video.id));
     this.eventEmitter.emit('video.updated', { videoId: video.id });
-    this.eventEmitter.emit('video.ready', {
-      videoId: video.id,
-      userId: video.userId,
-      categoryId: video.categoryId ?? null,
-      videoType: video.videoType,
-      status: VideoStatus.READY,
-      hlsUrl,
-      thumbnailUrl,
-    });
+    if (moderationStatus === ModerationStatus.NONE) {
+      this.eventEmitter.emit('video.ready', {
+        videoId: video.id,
+        userId: video.userId,
+        categoryId: video.categoryId ?? null,
+        videoType: video.videoType,
+        status: VideoStatus.READY,
+        hlsUrl,
+        thumbnailUrl,
+      });
+    } else {
+      this.eventEmitter.emit('video.content_scan_held', {
+        videoId: video.id,
+        userId: video.userId,
+        moderationStatus,
+        categories: scanVerdict.categories,
+        provider: scanVerdict.provider,
+      });
+    }
 
     const tracks = Array.isArray(data.tracks) ? data.tracks.length : 0;
     this.logger.log(
@@ -327,6 +365,77 @@ export class MuxVodService {
       }),
     );
     return true;
+  }
+
+  /**
+   * Re-issues the Mux playback id when a video's visibility crosses the
+   * public/signed boundary post-publish. The original ingest-time policy is
+   * otherwise permanent — a video switched from public to private/tier/etc.
+   * would keep serving unauthenticated playback at its old playback id.
+   * Mutates `video` in place (caller persists); throws only when the new,
+   * correctly-scoped playback id could not be created.
+   */
+  async syncPlaybackPolicy(video: Video): Promise<void> {
+    if (!video.muxAssetId || !video.muxPlaybackId || !this.isMuxConfigured()) return;
+
+    const desiredPolicy = requiresMuxSignedPlayback(video.visibility) ? 'signed' : 'public';
+    const oldPlaybackId = video.muxPlaybackId;
+
+    let created: { id?: string };
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      created = (await this.mux.video.assets.createPlaybackId(video.muxAssetId, {
+        policy: desiredPolicy,
+      } as any)) as any;
+    } catch (err) {
+      this.logger.error(
+        `Mux playback policy sync failed for video ${video.id}: ${err instanceof Error ? err.message : err}`,
+      );
+      throw new ServiceUnavailableException('Could not update video access policy — please retry');
+    }
+
+    const newPlaybackId = created?.id;
+    if (!newPlaybackId) {
+      throw new ServiceUnavailableException('Could not update video access policy — please retry');
+    }
+
+    video.muxPlaybackId = newPlaybackId;
+    video.hlsUrl = muxHlsPlaybackUrl(newPlaybackId);
+    video.thumbnailUrl = muxThumbnailUrl(newPlaybackId);
+    if (video.captionTracks?.length) {
+      video.captionTracks = video.captionTracks.map((t) => ({
+        ...t,
+        url: t.url.replace(oldPlaybackId, newPlaybackId),
+      }));
+    }
+    if (video.captionUrl) {
+      video.captionUrl = video.captionUrl.replace(oldPlaybackId, newPlaybackId);
+    }
+
+    try {
+      await this.mux.video.assets.deletePlaybackId(video.muxAssetId, oldPlaybackId);
+    } catch (err) {
+      // The new, correctly-scoped id is already live and saved by the caller —
+      // this only means the stale id lingers on Mux's side until cleaned up.
+      this.logger.error(
+        JSON.stringify({
+          msg: 'mux_vod_old_playback_id_delete_failed',
+          videoId: video.id,
+          assetId: video.muxAssetId,
+          staleId: oldPlaybackId,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
+
+    this.logger.log(
+      JSON.stringify({
+        msg: 'mux_vod_playback_policy_synced',
+        videoId: video.id,
+        assetId: video.muxAssetId,
+        policy: desiredPolicy,
+      }),
+    );
   }
 
   /** Best-effort cleanup when a video row is deleted or re-ingested. */

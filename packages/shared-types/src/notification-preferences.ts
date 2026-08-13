@@ -51,7 +51,7 @@ export function categoryForNotificationType(type: NotificationType | string): No
 export interface NotificationPreferences {
   /** Categories the user has muted — no notification row, unread bump, or live push for these. */
   mutedCategories: NotificationCategory[];
-  /** Opt-in for a periodic email digest (reserved — no digest job sends yet). */
+  /** Opt-in for a periodic email digest — sent by the `email-digest` BullMQ cron job. */
   emailDigest: boolean;
 }
 

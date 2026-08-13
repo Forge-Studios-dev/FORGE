@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, No
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import {
   CheckoutSessionInput,
   EventCheckoutSessionInput,
@@ -17,6 +17,7 @@ import { Stream, StreamVisibility } from '../streaming/entities/stream.entity';
 import { Video, VideoStatus } from '../content/entities/video.entity';
 import { StreamingService } from '../streaming/streaming.service';
 import { SuperThanks } from './entities/super-thanks.entity';
+import { StreamMessage } from '../stream-chat/entities/stream-message.entity';
 
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
 import { StripeTierSyncService } from './stripe-tier-sync.service';
@@ -42,6 +43,8 @@ export class BillingService {
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(SuperThanks)
     private readonly superThanksRepository: Repository<SuperThanks>,
+    @InjectRepository(StreamMessage)
+    private readonly streamMessageRepository: Repository<StreamMessage>,
     @Inject(forwardRef(() => StreamingService))
     private readonly streamingService: StreamingService,
     private readonly eventEmitter: EventEmitter2,
@@ -127,6 +130,21 @@ export class BillingService {
       throw new BadRequestException('Payments are not enabled');
     }
 
+    const connectStatus = await this.stripeConnectService.getConnectStatus(stream.userId);
+    if (!connectStatus.chargesEnabled) {
+      throw new BadRequestException(
+        'Creator must complete Stripe Connect onboarding before accepting Super Chat',
+      );
+    }
+    const connectAccountId = (connectStatus as { accountId?: string }).accountId ?? null;
+    if (!connectAccountId) {
+      throw new BadRequestException(
+        'Creator must complete Stripe Connect onboarding before accepting Super Chat',
+      );
+    }
+    const platformFeePercent =
+      this.configService.get<number>('billing.stripePlatformFeePercent') ?? 10;
+
     return this.paymentProvider.createSuperChatCheckoutSession({
       userId,
       streamId: input.streamId,
@@ -136,6 +154,8 @@ export class BillingService {
       currency: 'usd',
       successUrl: input.successUrl,
       cancelUrl: input.cancelUrl,
+      connectAccountId,
+      platformFeePercent,
     });
   }
 
@@ -305,8 +325,14 @@ export class BillingService {
           userId: result.userId,
           body: result.superChatBody,
           amountCents: result.amountCents,
+          stripeCheckoutSessionId: result.sessionId ?? null,
         });
       }
+    } else if (
+      (result.checkoutType === 'super_chat' || result.checkoutType === 'super_thanks') &&
+      (result.status === 'refunded' || result.status === 'disputed')
+    ) {
+      await this.reverseTipLedger(result.checkoutType, result.sessionId);
     } else if (result.checkoutType === 'super_thanks' && result.status === 'completed') {
       if (result.userId && result.videoId && result.creatorId && result.amountCents != null) {
         await this.recordSuperThanks({
@@ -377,7 +403,10 @@ export class BillingService {
         if (result.userId) this.eventEmitter.emit('billing.subscription.cancelled', { userId: result.userId });
       } else if (result.status === 'failed_payment' && result.subscriptionId) {
         await this.entitlementsService.markSubscriptionFailedPayment(result.subscriptionId);
-      } else if (result.status === 'refunded' && result.subscriptionId) {
+      } else if (
+        (result.status === 'refunded' || result.status === 'disputed') &&
+        result.subscriptionId
+      ) {
         await this.entitlementsService.markSubscriptionRefunded(result.subscriptionId);
       }
 
@@ -397,6 +426,43 @@ export class BillingService {
       );
     }
     return { handled: true };
+  }
+
+  /**
+   * Reverses a Super Chat/Super Thanks creator payout on refund or dispute.
+   * Stripe's destination-charge transfer is not automatically clawed back on
+   * refund unless the operator sets `reverse_transfer` — this only fixes
+   * FORGE's own ledger (earnings totals/exports) so a refunded tip stops being
+   * counted as creator revenue; it does not itself reverse the Stripe transfer.
+   */
+  private async reverseTipLedger(
+    checkoutType: 'super_chat' | 'super_thanks',
+    sessionId: string | undefined,
+  ): Promise<void> {
+    if (!sessionId) {
+      this.logger.error(
+        `Could not resolve the checkout session for a ${checkoutType} refund/dispute — creator ledger was not reversed`,
+      );
+      return;
+    }
+    const refundedAt = new Date();
+    if (checkoutType === 'super_chat') {
+      const res = await this.streamMessageRepository.update(
+        { stripeCheckoutSessionId: sessionId, refundedAt: IsNull() },
+        { refundedAt },
+      );
+      if (!res.affected) {
+        this.logger.warn(`No stream_messages row found for refunded/disputed session ${sessionId}`);
+      }
+      return;
+    }
+    const res = await this.superThanksRepository.update(
+      { stripeCheckoutSessionId: sessionId, refundedAt: IsNull() },
+      { refundedAt },
+    );
+    if (!res.affected) {
+      this.logger.warn(`No super_thanks row found for refunded/disputed session ${sessionId}`);
+    }
   }
 
   /**
@@ -468,7 +534,7 @@ export class BillingService {
     const page = Math.max(1, opts.page ?? 1);
     const limit = Math.min(50, Math.max(1, opts.limit ?? 20));
     const [rows, total] = await this.superThanksRepository.findAndCount({
-      where: { creatorId },
+      where: { creatorId, refundedAt: IsNull() },
       relations: ['tipper', 'video'],
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
@@ -482,6 +548,7 @@ export class BillingService {
       .addSelect('COALESCE(SUM(st.platform_fee_cents), 0)', 'fee')
       .addSelect('COUNT(*)', 'count')
       .where('st.creator_id = :creatorId', { creatorId })
+      .andWhere('st.refunded_at IS NULL')
       .getRawOne<{ sum: string; net: string; fee: string; count: string }>();
 
     return {
@@ -531,6 +598,7 @@ export class BillingService {
       .addSelect('COALESCE(SUM(st.creator_net_cents), 0)', 'netCents')
       .where('st.creator_id = :creatorId', { creatorId })
       .andWhere('st.created_at >= :since', { since })
+      .andWhere('st.refunded_at IS NULL')
       .groupBy(`DATE_TRUNC('day', st.created_at)`)
       .orderBy('day', 'DESC')
       .getRawMany<{
@@ -579,6 +647,7 @@ export class BillingService {
         'tipperDisplayName',
         'body',
         'stripeCheckoutSessionId',
+        'refundedAt',
       ],
       rows.map((r) => [
         r.id,
@@ -595,6 +664,7 @@ export class BillingService {
         r.tipper?.displayName ?? '',
         r.body ?? '',
         r.stripeCheckoutSessionId ?? '',
+        r.refundedAt?.toISOString?.() ?? '',
       ]),
     );
   }

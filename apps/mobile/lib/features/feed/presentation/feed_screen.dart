@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -142,6 +144,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
         ),
         actions: [
           IconButton(
+            tooltip: 'Refresh feed',
             icon: const Icon(Icons.refresh),
             onPressed: () {
               _loadInitial();
@@ -149,6 +152,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
             },
           ),
           IconButton(
+            tooltip: 'Search',
             icon: const Icon(Icons.search),
             onPressed: () => context.push('/search'),
           ),
@@ -424,6 +428,7 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
     final path = publicVideoPath(id: video.id, videoType: video.videoType);
     final url = '${AppConstants.webBaseUrl}$path';
     await SharePlus.instance.share(ShareParams(text: '${video.title}\n$url'));
+    unawaited(ref.read(watchRepositoryProvider).recordShare(video.id));
   }
 
   Future<void> _notInterested() async {
@@ -526,6 +531,11 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
       'Hate speech or harassment',
       'Sexual content',
       'Violent or repulsive content',
+      'Harmful or dangerous acts',
+      'Child abuse',
+      'Promotes terrorism',
+      'Copyright infringement',
+      'Privacy violation',
       'Other',
     ];
     final reason = await showModalBottomSheet<String>(
@@ -656,16 +666,23 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
                 _ActionButton(
                   icon: _liked ? Icons.thumb_up : Icons.thumb_up_outlined,
                   count: _likeCount,
+                  label: _liked ? 'Unlike, $_likeCount likes' : 'Like, $_likeCount likes',
                   onTap: _toggleLike,
                 ),
                 const SizedBox(height: 16),
                 _ActionButton(
                   icon: Icons.comment_outlined,
                   count: video.commentCount,
+                  label: 'Comment, ${video.commentCount} comments',
                   onTap: () => context.push('/watch/${video.id}'),
                 ),
                 const SizedBox(height: 16),
-                _ActionButton(icon: Icons.share_outlined, count: 0, onTap: _share),
+                _ActionButton(
+                  icon: Icons.share_outlined,
+                  count: 0,
+                  label: 'Share',
+                  onTap: _share,
+                ),
               ],
             ),
           ),
@@ -678,23 +695,34 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final int count;
+  final String label;
   final VoidCallback onTap;
 
-  const _ActionButton({required this.icon, required this.count, required this.onTap});
+  const _ActionButton({
+    required this.icon,
+    required this.count,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.white, size: 28),
-          const SizedBox(height: 4),
-          Text(
-            count > 999 ? '${(count / 1000).toStringAsFixed(1)}K' : count.toString(),
-            style: const TextStyle(color: Colors.white, fontSize: 12),
-          ),
-        ],
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.white, size: 28),
+            const SizedBox(height: 4),
+            Text(
+              count > 999 ? '${(count / 1000).toStringAsFixed(1)}K' : count.toString(),
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ],
+        ),
       ),
     );
   }

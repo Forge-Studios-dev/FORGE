@@ -1,6 +1,6 @@
 # Live streaming
 
-**Status:** Production-ready for skill-learning live (~10K viewers/stream).  
+**Status:** Production-ready, shipped ceiling ~10K viewers/stream. **[SCALE_LIVE.md](./SCALE_LIVE.md) is a proposed 100K-viewer design, not yet implemented** — don't read it as current capability.  
 **Full route list:** [FORGE_PROJECT_MASTER §20](./FORGE_PROJECT_MASTER.md#20-api-route-catalog) · **Media/Mux:** [MEDIA.md](./MEDIA.md)
 
 ---

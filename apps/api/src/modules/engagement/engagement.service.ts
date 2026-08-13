@@ -14,6 +14,7 @@ import { Comment } from './entities/comment.entity';
 import { CommentLike, CommentReactionType } from './entities/comment-like.entity';
 import { Follow, FollowNotifyLevel } from './entities/follow.entity';
 import { UserBlock } from './entities/user-block.entity';
+import { Share, ShareChannel } from './entities/share.entity';
 import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -28,6 +29,7 @@ import {
   muteChannel,
   unmuteChannel,
 } from '../feed/not-interested.util';
+import { AiModerationService } from '../communities/ai-moderation.service';
 
 const COMMENT_RATE_LIMIT_SEC = 3;
 /** Cap for Disliked videos shelf (YouTube-style private list). */
@@ -46,12 +48,15 @@ export class EngagementService {
     private readonly followRepository: Repository<Follow>,
     @InjectRepository(UserBlock)
     private readonly userBlockRepository: Repository<UserBlock>,
+    @InjectRepository(Share)
+    private readonly shareRepository: Repository<Share>,
     @InjectRepository(Video)
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly eventEmitter: EventEmitter2,
     @InjectRedis() private readonly redis: Redis,
+    private readonly aiModeration: AiModerationService,
   ) {}
 
   async likeVideo(userId: string, videoId: string) {
@@ -68,6 +73,24 @@ export class EngagementService {
 
   async undislikeVideo(userId: string, videoId: string) {
     return this.clearVideoReaction(userId, videoId, VideoReactionType.DISLIKE);
+  }
+
+  /** Records a share event (creator analytics) — userId is null for a logged-out sharer. */
+  async recordShare(
+    videoId: string,
+    userId: string | null,
+    channel: ShareChannel,
+  ): Promise<{ shareCount: number }> {
+    const video = await this.videoRepository.findOne({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+
+    if (userId && (await this.isBlockedEitherWay(userId, video.userId))) {
+      throw new ForbiddenException('This video is not available');
+    }
+
+    await this.shareRepository.save(this.shareRepository.create({ videoId, userId, channel }));
+    await this.videoRepository.increment({ id: videoId }, 'shareCount', 1);
+    return { shareCount: video.shareCount + 1 };
   }
 
   /** Private Disliked videos shelf (Library → Disliked videos). */
@@ -294,6 +317,10 @@ export class EngagementService {
       if (await this.isBlockedEitherWay(userId, parent.userId)) {
         throw new ForbiddenException('You cannot reply to this comment');
       }
+    }
+
+    if (this.aiModeration.scoreSpam(dto.content).flagged) {
+      throw new ForbiddenException('Comment blocked by automated moderation');
     }
 
     const comment = this.commentRepository.create({

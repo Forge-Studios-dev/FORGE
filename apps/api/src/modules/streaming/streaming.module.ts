@@ -25,6 +25,7 @@ import { StreamAudienceRequest } from './entities/stream-audience-request.entity
 import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { UploadNotRestrictedGuard } from '../../common/guards/upload-not-restricted.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { Video } from '../content/entities/video.entity';
 import { ContentModule } from '../content/content.module';
@@ -122,6 +123,7 @@ import { EngagementModule } from '../engagement/engagement.module';
     StreamReactionService,
     StreamBreakoutService,
     CreatorApprovedGuard,
+    UploadNotRestrictedGuard,
     OptionalJwtAuthGuard,
   ],
   exports: [

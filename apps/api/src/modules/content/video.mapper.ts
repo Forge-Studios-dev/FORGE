@@ -31,6 +31,7 @@ export type PublicVideo = {
   viewCount: number;
   likeCount: number;
   dislikeCount: number;
+  shareCount: number;
   commentCount: number;
   skillTags: Video['skillTags'];
   categoryId: string | null;
@@ -106,6 +107,7 @@ export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): Publi
     viewCount: video.viewCount,
     likeCount: video.likeCount,
     dislikeCount: video.dislikeCount ?? 0,
+    shareCount: video.shareCount ?? 0,
     commentCount: video.commentCount,
     skillTags: video.skillTags ?? [],
     categoryId: video.categoryId ?? null,

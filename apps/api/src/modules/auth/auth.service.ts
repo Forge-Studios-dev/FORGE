@@ -26,6 +26,7 @@ import { MailService } from '../mail/mail.service';
 import { toPublicUser } from '../users/user.mapper';
 import { AuthAccountLockoutService } from './auth-account-lockout.service';
 import { AuthEmailOtpService } from './auth-email-otp.service';
+import { AuthMfaService } from './auth-mfa.service';
 import { AuthUserCacheService } from './auth-user-cache.service';
 import { AuthSessionCacheService } from './auth-session-cache.service';
 import { isDisposableEmail } from './utils/disposable-email.util';
@@ -57,6 +58,7 @@ export class AuthService {
     private readonly analyticsService: AnalyticsService,
     private readonly lockoutService: AuthAccountLockoutService,
     private readonly emailOtpService: AuthEmailOtpService,
+    private readonly mfaService: AuthMfaService,
     private readonly authUserCache: AuthUserCacheService,
     private readonly authSessionCache: AuthSessionCacheService,
     private readonly dataSource: DataSource,
@@ -160,11 +162,58 @@ export class AuthService {
 
     await this.lockoutService.clearFailures(email, meta?.ip ?? null);
 
+    if (user.mfaEnabled) {
+      return {
+        mfaRequired: true,
+        challengeToken: this.issueMfaChallengeToken(user),
+      };
+    }
+
     await this.recordNewDeviceIfNeeded(user.id, meta, 'email');
     const tokens = await this.issueTokens(user, meta);
     void this.analyticsService.ingest(user.id, {
       eventName: 'auth.login',
       properties: { method: 'email' },
+    });
+    return tokens;
+  }
+
+  private issueMfaChallengeToken(user: User): string {
+    return this.jwtService.sign(
+      { sub: user.id, mfaChallenge: true },
+      { secret: this.configService.get<string>('jwt.secret'), expiresIn: '5m' },
+    );
+  }
+
+  /** Second step of MFA login: exchanges a challenge token + TOTP/backup code for real tokens. */
+  async completeMfaLogin(challengeToken: string, code: string, meta?: ClientSessionMeta) {
+    let payload: { sub: string; mfaChallenge?: boolean };
+    try {
+      payload = this.jwtService.verify(challengeToken, {
+        secret: this.configService.get<string>('jwt.secret'),
+      });
+    } catch {
+      throw new UnauthorizedException('MFA challenge expired or invalid — log in again');
+    }
+    if (!payload.mfaChallenge) {
+      throw new UnauthorizedException('Invalid MFA challenge token');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+    if (!user || user.deletedAt || user.isActive === false) {
+      throw new UnauthorizedException('Invalid MFA challenge token');
+    }
+
+    const valid = await this.mfaService.verifyLoginCode(user.id, code);
+    if (!valid) {
+      throw new UnauthorizedException('Invalid verification code');
+    }
+
+    await this.recordNewDeviceIfNeeded(user.id, meta, 'email');
+    const tokens = await this.issueTokens(user, meta);
+    void this.analyticsService.ingest(user.id, {
+      eventName: 'auth.login',
+      properties: { method: 'email', mfa: true },
     });
     return tokens;
   }
@@ -221,6 +270,13 @@ export class AuthService {
           email: profile.email,
         }),
       );
+    }
+
+    if (user.mfaEnabled) {
+      return {
+        mfaRequired: true,
+        challengeToken: this.issueMfaChallengeToken(user),
+      };
     }
 
     await this.recordNewDeviceIfNeeded(user.id, meta, 'google');
@@ -450,6 +506,16 @@ export class AuthService {
   }
 
   /** Authenticated password change — verifies current password, then revokes other sessions. */
+  /** Re-confirms the current password for a sensitive self-service action (e.g. disabling MFA). */
+  async assertPasswordValid(userId: string, currentPassword: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const passwordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!passwordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+  }
+
   async changePassword(
     userId: string,
     currentPassword: string,

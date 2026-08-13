@@ -219,6 +219,47 @@ describe('CommunityModerationService', () => {
     expect(roleRepository.save).toHaveBeenCalled();
   });
 
+  it('blocks a delegated ADMIN from assigning the OWNER role (privilege escalation)', async () => {
+    roleRepository.findOne.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      where.userId === 'admin-actor' ? { role: CommunityRoleType.ADMIN } : null,
+    );
+
+    await expect(
+      service.assignRole('admin-actor', 'comm-1', 'user-2', CommunityRoleType.OWNER),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(roleRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('blocks a delegated ADMIN from assigning the ADMIN role (privilege escalation)', async () => {
+    roleRepository.findOne.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      where.userId === 'admin-actor' ? { role: CommunityRoleType.ADMIN } : null,
+    );
+
+    await expect(
+      service.assignRole('admin-actor', 'comm-1', 'user-2', CommunityRoleType.ADMIN),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('still allows a delegated ADMIN to assign lower-tier roles', async () => {
+    roleRepository.findOne.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      where.userId === 'admin-actor' ? { role: CommunityRoleType.ADMIN } : null,
+    );
+
+    await service.assignRole('admin-actor', 'comm-1', 'user-2', CommunityRoleType.MODERATOR);
+
+    expect(roleRepository.save).toHaveBeenCalled();
+  });
+
+  it('allows the true OWNER to assign the ADMIN role', async () => {
+    roleRepository.findOne.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      where.userId === 'owner-actor' ? { role: CommunityRoleType.OWNER } : null,
+    );
+
+    await service.assignRole('owner-actor', 'comm-1', 'user-2', CommunityRoleType.ADMIN);
+
+    expect(roleRepository.save).toHaveBeenCalled();
+  });
+
   it('upserts ban on re-ban', async () => {
     banRepository.findOne.mockResolvedValue({
       id: 'ban-1',

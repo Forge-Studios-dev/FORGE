@@ -4,12 +4,15 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { MuxVodService } from './mux-vod.service';
-import { Video, VideoStatus, TranscodeProvider, VideoType } from './entities/video.entity';
+import { Video, VideoStatus, TranscodeProvider, VideoType, VideoVisibility } from './entities/video.entity';
 import { muxHlsPlaybackUrl, muxThumbnailUrl } from './mux-vod.constants';
 import { SHORT_TOO_LONG_MESSAGE } from './short-duration.util';
+import { ContentScanService } from './content-scan/content-scan.service';
 
 const mockMuxCreate = jest.fn();
 const mockMuxDelete = jest.fn();
+const mockMuxCreatePlaybackId = jest.fn();
+const mockMuxDeletePlaybackId = jest.fn();
 jest.mock('@mux/mux-node', () => ({
   __esModule: true,
   default: jest.fn().mockImplementation(() => ({
@@ -17,6 +20,8 @@ jest.mock('@mux/mux-node', () => ({
       assets: {
         create: mockMuxCreate,
         delete: mockMuxDelete,
+        createPlaybackId: mockMuxCreatePlaybackId,
+        deletePlaybackId: mockMuxDeletePlaybackId,
       },
     },
   })),
@@ -33,14 +38,19 @@ describe('MuxVodService', () => {
     update: jest.fn(),
   };
   const eventEmitter = { emit: jest.fn() };
+  const contentScanService = {
+    scanVideo: jest.fn().mockResolvedValue({ action: 'approve', categories: [], provider: 'noop' }),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     mockMuxCreate.mockResolvedValue({ id: 'mux-asset-1' });
+    contentScanService.scanVideo.mockResolvedValue({ action: 'approve', categories: [], provider: 'noop' });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MuxVodService,
+        { provide: ContentScanService, useValue: contentScanService },
         {
           provide: getRepositoryToken(Video),
           useValue: videoRepo,
@@ -225,5 +235,76 @@ describe('MuxVodService', () => {
     mockMuxDelete.mockResolvedValue(undefined);
     await service.deleteAsset('mux-asset-1');
     expect(mockMuxDelete).toHaveBeenCalledWith('mux-asset-1');
+  });
+
+  describe('ingestFromS3 playback policy', () => {
+    it('ingests a public video with a public playback policy', async () => {
+      videoRepo.findOne.mockResolvedValue({
+        id: 'video-uuid',
+        muxAssetId: null,
+        visibility: VideoVisibility.PUBLIC,
+      } as Video);
+      videoRepo.update.mockResolvedValue({});
+
+      await service.ingestFromS3({ videoId: 'video-uuid', s3Key: 'key', userId: 'user-1' });
+
+      expect(mockMuxCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ playback_policy: ['public'] }),
+      );
+    });
+
+    it('ingests a private/gated video with a signed playback policy', async () => {
+      videoRepo.findOne.mockResolvedValue({
+        id: 'video-uuid',
+        muxAssetId: null,
+        visibility: VideoVisibility.TIER,
+      } as Video);
+      videoRepo.update.mockResolvedValue({});
+
+      await service.ingestFromS3({ videoId: 'video-uuid', s3Key: 'key', userId: 'user-1' });
+
+      expect(mockMuxCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ playback_policy: ['signed'] }),
+      );
+    });
+  });
+
+  describe('syncPlaybackPolicy', () => {
+    it('re-issues a signed playback id and deletes the old public one when visibility tightens', async () => {
+      mockMuxCreatePlaybackId.mockResolvedValue({ id: 'pb-new' });
+      mockMuxDeletePlaybackId.mockResolvedValue(undefined);
+      const video = {
+        id: 'video-uuid',
+        muxAssetId: 'mux-asset-1',
+        muxPlaybackId: 'pb-old',
+        visibility: VideoVisibility.PRIVATE,
+        captionUrl: 'https://stream.mux.com/pb-old/text/track-1.vtt',
+        captionTracks: [
+          { language: 'en', label: 'English', url: 'https://stream.mux.com/pb-old/text/track-1.vtt' },
+        ],
+      } as unknown as Video;
+
+      await service.syncPlaybackPolicy(video);
+
+      expect(mockMuxCreatePlaybackId).toHaveBeenCalledWith('mux-asset-1', { policy: 'signed' });
+      expect(mockMuxDeletePlaybackId).toHaveBeenCalledWith('mux-asset-1', 'pb-old');
+      expect(video.muxPlaybackId).toBe('pb-new');
+      expect(video.hlsUrl).toBe('https://stream.mux.com/pb-new.m3u8');
+      expect(video.captionUrl).toBe('https://stream.mux.com/pb-new/text/track-1.vtt');
+      expect(video.captionTracks?.[0]?.url).toBe('https://stream.mux.com/pb-new/text/track-1.vtt');
+    });
+
+    it('is a no-op when the video has no Mux asset yet', async () => {
+      const video = {
+        id: 'video-uuid',
+        muxAssetId: null,
+        muxPlaybackId: null,
+        visibility: VideoVisibility.PRIVATE,
+      } as unknown as Video;
+
+      await service.syncPlaybackPolicy(video);
+
+      expect(mockMuxCreatePlaybackId).not.toHaveBeenCalled();
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -8,8 +8,10 @@ import { Comment } from './entities/comment.entity';
 import { CommentLike } from './entities/comment-like.entity';
 import { Follow } from './entities/follow.entity';
 import { UserBlock } from './entities/user-block.entity';
+import { Share, ShareChannel } from './entities/share.entity';
 import { Video } from '../content/entities/video.entity';
 import { User, UserRole } from '../users/entities/user.entity';
+import { AiModerationService } from '../communities/ai-moderation.service';
 
 describe('EngagementService', () => {
   let service: EngagementService;
@@ -45,6 +47,7 @@ describe('EngagementService', () => {
         { provide: getRepositoryToken(Like), useValue: mockRepo() },
         { provide: getRepositoryToken(Follow), useValue: mockRepo() },
         { provide: getRepositoryToken(UserBlock), useValue: mockRepo() },
+        { provide: getRepositoryToken(Share), useValue: mockRepo() },
         { provide: getRepositoryToken(Video), useValue: mockRepo() },
         { provide: getRepositoryToken(User), useValue: mockRepo() },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
@@ -52,6 +55,7 @@ describe('EngagementService', () => {
           provide: 'default_IORedisModuleConnectionToken',
           useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn() },
         },
+        AiModerationService,
       ],
     }).compile();
 
@@ -74,6 +78,45 @@ describe('EngagementService', () => {
     await expect(
       service.getComments('video-1', 20, undefined, 'viewer-1'),
     ).rejects.toThrow('This video is not available');
+  });
+
+  it('creates a comment when content passes moderation', async () => {
+    const redis = (service as any).redis;
+    redis.set = jest.fn().mockResolvedValue('OK');
+    const blockRepo = (service as any).userBlockRepository;
+    blockRepo.findOne.mockResolvedValue(null);
+    const commentRepo = (service as any).commentRepository;
+    commentRepo.create.mockImplementation((row: unknown) => row);
+    commentRepo.save.mockResolvedValue({ id: 'c1' });
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      userId: 'viewer-1',
+      videoId: 'video-1',
+      content: 'nice video!',
+      user: { id: 'viewer-1' },
+    });
+    const videoRepo = (service as any).videoRepository;
+
+    const result = await service.createComment('viewer-1', 'video-1', {
+      content: 'nice video!',
+    } as any);
+    expect(result).toMatchObject({ id: 'c1' });
+    expect(videoRepo.increment).toHaveBeenCalledWith({ id: 'video-1' }, 'commentCount', 1);
+  });
+
+  it('blocks a comment flagged as spam by automated moderation', async () => {
+    const redis = (service as any).redis;
+    redis.set = jest.fn().mockResolvedValue('OK');
+    const blockRepo = (service as any).userBlockRepository;
+    blockRepo.findOne.mockResolvedValue(null);
+    const commentRepo = (service as any).commentRepository;
+
+    await expect(
+      service.createComment('viewer-1', 'video-1', {
+        content: 'buy now buy now buy now click here free money',
+      } as any),
+    ).rejects.toThrow('Comment blocked by automated moderation');
+    expect(commentRepo.save).not.toHaveBeenCalled();
   });
 
   it('orders top comments by pin then likeCount', async () => {
@@ -436,5 +479,49 @@ describe('EngagementService', () => {
     expect(likeRepo.remove).toHaveBeenCalledTimes(2);
     expect(videoRepo.decrement).toHaveBeenCalledWith({ id: 'v1' }, 'dislikeCount', 1);
     expect(videoRepo.decrement).toHaveBeenCalledWith({ id: 'v2' }, 'dislikeCount', 1);
+  });
+
+  it('recordShare logs the event and increments shareCount for a logged-in sharer', async () => {
+    const videoRepo = (service as any).videoRepository;
+    const shareRepo = (service as any).shareRepository;
+    videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'creator-1', shareCount: 4 });
+    shareRepo.create.mockImplementation((x: unknown) => x);
+    shareRepo.save.mockResolvedValue(undefined);
+    videoRepo.increment.mockResolvedValue(undefined);
+
+    const result = await service.recordShare('v1', 'u1', ShareChannel.NATIVE);
+
+    expect(shareRepo.create).toHaveBeenCalledWith({
+      videoId: 'v1',
+      userId: 'u1',
+      channel: ShareChannel.NATIVE,
+    });
+    expect(shareRepo.save).toHaveBeenCalled();
+    expect(videoRepo.increment).toHaveBeenCalledWith({ id: 'v1' }, 'shareCount', 1);
+    expect(result).toEqual({ shareCount: 5 });
+  });
+
+  it('recordShare tracks an anonymous (logged-out) sharer', async () => {
+    const videoRepo = (service as any).videoRepository;
+    const shareRepo = (service as any).shareRepository;
+    videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'creator-1', shareCount: 0 });
+    shareRepo.create.mockImplementation((x: unknown) => x);
+
+    await service.recordShare('v1', null, ShareChannel.COPY_LINK);
+
+    expect(shareRepo.create).toHaveBeenCalledWith({
+      videoId: 'v1',
+      userId: null,
+      channel: ShareChannel.COPY_LINK,
+    });
+  });
+
+  it('recordShare throws when the video does not exist', async () => {
+    const videoRepo = (service as any).videoRepository;
+    videoRepo.findOne.mockResolvedValue(null);
+
+    await expect(service.recordShare('missing', 'u1', ShareChannel.OTHER)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

@@ -7,6 +7,7 @@ import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
 import { Comment } from '../engagement/entities/comment.entity';
 import { clampLimit, clampPage } from '../../common/utils/pagination.util';
+import { severityForReportReason } from '@forge/shared-types';
 
 @Injectable()
 export class ReportsService {
@@ -53,6 +54,8 @@ export class ReportsService {
       targetType: targetTypeMap[dto.targetType],
       targetId: dto.targetId,
       reason: dto.reason,
+      reasonCategory: dto.reasonCategory ?? null,
+      severity: severityForReportReason(dto.reasonCategory ?? ''),
       status: ReportStatus.PENDING,
     });
     return this.reportRepository.save(report);
@@ -64,7 +67,12 @@ export class ReportsService {
     const qb = this.reportRepository
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.reporter', 'reporter')
-      .orderBy('r.createdAt', 'DESC')
+      // Severity-first triage (P0 before P3), newest first within a tier.
+      .orderBy(
+        `CASE r.severity WHEN 'p0' THEN 0 WHEN 'p1' THEN 1 WHEN 'p2' THEN 2 ELSE 3 END`,
+        'ASC',
+      )
+      .addOrderBy('r.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
     if (status) qb.andWhere('r.status = :status', { status });

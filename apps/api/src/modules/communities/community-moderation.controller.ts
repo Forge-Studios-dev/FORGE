@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CommunityModerationService } from './community-moderation.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
@@ -16,6 +17,7 @@ export class CommunityModerationController {
   constructor(private readonly moderationService: CommunityModerationService) {}
 
   @Post('communities/:communityId/reports')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Report community content (message, post, poll, or user)' })
   report(
     @CurrentUser() user: JwtPayload,

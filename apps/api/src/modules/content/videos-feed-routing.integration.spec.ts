@@ -8,6 +8,7 @@ import { ContentLibraryService } from './content-library.service';
 import { FeedController } from '../feed/feed.controller';
 import { FeedService } from '../feed/feed.service';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { UploadNotRestrictedGuard } from '../../common/guards/upload-not-restricted.guard';
 
 /**
  * Real HTTP-level regression test for the route-shadow incident (PR #151 →
@@ -41,6 +42,8 @@ describe('videos/feed HTTP routing (route-shadow regression, real router)', () =
       ],
     })
       .overrideGuard(CreatorApprovedGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(UploadNotRestrictedGuard)
       .useValue({ canActivate: () => true })
       .compile();
 

@@ -1,5 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ReportsService } from './reports.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -14,6 +15,7 @@ export class ReportsController {
 
   @Post()
   @Permissions(Permission.ENGAGE)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Submit a content or user report' })
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateReportDto) {
     return this.reportsService.create(user.sub, dto);

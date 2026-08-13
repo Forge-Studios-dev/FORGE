@@ -9,6 +9,7 @@ import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { PlaylistsModule } from '../playlists/playlists.module';
 import { ContentModule } from '../content/content.module';
 import { EngagementModule } from '../engagement/engagement.module';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { EngagementModule } from '../engagement/engagement.module';
     PlaylistsModule,
     forwardRef(() => ContentModule),
     EngagementModule,
+    forwardRef(() => AdminModule),
   ],
   controllers: [UsersController],
   providers: [UsersService],

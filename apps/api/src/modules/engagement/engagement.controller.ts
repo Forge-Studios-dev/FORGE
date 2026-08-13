@@ -13,10 +13,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { EngagementService } from './engagement.service';
 import { clampLimit } from '../../common/utils/pagination.util';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { RecordShareDto } from './dto/record-share.dto';
+import { ShareChannel } from './entities/share.entity';
 import { SetChannelNotifyLevelDto } from './dto/set-channel-notify-level.dto';
 import { CreatorHeartCommentDto, PinCommentDto } from './dto/comment-moderation.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -45,6 +48,20 @@ export class EngagementController {
   @ApiOperation({ summary: 'Remove like from a video' })
   unlikeVideo(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) videoId: string) {
     return this.engagementService.unlikeVideo(user.sub, videoId);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Post('videos/:id/share')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Record a share event (creator analytics)' })
+  recordShare(
+    @Param('id', ParseUUIDPipe) videoId: string,
+    @Body() dto: RecordShareDto,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.engagementService.recordShare(videoId, user?.sub ?? null, dto.channel ?? ShareChannel.OTHER);
   }
 
   @Post('videos/:id/dislike')

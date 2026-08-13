@@ -54,7 +54,6 @@ const nextConfig = {
       '/studio/channel-points',
       '/studio/communities',
       '/studio/communities/:path*',
-      '/studio/community',
       '/studio/ai-copilot',
       '/studio/system-states',
     ];

@@ -11,13 +11,16 @@ import {
   Post,
   Put,
   Query,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { toPublicUser } from './user.mapper';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { RequestCreatorDto } from './dto/request-creator.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
@@ -26,6 +29,7 @@ import { PlaylistsService } from '../playlists/playlists.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
 import { EngagementService } from '../engagement/engagement.service';
+import { AdminService } from '../admin/admin.service';
 import {
   CompleteProfileImageUploadDto,
   PresignProfileImageUploadDto,
@@ -43,6 +47,7 @@ export class UsersController {
     private readonly usersService: UsersService,
     private readonly playlistsService: PlaylistsService,
     private readonly engagementService: EngagementService,
+    private readonly adminService: AdminService,
   ) {}
 
   @Get('me')
@@ -50,6 +55,44 @@ export class UsersController {
   async getMe(@CurrentUser() user: JwtPayload) {
     const profile = await this.usersService.findById(user.sub);
     return toPublicUser(profile);
+  }
+
+  @Get('me/export')
+  @ApiOperation({
+    summary: 'Export current user data (profile, owned videos, watch history)',
+    description:
+      'DSAR-style self-service export. Does not yet include comments, community posts/messages, or analytics events.',
+  })
+  async exportMyData(@CurrentUser() user: JwtPayload) {
+    const [profile, videos, watchHistory, playlists] = await Promise.all([
+      this.usersService.findById(user.sub),
+      this.usersService.exportOwnedVideos(user.sub),
+      this.usersService.getWatchHistory(user.sub, 1000),
+      this.playlistsService.listByUser(user.sub, user.sub),
+    ]);
+    return {
+      exportedAt: new Date().toISOString(),
+      profile: toPublicUser(profile),
+      videos,
+      watchHistory,
+      playlists,
+    };
+  }
+
+  @Delete('me')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Delete current user account (self-service)',
+    description:
+      'Requires current password. Anonymizes the account, hides owned videos, and ends active streams — same effect as the admin-triggered deletion.',
+  })
+  async deleteMyAccount(@CurrentUser() user: JwtPayload, @Body() dto: DeleteAccountDto) {
+    const profile = await this.usersService.findById(user.sub);
+    const passwordValid = await bcrypt.compare(dto.currentPassword, profile.passwordHash);
+    if (!passwordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    return this.adminService.deleteUser(user.sub);
   }
 
   @Get('me/watch-history')

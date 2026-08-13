@@ -71,6 +71,10 @@ export class SuperThanks {
   @Column({ name: 'stripe_checkout_session_id', type: 'varchar', nullable: true, unique: true })
   stripeCheckoutSessionId: string | null;
 
+  /** Set when Stripe reports the underlying charge refunded or disputed — excluded from earnings totals. */
+  @Column({ name: 'refunded_at', type: 'timestamptz', nullable: true })
+  refundedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

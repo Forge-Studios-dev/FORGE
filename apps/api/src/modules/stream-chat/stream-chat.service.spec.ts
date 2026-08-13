@@ -427,6 +427,16 @@ describe('StreamChatService', () => {
       });
 
       expect(messageRepository.save).toHaveBeenCalled();
+      // Platform fee split recorded on the ledger row (default 10% — no
+      // billing.stripePlatformFeePercent override in this test's config mock).
+      expect(messageRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amountCents: 500,
+          platformFeePercent: 10,
+          platformFeeCents: 50,
+          creatorNetCents: 450,
+        }),
+      );
     });
   });
 
