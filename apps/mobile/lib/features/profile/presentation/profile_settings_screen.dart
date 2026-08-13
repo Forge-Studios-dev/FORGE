@@ -478,6 +478,10 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
           const SizedBox(height: 8),
           const _ChangePasswordSection(),
           const SizedBox(height: 24),
+          const Text('Two-factor authentication', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const _MfaSection(),
+          const SizedBox(height: 24),
           const Text('Active sessions', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           const _ActiveSessionsSection(),
@@ -493,6 +497,10 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
             ),
             child: const Text('Sign out'),
           ),
+          const SizedBox(height: 24),
+          const Text('Delete account', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const _DeleteAccountSection(),
         ],
       ),
     );
@@ -660,6 +668,368 @@ class _ChangePasswordSectionState extends ConsumerState<_ChangePasswordSection> 
           onPressed: _saving || _emailPending ? null : _emailReset,
           child: Text(_emailPending ? 'Sending…' : 'Email password reset link'),
         ),
+      ],
+    );
+  }
+}
+
+enum _MfaStep { loading, off, enrolling, backupCodes, on, disabling }
+
+class _MfaSection extends ConsumerStatefulWidget {
+  const _MfaSection();
+
+  @override
+  ConsumerState<_MfaSection> createState() => _MfaSectionState();
+}
+
+class _MfaSectionState extends ConsumerState<_MfaSection> {
+  _MfaStep _step = _MfaStep.loading;
+  String _secret = '';
+  String _otpauthUri = '';
+  final _codeCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  List<String> _backupCodes = [];
+  bool _pending = false;
+  String? _error;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.read(authRepositoryProvider).getMfaStatus().then((enabled) {
+      if (mounted) setState(() => _step = enabled ? _MfaStep.on : _MfaStep.off);
+    }).catchError((_) {
+      if (mounted) setState(() => _step = _MfaStep.off);
+    });
+  }
+
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _startEnrollment() async {
+    setState(() {
+      _pending = true;
+      _error = null;
+    });
+    try {
+      final data = await ref.read(authRepositoryProvider).beginMfaEnrollment();
+      setState(() {
+        _secret = data['secret'] as String;
+        _otpauthUri = data['otpauthUri'] as String;
+        _step = _MfaStep.enrolling;
+      });
+    } catch (_) {
+      setState(() => _error = 'Could not start enrollment. Try again.');
+    } finally {
+      if (mounted) setState(() => _pending = false);
+    }
+  }
+
+  Future<void> _confirmEnrollment() async {
+    setState(() {
+      _pending = true;
+      _error = null;
+    });
+    try {
+      final codes = await ref.read(authRepositoryProvider).confirmMfaEnrollment(
+            code: _codeCtrl.text.trim(),
+          );
+      _codeCtrl.clear();
+      setState(() {
+        _backupCodes = codes;
+        _step = _MfaStep.backupCodes;
+      });
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final msg = data is Map ? data['message'] : null;
+      setState(() => _error = msg is String ? msg : 'Invalid code. Try again.');
+    } catch (_) {
+      setState(() => _error = 'Invalid code. Try again.');
+    } finally {
+      if (mounted) setState(() => _pending = false);
+    }
+  }
+
+  Future<void> _disable() async {
+    setState(() {
+      _pending = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).disableMfa(currentPassword: _passwordCtrl.text);
+      _passwordCtrl.clear();
+      setState(() {
+        _step = _MfaStep.off;
+        _message = 'Two-factor authentication is now off.';
+      });
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final msg = data is Map ? data['message'] : null;
+      setState(() => _error = msg is String ? msg : 'Could not disable — check your password.');
+    } catch (_) {
+      setState(() => _error = 'Could not disable — check your password.');
+    } finally {
+      if (mounted) setState(() => _pending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
+    if (_step == _MfaStep.loading) return const SizedBox.shrink();
+
+    Widget body;
+    switch (_step) {
+      case _MfaStep.off:
+        body = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Add an extra step at sign-in using an authenticator app.',
+              style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            ForgeButton(
+              label: _pending ? 'Starting…' : 'Enable two-factor authentication',
+              onPressed: _pending ? null : _startEnrollment,
+            ),
+          ],
+        );
+        break;
+      case _MfaStep.enrolling:
+        body = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'In your authenticator app, add a new account using this setup key, then enter the code it shows.',
+              style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            SelectableText(_secret, style: const TextStyle(fontFamily: 'monospace')),
+            const SizedBox(height: 4),
+            Text('otpauth URI: $_otpauthUri',
+                style: TextStyle(fontSize: 11, color: t.onSurfaceVariant)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _codeCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '6-digit code'),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: ForgeButton(
+                  label: _pending ? 'Confirming…' : 'Confirm',
+                  onPressed: _pending ? null : _confirmEnrollment,
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: _pending ? null : () => setState(() => _step = _MfaStep.off),
+                child: const Text('Cancel'),
+              ),
+            ]),
+          ],
+        );
+        break;
+      case _MfaStep.backupCodes:
+        body = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Two-factor authentication is on. Save these one-time backup codes — each works once if you lose access to your authenticator app. They will not be shown again.',
+              style: TextStyle(fontSize: 13, color: t.onSurface),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: _backupCodes
+                  .map((c) => Text(c, style: const TextStyle(fontFamily: 'monospace')))
+                  .toList(),
+            ),
+            const SizedBox(height: 12),
+            ForgeButton(label: 'Done', onPressed: () => setState(() => _step = _MfaStep.on)),
+          ],
+        );
+        break;
+      case _MfaStep.on:
+        body = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Two-factor authentication is on.', style: TextStyle(color: t.secondary, fontSize: 13)),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: () => setState(() => _step = _MfaStep.disabling),
+              child: const Text('Disable'),
+            ),
+          ],
+        );
+        break;
+      case _MfaStep.disabling:
+        body = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _passwordCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Current password'),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: ForgeButton(
+                  label: _pending ? 'Disabling…' : 'Confirm disable',
+                  onPressed: _pending ? null : _disable,
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: _pending ? null : () => setState(() => _step = _MfaStep.on),
+                child: const Text('Cancel'),
+              ),
+            ]),
+          ],
+        );
+        break;
+      case _MfaStep.loading:
+        body = const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        body,
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Text(_error!, style: TextStyle(color: t.error, fontSize: 13)),
+        ],
+        if (_message != null) ...[
+          const SizedBox(height: 8),
+          Text(_message!, style: TextStyle(color: t.secondary, fontSize: 13)),
+        ],
+      ],
+    );
+  }
+}
+
+class _DeleteAccountSection extends ConsumerStatefulWidget {
+  const _DeleteAccountSection();
+
+  @override
+  ConsumerState<_DeleteAccountSection> createState() => _DeleteAccountSectionState();
+}
+
+enum _DeleteMode { closed, password, emailSent }
+
+class _DeleteAccountSectionState extends ConsumerState<_DeleteAccountSection> {
+  _DeleteMode _mode = _DeleteMode.closed;
+  final _passwordCtrl = TextEditingController();
+  bool _pending = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _deleteWithPassword() async {
+    setState(() {
+      _pending = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).deleteAccount(currentPassword: _passwordCtrl.text);
+      await ref.read(authRepositoryProvider).logout();
+      if (mounted) context.go('/login');
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final msg = data is Map ? data['message'] : null;
+      setState(() => _error = msg is String ? msg : 'Could not delete account — check your password.');
+    } catch (_) {
+      setState(() => _error = 'Could not delete account — check your password.');
+    } finally {
+      if (mounted) setState(() => _pending = false);
+    }
+  }
+
+  Future<void> _requestEmailLink() async {
+    setState(() {
+      _pending = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).requestAccountDeletion();
+      setState(() => _mode = _DeleteMode.emailSent);
+    } catch (_) {
+      setState(() => _error = 'Could not send confirmation email. Try again.');
+    } finally {
+      if (mounted) setState(() => _pending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Permanently deletes your account, hides your videos, and ends any active streams. This cannot be undone.',
+          style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+        ),
+        const SizedBox(height: 12),
+        if (_mode == _DeleteMode.closed) ...[
+          OutlinedButton(
+            onPressed: () => setState(() => _mode = _DeleteMode.password),
+            style: OutlinedButton.styleFrom(foregroundColor: t.error, side: BorderSide(color: t.error)),
+            child: const Text('Delete with password'),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _pending ? null : _requestEmailLink,
+            child: const Text('Signed in with Google? Email me a confirmation link'),
+          ),
+        ],
+        if (_mode == _DeleteMode.password) ...[
+          TextField(
+            controller: _passwordCtrl,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'Current password'),
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _pending ? null : _deleteWithPassword,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: t.error,
+                  side: BorderSide(color: t.error),
+                ),
+                child: Text(_pending ? 'Deleting…' : 'Permanently delete my account'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: _pending ? null : () => setState(() => _mode = _DeleteMode.closed),
+              child: const Text('Cancel'),
+            ),
+          ]),
+        ],
+        if (_mode == _DeleteMode.emailSent)
+          Text(
+            'If that address is on your account, a confirmation link is on its way — it expires in 15 minutes.',
+            style: TextStyle(color: t.secondary, fontSize: 13),
+          ),
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Text(_error!, style: TextStyle(color: t.error, fontSize: 13)),
+        ],
       ],
     );
   }

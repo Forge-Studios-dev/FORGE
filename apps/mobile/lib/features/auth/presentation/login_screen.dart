@@ -6,6 +6,7 @@ import '../../../core/auth/google_oauth_launcher.dart';
 import '../../../core/platform/platform_config.dart';
 import '../data/auth_repository.dart';
 import '../../../core/theme/forge_tokens.dart';
+import 'mfa_challenge_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -38,6 +39,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         password: _passwordCtrl.text,
       );
       if (!mounted) return;
+      if (data['mfaRequired'] == true) {
+        final next = GoRouterState.of(context).uri.queryParameters['next'];
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MfaChallengeScreen(
+              challengeToken: data['challengeToken'] as String,
+              next: next,
+            ),
+          ),
+        );
+        return;
+      }
       final user = data['user'] as Map<String, dynamic>?;
       if (user != null &&
           user['role'] == 'creator' &&

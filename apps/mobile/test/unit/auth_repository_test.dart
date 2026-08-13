@@ -47,6 +47,21 @@ void main() {
       expect(storageData[AppConstants.userKey], isNotNull);
     });
 
+    test('returns the MFA challenge without persisting anything when the account has TOTP on', () async {
+      final adapter = QueuedAdapter([
+        (_) => jsonResponseBody({
+              'data': {'mfaRequired': true, 'challengeToken': 'chal-1'},
+            }, 200),
+      ]);
+      final repo = buildRepository(adapter);
+
+      final result = await repo.login(email: 'a@b.com', password: 'pw');
+
+      expect(result['mfaRequired'], true);
+      expect(result['challengeToken'], 'chal-1');
+      expect(storageData.containsKey(AppConstants.accessTokenKey), isFalse);
+    });
+
     test('propagates the error and persists nothing when login fails', () async {
       final adapter = QueuedAdapter([
         (_) => jsonResponseBody({'message': 'invalid credentials'}, 401),
@@ -59,6 +74,51 @@ void main() {
       );
 
       expect(storageData.containsKey(AppConstants.accessTokenKey), isFalse);
+    });
+  });
+
+  group('AuthRepository.completeMfaLogin', () {
+    test('persists real tokens once the challenge code is verified', () async {
+      final adapter = QueuedAdapter([
+        (_) => jsonResponseBody({
+              'data': {
+                'accessToken': 'access-2',
+                'refreshToken': 'refresh-2',
+                'sessionId': 'session-2',
+                'user': {'id': 'u1', 'email': 'a@b.com'},
+              },
+            }, 200),
+      ]);
+      final repo = buildRepository(adapter);
+
+      final result = await repo.completeMfaLogin(challengeToken: 'chal-1', code: '123456');
+
+      expect(result['accessToken'], 'access-2');
+      expect(storageData[AppConstants.accessTokenKey], 'access-2');
+    });
+
+    test('propagates the error and persists nothing for an invalid code', () async {
+      final adapter = QueuedAdapter([
+        (_) => jsonResponseBody({'message': 'Invalid verification code'}, 401),
+      ]);
+      final repo = buildRepository(adapter);
+
+      await expectLater(
+        repo.completeMfaLogin(challengeToken: 'chal-1', code: '000000'),
+        throwsA(isA<DioException>()),
+      );
+      expect(storageData.containsKey(AppConstants.accessTokenKey), isFalse);
+    });
+  });
+
+  group('AuthRepository.getMfaStatus', () {
+    test('reflects the enabled flag from the API', () async {
+      final adapter = QueuedAdapter([
+        (_) => jsonResponseBody({'data': {'enabled': true}}, 200),
+      ]);
+      final repo = buildRepository(adapter);
+
+      expect(await repo.getMfaStatus(), isTrue);
     });
   });
 
