@@ -1,5 +1,5 @@
 import { Video, ModerationStatus, VideoStatus } from './entities/video.entity';
-import { toPublicUser, PublicUser } from '../users/user.mapper';
+import { toPublicUserProfile, PublicUserProfile } from '../users/user.mapper';
 import { sanitizeHlsUrl, sanitizeThumbnailUrl, sanitizeCaptionUrl } from '../../common/media/playback-url.util';
 
 /** Coerce Postgres bigint / JS BigInt to a JSON-safe number (or null). */
@@ -17,7 +17,7 @@ export function jsonSafeIntField(value: unknown): number | null {
 export type PublicVideo = {
   id: string;
   userId: string;
-  user?: PublicUser;
+  user?: PublicUserProfile;
   title: string;
   description: string | null;
   status: Video['status'];
@@ -93,7 +93,7 @@ export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): Publi
   return {
     id: video.id,
     userId: video.userId,
-    user: video.user ? toPublicUser(video.user) : undefined,
+    user: video.user ? toPublicUserProfile(video.user) : undefined,
     title: video.title,
     description: video.description,
     status: video.status,

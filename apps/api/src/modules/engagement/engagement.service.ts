@@ -22,7 +22,7 @@ import { UpdateCommentDto } from './dto/update-comment.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { toPublicComment } from './comment.mapper';
 import { toPublicVideo } from '../content/video.mapper';
-import { toPublicUser } from '../users/user.mapper';
+import { toPublicUserProfile } from '../users/user.mapper';
 import { UserRole } from '../users/entities/user.entity';
 import {
   getMutedChannelIds,
@@ -1123,7 +1123,7 @@ export class EngagementService {
       : null;
 
     return {
-      data: page.map((f) => toPublicUser(f.follower)),
+      data: page.map((f) => toPublicUserProfile(f.follower)),
       meta: { cursor: nextCursor, hasMore },
     };
   }
@@ -1159,7 +1159,7 @@ export class EngagementService {
 
     return {
       data: page.map((f) => {
-        const base = toPublicUser(f.following);
+        const base = toPublicUserProfile(f.following);
         if (!includeNotify) return base;
         return {
           ...base,

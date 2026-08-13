@@ -1,10 +1,10 @@
 import { Comment, CommentModerationStatus } from './entities/comment.entity';
-import { toPublicUser, PublicUser } from '../users/user.mapper';
+import { toPublicUserProfile, PublicUserProfile } from '../users/user.mapper';
 
 export type PublicComment = {
   id: string;
   userId: string;
-  user: PublicUser;
+  user: PublicUserProfile;
   videoId: string;
   content: string;
   parentId: string | null;
@@ -31,7 +31,7 @@ export function toPublicComment(
   return {
     id: comment.id,
     userId: comment.userId,
-    user: toPublicUser(comment.user),
+    user: toPublicUserProfile(comment.user),
     videoId: comment.videoId,
     content: comment.content,
     parentId: comment.parentId,

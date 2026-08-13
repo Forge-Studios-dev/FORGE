@@ -62,3 +62,19 @@ export function toPublicUser(user: User): PublicUser {
       : null,
   };
 }
+
+/** Everything in PublicUser is safe to show the account owner; email is not safe to show anyone else. */
+export type PublicUserProfile = Omit<PublicUser, 'email'>;
+
+/**
+ * Use for any *other* user shown to a viewer — comment/post/message authors,
+ * video/stream owners, followers lists, channel pages. `toPublicUser` (with
+ * email) is for the caller's own account only (GET /users/me, login/signup
+ * response, DSAR export) — `email` was previously leaking to any viewer via
+ * these call sites, including two fully unauthenticated ones
+ * (GET /users/by-username/:username, GET /users/:id).
+ */
+export function toPublicUserProfile(user: User): PublicUserProfile {
+  const { email: _email, ...rest } = toPublicUser(user);
+  return rest;
+}

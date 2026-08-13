@@ -3,7 +3,7 @@ import { ChannelMessage } from './entities/channel-message.entity';
 import { CommunityRoomMessage } from './entities/community-room-message.entity';
 import { Community } from './entities/community.entity';
 import { CommunityCategory } from './entities/community-category.entity';
-import { toPublicUser } from '../users/user.mapper';
+import { toPublicUserProfile } from '../users/user.mapper';
 
 export function toPublicCommunity(community: Community) {
   return {
@@ -53,7 +53,7 @@ export function toPublicChannelMessage(msg: ChannelMessage, memberTierName?: str
     id: msg.id,
     channelId: msg.channelId,
     userId: msg.userId,
-    user: msg.user ? toPublicUser(msg.user) : undefined,
+    user: msg.user ? toPublicUserProfile(msg.user) : undefined,
     memberTierName: memberTierName ?? null,
     body: msg.deletedAt ? '[deleted]' : msg.body,
     parentId: msg.parentId,
@@ -67,7 +67,7 @@ export function toPublicRoomMessage(msg: CommunityRoomMessage, memberTierName?: 
     id: msg.id,
     roomId: msg.roomId,
     userId: msg.userId,
-    user: msg.user ? toPublicUser(msg.user) : undefined,
+    user: msg.user ? toPublicUserProfile(msg.user) : undefined,
     memberTierName: memberTierName ?? null,
     body: msg.deletedAt ? '[deleted]' : msg.body,
     parentMessageId: msg.parentMessageId,

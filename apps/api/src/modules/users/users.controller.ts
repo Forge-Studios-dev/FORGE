@@ -18,7 +18,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { toPublicUser } from './user.mapper';
+import { toPublicUser, toPublicUserProfile } from './user.mapper';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { RequestCreatorDto } from './dto/request-creator.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
@@ -213,8 +213,11 @@ export class UsersController {
     @CurrentUser() viewer?: JwtPayload,
   ) {
     const profile = await this.usersService.findByUsername(username);
-    const publicUser = toPublicUser(profile);
-    if (viewer?.sub && viewer.sub !== profile.id) {
+    const isSelf = viewer?.sub === profile.id;
+    // @Public() — reachable by anyone including anonymous visitors, so email
+    // (part of toPublicUser's shape) must never leak here except to the owner.
+    const publicUser = isSelf ? toPublicUser(profile) : toPublicUserProfile(profile);
+    if (viewer?.sub && !isSelf) {
       const viewerBlocked = await this.engagementService.hasBlocked(viewer.sub, profile.id);
       // They blocked you (and you did not block them) → channel unavailable (YouTube parity).
       if (
@@ -361,8 +364,11 @@ export class UsersController {
     @CurrentUser() viewer?: JwtPayload,
   ) {
     const profile = await this.usersService.findById(id);
-    const publicUser = toPublicUser(profile);
-    if (viewer?.sub && viewer.sub !== profile.id) {
+    const isSelf = viewer?.sub === profile.id;
+    // @Public() — reachable by anyone including anonymous visitors, so email
+    // (part of toPublicUser's shape) must never leak here except to the owner.
+    const publicUser = isSelf ? toPublicUser(profile) : toPublicUserProfile(profile);
+    if (viewer?.sub && !isSelf) {
       const viewerBlocked = await this.engagementService.hasBlocked(viewer.sub, profile.id);
       if (
         !viewerBlocked &&

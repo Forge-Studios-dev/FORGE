@@ -15,6 +15,7 @@ describe('UsersController self-service account actions', () => {
   const passwordHash = bcrypt.hashSync('correct-password', 4);
   const profile = {
     id: 'user-1',
+    email: 'userone@forge.local',
     username: 'userone',
     displayName: 'User One',
     role: UserRole.USER,
@@ -23,11 +24,16 @@ describe('UsersController self-service account actions', () => {
 
   const usersService = {
     findById: jest.fn().mockResolvedValue(profile),
+    findByUsername: jest.fn().mockResolvedValue(profile),
     exportOwnedVideos: jest.fn().mockResolvedValue([]),
     getWatchHistory: jest.fn().mockResolvedValue([]),
   };
   const playlistsService = { listByUser: jest.fn().mockResolvedValue([]) };
-  const engagementService = {};
+  const engagementService = {
+    hasBlocked: jest.fn().mockResolvedValue(false),
+    isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+    isFollowing: jest.fn().mockResolvedValue(false),
+  };
   const adminService = { deleteUser: jest.fn().mockResolvedValue({ ok: true }) };
   const authService = {
     verifyAccountDeletionToken: jest.fn(),
@@ -36,6 +42,10 @@ describe('UsersController self-service account actions', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     usersService.findById.mockResolvedValue(profile);
+    usersService.findByUsername.mockResolvedValue(profile);
+    engagementService.hasBlocked.mockResolvedValue(false);
+    engagementService.isBlockedEitherWay.mockResolvedValue(false);
+    engagementService.isFollowing.mockResolvedValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
@@ -105,6 +115,36 @@ describe('UsersController self-service account actions', () => {
       expect(result.playlists).toEqual([]);
       expect(usersService.exportOwnedVideos).toHaveBeenCalledWith('user-1');
       expect(playlistsService.listByUser).toHaveBeenCalledWith('user-1', 'user-1');
+    });
+  });
+
+  // These two routes are @Public() — reachable by anonymous visitors — and
+  // previously leaked `email` to any viewer via toPublicUser's full shape.
+  describe('channel page privacy (findByUsername / findById)', () => {
+    it('findByUsername omits email for an anonymous viewer', async () => {
+      const result = await controller.findByUsername('userone', undefined);
+      expect(result).not.toHaveProperty('email');
+      expect(result.username).toBe('userone');
+    });
+
+    it('findByUsername omits email for a different signed-in viewer', async () => {
+      const result = await controller.findByUsername('userone', { sub: 'viewer-2' } as any);
+      expect(result).not.toHaveProperty('email');
+    });
+
+    it('findByUsername includes email when the viewer is the profile owner', async () => {
+      const result = await controller.findByUsername('userone', { sub: 'user-1' } as any);
+      expect((result as { email?: string }).email).toBe('userone@forge.local');
+    });
+
+    it('findById omits email for a different signed-in viewer', async () => {
+      const result = await controller.findById('user-1', { sub: 'viewer-2' } as any);
+      expect(result).not.toHaveProperty('email');
+    });
+
+    it('findById includes email when the viewer is the profile owner', async () => {
+      const result = await controller.findById('user-1', { sub: 'user-1' } as any);
+      expect((result as { email?: string }).email).toBe('userone@forge.local');
     });
   });
 });

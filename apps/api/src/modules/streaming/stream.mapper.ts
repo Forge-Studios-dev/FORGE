@@ -1,5 +1,5 @@
 import { Stream, StreamChatMode, StreamEndReason, StreamStatus, StreamVisibility } from './entities/stream.entity';
-import { toPublicUser, PublicUser } from '../users/user.mapper';
+import { toPublicUserProfile, PublicUserProfile } from '../users/user.mapper';
 import { resolveStreamThumbnailUrl } from '../../common/media/mux-playback.util';
 
 /** Matches the default of MUX_IDLE_GRACE_SEC — used only when a caller omits opts.reconnectGraceSec. */
@@ -8,7 +8,7 @@ const FALLBACK_RECONNECT_GRACE_SEC = 60;
 export type PublicStream = {
   id: string;
   userId: string;
-  user?: PublicUser;
+  user?: PublicUserProfile;
   title: string;
   description: string | null;
   playbackUrl: string | null;
@@ -69,7 +69,7 @@ export function toPublicStream(
   return {
     id: stream.id,
     userId: stream.userId,
-    user: stream.user ? toPublicUser(stream.user) : undefined,
+    user: stream.user ? toPublicUserProfile(stream.user) : undefined,
     title: stream.title,
     description: stream.description ?? null,
     playbackUrl,

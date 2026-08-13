@@ -12,7 +12,7 @@ import { ConversationMember } from './entities/conversation-member.entity';
 import { DirectMessage } from './entities/direct-message.entity';
 import { User } from '../users/entities/user.entity';
 import { SendDirectMessageDto } from './dto/direct-message.dto';
-import { toPublicUser } from '../users/user.mapper';
+import { toPublicUserProfile } from '../users/user.mapper';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
 import { EngagementService } from '../engagement/engagement.service';
@@ -51,7 +51,7 @@ export class DirectMessagesService {
         return {
           conversationId: m.conversationId,
           lastReadAt: m.lastReadAt,
-          participants: others.map((o) => toPublicUser(o.user)),
+          participants: others.map((o) => toPublicUserProfile(o.user)),
         };
       })
       .filter((row): row is NonNullable<typeof row> => row != null);
@@ -278,7 +278,7 @@ export class DirectMessagesService {
       id: m.id,
       conversationId: m.conversationId,
       senderId: m.senderId,
-      sender: m.sender ? toPublicUser(m.sender) : undefined,
+      sender: m.sender ? toPublicUserProfile(m.sender) : undefined,
       content: m.content,
       createdAt: m.createdAt,
     };
