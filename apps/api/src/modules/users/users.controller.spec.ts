@@ -36,7 +36,7 @@ describe('UsersController self-service account actions', () => {
   };
   const adminService = { deleteUser: jest.fn().mockResolvedValue({ ok: true }) };
   const authService = {
-    verifyAccountDeletionToken: jest.fn(),
+    isAccountDeletionTokenValid: jest.fn().mockReturnValue(true),
   };
 
   beforeEach(async () => {
@@ -83,15 +83,13 @@ describe('UsersController self-service account actions', () => {
       const result = await controller.deleteMyAccount({ sub: 'user-1' } as any, {
         confirmationToken: 'tok-1',
       });
-      expect(authService.verifyAccountDeletionToken).toHaveBeenCalledWith('tok-1', 'user-1');
+      expect(authService.isAccountDeletionTokenValid).toHaveBeenCalledWith('tok-1', 'user-1');
       expect(result).toEqual({ ok: true });
       expect(adminService.deleteUser).toHaveBeenCalledWith('user-1');
     });
 
     it('rejects an invalid confirmationToken without deleting', async () => {
-      authService.verifyAccountDeletionToken.mockImplementationOnce(() => {
-        throw new UnauthorizedException('Invalid deletion confirmation token');
-      });
+      authService.isAccountDeletionTokenValid.mockReturnValueOnce(false);
       await expect(
         controller.deleteMyAccount({ sub: 'user-1' } as any, { confirmationToken: 'bad' }),
       ).rejects.toBeInstanceOf(UnauthorizedException);

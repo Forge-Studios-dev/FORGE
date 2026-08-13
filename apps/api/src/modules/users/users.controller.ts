@@ -91,7 +91,10 @@ export class UsersController {
   })
   async deleteMyAccount(@CurrentUser() user: JwtPayload, @Body() dto: DeleteAccountDto) {
     if (dto.confirmationToken) {
-      this.authService.verifyAccountDeletionToken(dto.confirmationToken, user.sub);
+      const tokenValid = this.authService.isAccountDeletionTokenValid(dto.confirmationToken, user.sub);
+      if (!tokenValid) {
+        throw new UnauthorizedException('Deletion confirmation link expired or invalid — request a new one');
+      }
     } else if (dto.currentPassword) {
       const profile = await this.usersService.findById(user.sub);
       const passwordValid = await bcrypt.compare(dto.currentPassword, profile.passwordHash);

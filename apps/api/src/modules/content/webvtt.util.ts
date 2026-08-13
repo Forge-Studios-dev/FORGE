@@ -1,6 +1,18 @@
 const CUE_TIMING_RE =
   /^\d{2}:\d{2}(:\d{2})?[.,]\d{3}\s*-->\s*\d{2}:\d{2}(:\d{2})?[.,]\d{3}/;
 
+// Single-pass strip can be bypassed by nested tag fragments (e.g. `<scr<script>ipt>`)
+// that recombine into a full tag after one pass — loop to a fixed point instead.
+function stripTagsFully(input: string): string {
+  let previous: string;
+  let current = input;
+  do {
+    previous = current;
+    current = previous.replace(/<[^>]*>/g, '');
+  } while (current !== previous);
+  return current;
+}
+
 /** Best-effort WebVTT → plain text, for full-text search indexing (not caption rendering). */
 export function vttToPlainText(vtt: string, maxLength = 100_000): string {
   const lines: string[] = [];
@@ -22,7 +34,7 @@ export function vttToPlainText(vtt: string, maxLength = 100_000): string {
     if (CUE_TIMING_RE.test(line)) continue;
     if (/^\d+$/.test(line)) continue; // numeric cue identifier
 
-    const stripped = line.replace(/<[^>]*>/g, '').trim();
+    const stripped = stripTagsFully(line).trim();
     if (!stripped) continue;
     if (stripped === previous) continue; // rolling-caption repeats across overlapping cues
     lines.push(stripped);

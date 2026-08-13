@@ -532,18 +532,16 @@ export class AuthService {
   }
 
   /** Throws unless `token` is a live, unexpired deletion-confirmation token issued to `userId`. */
-  verifyAccountDeletionToken(token: string, userId: string): void {
+  isAccountDeletionTokenValid(token: string, userId: string): boolean {
     let payload: { sub?: string; purpose?: string };
     try {
       payload = this.jwtService.verify(token, {
         secret: this.configService.get<string>('jwt.secret'),
       });
     } catch {
-      throw new UnauthorizedException('Deletion confirmation link expired or invalid — request a new one');
+      return false;
     }
-    if (payload.purpose !== AuthService.ACCOUNT_DELETION_PURPOSE || payload.sub !== userId) {
-      throw new UnauthorizedException('Invalid deletion confirmation token');
-    }
+    return payload.purpose === AuthService.ACCOUNT_DELETION_PURPOSE && payload.sub === userId;
   }
 
   /** Re-confirms the current password for a sensitive self-service action (e.g. disabling MFA). */

@@ -27,7 +27,7 @@ describe('encryption.util', () => {
 
   it('throws on tampered ciphertext (auth tag mismatch)', () => {
     const encrypted = encryptWithKey('secret', key);
-    const [iv, authTag, data] = encrypted.split('.');
+    const [iv, authTag] = encrypted.split('.');
     const tampered = [iv, authTag, Buffer.from('tampered-data').toString('base64')].join('.');
     expect(() => decryptWithKey(tampered, key)).toThrow();
   });
