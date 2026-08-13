@@ -52,6 +52,8 @@ export type PublicVideo = {
 
 export type PublicVideoMapperOpts = {
   rewriteMediaUrl?: (url: string | null | undefined) => string | null;
+  /** YouTube hides the aggregate dislike count from everyone except the video owner/admin (since 2021). */
+  includeDislikeCount?: boolean;
 };
 
 function publicPlaybackUrls(video: Video): {
@@ -106,7 +108,7 @@ export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): Publi
     videoType: video.videoType,
     viewCount: video.viewCount,
     likeCount: video.likeCount,
-    dislikeCount: video.dislikeCount ?? 0,
+    dislikeCount: opts?.includeDislikeCount ? (video.dislikeCount ?? 0) : 0,
     shareCount: video.shareCount ?? 0,
     commentCount: video.commentCount,
     skillTags: video.skillTags ?? [],

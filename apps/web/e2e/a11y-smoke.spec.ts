@@ -165,6 +165,11 @@ test.describe('a11y smoke', () => {
   });
 
   test('public playlist has no serious axe violations when one exists', async ({ page, request }) => {
+    // Unlike the page.goto() smoke tests above (which load a local build that
+    // happens to read from prod), this issues its own direct API request with
+    // no purpose beyond finding a ${playlistId} — that's live-prod traffic
+    // with no CI-secret gate, unlike checkout.spec.ts's equivalent guard.
+    test.skip(!!process.env.CI && !process.env.STAGING_URL, 'Requires a staging environment');
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
     let playlistId: string | null = null;
     try {
@@ -198,6 +203,8 @@ test.describe('a11y smoke', () => {
   });
 
   test('watch page has no serious axe violations when a video exists', async ({ page, request }) => {
+    // See the playlist test above — same direct-request-to-prod concern.
+    test.skip(!!process.env.CI && !process.env.STAGING_URL, 'Requires a staging environment');
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
     let videoId: string | null = null;
     try {

@@ -26,6 +26,17 @@ Dependency ordering matters more than tier labels — several Post-MVP items are
 
 ---
 
+## 0.5 Open decisions, added 2026-08-13 (not guessed at — need an explicit owner)
+
+The 2026-08-13 zero-trust re-audit ([PLATFORM_AUDIT_2026-08-09.md §6](./PLATFORM_AUDIT_2026-08-09.md#6-zero-trust-re-audit--fixes-2026-08-13)) found two items that are genuinely blocked on a decision this codebase can't make for itself — implementing either without sign-off risks doing expensive, hard-to-reverse work in the wrong direction:
+
+| Item | Why it's blocked, not just unbuilt | Owner |
+|---|---|---|
+| Category taxonomy overhaul — `Category`/`Subcategory`/`SkillTag` is shaped and seeded for a skills/crafts marketplace (`Woodworking → Carving/Joinery`), not YouTube's flat genre model (Gaming, Music, Education...), yet every uploaded video is forced through it today | Re-seeding the primary classification for every existing video is a real data migration with user-facing impact (creators' videos would need re-categorizing), not a schema tweak. Doing it without product sign-off on the target taxonomy shape risks a second migration later. | Product + eng lead |
+| CSAM / pre-publish content-safety scanning — `ContentScanService` defaults to `NoopContentScanProvider` (approves everything); no real vendor (Google CSAI Match, Thorn, PhotoDNA) is wired anywhere, and P0 reports (CSAM/terrorism) get triage-priority only, zero auto-action, by design (anti-abuse-of-reporting tradeoff) | This needs a vendor contract, credentials, and a legal/compliance sign-off on the chosen provider — not an engineering task. Treat as a **pre-launch blocker for any real-user video upload**, not a backlog item. | Legal/compliance + eng lead |
+
+---
+
 ## MVP scope — "a coherent, honest YouTube-parity product"
 
 Goal: close gaps that make FORGE's *shipped* video/channel/community core untrustworthy, insecure, or structurally incoherent — independent of which way the framing decision above goes, because these are true regardless of extension scope.

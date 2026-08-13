@@ -23,6 +23,7 @@ import { BillingModule } from '../billing/billing.module';
 import { DatabaseObservabilityService } from '../../database/database-observability.service';
 import { AccountStrikesModule } from '../account-strikes/account-strikes.module';
 import { CopyrightModule } from '../copyright/copyright.module';
+import { AdminAuditLogModule } from '../../common/audit/admin-audit-log.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { CopyrightModule } from '../copyright/copyright.module';
     BillingModule,
     AccountStrikesModule,
     CopyrightModule,
+    AdminAuditLogModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, DatabaseObservabilityService],

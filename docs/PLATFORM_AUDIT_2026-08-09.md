@@ -177,14 +177,28 @@ These modules are fully shipped and none maps onto YouTube's actual product: Cou
 Carried forward from the 8 domain docs' own "Assumptions & Open Questions" sections — treat these as unverified until someone confirms them:
 
 - `isSkillEconomyLmsEnabled`'s default-`false` value was only confirmed at the source-code level, not verified against actual live Fly/Vercel environment configuration.
-- `RecommendationsService.getTrending`'s exact time-window and regionalization were only partially inspected — not fully read/confirmed.
-- Whether the public comment/video API response exposes `dislikeCount` to non-owner viewers (YouTube hides it) was not directly checked against the DTO/serializer.
-- Whether Stripe `charge.refunded`/`charge.dispute.created` webhooks reverse creator net earnings was not confirmed from the code read performed.
-- The 2026-07-26 finding of no branch protection on `main` and an `@master`-pinned Action with static AWS keys could not be re-verified as current live state in this pass (requires a live `gh api` check, out of scope for local doc research).
-- Whether the caption pipeline supports ASR auto-generation vs. creator-upload-only was flagged as unconfirmed pending a deeper media-pipeline read.
-- Whether an anonymous-session identifier already exists for logged-out analytics/A-B testing (relevant to a proposed session-aware recommendation boost) was not confirmed.
-- S3 lifecycle policy for original uploaded files (deleted post-transcode? retained how long?) was not confirmed — relevant to whether a reprocess-from-original flow is viable.
-- No current (post-audit) FinOps dollar figures (Neon CU-hours, Mux minutes, AWS Cost Explorer) are assumed known — the most recent audit found these blocked on missing credentials.
+- `RecommendationsService.getTrending`'s exact time-window and regionalization were only partially inspected — not fully read/confirmed. **Resolved 2026-08-13:** confirmed a flat 7-day global window, no region/locale parameter anywhere.
+- ~~Whether the public comment/video API response exposes `dislikeCount` to non-owner viewers (YouTube hides it) was not directly checked against the DTO/serializer.~~ **Resolved 2026-08-13:** confirmed exposed (`toPublicVideo` had no owner-only gate); fixed same day — `dislikeCount` now zeroed unless the requester is the video owner or admin.
+- ~~Whether Stripe `charge.refunded`/`charge.dispute.created` webhooks reverse creator net earnings was not confirmed from the code read performed.~~ **Resolved 2026-08-13:** confirmed broken (Super Chat/Super Thanks metadata never reached the charge, so refunds were unmatchable; no dispute handling existed at all). Fixed same day — see §6 below.
+- ~~The 2026-07-26 finding of no branch protection on `main` and an `@master`-pinned Action with static AWS keys could not be re-verified as current live state in this pass.~~ **Resolved 2026-08-13:** live `gh api` check confirmed branch protection is enabled and all Actions are SHA-pinned (both findings are stale/already fixed). AWS static IAM keys remain a real, open gap — GCP already has a working OIDC pattern (`scripts/fly-gcp-oidc-token.sh`) not yet ported to AWS.
+- Whether the caption pipeline supports ASR auto-generation vs. creator-upload-only was flagged as unconfirmed pending a deeper media-pipeline read. **Resolved 2026-08-13:** Mux `generated_subtitles` (English-only) confirmed at ingest — ASR, not creator-upload-only.
+- Whether an anonymous-session identifier already exists for logged-out analytics/A-B testing (relevant to a proposed session-aware recommendation boost) was not confirmed. Still open.
+- S3 lifecycle policy for original uploaded files (deleted post-transcode? retained how long?) was not confirmed — relevant to whether a reprocess-from-original flow is viable. Still open.
+- No current (post-audit) FinOps dollar figures (Neon CU-hours, Mux minutes, AWS Cost Explorer) are assumed known — the most recent audit found these blocked on missing credentials. Still open.
+
+## 6. Zero-trust re-audit & fixes, 2026-08-13
+
+A second, independent zero-trust re-audit (9 parallel domain passes, treating this doc and every other prior audit as leads only, not ground truth) found 4 real P0-severity bugs and a further batch of P1 gaps, then fixed the P0s same-day:
+
+**P0 fixed:**
+- `mux-vod.service.ts` hardcoded `playback_policy: ['public']` for every video regardless of `visibility` — signed-URL code for paid/gated video was signing against an asset that was never actually created `signed`, so it did nothing. Fixed: policy now derives from visibility at ingest, plus a new `syncPlaybackPolicy()` that re-issues the playback id when visibility changes post-publish.
+- `loginWithGoogle` skipped the MFA challenge entirely — any MFA-enrolled account with a linked Google login could bypass TOTP via `GET /auth/google/callback`. Fixed to mirror the password-login MFA branch.
+- Super Chat/Super Thanks checkout never set `payment_intent_data.metadata`, so `charge.refunded` couldn't identify tip charges at all (they fell through to the generic subscription-refund branch, silently mis-tagged). No `charge.dispute.created` handling existed anywhere. Fixed: metadata added, dispute handling added, refunded/disputed tips now excluded from creator earnings totals (migration `2120000000000-tip-refund-tracking`).
+- `/studio/community` — a live, linked Studio Community page — was in the `next.config.mjs` orphan-redirect list left over from the skill-economy-LMS cleanup, silently bouncing every visit back to `/studio`. Removed.
+
+**P1 fixed same session:** video comment moderation (held-for-review instead of hard-reject, `migration 2130000000000`), admin audit log for privileged actions (`migration 2140000000000`), Google-OAuth-only account self-deletion (was structurally impossible — no usable password to confirm with), mobile raw `Dio()` bypass in `channel_community_panel.dart`, Playwright a11y-smoke direct-request-to-prod tests now gated like `checkout.spec.ts`.
+
+**Still open, flagged as needing a decision rather than guessed at:** category taxonomy is skill/craft-shaped and every video is forced through it — a product-shape decision, not a bug fix. CSAM/pre-publish scanning is fully no-op (`NoopContentScanProvider`) with no real vendor — needs vendor selection/contract, not engineering. MFA has zero frontend surface on any client (enroll or challenge) despite the backend being complete. AWS OIDC migration and an admin UI for the copyright/strikes backend are scoped but not yet built.
 
 ---
 

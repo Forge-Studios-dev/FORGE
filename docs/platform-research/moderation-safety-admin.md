@@ -1,6 +1,12 @@
 # Moderation, Safety, Copyright & Admin — Platform Research
 
-> Domain doc for the documentation overhaul. Ground-truthed against code on 2026-08-09.
+> **Partially superseded, 2026-08-13.** This doc's §4.2/§5 "High severity" gaps — no account-strike
+> ladder, no appeals mechanism, no copyright/rights pipeline — are **resolved**: `account-strikes/`
+> and `copyright/` modules shipped 2026-08-12 (see [COPYRIGHT_DMCA.md](../COPYRIGHT_DMCA.md) and
+> [ESCALATION_RULES.md](../ESCALATION_RULES.md), the current sources of truth for those systems).
+> The rest of this doc's analysis (Discord/Twitch-shaped community moderation vs. YouTube's actual
+> model, ban-evasion, admin IA gaps) is still current as of the 2026-08-13 zero-trust re-audit.
+> Ground-truthed against code on 2026-08-09.
 > Legal/branding note: per `forge-youtube-replica.md`, this describes **functionality and UX
 > patterns only** — no trademarks, proprietary names, or asset references.
 

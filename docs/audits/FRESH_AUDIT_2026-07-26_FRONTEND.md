@@ -1,5 +1,13 @@
 # FORGE — Fresh Frontend UI/UX/Performance/Accessibility/SEO Audit
 
+> **Historical snapshot — several findings are stale as of 2026-08-13.** The "Bar" line below
+> ("not a YouTube clone") reflects the pre-2026-08-09 product framing, since reversed — FORGE is
+> now the YouTube-replica (`FORGE_PROJECT_MASTER.md` §1). Courses (this doc's Critical #1, zero-SEO
+> course pages) were removed entirely, not fixed. The Button focus-visible gap (High #3) shipped in
+> commit `ee5bb27`. aria-label counts here (10 web / 1 admin) are stale — current counts are far
+> higher. Re-verify any finding against current code/git-blame before actioning; don't diff against
+> this doc as a checklist.
+
 **Date:** 2026-07-26
 **Scope:** `apps/web` (public site, 224 TS/TSX under `src`, 302 total incl. config) and `apps/admin` (37 TS/TSX under `src`, 64 total), plus `packages/design-system` as the shared foundation.
 **Reviewers (persona lenses):** Senior React/Next.js Engineer, Senior UI Designer, Senior UX Researcher, Senior Accessibility Expert, Senior SEO Expert.

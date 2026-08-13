@@ -10,6 +10,7 @@ import { PlaylistsModule } from '../playlists/playlists.module';
 import { ContentModule } from '../content/content.module';
 import { EngagementModule } from '../engagement/engagement.module';
 import { AdminModule } from '../admin/admin.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AdminModule } from '../admin/admin.module';
     forwardRef(() => ContentModule),
     EngagementModule,
     forwardRef(() => AdminModule),
+    AuthModule,
   ],
   controllers: [UsersController],
   providers: [UsersService],

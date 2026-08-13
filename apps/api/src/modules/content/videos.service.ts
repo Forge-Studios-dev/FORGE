@@ -263,9 +263,10 @@ export class VideosService {
     }
   }
 
-  mapToPublicVideo(video: Video): PublicVideo {
+  mapToPublicVideo(video: Video, opts?: { includeDislikeCount?: boolean }): PublicVideo {
     const mapped = toPublicVideo(video, {
       rewriteMediaUrl: (url) => this.rewritePlaybackUrl(url),
+      includeDislikeCount: opts?.includeDislikeCount,
     });
     if (mapped.thumbnailUrl) return mapped;
     const playbackId = muxPlaybackIdFromHlsUrl(mapped.hlsUrl ?? video.hlsUrl);
@@ -1188,7 +1189,7 @@ export class VideosService {
       isAdmin,
     });
 
-    const mapped = this.mapToPublicVideo(video);
+    const mapped = this.mapToPublicVideo(video, { includeDislikeCount: isOwner || isAdmin });
     const pending = await this.getPendingViewCount(id);
     const withViews =
       pending > 0 ? { ...mapped, viewCount: mapped.viewCount + pending } : mapped;

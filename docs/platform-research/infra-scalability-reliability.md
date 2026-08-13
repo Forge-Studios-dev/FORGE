@@ -1,5 +1,14 @@
 # Platform Research — Infrastructure, Scalability & Reliability
 
+> **Partially superseded, 2026-08-13.** Three items this doc lists as gaps are fixed as of
+> 2026-08-11 and confirmed live by independent re-audit: cache-stampede protection
+> (`common/redis/cache-stampede.util.ts`), synthetic monitoring
+> (`.github/workflows/synthetic-monitoring.yml`), and distributed tracing (code was already
+> complete, just not activated — see `OBSERVABILITY.md`). Branch protection and GitHub Action
+> pinning, listed elsewhere as open, are also confirmed live-enabled. Everything else here —
+> compute right-sizing, AWS static-key rotation, multi-region/messaging-scale correctly deferred —
+> was independently re-confirmed current.
+>
 > Companion research doc, not a spec of record. Existing docs (`docs/DEPLOY.md`, `docs/CI_CD.md`, `docs/OBSERVABILITY.md`, `docs/operations/*`, `docs/phases/18-infrastructure/`, `docs/phases/19-performance/`, `docs/audits/*`) remain the operational reference; this file is the gap analysis behind a future revision of them.
 
 ## 1. Overview & scope

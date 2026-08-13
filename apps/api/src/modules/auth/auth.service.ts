@@ -506,6 +506,46 @@ export class AuthService {
   }
 
   /** Authenticated password change — verifies current password, then revokes other sessions. */
+  private static readonly ACCOUNT_DELETION_PURPOSE = 'delete-account';
+
+  /**
+   * Google-OAuth-only signups get a random, never-disclosed password
+   * (see loginWithGoogle), so DELETE /users/me's password check structurally
+   * can never succeed for them. This is the alternate step-up: a short-lived,
+   * emailed confirmation link stands in for "current password."
+   */
+  async requestAccountDeletion(userId: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const token = this.jwtService.sign(
+      { sub: user.id, purpose: AuthService.ACCOUNT_DELETION_PURPOSE },
+      { secret: this.configService.get<string>('jwt.secret'), expiresIn: '15m' },
+    );
+    const webUrl = this.configService.get<string>('mail.webUrl') || 'http://localhost:3000';
+    const link = `${webUrl}/settings/delete-account?confirmationToken=${encodeURIComponent(token)}`;
+    await this.mailService.sendMail(
+      user.email,
+      'Confirm your FORGE account deletion',
+      `Confirm permanent deletion of your FORGE account (this link expires in 15 minutes):\n${link}\n\nIf you didn't request this, you can safely ignore this email.`,
+    );
+  }
+
+  /** Throws unless `token` is a live, unexpired deletion-confirmation token issued to `userId`. */
+  verifyAccountDeletionToken(token: string, userId: string): void {
+    let payload: { sub?: string; purpose?: string };
+    try {
+      payload = this.jwtService.verify(token, {
+        secret: this.configService.get<string>('jwt.secret'),
+      });
+    } catch {
+      throw new UnauthorizedException('Deletion confirmation link expired or invalid — request a new one');
+    }
+    if (payload.purpose !== AuthService.ACCOUNT_DELETION_PURPOSE || payload.sub !== userId) {
+      throw new UnauthorizedException('Invalid deletion confirmation token');
+    }
+  }
+
   /** Re-confirms the current password for a sensitive self-service action (e.g. disabling MFA). */
   async assertPasswordValid(userId: string, currentPassword: string): Promise<void> {
     const user = await this.userRepository.findOne({ where: { id: userId } });

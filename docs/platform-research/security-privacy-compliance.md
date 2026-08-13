@@ -1,6 +1,12 @@
 # Security, Privacy & Compliance — Platform Research
 
-> Domain doc for the documentation overhaul. Ground-truthed against code on 2026-08-09.
+> **Partially superseded, 2026-08-13.** This doc's claims of "no MFA/2FA anywhere" and "no
+> self-service account deletion or data export" are **false as of today** — TOTP MFA
+> (`auth-mfa.service.ts`) and self-service export/deletion (`GET/DELETE /users/me`) both shipped
+> 2026-08-11. See [PLATFORM_AUDIT_2026-08-09.md](../PLATFORM_AUDIT_2026-08-09.md) for the
+> corrected status and the real remaining gaps (Google-OAuth login bypassed MFA until fixed
+> 2026-08-13; Google-OAuth-only accounts couldn't self-delete until fixed the same day).
+> Ground-truthed against code on 2026-08-09.
 > Legal/branding note: per `forge-youtube-replica.md`, this describes **functionality and UX
 > patterns only** — no trademarks, proprietary names, or asset references. This document is
 > operational/engineering guidance, not legal advice (same caveat as `docs/LEGAL.md`).

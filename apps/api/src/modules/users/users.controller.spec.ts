@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import { UsersController } from './users.controller';
@@ -6,6 +6,7 @@ import { UsersService } from './users.service';
 import { PlaylistsService } from '../playlists/playlists.service';
 import { EngagementService } from '../engagement/engagement.service';
 import { AdminService } from '../admin/admin.service';
+import { AuthService } from '../auth/auth.service';
 import { UserRole } from './entities/user.entity';
 
 describe('UsersController self-service account actions', () => {
@@ -28,6 +29,9 @@ describe('UsersController self-service account actions', () => {
   const playlistsService = { listByUser: jest.fn().mockResolvedValue([]) };
   const engagementService = {};
   const adminService = { deleteUser: jest.fn().mockResolvedValue({ ok: true }) };
+  const authService = {
+    verifyAccountDeletionToken: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -40,6 +44,7 @@ describe('UsersController self-service account actions', () => {
         { provide: PlaylistsService, useValue: playlistsService },
         { provide: EngagementService, useValue: engagementService },
         { provide: AdminService, useValue: adminService },
+        { provide: AuthService, useValue: authService },
       ],
     }).compile();
 
@@ -62,6 +67,32 @@ describe('UsersController self-service account actions', () => {
       });
       expect(result).toEqual({ ok: true });
       expect(adminService.deleteUser).toHaveBeenCalledWith('user-1');
+    });
+
+    it('deletes the account via a valid confirmationToken (Google-OAuth-only path)', async () => {
+      const result = await controller.deleteMyAccount({ sub: 'user-1' } as any, {
+        confirmationToken: 'tok-1',
+      });
+      expect(authService.verifyAccountDeletionToken).toHaveBeenCalledWith('tok-1', 'user-1');
+      expect(result).toEqual({ ok: true });
+      expect(adminService.deleteUser).toHaveBeenCalledWith('user-1');
+    });
+
+    it('rejects an invalid confirmationToken without deleting', async () => {
+      authService.verifyAccountDeletionToken.mockImplementationOnce(() => {
+        throw new UnauthorizedException('Invalid deletion confirmation token');
+      });
+      await expect(
+        controller.deleteMyAccount({ sub: 'user-1' } as any, { confirmationToken: 'bad' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(adminService.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it('rejects when neither currentPassword nor confirmationToken is provided', async () => {
+      await expect(
+        controller.deleteMyAccount({ sub: 'user-1' } as any, {}),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(adminService.deleteUser).not.toHaveBeenCalled();
     });
   });
 

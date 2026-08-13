@@ -1,4 +1,4 @@
-import { Comment } from './entities/comment.entity';
+import { Comment, CommentModerationStatus } from './entities/comment.entity';
 import { toPublicUser, PublicUser } from '../users/user.mapper';
 
 export type PublicComment = {
@@ -15,11 +15,18 @@ export type PublicComment = {
   viewerLiked?: boolean;
   viewerDisliked?: boolean;
   createdAt: Date;
+  /** Only populated for the video owner/admin — flags a comment awaiting moderation review. */
+  moderationStatus?: CommentModerationStatus;
 };
 
 export function toPublicComment(
   comment: Comment,
-  extras?: { viewerLiked?: boolean; viewerDisliked?: boolean; replyCount?: number },
+  extras?: {
+    viewerLiked?: boolean;
+    viewerDisliked?: boolean;
+    replyCount?: number;
+    includeModerationStatus?: boolean;
+  },
 ): PublicComment {
   return {
     id: comment.id,
@@ -35,5 +42,6 @@ export function toPublicComment(
     viewerLiked: extras?.viewerLiked,
     viewerDisliked: extras?.viewerDisliked,
     createdAt: comment.createdAt,
+    moderationStatus: extras?.includeModerationStatus ? comment.moderationStatus : undefined,
   };
 }

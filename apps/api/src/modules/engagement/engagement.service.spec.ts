@@ -104,19 +104,94 @@ describe('EngagementService', () => {
     expect(videoRepo.increment).toHaveBeenCalledWith({ id: 'video-1' }, 'commentCount', 1);
   });
 
-  it('blocks a comment flagged as spam by automated moderation', async () => {
+  it('holds (does not reject) a comment flagged as spam, for owner review', async () => {
     const redis = (service as any).redis;
     redis.set = jest.fn().mockResolvedValue('OK');
     const blockRepo = (service as any).userBlockRepository;
     blockRepo.findOne.mockResolvedValue(null);
     const commentRepo = (service as any).commentRepository;
+    commentRepo.create.mockImplementation((row: unknown) => row);
+    commentRepo.save.mockResolvedValue({ id: 'c1' });
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      userId: 'viewer-1',
+      videoId: 'video-1',
+      content: 'buy now buy now buy now click here free money',
+      moderationStatus: 'held',
+      user: { id: 'viewer-1' },
+    });
+    const eventEmitter = (service as any).eventEmitter;
 
-    await expect(
-      service.createComment('viewer-1', 'video-1', {
-        content: 'buy now buy now buy now click here free money',
-      } as any),
-    ).rejects.toThrow('Comment blocked by automated moderation');
-    expect(commentRepo.save).not.toHaveBeenCalled();
+    const result = await service.createComment('viewer-1', 'video-1', {
+      content: 'buy now buy now buy now click here free money',
+    } as any);
+
+    expect(commentRepo.save).toHaveBeenCalled();
+    expect(commentRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ moderationStatus: 'held' }),
+    );
+    expect(result.moderationStatus).toBe('held');
+    expect(eventEmitter.emit).not.toHaveBeenCalledWith('comment.created', expect.anything());
+  });
+
+  it('excludes held/blocked comments from a non-owner viewer', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    commentRepo.createQueryBuilder.mockReturnValue(qb);
+    commentRepo.count.mockResolvedValue(0);
+
+    await service.getComments('video-1', 20, undefined, 'viewer-1');
+    expect(qb.andWhere).toHaveBeenCalledWith('c.moderationStatus = :none', { none: 'none' });
+  });
+
+  it('does not filter held/blocked comments for the video owner', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    commentRepo.createQueryBuilder.mockReturnValue(qb);
+    commentRepo.count.mockResolvedValue(0);
+
+    await service.getComments('video-1', 20, undefined, 'owner');
+    expect(qb.andWhere).not.toHaveBeenCalledWith('c.moderationStatus = :none', { none: 'none' });
+  });
+
+  it('approveComment clears the hold for the video owner', async () => {
+    const commentRepo = (service as any).commentRepository;
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      videoId: 'v1',
+      userId: 'viewer-1',
+      moderationStatus: 'held',
+      user: { id: 'viewer-1' },
+    });
+    commentRepo.save.mockImplementation((row: unknown) => row);
+
+    const result = await service.approveComment('owner', 'v1', 'c1');
+    expect(commentRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ moderationStatus: 'none' }),
+    );
+    expect(result.moderationStatus).toBe('none');
+  });
+
+  it('approveComment rejects a non-owner', async () => {
+    await expect(service.approveComment('not-owner', 'v1', 'c1')).rejects.toThrow(
+      'Only the video owner can manage this',
+    );
   });
 
   it('orders top comments by pin then likeCount', async () => {

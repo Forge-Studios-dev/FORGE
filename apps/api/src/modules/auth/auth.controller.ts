@@ -164,6 +164,19 @@ export class AuthController {
     return { ok: true };
   }
 
+  @Post('account-deletion/request')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Email a short-lived account-deletion confirmation link',
+    description:
+      'For accounts with no usable password (Google-OAuth-only) — use confirmationToken in place of currentPassword on DELETE /users/me.',
+  })
+  async requestAccountDeletion(@CurrentUser() user: JwtPayload) {
+    await this.authService.requestAccountDeletion(user.sub);
+    return { ok: true };
+  }
+
   @Public()
   @Get('google')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })

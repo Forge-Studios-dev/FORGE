@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/s3_upload_client.dart';
 import 'multipart_upload.dart';
 
 final uploadRepositoryProvider = Provider<UploadRepository>((ref) {
@@ -310,7 +311,7 @@ class UploadRepository {
     );
     final uploadUrl = presignRes.data['data']['uploadUrl'] as String;
     final publicUrl = presignRes.data['data']['publicUrl'] as String?;
-    final put = await Dio().put(
+    final put = await createS3UploadDio().put(
       uploadUrl,
       data: await File(filePath).readAsBytes(),
       options: Options(

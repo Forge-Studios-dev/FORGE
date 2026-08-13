@@ -10,7 +10,7 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { In, IsNull, Repository } from 'typeorm';
 import { Like, VideoReactionType } from './entities/like.entity';
-import { Comment } from './entities/comment.entity';
+import { Comment, CommentModerationStatus } from './entities/comment.entity';
 import { CommentLike, CommentReactionType } from './entities/comment-like.entity';
 import { Follow, FollowNotifyLevel } from './entities/follow.entity';
 import { UserBlock } from './entities/user-block.entity';
@@ -319,15 +319,19 @@ export class EngagementService {
       }
     }
 
-    if (this.aiModeration.scoreSpam(dto.content).flagged) {
-      throw new ForbiddenException('Comment blocked by automated moderation');
-    }
+    // Held (not hard-rejected): a false positive stays reviewable by the video
+    // owner instead of being silently, unappealably destroyed.
+    const moderation = await this.aiModeration.scoreContent(dto.content);
+    const moderationStatus = moderation.flagged
+      ? CommentModerationStatus.HELD
+      : CommentModerationStatus.NONE;
 
     const comment = this.commentRepository.create({
       userId,
       videoId,
       content: dto.content,
       parentId: dto.parentId,
+      moderationStatus,
     });
     const saved = await this.commentRepository.save(comment);
     await this.videoRepository.increment({ id: videoId }, 'commentCount', 1);
@@ -338,12 +342,16 @@ export class EngagementService {
     });
 
     if (full) {
-      this.eventEmitter.emit('comment.created', {
-        videoId,
-        comment: full,
-        videoOwnerId: video.userId,
+      if (moderationStatus === CommentModerationStatus.NONE) {
+        this.eventEmitter.emit('comment.created', {
+          videoId,
+          comment: full,
+          videoOwnerId: video.userId,
+        });
+      }
+      return toPublicComment(full, {
+        includeModerationStatus: moderationStatus !== CommentModerationStatus.NONE,
       });
-      return toPublicComment(full);
     }
 
     throw new NotFoundException('Comment not found after create');
@@ -365,7 +373,8 @@ export class EngagementService {
     viewerId?: string,
     sort: 'newest' | 'top' | 'oldest' = 'newest',
   ) {
-    await this.assertCanAccessVideoComments(videoId, viewerId);
+    const video = await this.assertCanAccessVideoComments(videoId, viewerId);
+    const isOwner = !!viewerId && viewerId === video.userId;
 
     const query = this.commentRepository
       .createQueryBuilder('c')
@@ -374,6 +383,10 @@ export class EngagementService {
       .andWhere('c.parentId IS NULL')
       .andWhere('c.deletedAt IS NULL')
       .take(limit + 1);
+
+    if (!isOwner) {
+      query.andWhere('c.moderationStatus = :none', { none: CommentModerationStatus.NONE });
+    }
 
     if (viewerId) {
       const blockedIds = await this.getBlockedPeerIds(viewerId);
@@ -444,7 +457,12 @@ export class EngagementService {
       : null;
 
     const total = await this.commentRepository.count({
-      where: { videoId, parentId: IsNull(), deletedAt: IsNull() },
+      where: {
+        videoId,
+        parentId: IsNull(),
+        deletedAt: IsNull(),
+        ...(isOwner ? {} : { moderationStatus: CommentModerationStatus.NONE }),
+      },
     });
 
     const likedIds = viewerId
@@ -462,6 +480,7 @@ export class EngagementService {
           viewerLiked: likedIds.has(c.id),
           viewerDisliked: dislikedIds.has(c.id),
           replyCount: replyCounts.get(c.id) ?? 0,
+          includeModerationStatus: isOwner,
         }),
       ),
       meta: { cursor: nextCursor, hasMore, total, sort },
@@ -470,13 +489,21 @@ export class EngagementService {
 
   /** Single comment for deep links (`?lc=`). */
   async getComment(videoId: string, commentId: string, viewerId?: string) {
-    await this.assertCanAccessVideoComments(videoId, viewerId);
+    const video = await this.assertCanAccessVideoComments(videoId, viewerId);
+    const isOwner = !!viewerId && viewerId === video.userId;
 
     const comment = await this.commentRepository.findOne({
       where: { id: commentId, videoId, deletedAt: IsNull() },
       relations: ['user'],
     });
     if (!comment) throw new NotFoundException('Comment not found');
+    if (
+      comment.moderationStatus &&
+      comment.moderationStatus !== CommentModerationStatus.NONE &&
+      !isOwner
+    ) {
+      throw new NotFoundException('Comment not found');
+    }
 
     if (viewerId && (await this.isBlockedEitherWay(viewerId, comment.userId))) {
       throw new NotFoundException('Comment not found');
@@ -497,6 +524,7 @@ export class EngagementService {
       viewerLiked: likedIds.has(comment.id),
       viewerDisliked: dislikedIds.has(comment.id),
       replyCount: replyCounts.get(comment.id) ?? 0,
+      includeModerationStatus: isOwner,
     });
   }
 
@@ -524,7 +552,8 @@ export class EngagementService {
     cursor?: string,
     viewerId?: string,
   ) {
-    await this.assertCanAccessVideoComments(videoId, viewerId);
+    const video = await this.assertCanAccessVideoComments(videoId, viewerId);
+    const isOwner = !!viewerId && viewerId === video.userId;
 
     const parent = await this.commentRepository.findOne({
       where: { id: commentId, videoId, deletedAt: IsNull() },
@@ -538,6 +567,10 @@ export class EngagementService {
       .andWhere('c.deletedAt IS NULL')
       .orderBy('c.createdAt', 'ASC')
       .take(limit + 1);
+
+    if (!isOwner) {
+      query.andWhere('c.moderationStatus = :none', { none: CommentModerationStatus.NONE });
+    }
 
     if (viewerId) {
       const blockedIds = await this.getBlockedPeerIds(viewerId);
@@ -570,6 +603,7 @@ export class EngagementService {
         toPublicComment(c, {
           viewerLiked: likedIds.has(c.id),
           viewerDisliked: dislikedIds.has(c.id),
+          includeModerationStatus: isOwner,
         }),
       ),
       meta: { cursor: nextCursor, hasMore },
@@ -817,6 +851,22 @@ export class EngagementService {
     comment.creatorHearted = creatorHearted;
     const saved = await this.commentRepository.save(comment);
     return toPublicComment(saved);
+  }
+
+  /** Video owner releases a held (auto-flagged) comment back to public view. */
+  async approveComment(actorId: string, videoId: string, commentId: string) {
+    await this.assertVideoOwner(actorId, videoId);
+    const comment = await this.commentRepository.findOne({
+      where: { id: commentId, videoId, deletedAt: IsNull() },
+      relations: ['user'],
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
+
+    comment.moderationStatus = CommentModerationStatus.NONE;
+    comment.moderatedAt = new Date();
+    const saved = await this.commentRepository.save(comment);
+
+    return toPublicComment(saved, { includeModerationStatus: true });
   }
 
   async follow(followerId: string, followingId: string) {

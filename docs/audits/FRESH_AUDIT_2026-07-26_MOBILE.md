@@ -1,5 +1,13 @@
 # FORGE Mobile — Fresh Production-Readiness Audit
 
+> **Partially stale, 2026-08-13.** Accessibility has measurably progressed since this audit —
+> `PHASE_21_A11Y.md`'s phased sweep (started 2026-08-11) is the current source of truth for a11y
+> status, not this doc's counts. H1's "71% of presentation-layer files bypass the repository layer"
+> conflates two distinct issues: most of those are calling the sanctioned `ApiClient` directly
+> (a real but lower-severity maintainability gap) rather than raw, unpinned `Dio()` outside
+> `core/network` (a narrower, security-relevant gap — one real instance found and fixed
+> 2026-08-13 in `channel_community_panel.dart`). Re-verify before treating either count as current.
+
 **Date:** 2026-07-26
 **Scope:** `/Users/rahulbhanushali/Desktop/FORGE/apps/mobile` (Flutter, Riverpod, go_router)
 **Auditor role:** Senior Flutter Engineer + Senior Mobile Performance Expert

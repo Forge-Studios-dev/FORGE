@@ -31,7 +31,7 @@
 
 | KPI | Definition | API field | Notes |
 |-----|-----------|-----------|-------|
-| **Engagement Score** | 0–100 weighted composite: active chatters (40%) + post authors (30%) + course enrollments (30%) relative to total member base | `kpis.engagementScore` | Capped at 100 |
+| **Engagement Score** | 0–100 weighted composite relative to total member base. **Default (FEATURES_SKILL_ECONOMY_LMS off, i.e. every current deployment):** active chatters (55%) + post authors (45%). **With the flag on:** chatters (40%) + post authors (30%) + course enrollments (30%). See `community-analytics.service.ts`. | `kpis.engagementScore` | Capped at 100 |
 | **Active Members (7d)** | Count of members who sent at least 1 message in last 7 days | `activeMembersLast7Days` | From community analytics |
 | **Messages (7d)** | Total chat messages in last 7 days | `messagesLast7Days` | |
 | **Posts (7d)** | Community posts created in last 7 days | `postsLast7Days` | |

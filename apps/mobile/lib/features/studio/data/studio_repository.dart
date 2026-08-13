@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import 'dart:io';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/s3_upload_client.dart';
 import '../../../shared/models/video.dart';
 
 final studioRepositoryProvider = Provider<StudioRepository>((ref) {
@@ -133,7 +134,7 @@ class StudioRepository {
     final uploadUrl = data['uploadUrl'] as String;
     final publicUrl = data['publicUrl'] as String;
 
-    final put = await Dio().put(
+    final put = await createS3UploadDio().put(
       uploadUrl,
       data: await File(filePath).readAsBytes(),
       options: Options(
@@ -177,7 +178,7 @@ class StudioRepository {
     final uploadUrl = data['uploadUrl'] as String;
     final publicUrl = data['publicUrl'] as String;
 
-    final put = await Dio().put(
+    final put = await createS3UploadDio().put(
       uploadUrl,
       data: await File(filePath).readAsBytes(),
       options: Options(

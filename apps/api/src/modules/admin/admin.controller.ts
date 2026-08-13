@@ -41,6 +41,7 @@ import { AccountStrikesService } from '../account-strikes/account-strikes.servic
 import { IssueStrikeDto } from '../account-strikes/dto/issue-strike.dto';
 import { ResolveAppealDto } from '../account-strikes/dto/resolve-appeal.dto';
 import { CopyrightService } from '../copyright/copyright.service';
+import { AdminAuditLogService } from '../../common/audit/admin-audit-log.service';
 
 class RejectCreatorDto {
   @ApiPropertyOptional()
@@ -75,24 +76,57 @@ export class AdminController {
     private readonly databaseObservability: DatabaseObservabilityService,
     private readonly accountStrikesService: AccountStrikesService,
     private readonly copyrightService: CopyrightService,
+    private readonly adminAuditLog: AdminAuditLogService,
   ) {}
+
+  @Get('audit-log')
+  @ApiOperation({ summary: 'Privileged admin action history (strikes, appeals, impersonation, termination, ...)' })
+  listAuditLog(
+    @Query('page') page = 1,
+    @Query('limit') limit = 50,
+    @Query('action') action?: string,
+    @Query('actorId') actorId?: string,
+    @Query('targetId') targetId?: string,
+  ) {
+    return this.adminAuditLog.list({ page, limit, action, actorId, targetId });
+  }
 
   @Post('copyright/counter-notices/:id/reject')
   @ApiOperation({
     summary: 'Reject a pending counter-notice (e.g. claimant reported litigation)',
     description: 'Blocks the automatic reinstatement this counter-notice would otherwise get.',
   })
-  rejectCounterNotice(@Param('id', ParseUUIDPipe) id: string) {
-    return this.copyrightService.rejectCounterNotice(id);
+  async rejectCounterNotice(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
+    const result = await this.copyrightService.rejectCounterNotice(id);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'copyright.counter_notice.reject',
+      targetType: 'copyright_counter_notice',
+      targetId: id,
+    });
+    return result;
   }
 
   @Post('users/:userId/strikes')
   @ApiOperation({ summary: 'Issue an account strike (community-guideline or copyright)' })
-  issueStrike(@Param('userId', ParseUUIDPipe) userId: string, @Body() dto: IssueStrikeDto) {
-    return this.accountStrikesService.issueStrike(userId, dto.type, dto.reason, {
+  async issueStrike(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() dto: IssueStrikeDto,
+    @CurrentUser() admin: JwtPayload,
+  ) {
+    const strike = await this.accountStrikesService.issueStrike(userId, dto.type, dto.reason, {
       sourceVideoId: dto.sourceVideoId,
       sourceReportId: dto.sourceReportId,
     });
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'strike.issue',
+      targetType: 'user',
+      targetId: userId,
+      reason: dto.reason,
+      metadata: { strikeId: strike.id, type: dto.type, consequence: strike.consequence },
+    });
+    return strike;
   }
 
   @Get('users/:userId/strikes')
@@ -103,11 +137,20 @@ export class AdminController {
 
   @Patch('strikes/:strikeId/appeal')
   @ApiOperation({ summary: 'Grant or deny a pending strike appeal' })
-  resolveStrikeAppeal(
+  async resolveStrikeAppeal(
     @Param('strikeId', ParseUUIDPipe) strikeId: string,
     @Body() dto: ResolveAppealDto,
+    @CurrentUser() admin: JwtPayload,
   ) {
-    return this.accountStrikesService.resolveAppeal(strikeId, dto.granted);
+    const strike = await this.accountStrikesService.resolveAppeal(strikeId, dto.granted);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'strike.appeal.resolve',
+      targetType: 'account_strike',
+      targetId: strikeId,
+      metadata: { granted: dto.granted },
+    });
+    return strike;
   }
 
   @Get('users')
@@ -182,8 +225,15 @@ export class AdminController {
 
   @Post('users/:id/impersonate')
   @ApiOperation({ summary: 'Create a short-lived link to sign in on web as this user' })
-  impersonateUser(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
-    return this.adminService.createImpersonation(admin.sub, id);
+  async impersonateUser(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
+    const result = await this.adminService.createImpersonation(admin.sub, id);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'user.impersonate',
+      targetType: 'user',
+      targetId: id,
+    });
+    return result;
   }
 
   @Patch('users/bulk')
@@ -195,18 +245,33 @@ export class AdminController {
 
   @Patch('users/:id')
   @ApiOperation({ summary: 'Update user role or status (admin)' })
-  updateUser(
+  async updateUser(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAdminUserDto,
     @CurrentUser() admin: JwtPayload,
   ) {
-    return this.adminService.updateUser(id, dto, admin.sub);
+    const result = await this.adminService.updateUser(id, dto, admin.sub);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'user.update',
+      targetType: 'user',
+      targetId: id,
+      metadata: dto as Record<string, unknown>,
+    });
+    return result;
   }
 
   @Delete('users/:id')
   @ApiOperation({ summary: 'Soft-delete user account (admin)' })
-  deleteUser(@Param('id', ParseUUIDPipe) id: string) {
-    return this.adminService.deleteUser(id);
+  async deleteUser(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
+    const result = await this.adminService.deleteUser(id);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'user.delete',
+      targetType: 'user',
+      targetId: id,
+    });
+    return result;
   }
 
   @Post('users/:id/resend-verification')
@@ -323,12 +388,20 @@ export class AdminController {
 
   @Patch('videos/:id')
   @ApiOperation({ summary: 'Moderate or update video (admin)' })
-  updateVideo(
+  async updateVideo(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAdminVideoDto,
     @CurrentUser() admin: JwtPayload,
   ) {
-    return this.adminService.moderateVideo(id, admin.sub, dto);
+    const result = await this.adminService.moderateVideo(id, admin.sub, dto);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'video.moderate',
+      targetType: 'video',
+      targetId: id,
+      metadata: dto as unknown as Record<string, unknown>,
+    });
+    return result;
   }
 
   @Get('reports')

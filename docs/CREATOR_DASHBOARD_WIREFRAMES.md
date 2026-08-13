@@ -89,7 +89,7 @@
 │  ┌──────────────────────────┬──────────────────────────┐       │
 │  │ Subscription tiers       │ One-time                  │       │
 │  │ Basic $9     → 120 subs  │ Paid events  → $840       │       │
-│  │ Pro   $29    →  98 subs  │ Course sales → $2,400     │       │
+│  │ Pro   $29    →  98 subs  │ Super Chat/Thanks → $2,400│       │
 │  │ VIP   $99    →  29 subs  │                           │       │
 │  └──────────────────────────┴──────────────────────────┘       │
 │                                                                  │

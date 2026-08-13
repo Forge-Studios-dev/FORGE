@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -30,6 +31,7 @@ import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
 import { EngagementService } from '../engagement/engagement.service';
 import { AdminService } from '../admin/admin.service';
+import { AuthService } from '../auth/auth.service';
 import {
   CompleteProfileImageUploadDto,
   PresignProfileImageUploadDto,
@@ -48,6 +50,7 @@ export class UsersController {
     private readonly playlistsService: PlaylistsService,
     private readonly engagementService: EngagementService,
     private readonly adminService: AdminService,
+    private readonly authService: AuthService,
   ) {}
 
   @Get('me')
@@ -84,13 +87,19 @@ export class UsersController {
   @ApiOperation({
     summary: 'Delete current user account (self-service)',
     description:
-      'Requires current password. Anonymizes the account, hides owned videos, and ends active streams — same effect as the admin-triggered deletion.',
+      'Requires currentPassword, or confirmationToken (from POST /auth/account-deletion/request) for Google-OAuth-only accounts that have no usable password. Anonymizes the account, hides owned videos, and ends active streams — same effect as the admin-triggered deletion.',
   })
   async deleteMyAccount(@CurrentUser() user: JwtPayload, @Body() dto: DeleteAccountDto) {
-    const profile = await this.usersService.findById(user.sub);
-    const passwordValid = await bcrypt.compare(dto.currentPassword, profile.passwordHash);
-    if (!passwordValid) {
-      throw new UnauthorizedException('Current password is incorrect');
+    if (dto.confirmationToken) {
+      this.authService.verifyAccountDeletionToken(dto.confirmationToken, user.sub);
+    } else if (dto.currentPassword) {
+      const profile = await this.usersService.findById(user.sub);
+      const passwordValid = await bcrypt.compare(dto.currentPassword, profile.passwordHash);
+      if (!passwordValid) {
+        throw new UnauthorizedException('Current password is incorrect');
+      }
+    } else {
+      throw new BadRequestException('currentPassword or confirmationToken is required');
     }
     return this.adminService.deleteUser(user.sub);
   }

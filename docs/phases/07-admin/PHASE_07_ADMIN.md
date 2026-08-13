@@ -4,14 +4,21 @@
 
 ## Goal
 
-Make admin navigation discoverable and consistent with product chrome: grouped NAV, search reachable, dual theme. Keep non-YouTube oversight (mentorship, channel points) reachable without polluting primary IA.
+Make admin navigation discoverable and consistent with product chrome: grouped NAV, search reachable, dual theme.
 
 ## Shipped
 
 - `AdminShell` NAV groups: Overview / Moderation / Community / Platform
 - Header Search shortcut (desktop + mobile)
 - `ThemeProvider` + light/dark toggle (`forge-admin-theme` storage)
-- Settings → **Additional tools**: Mentorship oversight + Channel points (off primary sidebar by design)
+
+## Superseded, 2026-08-12
+
+This phase originally kept Mentorship/Channel-points oversight reachable off the primary sidebar
+via Settings → "Additional tools." Those admin routes (`apps/admin/src/app/{mentorship,channel-points}`)
+are now dead-redirect stubs to `/dashboard` — retired along with the rest of the skill-economy LMS
+frontend surface (see `FORGE_PROJECT_MASTER.md` §1, `settings/page.tsx`). There is no oversight
+tooling left to reach; treat the line above as historical, not current IA.
 
 ## Deferred
 

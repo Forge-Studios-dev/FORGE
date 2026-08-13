@@ -259,6 +259,18 @@ export class EngagementController {
     );
   }
 
+  @Post('videos/:videoId/comments/:commentId/approve')
+  @Permissions(Permission.ENGAGE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Release a held (auto-flagged) comment back to public view (video owner)' })
+  approveComment(
+    @CurrentUser() user: JwtPayload,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+  ) {
+    return this.engagementService.approveComment(user.sub, videoId, commentId);
+  }
+
   @Post('follow/:userId')
   @Permissions(Permission.ENGAGE)
   @HttpCode(HttpStatus.OK)
