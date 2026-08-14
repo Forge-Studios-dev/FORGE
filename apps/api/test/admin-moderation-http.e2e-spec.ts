@@ -28,6 +28,9 @@ import { EntitlementsService } from '../src/modules/entitlements/entitlements.se
 import { AuthUserCacheService } from '../src/modules/auth/auth-user-cache.service';
 import { AuthSessionCacheService } from '../src/modules/auth/auth-session-cache.service';
 import { DatabaseObservabilityService } from '../src/database/database-observability.service';
+import { AccountStrikesService } from '../src/modules/account-strikes/account-strikes.service';
+import { CopyrightService } from '../src/modules/copyright/copyright.service';
+import { AdminAuditLogService } from '../src/common/audit/admin-audit-log.service';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { RolesGuard } from '../src/common/guards/roles.guard';
 import { JwtStrategy } from '../src/modules/auth/strategies/jwt.strategy';
@@ -38,6 +41,7 @@ import { Comment } from '../src/modules/engagement/entities/comment.entity';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 
 const JWT_SECRET = 'test-secret-for-admin-moderation-e2e';
+const REPORT_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('Admin moderation HTTP guard + action (HIGH-07)', () => {
   let app: INestApplication;
@@ -83,6 +87,9 @@ describe('Admin moderation HTTP guard + action (HIGH-07)', () => {
         { provide: AdminService, useValue: {} },
         { provide: EntitlementsService, useValue: {} },
         { provide: DatabaseObservabilityService, useValue: {} },
+        { provide: AccountStrikesService, useValue: {} },
+        { provide: CopyrightService, useValue: {} },
+        { provide: AdminAuditLogService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
       ],
@@ -109,7 +116,7 @@ describe('Admin moderation HTTP guard + action (HIGH-07)', () => {
 
   it('401s with no JWT at all', async () => {
     await request(app.getHttpServer())
-      .patch('/api/v1/admin/reports/report-1')
+      .patch(`/api/v1/admin/reports/${REPORT_ID}`)
       .send({ status: ReportStatus.REVIEWED })
       .expect(401);
     expect(reportRepository.update).not.toHaveBeenCalled();
@@ -126,7 +133,7 @@ describe('Admin moderation HTTP guard + action (HIGH-07)', () => {
     });
     const token = signToken(UserRole.USER);
     await request(app.getHttpServer())
-      .patch('/api/v1/admin/reports/report-1')
+      .patch(`/api/v1/admin/reports/${REPORT_ID}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ status: ReportStatus.REVIEWED })
       .expect(403);
@@ -145,14 +152,14 @@ describe('Admin moderation HTTP guard + action (HIGH-07)', () => {
     const token = signToken(UserRole.ADMIN);
 
     const res = await request(app.getHttpServer())
-      .patch('/api/v1/admin/reports/report-1')
+      .patch(`/api/v1/admin/reports/${REPORT_ID}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ status: ReportStatus.REVIEWED })
       .expect(200);
 
     expect(res.body.data).toEqual({ ok: true });
     expect(reportRepository.update).toHaveBeenCalledWith(
-      'report-1',
+      REPORT_ID,
       expect.objectContaining({ status: ReportStatus.REVIEWED }),
     );
   });

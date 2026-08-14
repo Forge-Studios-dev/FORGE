@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { StreamChatService } from './stream-chat.service';
 import { SubmitQuestionDto, SetQuestionStatusDto } from './dto/stream-qa.dto';
@@ -18,7 +18,7 @@ export class StreamQaController {
   @Get()
   @ApiOperation({ summary: 'List Q&A questions for a stream (sorted by upvotes)' })
   list(
-    @Param('streamId') streamId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
     @Query('status') status?: StreamQuestionStatus,
     @CurrentUser() user?: JwtPayload,
   ) {
@@ -28,7 +28,7 @@ export class StreamQaController {
   @Post()
   @ApiOperation({ summary: 'Submit a question to the stream Q&A' })
   submit(
-    @Param('streamId') streamId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: SubmitQuestionDto,
   ) {
@@ -38,8 +38,8 @@ export class StreamQaController {
   @Post(':questionId/upvote')
   @ApiOperation({ summary: 'Toggle an upvote on a question' })
   upvote(
-    @Param('streamId') streamId: string,
-    @Param('questionId') questionId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.streamChatService.upvoteQuestion(streamId, questionId, user.sub, user.role);
@@ -48,8 +48,8 @@ export class StreamQaController {
   @Patch(':questionId/status')
   @ApiOperation({ summary: 'Set a question status (owner or delegated moderator)' })
   setStatus(
-    @Param('streamId') streamId: string,
-    @Param('questionId') questionId: string,
+    @Param('streamId', ParseUUIDPipe) streamId: string,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: SetQuestionStatusDto,
   ) {

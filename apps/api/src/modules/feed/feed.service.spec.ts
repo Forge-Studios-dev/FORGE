@@ -7,11 +7,15 @@ import { Follow } from '../engagement/entities/follow.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { Category } from '../categories/entities/category.entity';
 import { VideosService } from '../content/videos.service';
+import { RecommendationsService } from '../content/recommendations.service';
 import { EngagementService } from '../engagement/engagement.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 
 describe('FeedService', () => {
   let service: FeedService;
+  const recommendationsService = {
+    getPersonalizedFeed: jest.fn().mockResolvedValue({ data: [], total: 0 }),
+  };
 
   const redis = {
     get: jest.fn(),
@@ -49,6 +53,7 @@ describe('FeedService', () => {
   };
   const engagementService = {
     getFollowingCreatorIds: jest.fn().mockResolvedValue([]),
+    getBlockedPeerIds: jest.fn().mockResolvedValue([]),
   };
   const entitlementsService = {
     listMySubscriptions: jest.fn().mockResolvedValue([]),
@@ -87,6 +92,10 @@ describe('FeedService', () => {
         { provide: VideosService, useValue: videosService },
         { provide: EngagementService, useValue: engagementService },
         { provide: EntitlementsService, useValue: entitlementsService },
+        {
+          provide: RecommendationsService,
+          useValue: recommendationsService,
+        },
       ],
     }).compile();
 
@@ -131,10 +140,13 @@ describe('FeedService', () => {
       redis.get.mockResolvedValue(
         JSON.stringify({ data: [], meta: { cursor: null, hasMore: false } }),
       );
-
       await service.getFeed({ sort: 'forYou', userId: 'user-1' });
 
-      expect(videoRepository.createQueryBuilder).toHaveBeenCalled();
+      expect(recommendationsService.getPersonalizedFeed).toHaveBeenCalledWith('user-1', {
+        limit: 21,
+        offset: 0,
+      });
+      expect(videoRepository.createQueryBuilder).not.toHaveBeenCalled();
     });
 
     it('falls back to latest when forYou requested without user', async () => {

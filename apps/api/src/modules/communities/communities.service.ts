@@ -35,6 +35,7 @@ import {
   toPublicCommunity,
 } from './community.mapper';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { ChannelType } from '../entitlements/entities/channel-type.enum';
 import { Stream, StreamStatus } from '../streaming/entities/stream.entity';
 import { CommunityRoom } from './entities/community-room.entity';
@@ -51,6 +52,7 @@ import {
 } from './community-permissions.constants';
 import { CHANNELS_DEPRECATED_FLAG } from './community-deprecation.constants';
 import { CommunityAccessService } from './community-access.service';
+import { CommunityPermission } from './community-permissions.constants';
 import { CommunityAnalyticsService } from './community-analytics.service';
 import { ChannelLegacyService } from './channel-legacy.service';
 
@@ -89,6 +91,7 @@ export class CommunitiesService {
     @InjectRepository(CommunityRole)
     private readonly roleRepository: Repository<CommunityRole>,
     private readonly entitlementsService: EntitlementsService,
+    private readonly engagementService: EngagementService,
     @InjectRepository(Stream)
     private readonly streamRepository: Repository<Stream>,
     @InjectRepository(CommunityRoom)
@@ -148,6 +151,9 @@ export class CommunitiesService {
   }
 
   async listCommunitiesForCreator(creatorId: string, viewerId?: string | null, viewerRole?: UserRole | null) {
+    if (await this.accessService.isBlockedFromCreator(viewerId, creatorId, viewerRole)) {
+      return [];
+    }
     const communities = await this.communityRepository.find({
       where: { creatorId },
       order: { createdAt: 'ASC' },
@@ -577,8 +583,9 @@ export class CommunitiesService {
     communityId: string,
     viewerId?: string | null,
     viewerRole?: UserRole | null,
+    options?: { skipBlockGate?: boolean },
   ): Promise<Community> {
-    return this.accessService.assertCommunityAccess(communityId, viewerId, viewerRole);
+    return this.accessService.assertCommunityAccess(communityId, viewerId, viewerRole, options);
   }
 
   async assertOwnedCommunity(creatorId: string, communityId: string): Promise<Community> {
@@ -591,6 +598,15 @@ export class CommunitiesService {
     viewerRole?: UserRole | null,
   ): Promise<Community> {
     return this.accessService.assertCommunityStudioAccess(actorId, communityId, viewerRole);
+  }
+
+  async assertCommunityPermission(
+    actorId: string,
+    communityId: string,
+    permission: CommunityPermission,
+    viewerRole?: UserRole | null,
+  ): Promise<Community> {
+    return this.accessService.assertCommunityPermission(actorId, communityId, permission, viewerRole);
   }
 
   async assertCanRequestJoin(
@@ -642,8 +658,8 @@ export class CommunitiesService {
 
   // --- Analytics delegates (forwarded to CommunityAnalyticsService) ---
 
-  async getCommunityAnalytics(creatorId: string, communityId: string) {
-    return this.analyticsService.getCommunityAnalytics(creatorId, communityId);
+  async getCommunityAnalytics(actorId: string, communityId: string, viewerRole?: UserRole | null) {
+    return this.analyticsService.getCommunityAnalytics(actorId, communityId, viewerRole);
   }
 
   async getCreatorBusinessAnalytics(creatorId: string) {
@@ -693,7 +709,12 @@ export class CommunitiesService {
     };
   }
 
-  async searchCommunities(query: string, limit = 20, type?: CommunityType) {
+  async searchCommunities(
+    query: string,
+    limit = 20,
+    type?: CommunityType,
+    viewerId?: string | null,
+  ) {
     const term = query.trim();
     if (term.length < 2) return { data: [] };
     const pattern = `%${term}%`;
@@ -705,9 +726,10 @@ export class CommunitiesService {
       .andWhere('(c.name ILIKE :pattern OR c.slug ILIKE :pattern)', { pattern });
     if (type) qb.andWhere('c.communityType = :type', { type });
     const communities = await qb.orderBy('c.createdAt', 'DESC').take(take).getMany();
+    const visible = await this.filterCommunitiesNotBlocked(communities, viewerId);
 
     return {
-      data: communities.map((c) => ({
+      data: visible.map((c) => ({
         id: c.id,
         name: c.name,
         slug: c.slug,
@@ -721,7 +743,7 @@ export class CommunitiesService {
     };
   }
 
-  async listFeaturedCommunities(limit = 12, type?: CommunityType) {
+  async listFeaturedCommunities(limit = 12, type?: CommunityType, viewerId?: string | null) {
     const take = Math.min(limit, 24);
     const qb = this.communityRepository
       .createQueryBuilder('c')
@@ -729,9 +751,10 @@ export class CommunitiesService {
       .where('c.visibility = :visibility', { visibility: CommunityVisibility.PUBLIC });
     if (type) qb.andWhere('c.communityType = :type', { type });
     const communities = await qb.orderBy('c.createdAt', 'DESC').take(take).getMany();
+    const visible = await this.filterCommunitiesNotBlocked(communities, viewerId);
 
     return {
-      data: communities.map((c) => ({
+      data: visible.map((c) => ({
         id: c.id,
         name: c.name,
         slug: c.slug,
@@ -743,6 +766,16 @@ export class CommunitiesService {
         communityType: c.communityType,
       })),
     };
+  }
+
+  private async filterCommunitiesNotBlocked<T extends { creatorId: string }>(
+    communities: T[],
+    viewerId?: string | null,
+  ): Promise<T[]> {
+    if (!viewerId || communities.length === 0) return communities;
+    const blocked = new Set(await this.engagementService.getBlockedPeerIds(viewerId));
+    if (blocked.size === 0) return communities;
+    return communities.filter((c) => !blocked.has(c.creatorId));
   }
 
   /** Active community IDs the viewer belongs to (membership implies access). */

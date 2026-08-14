@@ -17,32 +17,69 @@ const MINIMAL_PREFIXES = [
   '/offline',
   '/maintenance',
   '/session-expired',
+  '/embed',
 ];
 
-/** Watch uses full-width canvas — no desktop side nav (Stitch blueprint) */
+/** Shorts — full-bleed canvas, no consumer chrome */
+function isShortsRoute(pathname: string) {
+  return pathname === '/shorts' || pathname.startsWith('/shorts/');
+}
+
+/** Watch — YouTube masthead (search/account); no SideNav/MobileNav */
 function isWatchRoute(pathname: string) {
   return pathname.startsWith('/watch/');
+}
+
+/** Creator Studio — TopBar only (StudioShell owns the sidebar) */
+function isStudioRoute(pathname: string) {
+  return pathname === '/studio' || pathname.startsWith('/studio/');
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const minimal = MINIMAL_PREFIXES.some((p) => pathname.startsWith(p));
-  const watchLayout = isWatchRoute(pathname);
+  const shorts = isShortsRoute(pathname);
+  const watch = isWatchRoute(pathname);
+  const studio = isStudioRoute(pathname);
 
   if (minimal) {
-    return <>{children}</>;
+    return (
+      <div id="main-content" tabIndex={-1}>
+        {children}
+      </div>
+    );
+  }
+
+  if (shorts) {
+    return (
+      <div id="main-content" className="min-h-dvh" tabIndex={-1}>
+        {children}
+      </div>
+    );
+  }
+
+  // Watch + Studio share TopBar-only chrome (YouTube masthead / Studio shell).
+  if (watch || studio) {
+    return (
+      <>
+        <TopBar />
+        <div className="forge-page-enter flex min-h-screen flex-col pt-16">
+          <div id="main-content" className="flex-1" tabIndex={-1}>
+            {children}
+          </div>
+        </div>
+      </>
+    );
   }
 
   return (
     <>
       <TopBar />
-      {!watchLayout && <SideNav />}
-      <div
-        className={`forge-page-enter flex min-h-screen flex-col pb-24 pt-16 md:pb-12 ${
-          watchLayout ? '' : 'md:pl-64'
-        }`}
-      >
-        <div className="flex-1">{children}</div>
+      <SideNav />
+      <div className="forge-page-enter flex min-h-screen flex-col pb-24 pt-16 md:pb-12 md:pl-64">
+        <div id="main-content" className="flex-1" tabIndex={-1}>
+          {children}
+        </div>
         <SiteFooter />
       </div>
       <MobileNav />

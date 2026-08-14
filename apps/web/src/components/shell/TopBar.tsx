@@ -4,12 +4,18 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { Icon } from '@forge/design-system';
+import { Icon, IconButton } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
+import { NotificationsMenu } from '@/components/shell/NotificationsMenu';
+import { SearchSuggest } from '@/components/shell/SearchSuggest';
+import { PopoverMenu } from '@/components/shell/PopoverMenu';
+import { useTheme } from '@/components/theme/ThemeProvider';
+
+const menuItemClass =
+  'flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-surface-container-highest';
 
 export function TopBar() {
   const {
@@ -23,8 +29,8 @@ export function TopBar() {
     canApplyForCreator,
     accessToken,
   } = useAuth();
-  const router = useRouter();
   const queryClient = useQueryClient();
+  const { theme, toggleTheme } = useTheme();
   const showAuth = !isLoading && !isGuest;
 
   const { data: unreadCount = 0 } = useQuery({
@@ -38,16 +44,6 @@ export function TopBar() {
       const socket = accessToken ? getSocket(accessToken) : null;
       if (socket?.connected) return false;
       return 60_000;
-    },
-  });
-
-  const { data: streak } = useQuery({
-    queryKey: ['platform-gamification-me'],
-    enabled: !!accessToken && canEngage,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const { data } = await api.get<{ data: { streak: number } }>('/platform/gamification/me');
-      return data.data.streak;
     },
   });
 
@@ -73,29 +69,19 @@ export function TopBar() {
         FORGE
       </Link>
 
-      <form
-        className="group relative mx-4 hidden max-w-xl flex-1 md:flex"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const q = new FormData(e.currentTarget).get('q') as string;
-          router.push(`/search?q=${encodeURIComponent(q || '')}`);
-        }}
-      >
-        <Icon name="search" className="absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary" />
-        <input
-          name="q"
-          aria-label="Search skills, creators, or topics"
-          className="w-full rounded-full border border-subtle bg-surface-container-low py-2 pl-12 pr-4 text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          placeholder="Search skills, creators, or topics..."
-        />
-      </form>
+      <SearchSuggest className="mx-4 hidden max-w-xl flex-1 md:block" />
 
       <div className="flex items-center gap-2 md:gap-4">
+        <IconButton
+          icon={theme === 'dark' ? 'light_mode' : 'dark_mode'}
+          label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          onClick={toggleTheme}
+        />
         {isLoading ? (
           <div className="hidden h-10 w-40 animate-pulse rounded-full bg-surface-container-high md:block" aria-hidden />
         ) : !showAuth ? (
           <>
-            <Link href="/login" className="hidden rounded-full px-4 py-2 text-sm text-on-surface-variant hover:text-on-surface md:block">
+            <Link href="/login" className="rounded-full px-3 py-2 text-sm text-on-surface-variant hover:text-on-surface md:px-4">
               Sign in
             </Link>
             <Link href="/signup" className="primary-button hidden rounded-full px-5 py-2 text-sm font-semibold text-on-primary md:block">
@@ -112,45 +98,55 @@ export function TopBar() {
                 Become a Creator
               </Link>
             )}
-            {canGoLive && (
-              <Link
-                href="/studio/live"
-                className="hidden h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 md:flex"
-                title="Go live"
-                aria-label="Go live"
+            {(canUpload || canGoLive) && (
+              <PopoverMenu
+                label="Create"
+                align="right"
+                panelClassName="w-52"
+                triggerClassName="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50"
+                trigger={<Icon name="add_circle" />}
               >
-                <Icon name="sensors" />
-              </Link>
-            )}
-            {canUpload && (
-              <Link
-                href="/upload"
-                className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50"
-                title="Upload"
-                aria-label="Upload"
-              >
-                <Icon name="add_circle" />
-              </Link>
-            )}
-            {canEngage && !!streak && streak > 0 && (
-              <span
-                className="hidden items-center gap-1 rounded-full border border-outline-variant/40 px-3 py-1.5 text-xs font-semibold text-tertiary md:flex"
-                title={`${streak}-day streak`}
-                aria-label={`${streak}-day streak`}
-              >
-                <Icon name="local_fire_department" className="text-sm" />
-                {streak}
-              </span>
+                {(close) => (
+                  <>
+                    {canUpload ? (
+                      <>
+                        <Link
+                          href="/upload"
+                          role="menuitem"
+                          className={menuItemClass}
+                          onClick={close}
+                        >
+                          <Icon name="upload" className="text-base" />
+                          Upload video
+                        </Link>
+                        <Link
+                          href="/upload?type=short"
+                          role="menuitem"
+                          className={menuItemClass}
+                          onClick={close}
+                        >
+                          <Icon name="smart_display" className="text-base" />
+                          Create a Short
+                        </Link>
+                      </>
+                    ) : null}
+                    {canGoLive ? (
+                      <Link
+                        href="/studio/live"
+                        role="menuitem"
+                        className={menuItemClass}
+                        onClick={close}
+                      >
+                        <Icon name="sensors" className="text-base" />
+                        Go live
+                      </Link>
+                    ) : null}
+                  </>
+                )}
+              </PopoverMenu>
             )}
             {canEngage && (
               <>
-                <Link
-                  href="/updates"
-                  className="hidden h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 md:flex"
-                  aria-label="Updates"
-                >
-                  <Icon name="campaign" />
-                </Link>
                 <Link
                   href="/messages"
                   className="hidden h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50 md:flex"
@@ -158,34 +154,71 @@ export function TopBar() {
                 >
                   <Icon name="mail" />
                 </Link>
-                <Link
-                  href="/notifications"
-                  className="relative flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50"
-                  aria-label="Notifications"
-                >
-                  <Icon name="notifications" />
-                  {unreadCount > 0 && (
-                    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-on-error">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
-                </Link>
+                <NotificationsMenu unreadCount={unreadCount} />
               </>
             )}
-            <Link
-              href={user?.username ? `/${user.username}` : '/profile'}
-              aria-label="Your profile"
-              className="ml-1 h-10 w-10 overflow-hidden rounded-full border border-subtle hover:border-primary bg-surface-container-high flex items-center justify-center"
+            <PopoverMenu
+              label="Account menu"
+              align="right"
+              panelClassName="w-56"
+              triggerClassName="ml-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-subtle bg-surface-container-high hover:border-primary"
+              trigger={
+                user?.avatarUrl ? (
+                  <Image src={user.avatarUrl} alt="" width={40} height={40} className="h-full w-full object-cover" />
+                ) : (
+                  <Icon name="person" className="text-on-surface-variant" />
+                )
+              }
             >
-              {user?.avatarUrl ? (
-                <Image src={user.avatarUrl} alt="" width={40} height={40} className="h-full w-full object-cover" />
-              ) : (
-                <Icon name="person" className="text-on-surface-variant" />
+              {(close) => (
+                <>
+                  <Link
+                    href={user?.username ? `/${user.username}` : '/profile'}
+                    role="menuitem"
+                    className={menuItemClass}
+                    onClick={close}
+                  >
+                    Your channel
+                  </Link>
+                  <Link href="/studio" role="menuitem" className={menuItemClass} onClick={close}>
+                    Studio
+                  </Link>
+                  <Link href="/library" role="menuitem" className={menuItemClass} onClick={close}>
+                    Library
+                  </Link>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      toggleTheme();
+                      close();
+                    }}
+                    className={`${menuItemClass} md:hidden`}
+                  >
+                    {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+                  </button>
+                  <Link
+                    href="/profile/settings"
+                    role="menuitem"
+                    className={menuItemClass}
+                    onClick={close}
+                  >
+                    Settings
+                  </Link>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      close();
+                      void logout();
+                    }}
+                    className={`${menuItemClass} text-on-surface-variant`}
+                  >
+                    Sign out
+                  </button>
+                </>
               )}
-            </Link>
-            <button type="button" onClick={() => logout()} className="hidden text-xs text-outline hover:text-on-surface md:block">
-              Log out
-            </button>
+            </PopoverMenu>
           </>
         )}
         <Link

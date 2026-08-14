@@ -1,16 +1,23 @@
 import 'dart:async';
 
 import 'package:chewie/chewie.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/observability/capture_error.dart';
+import '../../../core/platform/pip_service.dart';
 import '../../../core/socket/forge_socket.dart';
 import 'stream_chat_panel.dart';
 import 'stream_poll_panel.dart';
 import 'stream_qa_panel.dart';
+import '../../../core/theme/forge_tokens.dart';
+import '../data/live_repository.dart';
 
 class LiveWatchScreen extends ConsumerStatefulWidget {
   final String streamId;
@@ -36,6 +43,9 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   final Map<String, int> _reactionCounts = {};
   bool _handRaised = false;
   bool _raisingHand = false;
+  bool _markingClip = false;
+  List<Map<String, dynamic>> _clips = [];
+  bool _pipSupported = false;
 
   /// Host disconnect grace-period deadline (epoch ms) — non-null while the
   /// "Host connection lost, waiting for reconnection" overlay should show.
@@ -59,10 +69,39 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
     WidgetsBinding.instance.addObserver(this);
     _loadStream();
     _setupSocket();
+    PipService.isSupported().then((ok) {
+      if (mounted) setState(() => _pipSupported = ok);
+    });
+  }
+
+  String? get _playbackUrl => _stream?['playbackUrl'] as String?;
+
+  void _syncAutoPip() {
+    final url = _playbackUrl;
+    final live = _stream?['status'] == 'live';
+    // Live autoplays; treat initialized controller as eligible for OS PiP.
+    final ready = _videoController?.value.isInitialized == true;
+    unawaited(
+      PipService.setAutoEnter(
+        _pipSupported && live && ready && url != null && url.isNotEmpty,
+        hlsUrl: url,
+        positionMs: 0,
+      ),
+    );
+  }
+
+  Future<void> _enterPip() async {
+    final url = _playbackUrl;
+    if (url == null || url.isEmpty) return;
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      await _videoController?.pause();
+    }
+    await PipService.enter(hlsUrl: url, positionMs: 0);
   }
 
   /// HIGH-08 (partial — video only): pause decoding/buffering when
-  /// backgrounded. Not disconnecting ForgeSocket here: it's a global
+  /// backgrounded unless OS PiP can keep the stream visible.
+  /// Not disconnecting ForgeSocket here: it's a global
   /// singleton also bound independently by StreamChatPanel/StreamPollPanel/
   /// StreamQaPanel with no shared reconnect coordination, so a forced
   /// disconnect+reconnect here would silently break their listeners after a
@@ -70,9 +109,24 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   /// four widgets plus real-device verification, not a blind one-file patch.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _videoController?.pause();
+    if (state == AppLifecycleState.resumed) {
+      _syncAutoPip();
+      return;
     }
+    if (state != AppLifecycleState.paused && state != AppLifecycleState.inactive) return;
+    final playing = _videoController?.value.isPlaying == true;
+    if (!playing) return;
+    unawaited(() async {
+      if (!_pipSupported) {
+        _videoController?.pause();
+        return;
+      }
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        await _enterPip();
+        return;
+      }
+      _syncAutoPip();
+    }());
   }
 
   Future<void> _loadStream() async {
@@ -117,6 +171,10 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         _viewerCount = stream['viewerCount'] as int? ?? 0;
       });
 
+      if (_myUserId != null && stream['userId'] == _myUserId) {
+        unawaited(_loadClips());
+      }
+
       // Seed the reconnect overlay from the REST snapshot (first paint, or a
       // refetch after stream:started/ended) using the server-computed
       // deadline — never a client-side guess, since the grace window is
@@ -135,6 +193,13 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
 
       _startCountdown(stream);
       await _initPlayer(stream);
+    } on DioException catch (e) {
+      setState(() {
+        _error = e.response?.statusCode == 403
+            ? 'This stream is not available'
+            : 'Failed to load stream';
+        _loading = false;
+      });
     } catch (e) {
       setState(() {
         _error = 'Failed to load stream';
@@ -187,6 +252,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
     _chewieController?.dispose();
     _videoController = null;
     _chewieController = null;
+    unawaited(PipService.setAutoEnter(false));
 
     final playbackUrl = stream['playbackUrl'] as String?;
     final accessDenied = stream['accessDenied'] == true;
@@ -199,6 +265,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         looping: false,
         aspectRatio: _videoController!.value.aspectRatio,
       );
+      _syncAutoPip();
       if (mounted) setState(() {});
     }
   }
@@ -284,6 +351,50 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
     context.go('/studio/live/${widget.streamId}/debrief');
   }
 
+  Future<void> _loadClips() async {
+    try {
+      final clips = await ref.read(liveRepositoryProvider).listClips(widget.streamId);
+      if (!mounted) return;
+      setState(() => _clips = clips);
+    } catch (e, st) {
+      captureError(e, st, 'loadClips');
+    }
+  }
+
+  Future<void> _markHighlight() async {
+    if (_markingClip) return;
+    setState(() => _markingClip = true);
+    try {
+      await ref.read(liveRepositoryProvider).createClip(widget.streamId);
+      await _loadClips();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Highlight marked (~30s at current moment)')),
+      );
+    } catch (e, st) {
+      captureError(e, st, 'markHighlight');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not mark highlight')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _markingClip = false);
+    }
+  }
+
+  String _formatClipRange(Map<String, dynamic> clip) {
+    final startMs = (clip['startOffsetMs'] as num?)?.toInt() ?? 0;
+    final endMs = (clip['endOffsetMs'] as num?)?.toInt() ?? startMs;
+    String stamp(int ms) {
+      final s = ms ~/ 1000;
+      final m = s ~/ 60;
+      final sec = s % 60;
+      return '$m:${sec.toString().padLeft(2, '0')}';
+    }
+    return '${stamp(startMs)}–${stamp(endMs)}';
+  }
+
   Future<void> _acknowledgeAge() async {
     final client = ref.read(apiClientProvider);
     await client.dio.post('/users/me/mature-content/acknowledge');
@@ -367,6 +478,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(PipService.setAutoEnter(false));
     _countdownTimer?.cancel();
     _reconnectTimer?.cancel();
     if (_onViewerCount != null) ForgeSocket.off('stream:viewer-count', _onViewerCount);
@@ -413,6 +525,23 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
       appBar: AppBar(
         title: Text(title),
         actions: [
+          if (_pipSupported &&
+              status == 'live' &&
+              _playbackUrl != null &&
+              _playbackUrl!.isNotEmpty)
+            IconButton(
+              tooltip: 'Picture in picture',
+              icon: const Icon(Icons.picture_in_picture_alt),
+              onPressed: _enterPip,
+            ),
+          IconButton(
+            tooltip: 'Share',
+            icon: const Icon(Icons.share_outlined),
+            onPressed: () {
+              final url = '${AppConstants.webBaseUrl}/live/${widget.streamId}';
+              SharePlus.instance.share(ShareParams(text: '${title.isNotEmpty ? title : 'Live on FORGE'}\n$url'));
+            },
+          ),
           if (_viewerCount > 0)
             Padding(
               padding: const EdgeInsets.only(right: 12),
@@ -434,7 +563,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                         children: [
                           Text(
                             _accessMessage(accessReason),
-                            style: const TextStyle(color: Colors.white70),
+                            style: TextStyle(color: Colors.white70),
                             textAlign: TextAlign.center,
                           ),
                           if (accessReason == 'age_confirmation_required') ...[
@@ -517,7 +646,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const CircularProgressIndicator(color: Colors.white70),
+                                        CircularProgressIndicator(color: Colors.white70),
                                         const SizedBox(height: 12),
                                         const Text(
                                           'Host connection lost. Waiting for reconnection…',
@@ -573,14 +702,59 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                   if (_health != null) ...[
                     Text(
                       'Mux: ${_health!['muxStatus'] ?? '—'}${_health!['reconnecting'] == true ? ' (reconnecting)' : ''}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
                     ),
                     const SizedBox(height: 4),
                   ],
                   Text('RTMP: ${_stream!['rtmpUrl'] ?? 'rtmps://global-live.mux.com:443/app'}'),
                   Text('Key: ${_stream!['streamKey'] ?? '—'}'),
                   const SizedBox(height: 8),
-                  OutlinedButton(onPressed: _endStream, child: const Text('End stream')),
+                  if (status == 'live') ...[
+                    Text(
+                      'Highlights — mark a ~30s clip at the current live moment.',
+                      style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        FilledButton.tonal(
+                          onPressed: _markingClip ? null : _markHighlight,
+                          child: Text(_markingClip ? 'Saving…' : 'Mark highlight'),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton(onPressed: _endStream, child: const Text('End stream')),
+                      ],
+                    ),
+                    if (_clips.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      ..._clips.take(8).map((clip) {
+                        final title = clip['title'] as String? ?? 'Highlight';
+                        final statusLabel = clip['status'] as String? ?? '';
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            '$title · ${_formatClipRange(clip)}'
+                            '${statusLabel.isNotEmpty && statusLabel != 'ready' ? ' · $statusLabel' : ''}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: ForgeTokens.of(context).onSurfaceVariant,
+                            ),
+                          ),
+                        );
+                      }),
+                    ] else
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'No highlights yet.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: ForgeTokens.of(context).onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                  ] else
+                    OutlinedButton(onPressed: _endStream, child: const Text('End stream')),
                 ],
               ),
             ),
@@ -613,7 +787,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
       case 'login_required':
         return 'Sign in to watch this stream.';
       case 'follow_required':
-        return 'Follow this creator to watch.';
+        return 'Subscribe to this channel to watch.';
       case 'subscription_required':
         return 'Membership required.';
       case 'tier_required':
@@ -624,6 +798,8 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
         return 'Confirm you are 18 or older to watch.';
       case 'private':
         return 'This is a private stream.';
+      case 'not_available':
+        return 'This stream is not available.';
       default:
         return 'You cannot watch this stream.';
     }

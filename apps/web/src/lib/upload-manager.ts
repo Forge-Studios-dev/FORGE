@@ -7,8 +7,8 @@ import {
   getUploadThumbnail,
   resolveThumbnailContentType,
 } from '@/lib/upload-thumbnail-store';
-import type { CompleteUploadOptions, UploadPhase } from '@/lib/upload-lesson';
-import { resolveVideoContentType } from '@/lib/upload-lesson';
+import type { CompleteUploadOptions, UploadPhase } from '@/lib/upload-video';
+import { resolveVideoContentType } from '@/lib/upload-video';
 
 const ACTIVE_KEY = 'forge_active_upload';
 
@@ -160,13 +160,14 @@ export async function runBackgroundUpload(
         emit();
       }
     });
-    meta = meta ? { ...meta, uploadVia: via } : meta;
-    emit();
 
-    if (meta) {
-      meta = { ...meta, phase: 'completing', progress: 100 };
-      emit();
+    // Abort may have cleared meta mid-PUT — never finalize a cancelled upload.
+    if (!meta || meta.videoId !== videoId) {
+      throw new Error('Upload cancelled');
     }
+
+    meta = { ...meta, uploadVia: via, phase: 'completing', progress: 100 };
+    emit();
 
     await api.post(`/videos/${videoId}/complete`, {
       title: title.trim(),
@@ -176,15 +177,23 @@ export async function runBackgroundUpload(
       visibility: options.visibility ?? 'public',
       scheduledPublishAt: options.scheduledPublishAt,
       playlistIds: options.playlistIds?.length ? options.playlistIds : undefined,
+      videoType: options.videoType === 'short' ? 'short' : 'video',
     });
 
-    meta = null;
-    emit();
+    if (meta?.videoId === videoId) {
+      meta = null;
+      emit();
+    }
     return videoId;
   } catch (err) {
-    await cancelVideoQuietly(videoId);
-    meta = null;
-    emit();
+    // abortActiveUpload already cancelled; avoid a second cancel when we threw for that.
+    if (!(err instanceof Error && err.message === 'Upload cancelled')) {
+      await cancelVideoQuietly(videoId);
+    }
+    if (meta?.videoId === videoId) {
+      meta = null;
+      emit();
+    }
     throw err;
   }
 }

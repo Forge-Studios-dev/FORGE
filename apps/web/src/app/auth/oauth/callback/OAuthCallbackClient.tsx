@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import { persistAuthSession } from '@/lib/auth-storage';
+import { safeReturnPath } from '@/lib/safe-return-path';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const OAUTH_NEXT_KEY = 'forge_oauth_next';
 
 export function OAuthCallbackClient() {
   const router = useRouter();
@@ -37,7 +39,14 @@ export function OAuthCallbackClient() {
           JSON.stringify(payload.user),
           payload.sessionId,
         );
-        router.replace('/');
+        let next = '/';
+        try {
+          next = sessionStorage.getItem(OAUTH_NEXT_KEY) || '/';
+          sessionStorage.removeItem(OAUTH_NEXT_KEY);
+        } catch {
+          /* ignore */
+        }
+        router.replace(safeReturnPath(next));
       } catch {
         if (!cancelled) {
           setError('OAuth sign-in failed. The link may have expired — try again.');

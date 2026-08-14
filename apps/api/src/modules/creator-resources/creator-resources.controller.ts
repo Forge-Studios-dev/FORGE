@@ -4,12 +4,14 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
 import { CreatorResourcesService } from './creator-resources.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
@@ -17,6 +19,110 @@ import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { ResourceVisibility } from './entities/creator-resource.entity';
+
+class CreateCreatorResourceUploadUrlDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  fileName: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  mimeType: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  fileSizeBytes?: number;
+}
+
+class CreateCreatorResourceDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  title: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  description?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
+  fileKey: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  fileUrl: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  fileName: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  mimeType: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  fileSizeBytes?: number;
+
+  @ApiPropertyOptional({ enum: ResourceVisibility })
+  @IsOptional()
+  @IsEnum(ResourceVisibility)
+  visibility?: ResourceVisibility;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  requiredTierId?: string;
+}
+
+class UpdateCreatorResourceDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  title?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  description?: string;
+
+  @ApiPropertyOptional({ enum: ResourceVisibility })
+  @IsOptional()
+  @IsEnum(ResourceVisibility)
+  visibility?: ResourceVisibility;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  requiredTierId?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
 
 @ApiTags('Creator Resources')
 @Controller()
@@ -28,12 +134,7 @@ export class CreatorResourcesController {
   @ApiOperation({ summary: 'Get presigned S3 URL to upload a resource file' })
   getUploadUrl(
     @CurrentUser() user: JwtPayload,
-    @Body()
-    body: {
-      fileName: string;
-      mimeType: string;
-      fileSizeBytes?: number;
-    },
+    @Body() body: CreateCreatorResourceUploadUrlDto,
   ) {
     return this.resourcesService.getUploadUrl(
       user.sub,
@@ -48,18 +149,7 @@ export class CreatorResourcesController {
   @ApiOperation({ summary: 'Register a resource after upload' })
   create(
     @CurrentUser() user: JwtPayload,
-    @Body()
-    body: {
-      title: string;
-      description?: string;
-      fileKey: string;
-      fileUrl: string;
-      fileName: string;
-      mimeType: string;
-      fileSizeBytes?: number;
-      visibility?: ResourceVisibility;
-      requiredTierId?: string;
-    },
+    @Body() body: CreateCreatorResourceDto,
   ) {
     return this.resourcesService.create(user.sub, body);
   }
@@ -69,15 +159,8 @@ export class CreatorResourcesController {
   @ApiOperation({ summary: 'Update a resource (title, description, visibility)' })
   update(
     @CurrentUser() user: JwtPayload,
-    @Param('resourceId') resourceId: string,
-    @Body()
-    body: {
-      title?: string;
-      description?: string;
-      visibility?: ResourceVisibility;
-      requiredTierId?: string | null;
-      isActive?: boolean;
-    },
+    @Param('resourceId', ParseUUIDPipe) resourceId: string,
+    @Body() body: UpdateCreatorResourceDto,
   ) {
     return this.resourcesService.update(user.sub, resourceId, body);
   }
@@ -85,7 +168,7 @@ export class CreatorResourcesController {
   @Delete('creators/me/resources/:resourceId')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Delete a resource (removes S3 file)' })
-  remove(@CurrentUser() user: JwtPayload, @Param('resourceId') resourceId: string) {
+  remove(@CurrentUser() user: JwtPayload, @Param('resourceId', ParseUUIDPipe) resourceId: string) {
     return this.resourcesService.remove(user.sub, resourceId);
   }
 
@@ -101,7 +184,7 @@ export class CreatorResourcesController {
   @Get('creators/:creatorId/resources')
   @ApiOperation({ summary: 'List active resources for a creator (consumer)' })
   listPublic(
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ParseUUIDPipe) creatorId: string,
     @CurrentUser() user?: JwtPayload,
     @Query('limit') _limit?: string,
   ) {
@@ -110,7 +193,7 @@ export class CreatorResourcesController {
 
   @Get('resources/:resourceId/download-url')
   @ApiOperation({ summary: 'Get a presigned download URL (access-checked)' })
-  getDownloadUrl(@Param('resourceId') resourceId: string, @CurrentUser() user: JwtPayload) {
+  getDownloadUrl(@Param('resourceId', ParseUUIDPipe) resourceId: string, @CurrentUser() user: JwtPayload) {
     return this.resourcesService.getDownloadUrl(resourceId, user.sub);
   }
 }

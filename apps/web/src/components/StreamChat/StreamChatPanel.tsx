@@ -34,7 +34,7 @@ const SUPER_AMOUNTS = [200, 500, 1000, 2000];
 
 const CHAT_MODE_LABELS: Record<ChatMode, string> = {
   all: 'Everyone can chat',
-  followers: 'Followers-only chat',
+  followers: 'Subscribers-only chat',
   subscribers: 'Members-only chat',
   mods_only: 'Moderators-only chat',
 };
@@ -305,12 +305,12 @@ export function StreamChatPanel({
           data.map((m) => (
             <div
               key={m.id}
-              className={`group flex items-start justify-between gap-2 text-sm ${m.messageType === 'super_chat' ? 'rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1' : ''}`}
+              className={`group flex items-start justify-between gap-2 text-sm ${m.messageType === 'super_chat' ? 'rounded-lg border border-warning/40 bg-warning/10 px-2 py-1' : ''}`}
             >
               <div>
                 <span className="font-medium text-primary">{displayName(m)}</span>
                 {m.messageType === 'super_chat' && m.amountCents ? (
-                  <span className="ml-1 text-xs text-amber-400">
+                  <span className="ml-1 text-xs text-warning">
                     ${(m.amountCents / 100).toFixed(2)}
                   </span>
                 ) : null}
@@ -378,7 +378,7 @@ export function StreamChatPanel({
                     key={a}
                     type="button"
                     onClick={() => setSuperAmount(a)}
-                    className={`rounded px-2 py-0.5 text-xs ${superAmount === a ? 'bg-amber-500 text-black' : 'text-on-surface-variant'}`}
+                    className={`rounded px-2 py-0.5 text-xs ${superAmount === a ? 'bg-warning text-on-warning' : 'text-on-surface-variant'}`}
                   >
                     ${(a / 100).toFixed(0)}
                   </button>
@@ -396,7 +396,7 @@ export function StreamChatPanel({
                   type="button"
                   onClick={() => superChatMutation.mutate()}
                   disabled={superChatMutation.isPending || !superText.trim()}
-                  className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-black disabled:opacity-40"
+                  className="rounded-lg bg-warning px-4 py-2 text-sm font-medium text-on-warning disabled:opacity-40"
                 >
                   Send ${(superAmount / 100).toFixed(2)}
                 </button>
@@ -429,7 +429,7 @@ export function StreamChatPanel({
           <button
             type="button"
             onClick={() => setShowSuperChat((v) => !v)}
-            className="rounded-lg border border-amber-500/50 px-3 py-2 text-xs text-amber-400"
+            className="rounded-lg border border-warning/50 px-3 py-2 text-xs text-warning"
           >
             Super
           </button>

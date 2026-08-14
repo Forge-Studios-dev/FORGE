@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { FeedService, FeedSort } from './feed.service';
 import { Public } from '../../common/decorators/public.decorator';
@@ -46,9 +46,11 @@ export class FeedController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('feed/following')
   @ApiOperation({ summary: 'Feed from followed and subscribed creators' })
+  @ApiQuery({ name: 'channelId', required: false, description: 'Filter to one subscribed channel' })
   getFollowingFeed(
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: number,
+    @Query('channelId') channelId?: string,
     @CurrentUser() user?: JwtPayload,
   ) {
     if (!user?.sub) {
@@ -58,6 +60,7 @@ export class FeedController {
       userId: user.sub,
       cursor,
       limit,
+      channelId: channelId?.trim() || undefined,
     });
   }
 
@@ -88,7 +91,7 @@ export class FeedController {
   @ApiOperation({ summary: 'Related / watch-next recommendations for a video' })
   @ApiQuery({ name: 'limit', required: false })
   getRelated(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query('limit') limit?: number,
     @CurrentUser() user?: JwtPayload,
   ) {
@@ -100,6 +103,7 @@ export class FeedController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('by-category/:slug')
   @ApiOperation({ summary: 'Videos in a category by slug' })
   @ApiQuery({ name: 'cursor', required: false })
@@ -110,12 +114,14 @@ export class FeedController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: number,
     @Query('sort') sort?: FeedSort,
+    @CurrentUser() user?: JwtPayload,
   ) {
     return this.feedService.getFeed({
       categorySlug: slug,
       cursor,
       limit,
       sort: sort ?? 'latest',
+      userId: user?.sub,
     });
   }
 }

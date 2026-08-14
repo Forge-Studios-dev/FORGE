@@ -16,13 +16,18 @@ export class CommunityStorageService {
       region,
       accessKeyId: configService.get<string>('aws.accessKeyId') || '',
       secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
+      roleArn: configService.get<string>('aws.roleArn') || undefined,
     };
     this.presignS3 = createS3ClientForBrowserPresign(creds);
     this.bucket = configService.get<string>('aws.s3BucketName') || '';
   }
 
   isConfigured(): boolean {
-    return !!this.bucket && !!this.configService.get<string>('aws.accessKeyId');
+    return (
+      !!this.bucket &&
+      (!!this.configService.get<string>('aws.accessKeyId') ||
+        !!this.configService.get<string>('aws.roleArn'))
+    );
   }
 
   async getPostMediaUploadUrl(communityId: string, contentType: string) {

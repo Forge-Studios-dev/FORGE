@@ -1,0 +1,252 @@
+'use client';
+
+import { useEffect, useId, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { Icon } from '@forge/design-system';
+import { api } from '@/lib/api';
+import {
+  clearSearchHistory,
+  pushSearchHistory,
+  readSearchHistory,
+  removeSearchHistoryItem,
+} from '@/lib/search-history';
+
+type Props = {
+  className?: string;
+  compact?: boolean;
+};
+
+type SuggestionPayload = {
+  titles: string[];
+  channels: { username: string; displayName: string }[];
+};
+
+type FlatItem =
+  | { kind: 'history'; value: string }
+  | { kind: 'title'; value: string }
+  | { kind: 'channel'; username: string; displayName: string };
+
+export function SearchSuggest({ className = '', compact = false }: Props) {
+  const router = useRouter();
+  const listId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [query, setQuery] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [history, setHistory] = useState<string[]>([]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(query.trim()), 200);
+    return () => window.clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    if (open) setHistory(readSearchHistory());
+  }, [open]);
+
+  const { data } = useQuery({
+    queryKey: ['search-suggestions', debounced],
+    enabled: debounced.length >= 2 && open,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data: res } = await api.get<{ data: SuggestionPayload }>(
+        `/search/suggestions?q=${encodeURIComponent(debounced)}&limit=8`,
+      );
+      return {
+        titles: res.data?.titles ?? [],
+        channels: res.data?.channels ?? [],
+      } satisfies SuggestionPayload;
+    },
+  });
+
+  const showHistory = open && query.trim().length === 0 && history.length > 0;
+  const items: FlatItem[] = showHistory
+    ? history.map((value): FlatItem => ({ kind: 'history', value }))
+    : [
+        ...(data?.channels ?? []).map(
+          (c): FlatItem => ({
+            kind: 'channel',
+            username: c.username,
+            displayName: c.displayName,
+          }),
+        ),
+        ...(data?.titles ?? []).map((value): FlatItem => ({ kind: 'title', value })),
+      ];
+
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [items.length, debounced, showHistory]);
+
+  useEffect(() => {
+    const onPointer = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointer);
+    return () => document.removeEventListener('mousedown', onPointer);
+  }, []);
+
+  const goSearch = (q: string) => {
+    const term = q.trim();
+    if (!term) return;
+    setHistory(pushSearchHistory(term));
+    setOpen(false);
+    router.push(`/search?q=${encodeURIComponent(term)}`);
+  };
+
+  const activate = (item: FlatItem) => {
+    if (item.kind === 'channel') {
+      setOpen(false);
+      router.push(`/${item.username}`);
+      return;
+    }
+    setQuery(item.value);
+    goSearch(item.value);
+  };
+
+  const showList =
+    showHistory || (open && debounced.length >= 2 && items.length > 0);
+
+  return (
+    <div ref={rootRef} className={`relative ${className}`}>
+      <form
+        className="group relative"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (activeIndex >= 0 && items[activeIndex]) {
+            activate(items[activeIndex]);
+            return;
+          }
+          goSearch(query);
+        }}
+      >
+        <Icon
+          name="search"
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary"
+        />
+        <input
+          name="q"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (!showList) return;
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              setActiveIndex((i) => Math.min(i + 1, items.length - 1));
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              setActiveIndex((i) => Math.max(i - 1, -1));
+            } else if (e.key === 'Escape') {
+              setOpen(false);
+              setActiveIndex(-1);
+            }
+          }}
+          role="combobox"
+          aria-expanded={showList}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            activeIndex >= 0 ? `${listId}-opt-${activeIndex}` : undefined
+          }
+          aria-label="Search videos, channels, or topics"
+          className={
+            compact
+              ? 'w-full rounded-full border border-subtle bg-surface-container-low py-2 pl-12 pr-4 text-sm text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary'
+              : 'w-full rounded-full border border-subtle bg-surface-container-low py-2 pl-12 pr-4 text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary'
+          }
+          placeholder="Search videos, channels, or topics..."
+          autoComplete="off"
+        />
+      </form>
+      {showList ? (
+        <ul
+          id={listId}
+          role="listbox"
+          className="absolute left-0 right-0 z-50 mt-2 max-h-72 overflow-y-auto rounded-xl border border-outline-variant/30 bg-surface-container-high py-1 shadow-lg"
+        >
+          {showHistory ? (
+            <li className="flex items-center justify-between px-4 py-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-outline">
+                Recent searches
+              </span>
+              <button
+                type="button"
+                className="text-xs font-medium text-primary hover:underline"
+                onClick={() => {
+                  clearSearchHistory();
+                  setHistory([]);
+                }}
+              >
+                Clear
+              </button>
+            </li>
+          ) : null}
+          {items.map((item, i) => {
+            const label =
+              item.kind === 'channel'
+                ? `${item.displayName} (@${item.username})`
+                : item.value;
+            return (
+              <li
+                key={
+                  item.kind === 'channel'
+                    ? `ch-${item.username}`
+                    : `${item.kind}-${item.value}-${i}`
+                }
+                role="option"
+                aria-selected={i === activeIndex}
+                id={`${listId}-opt-${i}`}
+                className={`flex items-center gap-1 pr-2 ${
+                  i === activeIndex ? 'bg-surface-container-highest' : ''
+                } hover:bg-surface-container-highest`}
+                onMouseEnter={() => setActiveIndex(i)}
+              >
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left text-sm"
+                  onClick={() => activate(item)}
+                >
+                  <Icon
+                    name={
+                      item.kind === 'channel'
+                        ? 'person'
+                        : item.kind === 'history'
+                          ? 'history'
+                          : 'search'
+                    }
+                    className="shrink-0 text-base text-outline"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-on-surface">{label}</span>
+                  {item.kind === 'channel' ? (
+                    <span className="shrink-0 text-xs uppercase tracking-wide text-outline">
+                      Channel
+                    </span>
+                  ) : null}
+                </button>
+                {item.kind === 'history' ? (
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-full p-1.5 text-outline hover:bg-surface-container-low hover:text-on-surface"
+                    aria-label={`Remove ${item.value} from search history`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setHistory(removeSearchHistoryItem(item.value));
+                    }}
+                  >
+                    <Icon name="close" className="text-base" />
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </div>
+  );
+}

@@ -35,11 +35,11 @@ class StudioSettingsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _row('Display name', me['displayName'] as String? ?? '—'),
+                  _row(context, 'Display name', me['displayName'] as String? ?? '—'),
                   const SizedBox(height: 12),
-                  _row('Username', '@${me['username'] ?? '—'}'),
+                  _row(context, 'Username', '@${me['username'] ?? '—'}'),
                   const SizedBox(height: 12),
-                  _row('Email', me['email'] as String? ?? '—'),
+                  _row(context, 'Email', me['email'] as String? ?? '—'),
                 ],
               ),
             ),
@@ -48,19 +48,148 @@ class StudioSettingsScreen extends ConsumerWidget {
               label: 'Edit profile settings',
               onPressed: () => context.push('/profile/settings'),
             ),
+            if ((me['username'] as String?)?.isNotEmpty == true) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => context.push('/profile/${me['username']}'),
+                child: const Text('View public channel'),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Text(
+              'Shortcuts',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.0,
+                color: ForgeTokens.of(context).outline,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _shortcut(
+              context,
+              icon: Icons.palette_outlined,
+              title: 'Customize channel',
+              subtitle: 'Name, about, banner, avatar, and links',
+              onTap: () => context.push('/studio/branding'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.campaign_outlined,
+              title: 'Community posts',
+              subtitle: 'Publish updates to your channel Community tab',
+              onTap: () => context.push('/studio/channel-posts'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.playlist_play,
+              title: 'Playlists',
+              subtitle: 'Create and organize channel playlists',
+              onTap: () => context.push('/playlists'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.notifications_active,
+              title: 'Attention queue',
+              subtitle: 'Comments, moderation, and processing failures',
+              onTap: () => context.push('/studio/attention'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.volunteer_activism,
+              title: 'Super Thanks',
+              subtitle: 'Review tips from viewers and export CSV',
+              onTap: () => context.push('/studio/super-thanks'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.workspace_premium,
+              title: 'Memberships',
+              subtitle: 'Configure tiers and entitlements',
+              onTap: () => context.push('/studio/tiers'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.shield_outlined,
+              title: 'Moderation',
+              subtitle: 'Reports, bans, and community trust tools',
+              onTap: () => context.push('/studio/moderation'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.chat_outlined,
+              title: 'Direct messages',
+              subtitle: 'Reply to member conversations',
+              onTap: () => context.push('/messages'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.notifications_outlined,
+              title: 'Notifications',
+              subtitle: 'Creator alerts for comments and live events',
+              onTap: () => context.push('/notifications'),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _row(String label, String value) {
+  Widget _shortcut(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ForgeCard(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(icon, color: ForgeTokens.of(context).primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: ForgeTokens.of(context).onSurface,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: ForgeTokens.of(context).onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(BuildContext context, String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: ForgeTokens.outline)),
+        Text(label, style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).outline)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.onSurface)),
+        Text(value, style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface)),
       ],
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../data/auth_repository.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -60,7 +61,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       appBar: AppBar(
         title: const Text('Reset password'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => context.canPop() ? context.pop() : context.go('/login'),
         ),
       ),
@@ -74,7 +75,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     const SizedBox(height: 24),
                     Text(
                       'If an account exists for that email, we sent a reset link. Check your inbox and spam folder.',
-                      style: TextStyle(color: Colors.grey.shade300, height: 1.4),
+                      style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, height: 1.4),
                     ),
                     const SizedBox(height: 24),
                     TextButton(
@@ -93,11 +94,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.1),
+                            color: ForgeTokens.of(context).error.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                            border: Border.all(color: ForgeTokens.of(context).error.withValues(alpha: 0.35)),
                           ),
-                          child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                          child: Text(_error!, style: TextStyle(color: ForgeTokens.of(context).error, fontSize: 13)),
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -114,10 +115,10 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                       ElevatedButton(
                         onPressed: _loading ? null : _submit,
                         child: _loading
-                            ? const SizedBox(
+                            ? SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(strokeWidth: 2, color: ForgeTokens.of(context).onPrimary),
                               )
                             : const Text('Send reset link'),
                       ),

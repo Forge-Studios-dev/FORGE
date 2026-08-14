@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { StreamAnalyticsService } from './stream-analytics.service';
 import { StreamLiveService } from './stream-live.service';
@@ -24,7 +24,7 @@ export class StreamAnalyticsController {
   @Get(':streamId/analytics')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Live stream analytics for creator' })
-  getAnalytics(@CurrentUser() user: JwtPayload, @Param('streamId') streamId: string) {
+  getAnalytics(@CurrentUser() user: JwtPayload, @Param('streamId', ParseUUIDPipe) streamId: string) {
     return this.streamAnalyticsService.getCreatorStreamAnalytics(
       user.sub,
       streamId,
@@ -36,7 +36,7 @@ export class StreamAnalyticsController {
   @Get(':streamId/health')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'Stream ingest health for creator' })
-  getHealth(@CurrentUser() user: JwtPayload, @Param('streamId') streamId: string) {
+  getHealth(@CurrentUser() user: JwtPayload, @Param('streamId', ParseUUIDPipe) streamId: string) {
     return this.streamLiveService.getStreamHealth(streamId, user.sub, user.role);
   }
 }

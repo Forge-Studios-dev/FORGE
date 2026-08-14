@@ -21,15 +21,19 @@ function generateNonce(): string | undefined {
  * Applies the CSP header for a given nonce (or no nonce, on the Web
  * Crypto/Buffer-unavailable fallback path).
  */
-function applyCsp(response: NextResponse, nonce: string | undefined): NextResponse {
+function applyCsp(response: NextResponse, nonce: string | undefined, allowFraming = false): NextResponse {
   const isProduction = process.env.NODE_ENV === 'production';
-  response.headers.set(
-    'Content-Security-Policy',
-    buildContentSecurityPolicy(isProduction, {
-      nonce,
-      apiUrl: process.env.NEXT_PUBLIC_API_URL,
-    }),
-  );
+  let csp = buildContentSecurityPolicy(isProduction, {
+    nonce,
+    apiUrl: process.env.NEXT_PUBLIC_API_URL,
+  });
+  if (allowFraming) {
+    csp = `${csp}; frame-ancestors *`;
+  }
+  response.headers.set('Content-Security-Policy', csp);
+  if (allowFraming) {
+    response.headers.delete('X-Frame-Options');
+  }
   return response;
 }
 
@@ -56,6 +60,8 @@ const PROTECTED_PREFIXES = [
   '/library',
   '/profile',
   '/profile/settings',
+  '/messages',
+  '/playlists/me',
 ];
 
 const PLAYLIST_PROTECTED = ['/playlists/new'];
@@ -89,7 +95,8 @@ function hasSessionMarker(request: NextRequest): boolean {
 
 export function middleware(request: NextRequest) {
   const nonce = generateNonce();
-  const withCsp = (response: NextResponse) => applyCsp(response, nonce);
+  const allowFraming = request.nextUrl.pathname.startsWith('/embed');
+  const withCsp = (response: NextResponse) => applyCsp(response, nonce, allowFraming);
 
   const host = request.headers.get('host') ?? '';
   if (host.startsWith('www.')) {

@@ -1,16 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/navigation/public_video_path.dart';
 import '../../../core/network/api_client.dart';
-import '../data/feed_repository.dart';
-import '../../history/data/history_repository.dart';
-import '../../../shared/models/video.dart';
 import '../../../core/widgets/forge_skeleton.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/motion/forge_motion.dart';
-import '../../gamification/data/gamification_repository.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../../shared/models/video.dart';
+import '../../history/data/history_repository.dart';
+import '../../library/presentation/library_screen.dart';
+import '../../watch/data/watch_repository.dart';
+import '../data/feed_repository.dart';
 
 final feedProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) async {
   final repo = ref.read(feedRepositoryProvider);
@@ -34,6 +41,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
   late TabController _tabController;
   int _tabIndex = 0;
   bool _loadError = false;
+  bool _initialLoading = true;
 
   @override
   void initState() {
@@ -42,7 +50,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) return;
       if (_tabController.index != _tabIndex) {
-        setState(() => _tabIndex = _tabController.index);
+        setState(() {
+          _tabIndex = _tabController.index;
+          _initialLoading = true;
+          _videos.clear();
+        });
         _loadInitial();
       }
     });
@@ -64,9 +76,15 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
         _nextCursor = page.nextCursor;
         _hasMore = page.nextCursor != null;
         _loadError = false;
+        _initialLoading = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loadError = true);
+      if (mounted) {
+        setState(() {
+          _loadError = true;
+          _initialLoading = false;
+        });
+      }
     }
   }
 
@@ -116,16 +134,17 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
         title: const Text('FORGE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: ForgeTokens.primary,
-          labelColor: ForgeTokens.onSurface,
-          unselectedLabelColor: ForgeTokens.onSurfaceVariant,
+          indicatorColor: ForgeTokens.of(context).primary,
+          labelColor: ForgeTokens.of(context).onSurface,
+          unselectedLabelColor: ForgeTokens.of(context).onSurfaceVariant,
           tabs: const [
-            Tab(text: 'Discover'),
-            Tab(text: 'Following'),
+            Tab(text: 'For you'),
+            Tab(text: 'Subscriptions'),
           ],
         ),
         actions: [
           IconButton(
+            tooltip: 'Refresh feed',
             icon: const Icon(Icons.refresh),
             onPressed: () {
               _loadInitial();
@@ -133,8 +152,31 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
             },
           ),
           IconButton(
+            tooltip: 'Search',
             icon: const Icon(Icons.search),
             onPressed: () => context.push('/search'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.subscriptions_outlined),
+            tooltip: 'Subscriptions',
+            onPressed: () => context.push('/subscriptions'),
+          ),
+          Builder(
+            builder: (context) {
+              final unread = ref.watch(libraryUnreadCountProvider).maybeWhen(
+                    data: (c) => c,
+                    orElse: () => 0,
+                  );
+              return IconButton(
+                tooltip: 'Notifications',
+                onPressed: () => context.push('/notifications'),
+                icon: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text(unread > 99 ? '99+' : '$unread'),
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -145,12 +187,29 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
                   title: 'Could not load feed',
                   description: 'Check your connection and try again.',
                   actionLabel: 'Retry',
-                  onAction: _loadInitial,
+                  onAction: () {
+                    setState(() => _initialLoading = true);
+                    _loadInitial();
+                  },
                 )
-              : const FeedSkeletonList(count: 2))
+              : _initialLoading
+                  ? const FeedSkeletonList(count: 2)
+                  : ForgeEmptyState(
+                      icon: _tabIndex == 1 ? Icons.subscriptions_outlined : Icons.video_library_outlined,
+                      title: _tabIndex == 1 ? 'No subscriptions yet' : 'Your feed is empty',
+                      description: _tabIndex == 1
+                          ? 'Subscribe to channels to see their latest videos here.'
+                          : 'Check back soon for new uploads.',
+                      actionLabel: _tabIndex == 1 ? 'Explore' : 'Retry',
+                      onAction: _tabIndex == 1
+                          ? () => context.push('/explore')
+                          : () {
+                              setState(() => _initialLoading = true);
+                              _loadInitial();
+                            },
+                    ))
           : Column(
               children: [
-                const _StreakXpChip(),
                 cwAsync.when(
                   loading: () => const SizedBox.shrink(),
                   error: (_, __) => const SizedBox.shrink(),
@@ -191,7 +250,17 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
                     controller: _pageController,
                     scrollDirection: Axis.vertical,
                     itemCount: _videos.length,
-                    itemBuilder: (context, index) => _VideoCard(video: _videos[index]),
+                    itemBuilder: (context, index) {
+                      final video = _videos[index];
+                      return _VideoCard(
+                        video: video,
+                        onHidden: () {
+                          setState(() {
+                            _videos.removeWhere((v) => v.id == video.id);
+                          });
+                        },
+                      );
+                    },
                   ),
                 ),
               ],
@@ -200,52 +269,107 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
   }
 }
 
-class _ContinueTile extends StatelessWidget {
+class _ContinueTile extends ConsumerWidget {
   final VideoModel video;
   const _ContinueTile({required this.video});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = video.viewerProgressSeconds;
+    final duration = video.durationSeconds;
+    final progressFrac =
+        (progress != null && duration != null && duration > 0) ? (progress / duration).clamp(0.0, 1.0) : null;
+    final href = publicVideoPath(
+      id: video.id,
+      videoType: video.videoType,
+      progressSeconds: (progress != null &&
+              progress > 0 &&
+              duration != null &&
+              duration > 0 &&
+              progress < duration * 0.95)
+          ? progress
+          : null,
+    );
+
     return SizedBox(
       width: 168,
-      child: GestureDetector(
-        onTap: () => context.push('/watch/${video.id}'),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (video.thumbnailUrl != null)
-                CachedNetworkImage(
-                  imageUrl: video.thumbnailUrl!,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(color: const Color(0xFF1A1A24)),
-                  errorWidget: (_, __, ___) => Container(color: const Color(0xFF1A1A24)),
-                )
-              else
-                Container(color: const Color(0xFF1A1A24)),
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black87],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            GestureDetector(
+              onTap: () => context.push(href),
+              child: video.thumbnailUrl != null
+                  ? CachedNetworkImage(
+                      imageUrl: video.thumbnailUrl!,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) =>
+                          Container(color: ForgeTokens.of(context).surfaceContainerHighest),
+                      errorWidget: (_, __, ___) =>
+                          Container(color: ForgeTokens.of(context).surfaceContainerHighest),
+                    )
+                  : Container(color: ForgeTokens.of(context).surfaceContainerHighest),
+            ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black87],
+                ),
+              ),
+            ),
+            if (progressFrac != null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: LinearProgressIndicator(
+                  value: progressFrac,
+                  minHeight: 3,
+                  backgroundColor: Colors.black38,
+                  color: ForgeTokens.of(context).primary,
+                ),
+              ),
+            Positioned(
+              left: 8,
+              right: 8,
+              bottom: 8,
+              child: Text(
+                video.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Material(
+                color: Colors.black54,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () async {
+                    try {
+                      await ref.read(historyRepositoryProvider).removeFromWatchHistory(video.id);
+                      ref.invalidate(continueWatchingProvider);
+                    } catch (_) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Could not remove')),
+                      );
+                    }
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.close, size: 16, color: Colors.white),
                   ),
                 ),
               ),
-              Positioned(
-                left: 8,
-                right: 8,
-                bottom: 8,
-                child: Text(
-                  video.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -254,7 +378,8 @@ class _ContinueTile extends StatelessWidget {
 
 class _VideoCard extends ConsumerStatefulWidget {
   final VideoModel video;
-  const _VideoCard({required this.video});
+  final VoidCallback? onHidden;
+  const _VideoCard({required this.video, this.onHidden});
 
   @override
   ConsumerState<_VideoCard> createState() => _VideoCardState();
@@ -263,6 +388,7 @@ class _VideoCard extends ConsumerStatefulWidget {
 class _VideoCardState extends ConsumerState<_VideoCard> {
   late bool _liked;
   late int _likeCount;
+  bool _inWatchLater = false;
 
   @override
   void initState() {
@@ -297,11 +423,160 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
     }
   }
 
+  Future<void> _share() async {
+    final video = widget.video;
+    final path = publicVideoPath(id: video.id, videoType: video.videoType);
+    final url = '${AppConstants.webBaseUrl}$path';
+    await SharePlus.instance.share(ShareParams(text: '${video.title}\n$url'));
+    unawaited(ref.read(watchRepositoryProvider).recordShare(video.id));
+  }
+
+  Future<void> _notInterested() async {
+    try {
+      await ref.read(watchRepositoryProvider).markNotInterested(widget.video.id);
+      widget.onHidden?.call();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("We'll show fewer videos like this")),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to update preferences')),
+        );
+      }
+    }
+  }
+
+  Future<void> _dontRecommend() async {
+    try {
+      await ref.read(watchRepositoryProvider).dontRecommendChannel(widget.video.id);
+      widget.onHidden?.call();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Channel won't be recommended")),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to update preferences')),
+        );
+      }
+    }
+  }
+
+  Future<void> _blockUser() async {
+    final userId = widget.video.user.id;
+    if (userId.isEmpty) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Block ${widget.video.user.displayName}?'),
+        content: const Text(
+          'They won’t be able to message you. Their comments will be hidden, and their channel won’t be recommended.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Block')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(watchRepositoryProvider).blockUser(userId);
+      widget.onHidden?.call();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User blocked')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to block users')),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleWatchLater() async {
+    final next = !_inWatchLater;
+    try {
+      if (next) {
+        await ref.read(watchRepositoryProvider).addToWatchLater(widget.video.id);
+      } else {
+        await ref.read(watchRepositoryProvider).removeFromWatchLater(widget.video.id);
+      }
+      if (!mounted) return;
+      setState(() => _inWatchLater = next);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(next ? 'Saved to Watch later' : 'Removed from Watch later'),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to use Watch later')),
+        );
+      }
+    }
+  }
+
+  Future<void> _report() async {
+    const reasons = [
+      'Spam or misleading',
+      'Hate speech or harassment',
+      'Sexual content',
+      'Violent or repulsive content',
+      'Harmful or dangerous acts',
+      'Child abuse',
+      'Promotes terrorism',
+      'Copyright infringement',
+      'Privacy violation',
+      'Other',
+    ];
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Report', style: TextStyle(fontWeight: FontWeight.w600))),
+            ...reasons.map(
+              (r) => ListTile(title: Text(r), onTap: () => Navigator.pop(ctx, r)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (reason == null) return;
+    try {
+      await ref.read(watchRepositoryProvider).reportVideo(
+            videoId: widget.video.id,
+            reason: reason,
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report submitted')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to report')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final video = widget.video;
     return GestureDetector(
-      onTap: () => context.push('/watch/${video.id}'),
+      onTap: () => context.push(publicVideoPath(id: video.id, videoType: video.videoType)),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -309,11 +584,11 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
             CachedNetworkImage(
               imageUrl: video.thumbnailUrl!,
               fit: BoxFit.cover,
-              placeholder: (_, __) => Container(color: const Color(0xFF13131A)),
-              errorWidget: (_, __, ___) => Container(color: const Color(0xFF13131A)),
+              placeholder: (_, __) => Container(color: ForgeTokens.of(context).surfaceContainerHigh),
+              errorWidget: (_, __, ___) => Container(color: ForgeTokens.of(context).surfaceContainerHigh),
             )
           else
-            Container(color: const Color(0xFF13131A)),
+            Container(color: ForgeTokens.of(context).surfaceContainerHigh),
 
           const DecoratedBox(
             decoration: BoxDecoration(
@@ -323,6 +598,41 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
                 colors: [Colors.transparent, Colors.black87],
                 stops: [0.5, 1.0],
               ),
+            ),
+          ),
+
+          Positioned(
+            top: 12,
+            right: 8,
+            child: PopupMenuButton<String>(
+              tooltip: 'More',
+              color: ForgeTokens.of(context).surfaceContainerHigh,
+              onSelected: (value) {
+                if (value == 'not_interested') _notInterested();
+                if (value == 'dont_recommend') _dontRecommend();
+                if (value == 'block') _blockUser();
+                if (value == 'watch_later') _toggleWatchLater();
+                if (value == 'share') _share();
+                if (value == 'report') _report();
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'watch_later',
+                  child: Text(
+                    _inWatchLater ? 'Remove from Watch later' : 'Save to Watch later',
+                  ),
+                ),
+                const PopupMenuItem(value: 'share', child: Text('Share')),
+                const PopupMenuItem(value: 'not_interested', child: Text('Not interested')),
+                const PopupMenuItem(
+                  value: 'dont_recommend',
+                  child: Text("Don't recommend channel"),
+                ),
+                if (widget.video.user.id.isNotEmpty)
+                  const PopupMenuItem(value: 'block', child: Text('Block user')),
+                const PopupMenuItem(value: 'report', child: Text('Report')),
+              ],
+              icon: const Icon(Icons.more_vert, color: Colors.white),
             ),
           ),
 
@@ -354,18 +664,25 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
             child: Column(
               children: [
                 _ActionButton(
-                  icon: _liked ? Icons.favorite : Icons.favorite_border,
+                  icon: _liked ? Icons.thumb_up : Icons.thumb_up_outlined,
                   count: _likeCount,
+                  label: _liked ? 'Unlike, $_likeCount likes' : 'Like, $_likeCount likes',
                   onTap: _toggleLike,
                 ),
                 const SizedBox(height: 16),
                 _ActionButton(
                   icon: Icons.comment_outlined,
                   count: video.commentCount,
+                  label: 'Comment, ${video.commentCount} comments',
                   onTap: () => context.push('/watch/${video.id}'),
                 ),
                 const SizedBox(height: 16),
-                _ActionButton(icon: Icons.share_outlined, count: 0, onTap: () {}),
+                _ActionButton(
+                  icon: Icons.share_outlined,
+                  count: 0,
+                  label: 'Share',
+                  onTap: _share,
+                ),
               ],
             ),
           ),
@@ -378,72 +695,33 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final int count;
+  final String label;
   final VoidCallback onTap;
 
-  const _ActionButton({required this.icon, required this.count, required this.onTap});
+  const _ActionButton({
+    required this.icon,
+    required this.count,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.white, size: 28),
-          const SizedBox(height: 4),
-          Text(
-            count > 999 ? '${(count / 1000).toStringAsFixed(1)}K' : count.toString(),
-            style: const TextStyle(color: Colors.white, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Persistent streak/XP chip fed by the existing platform-wide gamification
-/// endpoint (GET /platform/gamification/me — apps/api gamification
-/// module), reused here rather than a new backend contract. Best-effort:
-/// hides silently on loading/error (e.g. guest browsing without a session),
-/// same pattern as the other feed sections below.
-class _StreakXpChip extends ConsumerWidget {
-  const _StreakXpChip();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final xpAsync = ref.watch(platformXpProvider);
-    return xpAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (profile) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: ForgeTokens.surfaceContainer.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: ForgeTokens.outlineVariant.withValues(alpha: 0.3)),
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.white, size: 28),
+            const SizedBox(height: 4),
+            Text(
+              count > 999 ? '${(count / 1000).toStringAsFixed(1)}K' : count.toString(),
+              style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.local_fire_department, size: 16, color: ForgeTokens.tertiary),
-                const SizedBox(width: 4),
-                Text(
-                  '${profile.streak}d streak',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.onSurface),
-                ),
-                const SizedBox(width: 10),
-                const Icon(Icons.bolt, size: 16, color: ForgeTokens.secondary),
-                const SizedBox(width: 4),
-                Text(
-                  '${profile.xp} XP · Lvl ${profile.level}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ForgeTokens.onSurface),
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
       ),
     );

@@ -1,4 +1,4 @@
-import { Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Controller, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { LiveBroadcastService } from './live-broadcast.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -16,7 +16,7 @@ export class LiveBroadcastController {
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.START_STREAM)
   @ApiOperation({ summary: 'Get LiveKit publisher token for browser go-live' })
-  createToken(@CurrentUser() user: JwtPayload, @Param('streamId') streamId: string) {
+  createToken(@CurrentUser() user: JwtPayload, @Param('streamId', ParseUUIDPipe) streamId: string) {
     return this.liveBroadcastService.createPublisherToken(streamId, user.sub);
   }
 
@@ -24,7 +24,7 @@ export class LiveBroadcastController {
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.START_STREAM)
   @ApiOperation({ summary: 'Start RTMP egress from LiveKit room to Mux' })
-  startEgress(@CurrentUser() user: JwtPayload, @Param('streamId') streamId: string) {
+  startEgress(@CurrentUser() user: JwtPayload, @Param('streamId', ParseUUIDPipe) streamId: string) {
     return this.liveBroadcastService.startBrowserEgress(streamId, user.sub);
   }
 
@@ -32,7 +32,7 @@ export class LiveBroadcastController {
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.START_STREAM)
   @ApiOperation({ summary: 'Stop browser RTMP egress' })
-  stopEgress(@CurrentUser() user: JwtPayload, @Param('streamId') streamId: string) {
+  stopEgress(@CurrentUser() user: JwtPayload, @Param('streamId', ParseUUIDPipe) streamId: string) {
     return this.liveBroadcastService.stopBrowserEgress(streamId, user.sub);
   }
 }

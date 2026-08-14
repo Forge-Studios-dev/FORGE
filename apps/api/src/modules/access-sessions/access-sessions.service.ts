@@ -1,16 +1,18 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { randomBytes, createHash } from 'crypto';
 import { AccessSessionAudit } from './entities/access-session-audit.entity';
 import { AccessSessionType, StartAccessSessionDto } from './dto/access-session.dto';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { recordAccessSessionConflict } from '../../common/metrics/forge-metrics';
 
 const SESSION_TTL_SEC = 120;
@@ -32,6 +34,8 @@ export class AccessSessionsService {
     @InjectRepository(AccessSessionAudit)
     private readonly auditRepository: Repository<AccessSessionAudit>,
     private readonly entitlementsService: EntitlementsService,
+    private readonly engagementService: EngagementService,
+    private readonly dataSource: DataSource,
   ) {}
 
   private legacyUserSessionKey(userId: string): string {
@@ -98,12 +102,54 @@ export class AccessSessionsService {
     return createHash('sha256').update(material).digest('hex').slice(0, 64);
   }
 
+  /** Resolve creator host for block gate (explicit creatorId or resource lookup). */
+  private async resolveCreatorId(dto: StartAccessSessionDto): Promise<string | null> {
+    if (dto.creatorId) return dto.creatorId;
+    if (!dto.resourceId) return null;
+    if (dto.sessionType === AccessSessionType.PLAYBACK) {
+      const [row] = await this.dataSource.query<[{ user_id: string }?]>(
+        `SELECT user_id FROM videos WHERE id = $1 LIMIT 1`,
+        [dto.resourceId],
+      );
+      return row?.user_id ?? null;
+    }
+    if (dto.sessionType === AccessSessionType.LIVE) {
+      const [row] = await this.dataSource.query<[{ user_id: string }?]>(
+        `SELECT user_id FROM streams WHERE id = $1 LIMIT 1`,
+        [dto.resourceId],
+      );
+      return row?.user_id ?? null;
+    }
+    if (dto.sessionType === AccessSessionType.COMMUNITY) {
+      const [row] = await this.dataSource.query<[{ creator_id: string }?]>(
+        `SELECT creator_id FROM communities WHERE id = $1 LIMIT 1`,
+        [dto.resourceId],
+      );
+      return row?.creator_id ?? null;
+    }
+    if (dto.sessionType === AccessSessionType.COURSE) {
+      const [row] = await this.dataSource.query<[{ creator_id: string }?]>(
+        `SELECT creator_id FROM courses WHERE id = $1 LIMIT 1`,
+        [dto.resourceId],
+      );
+      return row?.creator_id ?? null;
+    }
+    return null;
+  }
+
   async startSession(
     userId: string,
     dto: StartAccessSessionDto,
     meta?: { deviceFingerprint?: string | null; userAgent?: string | null },
   ) {
-    const creatorId = dto.creatorId ?? null;
+    const creatorId = await this.resolveCreatorId(dto);
+    if (
+      creatorId &&
+      creatorId !== userId &&
+      (await this.engagementService.isBlockedEitherWay(userId, creatorId))
+    ) {
+      throw new ForbiddenException('This channel is not available');
+    }
     const maxDevices = await this.entitlementsService.getMaxConcurrentDevices(
       userId,
       creatorId ?? undefined,

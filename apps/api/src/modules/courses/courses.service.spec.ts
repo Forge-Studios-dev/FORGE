@@ -19,6 +19,7 @@ import {
 import { Video, VideoStatus } from '../content/entities/video.entity';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { Community } from '../communities/entities/community.entity';
 import { User } from '../users/entities/user.entity';
 
@@ -45,6 +46,7 @@ describe('CoursesService', () => {
     findOne: jest.fn(),
     save: jest.fn(async (entity: Course) => ({ ...entity, id: entity.id ?? 'course-new' })),
     create: jest.fn((dto: Partial<Course>) => dto),
+    createQueryBuilder: jest.fn(),
   };
   const cohortRepository = {
     save: jest.fn(async (entity: CourseCohort) => ({ ...entity, id: entity.id ?? 'cohort-1' })),
@@ -179,6 +181,13 @@ describe('CoursesService', () => {
         },
         { provide: EntitlementsService, useValue: entitlementsService },
         { provide: AccessSessionsService, useValue: accessSessionsService },
+        {
+          provide: EngagementService,
+          useValue: {
+            isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+            getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+          },
+        },
       ],
     }).compile();
 
@@ -328,7 +337,13 @@ describe('CoursesService', () => {
   });
 
   it('lists featured published courses for catalog', async () => {
-    courseRepository.find.mockResolvedValue([{ ...course, isPublished: true }]);
+    courseRepository.createQueryBuilder.mockReturnValue({
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([{ ...course, isPublished: true }]),
+    });
     lessonRepository.createQueryBuilder = jest.fn(() => ({
       select: jest.fn().mockReturnThis(),
       addSelect: jest.fn().mockReturnThis(),

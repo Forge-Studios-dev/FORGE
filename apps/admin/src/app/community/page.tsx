@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, PageHeader } from '@forge/design-system';
+import { useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 
 type Report = {
@@ -59,6 +60,7 @@ type ConnectRow = {
 
 export default function AdminCommunityPage() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [tab, setTab] = useState<'reports' | 'communities' | 'connect'>('reports');
   const [search, setSearch] = useState('');
   const [connectFilter, setConnectFilter] = useState<'all' | 'connected' | 'incomplete' | 'none'>('all');
@@ -103,14 +105,22 @@ export default function AdminCommunityPage() {
     mutationFn: async (reportId: string) => {
       await api.patch(`/admin/community-reports/${reportId}/resolve`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-community-reports'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-community-reports'] });
+      toast({ title: 'Report resolved', variant: 'success' });
+    },
+    onError: () => toast({ title: 'Could not resolve report', variant: 'critical' }),
   });
 
   const updateCommunityMutation = useMutation({
     mutationFn: async ({ id, visibility }: { id: string; visibility: string }) => {
       await api.patch(`/admin/communities/${id}`, { visibility });
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-communities', search] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-communities', search] });
+      toast({ title: 'Community updated', variant: 'success' });
+    },
+    onError: () => toast({ title: 'Could not update community', variant: 'critical' }),
   });
 
   const { data: communityDetail, isLoading: detailLoading } = useQuery({

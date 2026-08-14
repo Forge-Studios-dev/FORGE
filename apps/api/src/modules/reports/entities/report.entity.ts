@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { ReportReason, ReportSeverity } from '@forge/shared-types';
 
 export enum ReportTargetType {
   VIDEO = 'video',
@@ -25,6 +26,8 @@ export enum ReportStatus {
 // (status='pending' ORDER BY created_at DESC). Composite index keeps
 // that path index-only as the queue grows (H-B3).
 @Index('IDX_reports_status_created_at', ['status', 'createdAt'])
+// Severity-first triage ordering (P0 before P3) for the same pending queue.
+@Index('IDX_reports_status_severity_created_at', ['status', 'severity', 'createdAt'])
 @Entity('reports')
 export class Report {
   @PrimaryGeneratedColumn('uuid')
@@ -45,6 +48,14 @@ export class Report {
 
   @Column({ type: 'varchar', length: 2000 })
   reason: string;
+
+  /** Structured preset behind `reason`'s free text, when the client sent one. Drives `severity`. */
+  @Column({ name: 'reason_category', type: 'varchar', length: 64, nullable: true })
+  reasonCategory: ReportReason | null;
+
+  /** Derived from `reasonCategory` at creation — see `docs/ESCALATION_RULES.md` §1. Triage sort only, no auto-action. */
+  @Column({ type: 'varchar', length: 8, default: ReportSeverity.P3 })
+  severity: ReportSeverity;
 
   @Column({ type: 'varchar', length: 32, default: ReportStatus.PENDING })
   status: ReportStatus;

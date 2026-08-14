@@ -8,7 +8,6 @@ import '../../../core/widgets/forge_button.dart';
 import '../../auth/data/auth_repository.dart';
 
 import 'studio_rooms_screen.dart';
-import 'studio_engagement_screen.dart';
 import 'studio_moderation_screen.dart';
 
 class StudioCommunityScreen extends ConsumerStatefulWidget {
@@ -45,9 +44,9 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen>
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 5,
+      length: 4,
       vsync: this,
-      initialIndex: widget.initialTabIndex.clamp(0, 4),
+      initialIndex: widget.initialTabIndex.clamp(0, 3),
     );
     _load();
   }
@@ -467,9 +466,9 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen>
                     ? null
                     : TextButton(
                         onPressed: () => _suspendMember(userId),
-                        child: const Text(
+                        child: Text(
                           'Suspend',
-                          style: TextStyle(color: ForgeTokens.error),
+                          style: TextStyle(color: ForgeTokens.of(context).error),
                         ),
                       ),
               ),
@@ -643,7 +642,6 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen>
           tabs: const [
             Tab(text: 'Rooms'),
             Tab(text: 'Members'),
-            Tab(text: 'Engagement'),
             Tab(text: 'Moderation'),
             Tab(text: 'Settings'),
           ],
@@ -660,11 +658,6 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen>
                   fixedCommunityId: _communityId,
                 ),
                 _buildMembersTab(),
-                StudioEngagementScreen(
-                  key: ValueKey('engagement-$_communityId'),
-                  embedded: true,
-                  fixedCommunityId: _communityId,
-                ),
                 StudioModerationScreen(
                   key: ValueKey('moderation-$_communityId'),
                   embedded: true,

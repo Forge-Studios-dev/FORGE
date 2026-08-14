@@ -13,6 +13,7 @@ import { AiCommunityService } from '../communities/ai-community.service';
 import { StreamBreakoutService } from './stream-breakout.service';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
+import { UploadNotRestrictedGuard } from '../../common/guards/upload-not-restricted.guard';
 
 function signMuxBody(body: string, secret: string): string {
   const t = Math.floor(Date.now() / 1000);
@@ -24,6 +25,11 @@ describe('StreamingController Mux webhook', () => {
   const secret = 'test-webhook-secret';
   const streamingService = {
     handleMuxWebhook: jest.fn().mockResolvedValue({ ok: true }),
+  };
+  const breakoutService = {
+    createBreakoutRooms: jest.fn(),
+    listBreakoutRooms: jest.fn(),
+    endBreakoutSession: jest.fn(),
   };
 
   async function createController(nodeEnv = 'production') {
@@ -37,7 +43,7 @@ describe('StreamingController Mux webhook', () => {
         { provide: StreamReactionService, useValue: {} },
         { provide: StreamAnalyticsService, useValue: { getCreatorStreamAnalytics: jest.fn(), recordSnapshot: jest.fn() } },
         { provide: AiCommunityService, useValue: { generateStreamSummary: jest.fn() } },
-        { provide: StreamBreakoutService, useValue: { createBreakoutRooms: jest.fn(), listBreakoutRooms: jest.fn(), endBreakoutSession: jest.fn() } },
+        { provide: StreamBreakoutService, useValue: breakoutService },
         {
           provide: ConfigService,
           useValue: {
@@ -57,6 +63,8 @@ describe('StreamingController Mux webhook', () => {
       .overrideGuard(CreatorApprovedGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(OptionalJwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(UploadNotRestrictedGuard)
       .useValue({ canActivate: () => true })
       .compile();
     return moduleRef.get(StreamingController);
@@ -100,5 +108,22 @@ describe('StreamingController Mux webhook', () => {
     expect(() =>
       controller.handleMuxWebhook({ headers: { 'mux-signature': 't=1,v1=x' } }, { type: 'x' }),
     ).toThrow(ForbiddenException);
+  });
+
+  it('lists breakout rooms using communityId query input', async () => {
+    const controller = await createController();
+    breakoutService.listBreakoutRooms.mockResolvedValue([{ id: 'room-1' }]);
+
+    const result = await controller.listBreakoutRooms(
+      { sub: 'user-1', role: 'creator' } as never,
+      '00000000-0000-4000-8000-0000000000a1',
+      '00000000-0000-4000-8000-0000000000b2',
+    );
+
+    expect(breakoutService.listBreakoutRooms).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-0000000000a1',
+      '00000000-0000-4000-8000-0000000000b2',
+    );
+    expect(result).toEqual([{ id: 'room-1' }]);
   });
 });

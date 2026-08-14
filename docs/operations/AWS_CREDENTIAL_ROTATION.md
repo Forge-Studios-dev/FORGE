@@ -79,9 +79,31 @@ Rollback: if the deploy is unhealthy, `flyctl secrets set AWS_ACCESS_KEY_ID=<old
 
 ## Preferred path: OIDC / Workload Identity (no static keys)
 
-The repo **already proves** the Fly OIDC pattern works — [`scripts/fly-gcp-oidc-token.sh`](../../scripts/fly-gcp-oidc-token.sh) mints a Fly OIDC JWT from `/.fly/api` for GCP Workload Identity Federation. The same JWT can back AWS `sts:AssumeRoleWithWebIdentity`.
+**Correction, 2026-08-13:** the previous version of this doc said the Fly OIDC pattern was "already proven" via [`scripts/fly-gcp-oidc-token.sh`](../../scripts/fly-gcp-oidc-token.sh). Re-checked: that script exists and is a correct, minimal wrapper around Fly's `/.fly/api` OIDC socket, but nothing in the app (no Dockerfile `COPY`, no runtime call site) actually invokes it — it isn't wired into any live GCP credential exchange today. Treat it as a working reference for the socket protocol, not a production-proven integration.
 
-### One-time AWS setup (do once, in AWS console or Terraform)
+### App-side change — done, 2026-08-13
+
+`apps/api/src/common/create-s3-client.ts` now supports both paths: static `accessKeyId`/`secretAccessKey` (default, unchanged), or an AWS STS credential provider when `roleArn` is set. It talks to the Fly OIDC socket directly in Node (`node:http` against `/.fly/api`) rather than shelling out to a script, so there's no separate binary to add to the Docker image. Every call site that builds an S3 client now passes `roleArn: configService.get('aws.roleArn')` (from `AWS_ROLE_ARN`), so setting that one env var is the entire app-side cutover — no further code changes needed. Covered by `apps/api/src/common/create-s3-client.spec.ts` (mocks the socket + STS exchange; cannot exercise a real AWS account from a test).
+
+Actual credential-resolution shape, for reference:
+
+```ts
+// Only used when roleArn is set — otherwise falls through to static keys.
+const provider: AwsCredentialIdentityProvider = async () => {
+  const webIdentityToken = await readFlyOidcToken(); // fresh JWT from /.fly/api, per call
+  const assumeRole = fromWebToken({
+    roleArn,
+    webIdentityToken,                                // fromWebToken takes a fixed string, not a refresh fn
+    roleSessionName: `forge-${process.env.FLY_APP_NAME || 'local'}`,
+    durationSeconds: 900,
+  });
+  return assumeRole();
+};
+```
+
+### What's still needed — requires AWS console/IAM access this repo/agent doesn't have
+
+The app-side code is ready and defaults to today's static-key behavior when `AWS_ROLE_ARN` is unset. **Nobody should flip the switch until someone with AWS IAM access does this one-time setup and it's verified in staging:**
 
 1. Create an OIDC identity provider in AWS IAM:
    - Provider URL: `https://oidc.fly.io/<FLY_ORG_SLUG>`
@@ -90,38 +112,8 @@ The repo **already proves** the Fly OIDC pattern works — [`scripts/fly-gcp-oid
    - Trust policy: `sts:AssumeRoleWithWebIdentity` federated to the Fly OIDC provider, with a condition like
      `oidc.fly.io/<ORG>:sub` matches the specific Fly app(s) (`forge-studios-api`, `forge-studios-worker`).
    - Permission policy: same S3 + CloudFront actions currently attached to the `forge-api-media` IAM user.
-3. Remove the S3 policy from `forge-api-media` (or leave the user in place as an emergency fallback while OIDC bakes).
-
-### App-side change
-
-Use `@aws-sdk/credential-providers` with `fromWebToken` on the API/worker startup:
-
-```ts
-import { fromWebToken } from '@aws-sdk/credential-providers';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
-const flyOidcAudience = 'sts.amazonaws.com';
-
-async function readFlyOidcToken() {
-  const { stdout } = await promisify(execFile)(
-    '/app/apps/api/bin/fly-oidc-token', // wraps fly-gcp-oidc-token.sh with a custom audience
-    [flyOidcAudience],
-  );
-  return stdout.trim();
-}
-
-const credentials = fromWebToken({
-  roleArn: process.env.AWS_ROLE_ARN!,       // arn:aws:iam::<acct>:role/forge-fly-media
-  webIdentityTokenFn: readFlyOidcToken,     // returns a fresh short-lived Fly JWT on each STS call
-  roleSessionName: `forge-${process.env.FLY_APP_NAME || 'local'}`,
-  durationSeconds: 900,                     // 15 min; SDK auto-refreshes near expiry
-});
-```
-
-Then swap `createS3Client` / `createS3ClientForBrowserPresign` in `apps/api/src/common/create-s3-client.ts` to pass `credentials` instead of the static `{ accessKeyId, secretAccessKey }` pair when `AWS_ROLE_ARN` is set.
-
-Fly secrets required after cutover: `AWS_ROLE_ARN`, `AWS_REGION`, `S3_BUCKET_NAME`, `CLOUDFRONT_DOMAIN`. Delete `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` **only after** the OIDC path is verified in staging *and* the first production deploy.
+3. Set `AWS_ROLE_ARN` in Fly secrets for both apps (`forge-studios-api`, `forge-studios-worker`) — this alone activates the OIDC path, no deploy needed beyond the secret set (which restarts the machines).
+4. Leave `forge-api-media`'s static keys active as an emergency fallback until the OIDC path is proven under real production load for at least one full deploy cycle — then follow the manual-rotation steps above to deactivate and delete them.
 
 ### Validation
 
@@ -131,13 +123,13 @@ Fly secrets required after cutover: `AWS_ROLE_ARN`, `AWS_REGION`, `S3_BUCKET_NAM
 
 ### Rollback
 
-Re-set the static IAM keys via `flyctl secrets set AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=…` and unset `AWS_ROLE_ARN`; the SDK falls back to the static path immediately on restart.
+Unset `AWS_ROLE_ARN` via `flyctl secrets unset AWS_ROLE_ARN`; the app falls back to the static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` path immediately on restart (only safe if those keys haven't been deleted yet — see step 4 above).
 
 ---
 
 ## Estimated effort
 
 - Rotation runbook (this file, done): **1 hour** to rotate + verify.
-- Full OIDC migration: **1–2 days**, mostly AWS IAM setup + one small `createS3Client` change + staging soak.
+- Full OIDC migration: app-side code is done (2026-08-13). Remaining work is AWS IAM setup (~1-2 hours for someone with console access) + a staging soak before cutover.
 
 Track completion of the OIDC migration under `H-D2` in [`../audits/IMPLEMENTATION_TRACKER_2026-07-26.md`](../audits/IMPLEMENTATION_TRACKER_2026-07-26.md).

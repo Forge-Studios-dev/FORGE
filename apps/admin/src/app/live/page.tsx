@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Button, PageHeader } from '@forge/design-system';
+import { useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 
 type AdminStream = {
@@ -25,6 +27,7 @@ type ChatMessage = {
 
 export default function AdminLivePage() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [grantStreamId, setGrantStreamId] = useState<string | null>(null);
   const [grantUsername, setGrantUsername] = useState('');
   const [grantNote, setGrantNote] = useState('');
@@ -68,7 +71,11 @@ export default function AdminLivePage() {
     mutationFn: async (id: string) => {
       await api.post(`/admin/streams/${id}/force-end`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-streams'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-streams'] });
+      toast({ title: 'Stream ended', variant: 'success' });
+    },
+    onError: () => toast({ title: 'Could not end stream', variant: 'critical' }),
   });
 
   const grantAccess = useMutation({
@@ -91,7 +98,9 @@ export default function AdminLivePage() {
       setGrantUsername('');
       setGrantNote('');
       qc.invalidateQueries({ queryKey: ['admin-streams'] });
+      toast({ title: 'Access granted', variant: 'success' });
     },
+    onError: () => toast({ title: 'Could not grant access', variant: 'critical' }),
   });
 
   const deleteChatMessage = useMutation({
@@ -99,6 +108,7 @@ export default function AdminLivePage() {
       await api.delete(`/admin/streams/${streamId}/chat/${messageId}`);
     },
     onSuccess: () => void refetchChat(),
+    onError: () => toast({ title: 'Could not delete message', variant: 'critical' }),
   });
 
   const backfillMux = useMutation({
@@ -108,24 +118,24 @@ export default function AdminLivePage() {
       );
       return data.data;
     },
+    onError: () => toast({ title: 'Backfill failed', variant: 'critical' }),
   });
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="font-display-forge mb-2 text-2xl font-bold">Live streams</h1>
-      <p className="mb-6 text-sm text-on-surface-variant">
-        Monitor sessions, moderate chat, force-end streams, grant access by username, and backfill Mux
-        playback IDs.
-      </p>
-      <div className="mb-6">
-        <button
+    <div className="mx-auto max-w-5xl space-y-6">
+      <PageHeader
+        title="Live streams"
+        subtitle="Monitor sessions, moderate chat, force-end streams, grant access by username, and backfill Mux playback IDs."
+      />
+      <div>
+        <Button
           type="button"
+          variant="outline"
           disabled={backfillMux.isPending}
           onClick={() => backfillMux.mutate()}
-          className="rounded-lg border border-outline-variant/40 px-4 py-2 text-sm disabled:opacity-50"
         >
           {backfillMux.isPending ? 'Backfilling…' : 'Backfill Mux playback IDs'}
-        </button>
+        </Button>
         {backfillMux.data != null ? (
           <p className="mt-2 text-xs text-on-surface-variant">
             Updated {backfillMux.data.updated} stream(s)
@@ -136,13 +146,9 @@ export default function AdminLivePage() {
         <div className="glass-panel mb-6 rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <p className="font-medium">Chat moderation</p>
-            <button
-              type="button"
-              onClick={() => setChatStreamId(null)}
-              className="text-sm text-on-surface-variant hover:underline"
-            >
+            <Button type="button" variant="ghost" className="!px-2 !py-1 text-sm" onClick={() => setChatStreamId(null)}>
               Close
-            </button>
+            </Button>
           </div>
           <ul className="max-h-64 space-y-2 overflow-y-auto text-sm">
             {(chatData ?? []).map((m) => (
@@ -154,16 +160,17 @@ export default function AdminLivePage() {
                   {m.body}
                 </span>
                 {m.body !== '[deleted]' ? (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     disabled={deleteChatMessage.isPending}
+                    className="!shrink-0 !px-1 !py-0 text-xs text-error"
                     onClick={() =>
                       deleteChatMessage.mutate({ streamId: chatStreamId, messageId: m.id })
                     }
-                    className="shrink-0 text-xs text-error hover:underline disabled:opacity-50"
                   >
                     Delete
-                  </button>
+                  </Button>
                 ) : null}
               </li>
             ))}
@@ -206,32 +213,35 @@ export default function AdminLivePage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {s.status === 'live' ? (
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      className="!px-3 !py-1.5 text-sm"
                       onClick={() => setChatStreamId(chatStreamId === s.id ? null : s.id)}
-                      className="rounded-lg border border-outline-variant/40 px-3 py-1.5 text-sm"
                     >
                       {chatStreamId === s.id ? 'Hide chat' : 'View chat'}
-                    </button>
+                    </Button>
                   ) : null}
                   {s.visibility === 'paid_event' ? (
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      className="!px-3 !py-1.5 text-sm text-primary"
                       onClick={() => setGrantStreamId(grantStreamId === s.id ? null : s.id)}
-                      className="rounded-lg border border-primary/40 px-3 py-1.5 text-sm text-primary"
                     >
                       Grant access
-                    </button>
+                    </Button>
                   ) : null}
                   {s.status !== 'ended' ? (
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
                       disabled={forceEnd.isPending}
+                      className="!px-3 !py-1.5 text-sm text-error"
                       onClick={() => forceEnd.mutate(s.id)}
-                      className="rounded-lg border border-error/40 px-3 py-1.5 text-sm text-error disabled:opacity-50"
                     >
                       Force end
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
               </div>
@@ -266,19 +276,19 @@ export default function AdminLivePage() {
                       className="rounded-lg border border-outline-variant/40 bg-surface-container-high px-3 py-2 text-sm"
                     />
                   </label>
-                  <button
+                  <Button
                     type="submit"
+                    variant="primary"
                     disabled={grantAccess.isPending || !grantUsername.trim()}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary disabled:opacity-50"
                   >
                     {grantAccess.isPending ? 'Granting…' : 'Grant'}
-                  </button>
+                  </Button>
                 </form>
               ) : null}
             </li>
           ))}
         </ul>
       )}
-    </main>
+    </div>
   );
 }

@@ -6,6 +6,7 @@ import '../../../core/access/creator_status_provider.dart';
 import '../../../core/network/api_client.dart';
 import '../data/auth_repository.dart';
 import '../../profile/presentation/profile_screen.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 class VerifyEmailScreen extends ConsumerStatefulWidget {
   final String initialToken;
@@ -81,9 +82,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (_status == 'loading') const CircularProgressIndicator(),
+              if (_status == 'loading') CircularProgressIndicator(),
               if (_status == 'ok') ...[
-                const Icon(Icons.check_circle, color: Colors.green, size: 56),
+                Icon(Icons.check_circle, color: ForgeTokens.of(context).success, size: 56),
                 const SizedBox(height: 16),
                 Text(_message, textAlign: TextAlign.center),
                 const SizedBox(height: 24),
@@ -95,7 +96,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               if (_status == 'prompt' || _status == 'err') ...[
                 Icon(
                   _status == 'err' ? Icons.error_outline : Icons.mail_outline,
-                  color: _status == 'err' ? Colors.redAccent : Colors.amber,
+                  color: _status == 'err' ? ForgeTokens.of(context).error : ForgeTokens.of(context).warning,
                   size: 56,
                 ),
                 const SizedBox(height: 16),
@@ -104,10 +105,10 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 FilledButton(
                   onPressed: _resending ? null : _resend,
                   child: _resending
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: ForgeTokens.of(context).onPrimary),
                         )
                       : const Text('Resend verification email'),
                 ),

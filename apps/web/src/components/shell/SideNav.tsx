@@ -5,13 +5,81 @@ import { usePathname } from 'next/navigation';
 import { Icon } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
 
-const NAV = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: string;
+  guestHref?: string;
+};
+
+const PRIMARY: NavItem[] = [
   { href: '/', label: 'Home', icon: 'home' },
+  { href: '/shorts', label: 'Shorts', icon: 'smart_display' },
+  { href: '/trending', label: 'Trending', icon: 'local_fire_department' },
+  {
+    href: '/subscriptions',
+    label: 'Subscriptions',
+    icon: 'subscriptions',
+    guestHref: '/login?next=/subscriptions',
+  },
   { href: '/explore', label: 'Explore', icon: 'explore' },
-  { href: '/discover/communities', label: 'Communities', icon: 'groups' },
   { href: '/live', label: 'Live', icon: 'sensors' },
-  { href: '/library', label: 'Library', icon: 'video_library', guestHref: '/login?next=/library' },
-] as const;
+];
+
+const YOU: NavItem[] = [
+  {
+    href: '/library',
+    label: 'You',
+    icon: 'person',
+    guestHref: '/login?next=/library',
+  },
+  {
+    href: '/history',
+    label: 'History',
+    icon: 'history',
+    guestHref: '/login?next=/history',
+  },
+  {
+    href: '/playlists/me/watch-later',
+    label: 'Watch later',
+    icon: 'watch_later',
+    guestHref: '/login?next=/playlists/me/watch-later',
+  },
+  {
+    href: '/playlists/me/liked',
+    label: 'Liked videos',
+    icon: 'thumb_up',
+    guestHref: '/login?next=/playlists/me/liked',
+  },
+];
+
+function NavLink({
+  item,
+  pathname,
+  isGuest,
+}: {
+  item: NavItem;
+  pathname: string;
+  isGuest: boolean;
+}) {
+  const href = item.guestHref && isGuest ? item.guestHref : item.href;
+  const active =
+    pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      className={`group flex items-center gap-4 px-6 py-2.5 transition-all ${
+        active
+          ? 'border-r-2 border-primary bg-surface-container-high font-semibold text-on-surface'
+          : 'text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface'
+      }`}
+    >
+      <Icon name={item.icon} filled={active} />
+      <span className="font-label-caps">{item.label}</span>
+    </Link>
+  );
+}
 
 export function SideNav() {
   const pathname = usePathname();
@@ -29,42 +97,31 @@ export function SideNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed left-0 top-16 z-40 hidden h-[calc(100vh-64px)] w-64 flex-col gap-2 border-r border-outline-variant/10 bg-surface-container-low/40 py-6 backdrop-blur-[20px] md:flex"
+      className="fixed left-0 top-16 z-40 hidden h-[calc(100vh-64px)] w-64 flex-col gap-1 overflow-y-auto border-r border-outline-variant/10 bg-surface-container-low/40 py-4 backdrop-blur-[20px] md:flex"
     >
-      <p className="font-label-caps mb-4 mt-2 px-6 text-outline">Navigation</p>
-      {NAV.map((item) => {
-        const href =
-          'guestHref' in item && isGuest ? item.guestHref : item.href;
-        const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
-        return (
-          <Link
-            key={item.href}
-            href={href}
-            aria-current={active ? 'page' : undefined}
-            className={`group flex items-center gap-4 px-6 py-3 transition-all ${
-              active
-                ? 'border-r-2 border-primary bg-primary/5 text-primary'
-                : 'text-outline hover:bg-surface-container-high/60 hover:text-on-surface'
-            }`}
-          >
-            <Icon name={item.icon} filled={active} />
-            <span className="font-label-caps">{item.label}</span>
-          </Link>
-        );
-      })}
+      <p className="font-label-caps mb-1 mt-2 px-6 text-on-surface-variant">Navigation</p>
+      {PRIMARY.map((item) => (
+        <NavLink key={item.href} item={item} pathname={pathname} isGuest={isGuest} />
+      ))}
+
+      <p className="font-label-caps mb-1 mt-4 px-6 text-on-surface-variant">You</p>
+      {YOU.map((item) => (
+        <NavLink key={item.href} item={item} pathname={pathname} isGuest={isGuest} />
+      ))}
+
       <Link
         href={studioHref}
         aria-current={pathname.startsWith('/studio') ? 'page' : undefined}
         className={`mt-auto flex items-center gap-4 px-6 py-3 transition-all ${
           pathname.startsWith('/studio')
-            ? 'border-r-2 border-primary bg-primary/5 text-primary'
-            : 'text-outline hover:bg-surface-container-high/60 hover:text-on-surface'
+            ? 'border-r-2 border-primary bg-surface-container-high font-semibold text-on-surface'
+            : 'text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface'
         }`}
       >
         <Icon name="auto_videocam" />
         <span className="font-label-caps">Studio</span>
         {showStudioExtras && canApplyForCreator ? (
-          <span className="text-[10px] text-tertiary">Apply</span>
+          <span className="text-xs text-tertiary">Apply</span>
         ) : null}
       </Link>
     </nav>

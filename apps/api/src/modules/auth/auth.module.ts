@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthAccountLockoutService } from './auth-account-lockout.service';
 import { AuthEmailOtpService } from './auth-email-otp.service';
+import { AuthMfaService } from './auth-mfa.service';
 import { AuthOAuthExchangeService } from './auth-oauth-exchange.service';
 import { AuthUserCacheService } from './auth-user-cache.service';
 import { AuthSessionCacheService } from './auth-session-cache.service';
@@ -35,6 +36,7 @@ import { ReferralModule } from '../referral/referral.module';
     AuthService,
     AuthAccountLockoutService,
     AuthEmailOtpService,
+    AuthMfaService,
     AuthOAuthExchangeService,
     AuthUserCacheService,
     AuthSessionCacheService,

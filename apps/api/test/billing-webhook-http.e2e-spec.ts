@@ -39,9 +39,12 @@ import {
 import { TierEntitlement } from '../src/modules/entitlements/entities/tier-entitlement.entity';
 import { StreamEventPurchase } from '../src/modules/streaming/entities/stream-event-purchase.entity';
 import { Stream } from '../src/modules/streaming/entities/stream.entity';
+import { StreamMessage } from '../src/modules/stream-chat/entities/stream-message.entity';
 import { StreamingService } from '../src/modules/streaming/streaming.service';
 import { EngagementService } from '../src/modules/engagement/engagement.service';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
+import { Video } from '../src/modules/content/entities/video.entity';
+import { SuperThanks } from '../src/modules/billing/entities/super-thanks.entity';
 import { DataSource } from 'typeorm';
 
 const USER_ID = 'user-1';
@@ -116,6 +119,9 @@ describe('POST /billing/webhook -> entitlement grant (HIGH-01)', () => {
         { provide: getRepositoryToken(StreamEventPurchase), useValue: {} },
         { provide: getRepositoryToken(TierEntitlement), useValue: {} },
         { provide: getRepositoryToken(Stream), useValue: {} },
+        { provide: getRepositoryToken(StreamMessage), useValue: {} },
+        { provide: getRepositoryToken(Video), useValue: { findOne: jest.fn() } },
+        { provide: getRepositoryToken(SuperThanks), useValue: { findOne: jest.fn(), save: jest.fn(), create: jest.fn() } },
         { provide: DataSource, useValue: dataSource },
         { provide: getRedisConnectionToken(), useValue: redis },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },

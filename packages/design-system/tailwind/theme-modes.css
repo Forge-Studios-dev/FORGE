@@ -1,0 +1,85 @@
+/**
+ * Dual-theme surface tokens (Phase 02 scaffold).
+ * Tailwind `@theme` maps `--color-*` → these `--forge-color-*` variables.
+ * Default (:root) = dark to match current product; `.light` enables light mode.
+ */
+
+:root,
+.dark {
+  color-scheme: dark;
+  --forge-color-background: #15121b;
+  --forge-color-on-background: #e7e0ed;
+  --forge-color-surface: #15121b;
+  --forge-color-surface-dim: #15121b;
+  --forge-color-surface-container-lowest: #0f0d15;
+  --forge-color-surface-container-low: #1d1a23;
+  --forge-color-surface-container: #211e27;
+  --forge-color-surface-container-high: #2c2832;
+  --forge-color-surface-container-highest: #37333d;
+  --forge-color-on-surface: #e7e0ed;
+  --forge-color-on-surface-variant: #cbc3d7;
+  --forge-color-outline: #958ea0;
+  --forge-color-outline-variant: #494454;
+  --forge-color-primary: #d0bcff;
+  --forge-color-on-primary: #3c0091;
+  --forge-color-primary-container: #a078ff;
+  --forge-color-on-primary-container: #340080;
+  --forge-color-secondary: #4cd7f6;
+  --forge-color-on-secondary: #003640;
+  --forge-color-secondary-container: #03b5d3;
+  --forge-color-tertiary: #ffb869;
+  --forge-color-error: #ffb4ab;
+  --forge-color-error-container: #93000a;
+  --forge-color-live: #ff453a;
+  --forge-color-success: #3ee6a4;
+  --forge-color-on-success: #003921;
+  --forge-color-warning: #f2b33d;
+  --forge-color-on-warning: #402d00;
+  --forge-color-critical: #ff453a;
+  --forge-color-on-critical: #3c0002;
+  --forge-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.16);
+  --forge-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --forge-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.25);
+  --forge-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.32);
+  --forge-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.4);
+}
+
+.light {
+  color-scheme: light;
+  --forge-color-background: #faf8fc;
+  --forge-color-on-background: #1c1b1f;
+  --forge-color-surface: #faf8fc;
+  --forge-color-surface-dim: #f0edf4;
+  --forge-color-surface-container-lowest: #ffffff;
+  --forge-color-surface-container-low: #f4f1f7;
+  --forge-color-surface-container: #eeebf1;
+  --forge-color-surface-container-high: #e8e5eb;
+  --forge-color-surface-container-highest: #e2dfe5;
+  --forge-color-on-surface: #1c1b1f;
+  --forge-color-on-surface-variant: #49454e;
+  /* WCAG AA on light surfaces (≥4.5:1 at 12px); #7a757f/#6f6a74 failed on tinted nav chrome */
+  --forge-color-outline: #605c66;
+  --forge-color-outline-variant: #cac4cf;
+  --forge-color-primary: #6750a4;
+  --forge-color-on-primary: #ffffff;
+  --forge-color-primary-container: #e9ddff;
+  --forge-color-on-primary-container: #22005d;
+  --forge-color-secondary: #00687a;
+  --forge-color-on-secondary: #ffffff;
+  --forge-color-secondary-container: #acecff;
+  --forge-color-tertiary: #8b5000;
+  --forge-color-error: #ba1a1a;
+  --forge-color-error-container: #ffdad6;
+  --forge-color-live: #c5221f;
+  --forge-color-success: #006d3f;
+  --forge-color-on-success: #ffffff;
+  --forge-color-warning: #7a5900;
+  --forge-color-on-warning: #ffffff;
+  --forge-color-critical: #c5221f;
+  --forge-color-on-critical: #ffffff;
+  --forge-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --forge-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --forge-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --forge-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+  --forge-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.14);
+}

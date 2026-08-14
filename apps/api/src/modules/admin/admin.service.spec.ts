@@ -20,6 +20,7 @@ import { Report } from '../reports/entities/report.entity';
 import { Stream } from '../streaming/entities/stream.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CommunityReport } from '../communities/entities/community-moderation.entity';
+import { CommunityRole, CommunityRoleType } from '../communities/entities/community-role.entity';
 import { UsersService } from '../users/users.service';
 import { PlaylistsService } from '../playlists/playlists.service';
 import { AuthService } from '../auth/auth.service';
@@ -42,13 +43,21 @@ describe('AdminService security', () => {
   };
   const videoRepository = {
     findOne: jest.fn(),
+    find: jest.fn(),
     save: jest.fn(async (video: Video) => video),
     createQueryBuilder: jest.fn(),
   };
   const reportRepository = { createQueryBuilder: jest.fn() };
-  const streamRepository = { findOne: jest.fn(), createQueryBuilder: jest.fn() };
-  const communityRepository = { findOne: jest.fn(), save: jest.fn(), createQueryBuilder: jest.fn() };
+  const streamRepository = { findOne: jest.fn(), find: jest.fn(), createQueryBuilder: jest.fn() };
+  const communityRepository = {
+    findOne: jest.fn(),
+    find: jest.fn(),
+    save: jest.fn(),
+    update: jest.fn().mockResolvedValue({ affected: 1 }),
+    createQueryBuilder: jest.fn(),
+  };
   const communityReportRepository = { count: jest.fn() };
+  const communityRoleRepository = { find: jest.fn() };
   const dataSource = { query: jest.fn() };
   const usersService = { getWatchHistory: jest.fn(), resolveUserId: jest.fn() };
   const playlistsService = { listByUser: jest.fn() };
@@ -109,6 +118,10 @@ describe('AdminService security', () => {
       return null;
     });
     videoRepository.findOne.mockResolvedValue({ ...video });
+    videoRepository.find.mockResolvedValue([]);
+    streamRepository.find.mockResolvedValue([]);
+    communityRepository.find.mockResolvedValue([]);
+    communityRoleRepository.find.mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -119,6 +132,7 @@ describe('AdminService security', () => {
         { provide: getRepositoryToken(Stream), useValue: streamRepository },
         { provide: getRepositoryToken(Community), useValue: communityRepository },
         { provide: getRepositoryToken(CommunityReport), useValue: communityReportRepository },
+        { provide: getRepositoryToken(CommunityRole), useValue: communityRoleRepository },
         { provide: DataSource, useValue: dataSource },
         { provide: UsersService, useValue: usersService },
         { provide: PlaylistsService, useValue: playlistsService },
@@ -157,6 +171,81 @@ describe('AdminService security', () => {
         }),
       );
       expect(authService.logoutAll).toHaveBeenCalledWith(regularUser.id);
+    });
+
+    it('hides owned public videos and ends active streams', async () => {
+      videoRepository.find.mockResolvedValue([
+        { ...video, id: 'video-1', visibility: VideoVisibility.PUBLIC },
+        { ...video, id: 'video-2', visibility: VideoVisibility.PRIVATE },
+      ]);
+      streamRepository.find.mockResolvedValue([{ id: 'stream-1', userId: regularUser.id }]);
+
+      await service.deleteUser(regularUser.id);
+
+      expect(videoRepository.save).toHaveBeenCalledWith([
+        expect.objectContaining({ id: 'video-1', visibility: VideoVisibility.PRIVATE }),
+      ]);
+      expect(videosService.bustVideoDetailCache).toHaveBeenCalledWith('video-1');
+      expect(videosService.bustVideoDetailCache).not.toHaveBeenCalledWith('video-2');
+      expect(streamingService.endStream).toHaveBeenCalledWith(regularUser.id, 'stream-1');
+    });
+
+    it('skips video/stream cleanup when the user owns none', async () => {
+      await service.deleteUser(regularUser.id);
+      expect(videoRepository.save).not.toHaveBeenCalled();
+      expect(streamingService.endStream).not.toHaveBeenCalled();
+    });
+
+    it('transfers owned-community ownership to the longest-standing OWNER-tier delegate', async () => {
+      communityRepository.find.mockResolvedValue([{ id: 'comm-1', creatorId: regularUser.id }]);
+      communityRoleRepository.find.mockResolvedValue([
+        { userId: 'admin-delegate', role: CommunityRoleType.ADMIN, createdAt: new Date('2026-01-01') },
+        { userId: 'owner-delegate-early', role: CommunityRoleType.OWNER, createdAt: new Date('2026-01-01') },
+        { userId: 'owner-delegate-late', role: CommunityRoleType.OWNER, createdAt: new Date('2026-02-01') },
+      ]);
+
+      await service.deleteUser(regularUser.id);
+
+      expect(communityRepository.update).toHaveBeenCalledWith('comm-1', {
+        creatorId: 'owner-delegate-early',
+      });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'community.ownership_transferred',
+        expect.objectContaining({
+          communityId: 'comm-1',
+          previousOwnerId: regularUser.id,
+          newOwnerId: 'owner-delegate-early',
+        }),
+      );
+    });
+
+    it('falls back to the longest-standing ADMIN-tier delegate when there is no OWNER', async () => {
+      communityRepository.find.mockResolvedValue([{ id: 'comm-1', creatorId: regularUser.id }]);
+      communityRoleRepository.find.mockResolvedValue([
+        { userId: 'admin-delegate', role: CommunityRoleType.ADMIN, createdAt: new Date('2026-01-01') },
+        { userId: 'moderator-delegate', role: CommunityRoleType.MODERATOR, createdAt: new Date('2025-01-01') },
+      ]);
+
+      await service.deleteUser(regularUser.id);
+
+      expect(communityRepository.update).toHaveBeenCalledWith('comm-1', {
+        creatorId: 'admin-delegate',
+      });
+    });
+
+    it('leaves the community untouched when no OWNER/ADMIN delegate exists', async () => {
+      communityRepository.find.mockResolvedValue([{ id: 'comm-1', creatorId: regularUser.id }]);
+      communityRoleRepository.find.mockResolvedValue([
+        { userId: 'coach-delegate', role: CommunityRoleType.COACH, createdAt: new Date('2026-01-01') },
+      ]);
+
+      await service.deleteUser(regularUser.id);
+
+      expect(communityRepository.update).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+        'community.ownership_transferred',
+        expect.anything(),
+      );
     });
   });
 

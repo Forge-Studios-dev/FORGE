@@ -13,7 +13,10 @@ describe('RecommendationsService', () => {
     queryMock = jest.fn();
     redis.get.mockResolvedValue(null);
     const ds = { query: queryMock } as unknown as DataSource;
-    service = new RecommendationsService(ds, redis as never);
+    const engagement = {
+      getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+    };
+    service = new RecommendationsService(ds, redis as never, engagement as never);
   });
 
   const fakeVideo = (overrides: Partial<RecommendedVideo> = {}): RecommendedVideo => ({
@@ -178,6 +181,21 @@ describe('RecommendationsService', () => {
 
       const params = queryMock.mock.calls[0][1] as unknown[];
       expect(params[1]).toBe(10);
+    });
+
+    it('excludes blocked peers when viewerId is set', async () => {
+      const engagement = (service as any).engagementService as {
+        getBlockedPeerIds: jest.Mock;
+      };
+      engagement.getBlockedPeerIds.mockResolvedValueOnce(['blocked-creator']);
+      queryMock.mockResolvedValueOnce([]);
+
+      await service.getSimilarVideos('v1', 5, 'viewer-1');
+
+      const [query, params] = queryMock.mock.calls[0] as [string, unknown[]];
+      expect(query).toContain('v.user_id NOT IN');
+      expect(params).toEqual(['v1', 5, 'blocked-creator']);
+      expect(engagement.getBlockedPeerIds).toHaveBeenCalledWith('viewer-1');
     });
   });
 });

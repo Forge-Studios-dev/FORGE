@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 
 export interface PlatformChurnKpi {
   windowDays: number;
@@ -48,25 +49,30 @@ export class KpiService {
 
   /**
    * Platform churn rate: users active in prior window but absent in current window.
-   * Uses platform_xp_grants as the engagement signal.
+   * LMS: platform_xp_grants. YouTube mode: watch.progress analytics events.
    */
   async computePlatformChurnRate(windowDays = 30): Promise<PlatformChurnKpi> {
     const now = new Date();
     const currentStart = new Date(now.getTime() - windowDays * 86_400_000);
     const priorStart = new Date(now.getTime() - 2 * windowDays * 86_400_000);
+    const lmsOn = isSkillEconomyLmsEnabled();
+    const source = lmsOn
+      ? `platform_xp_grants`
+      : `analytics_events`;
+    const extra = lmsOn ? '' : ` AND event_name = 'watch.progress'`;
 
     const [priorResult, lapsedResult] = await Promise.all([
       this.dataSource.query<Array<{ count: string }>>(
-        `SELECT COUNT(DISTINCT user_id) AS count FROM platform_xp_grants
-         WHERE created_at >= $1 AND created_at < $2`,
+        `SELECT COUNT(DISTINCT user_id) AS count FROM ${source}
+         WHERE created_at >= $1 AND created_at < $2${extra}`,
         [priorStart, currentStart],
       ),
       this.dataSource.query<Array<{ count: string }>>(
-        `SELECT COUNT(DISTINCT user_id) AS count FROM platform_xp_grants
-         WHERE created_at >= $1 AND created_at < $2
+        `SELECT COUNT(DISTINCT user_id) AS count FROM ${source}
+         WHERE created_at >= $1 AND created_at < $2${extra}
            AND user_id NOT IN (
-             SELECT DISTINCT user_id FROM platform_xp_grants
-             WHERE created_at >= $2
+             SELECT DISTINCT user_id FROM ${source}
+             WHERE created_at >= $2${extra}
            )`,
         [priorStart, currentStart],
       ),
@@ -92,6 +98,40 @@ export class KpiService {
   /** Compute engagement score (0–100) for a single user based on last 30 days of activity. */
   async computeUserEngagementScore(userId: string): Promise<EngagementScoreKpi> {
     const since = new Date(Date.now() - 30 * 86_400_000);
+
+    if (!isSkillEconomyLmsEnabled()) {
+      const [videoViews, comments] = await Promise.all([
+        this.dataSource.query<Array<{ count: string }>>(
+          `SELECT COUNT(*) AS count FROM analytics_events
+           WHERE user_id = $1 AND event_name = 'watch.progress' AND created_at >= $2`,
+          [userId, since],
+        ),
+        this.dataSource.query<Array<{ count: string }>>(
+          `SELECT COUNT(*) AS count FROM comments
+           WHERE user_id = $1 AND created_at >= $2 AND deleted_at IS NULL`,
+          [userId, since],
+        ),
+      ]);
+      const videoCount = parseInt(videoViews[0]?.count ?? '0', 10);
+      const commentCount = parseInt(comments[0]?.count ?? '0', 10);
+      const videoScore = Math.min(70, Math.round((videoCount / 10) * 70));
+      const commentScore = Math.min(30, Math.round((commentCount / 10) * 30));
+      const score = videoScore + commentScore;
+      const label: EngagementScoreKpi['label'] =
+        score >= 70 ? 'high' : score >= 40 ? 'medium' : score >= 10 ? 'low' : 'inactive';
+      return {
+        userId,
+        score,
+        breakdown: {
+          xpActivity: 0,
+          streakBonus: 0,
+          videoActivity: videoScore,
+          lessonActivity: commentScore,
+        },
+        label,
+        computedAt: new Date().toISOString(),
+      };
+    }
 
     const [xpActivity, platformRow, videoViews, lessonCompletions] = await Promise.all([
       this.dataSource.query<Array<{ total: string; days: string }>>(
@@ -206,10 +246,8 @@ export class KpiService {
   }> {
     const since = new Date(Date.now() - windowDays * 86_400_000);
 
-    const rows = await this.dataSource.query<
-      Array<{ user_id: string; last_activity: string | null; activity_count: string }>
-    >(
-      `SELECT cm.user_id,
+    const activitySql = isSkillEconomyLmsEnabled()
+      ? `SELECT cm.user_id,
               MAX(xp.created_at) AS last_activity,
               COUNT(xp.id) AS activity_count
          FROM community_members cm
@@ -217,9 +255,28 @@ export class KpiService {
                 ON xp.user_id = cm.user_id AND xp.created_at >= $2
          WHERE cm.community_id = $1
            AND cm.status = 'active'
-         GROUP BY cm.user_id`,
-      [communityId, since],
-    );
+         GROUP BY cm.user_id`
+      : `SELECT cm.user_id,
+              MAX(act.created_at) AS last_activity,
+              COUNT(act.created_at) AS activity_count
+         FROM community_members cm
+         LEFT JOIN (
+           SELECT m.user_id, m.created_at
+           FROM community_room_messages m
+           INNER JOIN community_rooms r ON r.id = m.room_id
+           WHERE r.community_id = $1 AND m.created_at >= $2 AND m.deleted_at IS NULL
+           UNION ALL
+           SELECT p.author_id AS user_id, p.created_at
+           FROM community_posts p
+           WHERE p.community_id = $1 AND p.created_at >= $2
+         ) act ON act.user_id = cm.user_id
+         WHERE cm.community_id = $1
+           AND cm.status = 'active'
+         GROUP BY cm.user_id`;
+
+    const rows = await this.dataSource.query<
+      Array<{ user_id: string; last_activity: string | null; activity_count: string }>
+    >(activitySql, [communityId, since]);
 
     const now = Date.now();
     const atRisk = rows
@@ -325,7 +382,12 @@ export class KpiService {
     const churn = await this.computePlatformChurnRate(30);
 
     const topUsersResult = await this.dataSource.query<Array<{ user_id: string }>>(
-      `SELECT DISTINCT user_id FROM platform_xp ORDER BY xp DESC LIMIT 10`,
+      isSkillEconomyLmsEnabled()
+        ? `SELECT user_id FROM platform_xp ORDER BY xp DESC LIMIT 10`
+        : `SELECT user_id FROM analytics_events
+           WHERE event_name = 'watch.progress' AND created_at >= NOW() - INTERVAL '30 days'
+             AND user_id IS NOT NULL
+           GROUP BY user_id ORDER BY COUNT(*) DESC LIMIT 10`,
     );
     const topEngaged = await Promise.all(
       topUsersResult.map((r) => this.computeUserEngagementScore(r.user_id)),

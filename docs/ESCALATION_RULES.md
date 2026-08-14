@@ -1,6 +1,8 @@
 # FORGE — Moderation Escalation Rules
 
 > Defines when content is auto-actioned vs. escalated for human review.
+> **Scope: auto-action rules (§2) are community/chat only** — implemented against the community-moderation stack (`community-moderation.service.ts`, AI text moderation). Copyright/DMCA and account-level strikes now have their own doc — see [COPYRIGHT_DMCA.md](./COPYRIGHT_DMCA.md) (added 2026-08-12) — separate from this one since they follow an external legal process (DMCA) and a different ladder (YouTube's strike system), not this doc's AI-judge-score model.
+> **The P0–P3 severity tiers (§1) are no longer community-only** — extended 2026-08-12 to platform-wide reports (video/user/comment) via the shared `ReportReason`/`ReportSeverity` taxonomy in `@forge/shared-types` (`report-reasons.ts`). Platform reports use severity for **admin-queue triage ordering only** — no auto-action; see `docs/PLATFORM_AUDIT_2026-08-09.md §2.1` row 4 for why (an unverified user report auto-blocking content would be a mass-reporting abuse vector, unlike §2's LLM-judge-score-driven auto-actions).
 > See also: [CREATOR_KPI_DEFINITIONS.md](./CREATOR_KPI_DEFINITIONS.md), [COMMUNITY-PERMISSION-MATRIX.md](./COMMUNITY-PERMISSION-MATRIX.md)
 
 ---

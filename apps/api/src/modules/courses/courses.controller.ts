@@ -4,6 +4,7 @@ import { CoursesService } from './courses.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CreateCohortDto, UpdateCohortDto } from './dto/cohort.dto';
@@ -11,6 +12,7 @@ import { LessonType } from './entities/course-lms.entity';
 
 @ApiTags('Courses')
 @Controller()
+@UseGuards(SkillEconomyLmsGuard)
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
@@ -18,16 +20,20 @@ export class CoursesController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('courses/discover/featured')
   @ApiOperation({ summary: 'List featured published courses (public catalog)' })
-  listFeatured(@Query('limit') limit = 12) {
-    return this.coursesService.listFeaturedCourses(Number(limit) || 12);
+  listFeatured(@Query('limit') limit = 12, @CurrentUser() user?: JwtPayload) {
+    return this.coursesService.listFeaturedCourses(Number(limit) || 12, user?.sub);
   }
 
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @Get('courses/discover')
   @ApiOperation({ summary: 'Search published courses (public catalog)' })
-  discover(@Query('q') q = '', @Query('limit') limit = 20) {
-    return this.coursesService.discoverCourses(q, Number(limit) || 20);
+  discover(
+    @Query('q') q = '',
+    @Query('limit') limit = 20,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.coursesService.discoverCourses(q, Number(limit) || 20, user?.sub);
   }
 
   @Get('creators/me/courses')

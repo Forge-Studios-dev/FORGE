@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import {
   abortActiveUpload,
   getActiveUpload,
-  isUploadInFlight,
   subscribeActiveUpload,
   type ActiveUploadMeta,
 } from '@/lib/upload-manager';
@@ -14,7 +14,7 @@ import {
 const PHASE_LABEL: Record<ActiveUploadMeta['phase'], string> = {
   presigning: 'Preparing upload…',
   uploading: 'Uploading to storage…',
-  completing: 'Finalizing lesson…',
+  completing: 'Finalizing video…',
 };
 
 function formatBytes(bytes: number): string {
@@ -26,11 +26,16 @@ function formatBytes(bytes: number): string {
 export function UploadProgressBanner() {
   const [active, setActive] = useState<ActiveUploadMeta | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   useEffect(() => {
     setActive(getActiveUpload());
     return subscribeActiveUpload(setActive);
   }, []);
+
+  useEffect(() => {
+    if (!active) setCancelOpen(false);
+  }, [active]);
 
   useEffect(() => {
     if (!active || active.phase === 'completing') return;
@@ -47,12 +52,29 @@ export function UploadProgressBanner() {
     return `~${Math.ceil(remainingSec / 60)}m remaining`;
   }, [active, now]);
 
-  if (!active && !isUploadInFlight()) return null;
-  if (!active) return null;
+  const cancelDialog = (
+    <ConfirmDialog
+      open={cancelOpen}
+      title="Cancel upload?"
+      description="This stops the current upload and frees the slot."
+      confirmLabel="Cancel upload"
+      onConfirm={() => {
+        abortActiveUpload();
+        setCancelOpen(false);
+      }}
+      onCancel={() => setCancelOpen(false)}
+    />
+  );
+
+  if (!active) {
+    // Keep dialog mounted only while open so finish/fail mid-confirm cannot leave sticky state.
+    return cancelOpen ? cancelDialog : null;
+  }
 
   const isMultipart = active.uploadVia === 'multipart' && !!active.multipart;
 
   return (
+    <>
     <div
       role="status"
       aria-live="polite"
@@ -80,11 +102,7 @@ export function UploadProgressBanner() {
           {active.phase === 'uploading' || active.phase === 'presigning' ? (
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm('Cancel this upload and free the slot?')) {
-                  abortActiveUpload();
-                }
-              }}
+              onClick={() => setCancelOpen(true)}
               className="font-semibold text-error hover:underline"
             >
               Cancel upload
@@ -134,5 +152,7 @@ export function UploadProgressBanner() {
           : 'You can leave this page; upload continues in the background.'}
       </p>
     </div>
+    {cancelDialog}
+    </>
   );
 }

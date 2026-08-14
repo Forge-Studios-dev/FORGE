@@ -3,25 +3,25 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Icon } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { PopoverMenu } from '@/components/shell/PopoverMenu';
 
 const CREATE_ITEMS = [
   { href: '/upload', label: 'Upload video', icon: 'upload' },
+  { href: '/upload?type=short', label: 'Create Short', icon: 'smart_display' },
   { href: '/studio/live', label: 'Go live', icon: 'sensors' },
-  { href: '/studio/courses', label: 'New course', icon: 'school' },
-  { href: '/studio/podcasts', label: 'Podcast episode', icon: 'podcasts' },
+  { href: '/studio/community', label: 'Community post', icon: 'campaign' },
+  { href: '/playlists/new', label: 'New playlist', icon: 'playlist_add' },
 ] as const;
 
 export function StudioCommandBar({ collaboratorMode = false }: { collaboratorMode?: boolean }) {
   const router = useRouter();
   const { user, accessToken, canEngage } = useAuth();
   const [search, setSearch] = useState('');
-  const [createOpen, setCreateOpen] = useState(false);
-  const createRef = useRef<HTMLDivElement>(null);
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['notifications-unread'],
@@ -32,22 +32,6 @@ export function StudioCommandBar({ collaboratorMode = false }: { collaboratorMod
     },
     staleTime: 30_000,
   });
-
-  useEffect(() => {
-    if (!createOpen) return;
-    const onPointer = (event: MouseEvent) => {
-      if (!createRef.current?.contains(event.target as Node)) setCreateOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setCreateOpen(false);
-    };
-    document.addEventListener('mousedown', onPointer);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onPointer);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [createOpen]);
 
   const onSearch = (event: FormEvent) => {
     event.preventDefault();
@@ -113,37 +97,33 @@ export function StudioCommandBar({ collaboratorMode = false }: { collaboratorMod
         </Link>
 
         {!collaboratorMode ? (
-          <div ref={createRef} className="relative">
-            <button
-              type="button"
-              aria-expanded={createOpen}
-              aria-haspopup="menu"
-              onClick={() => setCreateOpen((open) => !open)}
-              className="primary-button inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-on-primary"
-            >
-              <Icon name="add" />
-              Create
-            </button>
-            {createOpen ? (
-              <div
-                role="menu"
-                className="absolute right-0 z-40 mt-2 w-56 overflow-hidden rounded-2xl border border-outline-variant/40 bg-surface-container-high shadow-lg"
-              >
-                {CREATE_ITEMS.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    role="menuitem"
-                    onClick={() => setCreateOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 text-sm text-on-surface transition-colors hover:bg-primary/10"
-                  >
-                    <Icon name={item.icon} className="text-primary" />
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <PopoverMenu
+            label="Create"
+            align="right"
+            panelClassName="w-56 p-0"
+            triggerClassName="primary-button inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-on-primary"
+            trigger={
+              <>
+                <Icon name="add" />
+                Create
+              </>
+            }
+          >
+            {(close) =>
+              CREATE_ITEMS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  role="menuitem"
+                  onClick={close}
+                  className="flex items-center gap-3 px-4 py-3 text-sm text-on-surface transition-colors hover:bg-primary/10"
+                >
+                  <Icon name={item.icon} className="text-primary" />
+                  {item.label}
+                </Link>
+              ))
+            }
+          </PopoverMenu>
         ) : (
           <Link
             href="/studio/moderation"

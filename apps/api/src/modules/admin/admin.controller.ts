@@ -4,13 +4,15 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreatorStatus, User, UserRole } from '../users/entities/user.entity';
 import { ModerationStatus, Video, VideoStatus } from '../content/entities/video.entity';
@@ -35,6 +37,28 @@ import { AdminGrantSubscriptionDto } from '../entitlements/dto/tier.dto';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { AuthUserCacheService } from '../auth/auth-user-cache.service';
 import { clampLimit, clampPage } from '../../common/utils/pagination.util';
+import { AccountStrikesService } from '../account-strikes/account-strikes.service';
+import { IssueStrikeDto } from '../account-strikes/dto/issue-strike.dto';
+import { ResolveAppealDto } from '../account-strikes/dto/resolve-appeal.dto';
+import { AppealStatus, StrikeStatus } from '../account-strikes/entities/account-strike.entity';
+import { CopyrightService } from '../copyright/copyright.service';
+import { CopyrightNoticeStatus } from '../copyright/entities/copyright-notice.entity';
+import { CounterNoticeStatus } from '../copyright/entities/copyright-counter-notice.entity';
+import { AdminAuditLogService } from '../../common/audit/admin-audit-log.service';
+
+class RejectCreatorDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
+}
+
+class UpdateAdminReportStatusDto {
+  @ApiProperty({ enum: ReportStatus })
+  @IsEnum(ReportStatus)
+  status: ReportStatus;
+}
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -53,7 +77,124 @@ export class AdminController {
     private readonly entitlementsService: EntitlementsService,
     private readonly authUserCache: AuthUserCacheService,
     private readonly databaseObservability: DatabaseObservabilityService,
+    private readonly accountStrikesService: AccountStrikesService,
+    private readonly copyrightService: CopyrightService,
+    private readonly adminAuditLog: AdminAuditLogService,
   ) {}
+
+  @Get('audit-log')
+  @ApiOperation({ summary: 'Privileged admin action history (strikes, appeals, impersonation, termination, ...)' })
+  listAuditLog(
+    @Query('page') page = 1,
+    @Query('limit') limit = 50,
+    @Query('action') action?: string,
+    @Query('actorId') actorId?: string,
+    @Query('targetId') targetId?: string,
+  ) {
+    return this.adminAuditLog.list({ page, limit, action, actorId, targetId });
+  }
+
+  @Get('copyright/notices')
+  @ApiOperation({ summary: 'List DMCA takedown notices (admin)' })
+  listCopyrightNotices(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('status') status?: CopyrightNoticeStatus,
+  ) {
+    return this.copyrightService.listNotices({ page: clampPage(page), limit: clampLimit(limit), status });
+  }
+
+  @Get('copyright/counter-notices')
+  @ApiOperation({ summary: 'List DMCA counter-notices (admin)' })
+  listCopyrightCounterNotices(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('status') status?: CounterNoticeStatus,
+  ) {
+    return this.copyrightService.listCounterNotices({
+      page: clampPage(page),
+      limit: clampLimit(limit),
+      status,
+    });
+  }
+
+  @Get('strikes')
+  @ApiOperation({ summary: 'List account strikes across all users — defaults to the pending-appeals queue (admin)' })
+  listStrikes(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('appealStatus') appealStatus?: AppealStatus,
+    @Query('status') status?: StrikeStatus,
+  ) {
+    return this.accountStrikesService.listAll({
+      page: clampPage(page),
+      limit: clampLimit(limit),
+      appealStatus,
+      status,
+    });
+  }
+
+  @Post('copyright/counter-notices/:id/reject')
+  @ApiOperation({
+    summary: 'Reject a pending counter-notice (e.g. claimant reported litigation)',
+    description: 'Blocks the automatic reinstatement this counter-notice would otherwise get.',
+  })
+  async rejectCounterNotice(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
+    const result = await this.copyrightService.rejectCounterNotice(id);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'copyright.counter_notice.reject',
+      targetType: 'copyright_counter_notice',
+      targetId: id,
+    });
+    return result;
+  }
+
+  @Post('users/:userId/strikes')
+  @ApiOperation({ summary: 'Issue an account strike (community-guideline or copyright)' })
+  async issueStrike(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() dto: IssueStrikeDto,
+    @CurrentUser() admin: JwtPayload,
+  ) {
+    const strike = await this.accountStrikesService.issueStrike(userId, dto.type, dto.reason, {
+      sourceVideoId: dto.sourceVideoId,
+      sourceReportId: dto.sourceReportId,
+    });
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'strike.issue',
+      targetType: 'user',
+      targetId: userId,
+      reason: dto.reason,
+      metadata: { strikeId: strike.id, type: dto.type, consequence: strike.consequence },
+    });
+    return strike;
+  }
+
+  @Get('users/:userId/strikes')
+  @ApiOperation({ summary: "List a user's account strikes" })
+  listUserStrikes(@Param('userId', ParseUUIDPipe) userId: string) {
+    return this.accountStrikesService.listForUser(userId);
+  }
+
+  @Patch('strikes/:strikeId/appeal')
+  @ApiOperation({ summary: 'Grant or deny a pending strike appeal' })
+  async resolveStrikeAppeal(
+    @Param('strikeId', ParseUUIDPipe) strikeId: string,
+    @Body() dto: ResolveAppealDto,
+    @CurrentUser() admin: JwtPayload,
+  ) {
+    const strike = await this.accountStrikesService.resolveAppeal(strikeId, dto.granted);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'strike.appeal.resolve',
+      targetType: 'account_strike',
+      targetId: strikeId,
+      metadata: { granted: dto.granted },
+    });
+    return strike;
+  }
 
   @Get('users')
   @ApiOperation({ summary: 'List all users (admin)' })
@@ -82,14 +223,14 @@ export class AdminController {
 
   @Get('users/:id/summary')
   @ApiOperation({ summary: 'User overview stats for admin detail' })
-  getUserSummary(@Param('id') id: string) {
+  getUserSummary(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getUserSummary(id);
   }
 
   @Get('users/:id/videos')
   @ApiOperation({ summary: 'List all videos by user (any status)' })
   getUserVideos(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
     @Query('status') status?: VideoStatus,
@@ -100,7 +241,7 @@ export class AdminController {
   @Get('users/:id/reports')
   @ApiOperation({ summary: 'Reports involving this user (filed, received, or on their videos)' })
   getUserReports(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
@@ -109,26 +250,33 @@ export class AdminController {
 
   @Get('users/:id/watch-history')
   @ApiOperation({ summary: 'Watch history for a user (admin)' })
-  getUserWatchHistory(@Param('id') id: string, @Query('limit') limit = 20) {
+  getUserWatchHistory(@Param('id', ParseUUIDPipe) id: string, @Query('limit') limit = 20) {
     return this.adminService.getUserWatchHistory(id, clampLimit(limit));
   }
 
   @Get('users/:id/playlists')
   @ApiOperation({ summary: 'Playlists owned by user (admin)' })
-  getUserPlaylists(@Param('id') id: string) {
+  getUserPlaylists(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getUserPlaylists(id);
   }
 
   @Get('users/:id')
   @ApiOperation({ summary: 'Get user profile (admin)' })
-  getUser(@Param('id') id: string) {
+  getUser(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.findUserById(id);
   }
 
   @Post('users/:id/impersonate')
   @ApiOperation({ summary: 'Create a short-lived link to sign in on web as this user' })
-  impersonateUser(@Param('id') id: string, @CurrentUser() admin: JwtPayload) {
-    return this.adminService.createImpersonation(admin.sub, id);
+  async impersonateUser(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
+    const result = await this.adminService.createImpersonation(admin.sub, id);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'user.impersonate',
+      targetType: 'user',
+      targetId: id,
+    });
+    return result;
   }
 
   @Patch('users/bulk')
@@ -140,23 +288,38 @@ export class AdminController {
 
   @Patch('users/:id')
   @ApiOperation({ summary: 'Update user role or status (admin)' })
-  updateUser(
-    @Param('id') id: string,
+  async updateUser(
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAdminUserDto,
     @CurrentUser() admin: JwtPayload,
   ) {
-    return this.adminService.updateUser(id, dto, admin.sub);
+    const result = await this.adminService.updateUser(id, dto, admin.sub);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'user.update',
+      targetType: 'user',
+      targetId: id,
+      metadata: dto as Record<string, unknown>,
+    });
+    return result;
   }
 
   @Delete('users/:id')
   @ApiOperation({ summary: 'Soft-delete user account (admin)' })
-  deleteUser(@Param('id') id: string) {
-    return this.adminService.deleteUser(id);
+  async deleteUser(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
+    const result = await this.adminService.deleteUser(id);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'user.delete',
+      targetType: 'user',
+      targetId: id,
+    });
+    return result;
   }
 
   @Post('users/:id/resend-verification')
   @ApiOperation({ summary: 'Resend email verification to user (admin)' })
-  resendUserVerification(@Param('id') id: string) {
+  resendUserVerification(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.resendUserVerificationEmail(id);
   }
 
@@ -205,7 +368,7 @@ export class AdminController {
 
   @Post('creators/:id/approve')
   @ApiOperation({ summary: 'Approve a creator request' })
-  async approveCreator(@Param('id') id: string) {
+  async approveCreator(@Param('id', ParseUUIDPipe) id: string) {
     await this.userRepository.update(id, {
       role: UserRole.CREATOR,
       creatorStatus: CreatorStatus.APPROVED,
@@ -221,7 +384,7 @@ export class AdminController {
 
   @Post('creators/:id/reject')
   @ApiOperation({ summary: 'Reject a creator request' })
-  async rejectCreator(@Param('id') id: string, @Body() dto: { note?: string }) {
+  async rejectCreator(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RejectCreatorDto) {
     await this.userRepository.update(id, {
       role: UserRole.CREATOR,
       creatorStatus: CreatorStatus.REJECTED,
@@ -268,12 +431,20 @@ export class AdminController {
 
   @Patch('videos/:id')
   @ApiOperation({ summary: 'Moderate or update video (admin)' })
-  updateVideo(
-    @Param('id') id: string,
+  async updateVideo(
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAdminVideoDto,
     @CurrentUser() admin: JwtPayload,
   ) {
-    return this.adminService.moderateVideo(id, admin.sub, dto);
+    const result = await this.adminService.moderateVideo(id, admin.sub, dto);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'video.moderate',
+      targetType: 'video',
+      targetId: id,
+      metadata: dto as unknown as Record<string, unknown>,
+    });
+    return result;
   }
 
   @Get('reports')
@@ -288,7 +459,7 @@ export class AdminController {
 
   @Get('reports/:id')
   @ApiOperation({ summary: 'Get a single report (admin)' })
-  getReport(@Param('id') id: string) {
+  getReport(@Param('id', ParseUUIDPipe) id: string) {
     return this.reportsService.findById(id);
   }
 
@@ -300,7 +471,7 @@ export class AdminController {
 
   @Patch('reports/:id')
   @ApiOperation({ summary: 'Update report status' })
-  updateReport(@Param('id') id: string, @Body() dto: { status: ReportStatus }) {
+  updateReport(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminReportStatusDto) {
     return this.reportsService.updateStatus(id, dto.status);
   }
 
@@ -319,13 +490,13 @@ export class AdminController {
 
   @Patch('categories/:id')
   @ApiOperation({ summary: 'Update a category (admin)' })
-  updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
+  updateCategory(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCategoryDto) {
     return this.categoriesService.update(id, dto);
   }
 
   @Delete('categories/:id')
   @ApiOperation({ summary: 'Delete a category (admin)' })
-  deleteCategory(@Param('id') id: string) {
+  deleteCategory(@Param('id', ParseUUIDPipe) id: string) {
     return this.categoriesService.remove(id);
   }
 
@@ -384,14 +555,14 @@ export class AdminController {
 
   @Post('streams/:id/force-end')
   @ApiOperation({ summary: 'Force end a live stream (admin)' })
-  forceEndStream(@Param('id') id: string, @CurrentUser() admin: JwtPayload) {
+  forceEndStream(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
     return this.adminService.forceEndStream(id, admin.sub);
   }
 
   @Post('streams/:id/grant-access')
   @ApiOperation({ summary: 'Grant paid event access to a user (admin)' })
   grantStreamAccess(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() admin: JwtPayload,
     @Body() dto: GrantStreamAccessDto,
   ) {
@@ -401,7 +572,7 @@ export class AdminController {
   @Get('streams/:id/chat')
   @ApiOperation({ summary: 'View stream chat for moderation (admin)' })
   getStreamChat(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() admin: JwtPayload,
     @Query('limit') limit = 50,
   ) {
@@ -411,8 +582,8 @@ export class AdminController {
   @Delete('streams/:id/chat/:messageId')
   @ApiOperation({ summary: 'Delete a stream chat message (admin)' })
   deleteStreamChatMessage(
-    @Param('id') id: string,
-    @Param('messageId') messageId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
     @CurrentUser() admin: JwtPayload,
   ) {
     return this.adminService.deleteStreamChatMessage(id, messageId, admin.sub, admin.role);
@@ -436,13 +607,13 @@ export class AdminController {
 
   @Get('communities/:id')
   @ApiOperation({ summary: 'Community detail with member stats and Connect status (admin)' })
-  getCommunityDetail(@Param('id') id: string) {
+  getCommunityDetail(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getCommunityDetail(id);
   }
 
   @Patch('communities/:id')
   @ApiOperation({ summary: 'Update community visibility or name (admin)' })
-  updateCommunity(@Param('id') id: string, @Body() dto: UpdateAdminCommunityDto) {
+  updateCommunity(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminCommunityDto) {
     return this.adminService.updateCommunity(id, dto);
   }
 

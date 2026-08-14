@@ -1,5 +1,6 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { BillingService } from './billing.service';
 import { PAYMENT_PROVIDER, PaymentProvider } from './payment-provider.interface';
 import { StripeTierSyncService } from './stripe-tier-sync.service';
@@ -9,12 +10,16 @@ import { MemberSubscriptionSource } from '../entitlements/entities/member-subscr
 export class SubscriptionChangeService {
   constructor(
     private readonly entitlementsService: EntitlementsService,
+    private readonly engagementService: EngagementService,
     private readonly billingService: BillingService,
     private readonly stripeTierSync: StripeTierSyncService,
     @Inject(PAYMENT_PROVIDER) private readonly paymentProvider: PaymentProvider,
   ) {}
 
   async changeTier(userId: string, creatorId: string, newTierId: string) {
+    if (await this.engagementService.isBlockedEitherWay(userId, creatorId)) {
+      throw new ForbiddenException('This channel is not available');
+    }
     if (!this.billingService.isBillingEnabled()) {
       throw new BadRequestException('Tier changes require Stripe billing to be enabled');
     }

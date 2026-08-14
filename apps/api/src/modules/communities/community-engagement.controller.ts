@@ -6,9 +6,11 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 
 @ApiTags('Community Engagement')
 @Controller()
+@UseGuards(SkillEconomyLmsGuard)
 export class CommunityEngagementController {
   constructor(private readonly engagementService: CommunityEngagementService) {}
 

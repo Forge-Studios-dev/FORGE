@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 import { UserReferral, UserReferralCode, ReferralStatus } from './entities/referral.entity';
 import { GamificationService, PlatformXpAction } from '../gamification/gamification.service';
 
@@ -88,6 +89,10 @@ export class ReferralService {
     referral.status = ReferralStatus.COMPLETED;
     referral.rewardGranted = true;
     await this.referralRepository.save(referral);
+
+    if (!isSkillEconomyLmsEnabled()) {
+      return { rewarded: true, referrerId: referral.referrerId };
+    }
 
     try {
       await this.gamificationService.awardPlatformXp(

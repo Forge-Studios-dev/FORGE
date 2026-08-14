@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CommunityPollsService } from './community-polls.service';
 import { CreateCommunityPollDto, VoteCommunityPollDto } from './dto/community-poll.dto';
@@ -18,7 +18,7 @@ export class CommunityPollsController {
   @ApiOperation({ summary: 'Create a community poll (closes any active poll)' })
   create(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Body() dto: CreateCommunityPollDto,
   ) {
     return this.pollsService.createPoll(user.sub, communityId, user.sub, dto);
@@ -29,7 +29,7 @@ export class CommunityPollsController {
   @Get('communities/:communityId/polls/active')
   @ApiOperation({ summary: 'Get active community poll' })
   getActive(
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @CurrentUser() user?: JwtPayload,
   ) {
     return this.pollsService.getActivePoll(communityId, user?.sub, user?.role);
@@ -39,8 +39,8 @@ export class CommunityPollsController {
   @ApiOperation({ summary: 'Vote on a community poll' })
   vote(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('pollId') pollId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('pollId', ParseUUIDPipe) pollId: string,
     @Body() dto: VoteCommunityPollDto,
   ) {
     return this.pollsService.votePoll(communityId, pollId, user.sub, dto.optionIndex, user.role);
@@ -51,8 +51,8 @@ export class CommunityPollsController {
   @ApiOperation({ summary: 'Close a community poll' })
   close(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('pollId') pollId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('pollId', ParseUUIDPipe) pollId: string,
   ) {
     return this.pollsService.closePoll(user.sub, communityId, pollId);
   }

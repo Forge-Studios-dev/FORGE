@@ -12,6 +12,13 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { Video } from '../../content/entities/video.entity';
 
+export enum CommentModerationStatus {
+  NONE = 'none',
+  /** Flagged by automated moderation — hidden from other viewers pending video-owner review. */
+  HELD = 'held',
+  BLOCKED = 'blocked',
+}
+
 @Entity('comments')
 @Index(['videoId', 'createdAt'])
 @Index(['parentId'])
@@ -51,6 +58,28 @@ export class Comment {
 
   @Column({ name: 'like_count', default: 0 })
   likeCount: number;
+
+  @Column({ name: 'dislike_count', default: 0 })
+  dislikeCount: number;
+
+  /** Pinned by the video owner (one top-level pin per video). */
+  @Column({ name: 'is_pinned', default: false })
+  isPinned: boolean;
+
+  /** Hearted by the video owner (YouTube creator heart). */
+  @Column({ name: 'creator_hearted', default: false })
+  creatorHearted: boolean;
+
+  @Column({
+    name: 'moderation_status',
+    type: 'varchar',
+    length: 16,
+    default: CommentModerationStatus.NONE,
+  })
+  moderationStatus: CommentModerationStatus;
+
+  @Column({ name: 'moderated_at', type: 'timestamptz', nullable: true })
+  moderatedAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

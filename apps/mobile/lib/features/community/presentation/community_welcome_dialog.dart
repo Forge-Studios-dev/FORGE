@@ -12,8 +12,8 @@ Future<void> showCommunityWelcomeDialog(
     builder: (ctx) => AlertDialog(
       title: Text('Welcome to $communityName'),
       content: const Text(
-        'You now have member access. Explore text and voice rooms, join events '
-        'and challenges, and connect with the community from the Rooms tab.',
+        'You now have member access. Explore posts, polls, text and voice rooms, '
+        'and events from the community tabs.',
       ),
       actions: [
         FilledButton(

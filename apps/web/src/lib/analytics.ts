@@ -46,3 +46,14 @@ export function trackWatchStartup(videoId: string, ms: number) {
 export function trackSearchQuery(resultCount: number) {
   void trackEvent('search.query', { resultCount });
 }
+
+/** Fire once per video id per page session when a feed card becomes visible. */
+const impressedVideoIds = new Set<string>();
+
+export function trackVideoImpression(videoId: string, surface = 'feed') {
+  if (typeof window === 'undefined') return;
+  if (impressedVideoIds.has(videoId)) return;
+  impressedVideoIds.add(videoId);
+  void trackEvent('video.impression', { surface }, videoId);
+}
+

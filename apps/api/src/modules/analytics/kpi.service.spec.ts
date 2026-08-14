@@ -6,8 +6,11 @@ import { KpiService } from './kpi.service';
 describe('KpiService', () => {
   let service: KpiService;
   let queryMock: jest.Mock;
+  const prevLms = process.env.FEATURES_SKILL_ECONOMY_LMS;
 
   beforeEach(async () => {
+    // Existing KPI math is LMS-shaped; YouTube-mode paths are covered separately below.
+    process.env.FEATURES_SKILL_ECONOMY_LMS = 'true';
     queryMock = jest.fn();
     const mockDataSource = { query: queryMock };
 
@@ -21,7 +24,11 @@ describe('KpiService', () => {
     service = module.get(KpiService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => {
+    jest.clearAllMocks();
+    if (prevLms === undefined) delete process.env.FEATURES_SKILL_ECONOMY_LMS;
+    else process.env.FEATURES_SKILL_ECONOMY_LMS = prevLms;
+  });
 
   describe('computePlatformChurnRate', () => {
     it('returns zero churn when no prior period activity', async () => {
@@ -107,6 +114,23 @@ describe('KpiService', () => {
       const result = await service.computeCommunityChurnKpi('empty-comm', 30);
       expect(result.growthRate).toBe(0);
       expect(result.engagementRate).toBe(0);
+    });
+  });
+
+  describe('YouTube mode (LMS off)', () => {
+    beforeEach(() => {
+      delete process.env.FEATURES_SKILL_ECONOMY_LMS;
+    });
+
+    it('scores engagement from watch + comments without XP', async () => {
+      queryMock
+        .mockResolvedValueOnce([{ count: '10' }]) // video views
+        .mockResolvedValueOnce([{ count: '10' }]); // comments
+      const result = await service.computeUserEngagementScore('u1');
+      expect(result.breakdown.xpActivity).toBe(0);
+      expect(result.breakdown.streakBonus).toBe(0);
+      expect(result.score).toBe(100);
+      expect(result.label).toBe('high');
     });
   });
 });

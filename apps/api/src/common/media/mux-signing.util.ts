@@ -1,4 +1,4 @@
-import { createSign } from 'crypto';
+import { createSign, generateKeyPairSync } from 'crypto';
 
 function base64url(input: Buffer | string): string {
   return Buffer.from(input).toString('base64url');
@@ -51,4 +51,19 @@ export function muxSignedHlsPlaybackUrl(
 ): string {
   const token = signMuxPlaybackToken(playbackId, config, expiresSec);
   return `https://stream.mux.com/${playbackId}.m3u8?token=${token}`;
+}
+
+/** Non-public Mux assets should use signed playback when keys are configured. */
+export function requiresMuxSignedPlayback(visibility: string): boolean {
+  return visibility !== 'public';
+}
+
+/** Test helper — generates an ephemeral RSA key pair for unit tests. */
+export function generateTestMuxSigningConfig(keyId = 'test-key'): MuxSigningConfig {
+  const { privateKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+  });
+  return { keyId, privateKeyPem: privateKey };
 }

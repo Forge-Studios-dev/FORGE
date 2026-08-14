@@ -20,20 +20,21 @@ class ForgeEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: ForgeTokens.outline),
+            Icon(icon, size: 48, color: t.outline),
             const SizedBox(height: 12),
             Text(
               title,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: ForgeTokens.onSurface,
+                    color: t.onSurface,
                   ),
             ),
             if (description != null) ...[
@@ -41,7 +42,7 @@ class ForgeEmptyState extends StatelessWidget {
               Text(
                 description!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                style: TextStyle(color: t.onSurfaceVariant),
               ),
             ],
             if (actionLabel != null && onAction != null) ...[

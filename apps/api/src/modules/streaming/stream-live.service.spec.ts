@@ -42,12 +42,26 @@ describe('StreamLiveService votePoll', () => {
     find: jest.fn(),
     createQueryBuilder: jest.fn(),
   };
-  const streamingService = { findById: jest.fn() };
+  const streamingService = {
+    findById: jest.fn(),
+    assertViewerNotBlockedFromHost: jest.fn().mockImplementation(async (id: string) => ({
+      id,
+      userId: 'creator-1',
+      visibility: StreamVisibility.PUBLIC,
+      requiredTierId: null,
+    })),
+  };
   const entitlementsService = { assertAccessAsync: jest.fn() };
   const usersService = { resolveUserId: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    streamingService.assertViewerNotBlockedFromHost.mockImplementation(async (id: string) => ({
+      id,
+      userId: 'creator-1',
+      visibility: StreamVisibility.PUBLIC,
+      requiredTierId: null,
+    }));
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StreamLiveService,
@@ -82,7 +96,7 @@ describe('StreamLiveService votePoll', () => {
       options: ['A', 'B'],
       isActive: true,
     });
-    streamingService.findById.mockResolvedValue({
+    streamingService.assertViewerNotBlockedFromHost.mockResolvedValue({
       id: 'stream-1',
       userId: 'creator-1',
       visibility: StreamVisibility.SUBSCRIBERS,
@@ -105,9 +119,13 @@ describe('StreamLiveService poll aggregation', () => {
   let service: StreamLiveService;
   const pollRepository = { findOne: jest.fn() };
   const pollVoteRepository = { createQueryBuilder: jest.fn() };
+  const streamingService = {
+    assertViewerNotBlockedFromHost: jest.fn().mockResolvedValue({ id: 'stream-1', userId: 'creator-1' }),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    streamingService.assertViewerNotBlockedFromHost.mockResolvedValue({ id: 'stream-1', userId: 'creator-1' });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StreamLiveService,
@@ -119,7 +137,7 @@ describe('StreamLiveService poll aggregation', () => {
         { provide: getRepositoryToken(StreamClip), useValue: {} },
         { provide: getRepositoryToken(StreamCaption), useValue: {} },
         { provide: getRepositoryToken(StreamAudienceRequest), useValue: { findOne: jest.fn(), find: jest.fn(), save: jest.fn(), create: jest.fn() } },
-        { provide: StreamingService, useValue: { findById: jest.fn() } },
+        { provide: StreamingService, useValue: streamingService },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: EntitlementsService, useValue: {} },
         { provide: UsersService, useValue: {} },
@@ -161,7 +179,15 @@ describe('StreamLiveService poll aggregation', () => {
 
 describe('StreamLiveService getStreamHealth', () => {
   let service: StreamLiveService;
-  const streamingService = { findById: jest.fn() };
+  const streamingService = {
+    findById: jest.fn(),
+    assertViewerNotBlockedFromHost: jest.fn().mockImplementation(async (id: string) => ({
+      id,
+      userId: 'creator-1',
+      visibility: StreamVisibility.PUBLIC,
+      requiredTierId: null,
+    })),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();

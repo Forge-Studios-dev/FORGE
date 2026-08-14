@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/socket/forge_socket.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 class StreamChatPanel extends ConsumerStatefulWidget {
   final String streamId;
@@ -44,7 +45,7 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
 
   static const _chatModeLabels = <String, String>{
     'all': 'Everyone can chat',
-    'followers': 'Followers-only chat',
+    'followers': 'Subscribers-only chat',
     'subscribers': 'Members-only chat',
     'mods_only': 'Moderators-only chat',
   };
@@ -236,8 +237,8 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
   @override
   Widget build(BuildContext context) {
     if (!_chatEnabled) {
-      return const Center(
-        child: Text('Chat is disabled', style: TextStyle(color: Colors.grey)),
+      return Center(
+        child: Text('Chat is disabled', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
       );
     }
 
@@ -277,7 +278,7 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
         if (modeLabel != null && _chatMode != 'all')
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-            child: Text(modeLabel, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            child: Text(modeLabel, style: TextStyle(fontSize: 11, color: ForgeTokens.of(context).onSurfaceVariant)),
           ),
         if (_isMod)
           Padding(
@@ -304,18 +305,18 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Text(
               'Pinned: ${pinned['body']}',
-              style: const TextStyle(fontSize: 12, color: Colors.amber),
+              style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).warning),
             ),
           ),
         if (_slowMode > 0 && !_isMod)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text('Slow mode ${_slowMode}s', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            child: Text('Slow mode ${_slowMode}s', style: TextStyle(fontSize: 11, color: ForgeTokens.of(context).onSurfaceVariant)),
           ),
         Expanded(
           child: _messages.isEmpty
-              ? const Center(
-                  child: Text('No messages yet', style: TextStyle(color: Colors.grey)),
+              ? Center(
+                  child: Text('No messages yet', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                 )
               : ListView.builder(
                   controller: _scrollCtrl,

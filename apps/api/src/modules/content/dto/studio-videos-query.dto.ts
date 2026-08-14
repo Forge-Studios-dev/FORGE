@@ -1,6 +1,16 @@
-import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
-import { VideoStatus, VideoVisibility } from '../entities/video.entity';
+import { Type, Transform } from 'class-transformer';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { VideoStatus, VideoType, VideoVisibility } from '../entities/video.entity';
 
 export enum StudioVideoSort {
   RECENT = 'recent',
@@ -19,6 +29,11 @@ export class StudioVideosQueryDto {
   @IsEnum(VideoVisibility)
   visibility?: VideoVisibility;
 
+  /** Filter Videos vs Shorts (YouTube Studio content type). */
+  @IsOptional()
+  @IsEnum(VideoType)
+  videoType?: VideoType;
+
   @IsOptional()
   @IsUUID()
   categoryId?: string;
@@ -31,6 +46,12 @@ export class StudioVideosQueryDto {
   @IsOptional()
   @IsEnum(StudioVideoSort)
   sort?: StudioVideoSort;
+
+  /** Only videos with a future scheduledPublishAt (YouTube Studio “Scheduled”). */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  @IsBoolean()
+  scheduled?: boolean;
 
   @IsOptional()
   @Type(() => Number)

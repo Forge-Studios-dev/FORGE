@@ -25,6 +25,7 @@ describe('AuthService logout', () => {
       clearFailures: jest.fn(),
     } as never,
     { isEnabled: jest.fn(), issueOtp: jest.fn(), verifyOtp: jest.fn() } as never,
+    { verifyLoginCode: jest.fn() } as never,
     authUserCache as never,
     authSessionCache as never,
     { transaction: jest.fn() } as never,

@@ -26,10 +26,12 @@ import { MailService } from '../mail/mail.service';
 import { toPublicUser } from '../users/user.mapper';
 import { AuthAccountLockoutService } from './auth-account-lockout.service';
 import { AuthEmailOtpService } from './auth-email-otp.service';
+import { AuthMfaService } from './auth-mfa.service';
 import { AuthUserCacheService } from './auth-user-cache.service';
 import { AuthSessionCacheService } from './auth-session-cache.service';
 import { isDisposableEmail } from './utils/disposable-email.util';
 import { ReferralService } from '../referral/referral.service';
+import { isReservedUsername, normalizeUsername } from '../users/username.util';
 
 export type ClientSessionMeta = {
   userAgent?: string | null;
@@ -56,6 +58,7 @@ export class AuthService {
     private readonly analyticsService: AnalyticsService,
     private readonly lockoutService: AuthAccountLockoutService,
     private readonly emailOtpService: AuthEmailOtpService,
+    private readonly mfaService: AuthMfaService,
     private readonly authUserCache: AuthUserCacheService,
     private readonly authSessionCache: AuthSessionCacheService,
     private readonly dataSource: DataSource,
@@ -67,19 +70,32 @@ export class AuthService {
     if (isDisposableEmail(emailNorm)) {
       throw new BadRequestException('Disposable email addresses are not allowed');
     }
-    const existing = await this.userRepository.findOne({
-      where: [{ email: emailNorm }, { username: dto.username }],
-    });
-    if (existing) {
-      throw new BadRequestException(
-        existing.email === emailNorm ? 'Email already registered' : 'Username already taken',
-      );
+    const username = normalizeUsername(dto.username);
+    if (isReservedUsername(username)) {
+      throw new BadRequestException('That username is reserved');
     }
+    const existingEmail = await this.userRepository.findOne({ where: { email: emailNorm } });
+    if (existingEmail) {
+      throw new BadRequestException('Email already registered');
+    }
+    const existingUsername = await this.userRepository
+      .createQueryBuilder('u')
+      .where('LOWER(u.username) = LOWER(:username)', { username })
+      .getOne();
+    if (existingUsername) {
+      throw new BadRequestException('Username already taken');
+    }
+
+    // Claiming a handle ends any redirect from a prior owner's rename.
+    await this.dataSource.query(
+      `DELETE FROM username_history WHERE LOWER(username) = LOWER($1)`,
+      [username],
+    );
 
     const passwordHash = await bcrypt.hash(dto.password, this.BCRYPT_ROUNDS);
     const user = this.userRepository.create({
       email: dto.email.trim().toLowerCase(),
-      username: dto.username,
+      username,
       displayName: dto.displayName,
       passwordHash,
     });
@@ -146,11 +162,58 @@ export class AuthService {
 
     await this.lockoutService.clearFailures(email, meta?.ip ?? null);
 
+    if (user.mfaEnabled) {
+      return {
+        mfaRequired: true,
+        challengeToken: this.issueMfaChallengeToken(user),
+      };
+    }
+
     await this.recordNewDeviceIfNeeded(user.id, meta, 'email');
     const tokens = await this.issueTokens(user, meta);
     void this.analyticsService.ingest(user.id, {
       eventName: 'auth.login',
       properties: { method: 'email' },
+    });
+    return tokens;
+  }
+
+  private issueMfaChallengeToken(user: User): string {
+    return this.jwtService.sign(
+      { sub: user.id, mfaChallenge: true },
+      { secret: this.configService.get<string>('jwt.secret'), expiresIn: '5m' },
+    );
+  }
+
+  /** Second step of MFA login: exchanges a challenge token + TOTP/backup code for real tokens. */
+  async completeMfaLogin(challengeToken: string, code: string, meta?: ClientSessionMeta) {
+    let payload: { sub: string; mfaChallenge?: boolean };
+    try {
+      payload = this.jwtService.verify(challengeToken, {
+        secret: this.configService.get<string>('jwt.secret'),
+      });
+    } catch {
+      throw new UnauthorizedException('MFA challenge expired or invalid — log in again');
+    }
+    if (!payload.mfaChallenge) {
+      throw new UnauthorizedException('Invalid MFA challenge token');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+    if (!user || user.deletedAt || user.isActive === false) {
+      throw new UnauthorizedException('Invalid MFA challenge token');
+    }
+
+    const valid = await this.mfaService.verifyLoginCode(user.id, code);
+    if (!valid) {
+      throw new UnauthorizedException('Invalid verification code');
+    }
+
+    await this.recordNewDeviceIfNeeded(user.id, meta, 'email');
+    const tokens = await this.issueTokens(user, meta);
+    void this.analyticsService.ingest(user.id, {
+      eventName: 'auth.login',
+      properties: { method: 'email', mfa: true },
     });
     return tokens;
   }
@@ -209,6 +272,13 @@ export class AuthService {
       );
     }
 
+    if (user.mfaEnabled) {
+      return {
+        mfaRequired: true,
+        challengeToken: this.issueMfaChallengeToken(user),
+      };
+    }
+
     await this.recordNewDeviceIfNeeded(user.id, meta, 'google');
     const tokens = await this.issueTokens(user, meta);
     void this.analyticsService.ingest(user.id, {
@@ -226,10 +296,21 @@ export class AuthService {
     let candidate = base || 'user';
     for (let i = 0; i < 20; i++) {
       const taken = await this.userRepository.findOne({ where: { username: candidate } });
-      if (!taken) return candidate;
+      if (!taken) {
+        await this.dataSource.query(
+          `DELETE FROM username_history WHERE LOWER(username) = LOWER($1)`,
+          [candidate],
+        );
+        return candidate;
+      }
       candidate = `${base}_${randomBytes(3).toString('hex')}`;
     }
-    return `user_${randomBytes(6).toString('hex')}`;
+    const fallback = `user_${randomBytes(6).toString('hex')}`;
+    await this.dataSource.query(
+      `DELETE FROM username_history WHERE LOWER(username) = LOWER($1)`,
+      [fallback],
+    );
+    return fallback;
   }
 
   async createImpersonationToken(adminId: string, targetUserId: string) {
@@ -422,6 +503,88 @@ export class AuthService {
     await this.passwordResetRepository.save(row);
 
     await this.refreshTokenRepository.update({ userId: user.id }, { revoked: true });
+  }
+
+  /** Authenticated password change — verifies current password, then revokes other sessions. */
+  private static readonly ACCOUNT_DELETION_PURPOSE = 'delete-account';
+
+  /**
+   * Google-OAuth-only signups get a random, never-disclosed password
+   * (see loginWithGoogle), so DELETE /users/me's password check structurally
+   * can never succeed for them. This is the alternate step-up: a short-lived,
+   * emailed confirmation link stands in for "current password."
+   */
+  async requestAccountDeletion(userId: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const token = this.jwtService.sign(
+      { sub: user.id, purpose: AuthService.ACCOUNT_DELETION_PURPOSE },
+      { secret: this.configService.get<string>('jwt.secret'), expiresIn: '15m' },
+    );
+    const webUrl = this.configService.get<string>('mail.webUrl') || 'http://localhost:3000';
+    const link = `${webUrl}/settings/delete-account?confirmationToken=${encodeURIComponent(token)}`;
+    await this.mailService.sendMail(
+      user.email,
+      'Confirm your FORGE account deletion',
+      `Confirm permanent deletion of your FORGE account (this link expires in 15 minutes):\n${link}\n\nIf you didn't request this, you can safely ignore this email.`,
+    );
+  }
+
+  /** Throws unless `token` is a live, unexpired deletion-confirmation token issued to `userId`. */
+  isAccountDeletionTokenValid(token: string, userId: string): boolean {
+    let payload: { sub?: string; purpose?: string };
+    try {
+      payload = this.jwtService.verify(token, {
+        secret: this.configService.get<string>('jwt.secret'),
+      });
+    } catch {
+      return false;
+    }
+    return payload.purpose === AuthService.ACCOUNT_DELETION_PURPOSE && payload.sub === userId;
+  }
+
+  /** Re-confirms the current password for a sensitive self-service action (e.g. disabling MFA). */
+  async assertPasswordValid(userId: string, currentPassword: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const passwordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!passwordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    keepSessionId?: string | null,
+  ) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const passwordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!passwordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    if (currentPassword === newPassword) {
+      throw new BadRequestException('New password must be different from the current password');
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, this.BCRYPT_ROUNDS);
+    await this.userRepository.save(user);
+
+    const activeSessions = await this.refreshTokenRepository.find({
+      where: { userId, revoked: false },
+      select: ['id'],
+    });
+    for (const session of activeSessions) {
+      if (keepSessionId && session.id === keepSessionId) continue;
+      await this.refreshTokenRepository.update(session.id, { revoked: true });
+      await this.authSessionCache.markRevoked(session.id);
+    }
+    await this.authUserCache.bust(userId);
+    return { ok: true };
   }
 
   async resendVerification(userId: string) {

@@ -10,6 +10,12 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
+export enum FollowNotifyLevel {
+  ALL = 'all',
+  PERSONALIZED = 'personalized',
+  NONE = 'none',
+}
+
 @Entity('follows')
 @Unique(['followerId', 'followingId'])
 @Index(['followerId'])
@@ -31,6 +37,15 @@ export class Follow {
 
   @Column({ name: 'following_id', type: 'uuid' })
   followingId: string;
+
+  /** YouTube-style channel notification bell: all / personalized / none. */
+  @Column({
+    name: 'notify_level',
+    type: 'enum',
+    enum: FollowNotifyLevel,
+    default: FollowNotifyLevel.ALL,
+  })
+  notifyLevel: FollowNotifyLevel;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

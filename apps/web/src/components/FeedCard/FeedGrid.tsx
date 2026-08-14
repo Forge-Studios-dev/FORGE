@@ -21,6 +21,8 @@ interface Props {
   skillTagSlug?: string;
   feedPath?: string;
   sort?: 'latest' | 'popular' | 'forYou' | 'following';
+  /** Filter following feed to one channel (subscriptions). */
+  channelId?: string;
 }
 
 export function FeedGrid({
@@ -29,12 +31,15 @@ export function FeedGrid({
   skillTagSlug,
   feedPath = '/videos/feed',
   sort,
+  channelId,
 }: Props) {
   const searchParams = useSearchParams();
   const categorySlug = categorySlugProp ?? searchParams.get('category') ?? undefined;
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const listAnchorRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
+  const [mutedChannels, setMutedChannels] = useState<Set<string>>(() => new Set());
   const columnCount = useFeedColumns();
   const { isGuest, isLoading: authLoading, canViewPersonalizedFeed } = useAuth();
   useFeedScrollRestore(feedPath === '/videos/feed' && !skillTagSlug);
@@ -48,15 +53,18 @@ export function FeedGrid({
     refetch,
     isFetchNextPageError,
   } = useInfiniteQuery({
-    queryKey: ['feed', feedPath, categorySlug, skillTagSlug, sort, isGuest],
+    queryKey: ['feed', feedPath, categorySlug, skillTagSlug, sort, isGuest, channelId],
     enabled: !authLoading,
     maxPages: MAX_FEED_PAGES,
-    refetchOnMount: false,
+    refetchOnMount: initialData.data.length === 0 ? 'always' : false,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '12' });
       if (pageParam) params.set('cursor', pageParam as string);
       if (categorySlug) params.set('categorySlug', categorySlug);
       if (skillTagSlug) params.set('skillTagSlugs', skillTagSlug);
+      if (channelId && feedPath === '/videos/feed/following') {
+        params.set('channelId', channelId);
+      }
       const effectiveSort =
         sort ?? (canViewPersonalizedFeed && !categorySlug && !skillTagSlug ? 'forYou' : 'latest');
       if (feedPath !== '/videos/feed/following') {
@@ -87,7 +95,9 @@ export function FeedGrid({
     return () => observer.disconnect();
   }, [fetchNextPage, canLoadMore, isFetchingNextPage]);
 
-  const videos = data?.pages.flatMap((p) => p.data) ?? [];
+  const videos = (data?.pages.flatMap((p) => p.data) ?? []).filter(
+    (v) => !hiddenIds.has(v.id) && !mutedChannels.has(v.userId),
+  );
   const rows = chunkFeedRows(videos, columnCount);
 
   useEffect(() => {
@@ -136,16 +146,23 @@ export function FeedGrid({
   }
 
   if (!videos.length) {
+    const isFollowing = feedPath === '/videos/feed/following';
     return (
       <EmptyState
-        icon="video_library"
-        title="No lessons yet"
+        icon={isFollowing ? 'subscriptions' : 'video_library'}
+        title={isFollowing ? 'No videos from subscriptions yet' : 'No videos yet'}
         description={
           categorySlug
-            ? 'Nothing in this category right now. Try another skill or check back soon.'
-            : 'New tutorials appear as creators publish. Explore skills to get started.'
+            ? 'Nothing in this category right now. Try another filter or check back soon.'
+            : isFollowing
+              ? 'Subscribe to channels to see their latest uploads here.'
+              : 'New videos appear as creators publish. Explore to find something to watch.'
         }
-        action={{ label: 'Explore skills', href: '/explore' }}
+        action={
+          isFollowing
+            ? { label: 'Go home', href: '/' }
+            : { label: 'Explore', href: '/explore' }
+        }
       />
     );
   }
@@ -176,7 +193,16 @@ export function FeedGrid({
                 }}
               >
                 {rowVideos.map((video) => (
-                  <FeedCard key={video.id} video={video} />
+                  <FeedCard
+                    key={video.id}
+                    video={video}
+                    onNotInterested={(id) => {
+                      setHiddenIds((prev) => new Set(prev).add(id));
+                    }}
+                    onDontRecommendChannel={(channelId) => {
+                      setMutedChannels((prev) => new Set(prev).add(channelId));
+                    }}
+                  />
                 ))}
               </div>
             </div>
@@ -198,9 +224,9 @@ export function FeedGrid({
         )}
         {atPageCap && hasNextPage && !isFetchingNextPage && (
           <p className="text-center text-sm text-on-surface-variant">
-            Showing the latest {MAX_FEED_PAGES * 12} lessons.{' '}
+            Showing the latest {MAX_FEED_PAGES * 12} videos.{' '}
             <a href="/explore" className="text-secondary hover:underline">
-              Explore more skills
+              Explore more
             </a>
           </p>
         )}

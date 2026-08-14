@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/google_oauth_launcher.dart';
 import '../../../core/platform/platform_config.dart';
 import '../data/auth_repository.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
@@ -86,18 +87,18 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 const SizedBox(height: 32),
                 Text('Create Account', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                const Text('Join the FORGE community', style: TextStyle(color: Colors.grey)),
+                Text('Create an account to watch and subscribe', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                 const SizedBox(height: 32),
 
                 if (_error != null) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
+                      color: ForgeTokens.of(context).error.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                      border: Border.all(color: ForgeTokens.of(context).error.withValues(alpha: 0.35)),
                     ),
-                    child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                    child: Text(_error!, style: TextStyle(color: ForgeTokens.of(context).error, fontSize: 13)),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -132,7 +133,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 ElevatedButton(
                   onPressed: _loading ? null : _submit,
                   child: _loading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: ForgeTokens.of(context).onPrimary))
                       : const Text('Create Account'),
                 ),
                 const SizedBox(height: 16),
@@ -154,7 +155,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Already have an account? ', style: TextStyle(color: Colors.grey)),
+                    Text('Already have an account? ', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                     TextButton(
                       onPressed: () => context.go('/login'),
                       child: const Text('Sign in'),

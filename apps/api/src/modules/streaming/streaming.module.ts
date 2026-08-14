@@ -25,6 +25,7 @@ import { StreamAudienceRequest } from './entities/stream-audience-request.entity
 import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { UploadNotRestrictedGuard } from '../../common/guards/upload-not-restricted.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { Video } from '../content/entities/video.entity';
 import { ContentModule } from '../content/content.module';
@@ -43,6 +44,8 @@ import { StreamMessage } from '../stream-chat/entities/stream-message.entity';
 import { Community } from '../communities/entities/community.entity';
 import { StreamBreakoutService } from './stream-breakout.service';
 import { CommunityRoom } from '../communities/entities/community-room.entity';
+
+import { EngagementModule } from '../engagement/engagement.module';
 
 @Module({
   imports: [
@@ -100,6 +103,7 @@ import { CommunityRoom } from '../communities/entities/community-room.entity';
       CommunityRoom,
     ]),
     UsersModule,
+    EngagementModule,
     forwardRef(() => ContentModule),
     forwardRef(() => EntitlementsModule),
     forwardRef(() => AccessSessionsModule),
@@ -119,6 +123,7 @@ import { CommunityRoom } from '../communities/entities/community-room.entity';
     StreamReactionService,
     StreamBreakoutService,
     CreatorApprovedGuard,
+    UploadNotRestrictedGuard,
     OptionalJwtAuthGuard,
   ],
   exports: [

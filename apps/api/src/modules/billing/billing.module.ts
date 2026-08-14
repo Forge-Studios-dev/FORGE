@@ -9,6 +9,9 @@ import { BillingController } from './billing.controller';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { StreamEventPurchase } from '../streaming/entities/stream-event-purchase.entity';
 import { Stream } from '../streaming/entities/stream.entity';
+import { Video } from '../content/entities/video.entity';
+import { SuperThanks } from './entities/super-thanks.entity';
+import { StreamMessage } from '../stream-chat/entities/stream-message.entity';
 
 const billingProviderLogger = new Logger('BillingProvider');
 
@@ -66,6 +69,7 @@ import { StripeTierSyncModule } from './stripe-tier-sync.module';
 import { StripeConnectService } from './stripe-connect.service';
 import { SubscriptionChangeService } from './subscription-change.service';
 import { UsersModule } from '../users/users.module';
+import { EngagementModule } from '../engagement/engagement.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { User } from '../users/entities/user.entity';
 
@@ -76,11 +80,12 @@ import { User } from '../users/entities/user.entity';
     // stripe-tier-sync.module.ts) — this is now a genuine one-way edge, so
     // no forwardRef is needed on either side.
     EntitlementsModule,
+    EngagementModule,
     WebhookIdempotencyModule,
     forwardRef(() => StreamingModule),
     UsersModule,
     StripeTierSyncModule,
-    TypeOrmModule.forFeature([StreamEventPurchase, Stream, User]),
+    TypeOrmModule.forFeature([StreamEventPurchase, Stream, User, Video, SuperThanks, StreamMessage]),
   ],
   controllers: [BillingController],
   providers: [

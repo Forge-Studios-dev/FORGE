@@ -9,13 +9,16 @@ import { Like } from './entities/like.entity';
 import { Comment } from './entities/comment.entity';
 import { CommentLike } from './entities/comment-like.entity';
 import { Follow } from './entities/follow.entity';
+import { UserBlock } from './entities/user-block.entity';
+import { Share } from './entities/share.entity';
 import { Video } from '../content/entities/video.entity';
 import { User } from '../users/entities/user.entity';
 import { ENGAGEMENT_RECONCILIATION_QUEUE } from './engagement-reconciliation.constants';
+import { AiModerationService } from '../communities/ai-moderation.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Like, Comment, CommentLike, Follow, Video, User]),
+    TypeOrmModule.forFeature([Like, Comment, CommentLike, Follow, UserBlock, Share, Video, User]),
     BullModule.registerQueue({
       name: ENGAGEMENT_RECONCILIATION_QUEUE,
       defaultJobOptions: {
@@ -30,6 +33,7 @@ import { ENGAGEMENT_RECONCILIATION_QUEUE } from './engagement-reconciliation.con
     EngagementService,
     EngagementReconciliationService,
     EngagementReconciliationScheduler,
+    AiModerationService,
   ],
   exports: [EngagementService, EngagementReconciliationService],
 })

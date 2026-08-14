@@ -16,12 +16,16 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
-import { Video, VideoStatus } from '../../content/entities/video.entity';
+import { ModerationStatus, Video, VideoStatus, VideoType } from '../../content/entities/video.entity';
 import { indexedAtOnReady, publishStatusOnReady } from '../../content/video-publish.util';
-import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../../content/videos.service';
+import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../../content/video-processing.constants';
+import { resolveVideoTypeOnReady } from '../../content/short-duration.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { buildPublicMediaUrl } from '../../../common/media-url.util';
 import { videoDetailCacheKey } from '../../content/video-cache';
+import { createS3Client } from '../../../common/create-s3-client';
+import { OWNED_VIDEO_S3_KEY_PATTERN } from '../../content/dto/create-video.dto';
+import { ContentScanService } from '../../content/content-scan/content-scan.service';
 
 interface VideoProcessingJob {
   videoId: string;
@@ -58,14 +62,14 @@ export class VideoProcessorWorker extends WorkerHost {
     private readonly redis: Redis,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly contentScanService: ContentScanService,
   ) {
     super();
-    this.s3 = new S3Client({
-      region: configService.get<string>('aws.region'),
-      credentials: {
-        accessKeyId: configService.get<string>('aws.accessKeyId') || '',
-        secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
-      },
+    this.s3 = createS3Client({
+      region: configService.get<string>('aws.region') || 'ap-south-1',
+      accessKeyId: configService.get<string>('aws.accessKeyId') || '',
+      secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
+      roleArn: configService.get<string>('aws.roleArn') || undefined,
     });
     this.bucket = configService.get<string>('aws.s3BucketName') || '';
     this.cdnDomain = configService.get<string>('aws.cloudfrontDomain') || '';
@@ -105,25 +109,27 @@ export class VideoProcessorWorker extends WorkerHost {
   }
 
   async process(job: Job<VideoProcessingJob>): Promise<void> {
-    const { videoId, s3Key } = job.data;
-    const tmpDir = path.join(os.tmpdir(), `forge-${videoId}`);
+    const { videoId, s3Key, userId } = job.data;
+    if (!OWNED_VIDEO_S3_KEY_PATTERN.test(s3Key) || !s3Key.startsWith(`videos/${userId}/`)) {
+      throw new Error('Refusing to process video with invalid s3Key');
+    }
+    // Random mkdtemp — never interpolate job fields into the temp path (CodeQL).
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-vid-'));
 
     this.logger.log(
-      JSON.stringify({ msg: 'video_processing_started', videoId, userId: job.data.userId }),
+      JSON.stringify({ msg: 'video_processing_started', videoId, userId }),
     );
 
     await this.videoRepository.update(videoId, { status: VideoStatus.PROCESSING });
 
     try {
-      fs.mkdirSync(tmpDir, { recursive: true });
-
       const rawFilePath = path.join(tmpDir, 'input.mp4');
       await this.downloadFromS3(s3Key, rawFilePath);
 
       await job.updateProgress(20);
 
       const thumbnailPath = path.join(tmpDir, 'thumbnail.jpg');
-      const customThumbKey = await this.findCustomThumbnailKey(job.data.userId, videoId);
+      const customThumbKey = await this.findCustomThumbnailKey(userId, videoId);
       if (customThumbKey) {
         await this.downloadFromS3(customThumbKey, thumbnailPath);
       } else {
@@ -136,6 +142,34 @@ export class VideoProcessorWorker extends WorkerHost {
       fs.mkdirSync(hlsOutputDir, { recursive: true });
 
       const duration = await this.getVideoDuration(rawFilePath);
+      const row = await this.videoRepository.findOne({
+        where: { id: videoId },
+        relations: ['skillTags'],
+      });
+      const typeResolution = resolveVideoTypeOnReady(
+        row?.videoType ?? VideoType.VIDEO,
+        duration,
+      );
+      if (!typeResolution.ok) {
+        await this.videoRepository.update(videoId, {
+          status: VideoStatus.FAILED,
+          durationSeconds: duration,
+          failureReason: typeResolution.reason,
+        });
+        await this.redis.del(videoDetailCacheKey(videoId));
+        this.eventEmitter.emit('video.updated', { videoId });
+        this.logger.warn(
+          JSON.stringify({
+            msg: 'video_processing_short_too_long',
+            videoId,
+            duration,
+            reason: typeResolution.reason,
+          }),
+        );
+        await job.updateProgress(100);
+        return;
+      }
+
       await this.transcodeToHls(rawFilePath, hlsOutputDir, duration, job);
 
       await job.updateProgress(80);
@@ -151,16 +185,26 @@ export class VideoProcessorWorker extends WorkerHost {
       const hlsUrl = this.mediaUrl(`${hlsBaseKey}/master.m3u8`);
       const thumbnailUrl = this.mediaUrl(thumbnailKey);
 
-      const row = await this.videoRepository.findOne({
-        where: { id: videoId },
-        relations: ['skillTags'],
-      });
       const now = new Date();
       const scheduled = row?.scheduledPublishAt;
       const publishedAt =
         scheduled && scheduled.getTime() > now.getTime() ? scheduled : now;
 
       const publishStatus = publishStatusOnReady();
+
+      const scanVerdict = await this.contentScanService.scanVideo({
+        videoId,
+        userId,
+        hlsUrl,
+        thumbnailUrl,
+      });
+      const moderationStatus =
+        scanVerdict.action === 'block'
+          ? ModerationStatus.BLOCKED
+          : scanVerdict.action === 'hold'
+            ? ModerationStatus.HELD
+            : ModerationStatus.NONE;
+
       const indexedAt = row
         ? indexedAtOnReady({
             ...row,
@@ -169,6 +213,7 @@ export class VideoProcessorWorker extends WorkerHost {
             hlsUrl,
             thumbnailUrl,
             publishedAt,
+            moderationStatus,
           })
         : null;
 
@@ -178,20 +223,39 @@ export class VideoProcessorWorker extends WorkerHost {
         hlsUrl,
         thumbnailUrl,
         durationSeconds: duration,
+        videoType: typeResolution.videoType,
         publishedAt,
         indexedAt,
+        moderationStatus,
+        ...(moderationStatus !== ModerationStatus.NONE
+          ? {
+              moderationNote: `content_scan:${scanVerdict.provider}:${scanVerdict.categories.join('|') || 'unspecified'}`,
+              moderatedAt: now,
+            }
+          : {}),
       });
 
       await this.redis.del(videoDetailCacheKey(videoId));
       this.eventEmitter.emit('video.updated', { videoId });
-      this.eventEmitter.emit('video.ready', {
-        videoId,
-        userId: job.data.userId,
-        categoryId: row?.categoryId ?? null,
-        status: VideoStatus.READY,
-        hlsUrl,
-        thumbnailUrl,
-      });
+      if (moderationStatus === ModerationStatus.NONE) {
+        this.eventEmitter.emit('video.ready', {
+          videoId,
+          userId,
+          categoryId: row?.categoryId ?? null,
+          videoType: typeResolution.videoType,
+          status: VideoStatus.READY,
+          hlsUrl,
+          thumbnailUrl,
+        });
+      } else {
+        this.eventEmitter.emit('video.content_scan_held', {
+          videoId,
+          userId,
+          moderationStatus,
+          categories: scanVerdict.categories,
+          provider: scanVerdict.provider,
+        });
+      }
 
       await job.updateProgress(100);
       this.logger.log(`Video ${videoId} processed successfully`);

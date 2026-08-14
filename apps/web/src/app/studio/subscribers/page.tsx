@@ -2,7 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Button, Input, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
+import { Button, EmptyState, Input, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
@@ -37,6 +38,7 @@ export default function StudioSubscribersPage() {
   const [grantDays, setGrantDays] = useState('30');
   const [exportPhase, setExportPhase] = useState<'idle' | 'preparing' | 'downloading' | 'done' | 'error'>('idle');
   const [exportError, setExportError] = useState('');
+  const [suspendTargetId, setSuspendTargetId] = useState<string | null>(null);
 
   const { data: tiers } = useQuery({
     queryKey: ['studio-tiers-grant', user?.id],
@@ -100,7 +102,10 @@ export default function StudioSubscribersPage() {
     mutationFn: async (subscriptionId: string) => {
       await api.post(`/creators/me/subscribers/${subscriptionId}/suspend`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['studio-subscribers', user?.id] }),
+    onSuccess: () => {
+      setSuspendTargetId(null);
+      void qc.invalidateQueries({ queryKey: ['studio-subscribers', user?.id] });
+    },
   });
 
   const grantMutation = useMutation({
@@ -135,7 +140,7 @@ export default function StudioSubscribersPage() {
     <main className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader
-          title="Subscribers"
+          title="Members"
           subtitle="Track membership lifecycle, grant complimentary access, and export member data."
         />
         <Button
@@ -256,6 +261,8 @@ export default function StudioSubscribersPage() {
 
       {isLoading ? (
         <p className="text-sm text-on-surface-variant">Loading…</p>
+      ) : (subscribers ?? []).length === 0 ? (
+        <EmptyState icon="group" title="No subscribers yet" description="Members who join a paid tier will show up here." />
       ) : (
         <ul className="space-y-2">
           {(subscribers ?? []).map((s) => (
@@ -272,22 +279,27 @@ export default function StudioSubscribersPage() {
                   variant="ghost"
                   className="text-xs text-error"
                   disabled={suspendMutation.isPending}
-                  onClick={() => {
-                    if (window.confirm('Suspend this membership?')) {
-                      suspendMutation.mutate(s.id);
-                    }
-                  }}
+                  onClick={() => setSuspendTargetId(s.id)}
                 >
                   Suspend
                 </Button>
               </div>
             </li>
           ))}
-          {(subscribers ?? []).length === 0 ? (
-            <p className="text-sm text-on-surface-variant">No subscribers yet.</p>
-          ) : null}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={!!suspendTargetId}
+        title="Suspend membership?"
+        description="The member will lose access until you reinstate them."
+        confirmLabel="Suspend"
+        onConfirm={() => {
+          if (suspendTargetId) suspendMutation.mutate(suspendTargetId);
+        }}
+        onCancel={() => setSuspendTargetId(null)}
+        loading={suspendMutation.isPending}
+      />
     </main>
   );
 }

@@ -142,6 +142,12 @@ export class EntitlementsService {
     return `${visibility}:${requiredTierId ?? 'none'}`;
   }
 
+  private async assertNotBlockedPeer(viewerId: string, creatorId: string): Promise<void> {
+    if (await this.engagementService.isBlockedEitherWay(viewerId, creatorId)) {
+      throw new ForbiddenException('This channel is not available');
+    }
+  }
+
   private async bustSubscriptionCache(
     userId: string,
     creatorId: string,
@@ -199,7 +205,8 @@ export class EntitlementsService {
     await this.redis.setex(cacheKey, 60, JSON.stringify(map));
   }
 
-  async listTiersForCreator(creatorId: string, activeOnly = true) {
+  async listTiersForCreator(creatorId: string, activeOnly = true, viewerId?: string) {
+    if (viewerId) await this.assertNotBlockedPeer(viewerId, creatorId);
     const where = activeOnly ? { creatorId, isActive: true } : { creatorId };
     const tiers = await this.tierRepository.find({
       where,
@@ -365,6 +372,7 @@ export class EntitlementsService {
     creatorId: string,
     communityId?: string | null,
   ) {
+    await this.assertNotBlockedPeer(userId, creatorId);
     const sub = await this.getActiveSubscription(userId, creatorId, communityId);
     if (!sub) return { active: false as const };
     return {
@@ -692,6 +700,10 @@ export class EntitlementsService {
 
     if (isOwner || isAdmin) return { allowed: true };
 
+    if (viewerId && (await this.engagementService.isBlockedEitherWay(viewerId, creatorId))) {
+      return { allowed: false, reason: 'not_available' };
+    }
+
     if (visibility === ContentVisibility.PUBLIC || visibility === ContentVisibility.UNLISTED) {
       return { allowed: true };
     }
@@ -744,7 +756,7 @@ export class EntitlementsService {
     if (!result.allowed) {
       const messages: Record<string, string> = {
         login_required: 'Sign in to access this content',
-        follow_required: 'Follow this creator to access this content',
+        follow_required: 'Subscribe to this channel to access this content',
         subscription_required: 'An active membership is required',
         tier_required: 'A higher membership tier is required',
         invite_required: 'You are not invited to this channel',
@@ -768,7 +780,7 @@ export class EntitlementsService {
     if (!result.allowed) {
       const messages: Record<string, string> = {
         login_required: 'Sign in to access this content',
-        follow_required: 'Follow this creator to access this content',
+        follow_required: 'Subscribe to this channel to access this content',
         subscription_required: 'An active membership is required',
         tier_required: 'A higher membership tier is required',
         invite_required: 'You are not invited to this channel',
@@ -1073,6 +1085,7 @@ export class EntitlementsService {
     if (!enabled) {
       throw new ForbiddenException('Mock subscriptions are disabled');
     }
+    await this.assertNotBlockedPeer(requesterId, dto.creatorId);
     return this.grantSubscription(requesterId, dto, MemberSubscriptionSource.MOCK);
   }
 

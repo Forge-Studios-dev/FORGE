@@ -11,7 +11,7 @@ export class SendSuperChatDto {
   @MaxLength(200)
   body: string;
 
-  @ApiProperty({ description: 'Tip amount in cents (USD)' })
+  @ApiProperty({ description: 'Super Chat amount in cents (USD)' })
   @IsInt()
   @Min(100)
   @Max(MAX_SUPER_CHAT_AMOUNT_CENTS)

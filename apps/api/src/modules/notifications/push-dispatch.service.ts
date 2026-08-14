@@ -2,15 +2,27 @@ import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, In, IsNull } from 'typeorm';
+import { isCategoryMuted, type NotificationCategory } from '@forge/shared-types';
 import { DeviceToken } from './entities/device-token.entity';
 import { PUSH_DISPATCH_QUEUE, PushDispatchJob } from './push-dispatch.constants';
 import { FirebaseService } from '../firebase/firebase.service';
+import { User } from '../users/entities/user.entity';
 
 export type PushPayload = {
   title: string;
   body: string;
   data?: Record<string, string>;
+  /** Required so a muted category can be filtered before a push ever reaches FCM. */
+  category: NotificationCategory;
+};
+
+type PushJob = {
+  userId: string;
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+  category: NotificationCategory;
 };
 
 @Injectable()
@@ -21,6 +33,8 @@ export class PushDispatchService {
   constructor(
     @InjectRepository(DeviceToken)
     private readonly deviceTokenRepository: Repository<DeviceToken>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     @InjectQueue(PUSH_DISPATCH_QUEUE)
     private readonly pushQueue: Queue<PushDispatchJob>,
     private readonly firebase: FirebaseService,
@@ -38,26 +52,39 @@ export class PushDispatchService {
   }
 
   /** Varied per-user payloads — still batched token lookup + BullMQ addBulk. */
-  async enqueueMany(
-    jobs: Array<{ userId: string; title: string; body: string; data?: Record<string, string> }>,
-  ): Promise<void> {
+  async enqueueMany(jobs: PushJob[]): Promise<void> {
     if (!this.firebase.isFcmEnabled() || !jobs.length) return;
 
-    const uniqueUserIds = [...new Set(jobs.map((j) => j.userId).filter(Boolean))];
+    const notMuted = await this.filterMutedJobs(jobs);
+    if (!notMuted.length) return;
+
+    const uniqueUserIds = [...new Set(notMuted.map((j) => j.userId))];
     const usersWithTokens = await this.loadUsersWithActiveTokens(uniqueUserIds);
     if (!usersWithTokens.size) return;
 
-    const eligible = jobs.filter((j) => usersWithTokens.has(j.userId));
+    const eligible = notMuted.filter((j) => usersWithTokens.has(j.userId));
     for (let i = 0; i < eligible.length; i += PushDispatchService.ENQUEUE_CHUNK) {
       const chunk = eligible.slice(i, i + PushDispatchService.ENQUEUE_CHUNK);
       await this.pushQueue.addBulk(
-        chunk.map((job) => ({
+        chunk.map(({ userId, title, body, data }) => ({
           name: 'send',
-          data: job,
+          data: { userId, title, body, data },
           opts: { removeOnComplete: true },
         })),
       );
     }
+  }
+
+  /** Same choke point as NotificationsService — skips a token lookup for muted users too. */
+  private async filterMutedJobs(jobs: PushJob[]): Promise<PushJob[]> {
+    const userIds = [...new Set(jobs.map((j) => j.userId).filter(Boolean))];
+    if (!userIds.length) return [];
+    const prefRows = await this.userRepository.find({
+      where: { id: In(userIds) },
+      select: { id: true, notificationPreferences: true },
+    });
+    const prefsById = new Map(prefRows.map((r) => [r.id, r.notificationPreferences]));
+    return jobs.filter((job) => !isCategoryMuted(prefsById.get(job.userId), job.category));
   }
 
   async revokeAllForUser(userId: string) {

@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { Public } from './common/decorators/public.decorator';
-import { VIDEO_PROCESSING_QUEUE } from './modules/content/videos.service';
+import { VIDEO_PROCESSING_QUEUE } from './modules/content/video-processing.constants';
 import { MUX_VOD_INGEST_QUEUE } from './modules/content/mux-vod.constants';
 
 const HEALTH_CHECK_MS = 2_500;

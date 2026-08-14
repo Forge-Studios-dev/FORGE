@@ -17,6 +17,7 @@ import { CreatorAuditService } from './creator-audit.service';
 
 describe('CommunityModerationService', () => {
   let service: CommunityModerationService;
+  let communitiesService: { assertCommunityAccess: jest.Mock };
   let roleRepository: {
     findOne: jest.Mock;
     save: jest.Mock;
@@ -121,6 +122,7 @@ describe('CommunityModerationService', () => {
     }).compile();
 
     service = module.get(CommunityModerationService);
+    communitiesService = module.get(CommunitiesService);
     jest.clearAllMocks();
     communityRepository.findOne.mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1' });
   });
@@ -145,6 +147,21 @@ describe('CommunityModerationService', () => {
     });
     expect(result.id).toBe('report-1');
     expect(postRepository.findOne).toHaveBeenCalled();
+  });
+
+  it('skips block gate when creating a community report', async () => {
+    await service.createReport('reporter-1', {
+      communityId: 'comm-1',
+      targetType: 'user',
+      reportedUserId: 'user-2',
+      reason: 'harassment',
+    });
+    expect(communitiesService.assertCommunityAccess).toHaveBeenCalledWith(
+      'comm-1',
+      'reporter-1',
+      undefined,
+      { skipBlockGate: true },
+    );
   });
 
   it('rejects report when channel is not in community', async () => {
@@ -199,6 +216,47 @@ describe('CommunityModerationService', () => {
     await service.assignRole('creator-1', 'comm-1', 'user-2', CommunityRoleType.MODERATOR);
 
     expect(roleRepository.create).toHaveBeenCalled();
+    expect(roleRepository.save).toHaveBeenCalled();
+  });
+
+  it('blocks a delegated ADMIN from assigning the OWNER role (privilege escalation)', async () => {
+    roleRepository.findOne.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      where.userId === 'admin-actor' ? { role: CommunityRoleType.ADMIN } : null,
+    );
+
+    await expect(
+      service.assignRole('admin-actor', 'comm-1', 'user-2', CommunityRoleType.OWNER),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(roleRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('blocks a delegated ADMIN from assigning the ADMIN role (privilege escalation)', async () => {
+    roleRepository.findOne.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      where.userId === 'admin-actor' ? { role: CommunityRoleType.ADMIN } : null,
+    );
+
+    await expect(
+      service.assignRole('admin-actor', 'comm-1', 'user-2', CommunityRoleType.ADMIN),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('still allows a delegated ADMIN to assign lower-tier roles', async () => {
+    roleRepository.findOne.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      where.userId === 'admin-actor' ? { role: CommunityRoleType.ADMIN } : null,
+    );
+
+    await service.assignRole('admin-actor', 'comm-1', 'user-2', CommunityRoleType.MODERATOR);
+
+    expect(roleRepository.save).toHaveBeenCalled();
+  });
+
+  it('allows the true OWNER to assign the ADMIN role', async () => {
+    roleRepository.findOne.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      where.userId === 'owner-actor' ? { role: CommunityRoleType.OWNER } : null,
+    );
+
+    await service.assignRole('owner-actor', 'comm-1', 'user-2', CommunityRoleType.ADMIN);
+
     expect(roleRepository.save).toHaveBeenCalled();
   });
 

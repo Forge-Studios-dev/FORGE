@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import { Body, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Request, Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { BillingService } from './billing.service';
@@ -8,11 +8,12 @@ import { StripeConnectService } from './stripe-connect.service';
 import { SubscriptionChangeService } from './subscription-change.service';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { CreateEventCheckoutDto } from './dto/create-event-checkout.dto';
+import { CreateSuperThanksDto } from './dto/create-super-thanks.dto';
+import { ListSuperThanksQueryDto } from './dto/list-super-thanks-query.dto';
 import { ChangeTierDto } from './dto/change-tier.dto';
 import { CreatePortalSessionDto } from './dto/create-portal-session.dto';
 import { ConnectOnboardQueryDto } from './dto/connect-onboard.dto';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
-import { UseGuards } from '@nestjs/common';
 
 @ApiTags('billing')
 @Controller('billing')
@@ -31,6 +32,47 @@ export class BillingController {
   @Post('checkout/event')
   createEventCheckout(@CurrentUser() user: { sub: string }, @Body() dto: CreateEventCheckoutDto) {
     return this.billingService.createEventCheckout(user.sub, dto);
+  }
+
+  @Post('checkout/super-thanks')
+  @ApiOperation({ summary: 'Send Super Thanks on a video' })
+  createSuperThanks(@CurrentUser() user: { sub: string }, @Body() dto: CreateSuperThanksDto) {
+    return this.billingService.createSuperThanksCheckout(user.sub, dto);
+  }
+
+  @Get('super-thanks/received')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'List Super Thanks received by the current creator' })
+  listReceivedSuperThanks(
+    @CurrentUser() user: { sub: string },
+    @Query() query: ListSuperThanksQueryDto,
+  ) {
+    return this.billingService.listReceivedSuperThanks(user.sub, query);
+  }
+
+  @Get('super-thanks/received/summary')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Daily Super Thanks totals for payout reconciliation' })
+  summarizeReceivedSuperThanks(
+    @CurrentUser() user: { sub: string },
+    @Query('days') days?: string,
+  ) {
+    return this.billingService.summarizeReceivedSuperThanks(user.sub, {
+      days: days ? Number(days) : undefined,
+    });
+  }
+
+  @Get('super-thanks/received/export')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({ summary: 'Export received Super Thanks as CSV' })
+  async exportReceivedSuperThanks(
+    @CurrentUser() user: { sub: string },
+    @Res() res: Response,
+  ) {
+    const csv = await this.billingService.exportReceivedSuperThanksCsv(user.sub);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="super-thanks.csv"');
+    res.send(csv);
   }
 
   @Get('connect/status')

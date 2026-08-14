@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,6 +11,7 @@ import { CreatorBundle, CreatorBundleItem } from './entities/creator-bundle.enti
 import { SubscriptionTier } from './entities/subscription-tier.entity';
 import { TierEntitlement, TierEntitlementResourceType } from './entities/tier-entitlement.entity';
 import { CreateBundleDto, UpdateBundleDto } from './dto/bundle.dto';
+import { EngagementService } from '../engagement/engagement.service';
 
 @Injectable()
 export class CreatorBundlesService {
@@ -23,6 +25,7 @@ export class CreatorBundlesService {
     @InjectRepository(TierEntitlement)
     private readonly tierEntitlementRepository: Repository<TierEntitlement>,
     private readonly eventEmitter: EventEmitter2,
+    private readonly engagementService: EngagementService,
   ) {}
 
   private slugify(text: string): string {
@@ -137,7 +140,10 @@ export class CreatorBundlesService {
     return { data: bundles.map((b) => this.mapBundle(b)) };
   }
 
-  async listPublic(creatorId: string) {
+  async listPublic(creatorId: string, viewerId?: string) {
+    if (viewerId && (await this.engagementService.isBlockedEitherWay(viewerId, creatorId))) {
+      throw new ForbiddenException('This channel is not available');
+    }
     const bundles = await this.bundleRepository.find({
       where: { creatorId, isActive: true },
       relations: ['items', 'tier'],

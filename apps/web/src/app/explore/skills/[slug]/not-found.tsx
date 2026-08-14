@@ -1,12 +1,12 @@
 import { StatusPage } from '@forge/design-system';
 
-export default function SkillNotFound() {
+export default function TopicNotFound() {
   return (
     <StatusPage
       icon="search_off"
-      title="Skill not found"
-      description="This skill category doesn't exist or may have been renamed."
-      action={{ label: 'Explore skills', href: '/explore' }}
+      title="Topic not found"
+      description="This topic doesn't exist or may have been renamed."
+      action={{ label: 'Explore', href: '/explore' }}
       secondary={{ label: 'Back home', href: '/' }}
     />
   );

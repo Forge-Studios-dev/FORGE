@@ -11,10 +11,16 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { Video } from '../../content/entities/video.entity';
 
+export enum VideoReactionType {
+  LIKE = 'like',
+  DISLIKE = 'dislike',
+}
+
 @Entity('likes')
 @Unique(['userId', 'videoId'])
 @Index(['videoId'])
 @Index(['userId'])
+@Index(['userId', 'reaction', 'createdAt'])
 export class Like {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -32,6 +38,9 @@ export class Like {
 
   @Column({ name: 'video_id', type: 'uuid' })
   videoId: string;
+
+  @Column({ type: 'varchar', length: 10, default: VideoReactionType.LIKE })
+  reaction: VideoReactionType;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

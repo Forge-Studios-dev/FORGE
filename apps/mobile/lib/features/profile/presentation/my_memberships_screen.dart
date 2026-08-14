@@ -199,25 +199,25 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
                               ),
                               Text(
                                 tier?['name'] as String? ?? 'Member',
-                                style: const TextStyle(
-                                  color: ForgeTokens.onSurfaceVariant,
+                                style: TextStyle(
+                                  color: ForgeTokens.of(context).onSurfaceVariant,
                                   fontSize: 13,
                                 ),
                               ),
                               Text(
                                 status.replaceAll('_', ' ').toUpperCase(),
                                 style: TextStyle(
-                                  color: ForgeTokens.primary,
+                                  color: ForgeTokens.of(context).primary,
                                   fontSize: 11,
                                 ),
                               ),
                               if (isRenewalPending)
-                                const Padding(
+                                Padding(
                                   padding: EdgeInsets.only(top: 4),
                                   child: Text(
                                     'Cancels at end of billing period',
                                     style: TextStyle(
-                                      color: ForgeTokens.onSurfaceVariant,
+                                      color: ForgeTokens.of(context).onSurfaceVariant,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -226,9 +226,9 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
                               Wrap(
                                 spacing: 8,
                                 children: [
-                                  if (username != null)
+                                  if (username != null || creatorId != null)
                                     TextButton(
-                                      onPressed: () => context.push('/community/${sub['creatorId']}'),
+                                      onPressed: () => context.push('/community/${creatorId ?? ''}'),
                                       child: const Text('Open community'),
                                     ),
                                   if (!isRenewalPending)
@@ -236,7 +236,7 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
                                       onPressed: creatorId == null
                                           ? null
                                           : () => _promptCancel(creatorId, source: source),
-                                      child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+                                      child: Text('Cancel', style: TextStyle(color: ForgeTokens.of(context).error)),
                                     ),
                                 ],
                               ),

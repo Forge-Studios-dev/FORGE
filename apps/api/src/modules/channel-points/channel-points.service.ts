@@ -17,6 +17,7 @@ import {
   ChannelPointRewardStatus,
   ChannelPointsBalance,
 } from './entities/channel-points.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 @Injectable()
 export class ChannelPointsService {
@@ -35,9 +36,25 @@ export class ChannelPointsService {
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
     @InjectRedis() private readonly redis: Redis,
+    private readonly engagementService: EngagementService,
   ) {}
 
+  private async assertNotBlockedFromCommunity(
+    viewerId: string,
+    communityId: string,
+  ): Promise<void> {
+    const [row] = await this.dataSource.query<[{ creator_id: string }?]>(
+      `SELECT creator_id FROM communities WHERE id = $1 LIMIT 1`,
+      [communityId],
+    );
+    if (!row) throw new NotFoundException('Community not found');
+    if (await this.engagementService.isBlockedEitherWay(viewerId, row.creator_id)) {
+      throw new ForbiddenException('This channel is not available');
+    }
+  }
+
   async getBalance(userId: string, communityId: string) {
+    await this.assertNotBlockedFromCommunity(userId, communityId);
     const row = await this.balanceRepository.findOne({ where: { userId, communityId } });
     return {
       communityId,
@@ -49,6 +66,12 @@ export class ChannelPointsService {
 
   async earnPoints(userId: string, communityId: string, points: number): Promise<void> {
     if (points <= 0) return;
+    try {
+      await this.assertNotBlockedFromCommunity(userId, communityId);
+    } catch {
+      // Blocked peers / missing community: never award points via events.
+      return;
+    }
     await this.dataSource.query(
       `INSERT INTO channel_points_balances (community_id, user_id, balance, total_earned)
        VALUES ($1, $2, $3, $3)
@@ -104,7 +127,8 @@ export class ChannelPointsService {
     return reward;
   }
 
-  async listRewards(communityId: string, includeInactive = false) {
+  async listRewards(communityId: string, includeInactive = false, viewerId?: string) {
+    if (viewerId) await this.assertNotBlockedFromCommunity(viewerId, communityId);
     const statuses = includeInactive
       ? [ChannelPointRewardStatus.ACTIVE, ChannelPointRewardStatus.PAUSED]
       : [ChannelPointRewardStatus.ACTIVE];
@@ -160,6 +184,7 @@ export class ChannelPointsService {
   // ── Redemptions ────────────────────────────────────────────────────────────
 
   async redeem(userId: string, communityId: string, rewardId: string, message?: string) {
+    await this.assertNotBlockedFromCommunity(userId, communityId);
     const reward = await this.rewardRepository.findOne({
       where: { id: rewardId, communityId, status: ChannelPointRewardStatus.ACTIVE },
     });

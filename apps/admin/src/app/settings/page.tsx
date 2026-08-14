@@ -125,8 +125,9 @@ export default function SettingsPage() {
           <h2 className="font-display-forge mb-2 text-lg font-semibold">Go-live</h2>
           <p className="text-sm text-on-surface-variant">
             Complete the production checklist in{' '}
-            <code className="text-on-surface">docs/DEPLOY.md</code> before promoting
-            builds.
+            <code className="text-on-surface">docs/operations/PRODUCTION_CHECKLIST.md</code> before
+            promoting builds. Mentorship and channel-points admin routes redirect to the dashboard
+            (skill-economy LMS soft-retire).
           </p>
         </section>
       </div>

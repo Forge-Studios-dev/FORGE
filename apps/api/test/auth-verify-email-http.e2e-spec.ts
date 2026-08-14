@@ -20,6 +20,7 @@ import { AuthAccountLockoutService } from '../src/modules/auth/auth-account-lock
 import { AuthEmailOtpService } from '../src/modules/auth/auth-email-otp.service';
 import { AuthUserCacheService } from '../src/modules/auth/auth-user-cache.service';
 import { AuthSessionCacheService } from '../src/modules/auth/auth-session-cache.service';
+import { AuthMfaService } from '../src/modules/auth/auth-mfa.service';
 import { User } from '../src/modules/users/entities/user.entity';
 import { RefreshToken } from '../src/modules/auth/entities/refresh-token.entity';
 import { PasswordResetToken } from '../src/modules/auth/entities/password-reset-token.entity';
@@ -85,6 +86,7 @@ describe('Email verification HTTP (HIGH-06)', () => {
         },
         { provide: DataSource, useValue: { transaction: jest.fn() } },
         { provide: ReferralService, useValue: { claimReferral: jest.fn() } },
+        { provide: AuthMfaService, useValue: { isEnabled: jest.fn().mockResolvedValue(false) } },
         // Not exercised by verify-email routes — stubbed like billing-webhook-http
         // stubs unrelated constructor deps. FirebaseService is needed because
         // AppCheckGuard (used on other controller routes) is still constructed

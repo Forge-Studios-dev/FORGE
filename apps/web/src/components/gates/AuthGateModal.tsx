@@ -8,7 +8,7 @@ import { currentReturnPath, loginHrefWithNext, safeReturnPath } from '@/lib/safe
 export function AuthGateModal({
   open,
   onClose,
-  message = 'Sign in to like, comment, and follow creators.',
+  message = 'Sign in to like, comment, and subscribe.',
 }: {
   open: boolean;
   onClose: () => void;

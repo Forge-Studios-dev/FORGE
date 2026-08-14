@@ -14,6 +14,7 @@ import { Channel } from './entities/channel.entity';
 import { ChannelMember } from './entities/channel-member.entity';
 import { ChannelMessage } from './entities/channel-message.entity';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { CommunityModerationService } from './community-moderation.service';
 import { AiModerationService } from './ai-moderation.service';
@@ -38,6 +39,10 @@ describe('CommunitiesService', () => {
     listActiveSubscriptionsForCreator: jest.Mock;
     subscriptionCoversCommunity: jest.Mock;
     getSubscriberAnalytics: jest.Mock;
+  };
+  let engagementService: {
+    isBlockedEitherWay: jest.Mock;
+    getBlockedPeerIds: jest.Mock;
   };
   let accessSessionsService: { requirePremiumSession: jest.Mock };
   let moderationService: { isBanned: jest.Mock; listUnifiedReportsForCreator: jest.Mock };
@@ -145,6 +150,10 @@ describe('CommunitiesService', () => {
       }),
     };
     accessSessionsService = { requirePremiumSession: jest.fn().mockResolvedValue(undefined) };
+    engagementService = {
+      isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+      getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+    };
     moderationService = {
       isBanned: jest.fn().mockResolvedValue(false),
       listUnifiedReportsForCreator: jest.fn().mockResolvedValue({ data: [] }),
@@ -167,6 +176,10 @@ describe('CommunitiesService', () => {
         { provide: getRepositoryToken(CommunityRoom), useValue: roomRepository },
         { provide: getRepositoryToken(ChannelMessage), useValue: messageRepository },
         { provide: EntitlementsService, useValue: entitlementsService },
+        {
+          provide: EngagementService,
+          useValue: engagementService,
+        },
         { provide: AccessSessionsService, useValue: accessSessionsService },
         { provide: CommunityModerationService, useValue: moderationService },
         { provide: AiModerationService, useValue: aiModerationService },
@@ -423,13 +436,43 @@ describe('CommunitiesService', () => {
 
     expect(meta.canRequestJoin).toBe(true);
     expect(meta.communityId).toBe('comm-private');
+    expect(meta.unavailable).toBe(false);
+  });
+
+  it('marks community access meta unavailable when blocked either way', async () => {
+    communityRepository.findOne.mockResolvedValue({
+      id: 'comm-blocked',
+      creatorId: 'creator-1',
+      slug: 'club',
+      name: 'Club',
+      visibility: CommunityVisibility.PUBLIC,
+    });
+    engagementService.isBlockedEitherWay.mockResolvedValue(true);
+
+    const meta = await service.getCommunityAccessMeta(
+      'creator-1',
+      'club',
+      'viewer-1',
+      UserRole.USER,
+    );
+
+    expect(meta).toEqual(
+      expect.objectContaining({
+        communityId: 'comm-blocked',
+        canView: false,
+        canRequestJoin: false,
+        unavailable: true,
+      }),
+    );
+    expect(engagementService.isBlockedEitherWay).toHaveBeenCalledWith('viewer-1', 'creator-1');
   });
 
   describe('getCreatorAttention', () => {
     it('returns empty items and zero counts when nothing needs action', async () => {
       dataSource.query
         .mockResolvedValueOnce([]) // unreplied comments
-        .mockResolvedValueOnce([]); // failed videos
+        .mockResolvedValueOnce([]) // failed videos
+        .mockResolvedValueOnce([]); // scheduled
 
       const result = await service.getCreatorAttention('creator-1');
 
@@ -438,6 +481,7 @@ describe('CommunitiesService', () => {
         pendingModeration: 0,
         failedPayments: 0,
         processingFailures: 0,
+        scheduledUpcoming: 0,
       });
       expect(result.items).toEqual([]);
     });
@@ -454,6 +498,7 @@ describe('CommunitiesService', () => {
             total_count: '3',
           },
         ])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
       const result = await service.getCreatorAttention('creator-1');
@@ -462,13 +507,13 @@ describe('CommunitiesService', () => {
       expect(result.items[0]).toMatchObject({
         id: 'comment-comment-1',
         kind: 'comment',
-        href: '/studio/comments',
+        href: '/watch/video-1?lc=comment-1',
         tone: 'primary',
       });
     });
 
     it('includes open moderation reports scoped to the creator', async () => {
-      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
       moderationService.listUnifiedReportsForCreator.mockResolvedValue({
         data: [
           { id: 'report-1', reason: 'Spam', communityName: 'Main', createdAt: new Date('2026-07-02') },
@@ -484,7 +529,7 @@ describe('CommunitiesService', () => {
     });
 
     it('ranks failed payments above moderation and comments, and omits the item when there are none', async () => {
-      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
       entitlementsService.getSubscriberAnalytics.mockResolvedValue({
         active: 10,
         trial: 0,
@@ -515,7 +560,8 @@ describe('CommunitiesService', () => {
             updated_at: '2026-07-03T00:00:00.000Z',
             total_count: '1',
           },
-        ]);
+        ])
+        .mockResolvedValueOnce([]);
 
       const result = await service.getCreatorAttention('creator-1');
 
@@ -526,6 +572,32 @@ describe('CommunitiesService', () => {
         href: '/studio/videos/video-fail-1',
         tone: 'critical',
       });
+    });
+
+    it('surfaces upcoming scheduled publishes', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            id: 'video-sched-1',
+            title: 'Friday premiere',
+            scheduled_publish_at: '2026-08-10T18:00:00.000Z',
+            total_count: '2',
+          },
+        ]);
+
+      const result = await service.getCreatorAttention('creator-1');
+
+      expect(result.counts.scheduledUpcoming).toBe(2);
+      expect(result.items).toContainEqual(
+        expect.objectContaining({
+          id: 'scheduled-video-sched-1',
+          kind: 'scheduled',
+          href: '/studio/videos/video-sched-1',
+          tone: 'primary',
+        }),
+      );
     });
   });
 });

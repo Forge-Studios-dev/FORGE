@@ -17,18 +17,43 @@ import {
   Video,
   VideoStatus,
   TranscodeProvider,
-  VideoType,
-  SHORT_DURATION_THRESHOLD_SECONDS,
+  ModerationStatus,
 } from './entities/video.entity';
 import { createS3Client } from '../../common/create-s3-client';
 import { indexedAtOnReady, publishStatusOnReady } from './video-publish.util';
 import { videoDetailCacheKey } from './video-cache';
-import { muxHlsPlaybackUrl, muxThumbnailUrl } from './mux-vod.constants';
+import { muxHlsPlaybackUrl, muxThumbnailUrl, muxCaptionVttUrl } from './mux-vod.constants';
+import { resolveVideoTypeOnReady } from './short-duration.util';
+import { ContentScanService } from './content-scan/content-scan.service';
+import { requiresMuxSignedPlayback } from '../../common/media/mux-signing.util';
 
 export interface MuxVodIngestJob {
   videoId: string;
   s3Key: string;
   userId: string;
+}
+
+type MuxTrackLike = {
+  id?: string;
+  type?: string;
+  text_type?: string;
+  status?: string;
+  language_code?: string;
+  name?: string;
+};
+
+function pickCaptionTrackId(tracks: unknown): string | null {
+  if (!Array.isArray(tracks)) return null;
+  for (const raw of tracks) {
+    const track = raw as MuxTrackLike;
+    if (track.type !== 'text') continue;
+    if (track.text_type && track.text_type !== 'subtitles' && track.text_type !== 'captions') {
+      continue;
+    }
+    if (track.status && track.status !== 'ready') continue;
+    if (typeof track.id === 'string' && track.id.length > 0) return track.id;
+  }
+  return null;
 }
 
 @Injectable()
@@ -45,11 +70,13 @@ export class MuxVodService {
     private readonly eventEmitter: EventEmitter2,
     @InjectRedis()
     private readonly redis: Redis,
+    private readonly contentScanService: ContentScanService,
   ) {
     this.s3 = createS3Client({
       region: configService.get<string>('aws.region') || 'ap-south-1',
       accessKeyId: configService.get<string>('aws.accessKeyId') || '',
       secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
+      roleArn: configService.get<string>('aws.roleArn') || undefined,
     });
     this.bucket = configService.get<string>('aws.s3BucketName') || '';
     this.mux = new Mux({
@@ -91,10 +118,22 @@ export class MuxVodService {
 
     this.logger.log(JSON.stringify({ msg: 'mux_vod_ingest_start', videoId, s3Key }));
 
+    const useSignedPlayback = requiresMuxSignedPlayback(video.visibility);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await this.mux.video.assets.create({
-      inputs: [{ url: signedUrl }],
-      playback_policy: ['public'],
+      inputs: [
+        {
+          url: signedUrl,
+          generated_subtitles: [
+            {
+              language_code: 'en',
+              name: 'English CC',
+            },
+          ],
+        },
+      ],
+      playback_policy: [useSignedPlayback ? 'signed' : 'public'],
       passthrough: videoId,
       max_resolution_tier: '1080p',
       encoding_tier: 'smart',
@@ -152,13 +191,53 @@ export class MuxVodService {
       return true;
     }
 
+    const typeResolution = resolveVideoTypeOnReady(video.videoType, duration);
+    if (!typeResolution.ok) {
+      await this.videoRepository.update(video.id, {
+        status: VideoStatus.FAILED,
+        durationSeconds: duration,
+        muxAssetId: assetId,
+        muxPlaybackId: playbackId,
+        transcodeProvider: TranscodeProvider.MUX,
+        failureReason: typeResolution.reason,
+      });
+      await this.redis.del(videoDetailCacheKey(video.id));
+      this.eventEmitter.emit('video.updated', { videoId: video.id });
+      this.logger.warn(
+        JSON.stringify({
+          msg: 'mux_vod_short_too_long',
+          videoId: video.id,
+          assetId,
+          duration,
+          reason: typeResolution.reason,
+        }),
+      );
+      return true;
+    }
+
     const hlsUrl = muxHlsPlaybackUrl(playbackId);
     const thumbnailUrl = muxThumbnailUrl(playbackId);
+    const captionTrackId = pickCaptionTrackId(data.tracks);
+    const captionUrl = captionTrackId ? muxCaptionVttUrl(playbackId, captionTrackId) : null;
     const now = new Date();
     const scheduled = video.scheduledPublishAt;
     const publishedAt =
       scheduled && scheduled.getTime() > now.getTime() ? scheduled : now;
     const publishStatus = publishStatusOnReady();
+
+    const scanVerdict = await this.contentScanService.scanVideo({
+      videoId: video.id,
+      userId: video.userId,
+      hlsUrl,
+      thumbnailUrl,
+    });
+    const moderationStatus =
+      scanVerdict.action === 'block'
+        ? ModerationStatus.BLOCKED
+        : scanVerdict.action === 'hold'
+          ? ModerationStatus.HELD
+          : ModerationStatus.NONE;
+
     const indexedAt = indexedAtOnReady({
       ...video,
       status: VideoStatus.READY,
@@ -166,6 +245,7 @@ export class MuxVodService {
       hlsUrl,
       thumbnailUrl,
       publishedAt,
+      moderationStatus,
     });
 
     await this.videoRepository.update(video.id, {
@@ -173,29 +253,50 @@ export class MuxVodService {
       publishStatus,
       hlsUrl,
       thumbnailUrl,
+      ...(captionUrl
+        ? {
+            captionUrl,
+            captionTracks: [{ language: 'en', label: 'English', url: captionUrl }],
+          }
+        : {}),
       muxAssetId: assetId,
       muxPlaybackId: playbackId,
       transcodeProvider: TranscodeProvider.MUX,
       durationSeconds: duration,
-      videoType:
-        duration !== null && duration <= SHORT_DURATION_THRESHOLD_SECONDS
-          ? VideoType.SHORT
-          : VideoType.VIDEO,
+      videoType: typeResolution.videoType,
       publishedAt,
       indexedAt,
       failureReason: null,
+      moderationStatus,
+      ...(moderationStatus !== ModerationStatus.NONE
+        ? {
+            moderationNote: `content_scan:${scanVerdict.provider}:${scanVerdict.categories.join('|') || 'unspecified'}`,
+            moderatedAt: now,
+          }
+        : {}),
     });
 
     await this.redis.del(videoDetailCacheKey(video.id));
     this.eventEmitter.emit('video.updated', { videoId: video.id });
-    this.eventEmitter.emit('video.ready', {
-      videoId: video.id,
-      userId: video.userId,
-      categoryId: video.categoryId ?? null,
-      status: VideoStatus.READY,
-      hlsUrl,
-      thumbnailUrl,
-    });
+    if (moderationStatus === ModerationStatus.NONE) {
+      this.eventEmitter.emit('video.ready', {
+        videoId: video.id,
+        userId: video.userId,
+        categoryId: video.categoryId ?? null,
+        videoType: video.videoType,
+        status: VideoStatus.READY,
+        hlsUrl,
+        thumbnailUrl,
+      });
+    } else {
+      this.eventEmitter.emit('video.content_scan_held', {
+        videoId: video.id,
+        userId: video.userId,
+        moderationStatus,
+        categories: scanVerdict.categories,
+        provider: scanVerdict.provider,
+      });
+    }
 
     const tracks = Array.isArray(data.tracks) ? data.tracks.length : 0;
     this.logger.log(
@@ -205,10 +306,137 @@ export class MuxVodService {
         assetId,
         playbackId,
         duration,
+        videoType: typeResolution.videoType,
         trackCount: tracks,
+        captionUrl: captionUrl ?? undefined,
       }),
     );
     return true;
+  }
+
+  /**
+   * Handles `video.asset.track.ready` — auto-generated captions often arrive
+   * after `video.asset.ready`.
+   */
+  async handleTrackReady(payload: Record<string, unknown>): Promise<boolean> {
+    const data = payload.data as Record<string, unknown> | undefined;
+    if (!data) return false;
+
+    const track = data as MuxTrackLike & { asset_id?: string };
+    if (track.type !== 'text') return false;
+    if (track.text_type && track.text_type !== 'subtitles' && track.text_type !== 'captions') {
+      return false;
+    }
+    const trackId = typeof track.id === 'string' ? track.id : '';
+    const assetId = typeof track.asset_id === 'string' ? track.asset_id : '';
+    if (!trackId || !assetId) return false;
+
+    const video = await this.videoRepository.findOne({ where: { muxAssetId: assetId } });
+    if (!video?.muxPlaybackId) return false;
+
+    const captionUrl = muxCaptionVttUrl(video.muxPlaybackId, trackId);
+    if (video.captionUrl === captionUrl) return true;
+
+    const lang =
+      typeof track.language_code === 'string' && track.language_code
+        ? track.language_code.slice(0, 8).toLowerCase()
+        : 'en';
+    const label = typeof track.name === 'string' && track.name ? track.name : 'English';
+    const existing = [...(video.captionTracks ?? [])];
+    const nextTrack = { language: lang, label, url: captionUrl };
+    const idx = existing.findIndex((t) => t.language === lang);
+    if (idx >= 0) existing[idx] = nextTrack;
+    else existing.push(nextTrack);
+
+    await this.videoRepository.update(video.id, {
+      captionUrl,
+      captionTracks: existing,
+    });
+    await this.redis.del(videoDetailCacheKey(video.id));
+    this.eventEmitter.emit('video.updated', { videoId: video.id });
+
+    this.logger.log(
+      JSON.stringify({
+        msg: 'mux_vod_caption_ready',
+        videoId: video.id,
+        assetId,
+        trackId,
+        captionUrl,
+        language: lang,
+      }),
+    );
+    return true;
+  }
+
+  /**
+   * Re-issues the Mux playback id when a video's visibility crosses the
+   * public/signed boundary post-publish. The original ingest-time policy is
+   * otherwise permanent — a video switched from public to private/tier/etc.
+   * would keep serving unauthenticated playback at its old playback id.
+   * Mutates `video` in place (caller persists); throws only when the new,
+   * correctly-scoped playback id could not be created.
+   */
+  async syncPlaybackPolicy(video: Video): Promise<void> {
+    if (!video.muxAssetId || !video.muxPlaybackId || !this.isMuxConfigured()) return;
+
+    const desiredPolicy = requiresMuxSignedPlayback(video.visibility) ? 'signed' : 'public';
+    const oldPlaybackId = video.muxPlaybackId;
+
+    let created: { id?: string };
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      created = (await this.mux.video.assets.createPlaybackId(video.muxAssetId, {
+        policy: desiredPolicy,
+      } as any)) as any;
+    } catch (err) {
+      this.logger.error(
+        `Mux playback policy sync failed for video ${video.id}: ${err instanceof Error ? err.message : err}`,
+      );
+      throw new ServiceUnavailableException('Could not update video access policy — please retry');
+    }
+
+    const newPlaybackId = created?.id;
+    if (!newPlaybackId) {
+      throw new ServiceUnavailableException('Could not update video access policy — please retry');
+    }
+
+    video.muxPlaybackId = newPlaybackId;
+    video.hlsUrl = muxHlsPlaybackUrl(newPlaybackId);
+    video.thumbnailUrl = muxThumbnailUrl(newPlaybackId);
+    if (video.captionTracks?.length) {
+      video.captionTracks = video.captionTracks.map((t) => ({
+        ...t,
+        url: t.url.replace(oldPlaybackId, newPlaybackId),
+      }));
+    }
+    if (video.captionUrl) {
+      video.captionUrl = video.captionUrl.replace(oldPlaybackId, newPlaybackId);
+    }
+
+    try {
+      await this.mux.video.assets.deletePlaybackId(video.muxAssetId, oldPlaybackId);
+    } catch (err) {
+      // The new, correctly-scoped id is already live and saved by the caller —
+      // this only means the stale id lingers on Mux's side until cleaned up.
+      this.logger.error(
+        JSON.stringify({
+          msg: 'mux_vod_old_playback_id_delete_failed',
+          videoId: video.id,
+          assetId: video.muxAssetId,
+          staleId: oldPlaybackId,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
+
+    this.logger.log(
+      JSON.stringify({
+        msg: 'mux_vod_playback_policy_synced',
+        videoId: video.id,
+        assetId: video.muxAssetId,
+        policy: desiredPolicy,
+      }),
+    );
   }
 
   /** Best-effort cleanup when a video row is deleted or re-ingested. */

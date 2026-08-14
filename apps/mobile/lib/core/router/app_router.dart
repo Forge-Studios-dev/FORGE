@@ -27,25 +27,19 @@ import '../../features/watch/presentation/watch_screen.dart';
 import '../../features/explore/presentation/explore_screen.dart';
 import '../../features/studio/presentation/studio_screen.dart';
 import '../../features/studio/presentation/studio_videos_screen.dart';
+import '../../features/studio/presentation/studio_video_edit_screen.dart';
 import '../../features/studio/presentation/studio_comments_screen.dart';
+import '../../features/studio/presentation/studio_attention_screen.dart';
 import '../../features/studio/presentation/studio_live_screen.dart';
 import '../../features/studio/presentation/studio_live_debrief_screen.dart';
 import '../../features/studio/presentation/studio_settings_screen.dart';
 import '../../features/studio/presentation/studio_analytics_screen.dart';
+import '../../features/studio/presentation/studio_super_thanks_screen.dart';
 import '../../features/studio/presentation/studio_tiers_screen.dart';
-import '../../features/studio/presentation/studio_brands_screen.dart';
 import '../../features/studio/presentation/studio_subscribers_screen.dart';
 import '../../features/studio/presentation/studio_community_screen.dart';
-import '../../features/studio/presentation/studio_courses_screen.dart';
-import '../../features/studio/presentation/studio_course_detail_screen.dart';
-import '../../features/studio/presentation/course_viewer_screen.dart';
-import '../../features/courses/presentation/discover_courses_screen.dart';
+import '../../features/studio/presentation/studio_channel_posts_screen.dart';
 import '../../features/community/presentation/discover_communities_screen.dart';
-import '../../features/studio/presentation/studio_bundles_screen.dart';
-import '../../features/studio/presentation/studio_channel_points_screen.dart';
-import '../../features/studio/presentation/studio_mentorship_screen.dart';
-import '../../features/studio/presentation/studio_copilot_screen.dart';
-import '../../features/profile/presentation/program_viewer_screen.dart';
 import '../../features/profile/presentation/my_memberships_screen.dart';
 import '../../features/profile/presentation/profile_settings_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
@@ -53,8 +47,12 @@ import '../../features/messages/presentation/messages_screen.dart';
 import '../../features/profile/presentation/follower_list_screen.dart';
 import '../../features/upload/presentation/upload_screen.dart';
 import '../../features/library/presentation/library_screen.dart';
+import '../../features/library/presentation/disliked_videos_screen.dart';
 import '../../features/shell/presentation/offline_screen.dart';
 import '../../features/shell/presentation/maintenance_screen.dart';
+import '../../features/shorts/presentation/shorts_screen.dart';
+import '../../features/subscriptions/presentation/subscriptions_screen.dart';
+import '../../features/playlists/presentation/system_playlist_screen.dart';
 import '../../shared/widgets/main_scaffold.dart';
 import 'auth_redirect.dart';
 import 'navigation_key.dart';
@@ -64,7 +62,7 @@ const _storage = FlutterSecureStorage();
 /// Routes that require a live session. Exported (not `_`-prefixed) so tests
 /// exercise this real list instead of a hand-copied duplicate (HIGH-09) —
 /// a future edit here is caught by auth_redirect_test.dart automatically.
-const protectedRoutes = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/library', '/profile', '/updates', '/playlists'];
+const protectedRoutes = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/library', '/profile', '/updates', '/playlists', '/subscriptions'];
 
 // Screens a first-time signed-in user must still be able to reach even
 // before completing onboarding (auth flows, the onboarding screen itself,
@@ -127,16 +125,34 @@ int _studioCommunityTabIndex(String? tab) {
   switch (tab) {
     case 'members':
       return 1;
-    case 'engagement':
-      return 2;
     case 'moderation':
-      return 3;
+      return 2;
     case 'settings':
-      return 4;
+      return 3;
     case 'rooms':
+    case 'engagement': // LMS soft-retire — map old deep links to Rooms
     default:
       return 0;
   }
+}
+
+/// YouTube-style `t=` query (`90`, `1m30s`, `1h2m3s`).
+int? _parseWatchTimeQuery(String? raw) {
+  if (raw == null) return null;
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return null;
+  if (RegExp(r'^\d+$').hasMatch(trimmed)) {
+    return int.tryParse(trimmed);
+  }
+  final match = RegExp(r'^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$', caseSensitive: false)
+      .firstMatch(trimmed);
+  if (match == null || (match[1] == null && match[2] == null && match[3] == null)) {
+    return null;
+  }
+  final h = int.tryParse(match[1] ?? '0') ?? 0;
+  final m = int.tryParse(match[2] ?? '0') ?? 0;
+  final s = int.tryParse(match[3] ?? '0') ?? 0;
+  return h * 3600 + m * 60 + s;
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -198,16 +214,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/offline', builder: (_, __) => const OfflineScreen()),
       GoRoute(path: '/maintenance', builder: (_, __) => const MaintenanceScreen()),
       GoRoute(path: '/studio/videos', builder: (_, __) => const StudioVideosScreen()),
+      GoRoute(
+        path: '/studio/videos/:id',
+        builder: (_, state) => StudioVideoEditScreen(videoId: state.pathParameters['id']!),
+      ),
       GoRoute(path: '/studio/comments', builder: (_, __) => const StudioCommentsScreen()),
+      GoRoute(path: '/studio/channel-posts', builder: (_, __) => const StudioChannelPostsScreen()),
+      GoRoute(path: '/studio/attention', builder: (_, __) => const StudioAttentionScreen()),
       GoRoute(path: '/studio/live', builder: (_, __) => const StudioLiveScreen()),
       GoRoute(
         path: '/studio/live/:id/debrief',
         builder: (_, state) => StudioLiveDebriefScreen(streamId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/studio/analytics', builder: (_, __) => const StudioAnalyticsScreen()),
+      GoRoute(path: '/studio/super-thanks', builder: (_, __) => const StudioSuperThanksScreen()),
       GoRoute(path: '/studio/tiers', builder: (_, __) => const StudioTiersScreen()),
-      GoRoute(path: '/studio/bundles', builder: (_, __) => const StudioBundlesScreen()),
-      GoRoute(path: '/studio/brands', builder: (_, __) => const StudioBrandsScreen()),
+      // Skill-economy LMS soft-retire — keep deep links from crashing; send to YouTube-parity surfaces.
+      GoRoute(path: '/studio/bundles', redirect: (_, __) => '/studio/tiers'),
+      GoRoute(path: '/studio/brands', redirect: (_, __) => '/studio'),
       GoRoute(path: '/studio/subscribers', builder: (_, __) => const StudioSubscribersScreen()),
       GoRoute(
         path: '/studio/community',
@@ -225,33 +249,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/studio/engagement',
-        redirect: (_, __) => '/studio/community?tab=engagement',
+        redirect: (_, __) => '/studio/community?tab=rooms',
       ),
       GoRoute(
         path: '/studio/moderation',
         redirect: (_, __) => '/studio/community?tab=moderation',
       ),
-      // Programs are now the "Programs" tab inside Studio Courses — a program
-      // is a Course row with isBundle=true. Kept as a redirect for old links.
-      GoRoute(
-        path: '/studio/programs',
-        redirect: (_, __) => '/studio/courses',
-      ),
-      GoRoute(path: '/studio/courses', builder: (_, __) => const StudioCoursesScreen()),
-      GoRoute(
-        path: '/studio/courses/:id',
-        builder: (_, state) => StudioCourseDetailScreen(courseId: state.pathParameters['id']!),
-      ),
-      GoRoute(
-        path: '/courses/:id',
-        builder: (_, state) => CourseViewerScreen(courseId: state.pathParameters['id']!),
-      ),
+      GoRoute(path: '/studio/programs', redirect: (_, __) => '/studio/videos'),
+      GoRoute(path: '/studio/courses', redirect: (_, __) => '/studio/videos'),
+      GoRoute(path: '/studio/courses/:id', redirect: (_, __) => '/studio/videos'),
+      GoRoute(path: '/courses/:id', redirect: (_, __) => '/feed'),
       GoRoute(path: '/discover/communities', builder: (_, __) => const DiscoverCommunitiesScreen()),
-      GoRoute(path: '/discover/courses', builder: (_, __) => const DiscoverCoursesScreen()),
-      GoRoute(path: '/studio/channel-points', builder: (_, __) => const StudioChannelPointsScreen()),
-      GoRoute(path: '/studio/mentorship', builder: (_, __) => const StudioMentorshipScreen()),
+      GoRoute(path: '/discover/courses', redirect: (_, __) => '/feed'),
+      GoRoute(path: '/studio/channel-points', redirect: (_, __) => '/studio'),
+      GoRoute(path: '/studio/mentorship', redirect: (_, __) => '/studio'),
       GoRoute(path: '/studio/settings', builder: (_, __) => const StudioSettingsScreen()),
-      GoRoute(path: '/studio/copilot', builder: (_, __) => const StudioCopilotScreen()),
+      GoRoute(path: '/studio/branding', builder: (_, __) => const ProfileSettingsScreen()),
+      GoRoute(path: '/studio/copilot', redirect: (_, __) => '/studio'),
       GoRoute(path: '/profile/settings', builder: (_, __) => const ProfileSettingsScreen()),
       GoRoute(path: '/settings/memberships', builder: (_, __) => const MyMembershipsScreen()),
       GoRoute(path: '/upload', builder: (_, __) => const UploadScreen()),
@@ -260,8 +274,61 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/updates', builder: (_, __) => const CommunityUpdatesScreen()),
       GoRoute(path: '/playlists', builder: (_, __) => const PlaylistsScreen()),
       GoRoute(
+        path: '/playlists/me/watch-later',
+        builder: (_, __) => const SystemPlaylistScreen(kind: 'watch-later'),
+      ),
+      GoRoute(
+        path: '/playlists/me/liked',
+        builder: (_, __) => const SystemPlaylistScreen(kind: 'liked'),
+      ),
+      GoRoute(
+        path: '/library/disliked',
+        builder: (_, __) => const DislikedVideosScreen(),
+      ),
+      GoRoute(
         path: '/playlists/:id',
         builder: (_, state) => PlaylistDetailScreen(playlistId: state.pathParameters['id']!),
+      ),
+      // Immersive Shorts — outside shell so bottom nav does not cover the feed.
+      GoRoute(
+        path: '/shorts',
+        builder: (_, state) => ShortsScreen(
+          initialVideoId: state.uri.queryParameters['v'],
+        ),
+      ),
+      // Immersive watch / live watch / community rooms — YouTube-like full canvas.
+      GoRoute(
+        path: '/watch/:id',
+        builder: (_, state) {
+          final t = state.uri.queryParameters['t'];
+          final list = state.uri.queryParameters['list']?.trim();
+          final lc = state.uri.queryParameters['lc']?.trim();
+          return WatchScreen(
+            videoId: state.pathParameters['id']!,
+            initialSeekSeconds: _parseWatchTimeQuery(t),
+            playlistId: (list != null && list.isNotEmpty) ? list : null,
+            shuffle: state.uri.queryParameters['shuffle'] == '1',
+            highlightCommentId: (lc != null && lc.isNotEmpty) ? lc : null,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/live/:id',
+        builder: (_, state) => LiveWatchScreen(streamId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/community/:communityId/text/:roomId',
+        builder: (_, state) => CommunityTextRoomScreen(
+          communityId: state.pathParameters['communityId']!,
+          roomId: state.pathParameters['roomId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/community/:communityId/voice/:roomId',
+        builder: (_, state) => CommunityVoiceRoomScreen(
+          communityId: state.pathParameters['communityId']!,
+          roomId: state.pathParameters['roomId']!,
+        ),
       ),
       ShellRoute(
         builder: (context, state, child) => MainScaffold(child: child),
@@ -272,48 +339,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/studio', builder: (_, __) => const StudioScreen()),
           GoRoute(
             path: '/profile/:username',
-            builder: (_, state) => ProfileScreen(username: state.pathParameters['username']!),
+            builder: (_, state) => ProfileScreen(
+              username: state.pathParameters['username']!,
+              initialTab: state.uri.queryParameters['tab'],
+            ),
           ),
           GoRoute(
-            path: '/profile/:username/followers',
+            path: '/profile/:username/subscribers',
             builder: (_, state) => FollowerListScreen(
               username: state.pathParameters['username']!,
               following: false,
             ),
           ),
           GoRoute(
-            path: '/profile/:username/following',
+            path: '/profile/:username/subscriptions',
             builder: (_, state) => FollowerListScreen(
               username: state.pathParameters['username']!,
               following: true,
             ),
           ),
           GoRoute(
+            path: '/profile/:username/followers',
+            redirect: (_, state) => '/profile/${state.pathParameters['username']}/subscribers',
+          ),
+          GoRoute(
+            path: '/profile/:username/following',
+            redirect: (_, state) => '/profile/${state.pathParameters['username']}/subscriptions',
+          ),
+          GoRoute(
             path: '/profile/:username/programs/:slug',
-            builder: (_, state) => ProgramViewerScreen(
-              username: state.pathParameters['username']!,
-              slug: state.pathParameters['slug']!,
-            ),
+            redirect: (_, state) => '/profile/${state.pathParameters['username']}',
           ),
           GoRoute(path: '/live', builder: (_, __) => const LiveScreen()),
-          GoRoute(
-            path: '/live/:id',
-            builder: (_, state) => LiveWatchScreen(streamId: state.pathParameters['id']!),
-          ),
-          GoRoute(
-            path: '/community/:communityId/text/:roomId',
-            builder: (_, state) => CommunityTextRoomScreen(
-              communityId: state.pathParameters['communityId']!,
-              roomId: state.pathParameters['roomId']!,
-            ),
-          ),
-          GoRoute(
-            path: '/community/:communityId/voice/:roomId',
-            builder: (_, state) => CommunityVoiceRoomScreen(
-              communityId: state.pathParameters['communityId']!,
-              roomId: state.pathParameters['roomId']!,
-            ),
-          ),
           GoRoute(
             path: '/community/:creatorId',
             builder: (_, state) => CommunityScreen(creatorId: state.pathParameters['creatorId']!),
@@ -326,16 +383,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(path: '/explore', builder: (_, __) => const ExploreScreen()),
+          GoRoute(path: '/subscriptions', builder: (_, __) => const SubscriptionsScreen()),
           GoRoute(
             path: '/search',
             builder: (_, state) => ExploreScreen(
               initialQuery: state.uri.queryParameters['q'],
               autofocusSearch: true,
             ),
-          ),
-          GoRoute(
-            path: '/watch/:id',
-            builder: (_, state) => WatchScreen(videoId: state.pathParameters['id']!),
           ),
           GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
           GoRoute(path: '/library', builder: (_, __) => const LibraryScreen()),

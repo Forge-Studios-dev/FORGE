@@ -26,22 +26,15 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   final _commentCtrl = TextEditingController();
   List<Map<String, dynamic>> _posts = [];
   Map<String, dynamic>? _activePoll;
-  List<Map<String, dynamic>> _leaderboard = [];
-  Map<String, dynamic>? _gamificationProfile;
   List<Map<String, dynamic>> _liveStreams = [];
   List<Map<String, dynamic>> _postComments = [];
-  List<Map<String, dynamic>> _wikiPages = [];
-  List<Map<String, dynamic>> _challenges = [];
-  List<Map<String, dynamic>> _surveys = [];
   List<Map<String, dynamic>> _events = [];
   List<Map<String, dynamic>> _voiceRooms = [];
   List<Map<String, dynamic>> _textRooms = [];
-  final Map<String, List<dynamic>> _surveyAnswers = {};
-  final Map<String, TextEditingController> _surveyTextCtrls = {};
   String? _myUserId;
-  bool _checkingIn = false;
   bool _loading = true;
   bool _communityRestricted = false;
+  bool _communityUnavailable = false;
   bool _canRequestJoin = false;
   bool _joinPending = false;
   String? _communityRestrictedId;
@@ -82,10 +75,8 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         await Future.wait([
           _loadPosts(),
           _loadPoll(),
-          _loadLeaderboard(),
-          _loadGamificationProfile(),
           _loadLiveStreams(),
-          _loadEngageContent(),
+          _loadRoomsContent(),
         ]);
         await _maybeShowWelcome(community);
       }
@@ -132,6 +123,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         _communityRestrictedId = meta['communityId'] as String?;
         _canRequestJoin = meta['canRequestJoin'] == true;
         _joinPending = meta['joinRequestStatus'] == 'pending';
+        _communityUnavailable = meta['unavailable'] == true;
         _communityRestricted = true;
         _loading = false;
       });
@@ -192,16 +184,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     } catch (_) {}
   }
 
-  Future<void> _loadLeaderboard() async {
-    if (_communityId == null) return;
-    try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get('/communities/$_communityId/leaderboard');
-      final data = response.data['data'] as List;
-      setState(() => _leaderboard = data.cast<Map<String, dynamic>>());
-    } catch (_) {}
-  }
-
   Future<void> _loadLiveStreams() async {
     if (_communityId == null) return;
     try {
@@ -224,25 +206,19 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     }
   }
 
-  Future<void> _loadEngageContent() async {
+  Future<void> _loadRoomsContent() async {
     if (_communityId == null) return;
     try {
       final client = ref.read(apiClientProvider);
       final results = await Future.wait([
-        client.dio.get('/communities/$_communityId/wiki'),
-        client.dio.get('/communities/$_communityId/challenges'),
-        client.dio.get('/communities/$_communityId/surveys'),
         client.dio.get('/communities/$_communityId/rooms'),
         client.dio.get('/communities/$_communityId/events'),
       ]);
       setState(() {
-        _wikiPages = (results[0].data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-        _challenges = (results[1].data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-        _surveys = (results[2].data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-        final rooms = (results[3].data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        final rooms = (results[0].data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _voiceRooms = rooms.where((r) => r['roomType'] != 'text').toList();
         _textRooms = rooms.where((r) => r['roomType'] == 'text').toList();
-        final eventsPayload = results[4].data['data'];
+        final eventsPayload = results[1].data['data'];
         if (eventsPayload is List) {
           _events = eventsPayload.cast<Map<String, dynamic>>();
         } else if (eventsPayload is Map && eventsPayload['data'] is List) {
@@ -274,63 +250,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         );
       }
     }
-  }
-
-  Future<void> _joinChallenge(String challengeId) async {
-    if (_communityId == null) return;
-    try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/communities/$_communityId/challenges/$challengeId/join');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Joined challenge')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not join challenge')),
-        );
-      }
-    }
-  }
-
-  Future<void> _respondSurvey(String surveyId) async {
-    if (_communityId == null) return;
-    final answers = _surveyAnswers[surveyId] ?? [];
-    try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post(
-        '/communities/$_communityId/surveys/$surveyId/respond',
-        data: {'answers': answers},
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Survey submitted')),
-        );
-      }
-      await _loadEngageContent();
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not submit survey')),
-        );
-      }
-    }
-  }
-
-  TextEditingController _surveyAnswerCtrl(String surveyId, int questionIndex) {
-    final key = '$surveyId-$questionIndex';
-    return _surveyTextCtrls.putIfAbsent(key, TextEditingController.new);
-  }
-
-  void _setSurveyAnswer(String surveyId, int questionIndex, dynamic value) {
-    final answers = List<dynamic>.from(_surveyAnswers[surveyId] ?? []);
-    while (answers.length <= questionIndex) {
-      answers.add(null);
-    }
-    answers[questionIndex] = value;
-    _surveyAnswers[surveyId] = answers;
   }
 
   Future<void> _reportPoll() async {
@@ -376,38 +295,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           const SnackBar(content: Text('Could not submit report')),
         );
       }
-    }
-  }
-
-  Future<void> _loadGamificationProfile() async {
-    if (_communityId == null) return;
-    try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get('/communities/$_communityId/gamification/me');
-      setState(() => _gamificationProfile = response.data['data'] as Map<String, dynamic>?);
-    } catch (_) {}
-  }
-
-  Future<void> _checkIn() async {
-    if (_communityId == null || _checkingIn) return;
-    setState(() => _checkingIn = true);
-    try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/communities/$_communityId/gamification/check-in');
-      await Future.wait([_loadGamificationProfile(), _loadLeaderboard()]);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Checked in — streak updated')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Already checked in today')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _checkingIn = false);
     }
   }
 
@@ -471,12 +358,36 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   }
 
   Widget _buildRoomsTab() {
-    if (_textRooms.isEmpty && _voiceRooms.isEmpty) {
-      return const Center(child: Text('No text or voice rooms yet'));
+    if (_textRooms.isEmpty && _voiceRooms.isEmpty && _events.isEmpty) {
+      return const Center(child: Text('No rooms or events yet'));
     }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (_events.isNotEmpty) ...[
+          const Text('Events', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ..._events.map(
+            (event) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                title: Text(event['title'] as String? ?? 'Event'),
+                subtitle: Text(
+                  (event['occurrenceStartsAt'] as String?) ??
+                      (event['startsAt'] as String?) ??
+                      '',
+                ),
+                trailing: TextButton(
+                  onPressed: () => _rsvpEvent(
+                    (event['seriesEventId'] as String?) ?? (event['id'] as String),
+                  ),
+                  child: const Text('RSVP'),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         if (_textRooms.isNotEmpty) ...[
           const Text('Text rooms', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
@@ -527,6 +438,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         final p = _posts[i];
         final likes = p['likeCount'] as int? ?? 0;
         final comments = p['commentCount'] as int? ?? 0;
+        final likedByMe = p['likedByMe'] == true;
         final postId = p['id'] as String;
         final expanded = _expandedPostId == postId;
         return Card(
@@ -554,7 +466,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                       child: isVideo
                           ? InkWell(
                               onTap: () => launchUrl(Uri.parse(s), mode: LaunchMode.externalApplication),
-                              child: Text('▶ Watch video', style: TextStyle(color: ForgeTokens.primary)),
+                              child: Text('▶ Watch video', style: TextStyle(color: ForgeTokens.of(context).primary)),
                             )
                           : ClipRRect(
                               borderRadius: BorderRadius.circular(8),
@@ -574,7 +486,18 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                   children: [
                     InkWell(
                       onTap: () => _toggleLike(postId),
-                      child: Text('♥ $likes'),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            likedByMe ? Icons.thumb_up : Icons.thumb_up_outlined,
+                            size: 16,
+                            color: likedByMe ? ForgeTokens.of(context).primary : ForgeTokens.of(context).onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text('$likes'),
+                        ],
+                      ),
                     ),
                     const SizedBox(width: 16),
                     InkWell(
@@ -605,7 +528,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                             Expanded(
                               child: Text(
                                 '${(c['author'] as Map?)?['displayName'] ?? 'Member'}${isReply ? ' · reply' : ''}: ${c['body']}',
-                                style: const TextStyle(fontSize: 13, color: Colors.grey),
+                                style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
                               ),
                             ),
                             if (commentId != null)
@@ -697,199 +620,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     context.push('/community/$_communityId/voice/$roomId');
   }
 
-  Widget _buildEngageTab() {
-    if (_wikiPages.isEmpty &&
-        _challenges.isEmpty &&
-        _surveys.isEmpty &&
-        _events.isEmpty) {
-      return const Center(child: Text('No events, wiki, challenges, or surveys yet'));
-    }
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (_events.isNotEmpty) ...[
-          const Text('Events', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          ..._events.map(
-            (event) => Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                title: Text(event['title'] as String? ?? 'Event'),
-                subtitle: Text(event['startsAt'] as String? ?? ''),
-                trailing: TextButton(
-                  onPressed: () => _rsvpEvent(event['id'] as String),
-                  child: const Text('RSVP'),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        if (_wikiPages.isNotEmpty) ...[
-          const Text('Knowledge base', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          ..._wikiPages.map(
-            (p) => Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ExpansionTile(
-                title: Text(p['title'] as String? ?? 'Page'),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(p['body'] as String? ?? ''),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        if (_challenges.isNotEmpty) ...[
-          const Text('Challenges', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          ..._challenges.map(
-            (c) => Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                title: Text(c['title'] as String? ?? ''),
-                subtitle: Text(c['description'] as String? ?? ''),
-                trailing: TextButton(
-                  onPressed: () => _joinChallenge(c['id'] as String),
-                  child: const Text('Join'),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        if (_surveys.isNotEmpty) ...[
-          const Text('Surveys', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          ..._surveys.map((s) {
-            final surveyId = s['id'] as String;
-            final questions = (s['questions'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      s['title'] as String? ?? 'Survey',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    ...questions.asMap().entries.map((entry) {
-                      final qi = entry.key;
-                      final q = entry.value;
-                      final options = (q['options'] as List?)?.cast<String>() ?? [];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(q['question'] as String? ?? 'Question', style: const TextStyle(fontSize: 13)),
-                            const SizedBox(height: 6),
-                            if (options.isNotEmpty)
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: options.map((opt) {
-                                  final selected = (_surveyAnswers[surveyId] ?? [])[qi] == opt;
-                                  return ChoiceChip(
-                                    label: Text(opt, style: const TextStyle(fontSize: 12)),
-                                    selected: selected,
-                                    onSelected: (_) {
-                                      setState(() => _setSurveyAnswer(surveyId, qi, opt));
-                                    },
-                                  );
-                                }).toList(),
-                              )
-                            else
-                              TextField(
-                                controller: _surveyAnswerCtrl(surveyId, qi),
-                                decoration: const InputDecoration(
-                                  hintText: 'Your answer',
-                                  isDense: true,
-                                  border: OutlineInputBorder(),
-                                ),
-                                onChanged: (value) => _setSurveyAnswer(surveyId, qi, value),
-                              ),
-                          ],
-                        ),
-                      );
-                    }),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => _respondSurvey(surveyId),
-                        child: const Text('Submit survey'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildLeaderboardTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (_gamificationProfile != null) ...[
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Lv ${_gamificationProfile!['level']} · ${_gamificationProfile!['xp']} XP · ${_gamificationProfile!['streak']} day streak',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  if ((_gamificationProfile!['badges'] as List?)?.isNotEmpty == true)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        'Badges: ${(_gamificationProfile!['badges'] as List).join(', ')}',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  OutlinedButton(
-                    onPressed: _checkingIn ? null : _checkIn,
-                    child: Text(_checkingIn ? 'Checking in…' : 'Daily check-in'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (_leaderboard.isEmpty)
-          const Text('No XP yet — chat to earn points')
-        else
-          ..._leaderboard.map(
-            (row) => ListTile(
-              title: Text('#${row['rank']} · Lv ${row['level']}'),
-              trailing: Text('${row['xp']} XP'),
-            ),
-          ),
-      ],
-    );
-  }
-
   @override
   void dispose() {
     _commentCtrl.dispose();
-    for (final ctrl in _surveyTextCtrls.values) {
-      ctrl.dispose();
-    }
     super.dispose();
   }
 
@@ -900,6 +633,33 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     }
 
     if (_communityRestricted && _communityId == null) {
+      if (_communityUnavailable) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Community')),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.block, size: 48, color: ForgeTokens.of(context).onSurfaceVariant),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'This community is not available',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'You can’t view this community. It may be private, or access has been restricted.',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
       return Scaffold(
         appBar: AppBar(title: const Text('Community')),
         body: Center(
@@ -908,7 +668,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.lock_outline, size: 48, color: Colors.grey),
+                Icon(Icons.lock_outline, size: 48, color: ForgeTokens.of(context).onSurfaceVariant),
                 const SizedBox(height: 12),
                 const Text(
                   'This community is restricted',
@@ -957,29 +717,41 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                 ),
               ],
             ),
+          // In-body tabs — avoids stacking a second NavigationBar under MainScaffold.
+          Material(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            child: Row(
+              children: [
+                for (final entry in const [
+                  (0, Icons.article_outlined, 'Posts'),
+                  (1, Icons.poll_outlined, 'Polls'),
+                  (2, Icons.meeting_room_outlined, 'Rooms'),
+                ])
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () => setState(() => _tabIndex = entry.$1),
+                      icon: Icon(entry.$2),
+                      label: Text(entry.$3),
+                      style: TextButton.styleFrom(
+                        foregroundColor: _tabIndex == entry.$1
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           Expanded(
             child: IndexedStack(
               index: _tabIndex,
               children: [
-                _buildRoomsTab(),
                 _buildPostsTab(),
                 _buildPollsTab(),
-                _buildLeaderboardTab(),
-                _buildEngageTab(),
+                _buildRoomsTab(),
               ],
             ),
           ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tabIndex,
-        onDestinationSelected: (i) => setState(() => _tabIndex = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.meeting_room_outlined), label: 'Rooms'),
-          NavigationDestination(icon: Icon(Icons.article_outlined), label: 'Posts'),
-          NavigationDestination(icon: Icon(Icons.poll_outlined), label: 'Polls'),
-          NavigationDestination(icon: Icon(Icons.leaderboard_outlined), label: 'XP'),
-          NavigationDestination(icon: Icon(Icons.menu_book_outlined), label: 'Engage'),
         ],
       ),
     );

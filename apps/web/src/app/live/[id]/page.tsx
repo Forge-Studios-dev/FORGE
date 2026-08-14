@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { isAxiosError } from 'axios';
 import { api } from '@/lib/api';
 import { Stream, User } from '@/types';
 import { VideoPlayer } from '@/components/VideoPlayer/VideoPlayerLazy';
@@ -13,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
 import { EmptyState, PaywallCard, SkeletonBlock } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { resolveStreamPoster } from '@/lib/stream-poster';
 import { AgeGateModal } from '@/components/live/AgeGateModal';
 import { StreamCountdownLobby } from '@/components/live/StreamCountdownLobby';
@@ -27,12 +29,13 @@ import { AccessSessionConflict } from '@/components/Community/AccessSessionConfl
 
 const ACCESS_MESSAGES: Record<string, string> = {
   login_required: 'Sign in to watch this stream.',
-  follow_required: 'Follow this creator to watch.',
+  follow_required: 'Subscribe to this channel to watch.',
   subscription_required: 'An active membership is required.',
   tier_required: 'A higher membership tier is required.',
   paid_event: 'This is a paid event. Access is granted by the creator or platform admin.',
   private: 'This is a private stream.',
   age_confirmation_required: 'Confirm you are 18 or older to watch.',
+  not_available: 'This stream is not available.',
 };
 
 const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL;
@@ -51,10 +54,40 @@ export default function LiveWatchPage() {
   const [reconnectDeadlineMs, setReconnectDeadlineMs] = useState<number | null>(null);
   const [lastEndReason, setLastEndReason] = useState<Stream['endReason']>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      const key = e.key.toLowerCase();
+      if (key === 'escape') {
+        setTheaterMode((prev) => {
+          if (!prev) return prev;
+          e.preventDefault();
+          return false;
+        });
+        return;
+      }
+      if (key !== 't') return;
+      e.preventDefault();
+      setTheaterMode((prev) => !prev);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const checkoutSuccess = searchParams.get('checkout') === 'success';
 
-  const { data: stream, isLoading, isError, refetch } = useQuery({
+  const { data: stream, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['stream', id],
     enabled: id.length > 0,
     queryFn: async () => {
@@ -101,6 +134,7 @@ export default function LiveWatchPage() {
       await api.post(`/streams/${id}/end`);
     },
     onSuccess: () => {
+      setEndConfirmOpen(false);
       void qc.invalidateQueries({ queryKey: ['stream', id] });
       window.location.href = `/studio/live/${id}/debrief`;
     },
@@ -363,9 +397,17 @@ export default function LiveWatchPage() {
         </div>
       ) : isError || !stream ? (
         <EmptyState
-          icon="videocam_off"
-          title="Stream unavailable"
-          description="This live session may have ended or could not be loaded."
+          icon={isAxiosError(error) && error.response?.status === 403 ? 'block' : 'videocam_off'}
+          title={
+            isAxiosError(error) && error.response?.status === 403
+              ? 'This stream is not available'
+              : 'Stream unavailable'
+          }
+          description={
+            isAxiosError(error) && error.response?.status === 403
+              ? 'Playback is restricted for this stream on your account.'
+              : 'This live session may have ended or could not be loaded.'
+          }
           action={{ label: 'Browse live', href: '/live' }}
           onAction={() => refetch()}
         />
@@ -441,9 +483,7 @@ export default function LiveWatchPage() {
                   <button
                     type="button"
                     disabled={endMutation.isPending}
-                    onClick={() => {
-                      if (window.confirm('End this live stream?')) endMutation.mutate();
-                    }}
+                    onClick={() => setEndConfirmOpen(true)}
                     className="rounded-lg border border-outline-variant/40 bg-surface-container-high px-4 py-2 font-medium transition hover:border-primary/30 disabled:opacity-50"
                   >
                     {endMutation.isPending ? 'Ending…' : 'End stream'}
@@ -466,6 +506,16 @@ export default function LiveWatchPage() {
           <StreamRaiseHandPanel streamId={id} isHost={!!isOwner} />
         </div>
       )}
+
+      <ConfirmDialog
+        open={endConfirmOpen}
+        title="End live stream?"
+        description="Viewers will be disconnected and you will go to the post-stream debrief."
+        confirmLabel="End stream"
+        onConfirm={() => endMutation.mutate()}
+        onCancel={() => setEndConfirmOpen(false)}
+        loading={endMutation.isPending}
+      />
     </main>
   );
 }

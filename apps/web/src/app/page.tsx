@@ -8,7 +8,7 @@ export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: 'FORGE – Learn from Creators',
-  description: 'Discover skill-based tutorials and live sessions from expert creators.',
+  description: 'Watch videos, Shorts, and live streams from creators you love.',
 };
 
 async function getInitialFeed(): Promise<PaginatedResponse<Video>> {

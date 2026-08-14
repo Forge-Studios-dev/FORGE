@@ -20,9 +20,12 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
 @ApiTags('Podcasts')
 @Controller()
+@UseGuards(SkillEconomyLmsGuard)
 export class PodcastsController {
   constructor(private readonly podcastsService: PodcastsService) {}
 
@@ -96,10 +99,14 @@ export class PodcastsController {
   // ── Public: browse ─────────────────────────────────────────────────────────
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('podcasts/:seriesId/episodes')
   @ApiOperation({ summary: 'List episodes in a podcast series (public)' })
-  listEpisodes(@Param('seriesId') seriesId: string) {
-    return this.podcastsService.listEpisodes(seriesId);
+  listEpisodes(
+    @Param('seriesId') seriesId: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.podcastsService.listEpisodes(seriesId, user?.sub);
   }
 
   @Public()

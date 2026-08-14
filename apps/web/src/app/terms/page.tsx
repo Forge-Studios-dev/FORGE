@@ -4,7 +4,7 @@ import { TERMS_SECTIONS } from '@/content/legal/terms';
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
-  description: 'Terms of Service for using the FORGE creator learning platform.',
+  description: 'Terms of Service for using FORGE.',
   robots: { index: true, follow: true },
 };
 

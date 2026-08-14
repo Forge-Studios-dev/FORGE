@@ -5,6 +5,8 @@ import {
   NotFoundException,
   BadRequestException,
   ServiceUnavailableException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { createReadStream, promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
@@ -37,19 +39,30 @@ import {
   TranscodeProvider,
   VideoType,
 } from './entities/video.entity';
+import { shortTypeChangeError } from './short-duration.util';
 import { MUX_VOD_INGEST_QUEUE, muxVodIngestJobId } from './mux-vod.constants';
 import { MuxVodService } from './mux-vod.service';
 import {
   sanitizeHlsUrl,
   sanitizeThumbnailUrl,
+  sanitizeCaptionUrl,
 } from '../../common/media/playback-url.util';
+import { vttToPlainText } from './webvtt.util';
 import {
   muxPlaybackIdFromHlsUrl,
   muxThumbnailUrl,
 } from '../../common/media/mux-playback.util';
+import {
+  isMuxSigningConfigured,
+  muxSignedHlsPlaybackUrl,
+  normalizeMuxPrivateKey,
+  requiresMuxSignedPlayback,
+  type MuxSigningConfig,
+} from '../../common/media/mux-signing.util';
 import { SkillTag } from '../categories/entities/skill-tag.entity';
 import { Category } from '../categories/entities/category.entity';
 import { UserRole } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { Playlist } from '../playlists/entities/playlist.entity';
 import { PlaylistVideo } from '../playlists/entities/playlist-video.entity';
@@ -61,6 +74,13 @@ import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { RecordWatchDto } from './dto/record-watch.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { PublicVideo, serializeVideoForCache, toPublicVideo } from './video.mapper';
+import { diversifyByCreator } from '../feed/feed-diversity.util';
+import {
+  getMutedChannelIds,
+  getNotInterestedVideoIds,
+} from '../feed/not-interested.util';
+import { mergeExcludedCreatorIds } from '../feed/viewer-exclusions.util';
+import { rankShortsByScore } from './shorts-rank.util';
 import {
   isRedisQuotaError,
   safeRedisDel,
@@ -68,6 +88,7 @@ import {
   safeRedisIncrEx,
   safeRedisSetex,
 } from '../../common/redis/redis-safe.util';
+import { jitterTtl, singleFlight } from '../../common/redis/cache-stampede.util';
 import { RecordViewDto } from './dto/record-view.dto';
 import { rewriteMediaUrlToCdn } from '../../common/media-url.util';
 import {
@@ -86,8 +107,7 @@ import { EngagementService } from '../engagement/engagement.service';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 
-export const VIDEO_PROCESSING_QUEUE = 'video-processing';
-export const VIDEO_PROCESSING_DLQ_QUEUE = 'video-processing-dlq';
+import { VIDEO_PROCESSING_QUEUE } from './video-processing.constants';
 
 const VIDEO_DETAIL_CACHE_TTL = 120;
 
@@ -138,11 +158,14 @@ export class VideosService {
     private readonly entitlementsService: EntitlementsService,
     private readonly engagementService: EngagementService,
     private readonly accessSessionsService: AccessSessionsService,
+    @Inject(forwardRef(() => UsersService))
+    private readonly usersService: UsersService,
   ) {
     const awsCreds = {
       region: configService.get<string>('aws.region') || 'ap-south-1',
       accessKeyId: configService.get<string>('aws.accessKeyId') || '',
       secretAccessKey: configService.get<string>('aws.secretAccessKey') || '',
+      roleArn: configService.get<string>('aws.roleArn') || undefined,
     };
     this.s3 = createS3Client(awsCreds);
     this.presignS3 = createS3ClientForBrowserPresign(awsCreds);
@@ -173,6 +196,12 @@ export class VideosService {
     }
     if (video.visibility === VideoVisibility.PRIVATE && !isOwner && !isAdmin) {
       throw new ForbiddenException('This video is private');
+    }
+
+    if (viewerId && !isOwner && !isAdmin) {
+      if (await this.engagementService.isBlockedEitherWay(viewerId, video.userId)) {
+        throw new ForbiddenException('This video is not available');
+      }
     }
 
     if (
@@ -235,9 +264,10 @@ export class VideosService {
     }
   }
 
-  mapToPublicVideo(video: Video): PublicVideo {
+  mapToPublicVideo(video: Video, opts?: { includeDislikeCount?: boolean }): PublicVideo {
     const mapped = toPublicVideo(video, {
       rewriteMediaUrl: (url) => this.rewritePlaybackUrl(url),
+      includeDislikeCount: opts?.includeDislikeCount,
     });
     if (mapped.thumbnailUrl) return mapped;
     const playbackId = muxPlaybackIdFromHlsUrl(mapped.hlsUrl ?? video.hlsUrl);
@@ -247,14 +277,159 @@ export class VideosService {
     return mapped;
   }
 
+  /**
+   * Sign Mux HLS for non-public videos when signing keys are configured.
+   * Owners/admins may pass bypassSigning. Missing keys → null + structured warn.
+   */
+  resolveViewerHlsUrl(
+    video: Video,
+    hlsUrl: string | null,
+    bypassSigning = false,
+  ): string | null {
+    if (!hlsUrl) return null;
+    if (bypassSigning || !requiresMuxSignedPlayback(video.visibility)) {
+      return hlsUrl;
+    }
+    const playbackId = video.muxPlaybackId ?? muxPlaybackIdFromHlsUrl(hlsUrl);
+    const signing = this.muxSigningConfig();
+    if (!playbackId || !isMuxSigningConfigured(signing)) {
+      this.logger.warn(
+        JSON.stringify({
+          msg: 'mux_signed_playback_missing_keys',
+          kind: 'vod',
+          videoId: video.id,
+          visibility: video.visibility,
+        }),
+      );
+      return null;
+    }
+    const ttl = this.configService.get<number>('mux.signedPlaybackTtlSec') ?? 3600;
+    return muxSignedHlsPlaybackUrl(playbackId, signing, ttl);
+  }
+
+  private muxSigningConfig(): MuxSigningConfig | null {
+    const keyId = this.configService.get<string>('mux.signingKeyId') || '';
+    const rawKey = this.configService.get<string>('mux.signingPrivateKey') || '';
+    if (!keyId.trim() || !rawKey.trim()) return null;
+    return { keyId: keyId.trim(), privateKeyPem: normalizeMuxPrivateKey(rawKey) };
+  }
+
   rewritePlaybackUrl(url: string | null | undefined): string | null {
     const safe = sanitizeHlsUrl(url) ?? sanitizeThumbnailUrl(url);
     if (!safe) return null;
-    if (safe.includes('stream.mux.com') || safe.includes('image.mux.com')) {
-      return safe;
+    try {
+      const host = new URL(safe).hostname.toLowerCase();
+      if (host === 'stream.mux.com' || host === 'image.mux.com' || host.endsWith('.mux.com')) {
+        return safe;
+      }
+    } catch {
+      return null;
     }
     if (this.cdnDomain) return rewriteMediaUrlToCdn(safe, this.cdnDomain);
     return safe;
+  }
+
+  /**
+   * Server-side caption fetch so the watch transcript UI is not blocked by CDN CORS.
+   * Only URLs on our CDN / S3 / Mux text track hosts are allowed (SSRF guard).
+   */
+  async getCaptionTrackText(
+    videoId: string,
+    language: string | undefined,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ): Promise<{ language: string; label: string; text: string }> {
+    const video = await this.findById(videoId);
+    await this.assertCanWatchVideo(video, viewerId, viewerRole);
+
+    let tracks = [...(video.captionTracks ?? [])];
+    if (!tracks.length && video.captionUrl) {
+      tracks = [{ language: 'en', label: 'English', url: video.captionUrl }];
+    }
+    if (!tracks.length) {
+      throw new NotFoundException('No captions for this video');
+    }
+
+    const lang = (language ?? 'en').toLowerCase().replace(/[^a-z-]/g, '').slice(0, 8) || 'en';
+    const track = tracks.find((t) => t.language === lang) ?? tracks[0];
+    const text = await this.fetchCaptionVttText(track.url, videoId);
+    if (text === null) {
+      throw new BadRequestException('Could not load captions');
+    }
+    return {
+      language: track.language,
+      label: track.label,
+      text,
+    };
+  }
+
+  /** Resolves, SSRF-checks, and fetches a caption track's raw WebVTT text. Returns null (not a throw) on failure — used by best-effort indexing as well as the user-facing transcript proxy. */
+  private async fetchCaptionVttText(url: string, videoId: string): Promise<string | null> {
+    const sanitized = sanitizeCaptionUrl(url);
+    if (!sanitized) return null;
+    let sanitizedHost = '';
+    try {
+      sanitizedHost = new URL(sanitized).hostname.toLowerCase();
+    } catch {
+      return null;
+    }
+    const resolved =
+      sanitizedHost === 'stream.mux.com' || sanitizedHost.endsWith('.mux.com') || !this.cdnDomain
+        ? sanitized
+        : rewriteMediaUrlToCdn(sanitized, this.cdnDomain) ?? sanitized;
+    if (!this.isAllowedCaptionFetchUrl(resolved)) return null;
+
+    let res: Response;
+    try {
+      res = await fetch(resolved, {
+        method: 'GET',
+        headers: { Accept: 'text/vtt, text/plain, */*' },
+        signal: AbortSignal.timeout(12_000),
+      });
+    } catch (err) {
+      this.logger.warn(
+        `caption fetch failed for ${videoId}: ${err instanceof Error ? err.message : err}`,
+      );
+      return null;
+    }
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (text.length > 2_000_000) return null;
+    return text;
+  }
+
+  private isAllowedCaptionFetchUrl(url: string): boolean {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return false;
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    const host = parsed.hostname.toLowerCase();
+    const cdnHost = this.cdnDomain
+      ? this.cdnDomain.replace(/^https?:\/\//, '').split('/')[0].toLowerCase()
+      : '';
+    if (cdnHost && (host === cdnHost || host.endsWith(`.${cdnHost}`))) return true;
+    if (this.bucket) {
+      const bucket = this.bucket.toLowerCase();
+      const s3Hosts = [
+        `${bucket}.s3.amazonaws.com`,
+        `${bucket}.s3.dualstack.us-east-1.amazonaws.com`,
+      ];
+      if (
+        s3Hosts.includes(host) ||
+        (host.startsWith(`${bucket}.s3.`) && host.endsWith('.amazonaws.com'))
+      ) {
+        return true;
+      }
+    }
+    if (host.endsWith('.amazonaws.com') || host.endsWith('.cloudfront.net')) return true;
+    if (host === 'stream.mux.com' || host.endsWith('.mux.com')) return true;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return this.configService.get<string>('nodeEnv') !== 'production';
+    }
+    return false;
   }
 
   private usesMuxTranscode(): boolean {
@@ -509,17 +684,22 @@ export class VideosService {
     );
   }
 
-  /** Presigned PUT for optional custom thumbnail (before /complete). */
+  /** Presigned PUT for custom thumbnail (upload-time or Studio replace after ready). */
   async getThumbnailPresignedUrl(
     userId: string,
     videoId: string,
     contentType: string,
-  ): Promise<{ uploadUrl: string; key: string; expiresIn: number }> {
+  ): Promise<{ uploadUrl: string; key: string; publicUrl: string; expiresIn: number }> {
     const video = await this.videoRepository.findOne({ where: { id: videoId } });
     if (!video) throw new NotFoundException('Video not found');
     if (video.userId !== userId) throw new ForbiddenException();
-    if (video.status !== VideoStatus.UPLOADING) {
-      throw new BadRequestException('Video is not in uploading state');
+    const allowedStatuses = [
+      VideoStatus.UPLOADING,
+      VideoStatus.PROCESSING,
+      VideoStatus.READY,
+    ];
+    if (!allowedStatuses.includes(video.status)) {
+      throw new BadRequestException('Thumbnail can only be set while uploading, processing, or ready');
     }
 
     const ext =
@@ -536,8 +716,139 @@ export class VideosService {
       expiresIn: 600,
       signableHeaders: new Set(['content-type']),
     });
+    const cdnDomain = this.configService.get<string>('aws.cloudfrontDomain');
+    const publicUrl = cdnDomain
+      ? `https://${cdnDomain.replace(/^https?:\/\//, '')}/${key}`
+      : `https://${this.bucket}.s3.amazonaws.com/${key}`;
 
-    return { uploadUrl, key, expiresIn: 600 };
+    return { uploadUrl, key, publicUrl, expiresIn: 600 };
+  }
+
+  async setThumbnailUrl(userId: string, videoId: string, thumbnailUrl: string | null) {
+    const video = await this.videoRepository.findOne({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+    if (video.userId !== userId) throw new ForbiddenException();
+
+    if (thumbnailUrl === null || thumbnailUrl === '') {
+      video.thumbnailUrl = null;
+    } else {
+      const trimmed = thumbnailUrl.trim();
+      const cdnDomain = this.configService.get<string>('aws.cloudfrontDomain');
+      const allowedPrefixes = [
+        cdnDomain
+          ? `https://${cdnDomain.replace(/^https?:\/\//, '')}/videos/${userId}/${videoId}/thumbnail.custom.`
+          : null,
+        `https://${this.bucket}.s3.amazonaws.com/videos/${userId}/${videoId}/thumbnail.custom.`,
+      ].filter(Boolean) as string[];
+      if (!allowedPrefixes.some((p) => trimmed.startsWith(p))) {
+        throw new BadRequestException('Thumbnail URL must match this video custom thumbnail object');
+      }
+      video.thumbnailUrl = trimmed;
+    }
+
+    await this.videoRepository.save(video);
+    await this.bustVideoDetailCache(videoId);
+    return this.mapToPublicVideo(video);
+  }
+
+  /** Presigned PUT for a WebVTT caption file (Studio manual captions). */
+  async getCaptionPresignedUrl(
+    userId: string,
+    videoId: string,
+    contentType: string,
+    language: string = 'en',
+  ): Promise<{ uploadUrl: string; key: string; publicUrl: string; expiresIn: number; language: string }> {
+    const video = await this.videoRepository.findOne({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+    if (video.userId !== userId) throw new ForbiddenException();
+    if (video.status !== VideoStatus.READY && video.status !== VideoStatus.PROCESSING) {
+      throw new BadRequestException('Captions can only be added after upload completes');
+    }
+    const allowed = ['text/vtt', 'text/plain', 'application/octet-stream'];
+    if (!allowed.includes(contentType)) {
+      throw new BadRequestException('Caption file must be WebVTT (text/vtt)');
+    }
+    const lang = language.toLowerCase().replace(/[^a-z-]/g, '').slice(0, 8) || 'en';
+
+    const key = `videos/${userId}/${videoId}/captions/${lang}.vtt`;
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: 'text/vtt',
+    });
+    const uploadUrl = await getSignedUrl(this.presignS3, command, {
+      expiresIn: 600,
+      signableHeaders: new Set(['content-type']),
+    });
+    const cdnDomain = this.configService.get<string>('aws.cloudfrontDomain');
+    const publicUrl = cdnDomain
+      ? `https://${cdnDomain.replace(/^https?:\/\//, '')}/${key}`
+      : `https://${this.bucket}.s3.amazonaws.com/${key}`;
+
+    return { uploadUrl, key, publicUrl, expiresIn: 600, language: lang };
+  }
+
+  async setCaptionUrl(
+    userId: string,
+    videoId: string,
+    captionUrl: string | null,
+    language: string = 'en',
+  ) {
+    const video = await this.videoRepository.findOne({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+    if (video.userId !== userId) throw new ForbiddenException();
+
+    const lang = language.toLowerCase().replace(/[^a-z-]/g, '').slice(0, 8) || 'en';
+    const labelMap: Record<string, string> = {
+      en: 'English',
+      es: 'Spanish',
+      hi: 'Hindi',
+      pt: 'Portuguese',
+      fr: 'French',
+      de: 'German',
+      ja: 'Japanese',
+      ko: 'Korean',
+      ar: 'Arabic',
+    };
+    let tracks = [...(video.captionTracks ?? [])];
+    if ((!tracks.length || tracks.length === 0) && video.captionUrl) {
+      tracks = [{ language: 'en', label: 'English', url: video.captionUrl }];
+    }
+
+    if (captionUrl === null || captionUrl === '') {
+      tracks = tracks.filter((t) => t.language !== lang);
+    } else {
+      const trimmed = captionUrl.trim();
+      if (!/^https?:\/\//i.test(trimmed) || trimmed.length > 2000) {
+        throw new BadRequestException('Invalid caption URL');
+      }
+      const next = {
+        language: lang,
+        label: labelMap[lang] ?? lang.toUpperCase(),
+        url: trimmed,
+      };
+      const idx = tracks.findIndex((t) => t.language === lang);
+      if (idx >= 0) tracks[idx] = next;
+      else tracks.push(next);
+    }
+
+    video.captionTracks = tracks.length ? tracks : null;
+    // Keep legacy captionUrl as default (English preferred, else first track)
+    const primary =
+      tracks.find((t) => t.language === 'en') ?? tracks[0] ?? null;
+    video.captionUrl = primary?.url ?? null;
+
+    // Best-effort transcript indexing (search only) — never blocks the request on fetch failure.
+    if (primary) {
+      const vtt = await this.fetchCaptionVttText(primary.url, videoId);
+      video.captionText = vtt ? vttToPlainText(vtt) : null;
+    } else {
+      video.captionText = null;
+    }
+
+    await this.videoRepository.save(video);
+    await this.bustVideoDetailCache(videoId);
+    return this.mapToPublicVideo(video);
   }
 
   /**
@@ -577,7 +888,9 @@ export class VideosService {
       );
     }
 
-    const body = file.buffer?.length ? file.buffer : createReadStream(file.path);
+    const body = file.buffer?.length
+      ? file.buffer
+      : createReadStream(this.requireMulterTempPath(file.path));
 
     try {
       await this.s3.send(
@@ -592,23 +905,31 @@ export class VideosService {
     } finally {
       // diskStorage() writes the proxy-upload multer temp file to os.tmpdir() (LOW-04);
       // always clean it up so a stream of uploads doesn't fill the container's disk.
-      // Multer generates this filename itself (no user-supplied filename callback is
-      // configured), but the containment check below makes that guarantee explicit
-      // instead of implicit, so unlink() can never be pointed outside the temp dir.
       if (file.path) {
-        const resolvedTmpDir = resolvePath(tmpdir()) + pathSep;
-        const resolvedFilePath = resolvePath(file.path);
-        if (resolvedFilePath.startsWith(resolvedTmpDir)) {
+        try {
+          const resolvedFilePath = this.requireMulterTempPath(file.path);
           await fsPromises.unlink(resolvedFilePath).catch((err) =>
-            this.logger.warn(`Failed to remove proxy-upload temp file ${resolvedFilePath}: ${err.message}`),
+            this.logger.warn(
+              `Failed to remove proxy-upload temp file ${resolvedFilePath}: ${err.message}`,
+            ),
           );
-        } else {
+        } catch {
           this.logger.warn(`Refused to remove proxy-upload temp file outside tmpdir: ${file.path}`);
         }
       }
     }
 
     return { ok: true };
+  }
+
+  /** Multer diskStorage paths must resolve under os.tmpdir() (CodeQL path-injection). */
+  private requireMulterTempPath(filePath: string): string {
+    const resolvedTmpDir = resolvePath(tmpdir()) + pathSep;
+    const resolvedFilePath = resolvePath(filePath);
+    if (!resolvedFilePath.startsWith(resolvedTmpDir)) {
+      throw new BadRequestException('Invalid upload path');
+    }
+    return resolvedFilePath;
   }
 
   /**
@@ -618,6 +939,8 @@ export class VideosService {
    * New flow should use: presigned-url -> S3 PUT -> /videos/:id/complete.
    */
   async create(userId: string, dto: CreateVideoDto): Promise<PublicVideo> {
+    this.assertOwnedOriginalS3Key(userId, dto.s3Key);
+
     const skillTags = dto.skillTagIds?.length
       ? await this.skillTagRepository.find({ where: { id: In(dto.skillTagIds) } })
       : [];
@@ -636,6 +959,18 @@ export class VideosService {
     await this.enqueueTranscodeOrThrow(saved.id, dto.s3Key, userId);
 
     return this.mapToPublicVideo(saved);
+  }
+
+  /** Reject cross-user / traversal keys on the legacy register endpoint. */
+  private assertOwnedOriginalS3Key(userId: string, s3Key: string): void {
+    const prefix = `videos/${userId}/`;
+    if (!s3Key.startsWith(prefix) || s3Key.includes('..')) {
+      throw new BadRequestException('Invalid upload key');
+    }
+    const rest = s3Key.slice(prefix.length);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/original\.(mp4|mov)$/i.test(rest)) {
+      throw new BadRequestException('Invalid upload key');
+    }
   }
 
   async completeUpload(userId: string, videoId: string, dto: CompleteUploadDto) {
@@ -674,11 +1009,14 @@ export class VideosService {
       throw new BadRequestException('Category not found');
     }
 
-    const uniqueTagIds = [...new Set(dto.skillTagIds)];
-    let skillTags = await this.skillTagRepository.find({
-      where: { id: In(uniqueTagIds) },
-      relations: ['subcategory'],
-    });
+    const uniqueTagIds = [...new Set(dto.skillTagIds ?? [])];
+    let skillTags =
+      uniqueTagIds.length > 0
+        ? await this.skillTagRepository.find({
+            where: { id: In(uniqueTagIds) },
+            relations: ['subcategory'],
+          })
+        : [];
 
     if (skillTags.length !== uniqueTagIds.length) {
       throw new BadRequestException('One or more skill tags were not found');
@@ -701,13 +1039,12 @@ export class VideosService {
       if (byName) skillTags = [byName];
     }
 
-    if (skillTags.length === 0) {
-      throw new BadRequestException('At least one skill tag is required');
-    }
-
     video.title = dto.title.trim();
     video.description = dto.description?.trim() ?? null;
     video.visibility = dto.visibility;
+    if (dto.videoType === VideoType.SHORT || dto.videoType === VideoType.VIDEO) {
+      video.videoType = dto.videoType;
+    }
     video.categoryId = category.id;
     video.skillTags = skillTags;
     video.tagsSearchText = [
@@ -756,15 +1093,16 @@ export class VideosService {
     if (playlists.length !== unique.length) {
       throw new BadRequestException('One or more playlists were not found');
     }
-    for (const playlist of playlists) {
-      const existing = await this.playlistVideoRepository.findOne({
-        where: { playlistId: playlist.id, videoId },
-      });
-      if (!existing) {
-        await this.playlistVideoRepository.save(
-          this.playlistVideoRepository.create({ playlistId: playlist.id, videoId }),
-        );
-      }
+    const existingRows = await this.playlistVideoRepository.find({
+      where: { videoId, playlistId: In(playlists.map((p) => p.id)) },
+      select: ['playlistId'],
+    });
+    const existingIds = new Set(existingRows.map((r) => r.playlistId));
+    const toInsert = playlists
+      .filter((p) => !existingIds.has(p.id))
+      .map((p) => this.playlistVideoRepository.create({ playlistId: p.id, videoId }));
+    if (toInsert.length) {
+      await this.playlistVideoRepository.save(toInsert);
     }
   }
 
@@ -776,21 +1114,25 @@ export class VideosService {
         return this.videoRepository.create(JSON.parse(cached) as Video);
       }
     }
-    const video = await this.videoRepository.findOne({
-      where: { id },
-      relations: ['user', 'skillTags'],
+    // singleFlight: a cache-miss burst (viral video, or right after an edit
+    // busts the cache) shares one DB query per instance instead of N.
+    return singleFlight(cacheKey, async () => {
+      const video = await this.videoRepository.findOne({
+        where: { id },
+        relations: ['user', 'skillTags'],
+      });
+      if (!video) throw new NotFoundException('Video not found');
+      if (!opts?.skipCache) {
+        await safeRedisSetex(
+          this.redis,
+          cacheKey,
+          jitterTtl(VIDEO_DETAIL_CACHE_TTL),
+          serializeVideoForCache(video),
+          this.logger,
+        );
+      }
+      return video;
     });
-    if (!video) throw new NotFoundException('Video not found');
-    if (!opts?.skipCache) {
-      await safeRedisSetex(
-        this.redis,
-        cacheKey,
-        VIDEO_DETAIL_CACHE_TTL,
-        serializeVideoForCache(video),
-        this.logger,
-      );
-    }
-    return video;
   }
 
   async bustVideoDetailCache(videoId: string): Promise<void> {
@@ -814,6 +1156,13 @@ export class VideosService {
     }
     if (video.visibility === VideoVisibility.PRIVATE && !isOwner && !isAdmin) {
       throw new ForbiddenException('This video is private');
+    }
+
+    if (viewerId && !isOwner && !isAdmin) {
+      const blocked = await this.engagementService.isBlockedEitherWay(viewerId, video.userId);
+      if (blocked) {
+        throw new ForbiddenException('This video is not available');
+      }
     }
 
     if (!isOwner && !isAdmin) {
@@ -841,14 +1190,18 @@ export class VideosService {
       isAdmin,
     });
 
-    const mapped = this.mapToPublicVideo(video);
+    const mapped = this.mapToPublicVideo(video, { includeDislikeCount: isOwner || isAdmin });
     const pending = await this.getPendingViewCount(id);
     const withViews =
       pending > 0 ? { ...mapped, viewCount: mapped.viewCount + pending } : mapped;
+    const withSignedHls = {
+      ...withViews,
+      hlsUrl: this.resolveViewerHlsUrl(video, withViews.hlsUrl, isOwner || isAdmin),
+    };
 
     if (!access.allowed && !isOwner && !isAdmin) {
       return {
-        ...withViews,
+        ...withSignedHls,
         hlsUrl: null,
         accessDenied: true,
         accessReason: access.reason,
@@ -856,24 +1209,32 @@ export class VideosService {
     }
 
     if (viewerId && !isOwner) {
-      const [viewerLiked, viewerFollowingCreator] = await Promise.all([
-        this.engagementService.isLiked(viewerId, id),
-        this.engagementService.isFollowing(viewerId, video.userId),
-      ]);
-      return { ...withViews, viewerLiked, viewerFollowingCreator };
+      const reaction = await this.engagementService.getViewerVideoReaction(viewerId, id);
+      const viewerFollowingCreator = await this.engagementService.isFollowing(
+        viewerId,
+        video.userId,
+      );
+      return {
+        ...withSignedHls,
+        ...reaction,
+        viewerFollowingCreator,
+        viewerSubscribed: viewerFollowingCreator,
+      };
     }
 
-    return withViews;
+    return withSignedHls;
   }
 
-  /** Paginated public shorts feed (duration <= 60s, published, public). */
-  async listShorts(opts: { cursor?: string; limit?: number } = {}): Promise<{
+  /** Paginated public shorts feed — ranked by freshness/engagement with soft creator diversity. */
+  async listShorts(opts: { cursor?: string; limit?: number; viewerId?: string } = {}): Promise<{
     data: PublicVideo[];
     nextCursor: string | null;
   }> {
     const limit = Math.min(opts.limit ?? 20, 50);
+    const fetchLimit = Math.min(limit * 3, 60);
     const qb = this.videoRepository
       .createQueryBuilder('v')
+      .leftJoinAndSelect('v.user', 'creator')
       .leftJoinAndSelect('v.skillTags', 'st')
       .where('v.video_type = :type', { type: VideoType.SHORT })
       .andWhere('v.status = :status', { status: VideoStatus.READY })
@@ -881,16 +1242,61 @@ export class VideosService {
       .andWhere('v.visibility = :vis', { vis: VideoVisibility.PUBLIC })
       .andWhere('v.moderation_status != :blocked', { blocked: ModerationStatus.BLOCKED })
       .orderBy('v.published_at', 'DESC')
-      .take(limit + 1);
+      .take(fetchLimit + 1);
 
     if (opts.cursor) {
       qb.andWhere('v.published_at < :cursor', { cursor: new Date(opts.cursor) });
     }
 
+    if (opts.viewerId) {
+      const [mutedChannels, notInterested, blockedPeers] = await Promise.all([
+        getMutedChannelIds(this.redis, opts.viewerId, this.logger),
+        getNotInterestedVideoIds(this.redis, opts.viewerId, this.logger),
+        this.engagementService.getBlockedPeerIds(opts.viewerId),
+      ]);
+      const excludedCreators = mergeExcludedCreatorIds(mutedChannels, blockedPeers);
+      if (excludedCreators.length) {
+        qb.andWhere('v.user_id NOT IN (:...mutedChannels)', { mutedChannels: excludedCreators });
+      }
+      if (notInterested.length) {
+        qb.andWhere('v.id NOT IN (:...notInterested)', { notInterested });
+      }
+    }
+
     const rows = await qb.getMany();
-    const hasMore = rows.length > limit;
-    const data = rows.slice(0, limit).map((v) => this.mapToPublicVideo(v));
-    const nextCursor = hasMore ? data[data.length - 1].publishedAt?.toISOString() ?? null : null;
+    const hasMore = rows.length > fetchLimit;
+    const candidates = rows.slice(0, fetchLimit);
+    const ranked = diversifyByCreator(rankShortsByScore(candidates), 1).slice(0, limit);
+    let data = ranked.map((v) => this.mapToPublicVideo(v));
+
+    if (opts.viewerId && ranked.length > 0) {
+      const creatorIds = [...new Set(ranked.map((v) => v.userId))];
+      const [reactionByVideo, followingSet] = await Promise.all([
+        this.engagementService.getViewerVideoReactions(
+          opts.viewerId,
+          ranked.map((v) => v.id),
+        ),
+        this.engagementService.getFollowingSet(opts.viewerId, creatorIds),
+      ]);
+      data = data.map((mapped, i) => {
+        const v = ranked[i];
+        const reaction = reactionByVideo.get(v.id) ?? {
+          viewerLiked: false,
+          viewerDisliked: false,
+        };
+        const following = followingSet.has(v.userId);
+        return {
+          ...mapped,
+          ...reaction,
+          viewerFollowingCreator: following,
+          viewerSubscribed: following,
+        };
+      });
+    }
+
+    const nextCursor = hasMore
+      ? ranked[ranked.length - 1]?.publishedAt?.toISOString() ?? null
+      : null;
     return { data, nextCursor };
   }
 
@@ -1016,15 +1422,18 @@ export class VideosService {
       throw new BadRequestException('Video is not available');
     }
     const progressSeconds = dto.progressSeconds ?? 0;
-    await this.watchHistoryRepository.upsert(
-      {
-        userId,
-        videoId,
-        progressSeconds,
-        watchedAt: new Date(),
-      },
-      { conflictPaths: ['userId', 'videoId'] },
-    );
+    const historyPaused = await this.usersService.isWatchHistoryPaused(userId);
+    if (!historyPaused) {
+      await this.watchHistoryRepository.upsert(
+        {
+          userId,
+          videoId,
+          progressSeconds,
+          watchedAt: new Date(),
+        },
+        { conflictPaths: ['userId', 'videoId'] },
+      );
+    }
     await this.recordQualifiedView(
       videoId,
       userId,
@@ -1034,7 +1443,7 @@ export class VideosService {
       },
       userId,
     );
-    return { ok: true };
+    return { ok: true, historyPaused };
   }
 
   /**
@@ -1047,7 +1456,12 @@ export class VideosService {
   private async applySkillTagUpdate(video: Video, skillTagIds: string[]): Promise<void> {
     const uniqueTagIds = [...new Set(skillTagIds)];
     if (uniqueTagIds.length === 0) {
-      throw new BadRequestException('At least one skill tag is required');
+      const category = video.categoryId
+        ? await this.categoryRepository.findOne({ where: { id: video.categoryId } })
+        : null;
+      video.skillTags = [];
+      video.tagsSearchText = (category?.name ?? '').slice(0, 2000);
+      return;
     }
     const tags = await this.skillTagRepository.find({
       where: { id: In(uniqueTagIds) },
@@ -1075,8 +1489,30 @@ export class VideosService {
     if (video.userId !== requesterId) throw new ForbiddenException();
     if (dto.title !== undefined) video.title = dto.title;
     if (dto.description !== undefined) video.description = dto.description;
+    const previousVisibility = video.visibility;
     if (dto.visibility !== undefined) video.visibility = dto.visibility;
-    if (dto.videoType !== undefined) video.videoType = dto.videoType;
+    if (
+      dto.visibility !== undefined &&
+      requiresMuxSignedPlayback(previousVisibility) !== requiresMuxSignedPlayback(dto.visibility)
+    ) {
+      await this.muxVodService.syncPlaybackPolicy(video);
+    }
+    if (dto.videoType !== undefined) {
+      const typeErr = shortTypeChangeError(dto.videoType, video.durationSeconds);
+      if (typeErr) throw new BadRequestException(typeErr);
+      video.videoType = dto.videoType;
+    }
+    if (dto.categoryId !== undefined) {
+      const category = await this.categoryRepository.findOne({ where: { id: dto.categoryId } });
+      if (!category) throw new BadRequestException('Category not found');
+      const categoryChanged = video.categoryId !== dto.categoryId;
+      video.categoryId = category.id;
+      // Tags are category-scoped — clear them on category change unless the
+      // caller is also sending a fresh skillTagIds list for the new category.
+      if (categoryChanged && dto.skillTagIds === undefined) {
+        await this.applySkillTagUpdate(video, []);
+      }
+    }
     if (dto.skillTagIds !== undefined) {
       await this.applySkillTagUpdate(video, dto.skillTagIds);
     }

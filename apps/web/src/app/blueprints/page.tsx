@@ -16,7 +16,7 @@ export default function BlueprintsPage() {
     <main className="mx-auto max-w-2xl px-5 py-12 md:px-12">
       <PageHeader
         title="Stitch blueprints"
-        subtitle="Reference screens from the FORGE creator learning platform export"
+        subtitle="Reference screens from the FORGE design export"
       />
       <div className="glass-panel space-y-4 rounded-xl p-6">
         <p className="text-on-surface-variant">

@@ -122,9 +122,9 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          const Text(
+          Text(
             'Teach in real time. Link to a community for member-only live sessions.',
-            style: TextStyle(color: ForgeTokens.onSurfaceVariant, height: 1.5),
+            style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, height: 1.5),
           ),
           const SizedBox(height: 20),
           TextField(
@@ -167,7 +167,7 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
               decoration: const InputDecoration(labelText: 'Visibility'),
               items: const [
                 DropdownMenuItem(value: 'public', child: Text('Public')),
-                DropdownMenuItem(value: 'followers', child: Text('Followers')),
+                DropdownMenuItem(value: 'followers', child: Text('Subscribers')),
                 DropdownMenuItem(value: 'subscribers', child: Text('Members')),
                 DropdownMenuItem(value: 'private', child: Text('Private')),
               ],
@@ -178,7 +178,7 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 'Community live uses members-only visibility.',
-                style: TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant.withValues(alpha: 0.9)),
+                style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant.withValues(alpha: 0.9)),
               ),
             ),
           SwitchListTile(
@@ -204,20 +204,20 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
           const SizedBox(height: 24),
           ForgeCard(
             onTap: () => context.go('/live'),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.live_tv, color: ForgeTokens.primary),
+                Icon(Icons.live_tv, color: ForgeTokens.of(context).primary),
                 SizedBox(width: 12),
                 Expanded(child: Text('Browse live sessions')),
-                Icon(Icons.chevron_right, color: ForgeTokens.outline),
+                Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
               ],
             ),
           ),
           if (_recentEnded.isNotEmpty) ...[
             const SizedBox(height: 28),
-            const Text(
+            Text(
               'Recent sessions',
-              style: TextStyle(fontWeight: FontWeight.w700, color: ForgeTokens.onSurface),
+              style: TextStyle(fontWeight: FontWeight.w700, color: ForgeTokens.of(context).onSurface),
             ),
             const SizedBox(height: 10),
             ..._recentEnded.map((stream) {
@@ -230,7 +230,7 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
                   onTap: () => context.push('/studio/live/$id/debrief'),
                   child: Row(
                     children: [
-                      const Icon(Icons.analytics_outlined, color: ForgeTokens.primary),
+                      Icon(Icons.analytics_outlined, color: ForgeTokens.of(context).primary),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -238,7 +238,7 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
-                      const Icon(Icons.chevron_right, color: ForgeTokens.outline),
+                      Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
                     ],
                   ),
                 ),

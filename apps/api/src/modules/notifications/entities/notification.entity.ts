@@ -18,6 +18,7 @@ export enum NotificationType {
   COMMUNITY_POST_NEW = 'community_post_new',
   ACHIEVEMENT_UNLOCKED = 'achievement_unlocked',
   XP_LEVEL_UP = 'xp_level_up',
+  SUPER_THANKS = 'super_thanks',
 }
 
 @Entity('notifications')

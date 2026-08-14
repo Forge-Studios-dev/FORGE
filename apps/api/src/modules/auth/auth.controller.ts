@@ -39,11 +39,14 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto';
 import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
 import { ConsumeImpersonationDto } from './dto/consume-impersonation.dto';
 import { AuthOAuthExchangeService } from './auth-oauth-exchange.service';
 import { LogoutDto } from './dto/logout.dto';
+import { MfaDisableDto, MfaLoginVerifyDto, MfaVerifyDto } from './dto/mfa.dto';
+import { AuthMfaService } from './auth-mfa.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from './strategies/jwt.strategy';
@@ -71,6 +74,7 @@ export class AuthController {
     private readonly configService: ConfigService,
     private readonly notificationsService: NotificationsService,
     private readonly oauthExchangeService: AuthOAuthExchangeService,
+    private readonly authMfaService: AuthMfaService,
   ) {}
 
   private applyAuthCookies(
@@ -110,9 +114,74 @@ export class AuthController {
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Login with email and password' })
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const tokens = await this.authService.login(dto, sessionMeta(req));
+    const result = await this.authService.login(dto, sessionMeta(req));
+    if ('mfaRequired' in result) {
+      return result;
+    }
+    this.applyAuthCookies(res, result.accessToken, result.refreshToken, result.user?.role);
+    return result;
+  }
+
+  @Public()
+  @Post('mfa/login-verify')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Complete login with a TOTP or backup code after an MFA challenge' })
+  async mfaLoginVerify(
+    @Body() dto: MfaLoginVerifyDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokens = await this.authService.completeMfaLogin(
+      dto.challengeToken,
+      dto.code,
+      sessionMeta(req),
+    );
     this.applyAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user?.role);
     return tokens;
+  }
+
+  @Get('mfa/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Whether MFA is currently enabled for the signed-in account' })
+  async mfaStatus(@CurrentUser() user: JwtPayload) {
+    return { enabled: await this.authMfaService.isEnabled(user.sub) };
+  }
+
+  @Post('mfa/enroll')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Start TOTP MFA enrollment — returns a secret and otpauth:// URI for a QR code' })
+  enrollMfa(@CurrentUser() user: JwtPayload) {
+    return this.authMfaService.beginEnrollment(user.sub);
+  }
+
+  @Post('mfa/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm enrollment with a TOTP code — activates MFA and returns one-time backup codes' })
+  verifyMfa(@CurrentUser() user: JwtPayload, @Body() dto: MfaVerifyDto) {
+    return this.authMfaService.confirmEnrollment(user.sub, dto.code);
+  }
+
+  @Delete('mfa')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Disable MFA (requires current password)' })
+  async disableMfa(@CurrentUser() user: JwtPayload, @Body() dto: MfaDisableDto) {
+    await this.authService.assertPasswordValid(user.sub, dto.currentPassword);
+    await this.authMfaService.disable(user.sub);
+    return { ok: true };
+  }
+
+  @Post('account-deletion/request')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Email a short-lived account-deletion confirmation link',
+    description:
+      'For accounts with no usable password (Google-OAuth-only) — use confirmationToken in place of currentPassword on DELETE /users/me.',
+  })
+  async requestAccountDeletion(@CurrentUser() user: JwtPayload) {
+    await this.authService.requestAccountDeletion(user.sub);
+    return { ok: true };
   }
 
   @Public()
@@ -133,7 +202,15 @@ export class AuthController {
     @Req() req: Request & { user: GoogleProfilePayload },
     @Res() res: Response,
   ) {
-    const tokens = await this.authService.loginWithGoogle(req.user, sessionMeta(req));
+    const result = await this.authService.loginWithGoogle(req.user, sessionMeta(req));
+    if ('mfaRequired' in result) {
+      const webUrl = this.configService.get<string>('mail.webUrl') || 'http://localhost:3000';
+      const mfaUrl = new URL('/login', webUrl);
+      // Hash fragment avoids the challenge token in server logs / Referer.
+      mfaUrl.hash = `mfaChallengeToken=${encodeURIComponent(result.challengeToken)}`;
+      return res.redirect(mfaUrl.toString());
+    }
+    const tokens = result;
     this.applyAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.user?.role);
     const code = await this.oauthExchangeService.createExchangeCode(
       this.oauthExchangeService.payloadFromTokens({
@@ -201,11 +278,12 @@ export class AuthController {
     @Body() body: LogoutDto,
     @Res({ passthrough: true }) res: Response,
   ) {
+    // Cookie sessions always require double-submit CSRF (including allDevices).
+    assertCookieRefreshCsrf(req, this.configService);
     if (body?.allDevices) {
       await this.authService.logoutAll(user.sub);
       await this.notificationsService.revokeDevice(user.sub);
     } else {
-      assertCookieRefreshCsrf(req, this.configService);
       const raw = readRefreshTokenFromRequest(req);
       await this.authService.logoutCurrent(user.sub, raw);
     }
@@ -251,6 +329,19 @@ export class AuthController {
   @ApiOperation({ summary: 'Complete password reset with token from email' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.authService.resetPassword(dto.token, dto.password);
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 3_600_000 } })
+  @ApiOperation({ summary: 'Change password while signed in (revokes other sessions)' })
+  changePassword(@CurrentUser() user: JwtPayload, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(
+      user.sub,
+      dto.currentPassword,
+      dto.newPassword,
+      user.sid,
+    );
   }
 
   @Post('verify-email/resend')

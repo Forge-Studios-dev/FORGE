@@ -55,10 +55,15 @@ export function buildContentSecurityPolicy(
 
 export function buildSecurityHeaders(
   isProduction: boolean,
-  options?: { nonce?: string; apiUrl?: string; includeCsp?: boolean },
+  options?: {
+    nonce?: string;
+    apiUrl?: string;
+    includeCsp?: boolean;
+    /** When true, omit X-Frame-Options DENY so the page can be embedded. */
+    allowFraming?: boolean;
+  },
 ): Array<{ key: string; value: string }> {
   const headers: Array<{ key: string; value: string }> = [
-    { key: 'X-Frame-Options', value: 'DENY' },
     { key: 'X-Content-Type-Options', value: 'nosniff' },
     { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
     {
@@ -67,10 +72,15 @@ export function buildSecurityHeaders(
     },
   ];
 
+  if (!options?.allowFraming) {
+    headers.unshift({ key: 'X-Frame-Options', value: 'DENY' });
+  }
+
   if (options?.includeCsp ?? true) {
+    const csp = buildContentSecurityPolicy(isProduction, options);
     headers.push({
       key: 'Content-Security-Policy',
-      value: buildContentSecurityPolicy(isProduction, options),
+      value: options?.allowFraming ? `${csp}; frame-ancestors *` : csp,
     });
   }
 

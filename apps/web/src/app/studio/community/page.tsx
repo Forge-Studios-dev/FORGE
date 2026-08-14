@@ -1,46 +1,42 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import Link from 'next/link';
+import { PageHeader } from '@forge/design-system';
+import { ChannelCommunityFeed } from '@/components/Community/ChannelCommunityFeed';
 import { useAuth } from '@/lib/auth';
-import type { Community } from '@/types/community';
 
-export default function StudioCommunityRedirectPage() {
-  const router = useRouter();
+export default function StudioCommunityPage() {
   const { user, isCreator } = useAuth();
 
-  const { data: communities } = useQuery({
-    queryKey: ['studio-communities', user?.id],
-    enabled: !!user?.id && isCreator,
-    queryFn: async () => {
-      const { data } = await api.get<{ data: Community[] }>(`/creators/${user!.id}/communities`);
-      return data.data;
-    },
-  });
-
-  useEffect(() => {
-    if (!isCreator) return;
-    if (communities === undefined) return;
-    if (communities.length > 0) {
-      router.replace(`/studio/communities/${communities[0]!.id}`);
-    } else {
-      router.replace('/studio/communities');
-    }
-  }, [communities, isCreator, router]);
-
-  if (!isCreator) {
+  if (!isCreator || !user?.id || !user.username) {
     return (
-      <main className="space-y-6">
-        <p className="text-sm text-on-surface-variant">Creator access required.</p>
+      <main className="space-y-4">
+        <PageHeader title="Community" subtitle="Sign in as an approved creator to post updates." />
+        <Link href="/studio" className="text-sm text-primary hover:underline">
+          Back to Studio
+        </Link>
       </main>
     );
   }
 
   return (
     <main className="space-y-6">
-      <p className="text-sm text-on-surface-variant">Redirecting to community manager…</p>
+      <PageHeader
+        title="Community"
+        subtitle="Post text and images to your channel Community tab — same feed viewers see on your channel."
+      />
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link
+          href={`/${user.username}?tab=community`}
+          className="text-primary hover:underline"
+        >
+          View public Community tab
+        </Link>
+        <Link href="/studio/moderation" className="text-on-surface-variant hover:underline">
+          Moderation inbox
+        </Link>
+      </div>
+      <ChannelCommunityFeed creatorId={user.id} username={user.username} />
     </main>
   );
 }

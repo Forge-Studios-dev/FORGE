@@ -16,6 +16,7 @@ interface CreatorAttention {
     pendingModeration: number;
     failedPayments: number;
     processingFailures?: number;
+    scheduledUpcoming?: number;
   };
   items: Array<{ id: string; kind: string; label: string; detail: string; href: string; tone: StatusTone }>;
 }
@@ -30,10 +31,11 @@ function StudioAttentionLink({ href, className, children }: { href: string; clas
 }
 
 const QUICK_ACTIONS = [
-  { href: '/upload', label: 'Upload video', icon: 'upload', desc: 'Start a new lesson' },
+  { href: '/upload', label: 'Upload video', icon: 'upload', desc: 'Publish a new video' },
   { href: '/studio/live', label: 'Go live', icon: 'sensors', desc: 'Start or schedule a stream' },
-  { href: '/studio/courses', label: 'New course', icon: 'school', desc: 'Build a structured learning path' },
-  { href: '/studio/analytics', label: 'Open analytics', icon: 'analytics', desc: 'Track growth and revenue' },
+  { href: '/studio/community', label: 'Community', icon: 'campaign', desc: 'Post to your channel Community tab' },
+  { href: '/studio/comments', label: 'Comments', icon: 'forum', desc: 'Reply to viewer comments' },
+  { href: '/studio/analytics', label: 'Analytics', icon: 'analytics', desc: 'Views, watch time, and growth' },
 ] as const;
 
 const OPERATING_PILLARS = [
@@ -51,15 +53,21 @@ const OPERATING_PILLARS = [
   },
   {
     title: 'Community',
-    href: '/studio/communities',
-    icon: 'hub',
-    summary: 'Keep conversations healthy, onboard members, and moderate faster.',
+    href: '/studio/community',
+    icon: 'campaign',
+    summary: 'Share updates on your public channel Community tab.',
   },
   {
-    title: 'Grow',
+    title: 'Engagement',
+    href: '/studio/comments',
+    icon: 'forum',
+    summary: 'Reply to comments and keep conversations healthy.',
+  },
+  {
+    title: 'Analytics',
     href: '/studio/analytics',
     icon: 'trending_up',
-    summary: 'Track performance, memberships, subscriber health, and retention.',
+    summary: 'Track performance, subscribers, and retention.',
   },
 ] as const;
 
@@ -119,7 +127,8 @@ export default function StudioPage() {
     (attention?.counts.commentsNeedingReply ?? 0) +
     (attention?.counts.pendingModeration ?? 0) +
     (attention?.counts.failedPayments ?? 0) +
-    (attention?.counts.processingFailures ?? 0);
+    (attention?.counts.processingFailures ?? 0) +
+    (attention?.counts.scheduledUpcoming ?? 0);
   const isFirstTimeCreator =
     libraryPreview?.pagination.total === 0 && !attentionLoading && !hasAttentionItems;
   const mrrDisplay = ((subscriberStats?.mrrCents ?? 0) / 100).toLocaleString(undefined, {
@@ -187,26 +196,28 @@ export default function StudioPage() {
           <p className="font-label-caps text-xs text-outline">Welcome</p>
           <h2 className="mt-2 text-xl font-semibold">Set up your creator channel</h2>
           <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
-            Your Studio is ready. Upload your first lesson, configure memberships, and invite your community when you are ready to publish.
+            Your Studio is ready. Upload your first video and grow your channel when you are ready to publish.
           </p>
           <ol className="mt-6 grid gap-4 md:grid-cols-3">
             <li className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
-              <p className="text-sm font-medium">1. Upload a lesson</p>
-              <p className="mt-2 text-sm text-on-surface-variant">Start with one high-signal video your audience can learn from today.</p>
+              <p className="text-sm font-medium">1. Upload a video</p>
+              <p className="mt-2 text-sm text-on-surface-variant">
+                Start with a clear video your audience will want to watch and share.
+              </p>
               <Link href="/upload" className="mt-3 inline-flex text-sm text-primary hover:underline">
                 Open upload flow
               </Link>
             </li>
             <li className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
               <p className="text-sm font-medium">2. Shape your channel</p>
-              <p className="mt-2 text-sm text-on-surface-variant">Add channel settings, tiers, and a community home for members.</p>
-              <Link href="/studio/settings" className="mt-3 inline-flex text-sm text-primary hover:underline">
-                Channel settings
+              <p className="mt-2 text-sm text-on-surface-variant">Customize your channel name, about, and links.</p>
+              <Link href="/studio/branding" className="mt-3 inline-flex text-sm text-primary hover:underline">
+                Customize channel
               </Link>
             </li>
             <li className="rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
               <p className="text-sm font-medium">3. Plan your launch</p>
-              <p className="mt-2 text-sm text-on-surface-variant">Schedule a live session or publish your first course path.</p>
+              <p className="mt-2 text-sm text-on-surface-variant">Go live or publish when your first video is ready.</p>
               <Link href="/studio/live" className="mt-3 inline-flex text-sm text-primary hover:underline">
                 Go live setup
               </Link>
@@ -219,7 +230,7 @@ export default function StudioPage() {
         <div className="glass-panel rounded-2xl p-6">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-label-caps text-xs text-outline">Command center</p>
+              <p className="font-label-caps text-xs text-outline">Channel dashboard</p>
               <h2 className="mt-1 text-xl font-semibold">Daily creator overview</h2>
             </div>
             <span className="rounded-full border border-outline-variant/40 px-3 py-1 text-xs text-on-surface-variant">
@@ -316,7 +327,7 @@ export default function StudioPage() {
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="font-label-caps text-xs text-outline">Top content</p>
-              <h2 className="text-lg font-semibold">Best performing lessons</h2>
+              <h2 className="text-lg font-semibold">Best performing videos</h2>
             </div>
             <Link href="/studio/videos" className="text-sm text-primary hover:underline">
               Open library
@@ -324,7 +335,7 @@ export default function StudioPage() {
           </div>
           {topVideos.length === 0 ? (
             <p className="text-sm text-on-surface-variant">
-              Ready videos will appear here once you publish. Upload your next lesson to start.
+              Ready videos will appear here once you publish. Upload your next video to start.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -362,7 +373,7 @@ export default function StudioPage() {
                 1
               </span>
               <span className="text-on-surface-variant">
-                Upload your next lesson or continue an in-progress draft from{' '}
+                Upload your next video or continue an in-progress draft from{' '}
                 <Link href="/studio/videos" className="text-primary hover:underline">
                   Videos
                 </Link>
@@ -390,7 +401,7 @@ export default function StudioPage() {
                 <Link href="/studio/analytics" className="text-primary hover:underline">
                   Analytics
                 </Link>{' '}
-                to review growth and adjust memberships or content plans.
+                to review growth and plan what to publish next.
               </span>
             </li>
           </ol>

@@ -7,11 +7,13 @@ import { ConversationMember } from './entities/conversation-member.entity';
 import { DirectMessage } from './entities/direct-message.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { EngagementModule } from '../engagement/engagement.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Conversation, ConversationMember, DirectMessage, User]),
     NotificationsModule,
+    EngagementModule,
   ],
   controllers: [DirectMessagesController],
   providers: [DirectMessagesService],

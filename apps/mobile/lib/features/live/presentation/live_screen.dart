@@ -67,7 +67,7 @@ class _LiveScreenState extends ConsumerState<LiveScreen> {
         title: const Text('Live Now'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_circle_outline),
+            icon: Icon(Icons.add_circle_outline),
             onPressed: () => _showGoLiveDialog(context),
           ),
         ],
@@ -79,9 +79,9 @@ class _LiveScreenState extends ConsumerState<LiveScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.live_tv, size: 64, color: Colors.grey),
+                      Icon(Icons.live_tv, size: 64, color: ForgeTokens.of(context).onSurfaceVariant),
                       const SizedBox(height: 16),
-                      const Text('No live streams right now', style: TextStyle(color: Colors.grey)),
+                      Text('No live streams right now', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                       const SizedBox(height: 24),
                       ElevatedButton.icon(
                         onPressed: () => _showGoLiveDialog(context),
@@ -100,16 +100,7 @@ class _LiveScreenState extends ConsumerState<LiveScreen> {
   }
 
   void _showGoLiveDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Go Live'),
-        content: const Text('Use Studio on web to start a live stream with Mux.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
-        ],
-      ),
-    );
+    context.push('/studio/live');
   }
 }
 
@@ -136,7 +127,7 @@ class _StreamCard extends StatelessWidget {
               aspectRatio: 16 / 9,
               child: thumb != null
                   ? CachedNetworkImage(imageUrl: thumb, fit: BoxFit.cover, width: double.infinity)
-                  : Container(color: ForgeTokens.surfaceContainerHigh, child: const Icon(Icons.live_tv, size: 48)),
+                  : Container(color: ForgeTokens.of(context).surfaceContainerHigh, child: Icon(Icons.live_tv, size: 48)),
             ),
             Padding(
               padding: const EdgeInsets.all(12),
@@ -146,8 +137,8 @@ class _StreamCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        Text('$viewerCount watching', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text('$viewerCount watching', style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, fontSize: 12)),
                       ],
                     ),
                   ),

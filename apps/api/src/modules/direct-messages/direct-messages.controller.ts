@@ -1,7 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DirectMessagesService } from './direct-messages.service';
-import { SendDirectMessageDto } from './dto/direct-message.dto';
+import {
+  AddGroupMemberDto,
+  CreateGroupDmDto,
+  SendDirectMessageDto,
+  SendGroupMessageDto,
+} from './dto/direct-message.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -24,7 +29,7 @@ export class DirectMessagesController {
   @ApiOperation({ summary: 'Get messages in a conversation' })
   getMessages(
     @CurrentUser() user: JwtPayload,
-    @Param('conversationId') conversationId: string,
+    @Param('conversationId', ParseUUIDPipe) conversationId: string,
     @Query('limit') limit?: number,
     @Query('cursor') cursor?: string,
   ) {
@@ -41,18 +46,18 @@ export class DirectMessagesController {
   @Post('conversations/:conversationId/read')
   @Permissions(Permission.ENGAGE)
   @ApiOperation({ summary: 'Mark conversation as read' })
-  markRead(@CurrentUser() user: JwtPayload, @Param('conversationId') conversationId: string) {
+  markRead(
+    @CurrentUser() user: JwtPayload,
+    @Param('conversationId', ParseUUIDPipe) conversationId: string,
+  ) {
     return this.directMessagesService.markRead(user.sub, conversationId);
   }
 
   @Post('conversations/group')
   @Permissions(Permission.ENGAGE)
   @ApiOperation({ summary: 'Create a group DM channel with 3–25 participants' })
-  createGroup(
-    @CurrentUser() user: JwtPayload,
-    @Body() body: { name: string; memberIds: string[] },
-  ) {
-    return this.directMessagesService.createGroupConversation(user.sub, body.name, body.memberIds);
+  createGroup(@CurrentUser() user: JwtPayload, @Body() dto: CreateGroupDmDto) {
+    return this.directMessagesService.createGroupConversation(user.sub, dto.name, dto.memberIds);
   }
 
   @Post('conversations/:conversationId/members')
@@ -60,10 +65,10 @@ export class DirectMessagesController {
   @ApiOperation({ summary: 'Add a member to a group DM channel' })
   addMember(
     @CurrentUser() user: JwtPayload,
-    @Param('conversationId') conversationId: string,
-    @Body() body: { userId: string },
+    @Param('conversationId', ParseUUIDPipe) conversationId: string,
+    @Body() dto: AddGroupMemberDto,
   ) {
-    return this.directMessagesService.addGroupMember(user.sub, conversationId, body.userId);
+    return this.directMessagesService.addGroupMember(user.sub, conversationId, dto.userId);
   }
 
   @Post('conversations/:conversationId/messages')
@@ -71,9 +76,9 @@ export class DirectMessagesController {
   @ApiOperation({ summary: 'Send a message to a group DM channel' })
   sendGroupMessage(
     @CurrentUser() user: JwtPayload,
-    @Param('conversationId') conversationId: string,
-    @Body() body: { content: string },
+    @Param('conversationId', ParseUUIDPipe) conversationId: string,
+    @Body() dto: SendGroupMessageDto,
   ) {
-    return this.directMessagesService.sendGroupMessage(user.sub, conversationId, body.content);
+    return this.directMessagesService.sendGroupMessage(user.sub, conversationId, dto.content);
   }
 }

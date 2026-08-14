@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('FORGE web smoke', () => {
-  test('home page loads discover section', async ({ page }) => {
+  test('home page loads For you section', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByTestId('forge-home')).toBeVisible();
     await expect(page.getByTestId('discover-section')).toBeVisible();
-    await expect(page.getByRole('button', { name: /^discover$/i })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /^for you$/i })).toBeVisible();
   });
 
   test('explore page loads categories', async ({ page }) => {
@@ -24,7 +24,7 @@ test.describe('FORGE web smoke', () => {
     await page.goto('/');
     await expect(page.getByTestId('discover-section')).toBeVisible();
     const feed = page.getByTestId('feed-grid');
-    const empty = page.getByRole('heading', { name: /no lessons yet/i });
+    const empty = page.getByRole('heading', { name: /no videos yet/i });
     const loadError = page.getByRole('heading', { name: /couldn't load feed/i });
     await expect(feed.or(empty).or(loadError)).toBeVisible({ timeout: 20_000 });
   });

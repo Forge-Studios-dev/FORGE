@@ -20,9 +20,11 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { clampLimit } from '../../common/utils/pagination.util';
+import { Public } from '../../common/decorators/public.decorator';
 
 @ApiTags('Channel Points')
 @Controller()
@@ -53,10 +55,15 @@ export class ChannelPointsController {
     return this.channelPointsService.getBalance(user.sub, communityId);
   }
 
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/:communityId/channel-points/rewards')
   @ApiOperation({ summary: 'List active channel point rewards for a community' })
-  listRewards(@Param('communityId') communityId: string) {
-    return this.channelPointsService.listRewards(communityId, false);
+  listRewards(
+    @Param('communityId') communityId: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.channelPointsService.listRewards(communityId, false, user?.sub);
   }
 
   @Post('communities/:communityId/channel-points/redeem')

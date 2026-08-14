@@ -5,7 +5,7 @@ import { VideoProcessorWorker } from './video-processor/video-processor.worker';
 import { AnalyticsIngestWorker } from './analytics-ingest/analytics-ingest.worker';
 import { Video } from '../content/entities/video.entity';
 import { AnalyticsEvent } from '../analytics/entities/analytics-event.entity';
-import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../content/videos.service';
+import { VIDEO_PROCESSING_QUEUE, VIDEO_PROCESSING_DLQ_QUEUE } from '../content/video-processing.constants';
 import { MuxVodIngestWorker } from './mux-vod-ingest/mux-vod-ingest.worker';
 import { MUX_VOD_INGEST_QUEUE } from '../content/mux-vod.constants';
 import { ContentModule } from '../content/content.module';
@@ -22,6 +22,11 @@ import { DeviceToken } from '../notifications/entities/device-token.entity';
 import { FirebaseModule } from '../firebase/firebase.module';
 import { StreamReminderWorker } from './stream-reminder/stream-reminder.worker';
 import { STREAM_REMINDER_QUEUE } from './stream-reminder/stream-reminder.constants';
+import { ScheduledPublishWorker } from './scheduled-publish/scheduled-publish.worker';
+import { SCHEDULED_PUBLISH_QUEUE } from '../content/scheduled-publish.constants';
+import { CopyrightReinstatementWorker } from './copyright-reinstatement/copyright-reinstatement.worker';
+import { COPYRIGHT_REINSTATEMENT_QUEUE } from '../copyright/copyright-reinstatement.constants';
+import { CopyrightModule } from '../copyright/copyright.module';
 import { StreamChatIngestWorker } from './stream-chat-ingest/stream-chat-ingest.worker';
 import { STREAM_CHAT_INGEST_QUEUE } from './stream-chat-ingest/stream-chat-ingest.constants';
 import { StreamSnapshotRetentionWorker } from './stream-snapshot-retention/stream-snapshot-retention.worker';
@@ -46,6 +51,8 @@ import { EngagementModule } from '../engagement/engagement.module';
 import { PlatformEventOutboxWorker } from './platform-event-outbox/platform-event-outbox.worker';
 import { PLATFORM_EVENT_OUTBOX_QUEUE } from './platform-event-outbox/platform-event-outbox.constants';
 import { PlatformEventOutboxModule } from '../platform-event-outbox/platform-event-outbox.module';
+import { EmailDigestWorker } from './email-digest/email-digest.worker';
+import { EMAIL_DIGEST_QUEUE } from '../notifications/email-digest.constants';
 
 function isDedicatedWorkerProcess(): boolean {
   return (
@@ -96,6 +103,18 @@ function shouldRegisterStreamReminder(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+function shouldRegisterScheduledPublish(): boolean {
+  if (process.env.DISABLE_SCHEDULED_PUBLISH === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterCopyrightReinstatement(): boolean {
+  if (process.env.DISABLE_COPYRIGHT_REINSTATEMENT === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
 function shouldRegisterStreamChatIngest(): boolean {
   if (isDedicatedWorkerProcess()) return true;
   return process.env.NODE_ENV !== 'production';
@@ -140,11 +159,18 @@ function shouldRegisterPlatformEventOutbox(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+function shouldRegisterEmailDigest(): boolean {
+  if (process.env.DISABLE_EMAIL_DIGEST === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
 @Module({
   imports: [
     AnalyticsModule,
     NotificationsModule,
     ContentModule,
+    CopyrightModule,
     FirebaseModule,
     StreamingModule,
     EngagementModule,
@@ -221,6 +247,22 @@ function shouldRegisterPlatformEventOutbox(): boolean {
       },
     }),
     BullModule.registerQueue({
+      name: SCHEDULED_PUBLISH_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 3600, count: 50 },
+        removeOnFail: { age: 3600, count: 50 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: COPYRIGHT_REINSTATEMENT_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 7 * 86400, count: 50 },
+        removeOnFail: { age: 7 * 86400, count: 50 },
+      },
+    }),
+    BullModule.registerQueue({
       name: STREAM_CHAT_INGEST_QUEUE,
       defaultJobOptions: {
         attempts: 3,
@@ -291,6 +333,15 @@ function shouldRegisterPlatformEventOutbox(): boolean {
         removeOnFail: { age: 86400, count: 500 },
       },
     }),
+    BullModule.registerQueue({
+      name: EMAIL_DIGEST_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        backoff: { type: 'exponential', delay: 60_000 },
+        removeOnComplete: { age: 7 * 86400, count: 30 },
+        removeOnFail: { age: 30 * 86400, count: 100 },
+      },
+    }),
     PlatformEventOutboxModule,
   ],
   providers: [
@@ -301,6 +352,8 @@ function shouldRegisterPlatformEventOutbox(): boolean {
     ...(shouldRegisterSubscriptionMaintenance() ? [SubscriptionMaintenanceWorker] : []),
     ...(shouldRegisterAnalyticsRetention() ? [AnalyticsRetentionWorker] : []),
     ...(shouldRegisterStreamReminder() ? [StreamReminderWorker] : []),
+    ...(shouldRegisterScheduledPublish() ? [ScheduledPublishWorker] : []),
+    ...(shouldRegisterCopyrightReinstatement() ? [CopyrightReinstatementWorker] : []),
     ...(shouldRegisterStreamChatIngest() ? [StreamChatIngestWorker] : []),
     ...(shouldRegisterStreamSnapshotRetention() ? [StreamSnapshotRetentionWorker] : []),
     ...(shouldRegisterStreamMuxSync() ? [StreamMuxSyncWorker] : []),
@@ -309,6 +362,7 @@ function shouldRegisterPlatformEventOutbox(): boolean {
     ...(shouldRegisterCommunityModeration() ? [CommunityModerationWorker] : []),
     ...(shouldRegisterPlatformEventOutbox() ? [PlatformEventOutboxWorker] : []),
     ...(shouldRegisterEngagementReconciliation() ? [EngagementReconciliationWorker] : []),
+    ...(shouldRegisterEmailDigest() ? [EmailDigestWorker] : []),
   ],
 })
 export class WorkersModule {}

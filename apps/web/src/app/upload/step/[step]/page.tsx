@@ -1,17 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Icon, PageHeader } from '@forge/design-system';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
+import { DescriptionChaptersEditor } from '@/components/studio/DescriptionChaptersEditor';
 import { useAuth } from '@/lib/auth';
 import {
   clearUploadDraft,
   getUploadDraft,
   saveUploadDraft,
-  type UploadVisibility,
+  type UploadVideoType,
 } from '@/lib/upload-draft';
 import { api } from '@/lib/api';
 import { clearUploadFile, getUploadFile, setUploadFile } from '@/lib/upload-file-store';
@@ -22,7 +23,7 @@ import {
 } from '@/lib/upload-thumbnail-store';
 import { getStudioVideos } from '@/lib/creator-studio';
 import { fetchUploadOptions, type UploadCategoryOption } from '@/lib/categories';
-import { uploadLesson, validateUploadFile, type UploadPhase } from '@/lib/upload-lesson';
+import { uploadVideo, validateUploadFile, probeVideoDurationSeconds, validateShortDuration, type UploadPhase } from '@/lib/upload-video';
 import { trackEvent } from '@/lib/analytics';
 
 const TOTAL = 3;
@@ -30,12 +31,37 @@ const TOTAL = 3;
 const PHASE_LABEL: Record<UploadPhase, string> = {
   presigning: 'Preparing upload…',
   uploading: 'Uploading to storage…',
-  completing: 'Finalizing lesson…',
+  completing: 'Finalizing video…',
 };
 
-export default function UploadStepPage() {
+/** Local image preview without blob:→img.src (CodeQL js/xss-through-dom FP). */
+async function imageFileToPreviewDataUrl(file: File): Promise<string | null> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maxEdge = 640;
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      bitmap.close();
+      return null;
+    }
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } catch {
+    return null;
+  }
+}
+
+function UploadStepContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const step = Math.min(TOTAL, Math.max(1, Number(params.step) || 1));
   const { canUpload, accessTier, canApplyForCreator, user } = useAuth();
 
@@ -52,15 +78,21 @@ export default function UploadStepPage() {
     user?.role === 'creator' && user?.creatorStatus === 'approved' && !user?.isVerified;
 
   useEffect(() => {
+    const typeParam = searchParams.get('type');
+    if (typeParam === 'short') {
+      saveUploadDraft({ videoType: 'short' });
+    }
     setDraft(getUploadDraft());
     const stored = getUploadFile();
     if (stored) setFile(stored);
     const storedThumb = getUploadThumbnail();
     if (storedThumb) {
       setThumbnail(storedThumb);
-      setThumbnailPreview(URL.createObjectURL(storedThumb));
+      void imageFileToPreviewDataUrl(storedThumb).then((url) => {
+        if (url) setThumbnailPreview(url);
+      });
     }
-  }, [step]);
+  }, [step, searchParams]);
 
   const minScheduleLocal = useMemo(() => {
     const d = new Date(Date.now() + 15 * 60 * 1000);
@@ -101,7 +133,7 @@ export default function UploadStepPage() {
       <main className="mx-auto max-w-lg px-5 py-20 md:px-12">
         <NoAccessCallout
           title="Verify your email to upload"
-          description="Your creator application is approved. Confirm your email address before publishing lessons."
+          description="Your creator application is approved. Confirm your email address before publishing videos."
         />
         <Link href="/verify-email" className="mt-4 inline-block text-primary hover:underline">
           Resend verification email
@@ -121,7 +153,7 @@ export default function UploadStepPage() {
           description={
             accessTier === 'creator_pending'
               ? 'Your creator application is still under review — like YouTube Partner Program approval.'
-              : 'Approved creators can upload lessons. Viewers can watch, like, and subscribe without uploading.'
+              : 'Approved creators can upload videos. Viewers can watch, like, and subscribe without uploading.'
           }
         />
         {canApplyForCreator ? (
@@ -143,21 +175,25 @@ export default function UploadStepPage() {
     saveUploadDraft(next);
   };
 
-  const selectFile = (f: File | null) => {
+  const selectFile = async (f: File | null) => {
     setFile(f);
     setUploadFile(f);
     if (f) {
       const validation = validateUploadFile(f);
-      if (validation) setError(validation);
-      else setError('');
+      if (validation) {
+        setError(validation);
+        persist({ fileName: f.name, fileSize: f.size, fileType: f.type });
+        return;
+      }
+      const duration = await probeVideoDurationSeconds(f);
+      const shortErr = validateShortDuration(duration, draft.videoType);
+      setError(shortErr ?? '');
       persist({ fileName: f.name, fileSize: f.size, fileType: f.type });
     }
   };
 
   const metadataComplete =
-    draft.title.trim().length >= 3 &&
-    !!draft.categoryId &&
-    draft.skillTagIds.length >= 1;
+    draft.title.trim().length >= 3 && !!draft.categoryId;
 
   const canContinueStep1 = metadataComplete;
   const canContinueStep2 = !!file && !validateUploadFile(file);
@@ -185,6 +221,12 @@ export default function UploadStepPage() {
       setError(validation);
       return;
     }
+    const duration = await probeVideoDurationSeconds(activeFile);
+    const shortErr = validateShortDuration(duration, draft.videoType);
+    if (shortErr) {
+      setError(shortErr);
+      return;
+    }
     setError('');
     setUploading(true);
     setProgress(0);
@@ -195,7 +237,7 @@ export default function UploadStepPage() {
           ? new Date(draft.scheduledAt).toISOString()
           : undefined;
 
-      const videoId = await uploadLesson(
+      const videoId = await uploadVideo(
         activeFile,
         draft.title,
         draft.description,
@@ -209,6 +251,7 @@ export default function UploadStepPage() {
           visibility: draft.visibility,
           scheduledPublishAt,
           playlistIds: draft.playlistIds,
+          videoType: draft.videoType,
         },
       );
       void trackEvent(
@@ -234,12 +277,16 @@ export default function UploadStepPage() {
   return (
     <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
       <PageHeader
-        title="Upload a lesson"
+        title={draft.videoType === 'short' ? 'Create a Short' : 'Upload a video'}
         subtitle={
           step === 1
-            ? 'Add title, category, skills, and an optional thumbnail'
+            ? draft.videoType === 'short'
+              ? 'Shorts must be 60 seconds or shorter — add title, category, and tags'
+              : 'Add title, category, tags, and an optional thumbnail'
             : step === 2
-              ? 'Upload your video file'
+              ? draft.videoType === 'short'
+                ? 'Upload a vertical clip ≤60s (MP4 or MOV)'
+                : 'Upload your video file'
               : 'Review visibility and publish'
         }
       />
@@ -311,11 +358,42 @@ export default function UploadStepPage() {
       <div className="glass-panel space-y-4 rounded-2xl p-6">
         {step === 1 && (
           <>
+            <fieldset>
+              <legend className="font-label-caps text-outline">Type</legend>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(
+                  [
+                    { value: 'video' as UploadVideoType, label: 'Video', hint: 'Long-form' },
+                    { value: 'short' as UploadVideoType, label: 'Short', hint: 'Required ≤60s' },
+                  ] as const
+                ).map((opt) => {
+                  const active = draft.videoType === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => persist({ videoType: opt.value })}
+                      className={`rounded-full border px-4 py-2 text-sm transition ${
+                        active
+                          ? 'border-primary bg-primary/15 text-on-surface'
+                          : 'border-outline-variant/40 text-on-surface-variant hover:border-outline-variant'
+                      }`}
+                      aria-pressed={active}
+                    >
+                      <span className="font-medium">{opt.label}</span>
+                      <span className="ml-2 text-xs text-outline">{opt.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
             <label className="block">
-              <span className="font-label-caps text-outline">Lesson title</span>
+              <span className="font-label-caps text-outline">Title</span>
               <input
                 className="mt-1 w-full border-b border-outline-variant bg-transparent py-2 outline-none focus:border-primary"
-                placeholder="e.g. Advanced React Patterns"
+                placeholder={
+                  draft.videoType === 'short' ? 'e.g. 30-second tip' : 'e.g. My first vlog'
+                }
                 value={draft.title}
                 onChange={(e) => persist({ title: e.target.value })}
               />
@@ -324,11 +402,21 @@ export default function UploadStepPage() {
               <span className="font-label-caps text-outline">Description</span>
               <textarea
                 className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 outline-none focus:border-primary"
-                placeholder="What will learners gain?"
-                rows={3}
+                placeholder={
+                  draft.videoType === 'short'
+                    ? 'Tell viewers about your Short'
+                    : 'Tell viewers about your video. Optional chapters:\n0:00 Intro\n1:30 Main topic\n5:00 Outro'
+                }
+                rows={draft.videoType === 'short' ? 3 : 5}
                 value={draft.description}
                 onChange={(e) => persist({ description: e.target.value })}
               />
+              {draft.videoType !== 'short' ? (
+                <DescriptionChaptersEditor
+                  description={draft.description}
+                  onDescriptionChange={(description) => persist({ description })}
+                />
+              ) : null}
             </label>
             <label className="block">
               <span className="font-label-caps text-outline">
@@ -351,10 +439,10 @@ export default function UploadStepPage() {
             </label>
             <fieldset className="block" disabled={!draft.categoryId}>
               <legend className="font-label-caps text-outline">
-                Skills / tags <span className="text-error">*</span>
+                Tags <span className="text-error">*</span>
               </legend>
               <p className="mt-1 text-xs text-on-surface-variant">
-                Select at least one skill learners can use to find this lesson.
+                Optional topic tags help viewers find this video.
               </p>
               <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded-lg border border-outline-variant p-3">
                 {availableSkills.length === 0 ? (
@@ -392,12 +480,15 @@ export default function UploadStepPage() {
                     const f = e.target.files?.[0] ?? null;
                     setThumbnail(f);
                     setUploadThumbnail(f);
-                    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
-                    setThumbnailPreview(f ? URL.createObjectURL(f) : null);
+                    setThumbnailPreview(null);
+                    if (f) {
+                      void imageFileToPreviewDataUrl(f).then((url) => {
+                        if (url) setThumbnailPreview(url);
+                      });
+                    }
                   }}
                 />
                 {thumbnailPreview ? (
-                  // next/image can't optimize blob: object URLs (local file preview, never fetched over the network)
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={thumbnailPreview}
@@ -424,7 +515,7 @@ export default function UploadStepPage() {
               />
               {file || draft.fileName ? (
                 <span className="text-on-surface">
-                  {file?.name ?? draft.fileName}
+                  {file?.name ?? draft.fileName ?? ''}
                   {file ? ` · ${(file.size / (1024 * 1024)).toFixed(1)} MB` : null}
                 </span>
               ) : (
@@ -440,7 +531,7 @@ export default function UploadStepPage() {
 
         {step === 3 && (
           <>
-            <p className="text-on-surface-variant">Review your lesson and publish.</p>
+            <p className="text-on-surface-variant">Review your video and publish.</p>
             <dl className="space-y-2 text-sm">
               <div>
                 <dt className="text-outline">Title</dt>
@@ -460,7 +551,7 @@ export default function UploadStepPage() {
               ) : null}
               {draft.skillTagIds.length > 0 ? (
                 <div>
-                  <dt className="text-outline">Skills</dt>
+                  <dt className="text-outline">Tags</dt>
                   <dd>
                     {availableSkills
                       .filter((t) => draft.skillTagIds.includes(t.id))
@@ -515,15 +606,25 @@ export default function UploadStepPage() {
 
             <fieldset className="space-y-2">
               <legend className="font-label-caps text-outline">Visibility</legend>
-              {(['public', 'unlisted', 'private'] as UploadVisibility[]).map((vis) => (
-                <label key={vis} className="flex items-center gap-2 text-sm capitalize">
+              {(
+                [
+                  { value: 'public', label: 'Public', hint: 'Everyone' },
+                  { value: 'unlisted', label: 'Unlisted', hint: 'Anyone with the link' },
+                  { value: 'private', label: 'Private', hint: 'Only you' },
+                ] as const
+              ).map((opt) => (
+                <label key={opt.value} className="flex items-start gap-2 text-sm">
                   <input
                     type="radio"
                     name="visibility"
-                    checked={draft.visibility === vis}
-                    onChange={() => persist({ visibility: vis })}
+                    className="mt-1"
+                    checked={draft.visibility === opt.value}
+                    onChange={() => persist({ visibility: opt.value })}
                   />
-                  {vis}
+                  <span>
+                    <span className="font-medium">{opt.label}</span>
+                    <span className="block text-xs text-on-surface-variant">{opt.hint}</span>
+                  </span>
                 </label>
               ))}
             </fieldset>
@@ -608,7 +709,7 @@ export default function UploadStepPage() {
               }
               title={
                 step === 1 && !metadataComplete
-                  ? 'Title, category, and at least one skill are required'
+                  ? 'Title and category are required'
                   : undefined
               }
               onClick={goNext}
@@ -629,5 +730,19 @@ export default function UploadStepPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function UploadStepPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
+          <p className="text-on-surface-variant">Loading upload…</p>
+        </main>
+      }
+    >
+      <UploadStepContent />
+    </Suspense>
   );
 }

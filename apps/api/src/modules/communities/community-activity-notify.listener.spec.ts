@@ -3,6 +3,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Not } from 'typeorm';
 import { CommunityActivityNotifyListener } from './community-activity-notify.listener';
 import { CommunityMember, CommunityMemberStatus } from './entities/community-member.entity';
+import { Community } from './entities/community.entity';
+import { User } from '../users/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
 
@@ -10,6 +12,12 @@ describe('CommunityActivityNotifyListener', () => {
   let listener: CommunityActivityNotifyListener;
   const notificationsService = { createMany: jest.fn().mockResolvedValue(undefined) };
   const memberRepository = { find: jest.fn() };
+  const communityRepository = {
+    findOne: jest.fn().mockResolvedValue({ id: 'c1', slug: 'main', creatorId: 'creator-1' }),
+  };
+  const userRepository = {
+    findOne: jest.fn().mockResolvedValue({ id: 'creator-1', username: 'creator' }),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -18,6 +26,8 @@ describe('CommunityActivityNotifyListener', () => {
         CommunityActivityNotifyListener,
         { provide: NotificationsService, useValue: notificationsService },
         { provide: getRepositoryToken(CommunityMember), useValue: memberRepository },
+        { provide: getRepositoryToken(Community), useValue: communityRepository },
+        { provide: getRepositoryToken(User), useValue: userRepository },
       ],
     }).compile();
     listener = moduleRef.get(CommunityActivityNotifyListener);
@@ -46,7 +56,14 @@ describe('CommunityActivityNotifyListener', () => {
       userId: 'u1',
       type: NotificationType.COMMUNITY_POST_NEW,
       title: 'New community event',
-      metadata: { communityId: 'c1', eventId: 'e1', kind: 'event' },
+      metadata: expect.objectContaining({
+        communityId: 'c1',
+        eventId: 'e1',
+        kind: 'event',
+        creatorId: 'creator-1',
+        username: 'creator',
+        slug: 'main',
+      }),
     });
   });
 

@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -60,7 +71,10 @@ export class NotificationsController {
   @Post(':id/read')
   @Permissions(Permission.USE_LIBRARY)
   @ApiOperation({ summary: 'Mark notification as read' })
-  read(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+  read(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.notificationsService.markRead(user.sub, id);
   }
 }

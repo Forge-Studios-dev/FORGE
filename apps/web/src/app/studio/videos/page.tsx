@@ -8,10 +8,12 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { SocketEvents } from '@forge/shared-types';
 import { getActiveUpload, subscribeActiveUpload } from '@/lib/upload-manager';
 import { EmptyState, Icon, ListSkeleton, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
-import { fetchStudioLibrary, type StudioVideoSort } from '@/lib/creator-studio';
+import { ConfirmDialog } from '@forge/design-system/client';
+import { fetchStudioLibrary, studioPublicPath, type StudioVideoSort } from '@/lib/creator-studio';
+import { fetchUploadOptions, type UploadCategoryOption } from '@/lib/categories';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { formatCount, timeAgo } from '@/lib/utils';
+import { formatCount, formatDuration, timeAgo, timeUntil } from '@/lib/utils';
 import { getSocket } from '@/lib/socket';
 import type { Video } from '@/types';
 
@@ -40,45 +42,136 @@ const VISIBILITY_ICON: Record<string, string> = {
   paid_event: 'payments',
 };
 
+const VISIBILITY_LABEL: Record<string, string> = {
+  public: 'Public',
+  unlisted: 'Unlisted',
+  private: 'Private',
+  followers: 'Subscribers',
+  subscribers: 'Members',
+  tier: 'Tier members',
+  paid_event: 'Paid event',
+};
+
+const QUICK_VISIBILITY: { value: string; label: string }[] = [
+  { value: 'public', label: 'Public' },
+  { value: 'unlisted', label: 'Unlisted' },
+  { value: 'private', label: 'Private' },
+  { value: 'followers', label: 'Subscribers' },
+];
+
+function visibilityLabel(visibility: string): string {
+  return VISIBILITY_LABEL[visibility] ?? visibility.replace(/_/g, ' ');
+}
+
 function formatPublishedAt(video: Video): string {
+  if (isFutureScheduled(video) && video.scheduledPublishAt) {
+    return `Scheduled ${timeUntil(video.scheduledPublishAt)}`;
+  }
   const raw = video.publishedAt ?? video.scheduledPublishAt ?? video.createdAt;
   return new Date(raw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function isFutureScheduled(video: Video): boolean {
+  if (!video.scheduledPublishAt) return false;
+  return new Date(video.scheduledPublishAt).getTime() > Date.now();
 }
 
 function VideoRow({
   video,
   cancellingId,
+  publishingId,
+  cancellingScheduleId,
+  deletingId,
+  visibilityBusyId,
   onCancel,
+  onPublishNow,
+  onCancelSchedule,
+  onDelete,
+  onCopyLink,
+  onVisibilityChange,
   browserUploadPct,
 }: {
   video: Video;
   cancellingId: string | null;
+  publishingId: string | null;
+  cancellingScheduleId: string | null;
+  deletingId: string | null;
+  visibilityBusyId: string | null;
   onCancel: (id: string) => void;
+  onPublishNow: (id: string) => void;
+  onCancelSchedule: (id: string) => void;
+  onDelete: (id: string) => void;
+  onCopyLink: (video: Video) => void;
+  onVisibilityChange: (id: string, visibility: string) => void;
   browserUploadPct?: number | null;
 }) {
   const inProgress = video.status === 'uploading' || video.status === 'processing';
+  const publicPath = studioPublicPath(video);
   const canCancel =
     video.status === 'uploading' ||
     video.status === 'processing' ||
     video.status === 'failed' ||
     video.status === 'pending';
+  const canPublishNow = isFutureScheduled(video);
+  const canDelete = video.status !== 'uploading';
+  const canCopy = video.status === 'ready' || video.visibility === 'unlisted';
+  const canSetVisibility = video.status !== 'uploading';
+  const visibilityOptions =
+    QUICK_VISIBILITY.some((o) => o.value === video.visibility)
+      ? QUICK_VISIBILITY
+      : [
+          ...QUICK_VISIBILITY,
+          { value: video.visibility, label: visibilityLabel(video.visibility) },
+        ];
 
   return (
     <li className="glass-panel flex items-center justify-between gap-4 rounded-xl p-4">
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{video.title}</p>
+        <p className="truncate font-medium">
+          {video.title}
+          {video.videoType === 'short' ? (
+            <span className="ml-2 inline-block rounded-full bg-surface-container-high px-2 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">
+              Short
+            </span>
+          ) : null}
+        </p>
         <p className="text-sm text-on-surface-variant">
           <StatusPill
             tone={statusTone(video.status)}
             label={STATUS_LABEL[video.status] ?? video.status}
             className="mr-2"
           />
-          {video.visibility}
-          {video.scheduledPublishAt
-            ? ` · scheduled ${new Date(video.scheduledPublishAt).toLocaleString()}`
-            : ''}
+          {canSetVisibility ? (
+            <label className="ml-1 inline-flex items-center gap-1">
+              <span className="sr-only">Visibility</span>
+              <select
+                value={video.visibility}
+                disabled={visibilityBusyId === video.id}
+                onChange={(e) => onVisibilityChange(video.id, e.target.value)}
+                className="rounded-full border border-outline-variant bg-surface-container-low px-2 py-0.5 text-xs text-on-surface"
+                aria-label={`Visibility for ${video.title}`}
+              >
+                {visibilityOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            visibilityLabel(video.visibility)
+          )}
+          {video.scheduledPublishAt && isFutureScheduled(video)
+            ? ` · scheduled ${timeUntil(video.scheduledPublishAt)}`
+            : video.scheduledPublishAt
+              ? ` · scheduled ${new Date(video.scheduledPublishAt).toLocaleString()}`
+              : ''}
           {video.status === 'ready'
-            ? ` · ${formatCount(video.viewCount)} views · ${timeAgo(video.createdAt)}`
+            ? ` · ${formatCount(video.viewCount)} views${
+                video.durationSeconds != null && video.durationSeconds > 0
+                  ? ` · ${formatDuration(video.durationSeconds)}`
+                  : ''
+              } · ${timeAgo(video.createdAt)}`
             : ` · started ${timeAgo(video.createdAt)}`}
         </p>
         {inProgress ? (
@@ -99,7 +192,36 @@ function VideoRow({
           </div>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
+        {canPublishNow ? (
+          <>
+            <button
+              type="button"
+              disabled={publishingId === video.id || cancellingScheduleId === video.id}
+              onClick={() => onPublishNow(video.id)}
+              className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+            >
+              {publishingId === video.id ? 'Publishing…' : 'Publish now'}
+            </button>
+            <button
+              type="button"
+              disabled={publishingId === video.id || cancellingScheduleId === video.id}
+              onClick={() => onCancelSchedule(video.id)}
+              className="text-sm text-on-surface-variant hover:underline disabled:opacity-50"
+            >
+              {cancellingScheduleId === video.id ? 'Cancelling…' : 'Cancel schedule'}
+            </button>
+          </>
+        ) : null}
+        {canCopy ? (
+          <button
+            type="button"
+            onClick={() => onCopyLink(video)}
+            className="text-sm text-on-surface-variant hover:underline"
+          >
+            Copy link
+          </button>
+        ) : null}
         {canCancel ? (
           <button
             type="button"
@@ -110,13 +232,23 @@ function VideoRow({
             {cancellingId === video.id ? 'Cancelling…' : 'Cancel'}
           </button>
         ) : null}
+        {canDelete ? (
+          <button
+            type="button"
+            disabled={deletingId === video.id}
+            onClick={() => onDelete(video.id)}
+            className="text-sm text-error hover:underline disabled:opacity-50"
+          >
+            {deletingId === video.id ? 'Deleting…' : 'Delete'}
+          </button>
+        ) : null}
         {video.status !== 'uploading' ? (
           <Link href={`/studio/videos/${video.id}`} className="text-sm text-on-surface-variant hover:underline">
             Edit
           </Link>
         ) : null}
         {video.status === 'ready' ? (
-          <Link href={`/watch/${video.id}`} className="text-sm text-primary hover:underline">
+          <Link href={publicPath} className="text-sm text-primary hover:underline">
             View
           </Link>
         ) : null}
@@ -138,6 +270,13 @@ function StudioVideosPageInner() {
   const { user, accessToken, isCreator } = useAuth();
   const queryClient = useQueryClient();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [cancellingScheduleId, setCancellingScheduleId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [visibilityBusyId, setVisibilityBusyId] = useState<string | null>(null);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [copyHint, setCopyHint] = useState<string | null>(null);
   const [releasing, setReleasing] = useState(false);
   const [browserUploadPct, setBrowserUploadPct] = useState<number | null>(null);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
@@ -146,8 +285,19 @@ function StudioVideosPageInner() {
   const [sort, setSort] = useState<StudioVideoSort>('recent');
   const [statusFilter, setStatusFilter] = useState('');
   const [visibilityFilter, setVisibilityFilter] = useState('');
+  const [videoTypeFilter, setVideoTypeFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [scheduledOnly, setScheduledOnly] = useState(false);
+  const [categories, setCategories] = useState<UploadCategoryOption[]>([]);
 
   const PAGE_SIZE = 30;
+
+  useEffect(() => {
+    if (!isCreator) return;
+    void fetchUploadOptions()
+      .then(setCategories)
+      .catch(() => setCategories([]));
+  }, [isCreator]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -192,7 +342,16 @@ function StudioVideosPageInner() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['studio-videos', debouncedSearch, sort, statusFilter, visibilityFilter],
+    queryKey: [
+      'studio-videos',
+      debouncedSearch,
+      sort,
+      statusFilter,
+      visibilityFilter,
+      videoTypeFilter,
+      categoryFilter,
+      scheduledOnly,
+    ],
     enabled: !!user?.id && isCreator,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
@@ -201,6 +360,9 @@ function StudioVideosPageInner() {
         sort,
         status: statusFilter || undefined,
         visibility: visibilityFilter || undefined,
+        videoType: videoTypeFilter || undefined,
+        categoryId: categoryFilter || undefined,
+        scheduled: scheduledOnly || undefined,
         page: pageParam,
         limit: PAGE_SIZE,
       }),
@@ -223,13 +385,72 @@ function StudioVideosPageInner() {
   const inProgressCount = data.filter((v) => v.status === 'uploading' || v.status === 'processing').length;
 
   const cancelVideo = async (videoId: string) => {
-    if (!window.confirm('Remove this video and free the upload slot?')) return;
     setCancellingId(videoId);
     try {
       await api.post(`/videos/${videoId}/cancel-upload`);
+      setCancelConfirmId(null);
       await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const publishNow = async (videoId: string) => {
+    setPublishingId(videoId);
+    try {
+      await api.patch(`/videos/${videoId}`, { scheduledPublishAt: null });
+      await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const cancelSchedule = async (videoId: string) => {
+    setCancellingScheduleId(videoId);
+    try {
+      await api.patch(`/videos/${videoId}`, {
+        scheduledPublishAt: null,
+        visibility: 'private',
+      });
+      await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } finally {
+      setCancellingScheduleId(null);
+    }
+  };
+
+  const deleteVideo = async (videoId: string) => {
+    setDeletingId(videoId);
+    try {
+      await api.delete(`/videos/${videoId}`);
+      setDeleteConfirmId(null);
+      await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const copyVideoLink = async (video: Video) => {
+    const url = `${window.location.origin}${studioPublicPath(video)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyHint('Link copied');
+      setTimeout(() => setCopyHint(null), 2000);
+    } catch {
+      setCopyHint('Could not copy link');
+      setTimeout(() => setCopyHint(null), 2000);
+    }
+  };
+
+  const setVisibility = async (videoId: string, visibility: string) => {
+    setVisibilityBusyId(videoId);
+    try {
+      await api.patch(`/videos/${videoId}`, { visibility });
+      await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } catch {
+      setCopyHint('Could not update visibility');
+      setTimeout(() => setCopyHint(null), 2000);
+    } finally {
+      setVisibilityBusyId(null);
     }
   };
 
@@ -258,8 +479,8 @@ function StudioVideosPageInner() {
           title="Videos"
           subtitle={
             totalCount > 0
-              ? `${totalCount} lessons · Manage uploads, processing, publishing, and lesson performance.`
-              : 'Manage uploads, processing, publishing, and lesson performance.'
+              ? `${totalCount} videos · Manage uploads, processing, publishing, and performance.`
+              : 'Manage uploads, processing, publishing, and performance.'
           }
         />
         <div className="flex flex-wrap items-center gap-3">
@@ -315,6 +536,37 @@ function StudioVideosPageInner() {
           </select>
         </label>
         <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+          Type
+          <select
+            value={videoTypeFilter}
+            onChange={(e) => setVideoTypeFilter(e.target.value)}
+            aria-label="Filter by content type"
+            className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface"
+          >
+            <option value="">All</option>
+            <option value="video">Videos</option>
+            <option value="short">Shorts</option>
+          </select>
+        </label>
+        {categories.length > 0 ? (
+          <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+            Category
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              aria-label="Filter by category"
+              className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface"
+            >
+              <option value="">All</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <label className="flex items-center gap-2 text-sm text-on-surface-variant">
           Visibility
           <select
             value={visibilityFilter}
@@ -326,8 +578,18 @@ function StudioVideosPageInner() {
             <option value="public">Public</option>
             <option value="unlisted">Unlisted</option>
             <option value="private">Private</option>
+            <option value="followers">Subscribers</option>
             <option value="subscribers">Members</option>
           </select>
+        </label>
+        <label className="inline-flex items-center gap-2 text-sm text-on-surface-variant">
+          <input
+            type="checkbox"
+            checked={scheduledOnly}
+            onChange={(e) => setScheduledOnly(e.target.checked)}
+            className="rounded border-outline-variant"
+          />
+          Scheduled only
         </label>
         <label className="flex items-center gap-2 text-sm text-on-surface-variant">
           Sort
@@ -344,6 +606,12 @@ function StudioVideosPageInner() {
           </select>
         </label>
       </div>
+
+      {copyHint ? (
+        <p className="text-sm text-secondary" role="status">
+          {copyHint}
+        </p>
+      ) : null}
 
       {inProgressCount > 0 ? (
         <div className="rounded-2xl border border-tertiary/30 bg-tertiary/5 p-4">
@@ -366,9 +634,9 @@ function StudioVideosPageInner() {
           description={
             debouncedSearch
               ? `Nothing in your library matches “${debouncedSearch}”.`
-              : 'Upload your first lesson to start building your channel library.'
+              : 'Upload your first video to start building your channel.'
           }
-          action={{ label: 'Upload a lesson', href: '/upload' }}
+          action={{ label: 'Upload a video', href: '/upload' }}
         />
       ) : null}
 
@@ -378,7 +646,7 @@ function StudioVideosPageInner() {
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-outline-variant/30 bg-surface-container-low text-xs uppercase tracking-wide text-outline">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Lesson</th>
+                  <th className="px-4 py-3 font-medium">Video</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Visibility</th>
                   <th className="px-4 py-3 font-medium">Views</th>
@@ -414,9 +682,21 @@ function StudioVideosPageInner() {
                                 <Icon name="movie" />
                               </div>
                             )}
+                            {video.durationSeconds != null && video.durationSeconds > 0 ? (
+                              <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 text-[10px] font-medium text-white">
+                                {formatDuration(video.durationSeconds)}
+                              </span>
+                            ) : null}
                           </div>
                           <div className="min-w-0">
-                            <p className="truncate font-medium">{video.title}</p>
+                            <p className="truncate font-medium">
+                              {video.title}
+                              {video.videoType === 'short' ? (
+                                <span className="ml-2 inline-block rounded-full bg-surface-container-high px-2 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">
+                                  Short
+                                </span>
+                              ) : null}
+                            </p>
                             <div className="mt-1 flex flex-wrap gap-1">
                               {video.skillTags.slice(0, 3).map((tag) => (
                                 <span
@@ -445,25 +725,112 @@ function StudioVideosPageInner() {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1.5 capitalize text-on-surface-variant">
-                          <Icon name={VISIBILITY_ICON[video.visibility] ?? 'visibility'} className="text-base" />
-                          {video.visibility.replace(/_/g, ' ')}
-                        </span>
+                        {video.status !== 'uploading' ? (
+                          <label className="inline-flex items-center gap-1.5">
+                            <Icon
+                              name={VISIBILITY_ICON[video.visibility] ?? 'visibility'}
+                              className="text-base text-on-surface-variant"
+                            />
+                            <select
+                              value={video.visibility}
+                              disabled={visibilityBusyId === video.id}
+                              onChange={(e) => void setVisibility(video.id, e.target.value)}
+                              aria-label={`Visibility for ${video.title}`}
+                              className="rounded-full border border-outline-variant bg-surface-container-low px-2 py-1 text-sm text-on-surface disabled:opacity-50"
+                            >
+                              {(QUICK_VISIBILITY.some((o) => o.value === video.visibility)
+                                ? QUICK_VISIBILITY
+                                : [
+                                    ...QUICK_VISIBILITY,
+                                    {
+                                      value: video.visibility,
+                                      label: visibilityLabel(video.visibility),
+                                    },
+                                  ]
+                              ).map((o) => (
+                                <option key={o.value} value={o.value}>
+                                  {o.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 capitalize text-on-surface-variant">
+                            <Icon name={VISIBILITY_ICON[video.visibility] ?? 'visibility'} className="text-base" />
+                            {visibilityLabel(video.visibility)}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-on-surface-variant">
-                        {video.status === 'ready' ? formatCount(video.viewCount) : '—'}
+                        {video.status === 'ready' ? (
+                          <span>
+                            {formatCount(video.viewCount)}
+                            {video.durationSeconds != null && video.durationSeconds > 0
+                              ? ` · ${formatDuration(video.durationSeconds)}`
+                              : ''}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="px-4 py-3 text-on-surface-variant">{formatPublishedAt(video)}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-3">
+                          {isFutureScheduled(video) ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={
+                                  publishingId === video.id ||
+                                  cancellingScheduleId === video.id
+                                }
+                                onClick={() => void publishNow(video.id)}
+                                className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+                              >
+                                {publishingId === video.id ? 'Publishing…' : 'Publish now'}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={
+                                  publishingId === video.id ||
+                                  cancellingScheduleId === video.id
+                                }
+                                onClick={() => void cancelSchedule(video.id)}
+                                className="text-sm text-on-surface-variant hover:underline disabled:opacity-50"
+                              >
+                                {cancellingScheduleId === video.id
+                                  ? 'Cancelling…'
+                                  : 'Cancel schedule'}
+                              </button>
+                            </>
+                          ) : null}
+                          {video.status === 'ready' || video.visibility === 'unlisted' ? (
+                            <button
+                              type="button"
+                              onClick={() => void copyVideoLink(video)}
+                              className="text-sm text-on-surface-variant hover:underline"
+                            >
+                              Copy link
+                            </button>
+                          ) : null}
                           {canCancel ? (
                             <button
                               type="button"
                               disabled={cancellingId === video.id}
-                              onClick={() => cancelVideo(video.id)}
+                              onClick={() => setCancelConfirmId(video.id)}
                               className="text-sm text-error hover:underline disabled:opacity-50"
                             >
                               {cancellingId === video.id ? 'Cancelling…' : 'Cancel'}
+                            </button>
+                          ) : null}
+                          {video.status !== 'uploading' ? (
+                            <button
+                              type="button"
+                              disabled={deletingId === video.id}
+                              onClick={() => setDeleteConfirmId(video.id)}
+                              className="text-sm text-error hover:underline disabled:opacity-50"
+                            >
+                              {deletingId === video.id ? 'Deleting…' : 'Delete'}
                             </button>
                           ) : null}
                           {video.status !== 'uploading' ? (
@@ -475,7 +842,10 @@ function StudioVideosPageInner() {
                             </Link>
                           ) : null}
                           {video.status === 'ready' ? (
-                            <Link href={`/watch/${video.id}`} className="text-sm text-primary hover:underline">
+                            <Link
+                              href={studioPublicPath(video)}
+                              className="text-sm text-primary hover:underline"
+                            >
                               View
                             </Link>
                           ) : null}
@@ -494,7 +864,16 @@ function StudioVideosPageInner() {
                 key={video.id}
                 video={video}
                 cancellingId={cancellingId}
-                onCancel={cancelVideo}
+                publishingId={publishingId}
+                cancellingScheduleId={cancellingScheduleId}
+                deletingId={deletingId}
+                visibilityBusyId={visibilityBusyId}
+                onCancel={setCancelConfirmId}
+                onPublishNow={(id) => void publishNow(id)}
+                onCancelSchedule={(id) => void cancelSchedule(id)}
+                onDelete={setDeleteConfirmId}
+                onCopyLink={(video) => void copyVideoLink(video)}
+                onVisibilityChange={(id, visibility) => void setVisibility(id, visibility)}
                 browserUploadPct={video.id === activeVideoId ? browserUploadPct : null}
               />
             ))}
@@ -514,6 +893,29 @@ function StudioVideosPageInner() {
           </button>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={!!cancelConfirmId}
+        title="Cancel upload?"
+        description="Remove this video and free the upload slot so you can try again."
+        confirmLabel="Cancel upload"
+        onConfirm={() => {
+          if (cancelConfirmId) void cancelVideo(cancelConfirmId);
+        }}
+        onCancel={() => setCancelConfirmId(null)}
+        loading={!!cancellingId}
+      />
+      <ConfirmDialog
+        open={!!deleteConfirmId}
+        title="Delete video?"
+        description="This permanently deletes the video and its analytics. You can’t undo this."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (deleteConfirmId) void deleteVideo(deleteConfirmId);
+        }}
+        onCancel={() => setDeleteConfirmId(null)}
+        loading={!!deletingId}
+      />
     </main>
   );
 }

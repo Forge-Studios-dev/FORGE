@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/google_oauth_launcher.dart';
 import '../../../core/platform/platform_config.dart';
 import '../data/auth_repository.dart';
+import '../../../core/theme/forge_tokens.dart';
+import 'mfa_challenge_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -37,6 +39,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         password: _passwordCtrl.text,
       );
       if (!mounted) return;
+      if (data['mfaRequired'] == true) {
+        final next = GoRouterState.of(context).uri.queryParameters['next'];
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MfaChallengeScreen(
+              challengeToken: data['challengeToken'] as String,
+              next: next,
+            ),
+          ),
+        );
+        return;
+      }
       final user = data['user'] as Map<String, dynamic>?;
       if (user != null &&
           user['role'] == 'creator' &&
@@ -98,10 +112,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Welcome back',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                  style: TextStyle(fontSize: 16, color: ForgeTokens.of(context).onSurfaceVariant),
                 ),
                 const SizedBox(height: 48),
 
@@ -109,11 +123,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
+                      color: ForgeTokens.of(context).error.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                      border: Border.all(color: ForgeTokens.of(context).error.withValues(alpha: 0.35)),
                     ),
-                    child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                    child: Text(_error!, style: TextStyle(color: ForgeTokens.of(context).error, fontSize: 13)),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -144,7 +158,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ElevatedButton(
                   onPressed: _loading ? null : _submit,
                   child: _loading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: ForgeTokens.of(context).onPrimary))
                       : const Text('Sign In'),
                 ),
                 const SizedBox(height: 16),
@@ -185,7 +199,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("Don't have an account? ", style: TextStyle(color: Colors.grey)),
+                    Text("Don't have an account? ", style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant)),
                     TextButton(
                       onPressed: () => context.go('/signup'),
                       child: const Text('Sign up'),

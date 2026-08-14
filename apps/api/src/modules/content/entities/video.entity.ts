@@ -57,7 +57,7 @@ export enum VideoType {
   PODCAST = 'podcast',
 }
 
-/** Duration threshold (seconds) below which a video is auto-classified as a short. */
+/** Max duration (seconds) for Shorts; longer Short uploads are rejected. */
 export const SHORT_DURATION_THRESHOLD_SECONDS = 60;
 
 @Entity('videos')
@@ -136,6 +136,18 @@ export class Video {
   @Column({ name: 'thumbnail_url', type: 'varchar', nullable: true })
   thumbnailUrl: string | null;
 
+  /** WebVTT captions URL (Mux text track or CDN). Prefer captionTracks for multi-lang. */
+  @Column({ name: 'caption_url', type: 'varchar', nullable: true })
+  captionUrl: string | null;
+
+  /** Multi-language WebVTT tracks: [{ language, label, url }]. */
+  @Column({ name: 'caption_tracks', type: 'jsonb', nullable: true })
+  captionTracks: { language: string; label: string; url: string }[] | null;
+
+  /** Plain-text transcript of the primary caption track (see webvtt.util.ts), folded into search_vector for FTS. Not for rendering. */
+  @Column({ name: 'caption_text', type: 'text', nullable: true })
+  captionText: string | null;
+
   @Column({ name: 'duration_seconds', nullable: true, type: 'float' })
   durationSeconds: number | null;
 
@@ -150,6 +162,12 @@ export class Video {
 
   @Column({ name: 'like_count', default: 0 })
   likeCount: number;
+
+  @Column({ name: 'dislike_count', default: 0 })
+  dislikeCount: number;
+
+  @Column({ name: 'share_count', default: 0 })
+  shareCount: number;
 
   @Column({ name: 'comment_count', default: 0 })
   commentCount: number;

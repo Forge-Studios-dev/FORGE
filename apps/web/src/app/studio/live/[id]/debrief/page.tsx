@@ -223,7 +223,7 @@ export default function StudioPostStreamDebriefPage() {
           </div>
         ) : (
           <p className="text-sm text-on-surface-variant">
-            Generate an AI summary from chat highlights and session context for your next lesson plan.
+            Generate an AI summary from chat highlights and session context for your next stream.
           </p>
         )}
       </section>

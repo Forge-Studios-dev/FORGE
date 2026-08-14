@@ -51,7 +51,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     id: 'viewers',
     title: '6. Viewer conduct',
     paragraphs: [
-      'You may watch public content, follow creators, subscribe to tiers where available, and participate in live chat and community channels in accordance with channel access rules.',
+      'You may watch public content, subscribe to channels, subscribe to membership tiers where available, and participate in live chat and community posts in accordance with channel access rules.',
       'You agree not to harass creators or other users, spam chat, attempt to access gated content without entitlement, or use the Service for unauthorized commercial solicitation.',
     ],
   },

@@ -1,16 +1,20 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, In, IsNull } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { categoryForNotificationType, isCategoryMuted } from '@forge/shared-types';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { DeviceToken, DevicePlatform } from './entities/device-token.entity';
+import { User } from '../users/entities/user.entity';
 import {
   bustUnreadCountCache,
   getCachedUnreadCount,
   setCachedUnreadCount,
 } from '../../common/notifications/unread-count-cache.util';
+import { EngagementService } from '../engagement/engagement.service';
+import { notificationInvolvesBlockedPeer } from './notification-actor.util';
 
 export type CreateNotificationInput = {
   userId: string;
@@ -30,11 +34,30 @@ export class NotificationsService {
     private readonly notificationRepository: Repository<Notification>,
     @InjectRepository(DeviceToken)
     private readonly deviceTokenRepository: Repository<DeviceToken>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly eventEmitter: EventEmitter2,
+    private readonly engagementService: EngagementService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
-  async create(input: CreateNotificationInput) {
+  /**
+   * Single choke point for the mute check: every notification, from every
+   * module, is written through create()/createMany(), so gating here covers
+   * unread count, the notification list, and the live socket push at once —
+   * no need to touch each of the ~10 event handlers that call these.
+   */
+  private async isMutedForUser(userId: string, type: NotificationType): Promise<boolean> {
+    const row = await this.userRepository.findOne({
+      where: { id: userId },
+      select: { id: true, notificationPreferences: true },
+    });
+    return isCategoryMuted(row?.notificationPreferences, categoryForNotificationType(type));
+  }
+
+  async create(input: CreateNotificationInput): Promise<Notification | null> {
+    if (await this.isMutedForUser(input.userId, input.type)) return null;
+
     const notif = this.notificationRepository.create({
       userId: input.userId,
       type: input.type,
@@ -56,8 +79,19 @@ export class NotificationsService {
   async createMany(inputs: CreateNotificationInput[]): Promise<void> {
     if (!inputs.length) return;
 
-    for (let i = 0; i < inputs.length; i += NotificationsService.INSERT_CHUNK) {
-      const chunk = inputs.slice(i, i + NotificationsService.INSERT_CHUNK);
+    const userIds = [...new Set(inputs.map((i) => i.userId))];
+    const prefRows = await this.userRepository.find({
+      where: { id: In(userIds) },
+      select: { id: true, notificationPreferences: true },
+    });
+    const prefsById = new Map(prefRows.map((r) => [r.id, r.notificationPreferences]));
+    const eligible = inputs.filter(
+      (input) => !isCategoryMuted(prefsById.get(input.userId), categoryForNotificationType(input.type)),
+    );
+    if (!eligible.length) return;
+
+    for (let i = 0; i < eligible.length; i += NotificationsService.INSERT_CHUNK) {
+      const chunk = eligible.slice(i, i + NotificationsService.INSERT_CHUNK);
       const entities = chunk.map((input) =>
         this.notificationRepository.create({
           userId: input.userId,
@@ -69,8 +103,8 @@ export class NotificationsService {
         }),
       );
       const saved = await this.notificationRepository.save(entities);
-      const userIds = new Set(saved.map((n) => n.userId));
-      for (const uid of userIds) {
+      const savedUserIds = new Set(saved.map((n) => n.userId));
+      for (const uid of savedUserIds) {
         void bustUnreadCountCache(this.redis, uid, this.logger);
       }
       for (const notif of saved) {
@@ -87,12 +121,15 @@ export class NotificationsService {
     opts?: { cursor?: string; limit?: number },
   ): Promise<{ data: Notification[]; meta: { cursor: string | null; hasMore: boolean } }> {
     const limit = Math.min(Math.max(opts?.limit ?? 50, 1), 50);
+    const blockedPeers = await this.engagementService.getBlockedPeerIds(userId);
+    const blockedSet = new Set(blockedPeers);
     const qb = this.notificationRepository
       .createQueryBuilder('n')
       .where('n.user_id = :userId', { userId })
       .orderBy('n.created_at', 'DESC')
       .addOrderBy('n.id', 'DESC')
-      .take(limit + 1);
+      // Over-fetch slightly so post-filter for blocked actors still fills a page.
+      .take(limit + 1 + Math.min(blockedPeers.length, 20));
 
     if (opts?.cursor) {
       try {
@@ -113,8 +150,12 @@ export class NotificationsService {
     }
 
     const rows = await qb.getMany();
-    const hasMore = rows.length > limit;
-    const data = hasMore ? rows.slice(0, limit) : rows;
+    const visible =
+      blockedSet.size === 0
+        ? rows
+        : rows.filter((n) => !notificationInvolvesBlockedPeer(n.metadata, blockedSet));
+    const hasMore = visible.length > limit;
+    const data = hasMore ? visible.slice(0, limit) : visible;
     const last = data[data.length - 1];
     const nextCursor =
       hasMore && last

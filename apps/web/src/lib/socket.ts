@@ -1,11 +1,11 @@
 import { io, Socket } from 'socket.io-client';
+import { env } from '@/env';
 
 let socket: Socket | null = null;
 let lastToken: string | null = null;
 
 function socketBaseUrl(): string {
-  const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-  return api.replace(/\/api\/v1\/?$/, '');
+  return env.NEXT_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, '');
 }
 
 /** Existing client only — never creates or reconnects. Safe for poll helpers. */

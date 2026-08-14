@@ -7,10 +7,13 @@ export interface SubscriptionTier {
   slug: string;
   priceCents: number;
   currency: string;
+  /** Present on creator-facing / public tier DTOs; optional for legacy rows. */
+  billingInterval?: string;
   benefits: string[];
   sortOrder: number;
   isActive: boolean;
-  createdAt: string;
+  maxConcurrentDevices?: number;
+  createdAt?: string;
 }
 
 export interface MemberSubscription {

@@ -400,8 +400,8 @@ function UserHeader({
           <p className="mt-1 text-on-surface-variant">@{user.username} · {user.email}</p>
           {user.bio ? <p className="mt-3 text-sm text-on-surface-variant">{user.bio}</p> : null}
           <div className="mt-4 flex flex-wrap gap-4 text-sm text-on-surface-variant">
-            <span>{user.followerCount} followers</span>
-            <span>{user.followingCount} following</span>
+            <span>{user.followerCount} subscribers</span>
+            <span>{user.followingCount} subscriptions</span>
             <span>{user.videoCount} videos</span>
             <span>{summary.playlistCount} playlists</span>
             {summary.pendingReports > 0 ? (

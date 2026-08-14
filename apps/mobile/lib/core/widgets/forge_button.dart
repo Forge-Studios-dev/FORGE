@@ -10,11 +10,12 @@ class ForgeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: primary ? ForgeTokens.primaryContainer : ForgeTokens.surfaceContainerHigh,
-        foregroundColor: primary ? ForgeTokens.onPrimary : ForgeTokens.onSurface,
+        backgroundColor: primary ? t.primaryContainer : t.surfaceContainerHigh,
+        foregroundColor: primary ? t.onPrimary : t.onSurface,
         minimumSize: const Size.fromHeight(48),
         shape: const StadiumBorder(),
       ),

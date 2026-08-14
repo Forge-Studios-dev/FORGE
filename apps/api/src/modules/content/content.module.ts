@@ -2,7 +2,8 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { VideosController } from './videos.controller';
-import { VideosService, VIDEO_PROCESSING_QUEUE } from './videos.service';
+import { VideosService } from './videos.service';
+import { VIDEO_PROCESSING_QUEUE } from './video-processing.constants';
 import { MUX_VOD_INGEST_QUEUE } from './mux-vod.constants';
 import { MuxVodService } from './mux-vod.service';
 import { Video } from './entities/video.entity';
@@ -14,6 +15,8 @@ import { Playlist } from '../playlists/entities/playlist.entity';
 import { PlaylistVideo } from '../playlists/entities/playlist-video.entity';
 import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { UploadNotRestrictedGuard } from '../../common/guards/upload-not-restricted.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { ViewCountFlushService } from './view-count-flush.service';
 import { VideoMultipartService } from './video-multipart.service';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
@@ -25,6 +28,13 @@ import { PodcastsController } from './podcasts.controller';
 import { RecommendationsService } from './recommendations.service';
 import { ContentLibraryService } from './content-library.service';
 import { FeedModule } from '../feed/feed.module';
+import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
+import { SCHEDULED_PUBLISH_QUEUE } from './scheduled-publish.constants';
+import { ScheduledPublishService } from './scheduled-publish.service';
+import { ScheduledPublishScheduler } from './scheduled-publish.scheduler';
+import { ContentScanService } from './content-scan/content-scan.service';
+
+const skillEconomyLms = isSkillEconomyLmsEnabled();
 
 @Module({
   imports: [
@@ -65,18 +75,39 @@ import { FeedModule } from '../feed/feed.module';
         removeOnComplete: { age: 24 * 3600, count: 500 },
       },
     }),
+    BullModule.registerQueue({
+      name: SCHEDULED_PUBLISH_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 3600, count: 50 },
+        removeOnFail: { age: 3600, count: 50 },
+      },
+    }),
   ],
-  controllers: [VideosController, PodcastsController],
+  controllers: [VideosController, ...(skillEconomyLms ? [PodcastsController] : [])],
   providers: [
     VideosService,
     MuxVodService,
     CreatorApprovedGuard,
+    UploadNotRestrictedGuard,
+    SkillEconomyLmsGuard,
     ViewCountFlushService,
     VideoMultipartService,
-    PodcastsService,
+    ...(skillEconomyLms ? [PodcastsService] : []),
     RecommendationsService,
     ContentLibraryService,
+    ScheduledPublishService,
+    ScheduledPublishScheduler,
+    ContentScanService,
   ],
-  exports: [VideosService, MuxVodService, PodcastsService, RecommendationsService, ContentLibraryService],
+  exports: [
+    VideosService,
+    MuxVodService,
+    ...(skillEconomyLms ? [PodcastsService] : []),
+    RecommendationsService,
+    ContentLibraryService,
+    ScheduledPublishService,
+    ContentScanService,
+  ],
 })
 export class ContentModule {}

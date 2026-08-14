@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -8,11 +9,12 @@ import { FeedCard } from '@/components/FeedCard/FeedCard';
 import { HorizontalCardSkeleton } from '@forge/design-system';
 
 /**
- * "New from creators you follow" — the personalized promise made visible on
- * first scroll instead of living only behind the Following tab switch.
+ * "Latest from subscriptions" — personalized preview on home (YouTube-style).
  */
 export function NewFromFollowing({ onViewAll }: { onViewAll: () => void }) {
   const { user, isGuest, canViewPersonalizedFeed, isLoading: authLoading } = useAuth();
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
+  const [mutedChannels, setMutedChannels] = useState<Set<string>>(() => new Set());
 
   const { data, isLoading } = useQuery({
     queryKey: ['home-following-preview', user?.id],
@@ -31,20 +33,23 @@ export function NewFromFollowing({ onViewAll }: { onViewAll: () => void }) {
     return (
       <section className="mb-12">
         <h2 className="font-display-forge mb-6 text-2xl font-semibold md:text-3xl">
-          New from creators you follow
+          Latest from your subscriptions
         </h2>
         <HorizontalCardSkeleton count={4} />
       </section>
     );
   }
 
-  if (!data?.length) return null;
+  const visible = (data ?? []).filter(
+    (v) => !hiddenIds.has(v.id) && !mutedChannels.has(v.userId),
+  );
+  if (!visible.length) return null;
 
   return (
     <section className="mb-12 forge-fade-in">
       <div className="mb-6 flex items-center justify-between">
         <h2 className="font-display-forge text-2xl font-semibold md:text-3xl">
-          New from creators you follow
+          Latest from your subscriptions
         </h2>
         <button
           type="button"
@@ -55,8 +60,16 @@ export function NewFromFollowing({ onViewAll }: { onViewAll: () => void }) {
         </button>
       </div>
       <div className="hide-scrollbar -mx-5 flex gap-6 overflow-x-auto px-5 md:mx-0 md:px-0">
-        {data.map((video) => (
-          <FeedCard key={video.id} video={video} layout="carousel" />
+        {visible.map((video) => (
+          <FeedCard
+            key={video.id}
+            video={video}
+            layout="carousel"
+            onNotInterested={(id) => setHiddenIds((s) => new Set(s).add(id))}
+            onDontRecommendChannel={(channelId) =>
+              setMutedChannels((s) => new Set(s).add(channelId))
+            }
+          />
         ))}
       </div>
     </section>

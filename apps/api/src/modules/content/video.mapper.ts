@@ -1,6 +1,6 @@
 import { Video, ModerationStatus, VideoStatus } from './entities/video.entity';
-import { toPublicUser, PublicUser } from '../users/user.mapper';
-import { sanitizeHlsUrl, sanitizeThumbnailUrl } from '../../common/media/playback-url.util';
+import { toPublicUserProfile, PublicUserProfile } from '../users/user.mapper';
+import { sanitizeHlsUrl, sanitizeThumbnailUrl, sanitizeCaptionUrl } from '../../common/media/playback-url.util';
 
 /** Coerce Postgres bigint / JS BigInt to a JSON-safe number (or null). */
 export function jsonSafeIntField(value: unknown): number | null {
@@ -17,17 +17,21 @@ export function jsonSafeIntField(value: unknown): number | null {
 export type PublicVideo = {
   id: string;
   userId: string;
-  user?: PublicUser;
+  user?: PublicUserProfile;
   title: string;
   description: string | null;
   status: Video['status'];
   visibility: Video['visibility'];
   hlsUrl: string | null;
   thumbnailUrl: string | null;
+  captionUrl: string | null;
+  captionTracks?: { language: string; label: string; url: string }[] | null;
   durationSeconds: number | null;
   videoType: Video['videoType'];
   viewCount: number;
   likeCount: number;
+  dislikeCount: number;
+  shareCount: number;
   commentCount: number;
   skillTags: Video['skillTags'];
   categoryId: string | null;
@@ -41,23 +45,45 @@ export type PublicVideo = {
   accessDenied?: boolean;
   accessReason?: string;
   viewerLiked?: boolean;
+  viewerDisliked?: boolean;
   viewerFollowingCreator?: boolean;
+  viewerSubscribed?: boolean;
 };
 
 export type PublicVideoMapperOpts = {
   rewriteMediaUrl?: (url: string | null | undefined) => string | null;
+  /** YouTube hides the aggregate dislike count from everyone except the video owner/admin (since 2021). */
+  includeDislikeCount?: boolean;
 };
 
 function publicPlaybackUrls(video: Video): {
   hlsUrl: string | null;
   thumbnailUrl: string | null;
+  captionUrl: string | null;
+  captionTracks: { language: string; label: string; url: string }[] | null;
 } {
   if (video.status !== VideoStatus.READY) {
-    return { hlsUrl: null, thumbnailUrl: null };
+    return { hlsUrl: null, thumbnailUrl: null, captionUrl: null, captionTracks: null };
   }
+  const tracks = (video.captionTracks ?? [])
+    .map((t) => ({
+      language: t.language,
+      label: t.label,
+      url: sanitizeCaptionUrl(t.url) ?? '',
+    }))
+    .filter((t) => !!t.url);
+  const legacy = sanitizeCaptionUrl(video.captionUrl);
+  const captionTracks =
+    tracks.length > 0
+      ? tracks
+      : legacy
+        ? [{ language: 'en', label: 'English', url: legacy }]
+        : null;
   return {
     hlsUrl: sanitizeHlsUrl(video.hlsUrl),
     thumbnailUrl: sanitizeThumbnailUrl(video.thumbnailUrl),
+    captionUrl: captionTracks?.[0]?.url ?? legacy,
+    captionTracks,
   };
 }
 
@@ -67,17 +93,23 @@ export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): Publi
   return {
     id: video.id,
     userId: video.userId,
-    user: video.user ? toPublicUser(video.user) : undefined,
+    user: video.user ? toPublicUserProfile(video.user) : undefined,
     title: video.title,
     description: video.description,
     status: video.status,
     visibility: video.visibility,
     hlsUrl: rewrite(playback.hlsUrl),
     thumbnailUrl: rewrite(playback.thumbnailUrl),
+    captionUrl: rewrite(playback.captionUrl),
+    captionTracks: playback.captionTracks
+      ? playback.captionTracks.map((t) => ({ ...t, url: rewrite(t.url) ?? t.url }))
+      : null,
     durationSeconds: video.durationSeconds,
     videoType: video.videoType,
     viewCount: video.viewCount,
     likeCount: video.likeCount,
+    dislikeCount: opts?.includeDislikeCount ? (video.dislikeCount ?? 0) : 0,
+    shareCount: video.shareCount ?? 0,
     commentCount: video.commentCount,
     skillTags: video.skillTags ?? [],
     categoryId: video.categoryId ?? null,

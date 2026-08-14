@@ -22,6 +22,9 @@ class AuthRepository {
 
   AuthRepository(this._apiClient, this._analytics, this._push);
 
+  /// Returns either real session tokens, or `{'mfaRequired': true, 'challengeToken': ...}`
+  /// when the account has TOTP enabled — callers must check for that key before
+  /// assuming `accessToken` is present.
   Future<Map<String, dynamic>> login({required String email, required String password}) async {
     final appCheck = await getForgeAppCheckToken();
     final response = await _apiClient.dio.post(
@@ -32,8 +35,55 @@ class AuthRepository {
           : null,
     );
     final data = response.data['data'] as Map<String, dynamic>;
+    if (data['mfaRequired'] == true) return data;
     await _saveTokens(data, analyticsEvent: 'auth.login', analyticsProps: {'method': 'email'});
     return data;
+  }
+
+  /// Second step of MFA login: exchanges a challenge token + TOTP/backup code for real tokens.
+  Future<Map<String, dynamic>> completeMfaLogin({
+    required String challengeToken,
+    required String code,
+  }) async {
+    final response = await _apiClient.dio.post(
+      '/auth/mfa/login-verify',
+      data: {'challengeToken': challengeToken, 'code': code},
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    await _saveTokens(data, analyticsEvent: 'auth.login', analyticsProps: {'method': 'email', 'mfa': true});
+    return data;
+  }
+
+  Future<bool> getMfaStatus() async {
+    final response = await _apiClient.dio.get('/auth/mfa/status');
+    return (response.data['data'] as Map<String, dynamic>)['enabled'] == true;
+  }
+
+  Future<Map<String, dynamic>> beginMfaEnrollment() async {
+    final response = await _apiClient.dio.post('/auth/mfa/enroll');
+    return response.data['data'] as Map<String, dynamic>;
+  }
+
+  /// Confirms enrollment with the first TOTP code; returns one-time backup codes (shown once).
+  Future<List<String>> confirmMfaEnrollment({required String code}) async {
+    final response = await _apiClient.dio.post('/auth/mfa/verify', data: {'code': code});
+    final data = response.data['data'] as Map<String, dynamic>;
+    return (data['backupCodes'] as List).cast<String>();
+  }
+
+  Future<void> disableMfa({required String currentPassword}) async {
+    await _apiClient.dio.delete('/auth/mfa', data: {'currentPassword': currentPassword});
+  }
+
+  Future<void> requestAccountDeletion() async {
+    await _apiClient.dio.post('/auth/account-deletion/request');
+  }
+
+  Future<void> deleteAccount({String? currentPassword, String? confirmationToken}) async {
+    await _apiClient.dio.delete('/users/me', data: {
+      if (currentPassword != null) 'currentPassword': currentPassword,
+      if (confirmationToken != null) 'confirmationToken': confirmationToken,
+    });
   }
 
   Future<Map<String, dynamic>> signup({
@@ -70,6 +120,16 @@ class AuthRepository {
     await _apiClient.dio.post('/auth/reset-password', data: {
       'token': token,
       'password': password,
+    });
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _apiClient.dio.post('/auth/change-password', data: {
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
     });
   }
 

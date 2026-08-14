@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   UnauthorizedException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -15,6 +17,7 @@ export type { FeedSort };
 import { Video } from '../content/entities/video.entity';
 import { applyDiscoverableVideoFilters } from './feed-query.util';
 import { VideosService } from '../content/videos.service';
+import { RecommendationsService } from '../content/recommendations.service';
 import { Follow } from '../engagement/entities/follow.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
 import { Category } from '../categories/entities/category.entity';
@@ -26,6 +29,14 @@ import {
   safeRedisIncrEx,
   safeRedisSetex,
 } from '../../common/redis/redis-safe.util';
+import {
+  addNotInterestedVideo,
+  getMutedChannelIds,
+  getNotInterestedVideoIds,
+  muteChannel,
+} from './not-interested.util';
+import { mergeExcludedCreatorIds } from './viewer-exclusions.util';
+import { diversifyByCreator } from './feed-diversity.util';
 
 const FEED_CACHE_TTL_BASE = 300;
 const FEED_CACHE_JITTER_SEC = 60;
@@ -53,13 +64,15 @@ function popularScore(v: Pick<Video, 'viewCount' | 'likeCount' | 'createdAt'>): 
 }
 
 function forYouScore(
-  v: Pick<Video, 'userId' | 'viewCount' | 'likeCount' | 'createdAt'>,
+  v: Pick<Video, 'userId' | 'categoryId' | 'viewCount' | 'likeCount' | 'createdAt'>,
   following: Set<string>,
   affinity: Set<string>,
+  categoryAffinity: Set<string> = new Set(),
 ): number {
   let boost = 0;
   if (following.has(v.userId)) boost += 2;
   if (affinity.has(v.userId)) boost += 1;
+  if (v.categoryId && categoryAffinity.has(v.categoryId)) boost += 1.5;
   return boost + popularScore(v);
 }
 
@@ -110,6 +123,8 @@ export class FeedService {
     private readonly videosService: VideosService,
     private readonly engagementService: EngagementService,
     private readonly entitlementsService: EntitlementsService,
+    @Inject(forwardRef(() => RecommendationsService))
+    private readonly recommendationsService: RecommendationsService,
   ) {}
 
   private feedCacheTtl(): number {
@@ -165,8 +180,58 @@ export class FeedService {
       }
     }
 
+    // Home forYou (no category/tag filters) → multi-signal RecommendationsService, then hydrate.
+    const useRecsEngine =
+      sort === 'forYou' &&
+      !!options.userId &&
+      !categoryId &&
+      !options.skillTagIds?.length &&
+      !options.skillTagSlugs?.length;
+    if (useRecsEngine) {
+      let offset = 0;
+      if (options.cursor) {
+        try {
+          const parsed = JSON.parse(
+            Buffer.from(options.cursor, 'base64url').toString('utf8'),
+          ) as { sort?: string; offset?: number };
+          if (parsed.sort === 'forYou' && typeof parsed.offset === 'number' && parsed.offset >= 0) {
+            offset = parsed.offset;
+          }
+        } catch {
+          /* fall through with offset 0 */
+        }
+      }
+      const recs = await this.recommendationsService.getPersonalizedFeed(options.userId!, {
+        limit: limit + 1,
+        offset,
+      });
+      const pageIds = recs.data.slice(0, limit).map((r) => r.id);
+      const hasMore = recs.data.length > limit;
+      if (!pageIds.length) {
+        return { data: [], meta: { cursor: null, hasMore: false } };
+      }
+      const hydrated = await this.videoRepository.find({
+        where: { id: In(pageIds) },
+        relations: ['user', 'skillTags', 'skillTags.subcategory', 'skillTags.subcategory.category'],
+      });
+      const byId = new Map(hydrated.map((v) => [v.id, v]));
+      const data = pageIds.map((id) => byId.get(id)).filter((v): v is Video => !!v);
+      const nextCursor = hasMore
+        ? Buffer.from(
+            JSON.stringify({ sort: 'forYou', offset: offset + data.length }),
+            'utf8',
+          ).toString('base64url')
+        : null;
+      return {
+        data: data.map((v) => this.videosService.mapToPublicVideo(v)),
+        meta: { cursor: nextCursor, hasMore },
+      };
+    }
+
     let followingIds: string[] = [];
     let affinityIds: string[] = [];
+    let affinityCategoryIds: string[] = [];
+    let watchedVideoIds: string[] = [];
     if (sort === 'forYou' && options.userId) {
       const followingRows = await this.followRepository.find({
         where: { followerId: options.userId },
@@ -174,16 +239,28 @@ export class FeedService {
         take: 500,
       });
       followingIds = followingRows.map((r) => r.followingId);
-      const watched = await this.watchHistoryRepository.find({
-        where: { userId: options.userId },
-        relations: ['video'],
-        order: { watchedAt: 'DESC' },
-        take: 100,
-      });
-      const aff = new Set(
-        watched.map((w) => w.video?.userId).filter((id): id is string => !!id),
-      );
+      const watched = await this.watchHistoryRepository
+        .createQueryBuilder('wh')
+        .innerJoin('wh.video', 'v')
+        .select('v.user_id', 'userId')
+        .addSelect('v.id', 'videoId')
+        .addSelect('v.category_id', 'categoryId')
+        .where('wh.user_id = :userId', { userId: options.userId })
+        .orderBy('wh.watched_at', 'DESC')
+        .take(200)
+        .getRawMany<{ userId: string; videoId: string; categoryId: string | null }>();
+      const aff = new Set(watched.map((w) => w.userId).filter((id): id is string => !!id));
       affinityIds = [...aff];
+      watchedVideoIds = [...new Set(watched.map((w) => w.videoId).filter(Boolean))];
+      const catCounts = new Map<string, number>();
+      for (const w of watched) {
+        if (!w.categoryId) continue;
+        catCounts.set(w.categoryId, (catCounts.get(w.categoryId) ?? 0) + 1);
+      }
+      affinityCategoryIds = [...catCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([id]) => id);
     }
 
     const query = applyDiscoverableVideoFilters(
@@ -191,6 +268,29 @@ export class FeedService {
     )
       .select('v.id', 'id')
       .addSelect(SORT_TIME_SQL, 'sort_time');
+
+    if (options.userId) {
+      const notInterested = await getNotInterestedVideoIds(
+        this.redis,
+        options.userId,
+        this.logger,
+      );
+      if (notInterested.length) {
+        query.andWhere('v.id NOT IN (:...notInterested)', { notInterested });
+      }
+      const mutedChannels = await getMutedChannelIds(
+        this.redis,
+        options.userId,
+        this.logger,
+      );
+      const blockedPeers = await this.engagementService.getBlockedPeerIds(options.userId);
+      const excludedCreators = mergeExcludedCreatorIds(mutedChannels, blockedPeers);
+      if (excludedCreators.length) {
+        query.andWhere('v.user_id NOT IN (:...mutedChannels)', {
+          mutedChannels: excludedCreators,
+        });
+      }
+    }
 
     if (categoryId) {
       query.andWhere(
@@ -230,6 +330,9 @@ export class FeedService {
         });
       }
     } else if (sort === 'forYou' && options.userId) {
+      if (watchedVideoIds.length) {
+        query.andWhere('v.id NOT IN (:...watchedVideoIds)', { watchedVideoIds });
+      }
       const followCase =
         followingIds.length > 0
           ? `(CASE WHEN v.user_id IN (:...followingIds) THEN 2.0 ELSE 0.0 END)`
@@ -238,7 +341,11 @@ export class FeedService {
         affinityIds.length > 0
           ? `(CASE WHEN v.user_id IN (:...affinityIds) THEN 1.0 ELSE 0.0 END)`
           : `0.0`;
-      const personSql = `(${followCase} + ${affCase} + ${POPULAR_SCORE_SQL})`;
+      const catCase =
+        affinityCategoryIds.length > 0
+          ? `(CASE WHEN v.category_id IN (:...affinityCategoryIds) THEN 1.5 ELSE 0.0 END)`
+          : `0.0`;
+      const personSql = `(${followCase} + ${affCase} + ${catCase} + ${POPULAR_SCORE_SQL})`;
       query.addSelect(personSql, 'person_score');
       query
         .orderBy('person_score', 'DESC')
@@ -246,6 +353,9 @@ export class FeedService {
         .addOrderBy('v.id', 'DESC');
       if (followingIds.length) query.setParameter('followingIds', followingIds);
       if (affinityIds.length) query.setParameter('affinityIds', affinityIds);
+      if (affinityCategoryIds.length) {
+        query.setParameter('affinityCategoryIds', affinityCategoryIds);
+      }
 
       if (cursor && cursor.sort === 'forYou') {
         query.andWhere(`(${personSql}, ${SORT_TIME_SQL}, v.id) < (:cs, :ca, :cid)`, {
@@ -270,13 +380,15 @@ export class FeedService {
       }
     }
 
-    query.limit(limit + 1);
+    // Fetch ahead on forYou so soft diversity has room to reshuffle
+    const fetchLimit =
+      sort === 'forYou' ? Math.min(limit * 3 + 1, 80) : limit + 1;
+    query.limit(fetchLimit);
 
     type IdRow = { id: string; sort_time?: string | Date; score?: string; person_score?: string };
     const idRows = (await query.getRawMany()) as IdRow[];
-    const hasMore = idRows.length > limit;
-    const pageRows = hasMore ? idRows.slice(0, limit) : idRows;
-    const ids = pageRows.map((row) => row.id);
+    const hasMoreRaw = idRows.length > limit;
+    const ids = idRows.map((row) => row.id);
 
     if (!ids.length) {
       return { data: [], meta: { cursor: null, hasMore: false } };
@@ -287,7 +399,13 @@ export class FeedService {
       relations: ['user', 'skillTags', 'skillTags.subcategory', 'skillTags.subcategory.category'],
     });
     const byId = new Map(hydrated.map((v) => [v.id, v]));
-    const data = ids.map((id) => byId.get(id)).filter((v): v is Video => !!v);
+    let data = ids.map((id) => byId.get(id)).filter((v): v is Video => !!v);
+    if (sort === 'forYou') {
+      data = diversifyByCreator(data, 2).slice(0, limit);
+    } else {
+      data = data.slice(0, limit);
+    }
+    const hasMore = hasMoreRaw || idRows.length > data.length;
 
     let nextCursor: string | null = null;
     if (hasMore && data.length > 0) {
@@ -309,9 +427,10 @@ export class FeedService {
       } else if (sort === 'forYou' && options.userId) {
         const following = new Set(followingIds);
         const affinity = new Set(affinityIds);
+        const categoryAffinity = new Set(affinityCategoryIds);
         nextCursor = encodeCursor({
           sort: 'forYou',
-          s: forYouScore(last, following, affinity),
+          s: forYouScore(last, following, affinity, categoryAffinity),
           ca: (last.publishedAt ?? last.createdAt).toISOString(),
           id: last.id,
         });
@@ -341,6 +460,8 @@ export class FeedService {
     userId: string;
     cursor?: string;
     limit?: number;
+    /** When set, only videos from this subscribed/followed channel. */
+    channelId?: string;
   }) {
     if (!options.userId) {
       throw new UnauthorizedException('Authentication required');
@@ -350,14 +471,22 @@ export class FeedService {
     const followingIds = await this.engagementService.getFollowingCreatorIds(options.userId);
     const subs = await this.entitlementsService.listMySubscriptions(options.userId);
     const subscribedCreatorIds = subs.map((s) => s.creatorId).filter(Boolean);
-    const creatorIds = [...new Set([...followingIds, ...subscribedCreatorIds])];
+    let creatorIds = [...new Set([...followingIds, ...subscribedCreatorIds])];
+
+    if (options.channelId) {
+      if (!creatorIds.includes(options.channelId)) {
+        return { data: [], meta: { cursor: null, hasMore: false } };
+      }
+      creatorIds = [options.channelId];
+    }
 
     if (!creatorIds.length) {
       return { data: [], meta: { cursor: null, hasMore: false } };
     }
 
     const gen = await this.feedCacheGeneration();
-    const cacheKey = `feed:following:g${gen}:${options.userId}:${options.cursor || 'start'}:${limit}`;
+    const channelKey = options.channelId ?? 'all';
+    const cacheKey = `feed:following:g${gen}:${options.userId}:${channelKey}:${options.cursor || 'start'}:${limit}`;
     const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
     if (cached) {
       try {
@@ -387,6 +516,15 @@ export class FeedService {
       .orderBy(SORT_TIME_SQL, 'DESC')
       .addOrderBy('v.id', 'DESC')
       .take(limit + 1);
+
+    const mutedChannels = await getMutedChannelIds(this.redis, options.userId, this.logger);
+    const blockedPeers = await this.engagementService.getBlockedPeerIds(options.userId);
+    const excludedCreators = mergeExcludedCreatorIds(mutedChannels, blockedPeers);
+    if (excludedCreators.length) {
+      query.andWhere('v.user_id NOT IN (:...mutedChannels)', {
+        mutedChannels: excludedCreators,
+      });
+    }
 
     if (cursor) {
       query.andWhere(`(${SORT_TIME_SQL}, v.id) < (:ca, :cid)`, {
@@ -480,6 +618,17 @@ export class FeedService {
     const creatorSql = `(CASE WHEN v.user_id = :relCreatorId THEN 1 ELSE 0 END)`;
     const relevanceSql = `(${sharedTagsSql} * 3 + ${categorySql} * 2 + ${creatorSql})`;
 
+    const mutedChannels = opts.userId
+      ? await getMutedChannelIds(this.redis, opts.userId, this.logger)
+      : [];
+    const blockedPeers = opts.userId
+      ? await this.engagementService.getBlockedPeerIds(opts.userId)
+      : [];
+    const excludedCreators = mergeExcludedCreatorIds(mutedChannels, blockedPeers);
+    const notInterested = opts.userId
+      ? await getNotInterestedVideoIds(this.redis, opts.userId, this.logger)
+      : [];
+
     const buildBase = () => {
       const q = applyDiscoverableVideoFilters(this.videoRepository.createQueryBuilder('v'))
         .select('v.id', 'id')
@@ -492,6 +641,12 @@ export class FeedService {
           `NOT EXISTS (SELECT 1 FROM watch_history wh WHERE wh.video_id = v.id AND wh.user_id = :relViewerId)`,
           { relViewerId: opts.userId },
         );
+      }
+      if (excludedCreators.length) {
+        q.andWhere('v.user_id NOT IN (:...relMuted)', { relMuted: excludedCreators });
+      }
+      if (notInterested.length) {
+        q.andWhere('v.id NOT IN (:...relNotInterested)', { relNotInterested: notInterested });
       }
       return q;
     };
@@ -528,10 +683,11 @@ export class FeedService {
       relations: ['user', 'skillTags', 'skillTags.subcategory', 'skillTags.subcategory.category'],
     });
     const byId = new Map(hydrated.map((v) => [v.id, v]));
-    const data = ids
-      .map((id) => byId.get(id))
-      .filter((v): v is Video => !!v)
-      .map((v) => this.videosService.mapToPublicVideo(v));
+    const ordered = diversifyByCreator(
+      ids.map((id) => byId.get(id)).filter((v): v is Video => !!v),
+      2,
+    );
+    const data = ordered.map((v) => this.videosService.mapToPublicVideo(v));
 
     const result = { data, meta: { source: opts.videoId } };
 
@@ -540,6 +696,35 @@ export class FeedService {
     }
 
     return result;
+  }
+
+  /** YouTube-style “Not interested” — excluded from signed-in feeds. */
+  async markNotInterested(userId: string, videoId: string) {
+    const video = await this.videoRepository.findOne({ where: { id: videoId }, select: ['id'] });
+    if (!video) throw new NotFoundException('Video not found');
+    return addNotInterestedVideo(this.redis, userId, videoId, this.logger);
+  }
+
+  /** “Don’t recommend channel” — mute creator in feeds/recs. */
+  async muteChannelRecommendations(userId: string, channelId: string) {
+    if (userId === channelId) {
+      throw new BadRequestException('Cannot mute your own channel');
+    }
+    const exists = await this.videoRepository.manager.query(
+      `SELECT 1 FROM users WHERE id = $1 LIMIT 1`,
+      [channelId],
+    );
+    if (!exists?.length) throw new NotFoundException('Channel not found');
+    return muteChannel(this.redis, userId, channelId, this.logger);
+  }
+
+  async muteChannelFromVideo(userId: string, videoId: string) {
+    const video = await this.videoRepository.findOne({
+      where: { id: videoId },
+      select: ['id', 'userId'],
+    });
+    if (!video) throw new NotFoundException('Video not found');
+    return this.muteChannelRecommendations(userId, video.userId);
   }
 
   /** Bump generation so cached v4 keys expire naturally — avoids Redis KEYS. */

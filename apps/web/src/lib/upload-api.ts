@@ -2,8 +2,9 @@ import axios from 'axios';
 import { getAccessToken } from '@/lib/auth-storage';
 import { refreshAccessToken } from '@/lib/auth-refresh';
 import { currentReturnPath } from '@/lib/safe-return-path';
+import { env } from '@/env';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const API_URL = env.NEXT_PUBLIC_API_URL;
 
 /** Long-running uploads (proxy fallback); separate from default 15s API client. */
 export const uploadApi = axios.create({

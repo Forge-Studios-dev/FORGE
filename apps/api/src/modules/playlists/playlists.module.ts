@@ -5,12 +5,16 @@ import { PlaylistsService } from './playlists.service';
 import { Playlist } from './entities/playlist.entity';
 import { PlaylistVideo } from './entities/playlist-video.entity';
 import { Video } from '../content/entities/video.entity';
+import { Like } from '../engagement/entities/like.entity';
+import { EngagementModule } from '../engagement/engagement.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Playlist, PlaylistVideo, Video])],
+  imports: [
+    TypeOrmModule.forFeature([Playlist, PlaylistVideo, Video, Like]),
+    EngagementModule,
+  ],
   controllers: [PlaylistsController],
   providers: [PlaylistsService],
   exports: [PlaylistsService],
 })
 export class PlaylistsModule {}
-

@@ -21,7 +21,9 @@ import { PlatformModule } from '../platform/platform.module';
 import { AccessSessionsModule } from '../access-sessions/access-sessions.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
+import { EngagementModule } from '../engagement/engagement.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { CommunityPost } from './entities/community-post.entity';
 import { CommunityPostComment } from './entities/community-post-comment.entity';
 import { CommunityPostReaction } from './entities/community-post-reaction.entity';
@@ -82,6 +84,8 @@ import { CommunityGroupsController } from './community-groups.controller';
 import { MentorshipMatch, MentorshipProfile } from './entities/mentorship.entity';
 import { MentorshipService } from './mentorship.service';
 import { MentorshipController } from './mentorship.controller';
+import { User } from '../users/entities/user.entity';
+import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 
 @Module({
   imports: [
@@ -118,6 +122,7 @@ import { MentorshipController } from './mentorship.controller';
       CommunityGroupMember,
       MentorshipProfile,
       MentorshipMatch,
+      User,
     ]),
     forwardRef(() => EntitlementsModule),
     AccessSessionsModule,
@@ -125,6 +130,7 @@ import { MentorshipController } from './mentorship.controller';
     UsersModule,
     PlatformModule,
     PlatformEventOutboxModule,
+    EngagementModule,
     BullModule.registerQueue({
       name: COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE,
       defaultJobOptions: {
@@ -147,16 +153,16 @@ import { MentorshipController } from './mentorship.controller';
   controllers: [
     CommunitiesController,
     CommunityModerationController,
-    BrandsController,
+    ...(isSkillEconomyLmsEnabled()
+      ? [BrandsController, MentorshipController, CommunityEngagementController]
+      : []),
     CommunityPostsController,
     CommunityPollsController,
-    CommunityEngagementController,
     CommunityRoomsController,
     CommunityAiController,
     CommunityMembersController,
     CommunityEventsController,
     CommunityGroupsController,
-    MentorshipController,
   ],
   providers: [
     CommunitiesService,
@@ -188,6 +194,7 @@ import { MentorshipController } from './mentorship.controller';
     CommunityActivityNotifyListener,
     AfterLiveRoomListener,
     CreatorApprovedGuard,
+    SkillEconomyLmsGuard,
     CommunityRoleGuard,
     CommunityStudioGuard,
     CommunityGroupsService,

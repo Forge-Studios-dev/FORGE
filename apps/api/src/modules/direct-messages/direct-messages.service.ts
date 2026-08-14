@@ -12,9 +12,10 @@ import { ConversationMember } from './entities/conversation-member.entity';
 import { DirectMessage } from './entities/direct-message.entity';
 import { User } from '../users/entities/user.entity';
 import { SendDirectMessageDto } from './dto/direct-message.dto';
-import { toPublicUser } from '../users/user.mapper';
+import { toPublicUserProfile } from '../users/user.mapper';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 @Injectable()
 export class DirectMessagesService {
@@ -30,6 +31,7 @@ export class DirectMessagesService {
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
     private readonly notificationsService: NotificationsService,
+    private readonly engagementService: EngagementService,
   ) {}
 
   async listConversations(userId: string) {
@@ -40,14 +42,19 @@ export class DirectMessagesService {
       take: 50,
     });
 
-    return memberships.map((m) => {
-      const others = m.conversation.members.filter((x) => x.userId !== userId);
-      return {
-        conversationId: m.conversationId,
-        lastReadAt: m.lastReadAt,
-        participants: others.map((o) => toPublicUser(o.user)),
-      };
-    });
+    const blocked = new Set(await this.engagementService.getBlockedPeerIds(userId));
+
+    return memberships
+      .map((m) => {
+        const others = m.conversation.members.filter((x) => x.userId !== userId);
+        if (others.some((o) => blocked.has(o.userId))) return null;
+        return {
+          conversationId: m.conversationId,
+          lastReadAt: m.lastReadAt,
+          participants: others.map((o) => toPublicUserProfile(o.user)),
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row != null);
   }
 
   async getMessages(userId: string, conversationId: string, limit = 50, cursor?: string) {
@@ -86,6 +93,10 @@ export class DirectMessagesService {
 
     const recipient = await this.userRepository.findOne({ where: { id: dto.recipientId } });
     if (!recipient) throw new NotFoundException('Recipient not found');
+
+    if (await this.engagementService.isBlockedEitherWay(senderId, dto.recipientId)) {
+      throw new ForbiddenException('You cannot message this user');
+    }
 
     const conversation = await this.findOrCreateDmConversation(senderId, dto.recipientId);
 
@@ -155,6 +166,13 @@ export class DirectMessagesService {
       throw new BadRequestException('One or more participant IDs are invalid');
     }
 
+    for (const memberId of allIds) {
+      if (memberId === creatorId) continue;
+      if (await this.engagementService.isBlockedEitherWay(creatorId, memberId)) {
+        throw new ForbiddenException('Cannot create a group with a blocked user');
+      }
+    }
+
     const conv = await this.dataSource.transaction(async (manager) => {
       const created = await manager.save(
         manager.create(Conversation, {
@@ -188,6 +206,10 @@ export class DirectMessagesService {
 
     const user = await this.userRepository.findOne({ where: { id: newMemberId } });
     if (!user) throw new NotFoundException('User not found');
+
+    if (await this.engagementService.isBlockedEitherWay(requesterId, newMemberId)) {
+      throw new ForbiddenException('Cannot add a blocked user to this group');
+    }
 
     await this.memberRepository.save(
       this.memberRepository.create({ conversationId, userId: newMemberId }),
@@ -256,7 +278,7 @@ export class DirectMessagesService {
       id: m.id,
       conversationId: m.conversationId,
       senderId: m.senderId,
-      sender: m.sender ? toPublicUser(m.sender) : undefined,
+      sender: m.sender ? toPublicUserProfile(m.sender) : undefined,
       content: m.content,
       createdAt: m.createdAt,
     };

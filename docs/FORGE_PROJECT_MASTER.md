@@ -9,7 +9,13 @@ Update this file when modules, routes, or feature status change. Sync [CLIENT_OV
 
 ## 1. Executive summary
 
-**FORGE** is a skill-first creator platform: on-demand lessons, live teaching, categories/skill tags, communities, and mock memberships.
+**FORGE** is a **YouTube-replica video platform**: channels (creator identity lives on `User`), video upload/watch, subscriptions, playlists, comments, live streaming, and a Community tab — per the always-applied `.claude/rules/forge-youtube-replica.md` project rule (parity preferred; divergence gets removed/refactored toward YouTube unless explicitly kept as a labeled extension).
+
+On top of that core, FORGE ships a **creator-economy extension layer**: courses/cohorts/quizzes/certificates, mentorship matching, Twitch-style channel points, and brand deals — all flagged off by default (`FEATURES_SKILL_ECONOMY_LMS`, see §7) and, as of 2026-08-12, also removed from web/mobile UI (deep links redirect to their YouTube-parity equivalent — `apps/mobile/lib/core/router/app_router.dart`, `apps/admin/src/app/{channel-points,mentorship}`). These are FORGE-specific additions layered on the YouTube-replica base, not baseline product.
+
+**Communities 2.0** (`CommunitiesModule`) splits into two tiers, decided 2026-08-12 (closing the per-module call below): **posts + polls + membership tiers are core** — this *is* FORGE's implementation of YouTube's actual Community tab (text posts, images, polls) and Channel Memberships, not an extension, and ships unconditionally. **Rooms (real-time chat) and events/RSVPs are a labeled extension** beyond anything in YouTube's Community tab — kept, not sunset or flag-gated, because unlike the skill-economy-LMS surfaces (which had zero live frontend usage when audited) these are unconditionally wired into the live web/mobile UI and load-bearing for already-shipped moderation/permissions/analytics work; retroactively disabling them would be a breaking product change out of proportion to a documentation exercise, and needs its own explicit sign-off if ever pursued — this decision only labels them, it doesn't touch their behavior.
+
+**Decision record:** accepted 2026-08-09, extension-layer framing; per-module keep/refactor/sunset call closed 2026-08-12 (above). See [PLATFORM_AUDIT_2026-08-09.md §1](./PLATFORM_AUDIT_2026-08-09.md#1-the-1-open-decision-what-is-forge-actually).
 
 | Surface | Stack | Host |
 |---------|--------|------|
@@ -102,7 +108,7 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | **DirectMessagesModule** | `/messages` | DM conversations, send, read receipts | Peer messaging |
 | **StreamingModule** | `streams` | start, live, RSVP, polls, clips, replay, checkout, mods, `webhooks/mux`, co-hosts, VIP config, breakout rooms | Mux live + webhooks; multi-host (max 5 co-hosts); VIP room (tier-gated); breakout rooms via `StreamBreakoutService` — see [LIVE.md](./LIVE.md) |
 | **LiveBroadcastModule** | `streams/:streamId/broadcast/browser` | token, start, stop | LiveKit browser go-live (RTMP egress to Mux) — see [LIVE.md](./LIVE.md) |
-| **EntitlementsModule** | root | `creators/:id/tiers`, `subscriptions/mock`, membership checks | Mock memberships, tier CRUD |
+| **EntitlementsModule** | root | `creators/:id/tiers`, `subscriptions/mock`, membership checks | Memberships & tier CRUD — real Stripe Connect destination charges by default; `subscriptions/mock` is a dev-only join path (`BILLING_PROVIDER=stub`), see [MEMBERSHIPS.md](./MEMBERSHIPS.md) |
 | **BillingModule** | `billing` | `checkout`, `checkout/event`, `webhook` | Stripe one-off checkout (paid events, super chat) when `BILLING_PROVIDER=stripe` |
 | **CommunitiesModule** | root | channels per creator, messages, invites, mentorship profiles + matching | Creator community chat; `MentorshipService` (skill-overlap matching, accept/decline, completion tracking) |
 | **StreamChatModule** | `streams/:id/chat` | messages, super-chat, ban/timeout, settings, pin | Live stream chat |
@@ -123,6 +129,8 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | **MailModule** | — | — | SMTP / console mail for verification & reset |
 | **WorkersModule** | — | — | BullMQ processors (see §5) |
 | **GatewayModule** | `events` (Socket.IO) | join/leave rooms | Realtime events |
+| **AccountStrikesModule** | `users/me/strikes`, `account-strikes` | list mine, appeal | Community-guideline + copyright strike ladder (YouTube's published 3-strike numbers) — see [COPYRIGHT_DMCA.md](./COPYRIGHT_DMCA.md) |
+| **CopyrightModule** | `copyright` | notices, counter-notices | DMCA §512 notice-and-takedown + counter-notice pipeline |
 | **DatabaseModule** | — | — | TypeORM, migrations on boot |
 | — | `health` | `GET /health` | DB, Redis, queue depth |
 | — | `metrics` | `GET /metrics` | Prometheus when `METRICS_ENABLED` |
@@ -150,6 +158,8 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | `stream-snapshot-retention` | `StreamSnapshotRetentionWorker` | Snapshot cleanup |
 | `premium-content-notify` | `PremiumContentNotifyWorker` | Async tier/subscriber replay fan-out |
 | `engagement-reconciliation` | `EngagementReconciliationWorker` | Daily follow-count reconciliation (SQL batch; `DISABLE_ENGAGEMENT_RECONCILIATION`) |
+| `scheduled-publish` | `ScheduledPublishWorker` | Every 1m — indexes videos past `scheduledPublishAt` (`DISABLE_SCHEDULED_PUBLISH`) |
+| `copyright-reinstatement` | `CopyrightReinstatementWorker` | Hourly — auto-reinstates videos past a counter-notice's 10-business-day window (`DISABLE_COPYRIGHT_REINSTATEMENT`) |
 
 Schedulers register on **worker only** in production. Logic: `apps/api/src/modules/workers/workers.module.ts` · deploy: [LIVE.md](./LIVE.md)
 
@@ -181,6 +191,16 @@ Comma-separated in `FEATURE_FLAGS` (API) and `NEXT_PUBLIC_FEATURE_FLAGS` (web). 
 
 Helpers: `@forge/shared-types` `parseFeatureFlags`, `isFeatureEnabled`.
 
+**Extension-layer flags** (separate mechanism — direct env booleans, not part of `FEATURE_FLAGS`):
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `FEATURES_SKILL_ECONOMY_LMS` | `false` (off — YouTube-replica mode) | Courses/cohorts/lessons/quizzes/assignments/certificates (`isSkillEconomyLmsEnabled()`, `apps/api/src/common/features/skill-economy-lms.ts`) |
+
+**Correction 2026-08-09:** Channel Points (`ChannelPointsModule.register()`), Mentorship, Brands, and community wiki/engagement extras (`BrandsController`/`MentorshipController`/`CommunityEngagementController`, conditionally registered in `communities.module.ts`) are **already gated** behind `FEATURES_SKILL_ECONOMY_LMS` — an earlier pass of this audit incorrectly reported them as unflagged; corrected after direct code verification. As of 2026-08-12 they're also removed from web/mobile UI entirely (not just backend-gated) — see §1.
+
+**Communities 2.0 (rooms/events/polls/groups/posts, 14-key permission matrix) — per-module call closed 2026-08-12:** posts/polls/tiers are core (YouTube Community-tab + Channel Memberships equivalent, ships unconditionally, correctly). Rooms + events are a labeled extension, kept unconditional/unflagged — see §1 for the reasoning (live production usage + load-bearing for already-shipped moderation/permissions work makes retroactive flag-gating a breaking change requiring its own sign-off, not a documentation call).
+
 ---
 
 ## 8. Design system & blueprints
@@ -193,7 +213,7 @@ Helpers: `@forge/shared-types` `parseFeatureFlags`, `isFeatureEnabled`.
 - **React (client):** `ConfirmDialog`, `FadeIn`, `PageEnter`, `StaggerGrid`, `Dialog`, `Tabs`/`TabPanel`, `DataTable`, `Sparkline`/`TrendChart`, `ToastProvider`/`useToast` — import from `@forge/design-system/client`
 - **Mobile tokens:** `apps/mobile/lib/core/theme/forge_tokens.dart`
 
-Product rule: familiar video IA, **distinct** visual identity (not a YouTube clone) — see `.cursor/rules/forge-frontend-ux.mdc`.
+Product rule: YouTube-replica video platform — prefer YouTube parity in primary chrome; see `.cursor/rules/forge-frontend-ux.mdc` / `.claude/rules/forge-frontend-ux.md`. (Older wording here said "distinct visual identity, not a YouTube clone" — that line has since moved on in the rule itself; corrected 2026-08-09, see [PLATFORM_AUDIT_2026-08-09.md §1](./PLATFORM_AUDIT_2026-08-09.md#1-the-1-open-decision-what-is-forge-actually).)
 
 ### Stitch blueprints (UI reference)
 

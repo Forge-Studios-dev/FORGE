@@ -89,7 +89,7 @@ class _CopilotLoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -97,7 +97,7 @@ class _CopilotLoadingView extends StatelessWidget {
           SizedBox(height: 16),
           Text(
             'Analyzing your performance…',
-            style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+            style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
           ),
         ],
       ),
@@ -118,20 +118,20 @@ class _CopilotErrorView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.psychology_outlined, size: 48, color: ForgeTokens.outline),
+            Icon(Icons.psychology_outlined, size: 48, color: ForgeTokens.of(context).outline),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Could not load AI insights',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: ForgeTokens.onSurface,
+                color: ForgeTokens.of(context).onSurface,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Check your connection and try again.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+              style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
             ),
             const SizedBox(height: 24),
             ForgeButton(label: 'Try again', onPressed: onRetry),
@@ -161,7 +161,7 @@ class _CopilotInsightsView extends StatelessWidget {
               insights.summary.isNotEmpty
                   ? insights.summary
                   : 'No summary available.',
-              style: const TextStyle(color: ForgeTokens.onSurface, height: 1.5),
+              style: TextStyle(color: ForgeTokens.of(context).onSurface, height: 1.5),
             ),
           ),
         ),
@@ -175,13 +175,13 @@ class _CopilotInsightsView extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.star, color: ForgeTokens.primary, size: 20),
+                  Icon(Icons.star, color: ForgeTokens.of(context).primary, size: 20),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       insights.growthFocus,
-                      style: const TextStyle(
-                        color: ForgeTokens.onSurface,
+                      style: TextStyle(
+                        color: ForgeTokens.of(context).onSurface,
                         fontWeight: FontWeight.w500,
                         height: 1.4,
                       ),
@@ -207,15 +207,15 @@ class _CopilotInsightsView extends StatelessWidget {
                         Container(
                           width: 24,
                           height: 24,
-                          decoration: const BoxDecoration(
-                            color: ForgeTokens.primary,
+                          decoration: BoxDecoration(
+                            color: ForgeTokens.of(context).primary,
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
                           child: Text(
                             '${entry.key + 1}',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: ForgeTokens.of(context).onPrimary,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
@@ -225,8 +225,8 @@ class _CopilotInsightsView extends StatelessWidget {
                         Expanded(
                           child: Text(
                             entry.value,
-                            style: const TextStyle(
-                              color: ForgeTokens.onSurface,
+                            style: TextStyle(
+                              color: ForgeTokens.of(context).onSurface,
                               height: 1.4,
                             ),
                           ),
@@ -241,9 +241,9 @@ class _CopilotInsightsView extends StatelessWidget {
         Text(
           'Insights are generated from your recent analytics and may take a moment to reflect latest data.',
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: ForgeTokens.onSurfaceVariant,
+            color: ForgeTokens.of(context).onSurfaceVariant,
           ),
         ),
       ],
@@ -261,14 +261,14 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: ForgeTokens.primary),
+        Icon(icon, size: 18, color: ForgeTokens.of(context).primary),
         const SizedBox(width: 8),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 15,
-            color: ForgeTokens.onSurface,
+            color: ForgeTokens.of(context).onSurface,
           ),
         ),
       ],

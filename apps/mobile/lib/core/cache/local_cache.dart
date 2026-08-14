@@ -39,7 +39,7 @@ class LocalCache {
     await _box?.put(key, json);
   }
 
-  /// Per-video-id cache for the watch/lesson-detail screen. Bounded
+  /// Per-video-id cache for the watch detail screen. Bounded
   /// (LRU-evicted past [_maxCachedWatchedVideos]) so browsing many videos
   /// over time can't grow this without limit.
   static Future<void> writeWatchedVideo(String videoId, String json) async {

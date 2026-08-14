@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { CreatorResourcesService } from './creator-resources.service';
 import { CreatorResource, ResourceVisibility } from './entities/creator-resource.entity';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 
 jest.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: jest.fn().mockResolvedValue('https://s3.example.com/signed-url'),
@@ -64,6 +65,10 @@ describe('CreatorResourcesService', () => {
     hasTierEntitlement: jest.fn().mockResolvedValue(true),
   };
 
+  const engagementService = {
+    isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
@@ -72,6 +77,7 @@ describe('CreatorResourcesService', () => {
         { provide: getRepositoryToken(CreatorResource), useValue: resourceRepository },
         { provide: ConfigService, useValue: configService },
         { provide: EntitlementsService, useValue: entitlementsService },
+        { provide: EngagementService, useValue: engagementService },
       ],
     }).compile();
     service = module.get(CreatorResourcesService);

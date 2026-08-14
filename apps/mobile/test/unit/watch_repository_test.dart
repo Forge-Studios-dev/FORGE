@@ -10,7 +10,7 @@ import 'package:hive/hive.dart';
 
 import 'test_support/fakes.dart';
 
-Map<String, dynamic> _video(String id, {String title = 'A lesson'}) => {
+Map<String, dynamic> _video(String id, {String title = 'A video'}) => {
       'id': id,
       'userId': 'u1',
       'title': title,
@@ -60,13 +60,13 @@ void main() {
     test('caches per video id on success and falls back to it when offline', () async {
       final onlineAdapter = QueuedAdapter([(_) => jsonResponseBody({'data': _video('v1')}, 200)]);
       final video = await buildRepository(onlineAdapter).getVideo('v1');
-      expect(video.title, 'A lesson');
+      expect(video.title, 'A video');
 
       final offlineRepo = buildRepository(QueuedAdapter([(_) => throw _notFound('/videos/v1')]));
       final cachedVideo = await offlineRepo.getVideo('v1');
 
       expect(cachedVideo.id, 'v1');
-      expect(cachedVideo.title, 'A lesson');
+      expect(cachedVideo.title, 'A video');
     });
 
     test('rethrows when offline and this particular video was never cached', () async {

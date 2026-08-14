@@ -8,6 +8,11 @@ export function muxThumbnailUrl(playbackId: string): string {
   return `https://image.mux.com/${playbackId}/thumbnail.jpg?width=1280&height=720&fit_mode=smartcrop`;
 }
 
+/** Mux WebVTT text-track URL for a playback + track id. */
+export function muxCaptionVttUrl(playbackId: string, trackId: string): string {
+  return `https://stream.mux.com/${playbackId}/text/${trackId}.vtt`;
+}
+
 /** Extract Mux playback id from an HLS manifest URL. */
 export function muxPlaybackIdFromHlsUrl(hlsUrl: string | null | undefined): string | null {
   if (!hlsUrl || typeof hlsUrl !== 'string') return null;

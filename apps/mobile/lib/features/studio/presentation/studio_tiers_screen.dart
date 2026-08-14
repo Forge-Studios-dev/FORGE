@@ -166,7 +166,7 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
                           : 'Complete onboarding to accept paid memberships',
                     ),
                     trailing: connectOk
-                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        ? Icon(Icons.check_circle, color: ForgeTokens.of(context).success)
                         : TextButton(onPressed: _connectStripe, child: const Text('Connect')),
                   ),
                 ),
@@ -229,7 +229,7 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
                           title: Text(t['name'] as String? ?? ''),
                           subtitle: Text(
                             '\$${(priceCents / 100).toStringAsFixed(2)} · $maxDevices device(s)',
-                            style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                            style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                           ),
                           trailing: Icon(expanded ? Icons.expand_less : Icons.expand_more),
                           onTap: () => setState(
@@ -250,7 +250,8 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
                                   items: const [
                                     DropdownMenuItem(value: 'community', child: Text('Community')),
                                     DropdownMenuItem(value: 'channel', child: Text('Channel')),
-                                    DropdownMenuItem(value: 'course', child: Text('Course')),
+                                    DropdownMenuItem(value: 'video', child: Text('Video')),
+                                    DropdownMenuItem(value: 'creator', child: Text('Creator-wide')),
                                   ],
                                   onChanged: (v) => setState(() => _entResourceType = v ?? 'community'),
                                 ),
@@ -291,11 +292,6 @@ class _StudioTiersScreenState extends ConsumerState<StudioTiersScreen> {
                   );
                 }),
                 const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: () => context.push('/studio/bundles'),
-                  icon: const Icon(Icons.inventory_2_outlined),
-                  label: const Text('Manage product bundles'),
-                ),
                 TextButton(onPressed: () => context.pop(), child: const Text('← Back to Studio')),
               ],
             ),

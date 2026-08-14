@@ -92,6 +92,8 @@ export class CommunityModerationService {
       input.communityId,
       reporterId,
       viewerRole,
+      // YouTube parity: reporting remains available after a block.
+      { skipBlockGate: true },
     );
 
     const targetType = input.targetType ?? 'message';
@@ -292,7 +294,13 @@ export class CommunityModerationService {
     role: CommunityRoleType,
     viewerRole?: UserRole | null,
   ) {
-    await this.assertAdminAccess(actorId, communityId, viewerRole);
+    const community = await this.assertAdminAccess(actorId, communityId, viewerRole);
+    if (
+      (role === CommunityRoleType.OWNER || role === CommunityRoleType.ADMIN) &&
+      !(await this.hasOwnerPrivileges(community, actorId, viewerRole))
+    ) {
+      throw new ForbiddenException('Only the community owner can assign owner or admin roles');
+    }
     const existing = await this.roleRepository.findOne({ where: { communityId, userId } });
     if (existing) {
       existing.role = role;
@@ -500,5 +508,19 @@ export class CommunityModerationService {
       assignment.role === CommunityRoleType.ADMIN ||
       assignment.role === CommunityRoleType.OWNER
     );
+  }
+
+  /** Owner-tier only — creator, platform admin, or an assigned OWNER role. Excludes ADMIN, per COMMUNITY-PERMISSION-MATRIX.md's `assign_roles` key. */
+  private async hasOwnerPrivileges(
+    community: Community,
+    actorId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<boolean> {
+    if (viewerRole === UserRole.ADMIN) return true;
+    if (community.creatorId === actorId) return true;
+    const assignment = await this.roleRepository.findOne({
+      where: { communityId: community.id, userId: actorId },
+    });
+    return assignment?.role === CommunityRoleType.OWNER;
   }
 }

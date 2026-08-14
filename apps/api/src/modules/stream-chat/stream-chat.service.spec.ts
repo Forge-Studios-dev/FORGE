@@ -7,6 +7,7 @@ import { StreamMessage } from './entities/stream-message.entity';
 import { StreamModerationAction } from './entities/stream-moderation-action.entity';
 import { StreamingService } from '../streaming/streaming.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { Stream, StreamChatMode, StreamVisibility } from '../streaming/entities/stream.entity';
 import { ConfigService } from '@nestjs/config';
 
@@ -26,6 +27,7 @@ describe('StreamChatService', () => {
     updateChatSettings: jest.Mock;
   };
   let entitlementsService: { assertAccessAsync: jest.Mock };
+  let engagementService: { isBlockedEitherWay: jest.Mock };
   const streamLiveService = {
     canModerate: jest.fn().mockResolvedValue(false),
   };
@@ -94,6 +96,7 @@ describe('StreamChatService', () => {
       }),
     };
     entitlementsService = { assertAccessAsync: jest.fn() };
+    engagementService = { isBlockedEitherWay: jest.fn().mockResolvedValue(false) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -106,6 +109,7 @@ describe('StreamChatService', () => {
         { provide: getRepositoryToken(User), useValue: userRepository },
         { provide: getQueueToken(STREAM_CHAT_INGEST_QUEUE), useValue: chatQueue },
         { provide: EntitlementsService, useValue: entitlementsService },
+        { provide: EngagementService, useValue: engagementService },
         {
           provide: BillingService,
           useValue: { isBillingEnabled: jest.fn().mockReturnValue(false), createSuperChatCheckout: jest.fn() },
@@ -141,6 +145,25 @@ describe('StreamChatService', () => {
     await expect(
       service.sendMessage('s1', 'u1', { body: 'hello' }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects send when viewer is blocked either way', async () => {
+    streamingService.findById.mockResolvedValue({
+      id: 's1',
+      userId: 'c1',
+      chatEnabled: true,
+      visibility: StreamVisibility.PUBLIC,
+      requiredTierId: null,
+      slowModeSeconds: 0,
+    } as Stream);
+    engagementService.isBlockedEitherWay.mockResolvedValue(true);
+
+    await expect(
+      service.sendMessage('s1', 'viewer-1', { body: 'hello' }),
+    ).rejects.toThrow('This stream is not available');
+
+    expect(engagementService.isBlockedEitherWay).toHaveBeenCalledWith('viewer-1', 'c1');
+    expect(entitlementsService.assertAccessAsync).not.toHaveBeenCalled();
   });
 
   it('checks entitlements for non-owner viewers', async () => {
@@ -284,7 +307,7 @@ describe('StreamChatService', () => {
 
     entitlementsService.assertAccessAsync
       .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new ForbiddenException('Follow this creator to access this content'));
+      .mockRejectedValueOnce(new ForbiddenException('Subscribe to this channel to access this content'));
 
     await expect(
       service.sendMessage('s1', 'viewer-1', { body: 'hello' }),
@@ -404,6 +427,16 @@ describe('StreamChatService', () => {
       });
 
       expect(messageRepository.save).toHaveBeenCalled();
+      // Platform fee split recorded on the ledger row (default 10% — no
+      // billing.stripePlatformFeePercent override in this test's config mock).
+      expect(messageRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amountCents: 500,
+          platformFeePercent: 10,
+          platformFeeCents: 50,
+          creatorNetCents: 450,
+        }),
+      );
     });
   });
 

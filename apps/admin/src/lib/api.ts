@@ -47,7 +47,11 @@ api.interceptors.response.use(
 
 export async function adminLogout(options?: { allDevices?: boolean }) {
   try {
-    await api.post('/auth/logout', { allDevices: !!options?.allDevices });
+    await api.post(
+      '/auth/logout',
+      { allDevices: !!options?.allDevices },
+      { headers: csrfRequestHeaders() },
+    );
   } catch {
     /* still clear local session */
   }

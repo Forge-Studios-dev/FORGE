@@ -12,6 +12,7 @@ export default defineConfig({
   timeout: 60_000,
   use: {
     baseURL,
+    colorScheme: 'dark',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

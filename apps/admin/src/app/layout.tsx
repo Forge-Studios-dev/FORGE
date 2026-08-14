@@ -23,7 +23,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   headers().get('x-nonce');
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('forge-admin-theme');if(t!=='light'&&t!=='dark'){t='dark';}document.documentElement.classList.remove('light','dark');document.documentElement.classList.add(t);}catch(e){document.documentElement.classList.add('dark');}})();`,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} ${spaceGrotesk.variable} antialiased`}>
         <AdminProviders>
           <AdminShell>{children}</AdminShell>

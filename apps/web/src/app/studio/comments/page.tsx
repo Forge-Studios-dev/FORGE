@@ -2,13 +2,27 @@
 
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { EmptyState, ListSkeleton, PageHeader } from '@forge/design-system';
+import { useMemo, useState } from 'react';
+import { EmptyState, Icon, Input, ListSkeleton, PageHeader } from '@forge/design-system';
+import { ConfirmDialog } from '@forge/design-system/client';
 import { getRecentCommentsOnMyVideos } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { timeAgo } from '@/lib/utils';
 import { getApiErrorMessage } from '@/lib/api-message';
+
+/** Comments open on watch with `?lc=` highlight (including Shorts). */
+function studioCommentWatchHref(videoId: string, commentId: string): string {
+  return `/watch/${videoId}?lc=${encodeURIComponent(commentId)}`;
+}
+
+type CommentFilter = 'all' | 'pinned' | 'hearted';
+
+const FILTERS: { id: CommentFilter; label: string }[] = [
+  { id: 'all', label: 'Published' },
+  { id: 'pinned', label: 'Pinned' },
+  { id: 'hearted', label: 'Hearted' },
+];
 
 export default function StudioCommentsPage() {
   const { user, isCreator } = useAuth();
@@ -16,6 +30,12 @@ export default function StudioCommentsPage() {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<CommentFilter>('all');
+  const [removeTarget, setRemoveTarget] = useState<{ videoId: string; commentId: string } | null>(
+    null,
+  );
+  const [linkHintId, setLinkHintId] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['studio-comments', user?.id],
@@ -23,8 +43,33 @@ export default function StudioCommentsPage() {
     enabled: !!user?.id && isCreator,
   });
 
+  const filtered = useMemo(() => {
+    const list = data ?? [];
+    const q = query.trim().toLowerCase();
+    return list.filter((c) => {
+      if (filter === 'pinned' && !c.isPinned) return false;
+      if (filter === 'hearted' && !c.creatorHearted) return false;
+      if (!q) return true;
+      const content = (c.content ?? '').toLowerCase();
+      const title = (c.videoTitle ?? '').toLowerCase();
+      const username = (c.user?.username ?? '').toLowerCase();
+      const display = (c.user?.displayName ?? '').toLowerCase();
+      return (
+        content.includes(q) || title.includes(q) || username.includes(q) || display.includes(q)
+      );
+    });
+  }, [data, filter, query]);
+
   const replyMutation = useMutation({
-    mutationFn: async ({ videoId, parentId, content }: { videoId: string; parentId: string; content: string }) => {
+    mutationFn: async ({
+      videoId,
+      parentId,
+      content,
+    }: {
+      videoId: string;
+      parentId: string;
+      content: string;
+    }) => {
       await api.post(`/videos/${videoId}/comments`, { content, parentId });
     },
     onSuccess: () => {
@@ -35,6 +80,62 @@ export default function StudioCommentsPage() {
     },
     onError: (e) => setError(getApiErrorMessage(e, 'Could not post reply.')),
   });
+
+  const pinMutation = useMutation({
+    mutationFn: async ({
+      videoId,
+      commentId,
+      isPinned,
+    }: {
+      videoId: string;
+      commentId: string;
+      isPinned: boolean;
+    }) => {
+      await api.post(`/videos/${videoId}/comments/${commentId}/pin`, { isPinned });
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] }),
+    onError: (e) => setError(getApiErrorMessage(e, 'Could not update pin.')),
+  });
+
+  const heartMutation = useMutation({
+    mutationFn: async ({
+      videoId,
+      commentId,
+      creatorHearted,
+    }: {
+      videoId: string;
+      commentId: string;
+      creatorHearted: boolean;
+    }) => {
+      await api.post(`/videos/${videoId}/comments/${commentId}/creator-heart`, { creatorHearted });
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] }),
+    onError: (e) => setError(getApiErrorMessage(e, 'Could not update heart.')),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async ({ videoId, commentId }: { videoId: string; commentId: string }) => {
+      await api.delete(`/videos/${videoId}/comments/${commentId}`);
+    },
+    onSuccess: () => {
+      setRemoveTarget(null);
+      setError('');
+      void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] });
+    },
+    onError: (e) => setError(getApiErrorMessage(e, 'Could not remove comment.')),
+  });
+
+  const copyCommentLink = async (videoId: string, commentId: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const path = studioCommentWatchHref(videoId, commentId);
+    try {
+      await navigator.clipboard.writeText(`${origin}${path}`);
+      setLinkHintId(commentId);
+      window.setTimeout(() => setLinkHintId(null), 2000);
+    } catch {
+      setError('Could not copy comment link.');
+    }
+  };
 
   if (!isCreator) {
     return (
@@ -49,7 +150,7 @@ export default function StudioCommentsPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title="Comments workspace"
-          subtitle="Reply to learner feedback without leaving Studio."
+          subtitle="Reply to viewer comments without leaving Studio."
         />
         <Link href="/studio/attention" className="text-sm text-primary hover:underline">
           Open attention queue
@@ -64,16 +165,80 @@ export default function StudioCommentsPage() {
         <EmptyState
           icon="forum"
           title="No comments yet"
-          description="When learners engage with your lessons, their comments will appear here."
-          action={{ label: 'Upload a lesson', href: '/upload' }}
+          description="When viewers comment on your videos, they will appear here."
+          action={{ label: 'Upload a video', href: '/upload' }}
         />
       )}
 
+      {!isLoading && !isError && !!data?.length ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="relative min-w-[200px] flex-1">
+            <Icon
+              name="search"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-outline"
+            />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search comments"
+              aria-label="Search comments"
+              className="pl-10"
+            />
+          </div>
+          <div role="tablist" aria-label="Comment filters" className="flex flex-wrap gap-2">
+            {FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={filter === f.id}
+                onClick={() => setFilter(f.id)}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                  filter === f.id
+                    ? 'bg-on-surface text-surface'
+                    : 'border border-outline-variant/40 text-on-surface-variant hover:border-primary'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {!isLoading && !isError && !!data?.length && !filtered.length ? (
+        <EmptyState
+          icon="search_off"
+          title="No matching comments"
+          description={
+            query.trim() ? `Nothing matched “${query.trim()}”.` : 'No comments in this filter.'
+          }
+          action={{ label: 'Clear filters', href: '/studio/comments' }}
+          onAction={() => {
+            setQuery('');
+            setFilter('all');
+          }}
+        />
+      ) : null}
+
       <ul className="space-y-3">
-        {data?.map((c) => (
+        {filtered.map((c) => (
           <li key={c.id} className="glass-panel rounded-2xl p-4">
             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-outline">
-              <Link href={`/watch/${c.videoId}`} className="text-primary hover:underline">
+              {c.isPinned ? (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                  Pinned
+                </span>
+              ) : null}
+              {c.videoType === 'short' ? (
+                <span className="rounded-full bg-surface-container-high px-2 py-0.5 font-semibold uppercase tracking-wide text-on-surface-variant">
+                  Short
+                </span>
+              ) : null}
+              <Link
+                href={studioCommentWatchHref(c.videoId, c.id)}
+                className="text-primary hover:underline"
+              >
                 {c.videoTitle}
               </Link>
               <span>·</span>
@@ -85,9 +250,64 @@ export default function StudioCommentsPage() {
                 @{c.user?.username ?? 'user'} · {c.user?.displayName ?? 'User'}
               </p>
               <div className="flex gap-3 text-sm">
-                <Link href={`/watch/${c.videoId}`} className="text-on-surface-variant hover:underline">
-                  Open lesson
+                <Link
+                  href={studioCommentWatchHref(c.videoId, c.id)}
+                  className="text-on-surface-variant hover:underline"
+                >
+                  View comment
                 </Link>
+                <button
+                  type="button"
+                  className="text-on-surface-variant hover:text-primary"
+                  onClick={() => void copyCommentLink(c.videoId, c.id)}
+                >
+                  {linkHintId === c.id ? 'Copied' : 'Copy link'}
+                </button>
+                {!c.parentId ? (
+                  <button
+                    type="button"
+                    className="text-on-surface-variant hover:text-primary"
+                    disabled={pinMutation.isPending}
+                    aria-label={c.isPinned ? 'Unpin comment' : 'Pin comment'}
+                    aria-pressed={!!c.isPinned}
+                    onClick={() =>
+                      pinMutation.mutate({
+                        videoId: c.videoId,
+                        commentId: c.id,
+                        isPinned: !c.isPinned,
+                      })
+                    }
+                  >
+                    {c.isPinned ? 'Unpin' : 'Pin'}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className={
+                    c.creatorHearted ? 'text-error' : 'text-on-surface-variant hover:text-error'
+                  }
+                  disabled={heartMutation.isPending}
+                  aria-label={c.creatorHearted ? 'Remove heart' : 'Heart comment'}
+                  aria-pressed={!!c.creatorHearted}
+                  onClick={() =>
+                    heartMutation.mutate({
+                      videoId: c.videoId,
+                      commentId: c.id,
+                      creatorHearted: !c.creatorHearted,
+                    })
+                  }
+                >
+                  {c.creatorHearted ? '♥' : '♡'}
+                </button>
+                <button
+                  type="button"
+                  className="text-error hover:underline"
+                  disabled={removeMutation.isPending}
+                  aria-label="Remove comment"
+                  onClick={() => setRemoveTarget({ videoId: c.videoId, commentId: c.id })}
+                >
+                  Remove
+                </button>
                 <button
                   type="button"
                   className="text-primary hover:underline"
@@ -129,6 +349,19 @@ export default function StudioCommentsPage() {
           </li>
         ))}
       </ul>
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        title="Remove comment?"
+        description="This removes the comment from your video."
+        confirmLabel="Remove"
+        onConfirm={() => {
+          if (!removeTarget) return;
+          removeMutation.mutate(removeTarget);
+        }}
+        onCancel={() => setRemoveTarget(null)}
+        loading={removeMutation.isPending}
+      />
     </main>
   );
 }

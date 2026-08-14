@@ -104,16 +104,16 @@ class _StudioLiveDebriefScreenState extends ConsumerState<StudioLiveDebriefScree
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
-                    color: ForgeTokens.onSurface,
+                    color: ForgeTokens.of(context).onSurface,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Review metrics, replay, and an AI summary for this session.',
-                  style: TextStyle(color: ForgeTokens.onSurfaceVariant, height: 1.4),
+                  style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, height: 1.4),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
@@ -121,9 +121,9 @@ class _StudioLiveDebriefScreenState extends ConsumerState<StudioLiveDebriefScree
                 ],
                 const SizedBox(height: 20),
                 if (_analytics != null) ...[
-                  const Text(
+                  Text(
                     'Session metrics',
-                    style: TextStyle(fontWeight: FontWeight.w700, color: ForgeTokens.onSurface),
+                    style: TextStyle(fontWeight: FontWeight.w700, color: ForgeTokens.of(context).onSurface),
                   ),
                   const SizedBox(height: 10),
                   Wrap(
@@ -141,9 +141,9 @@ class _StudioLiveDebriefScreenState extends ConsumerState<StudioLiveDebriefScree
                 if (_replay != null && _replay!['id'] != null) ...[
                   ForgeCard(
                     onTap: () => context.push('/watch/${_replay!['id']}'),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.replay, color: ForgeTokens.primary),
+                        Icon(Icons.replay, color: ForgeTokens.of(context).primary),
                         SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -151,7 +151,7 @@ class _StudioLiveDebriefScreenState extends ConsumerState<StudioLiveDebriefScree
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ),
-                        Icon(Icons.chevron_right, color: ForgeTokens.outline),
+                        Icon(Icons.chevron_right, color: ForgeTokens.of(context).outline),
                       ],
                     ),
                   ),
@@ -166,7 +166,7 @@ class _StudioLiveDebriefScreenState extends ConsumerState<StudioLiveDebriefScree
                   ForgeCard(
                     child: Text(
                       _summary!,
-                      style: const TextStyle(height: 1.45, color: ForgeTokens.onSurface),
+                      style: TextStyle(height: 1.45, color: ForgeTokens.of(context).onSurface),
                     ),
                   ),
                 ],
@@ -185,20 +185,20 @@ class _StudioLiveDebriefScreenState extends ConsumerState<StudioLiveDebriefScree
       width: 150,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: ForgeTokens.surfaceContainerHigh,
+        color: ForgeTokens.of(context).surfaceContainerHigh,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant)),
+          Text(label, style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant)),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: ForgeTokens.onSurface,
+              color: ForgeTokens.of(context).onSurface,
             ),
           ),
         ],

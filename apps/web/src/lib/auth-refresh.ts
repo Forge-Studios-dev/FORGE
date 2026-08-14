@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { clearAuthSession, persistAuthSession } from '@/lib/auth-storage';
 import { csrfRequestHeaders } from '@/lib/csrf';
+import { env } from '@/env';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const API_URL = env.NEXT_PUBLIC_API_URL;
 
 /** Single-flight refresh so parallel 401s don't stampede `/auth/refresh`. */
 let inflight: Promise<string> | null = null;

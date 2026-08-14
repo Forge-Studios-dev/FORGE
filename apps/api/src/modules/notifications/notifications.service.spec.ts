@@ -5,6 +5,8 @@ import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { NotificationsService } from './notifications.service';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { DeviceToken } from './entities/device-token.entity';
+import { User } from '../users/entities/user.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
@@ -17,6 +19,11 @@ describe('NotificationsService', () => {
     createQueryBuilder: jest.fn(),
   };
 
+  const userRepository = {
+    findOne: jest.fn().mockResolvedValue(null),
+    find: jest.fn().mockResolvedValue([]),
+  };
+
   const eventEmitter = {
     emit: jest.fn(),
   };
@@ -27,15 +34,24 @@ describe('NotificationsService', () => {
     del: jest.fn().mockResolvedValue(1),
   };
 
+  const engagementService = {
+    getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
+    engagementService.getBlockedPeerIds.mockResolvedValue([]);
+    userRepository.findOne.mockResolvedValue(null);
+    userRepository.find.mockResolvedValue([]);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationsService,
         { provide: getRepositoryToken(Notification), useValue: notificationRepository },
         { provide: getRepositoryToken(DeviceToken), useValue: {} },
+        { provide: getRepositoryToken(User), useValue: userRepository },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: getRedisConnectionToken(), useValue: redis },
+        { provide: EngagementService, useValue: engagementService },
       ],
     }).compile();
     service = module.get(NotificationsService);
@@ -49,6 +65,7 @@ describe('NotificationsService', () => {
           userId: 'u1',
           title: 'Hello',
           createdAt: new Date('2026-06-01T12:00:00Z'),
+          metadata: null,
         },
       ];
       const qb = {
@@ -66,6 +83,40 @@ describe('NotificationsService', () => {
       expect(result.data).toHaveLength(1);
       expect(result.meta.hasMore).toBe(false);
       expect(result.meta.cursor).toBeNull();
+    });
+
+    it('hides notifications from blocked peers', async () => {
+      engagementService.getBlockedPeerIds.mockResolvedValue(['blocked-1']);
+      const rows = [
+        {
+          id: 'n1',
+          userId: 'u1',
+          title: 'From blocked',
+          createdAt: new Date('2026-06-01T12:00:00Z'),
+          metadata: { followerId: 'blocked-1' },
+        },
+        {
+          id: 'n2',
+          userId: 'u1',
+          title: 'Ok',
+          createdAt: new Date('2026-06-01T11:00:00Z'),
+          metadata: { followerId: 'ok-1' },
+        },
+      ];
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(rows),
+      };
+      notificationRepository.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.listForUser('u1');
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].id).toBe('n2');
     });
   });
 
@@ -88,6 +139,86 @@ describe('NotificationsService', () => {
 
       expect(notificationRepository.save).toHaveBeenCalledTimes(1);
       expect(notificationRepository.create).toHaveBeenCalledTimes(3);
+    });
+
+    it('skips recipients who muted the category', async () => {
+      userRepository.find.mockResolvedValue([
+        { id: 'user-0', notificationPreferences: { mutedCategories: ['live'], emailDigest: false } },
+        { id: 'user-1', notificationPreferences: { mutedCategories: ['social'], emailDigest: false } },
+      ]);
+      const inputs = [
+        { userId: 'user-0', type: NotificationType.STREAM_STARTED_FOLLOWED, title: 'Live', body: 'Join now' },
+        { userId: 'user-1', type: NotificationType.STREAM_STARTED_FOLLOWED, title: 'Live', body: 'Join now' },
+      ];
+
+      await service.createMany(inputs);
+
+      expect(notificationRepository.create).toHaveBeenCalledTimes(1);
+      expect(notificationRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-1' }),
+      );
+    });
+
+    it('no-ops entirely when every recipient muted the category', async () => {
+      userRepository.find.mockResolvedValue([
+        { id: 'user-0', notificationPreferences: { mutedCategories: ['live'], emailDigest: false } },
+      ]);
+      await service.createMany([
+        { userId: 'user-0', type: NotificationType.STREAM_STARTED_FOLLOWED, title: 'Live', body: 'Join now' },
+      ]);
+      expect(notificationRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('create', () => {
+    it('writes the notification when the category is not muted', async () => {
+      userRepository.findOne.mockResolvedValue({
+        id: 'u1',
+        notificationPreferences: { mutedCategories: ['live'], emailDigest: false },
+      });
+
+      const result = await service.create({
+        userId: 'u1',
+        type: NotificationType.COMMENT_ON_VIDEO,
+        title: 'New comment',
+        body: 'Someone commented',
+      });
+
+      expect(result).not.toBeNull();
+      expect(notificationRepository.save).toHaveBeenCalled();
+      expect(eventEmitter.emit).toHaveBeenCalledWith('notification.created', expect.anything());
+    });
+
+    it('returns null and writes nothing when the category is muted', async () => {
+      userRepository.findOne.mockResolvedValue({
+        id: 'u1',
+        notificationPreferences: { mutedCategories: ['social'], emailDigest: false },
+      });
+
+      const result = await service.create({
+        userId: 'u1',
+        type: NotificationType.COMMENT_ON_VIDEO,
+        title: 'New comment',
+        body: 'Someone commented',
+      });
+
+      expect(result).toBeNull();
+      expect(notificationRepository.save).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('writes the notification when the user has no preferences set', async () => {
+      userRepository.findOne.mockResolvedValue({ id: 'u1', notificationPreferences: null });
+
+      const result = await service.create({
+        userId: 'u1',
+        type: NotificationType.NEW_FOLLOWER,
+        title: 'New subscriber',
+        body: 'Someone subscribed',
+      });
+
+      expect(result).not.toBeNull();
+      expect(notificationRepository.save).toHaveBeenCalled();
     });
   });
 });

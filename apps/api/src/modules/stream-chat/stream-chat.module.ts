@@ -13,6 +13,7 @@ import { STREAM_CHAT_INGEST_QUEUE } from '../workers/stream-chat-ingest/stream-c
 
 import { UsersModule } from '../users/users.module';
 import { BillingModule } from '../billing/billing.module';
+import { EngagementModule } from '../engagement/engagement.module';
 import { forwardRef } from '@nestjs/common';
 
 @Module({
@@ -22,6 +23,7 @@ import { forwardRef } from '@nestjs/common';
     StreamingModule,
     EntitlementsModule,
     UsersModule,
+    EngagementModule,
     forwardRef(() => BillingModule),
   ],
   controllers: [StreamChatController, StreamQaController],

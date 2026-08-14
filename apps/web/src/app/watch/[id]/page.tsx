@@ -1,6 +1,8 @@
 import { Metadata } from 'next';
 import { cache } from 'react';
 import { notFound } from 'next/navigation';
+import { isAxiosError } from 'axios';
+import { StatusPage } from '@forge/design-system';
 
 export const dynamic = 'force-dynamic';
 import { serverApi } from '@/lib/api';
@@ -22,18 +24,28 @@ interface Props {
   params: { id: string };
 }
 
-const getVideo = cache(async (id: string): Promise<Video | null> => {
+type VideoLookup =
+  | { status: 'ok'; video: Video }
+  | { status: 'not_found' }
+  | { status: 'unavailable' };
+
+const lookupVideo = cache(async (id: string): Promise<VideoLookup> => {
   try {
     const { data } = await serverApi.get(`/videos/${id}`);
-    return data.data;
-  } catch {
-    return null;
+    return { status: 'ok', video: data.data as Video };
+  } catch (err) {
+    if (isAxiosError(err) && err.response?.status === 403) {
+      return { status: 'unavailable' };
+    }
+    return { status: 'not_found' };
   }
 });
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const video = await getVideo(params.id);
-  if (!video) return { title: 'Video not found' };
+  const lookup = await lookupVideo(params.id);
+  if (lookup.status === 'unavailable') return { title: 'Video unavailable' };
+  if (lookup.status !== 'ok') return { title: 'Video not found' };
+  const video = lookup.video;
 
   return {
     title: video.title,
@@ -54,8 +66,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function WatchPage({ params }: Props) {
-  const video = await getVideo(params.id);
-  if (!video) notFound();
+  const lookup = await lookupVideo(params.id);
+  if (lookup.status === 'unavailable') {
+    return (
+      <StatusPage
+        icon="block"
+        title="This video is not available"
+        description="Playback is restricted for this video on your account."
+        action={{ label: 'Go home', href: '/' }}
+        secondary={{ label: 'Explore', href: '/explore' }}
+      />
+    );
+  }
+  if (lookup.status !== 'ok') notFound();
+  const video = lookup.video;
 
   const skillTag = video.skillTags?.[0]?.name;
   return (

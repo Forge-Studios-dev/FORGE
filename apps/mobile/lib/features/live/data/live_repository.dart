@@ -67,6 +67,26 @@ class LiveRepository {
     await _api.dio.post('/streams/$streamId/end');
   }
 
+  Future<List<Map<String, dynamic>>> listClips(String streamId) async {
+    final res = await _api.dio.get('/streams/$streamId/clips');
+    final data = res.data['data'];
+    if (data is List) {
+      return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    return [];
+  }
+
+  /// Mark a ~30s highlight at the current live moment (empty body = server offset).
+  Future<Map<String, dynamic>> createClip(String streamId, {String? title}) async {
+    final res = await _api.dio.post(
+      '/streams/$streamId/clips',
+      data: {
+        if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
+      },
+    );
+    return (res.data['data'] as Map<String, dynamic>?) ?? {};
+  }
+
   Future<void> raiseHand(String streamId) async {
     await _api.dio.post('/streams/$streamId/raise-hand');
   }
@@ -87,8 +107,31 @@ class LiveRepository {
     await _api.dio.post('/streams/$streamId/rsvp/cancel');
   }
 
-  Future<List<Map<String, dynamic>>> getLiveStreams() async {
-    final res = await _api.dio.get('/streams/live');
-    return (res.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+  Future<List<Map<String, dynamic>>> getLiveStreams({String? creatorId}) async {
+    final res = await _api.dio.get(
+      '/streams/live',
+      queryParameters: {
+        if (creatorId != null && creatorId.isNotEmpty) 'creatorId': creatorId,
+      },
+    );
+    final data = res.data['data'];
+    if (data is List) {
+      return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getUpcomingStreams({String? creatorId}) async {
+    final res = await _api.dio.get(
+      '/streams/upcoming',
+      queryParameters: {
+        if (creatorId != null && creatorId.isNotEmpty) 'creatorId': creatorId,
+      },
+    );
+    final data = res.data['data'];
+    if (data is List) {
+      return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    return [];
   }
 }

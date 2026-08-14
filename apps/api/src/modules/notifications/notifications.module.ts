@@ -8,9 +8,14 @@ import { NotificationsController } from './notifications.controller';
 import { NotificationsListener } from './notifications.listener';
 import { PushDispatchService } from './push-dispatch.service';
 import { SubscriptionMaintenanceService } from './subscription-maintenance.service';
+import { EmailDigestService } from './email-digest.service';
+import { EmailDigestScheduler } from './email-digest.scheduler';
+import { EMAIL_DIGEST_QUEUE } from './email-digest.constants';
 import { User } from '../users/entities/user.entity';
 import { Follow } from '../engagement/entities/follow.entity';
 import { Comment } from '../engagement/entities/comment.entity';
+import { WatchHistory } from '../engagement/entities/watch-history.entity';
+import { Community } from '../communities/entities/community.entity';
 import { PUSH_DISPATCH_QUEUE } from './push-dispatch.constants';
 import { SUBSCRIPTION_MAINTENANCE_QUEUE } from './subscription-maintenance.constants';
 import { SubscriptionMaintenanceScheduler } from './subscription-maintenance.scheduler';
@@ -19,12 +24,13 @@ import { PremiumContentNotifyService } from './premium-content-notify.service';
 import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/premium-content-notify.constants';
 import { CommunityAnnouncementNotifyService } from './community-announcement-notify.service';
 import { COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE } from '../workers/community-announcement-notify/community-announcement-notify.constants';
+import { EngagementModule } from '../engagement/engagement.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, DeviceToken, User, Follow, Comment]),
+    TypeOrmModule.forFeature([Notification, DeviceToken, User, Follow, Comment, WatchHistory, Community]),
     forwardRef(() => EntitlementsModule),
-    BullModule.registerQueue({
+    EngagementModule,    BullModule.registerQueue({
       name: PUSH_DISPATCH_QUEUE,
       defaultJobOptions: {
         attempts: 3,
@@ -60,6 +66,15 @@ import { COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE } from '../workers/community-announ
         removeOnFail: { age: 86400, count: 500 },
       },
     }),
+    BullModule.registerQueue({
+      name: EMAIL_DIGEST_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        backoff: { type: 'exponential', delay: 60_000 },
+        removeOnComplete: { age: 7 * 86400, count: 30 },
+        removeOnFail: { age: 30 * 86400, count: 100 },
+      },
+    }),
   ],
   providers: [
     NotificationsService,
@@ -69,6 +84,8 @@ import { COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE } from '../workers/community-announ
     SubscriptionMaintenanceScheduler,
     PremiumContentNotifyService,
     CommunityAnnouncementNotifyService,
+    EmailDigestService,
+    EmailDigestScheduler,
   ],
   controllers: [NotificationsController],
   exports: [
@@ -77,6 +94,7 @@ import { COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE } from '../workers/community-announ
     SubscriptionMaintenanceService,
     PremiumContentNotifyService,
     CommunityAnnouncementNotifyService,
+    EmailDigestService,
   ],
 })
 export class NotificationsModule {}

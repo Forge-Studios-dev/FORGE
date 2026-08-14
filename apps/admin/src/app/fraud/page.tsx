@@ -1,8 +1,14 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { Button, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
+import { DataTable, Dialog, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
+import { AdminPagination } from '@/components/admin/AdminPagination';
+
+const PAGE_SIZE = 20;
 
 type FraudAlert = {
   id: string;
@@ -22,35 +28,67 @@ const STATUS_LABELS: Record<string, string> = {
   false_positive: 'False Positive',
 };
 
+const STATUS_TONE: Record<string, StatusTone> = {
+  open: 'warning',
+  under_review: 'primary',
+  resolved: 'success',
+  false_positive: 'neutral',
+};
+
 const RISK_COLOR = (score: number) => {
-  if (score >= 80) return 'text-red-400';
-  if (score >= 50) return 'text-yellow-400';
-  return 'text-green-400';
+  if (score >= 80) return 'text-error';
+  if (score >= 50) return 'text-warning';
+  return 'text-success';
 };
 
 export default function FraudPage() {
   const qc = useQueryClient();
+  const { toast } = useToast();
+  const dialogTitleId = useId();
   const [statusFilter, setStatusFilter] = useState<string>('open');
+  const [page, setPage] = useState(1);
   const [selectedAlert, setSelectedAlert] = useState<FraudAlert | null>(null);
   const [notes, setNotes] = useState('');
   const [newStatus, setNewStatus] = useState('');
 
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['fraud-alerts', statusFilter],
+    queryKey: ['fraud-alerts', statusFilter, page],
     queryFn: async () => {
-      const params = statusFilter ? `?status=${statusFilter}&limit=100` : '?limit=100';
-      const res = await api.get<{ data: FraudAlert[] }>(`/admin/fraud/alerts${params}`);
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String((page - 1) * PAGE_SIZE),
+      });
+      if (statusFilter) params.set('status', statusFilter);
+      const res = await api.get<{ data: FraudAlert[]; total: number }>(
+        `/admin/fraud/alerts?${params}`,
+      );
       return res.data;
     },
   });
 
   const updateAlert = useMutation({
-    mutationFn: async ({ alertId, status, alertNotes }: { alertId: string; status: string; alertNotes?: string }) => {
+    mutationFn: async ({
+      alertId,
+      status,
+      alertNotes,
+    }: {
+      alertId: string;
+      status: string;
+      alertNotes?: string;
+    }) => {
       await api.patch(`/admin/fraud/alerts/${alertId}`, { status, notes: alertNotes });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['fraud-alerts'] });
+      void qc.invalidateQueries({ queryKey: ['fraud-alerts'] });
       setSelectedAlert(null);
+      toast({ title: 'Alert updated', variant: 'success' });
+    },
+    onError: () => {
+      toast({ title: 'Could not update alert', variant: 'critical' });
     },
   });
 
@@ -59,156 +97,209 @@ export default function FraudPage() {
       const res = await api.post(`/admin/fraud/users/${userId}/check`);
       return res.data;
     },
+    onSuccess: () => {
+      toast({ title: 'Re-check complete', variant: 'success' });
+    },
+    onError: () => {
+      toast({ title: 'Re-check failed', variant: 'critical' });
+    },
   });
 
   const alerts = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const columns: ColumnDef<FraudAlert, unknown>[] = [
+    {
+      accessorKey: 'signal',
+      header: 'Signal',
+      cell: ({ getValue }) => <span className="font-mono text-xs">{getValue<string>()}</span>,
+    },
+    {
+      accessorKey: 'riskScore',
+      header: 'Risk',
+      cell: ({ getValue }) => {
+        const score = getValue<number>();
+        return <span className={`font-bold ${RISK_COLOR(score)}`}>{score}</span>;
+      },
+    },
+    {
+      accessorKey: 'userId',
+      header: 'User ID',
+      cell: ({ getValue }) => (
+        <span className="block max-w-[120px] truncate font-mono text-xs">{getValue<string>()}</span>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ getValue }) => {
+        const status = getValue<string>();
+        return <StatusPill tone={STATUS_TONE[status] ?? 'neutral'} label={STATUS_LABELS[status]} />;
+      },
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Created',
+      cell: ({ getValue }) => (
+        <span className="text-xs text-on-surface-variant">
+          {new Date(getValue<string>()).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => {
+        const alert = row.original;
+        return (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="!px-2 !py-1 text-xs"
+              onClick={() => {
+                setSelectedAlert(alert);
+                setNotes(alert.notes ?? '');
+                setNewStatus(alert.status);
+              }}
+            >
+              Review
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="!px-2 !py-1 text-xs"
+              disabled={runCheck.isPending}
+              onClick={() => runCheck.mutate(alert.userId)}
+            >
+              Re-check
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Fraud Alerts</h1>
-        <div className="flex gap-2">
-          {(['open', 'under_review', 'resolved', 'false_positive', ''] as const).map((s) => (
-            <button
-              key={s || 'all'}
-              onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1 rounded text-sm ${statusFilter === s ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}
-            >
-              {s ? STATUS_LABELS[s] : 'All'}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Fraud Alerts"
+        subtitle="Review risk signals, update case status, and re-run user checks."
+      />
+
+      <div className="flex flex-wrap gap-2">
+        {(['open', 'under_review', 'resolved', 'false_positive', ''] as const).map((s) => (
+          <Button
+            key={s || 'all'}
+            type="button"
+            variant={statusFilter === s ? 'primary' : 'secondary'}
+            className="!px-3 !py-1 text-sm"
+            onClick={() => setStatusFilter(s)}
+          >
+            {s ? STATUS_LABELS[s] : 'All'}
+          </Button>
+        ))}
       </div>
 
-      {isLoading ? (
-        <div className="overflow-x-auto" aria-busy="true" aria-label="Loading fraud alerts">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-zinc-400 border-b border-zinc-700">
-                <th className="pb-2 pr-4">Signal</th>
-                <th className="pb-2 pr-4">Risk</th>
-                <th className="pb-2 pr-4">User ID</th>
-                <th className="pb-2 pr-4">Status</th>
-                <th className="pb-2 pr-4">Created</th>
-                <th className="pb-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="animate-pulse">
-                  <td className="py-3 pr-4"><div className="h-3 w-24 rounded bg-zinc-700" /></td>
-                  <td className="py-3 pr-4"><div className="h-3 w-8 rounded bg-zinc-700" /></td>
-                  <td className="py-3 pr-4"><div className="h-3 w-20 rounded bg-zinc-700" /></td>
-                  <td className="py-3 pr-4"><div className="h-4 w-16 rounded bg-zinc-700" /></td>
-                  <td className="py-3 pr-4"><div className="h-3 w-16 rounded bg-zinc-700" /></td>
-                  <td className="py-3"><div className="h-6 w-20 rounded bg-zinc-700" /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : alerts.length === 0 ? (
-        <div className="text-zinc-400">No alerts found.</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-zinc-400 border-b border-zinc-700">
-                <th className="pb-2 pr-4">Signal</th>
-                <th className="pb-2 pr-4">Risk</th>
-                <th className="pb-2 pr-4">User ID</th>
-                <th className="pb-2 pr-4">Status</th>
-                <th className="pb-2 pr-4">Created</th>
-                <th className="pb-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800">
-              {alerts.map((alert) => (
-                <tr key={alert.id} className="text-zinc-200">
-                  <td className="py-3 pr-4 font-mono text-xs">{alert.signal}</td>
-                  <td className={`py-3 pr-4 font-bold ${RISK_COLOR(alert.riskScore)}`}>{alert.riskScore}</td>
-                  <td className="py-3 pr-4 font-mono text-xs truncate max-w-[120px]">{alert.userId}</td>
-                  <td className="py-3 pr-4">
-                    <span className="px-2 py-0.5 rounded bg-zinc-700 text-xs">{STATUS_LABELS[alert.status]}</span>
-                  </td>
-                  <td className="py-3 pr-4 text-zinc-400 text-xs">
-                    {new Date(alert.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="py-3 flex gap-2">
-                    <button
-                      onClick={() => { setSelectedAlert(alert); setNotes(alert.notes ?? ''); setNewStatus(alert.status); }}
-                      className="text-xs px-2 py-1 bg-zinc-700 rounded hover:bg-zinc-600"
-                    >
-                      Review
-                    </button>
-                    <button
-                      onClick={() => runCheck.mutate(alert.userId)}
-                      className="text-xs px-2 py-1 bg-zinc-700 rounded hover:bg-zinc-600"
-                    >
-                      Re-check
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DataTable<FraudAlert>
+        columns={columns}
+        data={alerts}
+        getRowId={(alert) => alert.id}
+        loading={isLoading}
+        emptyState={{ title: 'No alerts found' }}
+      />
 
-      {selectedAlert && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-zinc-900 rounded-xl p-6 w-full max-w-lg space-y-4 border border-zinc-700">
-            <h2 className="text-lg font-bold text-white">Update Alert</h2>
-            <div className="text-sm text-zinc-400">
-              <p><span className="text-zinc-300">Signal:</span> {selectedAlert.signal}</p>
-              <p><span className="text-zinc-300">Risk Score:</span> {selectedAlert.riskScore}</p>
-              <p><span className="text-zinc-300">User:</span> {selectedAlert.userId}</p>
-              {Object.keys(selectedAlert.metadata).length > 0 && (
-                <pre className="mt-2 text-xs bg-zinc-800 rounded p-2 overflow-auto max-h-32">
+      {!isLoading && total > 0 ? (
+        <AdminPagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          label="alerts"
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        />
+      ) : null}
+
+      <Dialog
+        open={!!selectedAlert}
+        onClose={() => setSelectedAlert(null)}
+        labelledBy={dialogTitleId}
+        size="md"
+      >
+        {selectedAlert ? (
+          <div className="space-y-4">
+            <h2 id={dialogTitleId} className="text-lg font-bold text-on-surface">
+              Update Alert
+            </h2>
+            <div className="text-sm text-on-surface-variant">
+              <p>
+                <span className="text-on-surface">Signal:</span> {selectedAlert.signal}
+              </p>
+              <p>
+                <span className="text-on-surface">Risk Score:</span> {selectedAlert.riskScore}
+              </p>
+              <p>
+                <span className="text-on-surface">User:</span> {selectedAlert.userId}
+              </p>
+              {Object.keys(selectedAlert.metadata).length > 0 ? (
+                <pre className="mt-2 max-h-32 overflow-auto rounded bg-surface-container-high p-2 text-xs">
                   {JSON.stringify(selectedAlert.metadata, null, 2)}
                 </pre>
-              )}
+              ) : null}
             </div>
             <div className="space-y-2">
-              <label className="block text-sm text-zinc-300">Status</label>
+              <label className="block text-sm text-on-surface" htmlFor="fraud-status">
+                Status
+              </label>
               <select
+                id="fraud-status"
                 value={newStatus}
                 onChange={(e) => setNewStatus(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+                className="w-full rounded border border-outline-variant/40 bg-surface-container-low px-3 py-2 text-sm text-on-surface"
               >
                 {Object.entries(STATUS_LABELS).map(([val, label]) => (
-                  <option key={val} value={val}>{label}</option>
+                  <option key={val} value={val}>
+                    {label}
+                  </option>
                 ))}
               </select>
             </div>
             <div className="space-y-2">
-              <label className="block text-sm text-zinc-300">Notes</label>
+              <label className="block text-sm text-on-surface" htmlFor="fraud-notes">
+                Notes
+              </label>
               <textarea
+                id="fraud-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm resize-none"
+                className="w-full resize-none rounded border border-outline-variant/40 bg-surface-container-low px-3 py-2 text-sm text-on-surface"
                 placeholder="Internal notes..."
               />
             </div>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setSelectedAlert(null)}
-                className="px-4 py-2 text-sm bg-zinc-700 rounded hover:bg-zinc-600 text-white"
-              >
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setSelectedAlert(null)}>
                 Cancel
-              </button>
-              <button
-                onClick={() => updateAlert.mutate({ alertId: selectedAlert.id, status: newStatus, alertNotes: notes })}
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
                 disabled={updateAlert.isPending}
-                className="px-4 py-2 text-sm bg-blue-600 rounded hover:bg-blue-500 text-white disabled:opacity-50"
+                onClick={() =>
+                  updateAlert.mutate({
+                    alertId: selectedAlert.id,
+                    status: newStatus,
+                    alertNotes: notes,
+                  })
+                }
               >
                 {updateAlert.isPending ? 'Saving...' : 'Save'}
-              </button>
+              </Button>
             </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </Dialog>
     </div>
   );
 }

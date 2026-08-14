@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { EmptyState, PageHeader, StatCardsSkeleton, StatusPill, type StatusTone } from '@forge/design-system';
 import { getMyVideos } from '@/lib/creator-studio';
@@ -12,6 +13,7 @@ import { CreatorCohortChart } from '@/components/Community/CreatorCohortChart';
 
 export default function StudioAnalyticsPage() {
   const { user, isCreator } = useAuth();
+  const [perfDays, setPerfDays] = useState(28);
   const { data: videos, isLoading, isError } = useQuery({
     queryKey: ['studio-analytics', user?.id],
     queryFn: async () => {
@@ -28,29 +30,6 @@ export default function StudioAnalyticsPage() {
       const { data } = await api.get<{
         data: { active: number; trial: number; mrrCents: number; canceled: number };
       }>('/creators/me/subscribers/analytics');
-      return data.data;
-    },
-  });
-
-  const { data: ecosystemTree } = useQuery({
-    queryKey: ['ecosystem-tree', user?.id],
-    enabled: !!user?.id && isCreator,
-    queryFn: async () => {
-      const { data } = await api.get<{
-        data: {
-          brands: Array<{ id: string; name: string; slug: string }>;
-          communities: Array<{
-            id: string;
-            name: string;
-            slug: string;
-            courses: Array<{ id: string; title: string }>;
-            programs: Array<{ id: string; name: string; courseCount: number }>;
-          }>;
-          standaloneCourses: Array<{ id: string; title: string }>;
-          programs: Array<{ id: string; name: string; courseCount: number }>;
-          bundles: Array<{ id: string; name: string; itemCount: number }>;
-        };
-      }>('/creators/me/ecosystem-tree');
       return data.data;
     },
   });
@@ -101,6 +80,23 @@ export default function StudioAnalyticsPage() {
     },
   });
 
+  const { data: videoPerformance } = useQuery({
+    queryKey: ['studio-video-performance', user?.id, perfDays],
+    enabled: !!user?.id && isCreator,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: {
+          periodDays: number;
+          impressions: number;
+          views: number;
+          ctr: number | null;
+          avgWatchPercent: number | null;
+        };
+      }>('/analytics/studio/video-performance', { params: { days: perfDays } });
+      return data.data;
+    },
+  });
+
   // Thresholds mirror docs/CREATOR_KPI_DEFINITIONS.md §9 (KPI alert thresholds) —
   // keep in sync if those thresholds change.
   const churnStatus = (rate: number): { label: string; tone: StatusTone } =>
@@ -108,8 +104,11 @@ export default function StudioAnalyticsPage() {
   const engagementStatus = (score: number): { label: string; tone: StatusTone } =>
     score < 15 ? { label: 'Critical', tone: 'critical' } : score < 30 ? { label: 'Watch', tone: 'warning' } : { label: 'Healthy', tone: 'success' };
 
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const exportMutation = useMutation({
     mutationFn: async () => {
+      setExportError(null);
       const { data } = await api.get<Blob>('/creators/me/business-analytics/export', {
         responseType: 'blob',
       });
@@ -120,6 +119,7 @@ export default function StudioAnalyticsPage() {
       anchor.click();
       URL.revokeObjectURL(url);
     },
+    onError: () => setExportError('Could not export CSV. Try again.'),
   });
 
   const totalViews = videos?.reduce((sum, v) => sum + (v.viewCount ?? 0), 0) ?? 0;
@@ -141,18 +141,38 @@ export default function StudioAnalyticsPage() {
           title="Analytics"
           subtitle="Revenue, membership health, engagement, and top content in one command view."
         />
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => exportMutation.mutate()}
-            disabled={exportMutation.isPending}
-            className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:border-primary disabled:opacity-60"
-          >
-            {exportMutation.isPending ? 'Exporting…' : 'Export CSV'}
-          </button>
-          <Link href="/studio/analytics/details" className="text-sm text-primary hover:underline self-center">
-            Per-lesson breakdown
-          </Link>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+              Video performance
+              <select
+                value={perfDays}
+                onChange={(e) => setPerfDays(Number(e.target.value))}
+                className="rounded-lg border border-outline-variant bg-transparent px-2 py-1.5 text-sm text-on-surface"
+                aria-label="Video performance window"
+              >
+                <option value={7}>Last 7 days</option>
+                <option value={28}>Last 28 days</option>
+                <option value={90}>Last 90 days</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => exportMutation.mutate()}
+              disabled={exportMutation.isPending}
+              className="rounded-full border border-outline-variant/40 px-4 py-2 text-sm hover:border-primary disabled:opacity-60"
+            >
+              {exportMutation.isPending ? 'Exporting…' : 'Export CSV'}
+            </button>
+            <Link href="/studio/analytics/details" className="text-sm text-primary hover:underline">
+              Per-video breakdown
+            </Link>
+          </div>
+          {exportError ? (
+            <p className="text-xs text-error" role="alert" aria-live="polite">
+              {exportError}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -162,7 +182,33 @@ export default function StudioAnalyticsPage() {
           <p className="font-display-forge mt-1 text-2xl font-bold text-primary">{formatCount(totalViews)}</p>
         </article>
         <article className="glass-panel rounded-2xl p-5">
-          <p className="text-sm text-on-surface-variant">Published lessons</p>
+          <p className="text-sm text-on-surface-variant">
+            Impressions ({videoPerformance?.periodDays ?? perfDays}d)
+          </p>
+          <p className="font-display-forge mt-1 text-2xl font-bold">
+            {formatCount(videoPerformance?.impressions ?? 0)}
+          </p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">CTR</p>
+          <p className="font-display-forge mt-1 text-2xl font-bold">
+            {videoPerformance?.ctr != null
+              ? `${Math.round(videoPerformance.ctr * 1000) / 10}%`
+              : '—'}
+          </p>
+          <p className="mt-1 text-xs text-outline">Views ÷ feed impressions</p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">Avg watch %</p>
+          <p className="font-display-forge mt-1 text-2xl font-bold">
+            {videoPerformance?.avgWatchPercent != null
+              ? `${videoPerformance.avgWatchPercent}%`
+              : '—'}
+          </p>
+          <p className="mt-1 text-xs text-outline">From watch history ({videoPerformance?.periodDays ?? 28}d)</p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">Published videos</p>
           <p className="font-display-forge mt-1 text-2xl font-bold">{readyCount}</p>
         </article>
         <article className="glass-panel rounded-2xl p-5">
@@ -226,7 +272,7 @@ export default function StudioAnalyticsPage() {
               {businessAnalytics.kpis.engagementScore}/100
             </p>
             <p className="mt-1 text-xs text-on-surface-variant">
-              Active chatters, post authors &amp; course enrollments vs. member base
+              Active chatters &amp; post authors vs. member base
             </p>
           </article>
         </div>
@@ -268,41 +314,6 @@ export default function StudioAnalyticsPage() {
         </div>
       ) : null}
 
-      {ecosystemTree ? (
-        <section className="glass-panel rounded-2xl p-6">
-          <h2 className="mb-3 font-label-caps text-outline">Creator ecosystem</h2>
-          <ul className="space-y-3 text-sm">
-            {(ecosystemTree.brands ?? []).map((b) => (
-              <li key={b.id} className="text-on-surface-variant">
-                Brand · {b.name}
-              </li>
-            ))}
-            {(ecosystemTree.communities ?? []).map((c) => (
-              <li key={c.id} className="rounded-xl border border-outline-variant/30 px-3 py-2">
-                <p className="font-medium">{c.name}</p>
-                <p className="text-xs text-on-surface-variant">
-                  {c.courses.length} course{c.courses.length === 1 ? '' : 's'}
-                  {c.programs.length > 0
-                    ? ` · ${c.programs.length} program${c.programs.length === 1 ? '' : 's'}`
-                    : ''}
-                </p>
-              </li>
-            ))}
-            {(ecosystemTree.standaloneCourses ?? []).length > 0 ? (
-              <li className="text-xs text-on-surface-variant">
-                {ecosystemTree.standaloneCourses.length} standalone course
-                {ecosystemTree.standaloneCourses.length === 1 ? '' : 's'}
-              </li>
-            ) : null}
-            {(ecosystemTree.bundles ?? []).length > 0 ? (
-              <li className="text-xs text-on-surface-variant">
-                {ecosystemTree.bundles.length} bundle{ecosystemTree.bundles.length === 1 ? '' : 's'}
-              </li>
-            ) : null}
-          </ul>
-        </section>
-      ) : null}
-
       {isLoading && <StatCardsSkeleton />}
       {isError && <p className="text-error">Failed to load analytics.</p>}
 
@@ -310,14 +321,14 @@ export default function StudioAnalyticsPage() {
         <EmptyState
           icon="analytics"
           title="No content analytics yet"
-          description="Upload lessons to start tracking views and engagement."
-          action={{ label: 'Upload lesson', href: '/upload' }}
+          description="Upload videos to start tracking views and engagement."
+          action={{ label: 'Upload video', href: '/upload' }}
         />
       )}
 
       {videos && videos.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Top lessons</h2>
+          <h2 className="text-lg font-semibold">Top videos</h2>
           <ul className="space-y-2">
             {videos.slice(0, 5).map((v) => (
               <li

@@ -74,7 +74,8 @@ Subscribe to these events (handled in `stripe-payment.provider.ts`):
 | `invoice.payment_failed` | Failed payment / grace |
 | `customer.subscription.updated` | Trial, pause, tier status sync |
 | `customer.subscription.deleted` | Cancel membership |
-| `charge.refunded` | Refund → revoke entitlement |
+| `charge.refunded` | Refund → revoke entitlement / reverse Super Chat + Super Thanks creator ledger |
+| `charge.dispute.created` | Chargeback → revoke entitlement / reverse Super Chat + Super Thanks creator ledger |
 
 Copy the **signing secret** → `STRIPE_WEBHOOK_SECRET`.
 

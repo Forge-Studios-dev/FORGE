@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Icon, Input, PageHeader } from '@forge/design-system';
-import { ConfirmDialog } from '@forge/design-system/client';
+import { ConfirmDialog, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 
 interface Category {
@@ -24,6 +24,7 @@ function slugify(name: string) {
 
 export default function CategoriesPage() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [editing, setEditing] = useState<Category | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', slug: '', sortOrder: '0', description: '' });
@@ -58,6 +59,7 @@ export default function CategoriesPage() {
       setEditing(null);
       setForm({ name: '', slug: '', sortOrder: '0', description: '' });
       setError('');
+      toast({ title: editing ? 'Category updated' : 'Category created', variant: 'success' });
     },
     onError: () => setError('Could not save category. Check name/slug uniqueness.'),
   });
@@ -67,6 +69,7 @@ export default function CategoriesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-categories'] });
       setPendingDelete(null);
+      toast({ title: 'Category deleted', variant: 'success' });
     },
     onError: () => {
       setError('Cannot delete — remove subcategories first.');
@@ -96,7 +99,7 @@ export default function CategoriesPage() {
   return (
     <section>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <PageHeader title="Categories" subtitle="Manage skill taxonomy for discovery" />
+        <PageHeader title="Categories" subtitle="Manage categories for discovery" />
         <Button type="button" onClick={openCreate}>
           Add category
         </Button>

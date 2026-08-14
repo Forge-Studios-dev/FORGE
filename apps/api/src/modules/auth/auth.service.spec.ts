@@ -12,6 +12,7 @@ import { MailService } from '../mail/mail.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AuthAccountLockoutService } from './auth-account-lockout.service';
 import { AuthEmailOtpService } from './auth-email-otp.service';
+import { AuthMfaService } from './auth-mfa.service';
 import { AuthUserCacheService } from './auth-user-cache.service';
 import { AuthSessionCacheService } from './auth-session-cache.service';
 import { ReferralService } from '../referral/referral.service';
@@ -22,12 +23,17 @@ describe('AuthService', () => {
     save: jest.fn(),
     update: jest.fn().mockResolvedValue({ affected: 1 }),
     create: jest.fn((x) => x),
+    createQueryBuilder: jest.fn(() => ({
+      where: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+    })),
   };
   const refreshRepoMock = {
     create: jest.fn((x) => x),
     save: jest.fn(),
     update: jest.fn(),
     findOne: jest.fn(),
+    find: jest.fn().mockResolvedValue([]),
   };
   const resetRepoMock = {
     save: jest.fn(),
@@ -53,6 +59,7 @@ describe('AuthService', () => {
 
   const jwtMock = {
     sign: jest.fn().mockReturnValue('access.jwt'),
+    verify: jest.fn(),
   };
 
   const configMock = {
@@ -81,6 +88,7 @@ describe('AuthService', () => {
         { provide: AnalyticsService, useValue: analyticsMock },
         { provide: AuthAccountLockoutService, useValue: lockoutMock },
         { provide: AuthEmailOtpService, useValue: emailOtpMock },
+        { provide: AuthMfaService, useValue: { verifyLoginCode: jest.fn() } },
         { provide: AuthUserCacheService, useValue: { get: jest.fn(), set: jest.fn(), bust: jest.fn() } },
         {
           provide: AuthSessionCacheService,
@@ -93,6 +101,7 @@ describe('AuthService', () => {
         {
           provide: DataSource,
           useValue: {
+            query: jest.fn().mockResolvedValue(undefined),
             transaction: jest.fn(async (work) => work({
               save: jest.fn(async (x) => x),
               create: jest.fn((_e, x) => x),
@@ -150,6 +159,43 @@ describe('AuthService', () => {
     const svc = await setupService();
     await svc.forgotPassword('missing@example.com');
     expect(resetRepoMock.save).not.toHaveBeenCalled();
+  });
+
+  describe('changePassword', () => {
+    it('updates the hash and revokes other sessions', async () => {
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.hash('OldPass1a', 4);
+      userRepoMock.findOne.mockResolvedValue({ id: 'u1', passwordHash: hash });
+      userRepoMock.save.mockImplementation(async (u: unknown) => u);
+      refreshRepoMock.find.mockResolvedValue([{ id: 'keep' }, { id: 'other' }]);
+      refreshRepoMock.update.mockResolvedValue({});
+      const svc = await setupService();
+      const result = await svc.changePassword('u1', 'OldPass1a', 'NewPass1a', 'keep');
+      expect(result).toEqual({ ok: true });
+      expect(userRepoMock.save).toHaveBeenCalled();
+      expect(refreshRepoMock.update).toHaveBeenCalledWith('other', { revoked: true });
+      expect(refreshRepoMock.update).not.toHaveBeenCalledWith('keep', { revoked: true });
+    });
+
+    it('rejects an incorrect current password', async () => {
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.hash('OldPass1a', 4);
+      userRepoMock.findOne.mockResolvedValue({ id: 'u1', passwordHash: hash });
+      const svc = await setupService();
+      await expect(svc.changePassword('u1', 'WrongPass1a', 'NewPass1a')).rejects.toThrow(
+        /Current password is incorrect/,
+      );
+    });
+
+    it('rejects when new password matches current', async () => {
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.hash('SamePass1a', 4);
+      userRepoMock.findOne.mockResolvedValue({ id: 'u1', passwordHash: hash });
+      const svc = await setupService();
+      await expect(svc.changePassword('u1', 'SamePass1a', 'SamePass1a')).rejects.toThrow(
+        /must be different/,
+      );
+    });
   });
 
   it('refreshWithToken rotates opaque refresh token', async () => {
@@ -304,6 +350,143 @@ describe('AuthService', () => {
 
       expect(result).toEqual({ ok: true });
       expect(mailMock.sendMail).toHaveBeenCalled();
+    });
+  });
+
+  describe('login with MFA enabled', () => {
+    it('returns a challenge token instead of real tokens, without issuing a session', async () => {
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.hash('CorrectPass1a', 4);
+      userRepoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        passwordHash: hash,
+        mfaEnabled: true,
+        isActive: true,
+      });
+      jwtMock.sign.mockReturnValue('challenge.jwt');
+
+      const svc = await setupService();
+      const result = await svc.login({ email: 'a@b.com', password: 'CorrectPass1a' } as never);
+
+      expect(result).toEqual({ mfaRequired: true, challengeToken: 'challenge.jwt' });
+      expect(refreshRepoMock.save).not.toHaveBeenCalled();
+      expect(analyticsMock.ingest).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('loginWithGoogle with MFA enabled', () => {
+    it('returns a challenge token instead of real tokens, without issuing a session', async () => {
+      oauthRepoMock.findOne.mockResolvedValue({ userId: 'u1', provider: 'google' });
+      userRepoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        mfaEnabled: true,
+        isActive: true,
+      });
+      jwtMock.sign.mockReturnValue('challenge.jwt');
+
+      const svc = await setupService();
+      const result = await svc.loginWithGoogle({
+        providerId: 'g-1',
+        email: 'a@b.com',
+        displayName: 'A',
+      } as never);
+
+      expect(result).toEqual({ mfaRequired: true, challengeToken: 'challenge.jwt' });
+      expect(refreshRepoMock.save).not.toHaveBeenCalled();
+      expect(analyticsMock.ingest).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('completeMfaLogin', () => {
+    it('exchanges a valid challenge token + code for real tokens', async () => {
+      jwtMock.sign.mockReturnValue('access.jwt');
+      jwtMock.verify.mockReturnValue({ sub: 'u1', mfaChallenge: true });
+      userRepoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        isActive: true,
+        deletedAt: null,
+      });
+      refreshRepoMock.save.mockResolvedValue({ id: 'sid-1' });
+      const mfaMock = { verifyLoginCode: jest.fn().mockResolvedValue(true) };
+
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: getRepositoryToken(User), useValue: userRepoMock },
+          { provide: getRepositoryToken(RefreshToken), useValue: refreshRepoMock },
+          { provide: getRepositoryToken(PasswordResetToken), useValue: resetRepoMock },
+          { provide: getRepositoryToken(OAuthAccount), useValue: oauthRepoMock },
+          { provide: JwtService, useValue: jwtMock },
+          { provide: ConfigService, useValue: configMock },
+          { provide: MailService, useValue: mailMock },
+          { provide: AnalyticsService, useValue: analyticsMock },
+          { provide: AuthAccountLockoutService, useValue: lockoutMock },
+          { provide: AuthEmailOtpService, useValue: emailOtpMock },
+          { provide: AuthMfaService, useValue: mfaMock },
+          { provide: AuthUserCacheService, useValue: { get: jest.fn(), set: jest.fn(), bust: jest.fn() } },
+          {
+            provide: AuthSessionCacheService,
+            useValue: { markActive: jest.fn().mockResolvedValue(undefined) },
+          },
+          { provide: DataSource, useValue: { transaction: jest.fn() } },
+          { provide: ReferralService, useValue: { claimReferral: jest.fn() } },
+        ],
+      }).compile();
+      const svc = moduleRef.get(AuthService);
+
+      const result = await svc.completeMfaLogin('challenge.jwt', '123456');
+
+      expect(mfaMock.verifyLoginCode).toHaveBeenCalledWith('u1', '123456');
+      expect(result.accessToken).toBe('access.jwt');
+    });
+
+    it('rejects an expired or malformed challenge token', async () => {
+      jwtMock.verify.mockImplementation(() => {
+        throw new Error('jwt expired');
+      });
+      const svc = await setupService();
+
+      await expect(svc.completeMfaLogin('bad.jwt', '123456')).rejects.toThrow(
+        'MFA challenge expired or invalid — log in again',
+      );
+    });
+
+    it('rejects when the MFA code is wrong', async () => {
+      jwtMock.verify.mockReturnValue({ sub: 'u1', mfaChallenge: true });
+      userRepoMock.findOne.mockResolvedValue({ id: 'u1', isActive: true, deletedAt: null });
+      const mfaMock = { verifyLoginCode: jest.fn().mockResolvedValue(false) };
+
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: getRepositoryToken(User), useValue: userRepoMock },
+          { provide: getRepositoryToken(RefreshToken), useValue: refreshRepoMock },
+          { provide: getRepositoryToken(PasswordResetToken), useValue: resetRepoMock },
+          { provide: getRepositoryToken(OAuthAccount), useValue: oauthRepoMock },
+          { provide: JwtService, useValue: jwtMock },
+          { provide: ConfigService, useValue: configMock },
+          { provide: MailService, useValue: mailMock },
+          { provide: AnalyticsService, useValue: analyticsMock },
+          { provide: AuthAccountLockoutService, useValue: lockoutMock },
+          { provide: AuthEmailOtpService, useValue: emailOtpMock },
+          { provide: AuthMfaService, useValue: mfaMock },
+          { provide: AuthUserCacheService, useValue: { get: jest.fn(), set: jest.fn(), bust: jest.fn() } },
+          {
+            provide: AuthSessionCacheService,
+            useValue: { markActive: jest.fn().mockResolvedValue(undefined) },
+          },
+          { provide: DataSource, useValue: { transaction: jest.fn() } },
+          { provide: ReferralService, useValue: { claimReferral: jest.fn() } },
+        ],
+      }).compile();
+      const svc = moduleRef.get(AuthService);
+
+      await expect(svc.completeMfaLogin('challenge.jwt', '000000')).rejects.toThrow(
+        'Invalid verification code',
+      );
     });
   });
 });

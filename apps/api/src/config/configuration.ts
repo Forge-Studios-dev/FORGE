@@ -59,12 +59,27 @@ export default () => ({
     emailOtpEnabled: process.env.AUTH_EMAIL_OTP_ENABLED === 'true',
   },
 
+  mfa: {
+    /** Base64-encoded 32-byte AES-256-GCM key. Required before any user can enroll in TOTP 2FA. */
+    encryptionKey: process.env.MFA_ENCRYPTION_KEY || '',
+  },
+
+  contentScan: {
+    /** 'none' (default, approves everything) | 'webhook' (generic REST scan endpoint). */
+    provider: process.env.CONTENT_SCAN_PROVIDER || 'none',
+    webhookUrl: process.env.CONTENT_SCAN_WEBHOOK_URL || '',
+    webhookToken: process.env.CONTENT_SCAN_WEBHOOK_TOKEN || '',
+    timeoutMs: parseInt(process.env.CONTENT_SCAN_TIMEOUT_MS || '15000', 10),
+  },
+
   aws: {
     region: process.env.AWS_REGION || 'ap-south-1',
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
     s3BucketName: process.env.S3_BUCKET_NAME || 'forge-media',
     cloudfrontDomain: process.env.CLOUDFRONT_DOMAIN || '',
+    /** Set to switch S3 auth from static keys to Fly-OIDC/STS federation — see docs/operations/AWS_CREDENTIAL_ROTATION.md. */
+    roleArn: process.env.AWS_ROLE_ARN || '',
   },
 
   mux: {
@@ -132,6 +147,14 @@ export default () => ({
 
   /** Comma-separated: e.g. multipart_upload,blueprints_public */
   featureFlags: process.env.FEATURE_FLAGS || '',
+
+  features: {
+    /**
+     * Skill-economy LMS (courses, podcasts, creator programs).
+     * Default off — YouTube-replica mode. Set FEATURES_SKILL_ECONOMY_LMS=true to re-enable.
+     */
+    skillEconomyLms: process.env.FEATURES_SKILL_ECONOMY_LMS === 'true',
+  },
 
   entitlements: {
     mockSubscriptionsEnabled:

@@ -1,7 +1,6 @@
 'use client';
 
-import Image from 'next/image';
-import Link from 'next/link';
+import { Avatar } from '@forge/design-system';
 import { User } from '@/types';
 import { formatCount } from '@/lib/utils';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -9,15 +8,19 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getAccessToken, persistAuthSession } from '@/lib/auth-storage';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AuthGateModal } from '@/components/gates/AuthGateModal';
 import { VerifyEmailGateModal } from '@/components/gates/VerifyEmailGateModal';
 import {
   engageBlockedMessage,
-  getEngageBlockReason,
   type EngageBlockReason,
 } from '@/lib/engage-access';
-import { engageErrorReason, toggleFollow } from '@/lib/engage-mutations';
+import { SubscribeChannelControl } from '@/components/SubscribeChannelControl/SubscribeChannelControl';
+import { ReportContentButton } from '@/components/watch/ReportContentButton';
+import { ConfirmDialog } from '@forge/design-system/client';
+import { blockUser, unblockUser } from '@/lib/engage-mutations';
+import Image from 'next/image';
+import Link from 'next/link';
 
 interface Props {
   user: User;
@@ -28,51 +31,19 @@ export function ProfileHeader({ user }: Props) {
   const { user: me, isGuest, canApplyForCreator, refresh } = useAuth();
   const [engageBlock, setEngageBlock] = useState<EngageBlockReason | null>(null);
   const [engageError, setEngageError] = useState<string | null>(null);
-  const blockReason = getEngageBlockReason(me, isGuest);
+  const [shareHint, setShareHint] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(!!user.viewerBlocked);
+  const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const isOwnProfile = !!me?.id && me.id === user.id;
 
-  const { data: following = user.viewerFollowing ?? false } = useQuery({
-    queryKey: ['profile-follow', user.id, me?.id],
+  const { data: subscribed = !!(user.viewerSubscribed ?? user.viewerFollowing) } = useQuery({
+    queryKey: ['profile-subscribe', user.id, me?.id],
     enabled: !isGuest && !!me && !isOwnProfile,
     queryFn: async () => {
       const { data } = await api.get<{ data: User }>(`/users/by-username/${user.username}`);
-      return !!data.data.viewerFollowing;
+      return !!(data.data.viewerSubscribed ?? data.data.viewerFollowing);
     },
-    initialData: user.viewerFollowing,
-  });
-
-  const { data: myXp } = useQuery({
-    queryKey: ['my-platform-xp'],
-    enabled: isOwnProfile,
-    queryFn: async () => {
-      const { data } = await api.get<{ data: { xp: number; level: number; streak: number } }>(
-        '/platform/gamification/me',
-      );
-      return data.data;
-    },
-  });
-
-  const [followingState, setFollowingState] = useState(following);
-
-  useEffect(() => {
-    setFollowingState(following);
-  }, [following]);
-
-  const followMutation = useMutation({
-    mutationFn: (nextFollowing: boolean) => toggleFollow(user.id, !nextFollowing),
-    onMutate: (nextFollowing) => {
-      setEngageError(null);
-      setFollowingState(nextFollowing);
-    },
-    onError: (err, nextFollowing) => {
-      setFollowingState(!nextFollowing);
-      const reason = engageErrorReason(err);
-      if (reason === 'guest' || reason === 'unverified') {
-        setEngageBlock(reason);
-      } else {
-        setEngageError('Could not update follow. Try again.');
-      }
-    },
+    initialData: !!(user.viewerSubscribed ?? user.viewerFollowing),
   });
 
   const requestCreatorMutation = useMutation({
@@ -90,10 +61,35 @@ export function ProfileHeader({ user }: Props) {
     },
   });
 
+  const blockMutation = useMutation({
+    mutationFn: async (nextBlocked: boolean) => {
+      if (nextBlocked) {
+        await blockUser(user.id);
+      } else {
+        await unblockUser(user.id);
+      }
+    },
+    onMutate: (nextBlocked) => {
+      setEngageError(null);
+      setBlocked(nextBlocked);
+    },
+    onError: (_err, nextBlocked) => {
+      setBlocked(!nextBlocked);
+      setEngageError('Could not update block. Try again.');
+    },
+    onSuccess: (_data, nextBlocked) => {
+      setBlockConfirmOpen(false);
+      setShareHint(nextBlocked ? 'User blocked' : 'User unblocked');
+      setTimeout(() => setShareHint(null), 2000);
+    },
+  });
+
+  const subscriberCount = user.subscriberCount ?? user.followerCount;
+
   return (
     <div className="relative">
       {user.bannerUrl ? (
-        <div className="h-48 sm:h-64 relative overflow-hidden">
+        <div className="relative h-48 overflow-hidden sm:h-64">
           <Image src={user.bannerUrl} alt="Banner" fill className="object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-surface-primary/80 to-transparent" />
         </div>
@@ -103,61 +99,119 @@ export function ProfileHeader({ user }: Props) {
 
       <div className="mx-auto max-w-[var(--spacing-container-max)] px-5 md:px-12">
         <div className="relative -mt-16 flex items-end gap-5 border-b border-outline-variant/20 pb-6">
-          {user.avatarUrl ? (
-            <Image
-              src={user.avatarUrl}
-              alt={user.displayName}
-              width={96}
-              height={96}
-              className="rounded-2xl object-cover border-4 border-surface-primary"
-            />
-          ) : (
-            <div className="w-24 h-24 rounded-2xl bg-forge-600 flex items-center justify-center text-3xl text-white font-bold border-4 border-surface-primary">
-              {user.displayName[0]}
-            </div>
-          )}
+          <Avatar
+            src={user.avatarUrl}
+            name={user.displayName}
+            size="xl"
+            className="!h-24 !w-24 rounded-2xl border-4 border-surface-primary text-3xl"
+          />
 
-          <div className="flex-1 min-w-0 pb-2">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold truncate">{user.displayName}</h1>
+          <div className="min-w-0 flex-1 pb-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="truncate text-2xl font-bold">{user.displayName}</h1>
               {user.isVerified && (
-                <span className="text-forge-400 text-sm bg-forge-500/10 border border-forge-500/20 px-2 py-0.5 rounded-full">
+                <span className="rounded-full border border-forge-500/20 bg-forge-500/10 px-2 py-0.5 text-sm text-forge-400">
                   Verified
                 </span>
               )}
             </div>
             <p className="text-sm text-on-surface-variant">@{user.username}</p>
-            <Link
-              href={`/${user.username}/community`}
-              className="mt-1 inline-block text-sm text-primary hover:underline"
-            >
-              Community
-            </Link>
           </div>
 
           {isOwnProfile ? (
-            <Link
-              href="/profile/settings"
-              className="shrink-0 rounded-xl border border-outline-variant px-6 py-2 font-semibold text-on-surface transition hover:border-primary"
-            >
-              Settings
-            </Link>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Link
+                href="/studio/branding"
+                className="rounded-xl border border-outline-variant px-6 py-2 font-semibold text-on-surface transition hover:border-primary"
+              >
+                Customize channel
+              </Link>
+              <button
+                type="button"
+                onClick={async () => {
+                  const url = `${window.location.origin}/${user.username}`;
+                  try {
+                    if (navigator.share) {
+                      await navigator.share({ title: user.displayName, url });
+                      return;
+                    }
+                  } catch {
+                    /* fall through */
+                  }
+                  if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(url);
+                    setShareHint('Channel link copied');
+                    setTimeout(() => setShareHint(null), 2000);
+                  }
+                }}
+                className="rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold text-on-surface-variant transition hover:border-primary hover:text-on-surface"
+              >
+                Share
+              </button>
+            </div>
           ) : (
-            <button
-              onClick={() => {
-                if (blockReason) {
-                  setEngageBlock(blockReason);
-                  return;
-                }
-                followMutation.mutate(followingState);
-              }}
-              disabled={followMutation.isPending}
-              className="primary-button shrink-0 rounded-xl px-6 py-2 font-semibold text-on-primary disabled:opacity-60"
-            >
-              {followingState ? 'Following' : 'Follow'}
-            </button>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <SubscribeChannelControl
+                channelId={user.id}
+                initialSubscribed={subscribed}
+                variant="channel"
+                onEngageBlock={setEngageBlock}
+                onEngageError={setEngageError}
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  const url = `${window.location.origin}/${user.username}`;
+                  try {
+                    if (navigator.share) {
+                      await navigator.share({ title: user.displayName, url });
+                      return;
+                    }
+                  } catch {
+                    /* fall through */
+                  }
+                  if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(url);
+                    setShareHint('Channel link copied');
+                    setTimeout(() => setShareHint(null), 2000);
+                  }
+                }}
+                className="rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold text-on-surface-variant transition hover:border-primary hover:text-on-surface"
+              >
+                Share
+              </button>
+              <ReportContentButton
+                targetType="user"
+                targetId={user.id}
+                className="rounded-xl px-3 py-2 text-sm text-on-surface-variant hover:text-error"
+              />
+              <button
+                type="button"
+                disabled={blockMutation.isPending}
+                onClick={() => {
+                  if (isGuest || !me) {
+                    setEngageBlock('guest');
+                    return;
+                  }
+                  if (blocked) {
+                    blockMutation.mutate(false);
+                  } else {
+                    setBlockConfirmOpen(true);
+                  }
+                }}
+                className="rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold text-on-surface-variant transition hover:border-error hover:text-error disabled:opacity-60"
+              >
+                {blocked ? 'Unblock' : 'Block'}
+              </button>
+            </div>
           )}
         </div>
+
+        {shareHint ? (
+          <p className="mt-2 text-sm text-secondary" role="status">
+            {shareHint}
+          </p>
+        ) : null}
 
         {engageError ? (
           <p className="mt-2 text-sm text-error" role="alert">
@@ -168,6 +222,7 @@ export function ProfileHeader({ user }: Props) {
         {isOwnProfile && canApplyForCreator && (
           <div className="mt-4">
             <button
+              type="button"
               onClick={() => requestCreatorMutation.mutate()}
               disabled={requestCreatorMutation.isPending}
               className="rounded-xl border border-outline-variant bg-surface-container-high px-4 py-2 font-semibold text-on-surface transition hover:border-primary disabled:opacity-60"
@@ -178,32 +233,32 @@ export function ProfileHeader({ user }: Props) {
         )}
 
         <div className="flex gap-8 py-5 text-sm">
-          <Link href={`/${user.username}/followers`} className="text-center hover:text-primary">
-            <p className="font-bold text-lg">{formatCount(user.followerCount)}</p>
-            <p className="text-on-surface-variant">Followers</p>
+          <Link href={`/${user.username}/subscribers`} className="text-center hover:text-primary">
+            <p className="text-lg font-bold">{formatCount(subscriberCount)}</p>
+            <p className="text-on-surface-variant">Subscribers</p>
           </Link>
-          <Link href={`/${user.username}/following`} className="text-center hover:text-primary">
-            <p className="font-bold text-lg">{formatCount(user.followingCount)}</p>
-            <p className="text-on-surface-variant">Following</p>
+          <Link href={`/${user.username}/subscriptions`} className="text-center hover:text-primary">
+            <p className="text-lg font-bold">
+              {formatCount(user.subscriptionCount ?? user.followingCount)}
+            </p>
+            <p className="text-on-surface-variant">Subscriptions</p>
           </Link>
           <div className="text-center">
-            <p className="font-bold text-lg">{formatCount(user.videoCount)}</p>
+            <p className="text-lg font-bold">{formatCount(user.videoCount)}</p>
             <p className="text-on-surface-variant">Videos</p>
           </div>
-          {isOwnProfile && myXp ? (
-            <div className="text-center">
-              <p className="font-bold text-lg">Level {myXp.level}</p>
-              <p className="text-on-surface-variant">
-                {formatCount(myXp.xp)} XP{myXp.streak > 0 ? ` · ${myXp.streak}d streak` : ''}
-              </p>
-            </div>
-          ) : null}
         </div>
-
-        {user.bio && (
-          <p className="max-w-2xl pb-6 text-sm leading-relaxed text-on-surface-variant">{user.bio}</p>
-        )}
       </div>
+
+      <ConfirmDialog
+        open={blockConfirmOpen}
+        title={`Block ${user.displayName}?`}
+        description="They won’t be able to message you. Their comments will be hidden, and their channel won’t be recommended. You can unblock anytime in Settings."
+        confirmLabel="Block"
+        loading={blockMutation.isPending}
+        onConfirm={() => blockMutation.mutate(true)}
+        onCancel={() => setBlockConfirmOpen(false)}
+      />
 
       <AuthGateModal
         open={engageBlock === 'guest'}

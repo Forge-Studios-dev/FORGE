@@ -1,7 +1,7 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
-import { VIDEO_PROCESSING_QUEUE } from '../../modules/content/videos.service';
+import { VIDEO_PROCESSING_QUEUE } from '../../modules/content/video-processing.constants';
 import { MUX_VOD_INGEST_QUEUE } from '../../modules/content/mux-vod.constants';
 import { ANALYTICS_INGEST_QUEUE } from '../../modules/analytics/analytics-ingest.constants';
 import { PUSH_DISPATCH_QUEUE } from '../../modules/notifications/push-dispatch.constants';

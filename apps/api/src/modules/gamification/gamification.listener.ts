@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 import { GamificationService } from './gamification.service';
 
 type CommunityActivityPayload = {
@@ -17,6 +18,7 @@ export class GamificationListener {
 
   @OnEvent('community.activity', { async: true })
   async onCommunityActivity(payload: CommunityActivityPayload): Promise<void> {
+    if (!isSkillEconomyLmsEnabled()) return;
     if (!payload.userId || !payload.communityId || !payload.xp) return;
     try {
       await this.gamificationService.awardXp(payload.userId, payload.communityId, payload.xp);

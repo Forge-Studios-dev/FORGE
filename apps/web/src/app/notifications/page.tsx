@@ -1,12 +1,15 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { EmptyState, Icon, ListSkeleton, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { Notification } from '@/types';
 import { useAuth } from '@/lib/auth';
-import { CATEGORY_LABEL, notificationMeta, type NotificationCategory } from '@/lib/notification-category';
+import { CATEGORY_LABEL, isRetiredLmsNotification, notificationMeta, type NotificationCategory } from '@/lib/notification-category';
+import { notificationHref } from '@/lib/notification-href';
+import { timeAgo } from '@/lib/utils';
 
 type NotificationsPage = {
   data: Notification[];
@@ -15,9 +18,12 @@ type NotificationsPage = {
 
 export default function NotificationsPage() {
   const qc = useQueryClient();
+  const router = useRouter();
   const { isGuest } = useAuth();
   const [loadingMore, setLoadingMore] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<NotificationCategory | 'all'>('all');
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const categoryTabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['notifications'],
@@ -62,39 +68,64 @@ export default function NotificationsPage() {
   if (isGuest) {
     return (
       <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
-        <PageHeader title="Notifications" subtitle="Creator status, uploads, and live session updates" />
+        <PageHeader title="Notifications" subtitle="Uploads, live streams, comments, and channel updates" />
         <EmptyState
           icon="login"
           title="Sign in to see notifications"
-          description="Get updates on creator approval, uploads, and live sessions."
+          description="Get updates when channels you subscribe to upload or go live."
           action={{ label: 'Sign in', href: '/login?next=/notifications' }}
         />
       </main>
     );
   }
 
-  const items = data?.data ?? [];
+  const items = (data?.data ?? []).filter((n) => !isRetiredLmsNotification(n.type));
 
-  const presentCategories = (Object.keys(CATEGORY_LABEL) as NotificationCategory[]).filter((cat) =>
-    items.some((n) => notificationMeta(n.type).category === cat),
+  const presentCategories = (Object.keys(CATEGORY_LABEL) as NotificationCategory[]).filter(
+    (cat) => cat !== 'reward' && items.some((n) => notificationMeta(n.type).category === cat),
   );
-  const visibleItems =
-    categoryFilter === 'all' ? items : items.filter((n) => notificationMeta(n.type).category === categoryFilter);
+  const categoryTabs: { id: NotificationCategory | 'all'; label: string }[] = [
+    { id: 'all', label: 'All' },
+    ...presentCategories.map((cat) => ({ id: cat, label: CATEGORY_LABEL[cat] })),
+  ];
+
+  function focusCategoryTab(index: number) {
+    const tab = categoryTabs[(index + categoryTabs.length) % categoryTabs.length];
+    categoryTabRefs.current[tab.id]?.focus();
+    setCategoryFilter(tab.id);
+  }
+
+  const visibleItems = items.filter((n) => {
+    if (unreadOnly && n.readAt) return false;
+    if (categoryFilter === 'all') return true;
+    return notificationMeta(n.type).category === categoryFilter;
+  });
 
   return (
     <main className="mx-auto max-w-3xl px-5 py-8 md:px-12">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <PageHeader title="Notifications" subtitle="Creator status, uploads, and live session updates" />
-        {items.some((n) => !n.readAt) && (
-          <button
-            type="button"
-            onClick={() => markAllRead.mutate()}
-            disabled={markAllRead.isPending}
-            className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
-          >
-            Mark all read
-          </button>
-        )}
+        <PageHeader title="Notifications" subtitle="Uploads, live streams, comments, and channel updates" />
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-on-surface-variant">
+            <input
+              type="checkbox"
+              checked={unreadOnly}
+              onChange={(e) => setUnreadOnly(e.target.checked)}
+              className="rounded border-outline-variant"
+            />
+            Unread only
+          </label>
+          {items.some((n) => !n.readAt) && (
+            <button
+              type="button"
+              onClick={() => markAllRead.mutate()}
+              disabled={markAllRead.isPending}
+              className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+            >
+              Mark all read
+            </button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
@@ -116,38 +147,63 @@ export default function NotificationsPage() {
       ) : (
         <>
           {presentCategories.length > 1 && (
-            <div className="hide-scrollbar mb-4 flex gap-2 overflow-x-auto pb-1">
-              <button
-                type="button"
-                onClick={() => setCategoryFilter('all')}
-                className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                  categoryFilter === 'all'
-                    ? 'bg-primary text-on-primary'
-                    : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                All
-              </button>
-              {presentCategories.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                    categoryFilter === cat
-                      ? 'bg-primary text-on-primary'
-                      : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  {CATEGORY_LABEL[cat]}
-                </button>
-              ))}
+            <div
+              className="hide-scrollbar mb-4 flex gap-2 overflow-x-auto pb-1"
+              role="tablist"
+              aria-label="Notification categories"
+              aria-orientation="horizontal"
+            >
+              {categoryTabs.map((tab, i) => {
+                const selected = categoryFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    ref={(el) => {
+                      categoryTabRefs.current[tab.id] = el;
+                    }}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    tabIndex={selected ? 0 : -1}
+                    onClick={() => setCategoryFilter(tab.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        focusCategoryTab(i + 1);
+                      }
+                      if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        focusCategoryTab(i - 1);
+                      }
+                      if (e.key === 'Home') {
+                        e.preventDefault();
+                        focusCategoryTab(0);
+                      }
+                      if (e.key === 'End') {
+                        e.preventDefault();
+                        focusCategoryTab(categoryTabs.length - 1);
+                      }
+                    }}
+                    className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                      selected
+                        ? 'bg-primary text-on-primary'
+                        : 'bg-surface-container-high text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
           )}
 
           {!visibleItems.length ? (
             <p className="py-8 text-center text-sm text-on-surface-variant">
-              No {CATEGORY_LABEL[categoryFilter as NotificationCategory]?.toLowerCase()} notifications.
+              {unreadOnly
+                ? 'No unread notifications.'
+                : categoryFilter === 'all'
+                  ? 'No notifications in this view.'
+                  : `No ${CATEGORY_LABEL[categoryFilter as NotificationCategory]?.toLowerCase()} notifications.`}
             </p>
           ) : (
             <ul className="space-y-3">
@@ -159,6 +215,8 @@ export default function NotificationsPage() {
                       type="button"
                       onClick={() => {
                         if (!n.readAt) markRead.mutate(n.id);
+                        const href = notificationHref(n.type, n.metadata);
+                        if (href) router.push(href);
                       }}
                       disabled={markRead.isPending}
                       className={`glass-panel w-full rounded-xl p-4 text-left transition hover:border-primary/30 ${
@@ -179,7 +237,7 @@ export default function NotificationsPage() {
                           </div>
                         </div>
                         <span className="shrink-0 text-xs text-outline">
-                          {new Date(n.createdAt).toLocaleString()}
+                          {timeAgo(n.createdAt)}
                         </span>
                       </div>
                     </button>

@@ -14,6 +14,7 @@ import { DirectMessage } from './entities/direct-message.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
+import { EngagementService } from '../engagement/engagement.service';
 
 describe('DirectMessagesService', () => {
   let service: DirectMessagesService;
@@ -22,6 +23,7 @@ describe('DirectMessagesService', () => {
     find: jest.fn(),
     findOne: jest.fn(),
     save: jest.fn(async (m: ConversationMember) => m),
+    count: jest.fn(),
   };
   const messageRepository = {
     create: jest.fn((dto: Partial<DirectMessage>) => dto),
@@ -35,13 +37,19 @@ describe('DirectMessagesService', () => {
   };
   const conversationRepository = {
     update: jest.fn(),
+    findOne: jest.fn(),
     createQueryBuilder: jest.fn(),
   };
   const userRepository = {
     findOne: jest.fn(),
+    findByIds: jest.fn(),
   };
   const eventEmitter = { emit: jest.fn() };
   const notificationsService = { create: jest.fn() };
+  const engagementService = {
+    isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+    getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+  };
 
   const sender: User = {
     id: 'user-a',
@@ -127,6 +135,7 @@ describe('DirectMessagesService', () => {
         { provide: DataSource, useValue: dataSource },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: NotificationsService, useValue: notificationsService },
+        { provide: EngagementService, useValue: engagementService },
       ],
     }).compile();
 
@@ -145,6 +154,13 @@ describe('DirectMessagesService', () => {
       await expect(
         service.sendMessage('user-a', { recipientId: 'missing', content: 'hi' }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejects messaging a blocked user', async () => {
+      engagementService.isBlockedEitherWay.mockResolvedValueOnce(true);
+      await expect(
+        service.sendMessage('user-a', { recipientId: 'user-b', content: 'hi' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('sends message, emits socket event, and notifies recipient', async () => {
@@ -263,6 +279,60 @@ describe('DirectMessagesService', () => {
       expect(result[0].conversationId).toBe('conv-1');
       expect(result[0].participants).toHaveLength(1);
       expect(result[0].participants[0].id).toBe('user-b');
+    });
+
+    it('hides conversations with blocked peers', async () => {
+      engagementService.getBlockedPeerIds.mockResolvedValueOnce(['user-b']);
+      memberRepository.find.mockResolvedValue([
+        {
+          conversationId: 'conv-1',
+          lastReadAt: null,
+          conversation: {
+            members: [
+              { userId: 'user-a', user: sender },
+              { userId: 'user-b', user: recipient },
+            ],
+          },
+        },
+      ]);
+
+      const result = await service.listConversations('user-a');
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  describe('createGroupConversation', () => {
+    it('rejects creating a group that includes a blocked peer', async () => {
+      userRepository.findByIds.mockResolvedValue([
+        sender,
+        recipient,
+        { ...sender, id: 'user-c', username: 'userc' },
+      ]);
+      engagementService.isBlockedEitherWay.mockImplementation(async (a: string, b: string) =>
+        (a === 'user-a' && b === 'user-b') || (a === 'user-b' && b === 'user-a'),
+      );
+
+      await expect(
+        service.createGroupConversation('user-a', 'Study', ['user-b', 'user-c']),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('addGroupMember', () => {
+    it('rejects adding a blocked peer to a group', async () => {
+      conversationRepository.findOne.mockResolvedValue({
+        id: 'conv-1',
+        isGroup: true,
+      });
+      memberRepository.count.mockResolvedValue(3);
+      memberRepository.findOne
+        .mockResolvedValueOnce({ userId: 'user-a', conversationId: 'conv-1' })
+        .mockResolvedValueOnce(null);
+      engagementService.isBlockedEitherWay.mockResolvedValueOnce(true);
+
+      await expect(
+        service.addGroupMember('user-a', 'conv-1', 'user-b'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 });

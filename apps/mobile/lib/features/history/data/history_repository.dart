@@ -13,7 +13,9 @@ final historyRepositoryProvider = Provider<HistoryRepository>((ref) {
 /// Incomplete / in-progress watches for continue watching (requires auth).
 final continueWatchingProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) async {
   try {
-    return await ref.read(historyRepositoryProvider).getContinueWatching(limit: 12);
+    final videos = await ref.read(historyRepositoryProvider).getContinueWatching(limit: 12);
+    // Match web ContinueWatching: skip tiny progress blips.
+    return videos.where((v) => (v.viewerProgressSeconds ?? 0) >= 5).toList();
   } catch (_) {
     return [];
   }
@@ -49,6 +51,29 @@ class HistoryRepository {
       if (cached != null) return _decodeVideoList(cached);
       rethrow;
     }
+  }
+
+  Future<void> clearWatchHistory() async {
+    await _apiClient.dio.delete('/users/me/watch-history');
+    await LocalCache.write(_watchHistoryCacheKey, _encodeVideoList([]));
+  }
+
+  Future<void> removeFromWatchHistory(String videoId) async {
+    await _apiClient.dio.delete('/users/me/watch-history/$videoId');
+    try {
+      final cached = LocalCache.read(_watchHistoryCacheKey);
+      if (cached != null) {
+        final videos = _decodeVideoList(cached).where((v) => v.id != videoId).toList();
+        await LocalCache.write(_watchHistoryCacheKey, _encodeVideoList(videos));
+      }
+    } catch (_) {}
+    try {
+      final cwCached = LocalCache.read(_continueWatchingCacheKey);
+      if (cwCached != null) {
+        final videos = _decodeVideoList(cwCached).where((v) => v.id != videoId).toList();
+        await LocalCache.write(_continueWatchingCacheKey, _encodeVideoList(videos));
+      }
+    } catch (_) {}
   }
 
   Future<List<VideoModel>> getContinueWatching({int limit = 12}) async {

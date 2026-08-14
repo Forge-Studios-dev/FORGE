@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -19,6 +20,7 @@ import {
   CreateChannelDto,
   CreateCommunityDto,
   InviteChannelMemberDto,
+  ReorderChannelsDto,
   SendChannelMessageDto,
   TransferOwnershipDto,
   UpdateCategoryDto,
@@ -30,9 +32,13 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { DeprecatedChannelApi } from '../../common/decorators/deprecated-channel-api.decorator';
 import { DeprecatedChannelApiInterceptor } from '../../common/interceptors/deprecated-channel-api.interceptor';
 import { CommunityType } from './entities/community.entity';
+import { CommunityRoleGuard } from './guards/community-role.guard';
+import { CommunityRoles } from './decorators/community-roles.decorator';
+import { CommunityRoleType } from './entities/community-role.entity';
 
 /** Coerce an untrusted query value into a CommunityType, ignoring invalid input. */
 function parseCommunityType(value?: string): CommunityType | undefined {
@@ -51,7 +57,7 @@ export class CommunitiesController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('creators/:creatorId/communities')
   @ApiOperation({ summary: 'List creator communities' })
-  listCommunities(@Param('creatorId') creatorId: string, @CurrentUser() user?: JwtPayload) {
+  listCommunities(@Param('creatorId', ParseUUIDPipe) creatorId: string, @CurrentUser() user?: JwtPayload) {
     return this.communitiesService.listCommunitiesForCreator(creatorId, user?.sub, user?.role);
   }
 
@@ -60,7 +66,7 @@ export class CommunitiesController {
   @Get('creators/:creatorId/communities/:slug/access')
   @ApiOperation({ summary: 'Community access metadata for join-request UX' })
   getCommunityAccessMeta(
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ParseUUIDPipe) creatorId: string,
     @Param('slug') slug: string,
     @CurrentUser() user?: JwtPayload,
   ) {
@@ -77,7 +83,7 @@ export class CommunitiesController {
   @Get('creators/:creatorId/communities/:slug')
   @ApiOperation({ summary: 'Get community by creator and slug' })
   getCommunityBySlug(
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ParseUUIDPipe) creatorId: string,
     @Param('slug') slug: string,
     @CurrentUser() user?: JwtPayload,
   ) {
@@ -88,7 +94,7 @@ export class CommunitiesController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/:communityId/layout')
   @ApiOperation({ summary: 'Unified community layout (categories, channels, rooms)' })
-  getCommunityLayout(@Param('communityId') communityId: string, @CurrentUser() user?: JwtPayload) {
+  getCommunityLayout(@Param('communityId', ParseUUIDPipe) communityId: string, @CurrentUser() user?: JwtPayload) {
     return this.communitiesService.getCommunityLayout(communityId, user?.sub, user?.role);
   }
 
@@ -96,32 +102,41 @@ export class CommunitiesController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/id/:communityId')
   @ApiOperation({ summary: 'Get community by ID' })
-  getCommunityById(@Param('communityId') communityId: string, @CurrentUser() user?: JwtPayload) {
+  getCommunityById(@Param('communityId', ParseUUIDPipe) communityId: string, @CurrentUser() user?: JwtPayload) {
     return this.communitiesService.getCommunityById(communityId, user?.sub, user?.role);
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/search')
   @ApiOperation({ summary: 'Discover public communities by name or slug (optional type filter)' })
   searchCommunities(
     @Query('q') q = '',
     @Query('limit') limit = 20,
     @Query('type') type?: string,
+    @CurrentUser() user?: JwtPayload,
   ) {
     return this.communitiesService.searchCommunities(
       q,
       Number(limit) || 20,
       parseCommunityType(type),
+      user?.sub,
     );
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/discover/featured')
   @ApiOperation({ summary: 'Featured public communities for discovery browse (optional type filter)' })
-  featuredCommunities(@Query('limit') limit = 12, @Query('type') type?: string) {
+  featuredCommunities(
+    @Query('limit') limit = 12,
+    @Query('type') type?: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
     return this.communitiesService.listFeaturedCommunities(
       Number(limit) || 12,
       parseCommunityType(type),
+      user?.sub,
     );
   }
 
@@ -130,7 +145,7 @@ export class CommunitiesController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/:creatorId')
   @ApiOperation({ summary: 'Get creator default community (legacy)' })
-  getCommunity(@Param('creatorId') creatorId: string, @CurrentUser() user?: JwtPayload) {
+  getCommunity(@Param('creatorId', ParseUUIDPipe) creatorId: string, @CurrentUser() user?: JwtPayload) {
     return this.communitiesService.getCommunityByCreator(creatorId, user?.sub, user?.role);
   }
 
@@ -146,7 +161,7 @@ export class CommunitiesController {
   @ApiOperation({ summary: 'Update community settings' })
   updateCommunity(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Body() dto: UpdateCommunityDto,
   ) {
     return this.communitiesService.updateCommunity(user.sub, communityId, dto);
@@ -157,7 +172,7 @@ export class CommunitiesController {
   @ApiOperation({ summary: 'Transfer community ownership to another active member' })
   transferOwnership(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Body() dto: TransferOwnershipDto,
   ) {
     return this.communitiesService.transferCommunityOwnership(communityId, user.sub, dto.newOwnerId);
@@ -166,7 +181,7 @@ export class CommunitiesController {
   @Get('creators/me/communities/:communityId/categories')
   @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'List community categories' })
-  listCategories(@CurrentUser() user: JwtPayload, @Param('communityId') communityId: string) {
+  listCategories(@CurrentUser() user: JwtPayload, @Param('communityId', ParseUUIDPipe) communityId: string) {
     return this.communitiesService.listCategories(user.sub, communityId);
   }
 
@@ -175,7 +190,7 @@ export class CommunitiesController {
   @ApiOperation({ summary: 'Create a category' })
   createCategory(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Body() dto: CreateCategoryDto,
   ) {
     return this.communitiesService.createCategory(user.sub, communityId, dto);
@@ -186,8 +201,8 @@ export class CommunitiesController {
   @ApiOperation({ summary: 'Update a category' })
   updateCategory(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('categoryId') categoryId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('categoryId', ParseUUIDPipe) categoryId: string,
     @Body() dto: UpdateCategoryDto,
   ) {
     return this.communitiesService.updateCategory(user.sub, communityId, categoryId, dto);
@@ -198,8 +213,8 @@ export class CommunitiesController {
   @ApiOperation({ summary: 'Delete a category' })
   deleteCategory(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Param('categoryId') categoryId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('categoryId', ParseUUIDPipe) categoryId: string,
   ) {
     return this.communitiesService.deleteCategory(user.sub, communityId, categoryId);
   }
@@ -210,7 +225,7 @@ export class CommunitiesController {
   @ApiOperation({ summary: 'Create a channel in a community (deprecated — use rooms)' })
   createChannelInCommunity(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @Body() dto: CreateChannelDto,
   ) {
     return this.communitiesService.createChannel(user.sub, dto, communityId);
@@ -231,7 +246,7 @@ export class CommunitiesController {
   @ApiOperation({ summary: 'Update a community channel (deprecated — use rooms)' })
   updateChannel(
     @CurrentUser() user: JwtPayload,
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: UpdateChannelDto,
   ) {
     return this.communitiesService.updateChannel(user.sub, channelId, dto);
@@ -241,7 +256,7 @@ export class CommunitiesController {
   @UseGuards(CreatorApprovedGuard)
   @DeprecatedChannelApi()
   @ApiOperation({ summary: 'Delete a community channel (deprecated — use rooms)' })
-  deleteChannel(@CurrentUser() user: JwtPayload, @Param('channelId') channelId: string) {
+  deleteChannel(@CurrentUser() user: JwtPayload, @Param('channelId', ParseUUIDPipe) channelId: string) {
     return this.communitiesService.deleteChannel(user.sub, channelId);
   }
 
@@ -251,8 +266,8 @@ export class CommunitiesController {
   @ApiOperation({ summary: 'Reorder channels (deprecated — use rooms)' })
   reorderChannels(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
-    @Body() body: { channelIds: string[] },
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Body() body: ReorderChannelsDto,
   ) {
     return this.communitiesService.reorderChannels(user.sub, communityId, body.channelIds ?? []);
   }
@@ -263,7 +278,7 @@ export class CommunitiesController {
   @ApiOperation({ summary: 'Invite user to invite-only channel (deprecated)' })
   inviteMember(
     @CurrentUser() user: JwtPayload,
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: InviteChannelMemberDto,
   ) {
     return this.communitiesService.inviteMember(user.sub, channelId, dto);
@@ -275,7 +290,7 @@ export class CommunitiesController {
   @DeprecatedChannelApi()
   @ApiOperation({ summary: 'Get channel messages (deprecated — bridged to room when mapped)' })
   getMessages(
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @CurrentUser() user: JwtPayload | undefined,
     @Query('limit') limit = 50,
     @Query('cursor') cursor?: string,
@@ -295,7 +310,7 @@ export class CommunitiesController {
   @DeprecatedChannelApi()
   @ApiOperation({ summary: 'Send a channel message (deprecated — bridged to room when mapped)' })
   sendMessage(
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: SendChannelMessageDto,
   ) {
@@ -306,8 +321,8 @@ export class CommunitiesController {
   @DeprecatedChannelApi()
   @ApiOperation({ summary: 'Soft-delete a channel message (deprecated — use room messages)' })
   deleteMessage(
-    @Param('channelId') channelId: string,
-    @Param('messageId') messageId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.communitiesService.deleteChannelMessage(
@@ -325,13 +340,14 @@ export class CommunitiesController {
   }
 
   @Get('creators/me/communities/:communityId/analytics')
-  @UseGuards(CreatorApprovedGuard)
-  @ApiOperation({ summary: 'Community engagement analytics (creator)' })
+  @UseGuards(CommunityRoleGuard)
+  @CommunityRoles(CommunityRoleType.OWNER, CommunityRoleType.ADMIN, CommunityRoleType.COACH)
+  @ApiOperation({ summary: 'Community engagement analytics (creator + delegated owner/admin/coach)' })
   communityAnalytics(
     @CurrentUser() user: JwtPayload,
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
   ) {
-    return this.communitiesService.getCommunityAnalytics(user.sub, communityId);
+    return this.communitiesService.getCommunityAnalytics(user.sub, communityId, user.role);
   }
 
   @Get('creators/me/business-analytics')
@@ -359,7 +375,7 @@ export class CommunitiesController {
   }
 
   @Get('creators/me/ecosystem-tree')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(SkillEconomyLmsGuard, CreatorApprovedGuard)
   @ApiOperation({ summary: 'Unified creator ecosystem tree — brands, communities, courses, programs, bundles' })
   ecosystemTree(@CurrentUser() user: JwtPayload) {
     return this.communitiesService.getCreatorEcosystemTree(user.sub);
@@ -370,7 +386,7 @@ export class CommunitiesController {
   @Get('communities/:communityId/permissions/matrix')
   @ApiOperation({ summary: 'Community role permission matrix + viewer effective permissions' })
   permissionMatrix(
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @CurrentUser() user?: JwtPayload,
   ) {
     return this.communitiesService.getCommunityPermissionMatrix(
@@ -385,7 +401,7 @@ export class CommunitiesController {
   @Get('communities/:communityId/live')
   @ApiOperation({ summary: 'Live streams scoped to a community' })
   communityLive(
-    @Param('communityId') communityId: string,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
     @CurrentUser() user?: JwtPayload,
   ) {
     return this.communitiesService.getCommunityLiveStreams(communityId, user?.sub, user?.role);

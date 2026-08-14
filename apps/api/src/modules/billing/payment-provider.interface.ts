@@ -51,6 +51,26 @@ export type SuperChatCheckoutInput = {
   currency?: string;
   successUrl: string;
   cancelUrl: string;
+  /** Stripe Connect Express account for destination charges. */
+  connectAccountId?: string | null;
+  /** Platform fee percentage (0–100) retained on Connect transfers. */
+  platformFeePercent?: number;
+};
+
+/** YouTube Super Thanks — one-time tip on a VOD. */
+export type SuperThanksCheckoutInput = {
+  userId: string;
+  videoId: string;
+  creatorId: string;
+  body: string;
+  amountCents: number;
+  currency?: string;
+  successUrl: string;
+  cancelUrl: string;
+  /** Stripe Connect Express account for destination charges. */
+  connectAccountId?: string | null;
+  /** Platform fee percentage (0–100) retained on Connect transfers. */
+  platformFeePercent?: number;
 };
 
 export type CheckoutSessionResult = {
@@ -61,15 +81,16 @@ export type CheckoutSessionResult = {
 
 export type ProviderWebhookResult = {
   handled: boolean;
-  checkoutType?: 'subscription' | 'event' | 'super_chat';
+  checkoutType?: 'subscription' | 'event' | 'super_chat' | 'super_thanks';
   subscriptionId?: string;
-  status?: 'active' | 'canceled' | 'expired' | 'completed' | 'failed_payment' | 'trial' | 'grace_period' | 'paused' | 'refunded' | 'renewal_pending';
+  status?: 'active' | 'canceled' | 'expired' | 'completed' | 'failed_payment' | 'trial' | 'grace_period' | 'paused' | 'refunded' | 'disputed' | 'renewal_pending';
   sessionId?: string;
   userId?: string;
   creatorId?: string;
   tierId?: string;
   communityId?: string;
   streamId?: string;
+  videoId?: string;
   amountCents?: number;
   currency?: string;
   paymentIntentId?: string;
@@ -82,6 +103,7 @@ export interface PaymentProvider {
   createCheckoutSession(input: CheckoutSessionInput): Promise<CheckoutSessionResult>;
   createEventCheckoutSession(input: EventCheckoutSessionInput): Promise<CheckoutSessionResult>;
   createSuperChatCheckoutSession(input: SuperChatCheckoutInput): Promise<CheckoutSessionResult>;
+  createSuperThanksCheckoutSession(input: SuperThanksCheckoutInput): Promise<CheckoutSessionResult>;
   cancelSubscription(externalSubscriptionId: string, cancelAtPeriodEnd?: boolean): Promise<void>;
   updateSubscriptionTier?(input: UpdateSubscriptionTierInput): Promise<UpdateSubscriptionTierResult>;
   verifyWebhook(payload: Buffer, headers: Record<string, string>): Promise<ProviderWebhookResult | null>;

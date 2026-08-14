@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { persistAuthSession } from '@/lib/auth-storage';
 import { trackEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
-import { AuthScreen, authFieldClass } from '@/components/auth/AuthScreen';
+import { AuthScreen, authFieldClass, authLabelClass } from '@/components/auth/AuthScreen';
 import { AuthTokens } from '@/types';
 import { safeReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
@@ -110,7 +110,7 @@ export function SignupForm({
   return (
     <AuthScreen
       title="Join FORGE"
-      subtitle="Start your skill-first learning journey."
+      subtitle="Create an account to subscribe, comment, and save videos."
       showHeader={false}
     >
       <form className="space-y-5" onSubmit={handleSubmit}>
@@ -123,9 +123,22 @@ export function SignupForm({
         {error && <p className="rounded-lg bg-error-container/30 px-4 py-2 text-sm text-error">{error}</p>}
         {FIELDS.map((field) => (
           <div key={field.key} className={field.key === 'password' ? 'space-y-2' : undefined}>
+            <label className={authLabelClass} htmlFor={`signup-${field.key}`}>
+              {field.label}
+            </label>
             <input
+              id={`signup-${field.key}`}
               type={field.type}
               required
+              autoComplete={
+                field.key === 'email'
+                  ? 'email'
+                  : field.key === 'password'
+                    ? 'new-password'
+                    : field.key === 'username'
+                      ? 'username'
+                      : 'name'
+              }
               placeholder={field.placeholder}
               value={form[field.key]}
               onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
@@ -143,7 +156,8 @@ export function SignupForm({
             className="mt-1 h-4 w-4 rounded border-outline-variant accent-primary"
           />
           <span>
-            I agree to the <LegalLinks />.
+            I agree to the{' '}
+            <LegalLinks linkClassName="text-primary underline hover:underline" />.
           </span>
         </label>
         <button
@@ -156,6 +170,13 @@ export function SignupForm({
         {showGoogle && (
           <a
             href={`${API_URL}/auth/google`}
+            onClick={() => {
+              try {
+                sessionStorage.setItem('forge_oauth_next', nextPath || '/');
+              } catch {
+                /* ignore */
+              }
+            }}
             className="mt-3 block w-full rounded-full border border-outline py-4 text-center text-sm font-semibold text-on-surface hover:bg-surface-container"
           >
             Continue with Google
@@ -169,8 +190,10 @@ export function SignupForm({
         </Link>
       </p>
       <p className="mt-4 text-center text-xs text-outline">
-        We send a verification link after sign up. Verify your email to unlock creator tools once approved.{' '}
-        <LegalLinks />
+        We send a verification link after sign up. Verify your email to unlock creator tools once approved.
+      </p>
+      <p className="mt-2 text-center text-xs text-outline">
+        <LegalLinks linkClassName="text-primary underline hover:underline" />
       </p>
     </AuthScreen>
   );

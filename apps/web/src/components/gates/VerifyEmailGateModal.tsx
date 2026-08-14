@@ -7,7 +7,7 @@ import { Dialog } from '@forge/design-system/client';
 export function VerifyEmailGateModal({
   open,
   onClose,
-  message = 'Verify your email to like, comment, follow creators, and use your library.',
+  message = 'Verify your email to like, comment, subscribe, and use your library.',
 }: {
   open: boolean;
   onClose: () => void;

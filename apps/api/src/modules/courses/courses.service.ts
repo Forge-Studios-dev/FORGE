@@ -25,6 +25,7 @@ import {
 } from './entities/course-quiz.entity';
 import { Video, VideoStatus } from '../content/entities/video.entity';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { TierEntitlementResourceType } from '../entitlements/entities/tier-entitlement.entity';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
@@ -57,6 +58,7 @@ export class CoursesService {
     private readonly submissionRepository: Repository<CourseAssignmentSubmission>,
     private readonly entitlementsService: EntitlementsService,
     private readonly accessSessionsService: AccessSessionsService,
+    private readonly engagementService: EngagementService,
   ) {}
 
   // isBundle: false everywhere below — bundle-wrapper courses (formerly
@@ -75,22 +77,29 @@ export class CoursesService {
     });
   }
 
-  async listFeaturedCourses(limit = 12) {
+  async listFeaturedCourses(limit = 12, viewerId?: string) {
     const take = clampLimit(limit, 12, 24);
-    const courses = await this.courseRepository.find({
-      where: { isPublished: true, isBundle: false },
-      order: { createdAt: 'DESC' },
-      take,
-    });
-    return { data: await this.mapPublicCourses(courses) };
+    const blocked = viewerId ? await this.engagementService.getBlockedPeerIds(viewerId) : [];
+    const qb = this.courseRepository
+      .createQueryBuilder('c')
+      .where('c.is_published = true')
+      .andWhere('c.is_bundle = false')
+      .orderBy('c.created_at', 'DESC')
+      .take(take);
+    if (blocked.length) {
+      qb.andWhere('c.creator_id NOT IN (:...blocked)', { blocked });
+    }
+    const courses = await qb.getMany();
+    return { data: await this.mapPublicCourses(courses, viewerId) };
   }
 
-  async discoverCourses(query: string, limit = 20) {
+  async discoverCourses(query: string, limit = 20, viewerId?: string) {
     const term = query.trim();
     if (term.length < 2) return { data: [] };
     const pattern = `%${term}%`;
     const take = clampLimit(limit);
-    const courses = await this.courseRepository
+    const blocked = viewerId ? await this.engagementService.getBlockedPeerIds(viewerId) : [];
+    const qb = this.courseRepository
       .createQueryBuilder('c')
       .where('c.is_published = true')
       .andWhere('c.is_bundle = false')
@@ -99,9 +108,12 @@ export class CoursesService {
         { pattern },
       )
       .orderBy('c.created_at', 'DESC')
-      .take(take)
-      .getMany();
-    return { data: await this.mapPublicCourses(courses) };
+      .take(take);
+    if (blocked.length) {
+      qb.andWhere('c.creator_id NOT IN (:...blocked)', { blocked });
+    }
+    const courses = await qb.getMany();
+    return { data: await this.mapPublicCourses(courses, viewerId) };
   }
 
   async listPublishedForCreator(
@@ -109,6 +121,9 @@ export class CoursesService {
     viewerId?: string | null,
     opts: { page?: unknown; limit?: unknown } = {},
   ) {
+    if (viewerId && (await this.engagementService.isBlockedEitherWay(viewerId, creatorId))) {
+      throw new ForbiddenException('This channel is not available');
+    }
     const take = clampLimit(opts.limit);
     const skip = (clampPage(opts.page) - 1) * take;
     const courses = await this.courseRepository.find({
@@ -125,6 +140,9 @@ export class CoursesService {
       where: { id: courseId, isPublished: true, isBundle: false },
     });
     if (!course) throw new NotFoundException('Course not found');
+    if (viewerId && (await this.engagementService.isBlockedEitherWay(viewerId, course.creatorId))) {
+      throw new ForbiddenException('This channel is not available');
+    }
     const [mapped] = await this.mapPublicCourses([course], viewerId);
     return { data: mapped };
   }

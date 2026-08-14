@@ -10,12 +10,12 @@ import {
   CommunityPostReaction,
   CommunityPostReactionType,
 } from './entities/community-post-reaction.entity';
-import { Community } from './entities/community.entity';
+import { Community, CommunityType, CommunityVisibility } from './entities/community.entity';
 import { CommunitiesService } from './communities.service';
 import { CommunityModerationService } from './community-moderation.service';
 import { AiCommunityService } from './ai-community.service';
 import { CommunityModerationQueueService } from './community-moderation-queue.service';
-import { UserRole } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import {
   COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE,
   type CommunityAnnouncementNotifyJobData,
@@ -25,6 +25,8 @@ import {
   PLATFORM_EVENT_TYPES,
 } from '../platform-event-outbox/platform-event-outbox.service';
 import { CommunityStorageService } from './community-storage.service';
+import { EngagementService } from '../engagement/engagement.service';
+import { clampLimit } from '../../common/utils/pagination.util';
 
 const MAX_POST_MEDIA = 4;
 
@@ -55,8 +57,11 @@ export class CommunityPostsService {
     private readonly reactionRepository: Repository<CommunityPostReaction>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
+    private readonly engagementService: EngagementService,
     private readonly moderationService: CommunityModerationService,
     private readonly aiCommunityService: AiCommunityService,
     private readonly moderationQueueService: CommunityModerationQueueService,
@@ -92,6 +97,20 @@ export class CommunityPostsService {
       throw new BadRequestException('Media upload storage is not configured');
     }
     return this.storageService.getPostMediaUploadUrl(communityId, contentType);
+  }
+
+  /** Presign for YouTube-style channel Community compose (default public community). */
+  async getChannelPostMediaUploadUrl(
+    creatorId: string,
+    contentType: string,
+    viewerRole?: UserRole | null,
+  ) {
+    const community = await this.communitiesService.ensureDefaultCommunity(creatorId);
+    if (community.visibility !== CommunityVisibility.PUBLIC) {
+      community.visibility = CommunityVisibility.PUBLIC;
+      await this.communityRepository.save(community);
+    }
+    return this.getMediaUploadUrl(creatorId, community.id, contentType, viewerRole);
   }
 
   async listPosts(
@@ -144,6 +163,85 @@ export class CommunityPostsService {
   }
 
   /**
+   * YouTube-style channel Community tab: public posts across the creator’s
+   * public STANDARD/EVENT communities (no membership required).
+   */
+  async listChannelPostsForCreator(
+    creatorId: string,
+    limit = 20,
+    cursor?: string,
+    viewerId?: string | null,
+  ) {
+    const take = clampLimit(limit, 20, 50);
+    const communities = await this.communityRepository.find({
+      where: {
+        creatorId,
+        visibility: CommunityVisibility.PUBLIC,
+        communityType: In([CommunityType.STANDARD, CommunityType.EVENT]),
+      },
+      select: { id: true, name: true, slug: true },
+      take: 20,
+    });
+    if (communities.length === 0) {
+      return { data: [], meta: { cursor: null, hasMore: false } };
+    }
+
+    const communityIds = communities.map((c) => c.id);
+    const communityById = new Map(communities.map((c) => [c.id, c]));
+
+    const qb = this.postRepository
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.author', 'author')
+      .where('p.community_id IN (:...communityIds)', { communityIds })
+      .orderBy('p.is_pinned', 'DESC')
+      .addOrderBy('p.created_at', 'DESC')
+      .take(take + 1);
+
+    if (cursor) {
+      const cursorDate = new Date(cursor);
+      if (!Number.isNaN(cursorDate.getTime())) {
+        qb.andWhere('p.created_at < :cursor', { cursor: cursorDate });
+      }
+    }
+
+    const posts = await qb.getMany();
+    const hasMore = posts.length > take;
+    const data = hasMore ? posts.slice(0, take) : posts;
+    const nextCursor = hasMore ? data[data.length - 1]?.createdAt.toISOString() : null;
+    const counts = await this.getPostEngagementCounts(
+      data.map((p) => p.id),
+      viewerId ?? undefined,
+    );
+
+    return {
+      data: data.map((p) => {
+        const community = communityById.get(p.communityId);
+        return {
+          id: p.id,
+          communityId: p.communityId,
+          community: community
+            ? { id: community.id, name: community.name, slug: community.slug }
+            : null,
+          authorId: p.authorId,
+          author: p.author
+            ? { displayName: p.author.displayName, username: p.author.username }
+            : null,
+          title: p.title,
+          body: p.body,
+          postType: p.postType,
+          isPinned: p.isPinned,
+          mediaUrls: p.mediaUrls ?? [],
+          createdAt: p.createdAt,
+          commentCount: counts.comments.get(p.id) ?? 0,
+          likeCount: counts.likes.get(p.id) ?? 0,
+          likedByMe: counts.likedByMe.has(p.id),
+        };
+      }),
+      meta: { cursor: nextCursor, hasMore },
+    };
+  }
+
+  /**
    * Creator updates feed: announcement posts aggregated across every community
    * the viewer actively belongs to (active membership already implies access,
    * so no per-community access check or leak of private/paid announcements).
@@ -155,7 +253,19 @@ export class CommunityPostsService {
     limit = 20,
     cursor?: string,
   ) {
-    const communityIds = await this.communitiesService.listActiveMemberCommunityIds(viewerId);
+    let communityIds = await this.communitiesService.listActiveMemberCommunityIds(viewerId);
+    if (communityIds.length === 0) {
+      return { data: [], meta: { cursor: null, hasMore: false } };
+    }
+
+    const membershipCommunities = await this.communityRepository.find({
+      where: { id: In(communityIds) },
+      select: { id: true, creatorId: true },
+    });
+    const blocked = new Set(await this.engagementService.getBlockedPeerIds(viewerId));
+    communityIds = membershipCommunities
+      .filter((c) => !blocked.has(c.creatorId))
+      .map((c) => c.id);
     if (communityIds.length === 0) {
       return { data: [], meta: { cursor: null, hasMore: false } };
     }
@@ -185,6 +295,15 @@ export class CommunityPostsService {
       select: { id: true, name: true, slug: true, creatorId: true },
     });
     const communityById = new Map(communities.map((c) => [c.id, c]));
+    const creatorIds = [...new Set(communities.map((c) => c.creatorId).filter(Boolean))];
+    const creators =
+      creatorIds.length === 0
+        ? []
+        : await this.userRepository.find({
+            where: { id: In(creatorIds) },
+            select: { id: true, username: true },
+          });
+    const usernameByCreatorId = new Map(creators.map((u) => [u.id, u.username]));
 
     const counts = await this.getPostEngagementCounts(
       data.map((p) => p.id),
@@ -194,11 +313,20 @@ export class CommunityPostsService {
     return {
       data: data.map((p) => {
         const community = communityById.get(p.communityId);
+        const creatorUsername = community
+          ? usernameByCreatorId.get(community.creatorId) ?? null
+          : null;
         return {
           id: p.id,
           communityId: p.communityId,
           community: community
-            ? { id: community.id, name: community.name, slug: community.slug, creatorId: community.creatorId }
+            ? {
+                id: community.id,
+                name: community.name,
+                slug: community.slug,
+                creatorId: community.creatorId,
+                creatorUsername,
+              }
             : null,
           authorId: p.authorId,
           author: p.author
@@ -275,15 +403,20 @@ export class CommunityPostsService {
     viewerRole?: UserRole | null,
   ) {
     await this.assertStudioAccess(actorId, communityId, viewerRole);
+    const mediaUrls = sanitizeMediaUrls(input.mediaUrls);
+    const body = (input.body ?? '').trim();
+    if (!body && mediaUrls.length === 0) {
+      throw new BadRequestException('Post body or media is required');
+    }
     const post = await this.postRepository.save(
       this.postRepository.create({
         communityId,
         authorId,
         title: input.title?.trim() || null,
-        body: input.body.trim(),
+        body,
         postType: input.postType ?? CommunityPostType.POST,
         isPinned: input.isPinned ?? false,
-        mediaUrls: sanitizeMediaUrls(input.mediaUrls),
+        mediaUrls,
       }),
     );
 
@@ -303,7 +436,27 @@ export class CommunityPostsService {
       post: { id: post.id, authorId, postType: post.postType, createdAt: post.createdAt },
     });
 
-    return { id: post.id, createdAt: post.createdAt };
+    return { id: post.id, createdAt: post.createdAt, communityId };
+  }
+
+  /** YouTube-style: post to the creator’s default channel community (ensured). */
+  async createChannelPost(
+    creatorId: string,
+    input: {
+      title?: string;
+      body: string;
+      postType?: CommunityPostType;
+      isPinned?: boolean;
+      mediaUrls?: string[];
+    },
+    viewerRole?: UserRole | null,
+  ) {
+    const community = await this.communitiesService.ensureDefaultCommunity(creatorId);
+    if (community.visibility !== CommunityVisibility.PUBLIC) {
+      community.visibility = CommunityVisibility.PUBLIC;
+      await this.communityRepository.save(community);
+    }
+    return this.createPost(creatorId, community.id, creatorId, input, viewerRole);
   }
 
   private async enqueueAnnouncementNotify(

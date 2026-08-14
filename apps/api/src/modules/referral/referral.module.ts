@@ -8,7 +8,7 @@ import { GamificationModule } from '../gamification/gamification.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserReferralCode, UserReferral]),
-    GamificationModule,
+    GamificationModule.register(),
   ],
   controllers: [ReferralController],
   providers: [ReferralService],

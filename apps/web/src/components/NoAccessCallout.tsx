@@ -13,19 +13,19 @@ export function NoAccessCallout({
   const signInHref = loginHrefWithNext(currentReturnPath());
 
   return (
-    <div className="glass rounded-2xl p-6 border border-white/10">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="text-gray-400 mt-1">{description}</p>
+    <div className="glass-panel rounded-2xl border border-outline-variant/40 p-6">
+      <h2 className="text-lg font-semibold text-on-surface">{title}</h2>
+      <p className="mt-1 text-on-surface-variant">{description}</p>
       <div className="mt-4 flex gap-3">
         <Link
           href="/"
-          className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold px-4 py-2 rounded-lg transition"
+          className="rounded-lg border border-outline-variant/40 bg-surface-container-high px-4 py-2 font-semibold text-on-surface transition hover:bg-surface-container-highest"
         >
           Go home
         </Link>
         <Link
           href={signInHref}
-          className="bg-forge-600 hover:bg-forge-500 text-white font-semibold px-4 py-2 rounded-lg transition"
+          className="rounded-lg bg-primary px-4 py-2 font-semibold text-on-primary transition hover:opacity-90"
         >
           Sign in
         </Link>

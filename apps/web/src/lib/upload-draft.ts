@@ -2,12 +2,15 @@ const STORAGE_KEY = 'forge_upload_draft';
 
 export type PublishMode = 'immediate' | 'scheduled';
 export type UploadVisibility = 'public' | 'unlisted' | 'private';
+export type UploadVideoType = 'video' | 'short';
 
 export type UploadDraft = {
   title: string;
   description: string;
   categoryId: string;
   skillTagIds: string[];
+  /** Creator intent — Shorts vs long-form. */
+  videoType: UploadVideoType;
   fileName?: string;
   fileSize?: number;
   fileType?: string;
@@ -22,6 +25,7 @@ const DEFAULT_DRAFT: UploadDraft = {
   description: '',
   categoryId: '',
   skillTagIds: [],
+  videoType: 'video',
   publishMode: 'immediate',
   scheduledAt: '',
   visibility: 'public',
@@ -37,11 +41,14 @@ export function getUploadDraft(): UploadDraft {
     const skillTagIds =
       parsed.skillTagIds ??
       (parsed.skillTag ? [] : []);
+    const videoType: UploadVideoType =
+      parsed.videoType === 'short' ? 'short' : 'video';
     return {
       ...DEFAULT_DRAFT,
       ...parsed,
       skillTagIds,
       categoryId: parsed.categoryId ?? '',
+      videoType,
     };
   } catch {
     return { ...DEFAULT_DRAFT };

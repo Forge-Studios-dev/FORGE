@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, EmptyState, Icon, Input } from '@forge/design-system';
 import { SocketEvents } from '@forge/shared-types';
@@ -51,6 +51,7 @@ function CommunityRestrictedAccess({
           canRequestJoin: boolean;
           joinRequestStatus: string;
           visibility: string;
+          unavailable?: boolean;
         };
       }>(accessPath!);
       return data.data;
@@ -65,6 +66,18 @@ function CommunityRestrictedAccess({
       void qc.invalidateQueries({ queryKey: ['community-access-meta', creatorId, communitySlug] });
     },
   });
+
+  if (accessMeta?.unavailable) {
+    return (
+      <div className="glass-panel space-y-4 rounded-xl p-8 text-center">
+        <Icon name="block" className="mx-auto text-3xl text-outline" />
+        <h3 className="font-semibold">This community is not available</h3>
+        <p className="text-sm text-on-surface-variant">
+          You can’t view this community. It may be private, or access has been restricted.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="glass-panel space-y-4 rounded-xl p-8 text-center">
@@ -99,11 +112,23 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
   const qc = useQueryClient();
   const [reportingPostId, setReportingPostId] = useState<string | null>(null);
   const [reportingPoll, setReportingPoll] = useState(false);
-  const [view, setView] = useState<'posts' | 'polls' | 'leaderboard' | 'engage'>('engage');
+  const [view, setView] = useState<'posts' | 'polls' | 'engage'>('posts');
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
+  const viewTabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const viewTabs = [
+    { id: 'posts' as const, label: 'Posts' },
+    { id: 'polls' as const, label: 'Polls' },
+    { id: 'engage' as const, label: 'Rooms' },
+  ];
   const isCreator = user?.id === creatorId;
+
+  function focusViewTab(index: number) {
+    const tab = viewTabs[(index + viewTabs.length) % viewTabs.length];
+    viewTabRefs.current[tab.id]?.focus();
+    setView(tab.id);
+  }
 
   const { data: myMembership } = useQuery({
     queryKey: ['membership-me', creatorId],
@@ -226,38 +251,6 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
     },
   });
 
-  const { data: leaderboard } = useQuery({
-    queryKey: ['community-leaderboard', communityId],
-    enabled: !!communityId && view === 'leaderboard',
-    queryFn: async () => {
-      const { data } = await api.get<{
-        data: Array<{ rank: number; userId: string; xp: number; level: number; streak?: number }>;
-      }>(`/communities/${communityId}/leaderboard`);
-      return data.data;
-    },
-  });
-
-  const { data: gamificationProfile } = useQuery({
-    queryKey: ['community-gamification-me', communityId],
-    enabled: !!communityId && !!user && view === 'leaderboard',
-    queryFn: async () => {
-      const { data } = await api.get<{
-        data: { xp: number; level: number; streak: number; badges: string[] };
-      }>(`/communities/${communityId}/gamification/me`);
-      return data.data;
-    },
-  });
-
-  const checkInMutation = useMutation({
-    mutationFn: async () => {
-      await api.post(`/communities/${communityId}/gamification/check-in`);
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['community-gamification-me', communityId] });
-      void qc.invalidateQueries({ queryKey: ['community-leaderboard', communityId] });
-    },
-  });
-
   const { data: communityLive } = useQuery({
     queryKey: ['community-live', communityId],
     enabled: !!communityId,
@@ -343,35 +336,49 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
           onDismiss={() => undefined}
         />
       ) : null}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setView('engage')}
-          className={`rounded-full px-4 py-1.5 text-sm ${view === 'engage' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
-        >
-          Rooms
-        </button>
-        <button
-          type="button"
-          onClick={() => setView('posts')}
-          className={`rounded-full px-4 py-1.5 text-sm ${view === 'posts' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
-        >
-          Posts
-        </button>
-        <button
-          type="button"
-          onClick={() => setView('polls')}
-          className={`rounded-full px-4 py-1.5 text-sm ${view === 'polls' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
-        >
-          Polls
-        </button>
-        <button
-          type="button"
-          onClick={() => setView('leaderboard')}
-          className={`rounded-full px-4 py-1.5 text-sm ${view === 'leaderboard' ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
-        >
-          Leaderboard
-        </button>
+      <div
+        className="flex gap-2"
+        role="tablist"
+        aria-label="Community sections"
+        aria-orientation="horizontal"
+      >
+        {viewTabs.map((tab, i) => {
+          const selected = view === tab.id;
+          return (
+            <button
+              key={tab.id}
+              ref={(el) => {
+                viewTabRefs.current[tab.id] = el;
+              }}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => setView(tab.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowRight') {
+                  e.preventDefault();
+                  focusViewTab(i + 1);
+                }
+                if (e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  focusViewTab(i - 1);
+                }
+                if (e.key === 'Home') {
+                  e.preventDefault();
+                  focusViewTab(0);
+                }
+                if (e.key === 'End') {
+                  e.preventDefault();
+                  focusViewTab(viewTabs.length - 1);
+                }
+              }}
+              className={`rounded-full px-4 py-1.5 text-sm ${selected ? 'bg-primary text-on-primary' : 'bg-surface-container-high'}`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
       {(communityLive ?? []).length > 0 ? (
         <div className="glass-panel space-y-2 rounded-xl border border-primary/30 p-4">
@@ -388,48 +395,7 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
           ))}
         </div>
       ) : null}
-      {view === 'leaderboard' ? (
-        <div className="glass-panel space-y-2 rounded-xl p-4">
-          {gamificationProfile && (
-            <div className="mb-3 rounded-lg border border-outline-variant/30 px-3 py-2 text-sm">
-              <p>
-                Your progress: Lv {gamificationProfile.level} · {gamificationProfile.xp} XP ·{' '}
-                {gamificationProfile.streak} day streak
-              </p>
-              {gamificationProfile.badges.length > 0 && (
-                <p className="mt-1 text-on-surface-variant">
-                  Badges: {gamificationProfile.badges.join(', ')}
-                </p>
-              )}
-              <Button
-                variant="secondary"
-                className="mt-3"
-                disabled={checkInMutation.isPending}
-                onClick={() => checkInMutation.mutate()}
-              >
-                {checkInMutation.isPending ? 'Checking in…' : 'Daily check-in'}
-              </Button>
-            </div>
-          )}
-          {(leaderboard ?? []).length === 0 ? (
-            <p className="text-sm text-on-surface-variant">No XP earned yet — chat and post to climb.</p>
-          ) : (
-            <ol className="space-y-2">
-              {(leaderboard ?? []).map((row) => (
-                <li
-                  key={row.userId}
-                  className="flex items-center justify-between rounded-lg border border-outline-variant/30 px-3 py-2 text-sm"
-                >
-                  <span>
-                    #{row.rank} · Lv {row.level}
-                  </span>
-                  <span className="font-medium">{row.xp} XP</span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-      ) : view === 'polls' ? (
+      {view === 'polls' ? (
         <div className="glass-panel space-y-3 rounded-xl p-4">
           {!activePoll ? (
             <p className="text-sm text-on-surface-variant">No active poll right now.</p>
@@ -535,7 +501,8 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                     disabled={!user || likeMutation.isPending}
                     onClick={() => likeMutation.mutate(p.id)}
                   >
-                    ♥ {p.likeCount ?? 0}
+                    <Icon name="thumb_up" filled={!!p.likedByMe} className="text-sm" />{' '}
+                    {p.likeCount ?? 0}
                   </button>
                   <button
                     type="button"
@@ -546,7 +513,8 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
                       setExpandedPostId((cur) => (cur === p.id ? null : p.id))
                     }
                   >
-                    💬 {p.commentCount ?? 0} comments
+                    <Icon name="chat_bubble" className="text-sm" />{' '}
+                    {p.commentCount ?? 0} comments
                   </button>
                 </div>
                 {expandedPostId === p.id ? (

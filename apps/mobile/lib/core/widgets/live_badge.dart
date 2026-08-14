@@ -6,13 +6,14 @@ class LiveBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final live = ForgeTokens.of(context).live;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: ForgeTokens.live,
+        color: live,
         borderRadius: BorderRadius.circular(999),
         boxShadow: [
-          BoxShadow(color: ForgeTokens.live.withValues(alpha: 0.5), blurRadius: 8),
+          BoxShadow(color: live.withValues(alpha: 0.5), blurRadius: 8),
         ],
       ),
       child: const Row(

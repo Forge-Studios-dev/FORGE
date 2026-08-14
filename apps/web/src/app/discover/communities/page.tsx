@@ -73,11 +73,11 @@ export default function DiscoverCommunitiesPage() {
             <ul className="space-y-3">
               {(featured ?? []).map((c) => {
                 const username = c.creator?.username;
-                const href = username ? `/${username}/c/${c.slug}` : `/communities/id/${c.id}`;
+                const href = username
+                  ? `/${username}/c/${c.slug}`
+                  : `/communities/id/${c.id}`;
                 const isPaid = c.visibility === 'paid';
-                const subscribeHref = c.creator?.id
-                  ? `/${username ?? c.creator.id}/c/${c.slug}?subscribe=1`
-                  : href;
+                const subscribeHref = `${href}?subscribe=1`;
                 return (
                   <li key={c.id}>
                     <div className="glass-panel rounded-xl p-4 transition-colors hover:border-primary/30">
@@ -102,7 +102,7 @@ export default function DiscoverCommunitiesPage() {
               })}
             </ul>
           ) : (
-            <p className="text-sm text-on-surface-variant">No featured communities yet.</p>
+            <EmptyState icon="groups" title="No featured communities yet" />
           )}
         </div>
       ) : isLoading || isFetching ? (
@@ -113,11 +113,11 @@ export default function DiscoverCommunitiesPage() {
         <ul className="space-y-3">
           {(data ?? []).map((c) => {
             const username = c.creator?.username;
-            const href = username ? `/${username}/c/${c.slug}` : `/communities/id/${c.id}`;
+            const href = username
+              ? `/${username}/c/${c.slug}`
+              : `/communities/id/${c.id}`;
             const isPaid = c.visibility === 'paid';
-            const subscribeHref = c.creator?.id
-              ? `/${username ?? c.creator.id}/c/${c.slug}?subscribe=1`
-              : href;
+            const subscribeHref = `${href}?subscribe=1`;
             return (
               <li key={c.id}>
                 <div className="glass-panel rounded-xl p-4 transition-colors hover:border-primary/30">

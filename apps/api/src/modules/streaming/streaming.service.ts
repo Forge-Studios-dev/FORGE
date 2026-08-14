@@ -25,6 +25,7 @@ import { AccessSessionsService } from '../access-sessions/access-sessions.servic
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 import { User, UserRole } from '../users/entities/user.entity';
 import { Community } from '../communities/entities/community.entity';
+import { EngagementService } from '../engagement/engagement.service';
 import {
   muxHlsPlaybackUrl,
   muxPlaybackIdFromHlsUrl,
@@ -34,6 +35,7 @@ import {
   isMuxSigningConfigured,
   muxSignedHlsPlaybackUrl,
   normalizeMuxPrivateKey,
+  requiresMuxSignedPlayback,
   type MuxSigningConfig,
 } from '../../common/media/mux-signing.util';
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
@@ -92,6 +94,7 @@ export class StreamingService {
     private readonly streamViewerService: StreamViewerService,
     private readonly muxLiveSyncService: MuxLiveSyncService,
     private readonly streamReminderScheduler: StreamReminderScheduler,
+    private readonly engagementService: EngagementService,
     @InjectRedis() private readonly redis: Redis,
     @InjectQueue(PREMIUM_CONTENT_NOTIFY_QUEUE)
     private readonly premiumContentNotifyQueue: Queue<PremiumContentNotifyJobData>,
@@ -145,7 +148,7 @@ export class StreamingService {
     }
 
     try {
-      const useSignedPlayback = this.requiresSignedPlayback(visibility);
+      const useSignedPlayback = requiresMuxSignedPlayback(visibility);
       const dvrEnabled = dto.dvrEnabled === true;
       const response = await this.mux.video.liveStreams.create({
         playback_policy: [useSignedPlayback ? 'signed' : 'public'],
@@ -260,12 +263,33 @@ export class StreamingService {
     await safeRedisDel(this.redis, streamDetailCacheKey(streamId), this.logger);
   }
 
+  /**
+   * Shared host-block gate for live sub-resources (poll/clips/RSVP/raise-hand/…).
+   * Mirrors getStreamForViewer so blocked peers cannot scrape side channels.
+   */
+  async assertViewerNotBlockedFromHost(
+    streamId: string,
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+  ): Promise<Stream> {
+    const stream = await this.findById(streamId);
+    if (
+      viewerId &&
+      viewerId !== stream.userId &&
+      viewerRole !== UserRole.ADMIN &&
+      (await this.engagementService.isBlockedEitherWay(viewerId, stream.userId))
+    ) {
+      throw new ForbiddenException('This stream is not available');
+    }
+    return stream;
+  }
+
   async getStreamForViewer(
     id: string,
     viewerId?: string | null,
     viewerRole?: UserRole | null,
   ) {
-    const stream = await this.findById(id);
+    const stream = await this.assertViewerNotBlockedFromHost(id, viewerId, viewerRole);
     const isOwner = !!viewerId && viewerId === stream.userId;
     const isAdmin = viewerRole === UserRole.ADMIN;
 
@@ -345,7 +369,7 @@ export class StreamingService {
   /** Resolve HLS URL — signed token for restricted streams when configured. */
   resolvePlaybackUrlForViewer(stream: Stream, bypassSigning = false): string | null {
     if (stream.status !== StreamStatus.LIVE || !stream.playbackUrl) return null;
-    if (bypassSigning || !this.requiresSignedPlayback(stream.visibility)) {
+    if (bypassSigning || !requiresMuxSignedPlayback(stream.visibility)) {
       return stream.playbackUrl;
     }
 
@@ -353,17 +377,18 @@ export class StreamingService {
     const playbackId = stream.muxPlaybackId ?? muxPlaybackIdFromHlsUrl(stream.playbackUrl);
     if (!playbackId || !isMuxSigningConfigured(signing)) {
       this.logger.warn(
-        `Signed playback required for stream ${stream.id} but MUX signing keys are not configured`,
+        JSON.stringify({
+          msg: 'mux_signed_playback_missing_keys',
+          kind: 'stream',
+          streamId: stream.id,
+          visibility: stream.visibility,
+        }),
       );
       return null;
     }
 
     const ttl = this.configService.get<number>('mux.signedPlaybackTtlSec') ?? 3600;
     return muxSignedHlsPlaybackUrl(playbackId, signing, ttl);
-  }
-
-  private requiresSignedPlayback(visibility: StreamVisibility): boolean {
-    return visibility !== StreamVisibility.PUBLIC;
   }
 
   private muxSigningConfig(): MuxSigningConfig | null {
@@ -382,29 +407,56 @@ export class StreamingService {
     return !!user?.matureContentAcknowledgedAt;
   }
 
-  async getLiveStreams(viewerId?: string | null, viewerRole?: UserRole | null) {
-    const viewerKey = streamListViewerKey(viewerId);
-    const cacheKey = streamListCacheKey('live', viewerKey);
-    const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch {
-        await this.redis.del(cacheKey);
+  async getLiveStreams(
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+    creatorId?: string | null,
+  ) {
+    if (viewerId && creatorId && viewerId !== creatorId) {
+      if (await this.engagementService.isBlockedEitherWay(viewerId, creatorId)) {
+        return [];
       }
     }
 
+    const viewerKey = streamListViewerKey(viewerId);
+    const cacheKey = creatorId
+      ? null
+      : streamListCacheKey('live', viewerKey);
+    if (cacheKey) {
+      const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          await this.redis.del(cacheKey);
+        }
+      }
+    }
+
+    const blockedPeers =
+      viewerId && !creatorId
+        ? new Set(await this.engagementService.getBlockedPeerIds(viewerId))
+        : null;
+
     const streams = await this.streamRepository.find({
-      where: { status: StreamStatus.LIVE },
+      where: {
+        status: StreamStatus.LIVE,
+        ...(creatorId ? { userId: creatorId } : {}),
+      },
       relations: ['user'],
       order: { startedAt: 'DESC' },
       take: StreamingService.LIVE_STREAMS_LIST_LIMIT,
     });
 
+    const visibleStreams =
+      blockedPeers && blockedPeers.size > 0
+        ? streams.filter((s) => !blockedPeers.has(s.userId))
+        : streams;
+
     const accessList = await this.entitlementsService.checkAccessMany(
       viewerId,
       viewerRole,
-      streams.map((stream) => ({
+      visibleStreams.map((stream) => ({
         creatorId: stream.userId,
         visibility: stream.visibility,
         requiredTierId: stream.requiredTierId,
@@ -414,7 +466,7 @@ export class StreamingService {
       })),
     );
 
-    const results = streams.map((stream, index) => {
+    const results = visibleStreams.map((stream, index) => {
       const access = accessList[index];
       const isOwner = !!viewerId && viewerId === stream.userId;
       if (!access.allowed && stream.visibility !== StreamVisibility.PUBLIC) {
@@ -435,13 +487,15 @@ export class StreamingService {
     const filtered = results.filter(
       (s) => s.visibility === StreamVisibility.PUBLIC || !s.accessDenied,
     );
-    await safeRedisSetex(
-      this.redis,
-      cacheKey,
-      StreamingService.STREAM_LIST_CACHE_TTL_SEC,
-      JSON.stringify(filtered),
-      this.logger,
-    );
+    if (cacheKey) {
+      await safeRedisSetex(
+        this.redis,
+        cacheKey,
+        StreamingService.STREAM_LIST_CACHE_TTL_SEC,
+        JSON.stringify(filtered),
+        this.logger,
+      );
+    }
     return filtered;
   }
 
@@ -515,33 +569,56 @@ export class StreamingService {
     return saved;
   }
 
-  async getUpcomingStreams(viewerId?: string | null, viewerRole?: UserRole | null) {
-    const viewerKey = streamListViewerKey(viewerId);
-    const cacheKey = streamListCacheKey('upcoming', viewerKey);
-    const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch {
-        await this.redis.del(cacheKey);
+  async getUpcomingStreams(
+    viewerId?: string | null,
+    viewerRole?: UserRole | null,
+    creatorId?: string | null,
+  ) {
+    if (viewerId && creatorId && viewerId !== creatorId) {
+      if (await this.engagementService.isBlockedEitherWay(viewerId, creatorId)) {
+        return [];
       }
     }
+
+    const viewerKey = streamListViewerKey(viewerId);
+    const cacheKey = creatorId ? null : streamListCacheKey('upcoming', viewerKey);
+    if (cacheKey) {
+      const cached = await safeRedisGet(this.redis, cacheKey, this.logger);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          await this.redis.del(cacheKey);
+        }
+      }
+    }
+
+    const blockedPeers =
+      viewerId && !creatorId
+        ? new Set(await this.engagementService.getBlockedPeerIds(viewerId))
+        : null;
 
     const now = new Date();
     const streams = await this.streamRepository.find({
       where: {
         status: StreamStatus.IDLE,
         scheduledAt: MoreThan(now),
+        ...(creatorId ? { userId: creatorId } : {}),
       },
       relations: ['user'],
       order: { scheduledAt: 'ASC' },
       take: 50,
     });
 
+    const visibleStreams =
+      blockedPeers && blockedPeers.size > 0
+        ? streams.filter((s) => !blockedPeers.has(s.userId))
+        : streams;
+
     const accessList = await this.entitlementsService.checkAccessMany(
       viewerId,
       viewerRole,
-      streams.map((stream) => ({
+      visibleStreams.map((stream) => ({
         creatorId: stream.userId,
         visibility: stream.visibility,
         requiredTierId: stream.requiredTierId,
@@ -551,7 +628,7 @@ export class StreamingService {
       })),
     );
 
-    const filtered = streams
+    const filtered = visibleStreams
       .map((stream, index) => {
         const access = accessList[index];
         if (!access.allowed && stream.visibility !== StreamVisibility.PUBLIC) {
@@ -571,13 +648,15 @@ export class StreamingService {
       })
       .filter((s) => s.visibility === StreamVisibility.PUBLIC || !s.accessDenied);
 
-    await safeRedisSetex(
-      this.redis,
-      cacheKey,
-      StreamingService.STREAM_LIST_CACHE_TTL_SEC,
-      JSON.stringify(filtered),
-      this.logger,
-    );
+    if (cacheKey) {
+      await safeRedisSetex(
+        this.redis,
+        cacheKey,
+        StreamingService.STREAM_LIST_CACHE_TTL_SEC,
+        JSON.stringify(filtered),
+        this.logger,
+      );
+    }
     return filtered;
   }
 
@@ -699,7 +778,7 @@ export class StreamingService {
   /** Resolve VOD HLS URL — signed token for restricted replays when configured. */
   resolveVodPlaybackUrlForViewer(video: Video, bypassSigning = false): string | null {
     if (!video.hlsUrl) return null;
-    if (bypassSigning || video.visibility === VideoVisibility.PUBLIC) {
+    if (bypassSigning || !requiresMuxSignedPlayback(video.visibility)) {
       return video.hlsUrl;
     }
 
@@ -707,7 +786,12 @@ export class StreamingService {
     const playbackId = video.muxPlaybackId ?? muxPlaybackIdFromHlsUrl(video.hlsUrl);
     if (!playbackId || !isMuxSigningConfigured(signing)) {
       this.logger.warn(
-        `Signed replay required for video ${video.id} but MUX signing keys are not configured`,
+        JSON.stringify({
+          msg: 'mux_signed_playback_missing_keys',
+          kind: 'vod_replay',
+          videoId: video.id,
+          visibility: video.visibility,
+        }),
       );
       return null;
     }
@@ -888,6 +972,8 @@ export class StreamingService {
           `Premium replay notify enqueue failed for ${video.id}: ${err instanceof Error ? err.message : err}`,
         );
       }
+    } else if (eventType === 'video.asset.track.ready') {
+      await this.muxVodService.handleTrackReady(payload);
     } else if (eventType === 'video.asset.errored') {
       await this.muxVodService.handleAssetErrored(payload);
     }

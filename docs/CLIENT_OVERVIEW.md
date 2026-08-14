@@ -4,7 +4,7 @@
 
 ## Product
 
-Skill-first platform: tutorial video, live teaching, expertise-based audiences. Surfaces: web, mobile, admin, one API.
+YouTube-replica video platform: channels, video upload/watch, subscriptions, playlists, comments, live streaming, and a Community tab. A creator-economy extension layer (courses, mentorship, channel points, brand deals) exists in the codebase but is flagged off and removed from web/mobile UI as of 2026-08-12 — see [FORGE_PROJECT_MASTER.md §1](./FORGE_PROJECT_MASTER.md#1-executive-summary) for the full framing. Surfaces: web, mobile, admin, one API.
 
 ## Goals
 

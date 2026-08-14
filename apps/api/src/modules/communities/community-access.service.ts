@@ -23,8 +23,10 @@ import {
 import { CommunityRole, CommunityRoleType } from './entities/community-role.entity';
 import { CommunityModerationService } from './community-moderation.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { UserRole } from '../users/entities/user.entity';
 import { ChannelType } from '../entitlements/entities/channel-type.enum';
+import { CommunityPermission, permissionsForRole } from './community-permissions.constants';
 
 /**
  * Membership / role / entitlement gates for communities and channels.
@@ -47,18 +49,36 @@ export class CommunityAccessService {
     @InjectRepository(CommunityRole)
     private readonly roleRepository: Repository<CommunityRole>,
     private readonly entitlementsService: EntitlementsService,
+    private readonly engagementService: EngagementService,
     @Inject(forwardRef(() => CommunityModerationService))
     private readonly moderationService: CommunityModerationService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
+  /** True when viewer and community creator are blocked either way (admins exempt). */
+  async isBlockedFromCreator(
+    viewerId: string | null | undefined,
+    creatorId: string,
+    viewerRole?: UserRole | null,
+  ): Promise<boolean> {
+    if (!viewerId || viewerId === creatorId || viewerRole === UserRole.ADMIN) return false;
+    return this.engagementService.isBlockedEitherWay(viewerId, creatorId);
+  }
+
   async assertCommunityAccess(
     communityId: string,
     viewerId?: string | null,
     viewerRole?: UserRole | null,
+    options?: { skipBlockGate?: boolean },
   ): Promise<Community> {
     const community = await this.communityRepository.findOne({ where: { id: communityId } });
     if (!community) throw new NotFoundException('Community not found');
+    if (
+      !options?.skipBlockGate &&
+      (await this.isBlockedFromCreator(viewerId, community.creatorId, viewerRole))
+    ) {
+      throw new ForbiddenException('This community is not available');
+    }
     if (viewerId && (await this.moderationService.isBanned(communityId, viewerId))) {
       throw new ForbiddenException('You are banned from this community');
     }
@@ -74,7 +94,9 @@ export class CommunityAccessService {
         throw new ForbiddenException('Your community membership is suspended');
       }
     }
-    const canView = await this.canViewCommunity(community, viewerId, viewerRole);
+    const canView = await this.canViewCommunity(community, viewerId, viewerRole, {
+      skipBlockGate: options?.skipBlockGate,
+    });
     if (!canView) throw new ForbiddenException('You do not have access to this community');
     return community;
   }
@@ -110,6 +132,32 @@ export class CommunityAccessService {
     throw new ForbiddenException('Insufficient permissions for community studio');
   }
 
+  /**
+   * Permission-scoped studio access — for capabilities delegated roles hold
+   * per `COMMUNITY_ROLE_PERMISSION_MATRIX` (e.g. `coach`'s `view_analytics`,
+   * `moderator`/`coach`'s `manage_events`) that `assertCommunityStudioAccess`
+   * doesn't grant (that one is OWNER/ADMIN-only by design for broader studio
+   * mutations). Use this for routes the matrix says a narrower role may reach.
+   */
+  async assertCommunityPermission(
+    actorId: string,
+    communityId: string,
+    permission: CommunityPermission,
+    viewerRole?: UserRole | null,
+  ): Promise<Community> {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) throw new NotFoundException('Community not found');
+    if (viewerRole === UserRole.ADMIN) return community;
+    if (community.creatorId === actorId) return community;
+    const assignment = await this.roleRepository.findOne({
+      where: { communityId, userId: actorId },
+    });
+    if (assignment && permissionsForRole(assignment.role).includes(permission)) {
+      return community;
+    }
+    throw new ForbiddenException(`Insufficient permissions: ${permission}`);
+  }
+
   /** Validates a user may submit a join request (PRIVATE or INVITE communities without access). */
   async assertCanRequestJoin(
     communityId: string,
@@ -118,6 +166,9 @@ export class CommunityAccessService {
   ): Promise<Community> {
     const community = await this.communityRepository.findOne({ where: { id: communityId } });
     if (!community) throw new NotFoundException('Community not found');
+    if (await this.isBlockedFromCreator(userId, community.creatorId, viewerRole)) {
+      throw new ForbiddenException('This community is not available');
+    }
     if (await this.moderationService.isBanned(communityId, userId)) {
       throw new ForbiddenException('You are banned from this community');
     }
@@ -169,10 +220,17 @@ export class CommunityAccessService {
     community: Community,
     viewerId?: string | null,
     viewerRole?: UserRole | null,
+    options?: { skipBlockGate?: boolean },
   ): Promise<boolean> {
     const creatorId = community.creatorId;
     if (viewerId === creatorId) return true;
     if (viewerRole === UserRole.ADMIN) return true;
+    if (
+      !options?.skipBlockGate &&
+      (await this.isBlockedFromCreator(viewerId, creatorId, viewerRole))
+    ) {
+      return false;
+    }
 
     if (community.visibility === CommunityVisibility.PUBLIC) {
       return true;
@@ -296,6 +354,9 @@ export class CommunityAccessService {
     action: 'read' | 'write' = 'read',
   ): Promise<void> {
     const creatorId = channel.community.creatorId;
+    if (await this.isBlockedFromCreator(viewerId, creatorId, viewerRole)) {
+      throw new ForbiddenException('This community is not available');
+    }
     const isOwner = viewerId === creatorId;
     const isAdmin = viewerRole === UserRole.ADMIN;
 
@@ -334,6 +395,19 @@ export class CommunityAccessService {
     const community = await this.communityRepository.findOne({ where: { creatorId, slug } });
     if (!community) throw new NotFoundException('Community not found');
 
+    if (await this.isBlockedFromCreator(viewerId, creatorId, viewerRole)) {
+      return {
+        communityId: community.id,
+        name: community.name,
+        slug: community.slug,
+        visibility: community.visibility,
+        canView: false,
+        canRequestJoin: false,
+        joinRequestStatus: 'none' as const,
+        unavailable: true,
+      };
+    }
+
     const canView = viewerId
       ? await this.canViewCommunity(community, viewerId, viewerRole)
       : community.visibility === CommunityVisibility.PUBLIC;
@@ -364,6 +438,7 @@ export class CommunityAccessService {
       canView,
       canRequestJoin,
       joinRequestStatus,
+      unavailable: false,
     };
   }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GamificationService } from './gamification.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -6,13 +6,17 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CommunitiesService } from '../communities/communities.service';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
+import { EngagementService } from '../engagement/engagement.service';
 
 @ApiTags('Gamification')
 @Controller()
+@UseGuards(SkillEconomyLmsGuard)
 export class GamificationController {
   constructor(
     private readonly gamificationService: GamificationService,
     private readonly communitiesService: CommunitiesService,
+    private readonly engagementService: EngagementService,
   ) {}
 
   @Get('communities/:communityId/leaderboard')
@@ -69,12 +73,6 @@ export class GamificationController {
     return this.gamificationService.listAchievements(user.sub);
   }
 
-  @Post('platform/gamification/achievements/:key/unlock')
-  @ApiOperation({ summary: 'Unlock a specific achievement (event-triggered)' })
-  unlockAchievement(@CurrentUser() user: JwtPayload, @Param('key') key: string) {
-    return this.gamificationService.unlockAchievement(user.sub, key);
-  }
-
   @Get('platform/gamification/reputation')
   @ApiOperation({ summary: 'My reputation score (composite: XP + followers + content + achievements)' })
   reputationScore(@CurrentUser() user: JwtPayload) {
@@ -91,7 +89,15 @@ export class GamificationController {
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Public reputation score for any user' })
-  publicReputation(@Param('userId') userId: string) {
+  async publicReputation(
+    @Param('userId') userId: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    if (user?.sub && user.sub !== userId) {
+      if (await this.engagementService.isBlockedEitherWay(user.sub, userId)) {
+        throw new ForbiddenException('This channel is not available');
+      }
+    }
     return this.gamificationService.getReputationScore(userId);
   }
 

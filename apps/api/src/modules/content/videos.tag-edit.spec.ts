@@ -26,9 +26,17 @@ describe('VideosService.applySkillTagUpdate', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('rejects an empty tag set', async () => {
-    await expect(applyTags(makeVideo(), [])).rejects.toBeInstanceOf(BadRequestException);
+  it('clears tags when given an empty set', async () => {
+    categoryRepository.findOne.mockResolvedValue({ name: 'Coding' });
+    const video = makeVideo();
+    video.skillTags = [{ id: 'old' } as never];
+    video.tagsSearchText = 'Coding old';
+
+    await applyTags(video, []);
+
     expect(skillTagRepository.find).not.toHaveBeenCalled();
+    expect(video.skillTags).toEqual([]);
+    expect(video.tagsSearchText).toBe('Coding');
   });
 
   it('rejects when one or more tag ids do not resolve', async () => {
@@ -85,5 +93,60 @@ describe('VideosService.applySkillTagUpdate', () => {
     await applyTags(video, ['t1']);
 
     expect(video.tagsSearchText).toBe('React');
+  });
+});
+
+describe('VideosService.updateVideo category change', () => {
+  const skillTagRepository = { find: jest.fn() };
+  const categoryRepository = { findOne: jest.fn() };
+  const videoRepository = { save: jest.fn(async (v: Video) => v) };
+  const eventEmitter = { emit: jest.fn() };
+  const redis = {};
+
+  const svc = Object.create(VideosService.prototype) as VideosService;
+  Object.assign(svc, {
+    skillTagRepository,
+    categoryRepository,
+    videoRepository,
+    eventEmitter,
+    redis,
+    findById: jest.fn(),
+    bustVideoDetailCache: jest.fn().mockResolvedValue(undefined),
+    mapToPublicVideo: jest.fn((v: Video) => v),
+  });
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('rejects unknown categoryId', async () => {
+    (svc as unknown as { findById: jest.Mock }).findById.mockResolvedValue({
+      id: 'v1',
+      userId: 'u1',
+      categoryId: 'cat-1',
+      skillTags: [],
+    });
+    categoryRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      svc.updateVideo('u1', 'v1', { categoryId: 'missing' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('clears tags when category changes without new skillTagIds', async () => {
+    const video = {
+      id: 'v1',
+      userId: 'u1',
+      categoryId: 'cat-1',
+      skillTags: [{ id: 'old' }],
+      tagsSearchText: 'Coding old',
+      visibility: 'public',
+    } as unknown as Video;
+    (svc as unknown as { findById: jest.Mock }).findById.mockResolvedValue(video);
+    categoryRepository.findOne.mockResolvedValue({ id: 'cat-2', name: 'Music' });
+
+    await svc.updateVideo('u1', 'v1', { categoryId: 'cat-2' });
+
+    expect(video.categoryId).toBe('cat-2');
+    expect(video.skillTags).toEqual([]);
+    expect(video.tagsSearchText).toBe('Music');
   });
 });

@@ -4,14 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/network/api_client.dart';
 import '../../auth/data/auth_repository.dart';
-
-final creatorBundlesProvider = FutureProvider.autoDispose
-    .family<List<Map<String, dynamic>>, String>((ref, creatorId) async {
-  final client = ref.read(apiClientProvider);
-  final response = await client.dio.get('/creators/$creatorId/bundles');
-  final list = response.data['data'] as List? ?? [];
-  return list.cast<Map<String, dynamic>>();
-});
+import '../../../core/theme/forge_tokens.dart';
 
 final creatorTiersProvider = FutureProvider.autoDispose
     .family<List<Map<String, dynamic>>, String>((ref, creatorId) async {
@@ -75,7 +68,7 @@ class MembershipPanel extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Text(
                     'Test',
-                    style: TextStyle(color: Colors.amber.shade300, fontSize: 11),
+                    style: TextStyle(color: ForgeTokens.of(context).warning, fontSize: 11),
                   ),
                 ],
               ],
@@ -87,10 +80,7 @@ class MembershipPanel extends ConsumerWidget {
           loading: () => const SizedBox.shrink(),
           error: (_, __) => const SizedBox.shrink(),
           data: (tiers) {
-            final bundlesAsync = ref.watch(creatorBundlesProvider(creatorId));
-            if (tiers.isEmpty && (bundlesAsync.value ?? []).isEmpty) {
-              return const SizedBox.shrink();
-            }
+            if (tiers.isEmpty) return const SizedBox.shrink();
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Column(
@@ -119,30 +109,6 @@ class MembershipPanel extends ConsumerWidget {
                       ),
                     );
                   }),
-                  ...?bundlesAsync.whenOrNull(
-                    data: (bundles) => bundles.map((bundle) {
-                      final tier = bundle['tier'] as Map<String, dynamic>?;
-                      final priceCents = tier?['priceCents'] as int? ?? 0;
-                      final currency = tier?['currency'] as String? ?? 'USD';
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Bundle: ${bundle['name']} — $currency ${(priceCents / 100).toStringAsFixed(0)}',
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () => _checkout(context, ref, bundle['tierId'] as String),
-                              child: const Text('Get bundle'),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
                 ],
               ),
             );
@@ -174,14 +140,9 @@ class MembershipPanel extends ConsumerWidget {
         }
         return;
       }
-      // The checkout call succeeded but returned no hosted URL — this only
-      // happens with the stub provider in dev/staging, where mock subscriptions
-      // are enabled server-side. Use the test-membership path there.
+      // Stub provider in dev/staging — mock subscription path.
       await _mockJoin(context, ref, tierId);
     } on DioException catch (e) {
-      // A genuine checkout failure (e.g. creator hasn't finished payout
-      // onboarding, or the user isn't signed in) must surface — never silently
-      // grant a test membership, which would mask the real problem.
       if (!context.mounted) return;
       final status = e.response?.statusCode;
       final data = e.response?.data;

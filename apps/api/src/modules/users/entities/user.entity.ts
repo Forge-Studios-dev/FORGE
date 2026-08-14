@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
+import type { NotificationPreferences } from '@forge/shared-types';
 import { Video } from '../../content/entities/video.entity';
 import { Stream } from '../../streaming/entities/stream.entity';
 import { Like } from '../../engagement/entities/like.entity';
@@ -40,6 +41,10 @@ export class User {
   @Column({ unique: true, length: 50 })
   username: string;
 
+  /** Last time the user changed their handle (cooldown for self-service rename). */
+  @Column({ name: 'username_changed_at', type: 'timestamptz', nullable: true })
+  usernameChangedAt: Date | null;
+
   @Column({ name: 'display_name', length: 100 })
   displayName: string;
 
@@ -53,6 +58,14 @@ export class User {
 
   @Column({ nullable: true, length: 500 })
   bio: string;
+
+  /** Primary website shown on the channel About tab. */
+  @Column({ name: 'website_url', type: 'varchar', length: 500, nullable: true })
+  websiteUrl: string | null;
+
+  /** Extra channel links: [{ title, url }] (max 5). */
+  @Column({ name: 'channel_links', type: 'jsonb', nullable: true })
+  channelLinks: { title: string; url: string }[] | null;
 
   @Column({ name: 'avatar_url', nullable: true })
   avatarUrl: string;
@@ -91,6 +104,24 @@ export class User {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
+  /** Set by AccountStrikeService on a 2nd strike within 90 days (YouTube's own ladder) — blocks new uploads/streams until this passes. */
+  @Column({ name: 'upload_restricted_until', type: 'timestamptz', nullable: true })
+  uploadRestrictedUntil: Date | null;
+
+  /** TOTP 2FA enrolled and active. Secret stays set (encrypted) even if this is false mid-enrollment. */
+  @Column({ name: 'mfa_enabled', default: false })
+  mfaEnabled: boolean;
+
+  /** AES-256-GCM encrypted TOTP secret (see common/crypto/encryption.util.ts). Never returned to clients. */
+  @Column({ name: 'mfa_secret_encrypted', type: 'varchar', nullable: true })
+  @Exclude()
+  mfaSecretEncrypted: string | null;
+
+  /** bcrypt hashes of unused single-use backup codes; consumed (removed) on use. */
+  @Column({ name: 'mfa_backup_code_hashes', type: 'jsonb', nullable: true })
+  @Exclude()
+  mfaBackupCodeHashes: string[] | null;
+
   /** Soft-delete timestamp — account removed from admin lists and sign-in. */
   @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
   deletedAt: Date | null;
@@ -114,6 +145,18 @@ export class User {
 
   @Column({ name: 'mature_content_acknowledged_at', type: 'timestamptz', nullable: true })
   matureContentAcknowledgedAt: Date | null;
+
+  /** When true, VOD watch progress is not written to watch_history (views still count). */
+  @Column({ name: 'watch_history_paused', default: false })
+  watchHistoryPaused: boolean;
+
+  /** Null means all categories on, no email digest — the zero-row default. */
+  @Column({ name: 'notification_preferences', type: 'jsonb', nullable: true })
+  notificationPreferences: NotificationPreferences | null;
+
+  /** Watermark for the daily email digest job — null means never sent. */
+  @Column({ name: 'last_email_digest_sent_at', type: 'timestamptz', nullable: true })
+  lastEmailDigestSentAt: Date | null;
 
   @Column({ name: 'stripe_connect_account_id', type: 'varchar', length: 255, nullable: true })
   stripeConnectAccountId: string | null;

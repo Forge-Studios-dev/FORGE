@@ -12,15 +12,15 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-space-grotesk' });
 
 export const metadata: Metadata = {
-  title: { default: 'FORGE – Learn from Creators', template: '%s | FORGE' },
+  title: { default: 'FORGE', template: '%s | FORGE' },
   description:
-    'A skill-first live creator platform. Learn crafts, tech, art, music and more from expert creators through video tutorials and live sessions.',
-  keywords: ['learning', 'creators', 'skills', 'live streaming', 'tutorials'],
+    'Watch videos, Shorts, and live streams from creators you love. Subscribe, save to playlists, and build your library.',
+  keywords: ['video', 'creators', 'shorts', 'live streaming', 'subscriptions', 'playlists'],
   openGraph: {
     type: 'website',
     siteName: 'FORGE',
-    title: 'FORGE – Learn from Creators',
-    description: 'Skill-first live creator platform',
+    title: 'FORGE',
+    description: 'Watch videos and live streams from creators you love',
   },
   twitter: { card: 'summary_large_image' },
 };
@@ -30,10 +30,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // apply it to its own bootstrap <script> tags and forces this layout to
   // render dynamically — both required for the nonce-based CSP to actually
   // match at runtime instead of silently blocking every script.
-  headers().get('x-nonce');
+  const nonce = headers().get('x-nonce') ?? undefined;
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('forge-theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.classList.remove('light','dark');document.documentElement.classList.add(t);}catch(e){document.documentElement.classList.add('dark');}})();`,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} ${spaceGrotesk.variable} antialiased`}>
         <a
           href="#main-content"
@@ -44,9 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <AuthProvider>
             <LiveStreamsSocketSync />
-            <AppShell>
-              <div id="main-content">{children}</div>
-            </AppShell>
+            <AppShell>{children}</AppShell>
           </AuthProvider>
         </Providers>
       </body>

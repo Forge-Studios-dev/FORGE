@@ -1,10 +1,14 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/widgets/description_chapters_editor.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../data/upload_repository.dart';
@@ -23,8 +27,25 @@ const _visibilityOptions = <({String value, String label})>[
   (value: 'public', label: 'Public — anyone can discover'),
   (value: 'unlisted', label: 'Unlisted — only with the link'),
   (value: 'private', label: 'Private — only you'),
-  (value: 'subscribers', label: 'Subscribers only'),
+  (value: 'followers', label: 'Subscribers only'),
+  (value: 'subscribers', label: 'Members only'),
 ];
+
+const _shortMaxSeconds = 60;
+const _shortTooLongMessage =
+    'Shorts must be 60 seconds or shorter. Upload as a regular video instead.';
+
+Future<Duration?> _probeVideoDuration(String path) async {
+  final controller = VideoPlayerController.file(File(path));
+  try {
+    await controller.initialize();
+    return controller.value.duration;
+  } catch (_) {
+    return null;
+  } finally {
+    await controller.dispose();
+  }
+}
 
 class UploadScreen extends ConsumerStatefulWidget {
   const UploadScreen({super.key});
@@ -37,19 +58,42 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   PlatformFile? _file;
+  PlatformFile? _thumbnail;
   String? _categoryId;
   final Set<String> _skillTagIds = {};
   String _visibility = 'public';
+  String _videoType = 'video';
+  bool _scheduleEnabled = false;
+  DateTime? _scheduledAt;
   bool _uploading = false;
   int _progress = 0;
   String? _error;
   PendingUpload? _pendingResume;
+  final Set<String> _playlistIds = {};
+  List<Map<String, dynamic>> _myPlaylists = [];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkForResumableUpload();
+    _loadPlaylists();
+  }
+
+  Future<void> _loadPlaylists() async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final res = await api.dio.get('/playlists/me');
+      final list = (res.data['data'] as List?) ?? [];
+      if (!mounted) return;
+      setState(() {
+        _myPlaylists = list
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .where((p) => p['systemType'] == null && p['id'] is String)
+            .toList();
+      });
+    } catch (_) {}
   }
 
   Future<void> _checkForResumableUpload() async {
@@ -98,10 +142,50 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
       setState(() => _error = 'File must be 500MB or smaller.');
       return;
     }
+    if (_videoType == 'short') {
+      final duration = await _probeVideoDuration(path);
+      if (duration != null && duration.inSeconds > _shortMaxSeconds) {
+        setState(() => _error = _shortTooLongMessage);
+        return;
+      }
+    }
     setState(() {
       _file = file;
       _error = null;
     });
+  }
+
+  Future<void> _pickThumbnail() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.single;
+    if (file.path == null) {
+      setState(() => _error = 'Could not read thumbnail file.');
+      return;
+    }
+    setState(() {
+      _thumbnail = file;
+      _error = null;
+    });
+  }
+
+  String? _thumbnailContentType(PlatformFile file) {
+    final ext = (file.extension ?? '').toLowerCase();
+    switch (ext) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      default:
+        return null;
+    }
   }
 
   Future<void> _upload() async {
@@ -117,9 +201,19 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
       setState(() => _error = 'Choose a category.');
       return;
     }
-    if (_skillTagIds.isEmpty) {
-      setState(() => _error = 'Select at least one skill tag.');
-      return;
+    if (_videoType == 'short' && _file!.path != null) {
+      final duration = await _probeVideoDuration(_file!.path!);
+      if (duration != null && duration.inSeconds > _shortMaxSeconds) {
+        setState(() => _error = _shortTooLongMessage);
+        return;
+      }
+    }
+    if (_scheduleEnabled) {
+      final at = _scheduledAt;
+      if (at == null || at.isBefore(DateTime.now().add(const Duration(minutes: 15)))) {
+        setState(() => _error = 'Pick a publish time at least 15 minutes from now.');
+        return;
+      }
     }
     setState(() {
       _uploading = true;
@@ -128,7 +222,15 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
     });
     try {
       final type = _file!.extension == 'mov' ? 'video/quicktime' : 'video/mp4';
-      final videoId = await ref.read(uploadRepositoryProvider).uploadLesson(
+      final thumbType = _thumbnail != null ? _thumbnailContentType(_thumbnail!) : null;
+      if (_thumbnail != null && thumbType == null) {
+        setState(() {
+          _uploading = false;
+          _error = 'Thumbnail must be JPEG, PNG, or WebP.';
+        });
+        return;
+      }
+      final videoId = await ref.read(uploadRepositoryProvider).uploadVideo(
             filePath: _file!.path!,
             contentType: type,
             fileSizeBytes: _file!.size,
@@ -137,6 +239,12 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             categoryId: _categoryId!,
             skillTagIds: _skillTagIds.toList(),
             visibility: _visibility,
+            videoType: _videoType,
+            scheduledPublishAt:
+                _scheduleEnabled && _scheduledAt != null ? _scheduledAt!.toUtc().toIso8601String() : null,
+            thumbnailPath: _thumbnail?.path,
+            thumbnailContentType: thumbType,
+            playlistIds: _playlistIds.toList(),
             onProgress: (p) {
               if (mounted) setState(() => _progress = p);
             },
@@ -144,9 +252,15 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
       if (!mounted) return;
       setState(() => _pendingResume = null);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Upload complete — processing started.')),
+        SnackBar(
+          content: Text(
+            _scheduleEnabled
+                ? 'Upload complete — will publish at ${_scheduledAt!.toLocal()}.'
+                : 'Upload complete — processing started.',
+          ),
+        ),
       );
-      context.go('/watch/$videoId');
+      context.go('/studio/videos/$videoId');
     } catch (e) {
       if (mounted) setState(() => _error = 'Upload failed. Check connection and try again.');
     } finally {
@@ -187,7 +301,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Upload lesson')),
+      appBar: AppBar(title: Text(_videoType == 'short' ? 'Create a Short' : 'Upload video')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -196,8 +310,27 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: Text(_error!, style: const TextStyle(color: ForgeTokens.error)),
+                child: Text(_error!, style: TextStyle(color: ForgeTokens.of(context).error)),
               ),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'video', label: Text('Video'), icon: Icon(Icons.videocam_outlined)),
+                ButtonSegment(value: 'short', label: Text('Short'), icon: Icon(Icons.smart_display_outlined)),
+              ],
+              selected: {_videoType},
+              onSelectionChanged: _uploading
+                  ? null
+                  : (s) => setState(() => _videoType = s.first),
+            ),
+            if (_videoType == 'short')
+              Padding(
+                padding: EdgeInsets.only(top: 8, bottom: 4),
+                child: Text(
+                  'Shorts must be 60 seconds or shorter.',
+                  style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, fontSize: 13),
+                ),
+              ),
+            const SizedBox(height: 16),
             if (_pendingResume != null && !_uploading)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -209,15 +342,15 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
                         _pendingResume!.backgrounded
                             ? 'Upload paused — reopen the app to continue.'
                             : 'You have an unfinished upload.',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: ForgeTokens.onSurface,
+                          color: ForgeTokens.of(context).onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _pendingResume!.title,
-                        style: const TextStyle(color: ForgeTokens.onSurfaceVariant),
+                        style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -244,6 +377,24 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
               icon: const Icon(Icons.video_file_outlined),
               label: Text(_file == null ? 'Choose video (MP4/MOV)' : _file!.name),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _uploading ? null : _pickThumbnail,
+              icon: const Icon(Icons.image_outlined),
+              label: Text(
+                _thumbnail == null
+                    ? 'Custom thumbnail (optional)'
+                    : _thumbnail!.name,
+              ),
+            ),
+            if (_thumbnail != null && !_uploading)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setState(() => _thumbnail = null),
+                  child: const Text('Remove thumbnail'),
+                ),
+              ),
             const SizedBox(height: 20),
             TextField(
               controller: _titleCtrl,
@@ -252,13 +403,23 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             const SizedBox(height: 12),
             TextField(
               controller: _descCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Description (optional)'),
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Description (optional)',
+              ),
+              onChanged: (_) => setState(() {}),
             ),
+            DescriptionChaptersEditor(controller: _descCtrl),
             const SizedBox(height: 16),
             _buildCategoryAndSkills(),
             const SizedBox(height: 16),
             _buildVisibilitySelector(),
+            const SizedBox(height: 8),
+            _buildScheduleSelector(),
+            if (_myPlaylists.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildPlaylistSelector(),
+            ],
             if (_uploading) ...[
               const SizedBox(height: 24),
               LinearProgressIndicator(value: _progress / 100),
@@ -283,9 +444,9 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
         padding: EdgeInsets.symmetric(vertical: 8),
         child: LinearProgressIndicator(),
       ),
-      error: (_, __) => const Text(
+      error: (_, __) => Text(
         'Could not load categories. Pull to retry.',
-        style: TextStyle(color: ForgeTokens.error),
+        style: TextStyle(color: ForgeTokens.of(context).error),
       ),
       data: (categories) {
         if (categories.isEmpty) {
@@ -320,12 +481,12 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
             if (_categoryId != null) ...[
               const SizedBox(height: 12),
               Text(
-                'Skill tags',
+                'Topic tags (optional)',
                 style: Theme.of(context).textTheme.labelMedium,
               ),
               const SizedBox(height: 6),
               if (skillTags.isEmpty)
-                const Text('No skill tags for this category.')
+                const Text('No tags for this category.')
               else
                 Wrap(
                   spacing: 8,
@@ -369,6 +530,111 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
       onChanged: _uploading
           ? null
           : (value) => setState(() => _visibility = value ?? 'public'),
+    );
+  }
+
+  Future<void> _pickSchedule() async {
+    final now = DateTime.now();
+    final initial = _scheduledAt ?? now.add(const Duration(hours: 1));
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(now) ? now.add(const Duration(days: 1)) : initial,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+    final picked = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (picked.isBefore(now.add(const Duration(minutes: 15)))) {
+      setState(() => _error = 'Schedule at least 15 minutes from now.');
+      return;
+    }
+    setState(() {
+      _scheduledAt = picked;
+      _scheduleEnabled = true;
+      _error = null;
+    });
+  }
+
+  Widget _buildScheduleSelector() {
+    final t = ForgeTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Schedule publish'),
+          subtitle: Text(
+            _scheduleEnabled && _scheduledAt != null
+                ? _scheduledAt!.toLocal().toString()
+                : 'Publish when processing finishes',
+            style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+          ),
+          value: _scheduleEnabled,
+          onChanged: _uploading
+              ? null
+              : (on) {
+                  setState(() {
+                    _scheduleEnabled = on;
+                    if (on && _scheduledAt == null) {
+                      _scheduledAt = DateTime.now().add(const Duration(hours: 1));
+                    }
+                  });
+                  if (on) _pickSchedule();
+                },
+        ),
+        if (_scheduleEnabled && !_uploading)
+          TextButton.icon(
+            onPressed: _pickSchedule,
+            icon: const Icon(Icons.event, size: 18),
+            label: const Text('Pick date & time'),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPlaylistSelector() {
+    final t = ForgeTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Add to playlists',
+          style: TextStyle(fontWeight: FontWeight.w600, color: t.onSurface),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Optional — attach this video when upload completes.',
+          style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        ..._myPlaylists.map((p) {
+          final id = p['id'] as String;
+          final title = p['title'] as String? ?? 'Playlist';
+          final checked = _playlistIds.contains(id);
+          return CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: checked,
+            title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            onChanged: _uploading
+                ? null
+                : (on) {
+                    setState(() {
+                      if (on == true) {
+                        _playlistIds.add(id);
+                      } else {
+                        _playlistIds.remove(id);
+                      }
+                    });
+                  },
+          );
+        }),
+      ],
     );
   }
 }

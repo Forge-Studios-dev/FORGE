@@ -16,12 +16,14 @@ import { MentorshipRole } from './entities/mentorship.entity';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { clampLimit } from '../../common/utils/pagination.util';
 
 @ApiTags('Mentorship')
 @Controller()
+@UseGuards(SkillEconomyLmsGuard)
 export class MentorshipController {
   constructor(private readonly mentorshipService: MentorshipService) {}
 
@@ -34,8 +36,11 @@ export class MentorshipController {
 
   @Get('communities/:communityId/mentorship/mentors')
   @ApiOperation({ summary: 'List active mentors in a community' })
-  listMentors(@Param('communityId') communityId: string) {
-    return this.mentorshipService.listMentors(communityId);
+  listMentors(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId') communityId: string,
+  ) {
+    return this.mentorshipService.listMentors(communityId, user.sub, user.role);
   }
 
   @Put('communities/:communityId/mentorship/profile')

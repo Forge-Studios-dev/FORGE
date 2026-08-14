@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/observability/capture_error.dart';
 import '../../../core/socket/forge_socket.dart';
+import '../../../core/theme/forge_tokens.dart';
 
 class StreamPollPanel extends ConsumerStatefulWidget {
   final String streamId;
@@ -150,6 +151,7 @@ class _StreamPollPanelState extends ConsumerState<StreamPollPanel> {
 
     if (_poll == null || _poll!['isActive'] != true) return const SizedBox.shrink();
 
+    final t = ForgeTokens.of(context);
     final options = (_poll!['options'] as List?)?.cast<String>() ?? [];
     final counts = (_poll!['counts'] as List?)?.cast<int>() ?? List.filled(options.length, 0);
     final total = counts.fold<int>(0, (a, b) => a + b);
@@ -158,18 +160,26 @@ class _StreamPollPanelState extends ConsumerState<StreamPollPanel> {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white10,
+        color: t.surfaceContainer.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: t.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Expanded(child: Text(_poll!['question'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w600))),
+              Expanded(
+                child: Text(
+                  _poll!['question'] as String? ?? '',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: t.onSurface),
+                ),
+              ),
               if (widget.isHost)
-                TextButton(onPressed: _closePoll, child: const Text('Close', style: TextStyle(color: Colors.redAccent))),
+                TextButton(
+                  onPressed: _closePoll,
+                  child: Text('Close', style: TextStyle(color: t.error)),
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -181,14 +191,17 @@ class _StreamPollPanelState extends ConsumerState<StreamPollPanel> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.white24),
+                    border: Border.all(color: t.outlineVariant),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(child: Text(options[i])),
-                      Text(total > 0 ? '${((counts[i] / total) * 100).round()}%' : '0%'),
+                      Expanded(child: Text(options[i], style: TextStyle(color: t.onSurface))),
+                      Text(
+                        total > 0 ? '${((counts[i] / total) * 100).round()}%' : '0%',
+                        style: TextStyle(color: t.onSurfaceVariant),
+                      ),
                     ],
                   ),
                 ),

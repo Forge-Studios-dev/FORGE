@@ -43,14 +43,14 @@
 | Metric | Value |
 |--------|-------|
 | **Total tasks** | 684 |
-| **Completed ✅** | 661 (96.6%) |
+| **Completed ✅** | 662 (96.8%) |
 | **In Progress 🔄** | 0 |
 | **Needs Review 👀** | 0 |
 | **Pending ⏳** | 3 |
-| **Blocked 🚫** | 17 |
+| **Blocked 🚫** | 16 |
 
-> **Note:** The V3.0 blueprint §Implementation Status Tracker (~98%) is **aspirational**. This tracker (96.6% ✅) is the **authoritative** evidence-based score.
-> **Last updated:** 2026-07-22 — CRIT-01/03/04 audit remediation (mobile scaffolding, credential rotation, DB restore drill).
+> **Note:** The V3.0 blueprint §Implementation Status Tracker (~98%) is **aspirational**. This tracker (96.8% ✅) is the **authoritative** evidence-based score.
+> **Last updated:** 2026-07-22 — CRIT-01/03/04 audit remediation (mobile scaffolding, credential rotation, DB restore drill). **Row-level update 2026-08-13:** CEOS-P01-T009 marked done (see row). These totals were not otherwise reconciled against the substantial work shipped 2026-08-09 → 2026-08-13 (MFA/TOTP, copyright/DMCA, account strikes, comment moderation, admin audit log, several security fixes — see [PLATFORM_AUDIT_2026-08-09.md §6](./PLATFORM_AUDIT_2026-08-09.md#6-zero-trust-re-audit--fixes-2026-08-13)); the 684-row scope predates most of that, so treat this percentage as a floor, not current, until someone does a full re-count.
 
 ### Completion by domain (phase-weighted)
 
@@ -251,7 +251,7 @@ See [FORGE_PROJECT_MASTER.md §5](./FORGE_PROJECT_MASTER.md#5-background-workers
 | CEOS-P01-T006 | Technical gap: Postgres FTS at scale | API | 🚫 | F-1302 deferred | Perf | P3 | XL | - | Platform |
 | CEOS-P01-T007 | Security gap: geo anomaly detection | API | ✅ | IP-hash-based new-device detection: auth.service recordNewDeviceIfNeeded compares ip_hash against prior active sessions; emits auth.login.new_device analytics event; full geo-IP deferred (requires MaxMind/geoip-lite license) | - | P3 | L | - | Backend |
 | CEOS-P01-T008 | Security gap: suspicious login detection | API | ✅ | AuthAccountLockoutService: Redis-backed failed-login counting, configurable maxAttempts/windowSec/lockoutSec; new-IP detection fires analytics event; brute force lockout in place | - | P3 | L | - | Backend |
-| CEOS-P01-T009 | Security gap: signed Mux URLs (DRM) | API | 🚫 | F-1101 | Security | P3 | L | - | Backend |
+| CEOS-P01-T009 | Security gap: signed Mux URLs (access-control, not DRM) | API | ✅ | Fixed 2026-08-13 — mux-vod.service.ts was hardcoding `playback_policy: public` regardless of visibility; now signed for gated content, reusing the live-stream signing utility. True DRM add-on (Widevine/FairPlay) tracked separately as F-1101b, still deferred | Security | P3 | L | - | Backend |
 | CEOS-P01-T010 | UX gap: mobile studio programs missing | Mobile | ✅ | studio_programs_screen.dart | - | P1 | M | CEOS-P03-T035 | Mobile |
 | CEOS-P01-T011 | UX gap: mobile studio events admin missing | Mobile | ✅ | studio_engagement_screen.dart events | - | P0 | M | - | Mobile |
 | CEOS-P01-T012 | UX gap: mobile billing env parity | Mobile | ✅ | membership_panel.dart launches checkoutUrl and surfaces server errors (no silent mock fallback in prod) | - | P1 | S | - | Mobile |
@@ -260,7 +260,7 @@ See [FORGE_PROJECT_MASTER.md §5](./FORGE_PROJECT_MASTER.md#5-background-workers
 | CEOS-P01-T015 | Community gap: voice stage raise-hand mobile | Mobile | ✅ | community_stage_raise_hand_panel.dart | - | P1 | M | - | Mobile |
 | CEOS-P01-T016 | Scalability: formal 50K MAU load test | Infra | 🚫 | DEFERRED_BACKLOG Load test | Perf | P3 | XL | - | Platform |
 | CEOS-P01-T017 | Scalability: search sidecar trigger | Infra | 🚫 | F-1302 | Perf | P3 | XL | - | Platform |
-| CEOS-P01-T018 | Cost: Mux COGS without Stripe revenue | Infra | 🚫 | F-1101 | Perf | P1 | M | - | Product |
+| CEOS-P01-T018 | Cost: Mux COGS without Stripe revenue | Infra | 🚫 | Stripe Connect revenue is now real (confirmed 2026-08-13), so the original "no revenue at all" framing is stale — but actual Mux-cost-vs-revenue figures are still unconfirmed (no FinOps dollar figures pulled), so this stays open pending that data, not because revenue doesn't exist | Perf | P1 | M | - | Product |
 | CEOS-P01-T019 | Doc gap: FORGE_PROJECT_MASTER §16 stale | Docs | ✅ | FORGE_PROJECT_MASTER.md §16 updated | - | P0 | S | - | Backend |
 | CEOS-P01-T020 | Doc gap: Community 3.0 tracker files missing | Docs | ✅ | redirect stubs + master tracker | - | P0 | S | - | Backend |
 | CEOS-P01-T021 | Doc gap: V3.0 claims 98% complete | Docs | ✅ | V3.0 disclaimer added | - | P0 | S | - | Backend |
