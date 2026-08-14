@@ -28,6 +28,9 @@ import { EntitlementsService } from '../src/modules/entitlements/entitlements.se
 import { AuthUserCacheService } from '../src/modules/auth/auth-user-cache.service';
 import { AuthSessionCacheService } from '../src/modules/auth/auth-session-cache.service';
 import { DatabaseObservabilityService } from '../src/database/database-observability.service';
+import { AccountStrikesService } from '../src/modules/account-strikes/account-strikes.service';
+import { CopyrightService } from '../src/modules/copyright/copyright.service';
+import { AdminAuditLogService } from '../src/common/audit/admin-audit-log.service';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { RolesGuard } from '../src/common/guards/roles.guard';
 import { JwtStrategy } from '../src/modules/auth/strategies/jwt.strategy';
@@ -84,6 +87,9 @@ describe('Admin moderation HTTP guard + action (HIGH-07)', () => {
         { provide: AdminService, useValue: {} },
         { provide: EntitlementsService, useValue: {} },
         { provide: DatabaseObservabilityService, useValue: {} },
+        { provide: AccountStrikesService, useValue: {} },
+        { provide: CopyrightService, useValue: {} },
+        { provide: AdminAuditLogService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
       ],

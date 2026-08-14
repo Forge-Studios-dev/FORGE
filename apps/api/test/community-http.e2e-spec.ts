@@ -351,7 +351,7 @@ describe('Community HTTP (mocked e2e)', () => {
       `/api/v1/creators/me/communities/${communityId}/analytics`,
     );
     expect(res.status).toBe(200);
-    expect(communitiesService.getCommunityAnalytics).toHaveBeenCalledWith('user-1', communityId);
+    expect(communitiesService.getCommunityAnalytics).toHaveBeenCalledWith('user-1', communityId, 'consumer');
   });
 
   it('GET /api/v1/communities/:id/live returns community streams', async () => {

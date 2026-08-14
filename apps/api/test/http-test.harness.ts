@@ -19,6 +19,7 @@ import { HealthController } from '../src/health.controller';
 import { AuthController } from '../src/modules/auth/auth.controller';
 import { AuthOAuthExchangeService } from '../src/modules/auth/auth-oauth-exchange.service';
 import { AuthService } from '../src/modules/auth/auth.service';
+import { AuthMfaService } from '../src/modules/auth/auth-mfa.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { AppCheckGuard } from '../src/modules/firebase/app-check.guard';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
@@ -57,6 +58,15 @@ export async function createMockHttpApp(): Promise<INestApplication> {
         },
       },
       { provide: NotificationsService, useValue: {} },
+      {
+        provide: AuthMfaService,
+        useValue: {
+          isEnabled: jest.fn().mockResolvedValue(false),
+          beginEnrollment: jest.fn(),
+          confirmEnrollment: jest.fn(),
+          disable: jest.fn(),
+        },
+      },
       { provide: ConfigService, useValue: mockConfigService },
       { provide: DataSource, useValue: { query: jest.fn().mockResolvedValue([{ '?column?': 1 }]) } },
       { provide: getRedisConnectionToken(), useValue: { ping: jest.fn().mockResolvedValue('PONG') } },

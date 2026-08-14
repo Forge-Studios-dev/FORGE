@@ -39,6 +39,7 @@ import {
 import { TierEntitlement } from '../src/modules/entitlements/entities/tier-entitlement.entity';
 import { StreamEventPurchase } from '../src/modules/streaming/entities/stream-event-purchase.entity';
 import { Stream } from '../src/modules/streaming/entities/stream.entity';
+import { StreamMessage } from '../src/modules/stream-chat/entities/stream-message.entity';
 import { StreamingService } from '../src/modules/streaming/streaming.service';
 import { EngagementService } from '../src/modules/engagement/engagement.service';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
@@ -118,6 +119,7 @@ describe('POST /billing/webhook -> entitlement grant (HIGH-01)', () => {
         { provide: getRepositoryToken(StreamEventPurchase), useValue: {} },
         { provide: getRepositoryToken(TierEntitlement), useValue: {} },
         { provide: getRepositoryToken(Stream), useValue: {} },
+        { provide: getRepositoryToken(StreamMessage), useValue: {} },
         { provide: getRepositoryToken(Video), useValue: { findOne: jest.fn() } },
         { provide: getRepositoryToken(SuperThanks), useValue: { findOne: jest.fn(), save: jest.fn(), create: jest.fn() } },
         { provide: DataSource, useValue: dataSource },
