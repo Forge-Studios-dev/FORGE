@@ -67,19 +67,23 @@ No code change required; these are pure doc-accuracy fixes that should land befo
 
 ### MVP-3: Core YouTube-parity gaps (the actual product work)
 
+**Delta-audit correction, 2026-08-16:** this table was written 2026-08-09 and, except row "Comment moderation gate," never updated as `PLATFORM_AUDIT_2026-08-09.md` itself accumulated fixes through 2026-08-13, or as PR #195 (merged 2026-08-14) shipped MFA's client surface. Nearly every row below was stale — read as **already shipped** unless marked otherwise; verified by re-reading the cited code, not just trusting the audit doc's own log.
+
 | Item | Domain | Phase doc | Notes |
 |---|---|---|---|
-| Account-level strike/warning ladder + basic appeals flow | moderation | none exists | Currently binary `isActive` disable only; zero "appeal"/"strike" in codebase |
-| Rate-limit / trust-weight report-creation endpoints | moderation | none | Mass-reporting unmitigated today |
-| Self-service account deletion + data export endpoint | security | `docs/phases/17-security/PHASE_17_SECURITY.md` | Phase doc self-reports "verified complete for baseline" but MFA and this were never in scope |
-| Define owned-content lifecycle on account deletion (videos/streams/communities) | product-vision, security | none | Currently undefined in both code and docs — two domains independently flagged this |
-| MFA/2FA, at minimum gated to creator/admin accounts | security | `docs/phases/17-security/PHASE_17_SECURITY.md` | Payout + admin takeover risk; zero implementation today |
-| Distinct monetization-eligibility gate (subscriber/watch-hour thresholds) separate from `creatorStatus` | monetization, product-vision | `docs/phases/14-monetization/PHASE_14_MONETIZATION.md` | Today any approved creator can monetize immediately — decide if intentional |
-| Transcript/caption search | discovery | `docs/phases/11-search/PHASE_11_SEARCH.md` | Caption infra exists; FTS doesn't index it |
-| Fix scheduled-publish to actually fire a "published" event at the scheduled time, not just query-time visibility filtering | upload-media | `docs/phases/09-media-pipeline/PHASE_09_MEDIA.md` | No cron/scheduler exists for this today |
-| Server-side `Share` tracking (entity + endpoint + analytics event) | engagement | none | Currently entirely untracked |
+| Account-level strike/warning ladder + basic appeals flow | moderation | none exists | **Fixed 2026-08-12** — `AccountStrikesModule`, self-service appeal + admin resolution (see `PLATFORM_AUDIT_2026-08-09.md` §2.3) |
+| Rate-limit / trust-weight report-creation endpoints | moderation | none | **Rate limit fixed 2026-08-09** (`@Throttle` on report endpoints); trust-weighting for low-trust accounts still open |
+| Self-service account deletion + data export endpoint | security | `docs/phases/17-security/PHASE_17_SECURITY.md` | **Fixed 2026-08-11** — `DELETE /users/me` + `GET /users/me/export`; known gap: Google-OAuth-only accounts have no password to confirm deletion with |
+| Define owned-content lifecycle on account deletion (videos/streams/communities) | product-vision, security | none | **Fixed 2026-08-09/2026-08-12** — videos hidden + streams ended on deletion; owned-community ownership transfers to longest-standing delegate. Open edge case: no fallback when a community has no delegate of either tier |
+| MFA/2FA, at minimum gated to creator/admin accounts | security | `docs/phases/17-security/PHASE_17_SECURITY.md` | **Fixed** — backend (TOTP enroll/verify/login-challenge) shipped 2026-08-11; client surface (`apps/web/src/components/settings/MfaSettings.tsx`, `apps/mobile/lib/features/auth/presentation/mfa_challenge_screen.dart`) shipped in PR #195 (2026-08-14). Still not mandatory for admin/high-payout creators (opt-in only) |
+| Distinct monetization-eligibility gate (subscriber/watch-hour thresholds) separate from `creatorStatus` | monetization, product-vision | `docs/phases/14-monetization/PHASE_14_MONETIZATION.md` | **Fixed 2026-08-13** — `MonetizationEligibilityService` (read-only; nothing to gate yet since there's no live ad revenue) |
+| Transcript/caption search | discovery | `docs/phases/11-search/PHASE_11_SEARCH.md` | **Fixed 2026-08-11** — primary caption track folded into `search_vector`; no multi-language indexing or backfill for pre-existing captions |
+| Fix scheduled-publish to actually fire a "published" event at the scheduled time, not just query-time visibility filtering | upload-media | `docs/phases/09-media-pipeline/PHASE_09_MEDIA.md` | **Fixed 2026-08-12** — `ScheduledPublishService` + 1-minute BullMQ repeatable job |
+| Server-side `Share` tracking (entity + endpoint + analytics event) | engagement | none | **Fixed 2026-08-11** — `Share` entity + `POST /videos/:id/share`; not yet wired on mobile channel-share or live-stream-share |
 | Comment moderation gate for video comments (spam/toxicity), matching what community posts already have | engagement, moderation | none | **Fixed 2026-08-13** — regex fast-path only (see `PLATFORM_AUDIT_2026-08-09.md` §2.7); async LLM tail + held-for-review admin surface still open |
 | Cross-link `docs/SCALE_LIVE.md`'s proposed 100K-viewer design from `docs/LIVE.md`'s capabilities table so it isn't mistaken for current (~10K) capability | upload-media | `docs/LIVE.md` | **Already done** — `docs/LIVE.md` line 3 carries the cross-link |
+
+**Genuinely still open** (verified 2026-08-16, unchanged by #195): admin UI for the copyright/strikes backend — **now shipped**, `apps/admin/src/app/copyright/page.tsx` (477 lines, wired in `AdminShell.tsx` nav), also part of PR #195; AWS static IAM keys (no OIDC, unlike the working GCP pattern in `scripts/fly-gcp-oidc-token.sh`); CSAM/pre-publish scanning (`NoopContentScanProvider` still the only default, confirmed via `content-scan.service.ts`); category taxonomy overhaul and Shorts-ranking precompute (both correctly still listed in §0.5 above, unchanged).
 
 **MVP dependency notes:**
 - The permissions-enforcement fix (MVP-1) should land before building any *new* role-gated feature in MVP-3, or the new feature inherits the same display-only-enforcement bug pattern.
