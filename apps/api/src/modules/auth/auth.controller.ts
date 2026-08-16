@@ -203,7 +203,15 @@ export class AuthController {
     @Res() res: Response,
   ) {
     const result = await this.authService.loginWithGoogle(req.user, sessionMeta(req));
+    const isMobile = req.query.state === 'mobile';
+    const mobileSuccessUrl = this.configService.get<string>('oauth.google.mobileSuccessUrl')!;
+
     if ('mfaRequired' in result) {
+      if (isMobile) {
+        const url = new URL(mobileSuccessUrl);
+        url.searchParams.set('mfaChallengeToken', result.challengeToken);
+        return res.redirect(url.toString());
+      }
       const webUrl = this.configService.get<string>('mail.webUrl') || 'http://localhost:3000';
       const mfaUrl = new URL('/login', webUrl);
       // Hash fragment avoids the challenge token in server logs / Referer.
@@ -217,9 +225,13 @@ export class AuthController {
         accessToken: tokens.accessToken,
         sessionId: tokens.sessionId,
         user: tokens.user,
+        // Mobile has no HttpOnly cookie to carry this instead (see applyAuthCookies, web-only).
+        ...(isMobile ? { refreshToken: tokens.refreshToken } : {}),
       }),
     );
-    const successUrl = this.configService.get<string>('oauth.google.webSuccessUrl')!;
+    const successUrl = isMobile
+      ? mobileSuccessUrl
+      : this.configService.get<string>('oauth.google.webSuccessUrl')!;
     const url = new URL(successUrl);
     url.searchParams.set('code', code);
     return res.redirect(url.toString());

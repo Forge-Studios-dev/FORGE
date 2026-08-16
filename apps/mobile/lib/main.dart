@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/auth/oauth_deep_link_gate.dart';
 import 'core/cache/local_cache.dart';
 import 'core/connectivity/connectivity_gate.dart';
 import 'core/constants/app_constants.dart';
@@ -41,29 +42,31 @@ class ForgeApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
     final themeMode = ref.watch(themeModeProvider);
     return ConnectivityGate(
-      child: MaterialApp.router(
-        title: 'FORGE',
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        themeMode: themeMode,
-        // M-M1: localization scaffolding — arb stubs under lib/l10n; expand strings later.
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: const [Locale('en')],
-        routerConfig: router,
-        debugShowCheckedModeBanner: false,
-        builder: (context, child) {
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              child ?? const SizedBox.shrink(),
-              const MiniPlayerDock(),
-            ],
-          );
-        },
+      child: OAuthDeepLinkGate(
+        child: MaterialApp.router(
+          title: 'FORGE',
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: themeMode,
+          // M-M1: localization scaffolding — arb stubs under lib/l10n; expand strings later.
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en')],
+          routerConfig: router,
+          debugShowCheckedModeBanner: false,
+          builder: (context, child) {
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                child ?? const SizedBox.shrink(),
+                const MiniPlayerDock(),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
