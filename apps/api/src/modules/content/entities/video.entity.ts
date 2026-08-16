@@ -197,6 +197,13 @@ export class Video {
   @Column({ name: 'indexed_at', type: 'timestamptz', nullable: true })
   indexedAt: Date | null;
 
+  /** Precomputed by ShortsWatchPercentService (hourly) — Shorts ranking's completion/rewatch signal. Null until first computed. */
+  @Column({ name: 'avg_watch_percent', type: 'float', nullable: true })
+  avgWatchPercent: number | null;
+
+  @Column({ name: 'watch_percent_updated_at', type: 'timestamptz', nullable: true })
+  watchPercentUpdatedAt: Date | null;
+
   @Column({ name: 'scheduled_publish_at', type: 'timestamptz', nullable: true })
   scheduledPublishAt: Date | null;
 
