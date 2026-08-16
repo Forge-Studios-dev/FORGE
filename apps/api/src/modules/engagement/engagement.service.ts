@@ -555,8 +555,11 @@ export class EngagementService {
     const video = await this.assertCanAccessVideoComments(videoId, viewerId);
     const isOwner = !!viewerId && viewerId === video.userId;
 
+    // Don't require the parent to be un-deleted: replies are independent rows
+    // from other users, and gating on the parent's deletedAt made an entire
+    // reply thread permanently unreachable the moment its parent was removed.
     const parent = await this.commentRepository.findOne({
-      where: { id: commentId, videoId, deletedAt: IsNull() },
+      where: { id: commentId, videoId },
     });
     if (!parent) throw new NotFoundException('Comment not found');
 
