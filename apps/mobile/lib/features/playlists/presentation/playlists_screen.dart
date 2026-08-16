@@ -141,6 +141,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                       suffixIcon: _query.isEmpty
                           ? null
                           : IconButton(
+                              tooltip: 'Clear search',
                               icon: const Icon(Icons.clear),
                               onPressed: () {
                                 _searchCtrl.clear();

@@ -284,6 +284,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
         ),
         leading: showingThread || _composingNew
             ? IconButton(
+                tooltip: 'Back',
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () {
                   if (showingThread) {
@@ -514,6 +515,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                 ),
                 const SizedBox(width: 8),
                 IconButton.filled(
+                  tooltip: 'Send message',
                   onPressed: (_draftCtrl.text.trim().isEmpty || _sending) ? null : _send,
                   icon: _sending
                       ? const SizedBox(
