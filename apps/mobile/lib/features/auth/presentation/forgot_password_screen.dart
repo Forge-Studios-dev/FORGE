@@ -61,6 +61,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       appBar: AppBar(
         title: const Text('Reset password'),
         leading: IconButton(
+          tooltip: 'Back',
           icon: Icon(Icons.arrow_back),
           onPressed: () => context.canPop() ? context.pop() : context.go('/login'),
         ),
