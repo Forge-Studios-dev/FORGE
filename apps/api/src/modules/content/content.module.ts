@@ -33,6 +33,9 @@ import { SCHEDULED_PUBLISH_QUEUE } from './scheduled-publish.constants';
 import { ScheduledPublishService } from './scheduled-publish.service';
 import { ScheduledPublishScheduler } from './scheduled-publish.scheduler';
 import { ContentScanService } from './content-scan/content-scan.service';
+import { SHORTS_WATCH_PERCENT_QUEUE } from './shorts-watch-percent.constants';
+import { ShortsWatchPercentService } from './shorts-watch-percent.service';
+import { ShortsWatchPercentScheduler } from './shorts-watch-percent.scheduler';
 
 const skillEconomyLms = isSkillEconomyLmsEnabled();
 
@@ -83,6 +86,14 @@ const skillEconomyLms = isSkillEconomyLmsEnabled();
         removeOnFail: { age: 3600, count: 50 },
       },
     }),
+    BullModule.registerQueue({
+      name: SHORTS_WATCH_PERCENT_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 7 * 3600, count: 24 },
+        removeOnFail: { age: 7 * 3600, count: 24 },
+      },
+    }),
   ],
   controllers: [VideosController, ...(skillEconomyLms ? [PodcastsController] : [])],
   providers: [
@@ -99,6 +110,8 @@ const skillEconomyLms = isSkillEconomyLmsEnabled();
     ScheduledPublishService,
     ScheduledPublishScheduler,
     ContentScanService,
+    ShortsWatchPercentService,
+    ShortsWatchPercentScheduler,
   ],
   exports: [
     VideosService,
@@ -108,6 +121,7 @@ const skillEconomyLms = isSkillEconomyLmsEnabled();
     ContentLibraryService,
     ScheduledPublishService,
     ContentScanService,
+    ShortsWatchPercentService,
   ],
 })
 export class ContentModule {}

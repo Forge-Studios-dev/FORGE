@@ -24,6 +24,8 @@ import { StreamReminderWorker } from './stream-reminder/stream-reminder.worker';
 import { STREAM_REMINDER_QUEUE } from './stream-reminder/stream-reminder.constants';
 import { ScheduledPublishWorker } from './scheduled-publish/scheduled-publish.worker';
 import { SCHEDULED_PUBLISH_QUEUE } from '../content/scheduled-publish.constants';
+import { ShortsWatchPercentWorker } from './shorts-watch-percent/shorts-watch-percent.worker';
+import { SHORTS_WATCH_PERCENT_QUEUE } from '../content/shorts-watch-percent.constants';
 import { CopyrightReinstatementWorker } from './copyright-reinstatement/copyright-reinstatement.worker';
 import { COPYRIGHT_REINSTATEMENT_QUEUE } from '../copyright/copyright-reinstatement.constants';
 import { CopyrightModule } from '../copyright/copyright.module';
@@ -105,6 +107,12 @@ function shouldRegisterStreamReminder(): boolean {
 
 function shouldRegisterScheduledPublish(): boolean {
   if (process.env.DISABLE_SCHEDULED_PUBLISH === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterShortsWatchPercent(): boolean {
+  if (process.env.DISABLE_SHORTS_WATCH_PERCENT === 'true') return false;
   if (isDedicatedWorkerProcess()) return true;
   return process.env.NODE_ENV !== 'production';
 }
@@ -255,6 +263,14 @@ function shouldRegisterEmailDigest(): boolean {
       },
     }),
     BullModule.registerQueue({
+      name: SHORTS_WATCH_PERCENT_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 7 * 3600, count: 24 },
+        removeOnFail: { age: 7 * 3600, count: 24 },
+      },
+    }),
+    BullModule.registerQueue({
       name: COPYRIGHT_REINSTATEMENT_QUEUE,
       defaultJobOptions: {
         attempts: 2,
@@ -353,6 +369,7 @@ function shouldRegisterEmailDigest(): boolean {
     ...(shouldRegisterAnalyticsRetention() ? [AnalyticsRetentionWorker] : []),
     ...(shouldRegisterStreamReminder() ? [StreamReminderWorker] : []),
     ...(shouldRegisterScheduledPublish() ? [ScheduledPublishWorker] : []),
+    ...(shouldRegisterShortsWatchPercent() ? [ShortsWatchPercentWorker] : []),
     ...(shouldRegisterCopyrightReinstatement() ? [CopyrightReinstatementWorker] : []),
     ...(shouldRegisterStreamChatIngest() ? [StreamChatIngestWorker] : []),
     ...(shouldRegisterStreamSnapshotRetention() ? [StreamSnapshotRetentionWorker] : []),

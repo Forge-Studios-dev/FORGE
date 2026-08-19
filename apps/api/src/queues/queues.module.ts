@@ -9,6 +9,7 @@ import { SUBSCRIPTION_MAINTENANCE_QUEUE } from '../modules/notifications/subscri
 import { ENGAGEMENT_RECONCILIATION_QUEUE } from '../modules/engagement/engagement-reconciliation.constants';
 import { STREAM_REMINDER_QUEUE } from '../modules/workers/stream-reminder/stream-reminder.constants';
 import { SCHEDULED_PUBLISH_QUEUE } from '../modules/content/scheduled-publish.constants';
+import { SHORTS_WATCH_PERCENT_QUEUE } from '../modules/content/shorts-watch-percent.constants';
 import { STREAM_CHAT_INGEST_QUEUE } from '../modules/workers/stream-chat-ingest/stream-chat-ingest.constants';
 import { STREAM_SNAPSHOT_RETENTION_QUEUE } from '../modules/workers/stream-snapshot-retention/stream-snapshot-retention.constants';
 
@@ -93,6 +94,14 @@ import { STREAM_SNAPSHOT_RETENTION_QUEUE } from '../modules/workers/stream-snaps
         attempts: 2,
         removeOnComplete: { age: 3600, count: 50 },
         removeOnFail: { age: 3600, count: 50 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: SHORTS_WATCH_PERCENT_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 7 * 3600, count: 24 },
+        removeOnFail: { age: 7 * 3600, count: 24 },
       },
     }),
   ],
