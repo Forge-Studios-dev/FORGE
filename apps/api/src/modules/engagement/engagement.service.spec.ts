@@ -496,6 +496,48 @@ describe('EngagementService', () => {
     expect(result.replyCount).toBe(3);
   });
 
+  describe('getCommentReplies', () => {
+    it('throws when the parent comment does not exist at all', async () => {
+      const commentRepo = (service as any).commentRepository;
+      commentRepo.findOne.mockResolvedValue(undefined);
+
+      await expect(service.getCommentReplies('v1', 'missing')).rejects.toThrow(NotFoundException);
+    });
+
+    it('still returns replies once the parent comment has been soft-deleted', async () => {
+      const commentRepo = (service as any).commentRepository;
+      commentRepo.findOne.mockResolvedValue({
+        id: 'c1',
+        videoId: 'v1',
+        deletedAt: new Date('2026-01-01'),
+      });
+      commentRepo.createQueryBuilder = jest.fn(() => ({
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([
+          {
+            id: 'reply1',
+            videoId: 'v1',
+            parentId: 'c1',
+            userId: 'u2',
+            content: 'reply after parent deleted',
+            likeCount: 0,
+            createdAt: new Date('2026-01-02'),
+            user: { id: 'u2', username: 'bob', displayName: 'Bob' },
+          },
+        ]),
+      }));
+
+      const result = await service.getCommentReplies('v1', 'c1');
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].id).toBe('reply1');
+    });
+  });
+
   it('lists disliked videos newest first with public shape', async () => {
     const likeRepo = (service as any).likeRepository;
     const videoRepo = (service as any).videoRepository;
