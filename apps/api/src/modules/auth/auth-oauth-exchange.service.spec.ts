@@ -84,4 +84,25 @@ describe('AuthOAuthExchangeService', () => {
       ServiceUnavailableException,
     );
   });
+
+  describe('payloadFromTokens', () => {
+    it('omits refreshToken by default (web flow — carried in an HttpOnly cookie instead)', () => {
+      const payload = service.payloadFromTokens({
+        accessToken: 'access.jwt',
+        sessionId: 'session-1',
+        user: { id: 'u1' } as never,
+      });
+      expect(payload).not.toHaveProperty('refreshToken');
+    });
+
+    it('includes refreshToken when provided (mobile flow — no cookie to carry it)', () => {
+      const payload = service.payloadFromTokens({
+        accessToken: 'access.jwt',
+        sessionId: 'session-1',
+        user: { id: 'u1' } as never,
+        refreshToken: 'refresh.jwt',
+      });
+      expect(payload.refreshToken).toBe('refresh.jwt');
+    });
+  });
 });

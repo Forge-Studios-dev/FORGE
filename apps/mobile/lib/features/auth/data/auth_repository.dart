@@ -54,6 +54,16 @@ class AuthRepository {
     return data;
   }
 
+  /// Completes the Google OAuth flow after the app receives the deep-link
+  /// redirect (see oauth_deep_link_gate.dart) by exchanging the
+  /// short-lived, single-use code for real tokens.
+  Future<Map<String, dynamic>> completeOAuthExchange(String code) async {
+    final response = await _apiClient.dio.post('/auth/oauth/exchange', data: {'code': code});
+    final data = response.data['data'] as Map<String, dynamic>;
+    await _saveTokens(data, analyticsEvent: 'auth.login', analyticsProps: {'method': 'google'});
+    return data;
+  }
+
   Future<bool> getMfaStatus() async {
     final response = await _apiClient.dio.get('/auth/mfa/status');
     return (response.data['data'] as Map<String, dynamic>)['enabled'] == true;

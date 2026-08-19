@@ -61,6 +61,7 @@ dependencies:
 
   # Crash reporting (CRIT-02) — enabled via --dart-define=SENTRY_DSN=...
   sentry_flutter: ^9.25.0
+  app_links: ^7.2.1
 
 dev_dependencies:
   flutter_test:
