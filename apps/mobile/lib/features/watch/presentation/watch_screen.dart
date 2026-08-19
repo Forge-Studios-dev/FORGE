@@ -1544,23 +1544,53 @@ class _ReportVideoButton extends ConsumerStatefulWidget {
 }
 
 class _ReportVideoButtonState extends ConsumerState<_ReportVideoButton> {
-  final _reasonCtrl = TextEditingController();
+  // Matches @forge/shared-types VIDEO_REPORT_REASONS — keep in sync (Dart
+  // can't import the TS enum directly; see report-reasons.ts for the
+  // canonical source and severity mapping).
+  static const _reasons = [
+    'Spam or misleading',
+    'Hate speech or harassment',
+    'Sexual content',
+    'Violent or repulsive content',
+    'Harmful or dangerous acts',
+    'Child abuse',
+    'Promotes terrorism',
+    'Copyright infringement',
+    'Privacy violation',
+    'Other',
+  ];
 
-  Future<void> _submit() async {
-    final reason = _reasonCtrl.text.trim();
-    if (reason.length < 3) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a reason (min 3 characters)')),
-      );
-      return;
-    }
+  Future<void> _openSheet() async {
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text('Report video', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            ..._reasons.map(
+              (r) => ListTile(
+                title: Text(r),
+                onTap: () => Navigator.pop(ctx, r),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (reason == null || !mounted) return;
     try {
       await ref.read(watchRepositoryProvider).reportVideo(
             videoId: widget.videoId,
             reason: reason,
           );
       if (mounted) {
-        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Report submitted')),
         );
@@ -1572,40 +1602,6 @@ class _ReportVideoButtonState extends ConsumerState<_ReportVideoButton> {
         );
       }
     }
-  }
-
-  void _openSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('Report video', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _reasonCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(hintText: 'Why should we review this?'),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: _submit, child: const Text('Submit report')),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _reasonCtrl.dispose();
-    super.dispose();
   }
 
   @override
