@@ -10,6 +10,7 @@ describe('StreamMuxSyncWorker', () => {
     runPeriodicScan: jest.fn().mockResolvedValue({ synced: 0, finalized: 0 }),
     isPlatformDormant: jest.fn().mockResolvedValue(false),
     hasActiveLiveStreams: jest.fn().mockResolvedValue(false),
+    retryDisableLiveStream: jest.fn().mockResolvedValue(undefined),
   };
   const muxSyncScheduler = { syncIntervalForActivity: jest.fn().mockResolvedValue(undefined) };
 
@@ -26,6 +27,13 @@ describe('StreamMuxSyncWorker', () => {
     expect(muxLiveSyncService.finalizeIfGraceExpired).toHaveBeenCalledWith('stream-1');
     expect(muxLiveSyncService.runPeriodicScan).not.toHaveBeenCalled();
     expect(muxLiveSyncService.syncStreamById).not.toHaveBeenCalled();
+  });
+
+  it('retries disabling a Mux live stream and skips the periodic scan', async () => {
+    await worker.process(makeJob({ disableMuxLiveStreamId: 'mux-live-1' }));
+    expect(muxLiveSyncService.retryDisableLiveStream).toHaveBeenCalledWith('mux-live-1');
+    expect(muxLiveSyncService.runPeriodicScan).not.toHaveBeenCalled();
+    expect(muxLiveSyncService.finalizeIfGraceExpired).not.toHaveBeenCalled();
   });
 
   it('syncs a single stream when a streamId is provided and skips the periodic scan', async () => {

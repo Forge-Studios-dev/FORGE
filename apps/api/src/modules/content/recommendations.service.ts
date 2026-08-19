@@ -22,6 +22,21 @@ export interface RecommendedVideo {
 
 const TRENDING_CACHE_TTL_SEC = 60;
 
+/**
+ * Raw-SQL equivalent of feed-query.util.ts's applyDiscoverableVideoFilters —
+ * this service can't use that QueryBuilder helper directly since these are
+ * multi-CTE dataSource.query() calls, not SelectQueryBuilders. Every one of
+ * these predicates matters: without them a moderator-held video, a video
+ * scheduled for a future premiere, or one that hasn't finished search
+ * indexing yet can still surface via recommendations/trending even though
+ * every other discovery surface (feed, search) already excludes it.
+ */
+const DISCOVERABLE_VIDEO_SQL = `
+        AND v.moderation_status = 'none'
+        AND (v.scheduled_publish_at IS NULL OR v.scheduled_publish_at <= CURRENT_TIMESTAMP)
+        AND (v.published_at IS NULL OR v.published_at <= CURRENT_TIMESTAMP)
+        AND v.indexed_at IS NOT NULL`;
+
 @Injectable()
 export class RecommendationsService {
   private readonly logger = new Logger(RecommendationsService.name);
@@ -141,7 +156,7 @@ export class RecommendationsService {
       LEFT JOIN category_affinities ca ON ca.category_id = v.category_id
       WHERE v.publish_status = 'published'
         AND v.status = 'ready'
-        AND v.visibility = 'public'
+        AND v.visibility = 'public'${DISCOVERABLE_VIDEO_SQL}
         AND v.user_id != $1
         ${excludeClause}
         ${muteClause}
@@ -221,7 +236,7 @@ export class RecommendationsService {
       ) wh ON wh.video_id = v.id
       WHERE v.publish_status = 'published'
         AND v.status = 'ready'
-        AND v.visibility = 'public'
+        AND v.visibility = 'public'${DISCOVERABLE_VIDEO_SQL}
         ${userExclude}
         ${excludeClause}
       ORDER BY score DESC, v.created_at DESC
@@ -276,7 +291,7 @@ export class RecommendationsService {
          AND v.id != $1
          AND v.publish_status = 'published'
          AND v.status = 'ready'
-         AND v.visibility = 'public'
+         AND v.visibility = 'public'${DISCOVERABLE_VIDEO_SQL}
          ${excludeClause}
        ORDER BY v.view_count DESC, v.created_at DESC
        LIMIT $2`,

@@ -241,6 +241,23 @@ export class CommunityRoomsController {
     );
   }
 
+  @Post('communities/:communityId/rooms/:roomId/speakers/:targetUserId/remove')
+  @ApiOperation({ summary: 'Demote a stage speaker and revoke their live publish rights (hosts only)' })
+  removeSpeaker(
+    @CurrentUser() user: JwtPayload,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('roomId', ParseUUIDPipe) roomId: string,
+    @Param('targetUserId', ParseUUIDPipe) targetUserId: string,
+  ) {
+    return this.roomsService.demoteStageSpeaker(
+      user.sub,
+      communityId,
+      roomId,
+      targetUserId,
+      user.role,
+    );
+  }
+
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @Get('communities/:communityId/rooms/:roomId/messages')

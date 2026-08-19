@@ -108,6 +108,42 @@ void main() {
       expect(storageData.containsKey(AppConstants.refreshTokenKey), isFalse);
     });
 
+    test('collapses concurrent 401s into a single refresh call (no spurious reuse-detection logout)', () async {
+      storageData[AppConstants.accessTokenKey] = 'old-token';
+      storageData[AppConstants.refreshTokenKey] = 'refresh-1';
+
+      final mainAdapter = QueuedAdapter([
+        (_) => jsonResponseBody({'message': 'unauthorized'}, 401),
+        (_) => jsonResponseBody({'message': 'unauthorized'}, 401),
+        (_) => jsonResponseBody({'ok': true}, 200),
+        (_) => jsonResponseBody({'ok': true}, 200),
+      ]);
+      // Only one refresh response queued — if the client fired a second,
+      // concurrent /auth/refresh call it would find nothing queued and blow
+      // up, which is exactly the bug this test guards against.
+      final refreshAdapter = QueuedAdapter([
+        (_) => jsonResponseBody({
+              'data': {
+                'accessToken': 'new-token',
+                'refreshToken': 'new-refresh',
+                'user': {'id': 'u1'},
+              },
+            }, 200),
+      ]);
+      final client = buildClient(mainAdapter: mainAdapter, refreshAdapter: refreshAdapter);
+
+      final responses = await Future.wait([
+        client.dio.get('/videos'),
+        client.dio.get('/streams'),
+      ]);
+
+      expect(responses[0].statusCode, 200);
+      expect(responses[1].statusCode, 200);
+      expect(refreshAdapter.requests, hasLength(1));
+      expect(storageData[AppConstants.accessTokenKey], 'new-token');
+      expect(storageData[AppConstants.refreshTokenKey], 'new-refresh');
+    });
+
     test('when no refresh token is stored, does not call the refresh endpoint', () async {
       storageData[AppConstants.accessTokenKey] = 'old-token';
 

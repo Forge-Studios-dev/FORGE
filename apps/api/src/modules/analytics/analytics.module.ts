@@ -9,12 +9,14 @@ import { ANALYTICS_RETENTION_QUEUE } from './analytics-retention.constants';
 import { AnalyticsRetentionService } from './analytics-retention.service';
 import { AnalyticsRetentionScheduler } from './analytics-retention.scheduler';
 import { KpiService } from './kpi.service';
+import { CommunitiesModule } from '../communities/communities.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([AnalyticsEvent]),
     BullModule.registerQueue({ name: ANALYTICS_INGEST_QUEUE }),
     BullModule.registerQueue({ name: ANALYTICS_RETENTION_QUEUE }),
+    CommunitiesModule,
   ],
   controllers: [AnalyticsController],
   providers: [AnalyticsService, AnalyticsRetentionService, AnalyticsRetentionScheduler, KpiService],

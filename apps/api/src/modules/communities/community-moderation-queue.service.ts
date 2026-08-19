@@ -50,20 +50,43 @@ export class CommunityModerationQueueService {
     void (async () => {
       try {
         const verdict = await this.aiCommunityService.scoreContentAsync(input.body);
-        if (!verdict.flagged) return;
+        // model !== 'llm' on borderline content means the LLM never actually
+        // weighed in here (config gate above already confirmed it's enabled
+        // and configured, so this is a runtime failure/budget skip, not "not
+        // configured") — per ESCALATION_RULES.md, that must still reach a
+        // human reviewer rather than being silently approved.
+        const llmDelivered = verdict.model === 'llm';
+        if (!verdict.flagged && llmDelivered) return;
+
         await this.enqueueFlaggedMessage({
           communityId: input.communityId,
           channelId: input.surfaceId,
           userId: input.userId,
           messageBody: input.body,
           score: verdict.score,
-          reasons: verdict.reasons,
+          reasons: llmDelivered ? verdict.reasons : ['ai_moderation_unavailable'],
           messageId: input.messageId,
           detectedBy: 'llm_tail',
           surface: input.surface,
+          aiUnavailable: !llmDelivered,
         });
       } catch {
-        // Best-effort tail; the sync fast path already protects the surface.
+        // The tail itself threw (not just the LLM call) — same fail-safe:
+        // still surface it for a human rather than silently dropping it.
+        await this.enqueueFlaggedMessage({
+          communityId: input.communityId,
+          channelId: input.surfaceId,
+          userId: input.userId,
+          messageBody: input.body,
+          score: input.fastPathScore,
+          reasons: ['ai_moderation_unavailable'],
+          messageId: input.messageId,
+          detectedBy: 'llm_tail',
+          surface: input.surface,
+          aiUnavailable: true,
+        }).catch(() => {
+          // Queue itself is down — nothing more we can do from a fire-and-forget tail.
+        });
       }
     })();
   }

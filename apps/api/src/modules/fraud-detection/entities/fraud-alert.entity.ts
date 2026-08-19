@@ -14,6 +14,8 @@ export enum FraudSignal {
   RAPID_SUBSCRIBE_CANCEL = 'rapid_subscribe_cancel',
   NEW_ACCOUNT_HIGH_SPEND = 'new_account_high_spend',
   MULTI_ACCOUNT = 'multi_account',
+  NEW_DEVICE_LOGIN = 'new_device_login',
+  RAPID_IP_CHANGE = 'rapid_ip_change',
 }
 
 export enum FraudAlertStatus {

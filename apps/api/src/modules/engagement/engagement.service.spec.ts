@@ -35,6 +35,7 @@ describe('EngagementService', () => {
       addOrderBy: jest.fn().mockReturnThis(),
       take: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([]),
+      getCount: jest.fn().mockResolvedValue(0),
     })),
   });
 
@@ -70,6 +71,53 @@ describe('EngagementService', () => {
     expect(result.meta.hasMore).toBe(false);
     expect(result.meta.total).toBe(0);
     expect(result.meta.sort).toBe('newest');
+  });
+
+  it('includes a deleted top-level comment as a masked tombstone when it still has live replies', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+      getMany: jest.fn().mockResolvedValue([
+        {
+          id: 'deleted-1',
+          videoId: 'video-1',
+          userId: 'ghost',
+          user: { id: 'ghost', username: 'ghost' },
+          content: 'the real deleted text',
+          parentId: null,
+          likeCount: 99,
+          isPinned: true,
+          creatorHearted: true,
+          createdAt: new Date('2026-01-01'),
+          deletedAt: new Date('2026-01-02'),
+        },
+      ]),
+      getCount: jest.fn().mockResolvedValue(1),
+    };
+    commentRepo.createQueryBuilder.mockReturnValue(qb);
+
+    const result = await service.getComments('video-1', 20);
+
+    expect(qb.andWhere).toHaveBeenCalledWith(expect.stringContaining('EXISTS'));
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]).toMatchObject({
+      id: 'deleted-1',
+      content: '[deleted]',
+      user: null,
+      userId: null,
+      isDeleted: true,
+      likeCount: 0,
+      isPinned: false,
+    });
   });
 
   it('rejects comments when viewer is blocked from the video owner', async () => {
@@ -144,9 +192,9 @@ describe('EngagementService', () => {
       addOrderBy: jest.fn().mockReturnThis(),
       take: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([]),
+      getCount: jest.fn().mockResolvedValue(0),
     };
     commentRepo.createQueryBuilder.mockReturnValue(qb);
-    commentRepo.count.mockResolvedValue(0);
 
     await service.getComments('video-1', 20, undefined, 'viewer-1');
     expect(qb.andWhere).toHaveBeenCalledWith('c.moderationStatus = :none', { none: 'none' });
@@ -162,9 +210,9 @@ describe('EngagementService', () => {
       addOrderBy: jest.fn().mockReturnThis(),
       take: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([]),
+      getCount: jest.fn().mockResolvedValue(0),
     };
     commentRepo.createQueryBuilder.mockReturnValue(qb);
-    commentRepo.count.mockResolvedValue(0);
 
     await service.getComments('video-1', 20, undefined, 'owner');
     expect(qb.andWhere).not.toHaveBeenCalledWith('c.moderationStatus = :none', { none: 'none' });
@@ -204,9 +252,9 @@ describe('EngagementService', () => {
       addOrderBy: jest.fn().mockReturnThis(),
       take: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([]),
+      getCount: jest.fn().mockResolvedValue(0),
     };
     commentRepo.createQueryBuilder.mockReturnValue(qb);
-    commentRepo.count.mockResolvedValue(0);
     await service.getComments('video-1', 20, undefined, undefined, 'top');
     expect(qb.orderBy).toHaveBeenCalledWith('c.isPinned', 'DESC');
     expect(qb.addOrderBy).toHaveBeenCalledWith('c.likeCount', 'DESC');
@@ -223,9 +271,9 @@ describe('EngagementService', () => {
       addOrderBy: jest.fn().mockReturnThis(),
       take: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([]),
+      getCount: jest.fn().mockResolvedValue(0),
     };
     commentRepo.createQueryBuilder.mockReturnValue(qb);
-    commentRepo.count.mockResolvedValue(0);
     const result = await service.getComments('video-1', 20, undefined, undefined, 'oldest');
     expect(qb.addOrderBy).toHaveBeenCalledWith('c.createdAt', 'ASC');
     expect(result.meta.sort).toBe('oldest');
@@ -428,6 +476,49 @@ describe('EngagementService', () => {
     const blockRepo = (service as any).userBlockRepository;
     blockRepo.findOne.mockResolvedValue({ blockerId: 'u2', blockedId: 'u1' });
     await expect(service.isBlockedEitherWay('u1', 'u2')).resolves.toBe(true);
+  });
+
+  describe('getFollowers / getFollowing — channel-level block gate', () => {
+    it('getFollowers rejects a viewer blocked either way with the channel owner, before hitting the DB', async () => {
+      const blockRepo = (service as any).userBlockRepository;
+      const followRepo = (service as any).followRepository;
+      blockRepo.findOne.mockResolvedValue({ blockerId: 'owner-1', blockedId: 'viewer-1' });
+
+      await expect(service.getFollowers('owner-1', 20, undefined, 'viewer-1')).rejects.toThrow(
+        'This channel is not available',
+      );
+      expect(followRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('getFollowing rejects a viewer blocked either way with the channel owner, before hitting the DB', async () => {
+      const blockRepo = (service as any).userBlockRepository;
+      const followRepo = (service as any).followRepository;
+      blockRepo.findOne.mockResolvedValue({ blockerId: 'viewer-1', blockedId: 'owner-1' });
+
+      await expect(service.getFollowing('owner-1', 20, undefined, 'viewer-1')).rejects.toThrow(
+        'This channel is not available',
+      );
+      expect(followRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('getFollowers allows an unrelated viewer through to the normal query', async () => {
+      const blockRepo = (service as any).userBlockRepository;
+      const followRepo = (service as any).followRepository;
+      blockRepo.findOne.mockResolvedValue(null);
+      const qb = {
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      followRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await expect(
+        service.getFollowers('owner-1', 20, undefined, 'viewer-1'),
+      ).resolves.toEqual({ data: [], meta: { cursor: null, hasMore: false } });
+    });
   });
 
   it('subscribe aliases follow', async () => {

@@ -161,6 +161,11 @@ export class EntitlementsService {
       keys.push(`${this.subscriptionCacheKey(userId, creatorId)}:c:${communityId}`);
     }
     await Promise.all(keys.map((key) => this.redis.del(key)));
+    // Single choke point for every access-changing write in this service (cancel,
+    // downgrade, refund, suspend, expire) — other modules with their own
+    // short-lived entitlement caches (e.g. StreamingService's socket-join cache)
+    // listen on this instead of each needing their own call site wired in here.
+    this.eventEmitter.emit('entitlements.subscription-cache.busted', { userId, creatorId });
   }
 
   private async bustTierCache(tierId: string): Promise<void> {

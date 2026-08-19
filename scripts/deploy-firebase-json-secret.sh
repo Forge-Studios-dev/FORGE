@@ -26,12 +26,20 @@ echo "    client_email=$EMAIL"
 # Compact JSON for Fly secret (avoid newline issues)
 JSON_COMPACT="$(python3 -c "import json; print(json.dumps(json.load(open('$JSON_PATH'))))")"
 
-fly secrets set \
-  FIREBASE_PROJECT_ID="${PROJECT_ID}" \
-  FIREBASE_SERVICE_ACCOUNT_JSON="${JSON_COMPACT}" \
-  FCM_ENABLED='true' \
-  APP_CHECK_ENABLED='false' \
-  --app "$APP"
+# `fly secrets import` over stdin (not `secrets set KEY=value` CLI args) — a
+# service-account private key on the command line would land in shell
+# history and briefly be visible via `ps aux`, same reasoning as
+# sync-fly-worker-secrets.sh.
+SECRETS_FILE="$(mktemp)"
+trap 'rm -f "$SECRETS_FILE"' EXIT
+cat > "$SECRETS_FILE" <<EOF
+FIREBASE_PROJECT_ID=${PROJECT_ID}
+FIREBASE_SERVICE_ACCOUNT_JSON=${JSON_COMPACT}
+FCM_ENABLED=true
+APP_CHECK_ENABLED=false
+EOF
+
+fly secrets import --app "$APP" < "$SECRETS_FILE"
 
 echo ""
 echo "==> Wait for deploy, then:"

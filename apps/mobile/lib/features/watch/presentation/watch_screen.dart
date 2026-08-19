@@ -1945,7 +1945,13 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
             liked: liked,
           );
       await _load();
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update like')),
+        );
+      }
+    }
   }
 
   Future<void> _toggleDislike(Map<String, dynamic> comment) async {
@@ -1958,7 +1964,13 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
             disliked: disliked,
           );
       await _load();
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update dislike')),
+        );
+      }
+    }
   }
 
   Future<void> _togglePin(Map<String, dynamic> comment) async {
@@ -2077,6 +2089,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
             final hearted = m['creatorHearted'] == true;
             final parentId = m['parentId'];
             final replyCount = m['replyCount'] as int? ?? 0;
+            final isDeleted = m['isDeleted'] == true;
             final commentId = m['id'] as String? ?? '';
             final repliesExpanded = _expandedReplies.contains(commentId);
             final authorId = m['userId'] as String? ?? user?['id'] as String?;
@@ -2109,107 +2122,119 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                   ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Row(
-                    children: [
-                      Expanded(child: Text(user?['displayName'] as String? ?? 'User')),
-                      if (hearted)
-                        Icon(Icons.favorite, size: 14, color: ForgeTokens.of(context).error),
-                    ],
-                  ),
-                  subtitle: editing
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                  title: isDeleted
+                      ? null
+                      : Row(
                           children: [
-                            TextField(
-                              controller: _editCtrl,
-                              maxLines: 3,
-                              decoration: const InputDecoration(isDense: true),
-                            ),
-                            Row(
+                            Expanded(child: Text(user?['displayName'] as String? ?? 'User')),
+                            if (hearted)
+                              Icon(Icons.favorite, size: 14, color: ForgeTokens.of(context).error),
+                          ],
+                        ),
+                  subtitle: isDeleted
+                      ? Text(
+                          '[deleted]',
+                          style: TextStyle(
+                            fontStyle: FontStyle.italic,
+                            color: ForgeTokens.of(context).onSurfaceVariant,
+                          ),
+                        )
+                      : editing
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                TextButton(
-                                  onPressed: () => setState(() => _editingId = null),
-                                  child: const Text('Cancel'),
+                                TextField(
+                                  controller: _editCtrl,
+                                  maxLines: 3,
+                                  decoration: const InputDecoration(isDense: true),
                                 ),
-                                FilledButton(
-                                  onPressed: _saveEdit,
-                                  child: const Text('Save'),
+                                Row(
+                                  children: [
+                                    TextButton(
+                                      onPressed: () => setState(() => _editingId = null),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: _saveEdit,
+                                      child: const Text('Save'),
+                                    ),
+                                  ],
                                 ),
+                              ],
+                            )
+                          : _LinkifiedText(
+                              text: m['content'] as String? ?? '',
+                              videoId: widget.videoId,
+                              style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                            ),
+                  trailing: isDeleted
+                      ? null
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: liked ? 'Unlike comment' : 'Like comment',
+                              icon: Icon(liked ? Icons.thumb_up : Icons.thumb_up_outlined, size: 18),
+                              onPressed: () => _toggleLike(m),
+                            ),
+                            if (likeCount > 0) Text('$likeCount', style: TextStyle(fontSize: 12)),
+                            IconButton(
+                              tooltip: disliked ? 'Remove dislike' : 'Dislike',
+                              icon: Icon(disliked ? Icons.thumb_down : Icons.thumb_down_outlined, size: 18),
+                              onPressed: () => _toggleDislike(m),
+                            ),
+                            if (isOwner && parentId == null)
+                              IconButton(
+                                tooltip: pinned ? 'Unpin' : 'Pin',
+                                icon: Icon(pinned ? Icons.push_pin : Icons.push_pin_outlined, size: 18),
+                                onPressed: () => _togglePin(m),
+                              ),
+                            if (isOwner)
+                              IconButton(
+                                tooltip: hearted ? 'Remove heart' : 'Heart',
+                                icon: Icon(
+                                  hearted ? Icons.favorite : Icons.favorite_border,
+                                  size: 18,
+                                  color: hearted ? ForgeTokens.of(context).error : null,
+                                ),
+                                onPressed: () => _toggleHeart(m),
+                              ),
+                            IconButton(
+                              tooltip: 'Reply',
+                              icon: const Icon(Icons.reply, size: 18),
+                              onPressed: () => _startReply(m),
+                            ),
+                            PopupMenuButton<String>(
+                              tooltip: 'More',
+                              onSelected: (value) async {
+                                if (value == 'copy') {
+                                  final id = m['id'] as String?;
+                                  if (id == null) return;
+                                  final url =
+                                      '${AppConstants.webBaseUrl}/watch/${widget.videoId}?lc=$id';
+                                  await SharePlus.instance.share(ShareParams(text: url));
+                                } else if (value == 'report') {
+                                  await _reportComment(m);
+                                } else if (value == 'edit') {
+                                  await _editComment(m);
+                                } else if (value == 'delete') {
+                                  await _deleteComment(m);
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(value: 'copy', child: Text('Copy link')),
+                                if (isMine) ...[
+                                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                ],
+                                if (isOwner && !isMine)
+                                  const PopupMenuItem(value: 'delete', child: Text('Remove')),
+                                if (!isMine)
+                                  const PopupMenuItem(value: 'report', child: Text('Report')),
                               ],
                             ),
                           ],
-                        )
-                      : _LinkifiedText(
-                          text: m['content'] as String? ?? '',
-                          videoId: widget.videoId,
-                          style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
                         ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: liked ? 'Unlike comment' : 'Like comment',
-                        icon: Icon(liked ? Icons.thumb_up : Icons.thumb_up_outlined, size: 18),
-                        onPressed: () => _toggleLike(m),
-                      ),
-                      if (likeCount > 0) Text('$likeCount', style: TextStyle(fontSize: 12)),
-                      IconButton(
-                        tooltip: disliked ? 'Remove dislike' : 'Dislike',
-                        icon: Icon(disliked ? Icons.thumb_down : Icons.thumb_down_outlined, size: 18),
-                        onPressed: () => _toggleDislike(m),
-                      ),
-                      if (isOwner && parentId == null)
-                        IconButton(
-                          tooltip: pinned ? 'Unpin' : 'Pin',
-                          icon: Icon(pinned ? Icons.push_pin : Icons.push_pin_outlined, size: 18),
-                          onPressed: () => _togglePin(m),
-                        ),
-                      if (isOwner)
-                        IconButton(
-                          tooltip: hearted ? 'Remove heart' : 'Heart',
-                          icon: Icon(
-                            hearted ? Icons.favorite : Icons.favorite_border,
-                            size: 18,
-                            color: hearted ? ForgeTokens.of(context).error : null,
-                          ),
-                          onPressed: () => _toggleHeart(m),
-                        ),
-                      IconButton(
-                        tooltip: 'Reply',
-                        icon: const Icon(Icons.reply, size: 18),
-                        onPressed: () => _startReply(m),
-                      ),
-                      PopupMenuButton<String>(
-                        tooltip: 'More',
-                        onSelected: (value) async {
-                          if (value == 'copy') {
-                            final id = m['id'] as String?;
-                            if (id == null) return;
-                            final url =
-                                '${AppConstants.webBaseUrl}/watch/${widget.videoId}?lc=$id';
-                            await SharePlus.instance.share(ShareParams(text: url));
-                          } else if (value == 'report') {
-                            await _reportComment(m);
-                          } else if (value == 'edit') {
-                            await _editComment(m);
-                          } else if (value == 'delete') {
-                            await _deleteComment(m);
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(value: 'copy', child: Text('Copy link')),
-                          if (isMine) ...[
-                            const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                            const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                          ],
-                          if (isOwner && !isMine)
-                            const PopupMenuItem(value: 'delete', child: Text('Remove')),
-                          if (!isMine)
-                            const PopupMenuItem(value: 'report', child: Text('Report')),
-                        ],
-                      ),
-                    ],
-                  ),
                 ),
                 if (parentId == null && replyCount > 0)
                   TextButton(

@@ -26,7 +26,11 @@ describe('CopyrightService', () => {
     update: jest.fn().mockResolvedValue({ affected: 1 }),
   };
   const videosService = { bustVideoDetailCache: jest.fn().mockResolvedValue(undefined) };
-  const accountStrikesService = { issueStrike: jest.fn().mockResolvedValue({ id: 'strike-1' }) };
+  const accountStrikesService = {
+    issueStrike: jest.fn().mockResolvedValue({ id: 'strike-1' }),
+    findActiveBySource: jest.fn().mockResolvedValue(null),
+    rescindStrike: jest.fn().mockResolvedValue(undefined),
+  };
   const eventEmitter = { emit: jest.fn() };
 
   const noticeDto = {
@@ -78,7 +82,7 @@ describe('CopyrightService', () => {
         'uploader-1',
         StrikeType.COPYRIGHT,
         expect.stringContaining('DMCA takedown'),
-        { sourceVideoId: 'v1' },
+        { sourceVideoId: 'v1', sourceReportId: 'notice-1' },
       );
       expect(notice.id).toBe('notice-1');
     });
@@ -87,6 +91,44 @@ describe('CopyrightService', () => {
       videoRepository.findOne.mockResolvedValue(null);
       await expect(service.submitNotice(noticeDto)).rejects.toBeInstanceOf(NotFoundException);
       expect(accountStrikesService.issueStrike).not.toHaveBeenCalled();
+    });
+
+    it('records a repeat claim against a video already under an open takedown without issuing a second strike (harassment-vector fix)', async () => {
+      videoRepository.findOne.mockResolvedValue({
+        id: 'v1',
+        userId: 'uploader-1',
+        visibility: VideoVisibility.PRIVATE,
+      });
+      noticeRepository.findOne.mockResolvedValue({
+        id: 'notice-existing',
+        videoId: 'v1',
+        status: CopyrightNoticeStatus.TAKEDOWN_ISSUED,
+      });
+
+      const notice = await service.submitNotice(noticeDto);
+
+      expect(accountStrikesService.issueStrike).not.toHaveBeenCalled();
+      expect(videoRepository.update).not.toHaveBeenCalled();
+      expect(noticeRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ previousVisibility: null }),
+      );
+      expect(notice.id).toBe('notice-1');
+    });
+
+    it('issues a fresh strike for a new claim once the prior notice is resolved (not open anymore)', async () => {
+      videoRepository.findOne.mockResolvedValue({
+        id: 'v1',
+        userId: 'uploader-1',
+        visibility: VideoVisibility.PUBLIC,
+      });
+      noticeRepository.findOne.mockResolvedValue(null); // no OPEN notice (prior one reinstated/rejected)
+
+      await service.submitNotice(noticeDto);
+
+      expect(accountStrikesService.issueStrike).toHaveBeenCalled();
+      expect(videoRepository.update).toHaveBeenCalledWith('v1', {
+        visibility: VideoVisibility.PRIVATE,
+      });
     });
   });
 
@@ -246,6 +288,42 @@ describe('CopyrightService', () => {
       const result = await service.runDueReinstatements();
       expect(result).toEqual({ reinstated: 0 });
       expect(videoRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('rescinds the copyright strike the reinstated notice caused (was previously left in place forever)', async () => {
+      counterNoticeRepository.find.mockResolvedValue([
+        { id: 'counter-1', noticeId: 'notice-1', uploaderUserId: 'uploader-1', status: CounterNoticeStatus.PENDING },
+      ]);
+      noticeRepository.findOne.mockResolvedValue({
+        id: 'notice-1',
+        videoId: 'v1',
+        previousVisibility: VideoVisibility.PUBLIC,
+      });
+      accountStrikesService.findActiveBySource.mockResolvedValue({ id: 'strike-1', userId: 'uploader-1' });
+
+      await service.runDueReinstatements();
+
+      expect(accountStrikesService.findActiveBySource).toHaveBeenCalledWith('notice-1');
+      expect(accountStrikesService.rescindStrike).toHaveBeenCalledWith(
+        'strike-1',
+        expect.stringContaining('v1'),
+      );
+    });
+
+    it('does not attempt to rescind when no active strike is linked to the notice', async () => {
+      counterNoticeRepository.find.mockResolvedValue([
+        { id: 'counter-1', noticeId: 'notice-1', uploaderUserId: 'uploader-1', status: CounterNoticeStatus.PENDING },
+      ]);
+      noticeRepository.findOne.mockResolvedValue({
+        id: 'notice-1',
+        videoId: 'v1',
+        previousVisibility: VideoVisibility.PUBLIC,
+      });
+      accountStrikesService.findActiveBySource.mockResolvedValue(null);
+
+      await service.runDueReinstatements();
+
+      expect(accountStrikesService.rescindStrike).not.toHaveBeenCalled();
     });
   });
 });

@@ -5,9 +5,9 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import {
   CommunityEvent,
   CommunityEventRsvp,
@@ -40,6 +40,7 @@ export class CommunityEventsService {
     @Inject(forwardRef(() => CommunitiesService))
     private readonly communitiesService: CommunitiesService,
     private readonly eventEmitter: EventEmitter2,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   async listEvents(
@@ -130,24 +131,40 @@ export class CommunityEventsService {
       event.capacity != null &&
       status === CommunityEventRsvpStatus.GOING
     ) {
-      const existing = await this.rsvpRepository.findOne({ where: { eventId, userId } });
-      if (!existing || existing.status !== CommunityEventRsvpStatus.GOING) {
-        const goingCount = await this.rsvpRepository.count({
-          where: { eventId, status: CommunityEventRsvpStatus.GOING },
-        });
-        if (goingCount >= event.capacity) {
-          throw new BadRequestException('This office hours slot is fully booked');
-        }
-      }
-    }
+      // count-then-upsert is a TOCTOU race — two simultaneous RSVPs for the
+      // last open slot could both read goingCount < capacity and both book,
+      // overbooking it. Same fix shape as AccountStrikesService.issueStrike:
+      // an advisory lock scoped to this event serializes concurrent RSVPs.
+      await this.dataSource.transaction(async (manager) => {
+        await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+          `community-event-rsvp:${eventId}`,
+        ]);
 
-    // Idempotent + race-safe: a member may change their RSVP or double-submit.
-    // The (event_id, user_id) unique constraint means a plain INSERT would 500 on
-    // the second call, so upsert the status instead.
-    await this.rsvpRepository.upsert(
-      { eventId, userId, status },
-      { conflictPaths: ['eventId', 'userId'] },
-    );
+        const existing = await manager.findOne(CommunityEventRsvp, { where: { eventId, userId } });
+        if (!existing || existing.status !== CommunityEventRsvpStatus.GOING) {
+          const goingCount = await manager.count(CommunityEventRsvp, {
+            where: { eventId, status: CommunityEventRsvpStatus.GOING },
+          });
+          if (goingCount >= event.capacity!) {
+            throw new BadRequestException('This office hours slot is fully booked');
+          }
+        }
+
+        // Idempotent + race-safe: a member may change their RSVP or double-submit.
+        // The (event_id, user_id) unique constraint means a plain INSERT would 500 on
+        // the second call, so upsert the status instead.
+        await manager.upsert(
+          CommunityEventRsvp,
+          { eventId, userId, status },
+          { conflictPaths: ['eventId', 'userId'] },
+        );
+      });
+    } else {
+      await this.rsvpRepository.upsert(
+        { eventId, userId, status },
+        { conflictPaths: ['eventId', 'userId'] },
+      );
+    }
     const row = await this.rsvpRepository.findOne({ where: { eventId, userId } });
     this.eventEmitter.emit('community.event.rsvp', { communityId, eventId, userId });
     return { data: row };

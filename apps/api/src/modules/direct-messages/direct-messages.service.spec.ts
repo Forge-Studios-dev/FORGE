@@ -95,6 +95,7 @@ describe('DirectMessagesService', () => {
 
   const convQb = {
     innerJoin: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
     getOne: jest.fn().mockResolvedValue(null),
   };
 
@@ -199,6 +200,16 @@ describe('DirectMessagesService', () => {
 
       await service.sendMessage('user-a', { recipientId: 'user-b', content: 'Hi' });
 
+      expect(dataSource.transaction).toHaveBeenCalled();
+    });
+
+    it('scopes the existing-conversation lookup to 1:1 threads, not a shared group conversation', async () => {
+      convQb.getOne.mockResolvedValue(null);
+
+      await service.sendMessage('user-a', { recipientId: 'user-b', content: 'private note' });
+
+      expect(convQb.where).toHaveBeenCalledWith('c.is_group = false');
+      // A group conversation the two users share must not be reused as the 1:1 thread.
       expect(dataSource.transaction).toHaveBeenCalled();
     });
   });
@@ -308,8 +319,24 @@ describe('DirectMessagesService', () => {
         recipient,
         { ...sender, id: 'user-c', username: 'userc' },
       ]);
-      engagementService.isBlockedEitherWay.mockImplementation(async (a: string, b: string) =>
-        (a === 'user-a' && b === 'user-b') || (a === 'user-b' && b === 'user-a'),
+      engagementService.getBlockedPeerIds.mockImplementation(async (id: string) =>
+        id === 'user-a' ? ['user-b'] : [],
+      );
+
+      await expect(
+        service.createGroupConversation('user-a', 'Study', ['user-b', 'user-c']),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('rejects creating a group where two non-creator members are mutually blocked', async () => {
+      userRepository.findByIds.mockResolvedValue([
+        sender,
+        recipient,
+        { ...sender, id: 'user-c', username: 'userc' },
+      ]);
+      // user-b and user-c blocked each other; creator user-a has no blocks with anyone.
+      engagementService.getBlockedPeerIds.mockImplementation(async (id: string) =>
+        id === 'user-b' ? ['user-c'] : [],
       );
 
       await expect(
@@ -328,11 +355,54 @@ describe('DirectMessagesService', () => {
       memberRepository.findOne
         .mockResolvedValueOnce({ userId: 'user-a', conversationId: 'conv-1' })
         .mockResolvedValueOnce(null);
-      engagementService.isBlockedEitherWay.mockResolvedValueOnce(true);
+      memberRepository.find.mockResolvedValue([
+        { userId: 'user-a', conversationId: 'conv-1' },
+        { userId: 'user-c', conversationId: 'conv-1' },
+      ]);
+      // user-b (the one being added) has blocked existing member user-c.
+      engagementService.getBlockedPeerIds.mockResolvedValueOnce(['user-c']);
 
       await expect(
         service.addGroupMember('user-a', 'conv-1', 'user-b'),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('sendGroupMessage', () => {
+    it('rejects sending when the sender is blocked with any current group member', async () => {
+      memberRepository.findOne.mockResolvedValue({ userId: 'user-a', conversationId: 'conv-1' });
+      memberRepository.find.mockResolvedValue([
+        { userId: 'user-a', conversationId: 'conv-1' },
+        { userId: 'user-b', conversationId: 'conv-1' },
+        { userId: 'user-c', conversationId: 'conv-1' },
+      ]);
+      engagementService.getBlockedPeerIds.mockResolvedValueOnce(['user-c']);
+
+      await expect(
+        service.sendGroupMessage('user-a', 'conv-1', 'hello'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(messageRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('sends normally when the sender has no block with any current member', async () => {
+      memberRepository.findOne.mockResolvedValue({ userId: 'user-a', conversationId: 'conv-1' });
+      memberRepository.find.mockResolvedValue([
+        { userId: 'user-a', conversationId: 'conv-1' },
+        { userId: 'user-b', conversationId: 'conv-1' },
+      ]);
+      engagementService.getBlockedPeerIds.mockResolvedValueOnce([]);
+      messageRepository.findOne.mockResolvedValue({
+        id: 'msg-1',
+        conversationId: 'conv-1',
+        senderId: 'user-a',
+        content: 'hello',
+        createdAt: new Date('2026-06-01T12:00:00Z'),
+        sender,
+      });
+
+      await service.sendGroupMessage('user-a', 'conv-1', 'hello');
+
+      expect(messageRepository.save).toHaveBeenCalled();
     });
   });
 });

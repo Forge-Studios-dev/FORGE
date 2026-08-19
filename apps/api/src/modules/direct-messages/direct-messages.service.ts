@@ -166,10 +166,23 @@ export class DirectMessagesService {
       throw new BadRequestException('One or more participant IDs are invalid');
     }
 
-    for (const memberId of allIds) {
-      if (memberId === creatorId) continue;
-      if (await this.engagementService.isBlockedEitherWay(creatorId, memberId)) {
-        throw new ForbiddenException('Cannot create a group with a blocked user');
+    // Check every pair, not just creator-vs-member — otherwise the creator
+    // could force two other mutually-blocked members into the same group.
+    const blockedPeersByMember = new Map<string, Set<string>>(
+      await Promise.all(
+        allIds.map(
+          async (id): Promise<[string, Set<string>]> => [
+            id,
+            new Set(await this.engagementService.getBlockedPeerIds(id)),
+          ],
+        ),
+      ),
+    );
+    for (let i = 0; i < allIds.length; i++) {
+      for (let j = i + 1; j < allIds.length; j++) {
+        if (blockedPeersByMember.get(allIds[i])!.has(allIds[j])) {
+          throw new ForbiddenException('Cannot create a group with a blocked user');
+        }
       }
     }
 
@@ -207,7 +220,11 @@ export class DirectMessagesService {
     const user = await this.userRepository.findOne({ where: { id: newMemberId } });
     if (!user) throw new NotFoundException('User not found');
 
-    if (await this.engagementService.isBlockedEitherWay(requesterId, newMemberId)) {
+    // Check against every current member, not just the requester — otherwise
+    // a member could be added alongside someone else they've blocked.
+    const existingMembers = await this.memberRepository.find({ where: { conversationId } });
+    const blockedPeers = new Set(await this.engagementService.getBlockedPeerIds(newMemberId));
+    if (existingMembers.some((m) => blockedPeers.has(m.userId))) {
       throw new ForbiddenException('Cannot add a blocked user to this group');
     }
 
@@ -219,6 +236,14 @@ export class DirectMessagesService {
 
   async sendGroupMessage(senderId: string, conversationId: string, content: string) {
     await this.assertMember(senderId, conversationId);
+
+    // Unlike 1:1 sendMessage, this fans out to every member, so a block with
+    // ANY current member (not just whoever added the sender) must stop it.
+    const members = await this.memberRepository.find({ where: { conversationId } });
+    const blockedPeers = new Set(await this.engagementService.getBlockedPeerIds(senderId));
+    if (members.some((m) => m.userId !== senderId && blockedPeers.has(m.userId))) {
+      throw new ForbiddenException('You cannot message this group');
+    }
 
     const msg = await this.messageRepository.save(
       this.messageRepository.create({
@@ -236,7 +261,6 @@ export class DirectMessagesService {
     });
 
     const publicMsg = this.toPublicMessage(full!);
-    const members = await this.memberRepository.find({ where: { conversationId } });
     const recipientIds = members.map((m) => m.userId).filter((id) => id !== senderId);
 
     this.eventEmitter.emit('direct-message.sent', {
@@ -253,6 +277,7 @@ export class DirectMessagesService {
       .createQueryBuilder('c')
       .innerJoin('c.members', 'm1', 'm1.user_id = :userA', { userA })
       .innerJoin('c.members', 'm2', 'm2.user_id = :userB', { userB })
+      .where('c.is_group = false')
       .getOne();
 
     if (existing) return existing;

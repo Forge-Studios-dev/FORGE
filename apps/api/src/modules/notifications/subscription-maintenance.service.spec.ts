@@ -110,4 +110,24 @@ describe('SubscriptionMaintenanceService', () => {
     expect(notifications.createMany).not.toHaveBeenCalled();
     expect(entitlements.expireDueSubscriptions).toHaveBeenCalledTimes(1);
   });
+
+  it('does not mark the dedupe key when sending fails, so the next run retries instead of silently dropping the alert', async () => {
+    entitlements.getExpiringSubscriptions.mockResolvedValue([
+      {
+        id: 'sub-1',
+        userId: 'user-1',
+        creatorId: 'creator-1',
+        tierId: 'tier-1',
+        status: MemberSubscriptionStatus.TRIAL,
+        expiresAt: inDays(1),
+        tier: { name: 'Gold' },
+      },
+    ]);
+    redis.mget.mockResolvedValue([null]);
+    notifications.createMany.mockRejectedValue(new Error('db down'));
+
+    await service.runMaintenance();
+
+    expect(pipelineExec).not.toHaveBeenCalled();
+  });
 });

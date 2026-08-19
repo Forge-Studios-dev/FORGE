@@ -186,10 +186,13 @@ export async function runBackgroundUpload(
     }
     return videoId;
   } catch (err) {
-    // abortActiveUpload already cancelled; avoid a second cancel when we threw for that.
-    if (!(err instanceof Error && err.message === 'Upload cancelled')) {
-      await cancelVideoQuietly(videoId);
-    }
+    // Only abortActiveUpload cancels server-side (it already called
+    // cancelVideoQuietly before throwing this). Any other error here —
+    // a dropped connection mid-PUT, a transient 5xx on /complete — must NOT
+    // auto-cancel: that deletes the video row and destroys the exact
+    // resumable-upload checkpoint (multipart session + server progress) this
+    // whole path exists to preserve, forcing a full restart from 0% on what
+    // should have been a simple retry.
     if (meta?.videoId === videoId) {
       meta = null;
       emit();

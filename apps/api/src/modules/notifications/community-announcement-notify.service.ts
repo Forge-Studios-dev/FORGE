@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { Job } from 'bullmq';
 import { Repository } from 'typeorm';
 import { NotificationsService } from './notifications.service';
 import { NotificationType } from './entities/notification.entity';
@@ -22,7 +23,8 @@ export class CommunityAnnouncementNotifyService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  async fanOut(payload: CommunityAnnouncementNotifyJobData): Promise<void> {
+  async fanOut(job: Job<CommunityAnnouncementNotifyJobData>): Promise<void> {
+    const payload = job.data;
     const title = payload.title.trim() || 'New announcement';
     const body = payload.body.trim().slice(0, 200);
 
@@ -46,7 +48,11 @@ export class CommunityAnnouncementNotifyService {
     if (community?.slug) metadata.slug = community.slug;
     if (creator?.username) metadata.username = creator.username;
 
-    let offset = 0;
+    // Resume from the last completed page on a BullMQ retry (job.data persists
+    // across attempts) instead of restarting at offset 0 — otherwise a
+    // mid-fanout failure on a later page would re-notify every earlier page's
+    // subscribers a second time.
+    let offset = payload.resumeOffset ?? 0;
     for (;;) {
       const subs = await this.entitlementsService.listSubscribersForCreator(payload.creatorId, {
         limit: NOTIFY_CHUNK,
@@ -64,8 +70,10 @@ export class CommunityAnnouncementNotifyService {
         })),
       );
 
+      offset += subs.length;
+      await job.updateData({ ...payload, resumeOffset: offset });
+
       if (subs.length < NOTIFY_CHUNK) break;
-      offset += NOTIFY_CHUNK;
     }
   }
 }

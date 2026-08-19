@@ -96,6 +96,11 @@ describe('GamificationService', () => {
     })),
   };
 
+  const redisMock = {
+    incr: jest.fn().mockResolvedValue(1),
+    expire: jest.fn().mockResolvedValue(1),
+  };
+
   const achievementStore: UserAchievement[] = [];
   const achievementRepository = {
     findOne: jest.fn(async ({ where }: { where: { userId: string; key: string } }) =>
@@ -135,10 +140,8 @@ describe('GamificationService', () => {
     });
     achievementRepository.create.mockImplementation((dto: Partial<UserAchievement>) => dto);
 
-    const redisMock = {
-      incr: jest.fn().mockResolvedValue(1),
-      expire: jest.fn().mockResolvedValue(1),
-    };
+    redisMock.incr.mockReset().mockResolvedValue(1);
+    redisMock.expire.mockReset().mockResolvedValue(1);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -162,6 +165,32 @@ describe('GamificationService', () => {
     const profile = await service.getProfile('u1', 'c1');
     expect(profile.level).toBeGreaterThanOrEqual(5);
     expect(profile.badges).toContain('level_5');
+  });
+
+  it('blocks community XP once the per-source daily cap is hit', async () => {
+    redisMock.incr.mockImplementation(async (key: string) =>
+      key.startsWith('xp:community:daily:') ? 11 : 1,
+    );
+    const result = await service.awardXp('u1', 'c1', 5, 'community_post');
+    expect(result.awarded).toBe(0);
+    expect(result.skippedReason).toBe('daily_source_cap_reached');
+    const profile = await service.getProfile('u1', 'c1');
+    expect(profile.xp).toBe(0);
+  });
+
+  it('blocks community XP once the burst velocity limit is hit', async () => {
+    redisMock.incr.mockImplementation(async (key: string) =>
+      key.startsWith('xp:community:velocity:') ? 11 : 1,
+    );
+    const result = await service.awardXp('u1', 'c1', 2, 'room_message');
+    expect(result.awarded).toBe(0);
+    expect(result.skippedReason).toBe('velocity_limit_reached');
+  });
+
+  it('awards community XP normally for a known source under both caps', async () => {
+    const result = await service.awardXp('u1', 'c1', 5, 'community_post');
+    expect(result.awarded).toBe(5);
+    expect(result.skippedReason).toBeNull();
   });
 
   it('dedupes daily check-in and increments streak', async () => {

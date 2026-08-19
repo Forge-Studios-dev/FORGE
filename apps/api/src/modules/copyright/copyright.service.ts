@@ -44,6 +44,19 @@ export class CopyrightService {
     const video = await this.videoRepository.findOne({ where: { id: dto.videoId } });
     if (!video) throw new NotFoundException('Video not found');
 
+    // A video already under an open takedown (unresolved notice) doesn't
+    // need — and must not get — a second strike for the same underlying
+    // claim window. Without this, one unverified claimant can replay a claim
+    // against one target video (5x/hour under the public throttle) and land
+    // 3 strikes -> TERMINATION_RECOMMENDED inside an hour with zero human
+    // review. The video stays down either way; only the strike is deduped.
+    const existingOpenNotice = await this.noticeRepository.findOne({
+      where: [
+        { videoId: dto.videoId, status: CopyrightNoticeStatus.TAKEDOWN_ISSUED },
+        { videoId: dto.videoId, status: CopyrightNoticeStatus.COUNTER_NOTICED },
+      ],
+    });
+
     const notice = await this.noticeRepository.save(
       this.noticeRepository.create({
         videoId: dto.videoId,
@@ -56,9 +69,22 @@ export class CopyrightService {
         accuracyStatement: dto.accuracyStatement,
         signature: dto.signature,
         status: CopyrightNoticeStatus.TAKEDOWN_ISSUED,
-        previousVisibility: video.visibility,
+        previousVisibility: existingOpenNotice ? null : video.visibility,
       }),
     );
+
+    if (existingOpenNotice) {
+      this.logger.log(
+        `Copyright notice recorded without a new strike — video=${video.id} already has an open takedown (notice=${existingOpenNotice.id})`,
+      );
+      this.eventEmitter.emit('copyright.notice_recorded', {
+        videoId: video.id,
+        userId: video.userId,
+        noticeId: notice.id,
+        duplicate: true,
+      });
+      return notice;
+    }
 
     await this.videoRepository.update(video.id, { visibility: VideoVisibility.PRIVATE });
     await this.videosService.bustVideoDetailCache(video.id);
@@ -67,7 +93,10 @@ export class CopyrightService {
       video.userId,
       StrikeType.COPYRIGHT,
       `DMCA takedown: ${dto.workDescription.slice(0, 200)}`,
-      { sourceVideoId: video.id },
+      // sourceReportId doubles as "which notice caused this strike" so an
+      // unrebutted counter-notice reinstatement (runDueReinstatements) can
+      // find and rescind the right strike later — see rescindStrike below.
+      { sourceVideoId: video.id, sourceReportId: notice.id },
     );
 
     this.logger.log(`Copyright takedown issued: video=${video.id} notice=${notice.id}`);
@@ -215,6 +244,20 @@ export class CopyrightService {
       counterNotice.status = CounterNoticeStatus.REINSTATED;
       counterNotice.resolvedAt = now;
       await this.counterNoticeRepository.save(counterNotice);
+
+      // The claim that caused the strike was itself just reversed — an
+      // unrebutted counter-notice is a real win for the uploader, not just a
+      // "content restored" outcome. Without this, the strike would keep
+      // counting toward the 3-strike termination ladder with no automatic
+      // remediation (docs/COPYRIGHT_DMCA.md's appeals section only covers
+      // the separate, user-initiated strike-appeal path).
+      const strike = await this.accountStrikesService.findActiveBySource(notice.id);
+      if (strike) {
+        await this.accountStrikesService.rescindStrike(
+          strike.id,
+          `Unrebutted counter-notice reinstated video ${notice.videoId}`,
+        );
+      }
 
       this.eventEmitter.emit('copyright.video_reinstated', {
         videoId: notice.videoId,

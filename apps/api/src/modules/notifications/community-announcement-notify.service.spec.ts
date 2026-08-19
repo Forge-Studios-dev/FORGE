@@ -44,14 +44,25 @@ describe('CommunityAnnouncementNotifyService', () => {
     service = module.get(CommunityAnnouncementNotifyService);
   });
 
+  const makeJob = (data: Record<string, unknown>) => {
+    const job = {
+      data,
+      updateData: jest.fn(async (next: Record<string, unknown>) => {
+        job.data = next;
+      }),
+    };
+    return job;
+  };
+
   it('fans out announcement notifications in chunks', async () => {
-    await service.fanOut({
+    const job = makeJob({
       communityId: 'comm-1',
       postId: 'post-1',
       creatorId: 'creator-1',
       title: 'Hello',
       body: 'World',
     });
+    await service.fanOut(job as never);
 
     expect(notificationsService.createMany).toHaveBeenCalledTimes(1);
     expect(notificationsService.createMany).toHaveBeenCalledWith(
@@ -72,5 +83,26 @@ describe('CommunityAnnouncementNotifyService', () => {
       limit: 1000,
       offset: 0,
     });
+    expect(job.updateData).toHaveBeenCalledWith(expect.objectContaining({ resumeOffset: 2 }));
+  });
+
+  it('resumes from resumeOffset on a retry instead of re-notifying earlier pages', async () => {
+    entitlementsService.listSubscribersForCreator = jest.fn().mockResolvedValueOnce([]);
+    const job = makeJob({
+      communityId: 'comm-1',
+      postId: 'post-1',
+      creatorId: 'creator-1',
+      title: 'Hello',
+      body: 'World',
+      resumeOffset: 2000,
+    });
+
+    await service.fanOut(job as never);
+
+    expect(entitlementsService.listSubscribersForCreator).toHaveBeenCalledWith('creator-1', {
+      limit: 1000,
+      offset: 2000,
+    });
+    expect(notificationsService.createMany).not.toHaveBeenCalled();
   });
 });

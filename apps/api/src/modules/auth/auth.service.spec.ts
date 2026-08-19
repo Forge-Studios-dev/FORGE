@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuthService } from './auth.service';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
@@ -46,6 +47,8 @@ describe('AuthService', () => {
   };
   const mailMock = { sendMail: jest.fn().mockResolvedValue(undefined) };
   const analyticsMock = { ingest: jest.fn().mockResolvedValue(undefined) };
+  const eventEmitterMock = { emit: jest.fn() };
+  const redisMock = { set: jest.fn().mockResolvedValue('OK') };
   const lockoutMock = {
     assertNotLocked: jest.fn().mockResolvedValue(undefined),
     recordFailedLogin: jest.fn().mockResolvedValue(undefined),
@@ -109,6 +112,8 @@ describe('AuthService', () => {
           },
         },
         { provide: ReferralService, useValue: { claimReferral: jest.fn().mockResolvedValue(null) } },
+        { provide: EventEmitter2, useValue: eventEmitterMock },
+        { provide: 'default_IORedisModuleConnectionToken', useValue: redisMock },
       ],
     }).compile();
     return moduleRef.get(AuthService);
@@ -375,6 +380,118 @@ describe('AuthService', () => {
     });
   });
 
+  describe('suspicious-login detection', () => {
+    async function loginFromNewIp(lastSessionCreatedAt: Date) {
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.hash('CorrectPass1a', 4);
+      userRepoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        passwordHash: hash,
+        mfaEnabled: false,
+        isActive: true,
+      });
+      refreshRepoMock.find.mockResolvedValue([
+        { ipHash: 'some-other-known-ip-hash', createdAt: lastSessionCreatedAt },
+      ]);
+      refreshRepoMock.save.mockResolvedValue({ id: 'sid-1' });
+
+      const svc = await setupService();
+      await svc.login({ email: 'a@b.com', password: 'CorrectPass1a' } as never, { ip: '9.9.9.9' });
+    }
+
+    it('flags a rapid IP change as higher-risk when the last session was under 10 minutes ago', async () => {
+      await loginFromNewIp(new Date(Date.now() - 2 * 60_000));
+
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        'auth.login.suspicious',
+        expect.objectContaining({ userId: 'u1', signal: 'rapid_ip_change', riskScore: 55 }),
+      );
+    });
+
+    it('flags a plain new device (no rapid IP change) at lower risk', async () => {
+      await loginFromNewIp(new Date(Date.now() - 60 * 60_000));
+
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        'auth.login.suspicious',
+        expect.objectContaining({ userId: 'u1', signal: 'new_device_login', riskScore: 25 }),
+      );
+    });
+
+    it('does not flag a login from an already-known IP', async () => {
+      const bcrypt = await import('bcrypt');
+      const { createHmac } = await import('crypto');
+      const hash = await bcrypt.hash('CorrectPass1a', 4);
+      const knownIpHash = createHmac('sha256', 'test-secret').update('9.9.9.9').digest('hex');
+      userRepoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        passwordHash: hash,
+        mfaEnabled: false,
+        isActive: true,
+      });
+      refreshRepoMock.find.mockResolvedValue([{ ipHash: knownIpHash, createdAt: new Date() }]);
+      refreshRepoMock.save.mockResolvedValue({ id: 'sid-1' });
+
+      const svc = await setupService();
+      await svc.login({ email: 'a@b.com', password: 'CorrectPass1a' } as never, { ip: '9.9.9.9' });
+
+      expect(eventEmitterMock.emit).not.toHaveBeenCalledWith(
+        'auth.login.suspicious',
+        expect.anything(),
+      );
+    });
+
+    it('does not flag a first-ever login with no prior session history', async () => {
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.hash('CorrectPass1a', 4);
+      userRepoMock.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        passwordHash: hash,
+        mfaEnabled: false,
+        isActive: true,
+      });
+      refreshRepoMock.find.mockResolvedValue([]);
+      refreshRepoMock.save.mockResolvedValue({ id: 'sid-1' });
+
+      const svc = await setupService();
+      await svc.login({ email: 'a@b.com', password: 'CorrectPass1a' } as never, { ip: '9.9.9.9' });
+
+      expect(eventEmitterMock.emit).not.toHaveBeenCalledWith(
+        'auth.login.suspicious',
+        expect.anything(),
+      );
+    });
+  });
+
+  describe('impersonation token replay', () => {
+    it('rejects replaying the same impersonation token twice', async () => {
+      jwtMock.verify.mockReturnValue({
+        sub: 'target-1',
+        adminId: 'admin-1',
+        purpose: 'impersonate',
+        jti: 'jti-1',
+      });
+      userRepoMock.findOne.mockResolvedValue({
+        id: 'target-1',
+        email: 'target@b.com',
+        role: 'user',
+        isActive: true,
+      });
+      refreshRepoMock.save.mockResolvedValue({ id: 'sid-1' });
+
+      const svc = await setupService();
+      redisMock.set.mockResolvedValueOnce('OK'); // first exchange reserves the jti
+      await svc.consumeImpersonationToken('valid.jwt');
+
+      redisMock.set.mockResolvedValueOnce(null); // NX: jti already reserved
+      await expect(svc.consumeImpersonationToken('valid.jwt')).rejects.toThrow(
+        'Impersonation link already used',
+      );
+    });
+  });
+
   describe('loginWithGoogle with MFA enabled', () => {
     it('returns a challenge token instead of real tokens, without issuing a session', async () => {
       oauthRepoMock.findOne.mockResolvedValue({ userId: 'u1', provider: 'google' });
@@ -433,6 +550,8 @@ describe('AuthService', () => {
           },
           { provide: DataSource, useValue: { transaction: jest.fn() } },
           { provide: ReferralService, useValue: { claimReferral: jest.fn() } },
+          { provide: EventEmitter2, useValue: eventEmitterMock },
+          { provide: 'default_IORedisModuleConnectionToken', useValue: redisMock },
         ],
       }).compile();
       const svc = moduleRef.get(AuthService);
@@ -480,6 +599,8 @@ describe('AuthService', () => {
           },
           { provide: DataSource, useValue: { transaction: jest.fn() } },
           { provide: ReferralService, useValue: { claimReferral: jest.fn() } },
+          { provide: EventEmitter2, useValue: eventEmitterMock },
+          { provide: 'default_IORedisModuleConnectionToken', useValue: redisMock },
         ],
       }).compile();
       const svc = moduleRef.get(AuthService);

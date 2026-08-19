@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { In } from 'typeorm';
@@ -84,6 +84,33 @@ describe('ReportsService', () => {
         status: ReportStatus.PENDING,
       });
       expect(result.id).toBe('report-1');
+    });
+
+    it('rejects a duplicate report while the reporter already has a pending one for the same target', async () => {
+      videoRepository.findOne.mockResolvedValue({ id: 'v1', userId: otherUserId } as Video);
+      reportRepository.findOne.mockResolvedValueOnce({ id: 'existing-report' } as Report);
+
+      await expect(
+        service.create(reporterId, {
+          targetType: 'video',
+          targetId: 'v1',
+          reason: 'spam content',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(reportRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('allows re-reporting the same target once the prior report is no longer pending', async () => {
+      videoRepository.findOne.mockResolvedValue({ id: 'v1', userId: otherUserId } as Video);
+      reportRepository.findOne.mockResolvedValueOnce(null);
+
+      await service.create(reporterId, {
+        targetType: 'video',
+        targetId: 'v1',
+        reason: 'spam content',
+      });
+
+      expect(reportRepository.save).toHaveBeenCalled();
     });
 
     it('derives severity from reasonCategory when the client sends one', async () => {

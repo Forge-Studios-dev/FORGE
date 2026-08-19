@@ -7,6 +7,7 @@ import { GamificationService, PlatformXpAction } from '../gamification/gamificat
 
 const REFERRAL_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
 const REFERRAL_CODE_LENGTH = 8;
+/** Mirrors PLATFORM_XP_CONFIG[REFERRAL_SUCCESS].xp in gamification.service.ts — for the stats display estimate only. */
 const REFERRAL_XP_REWARD = 100;
 
 function generateCode(): string {
@@ -97,12 +98,7 @@ export class ReferralService {
     try {
       await this.gamificationService.awardPlatformXp(
         referral.referrerId,
-        PlatformXpAction.POST_CREATE, // reuse a generic action; XP amount overridden below
-      );
-      // Direct XP bonus (referral is higher value than a post)
-      await this.gamificationService.awardPlatformXp(
-        referral.referrerId,
-        PlatformXpAction.COURSE_ENROLL, // proxy for referral reward XP
+        PlatformXpAction.REFERRAL_SUCCESS,
       );
     } catch (err) {
       this.logger.warn(
@@ -112,7 +108,7 @@ export class ReferralService {
 
     // Unlock referral achievement for first successful referral
     try {
-      await this.gamificationService.unlockAchievement(referral.referrerId, 'first_live');
+      await this.gamificationService.unlockAchievement(referral.referrerId, 'first_referral');
     } catch {}
 
     return { rewarded: true, referrerId: referral.referrerId };

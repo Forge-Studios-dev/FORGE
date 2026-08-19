@@ -34,6 +34,9 @@ describe('CommunityRoomsService', () => {
       roomName: 'lk',
       livekitUrl: 'wss://lk',
     }),
+    revokePublish: jest.fn().mockResolvedValue(undefined),
+    endRoom: jest.fn().mockResolvedValue(undefined),
+    getParticipantCount: jest.fn().mockResolvedValue(0),
   };
   const communitiesService = {
     assertCommunityAccess: jest.fn().mockResolvedValue({ id: 'comm-1', creatorId: 'c1' }),
@@ -54,6 +57,7 @@ describe('CommunityRoomsService', () => {
     expire: jest.fn(),
     sismember: jest.fn().mockResolvedValue(0),
     sadd: jest.fn(),
+    srem: jest.fn(),
     del: jest.fn(),
   };
 
@@ -173,6 +177,60 @@ describe('CommunityRoomsService', () => {
     );
   });
 
+  describe('joinRoomToken — capacity enforcement', () => {
+    it('rejects a regular participant when the room is at its live capacity, checked against the current DB value (not a stale LiveKit-only cap)', async () => {
+      roomRepository.findOne.mockResolvedValue({
+        id: 'r1',
+        communityId: 'comm-1',
+        roomType: CommunityRoomType.VOICE,
+        settings: {},
+        isActive: true,
+        maxParticipants: 5,
+      });
+      communitiesService.canModerateCommunity.mockResolvedValue(false);
+      livekitService.getParticipantCount.mockResolvedValue(5);
+
+      await expect(service.joinRoomToken('u1', 'comm-1', 'r1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(livekitService.createJoinToken).not.toHaveBeenCalled();
+    });
+
+    it('allows a host/moderator to join even when the room is at capacity', async () => {
+      roomRepository.findOne.mockResolvedValue({
+        id: 'r1',
+        communityId: 'comm-1',
+        roomType: CommunityRoomType.VOICE,
+        settings: {},
+        isActive: true,
+        maxParticipants: 5,
+      });
+      communitiesService.canModerateCommunity.mockResolvedValue(true);
+      livekitService.getParticipantCount.mockResolvedValue(5);
+
+      const result = await service.joinRoomToken('host-1', 'comm-1', 'r1');
+
+      expect(result.data.token).toBe('jwt');
+      expect(livekitService.getParticipantCount).not.toHaveBeenCalled();
+    });
+
+    it('allows joining when under capacity', async () => {
+      roomRepository.findOne.mockResolvedValue({
+        id: 'r1',
+        communityId: 'comm-1',
+        roomType: CommunityRoomType.VOICE,
+        settings: {},
+        isActive: true,
+        maxParticipants: 5,
+      });
+      communitiesService.canModerateCommunity.mockResolvedValue(false);
+      livekitService.getParticipantCount.mockResolvedValue(4);
+
+      const result = await service.joinRoomToken('u1', 'comm-1', 'r1');
+      expect(result.data.token).toBe('jwt');
+    });
+  });
+
   describe('ensureAfterLiveRoom', () => {
     it('creates a TEXT discussion room linked to the source stream', async () => {
       communitiesService.assertCommunityStudioAccess.mockResolvedValue({ id: 'comm-1', creatorId: 'host-1' });
@@ -222,5 +280,53 @@ describe('CommunityRoomsService', () => {
     const result = await service.approveStageSpeaker('host-1', 'comm-1', 'r1', 'speaker-1');
     expect(result.data.approved).toBe(true);
     expect(redis.sadd).toHaveBeenCalled();
+  });
+
+  describe('demoteStageSpeaker', () => {
+    it('removes the speaker from redis and revokes their live LiveKit publish rights (not just at token expiry)', async () => {
+      roomRepository.findOne.mockResolvedValue({
+        id: 'r1',
+        roomType: CommunityRoomType.STAGE,
+        isActive: true,
+      });
+      communitiesService.canModerateCommunity.mockResolvedValue(true);
+
+      const result = await service.demoteStageSpeaker('host-1', 'comm-1', 'r1', 'speaker-1');
+
+      expect(result.data).toEqual({ approved: false, userId: 'speaker-1' });
+      expect(redis.srem).toHaveBeenCalled();
+      expect(livekitService.revokePublish).toHaveBeenCalledWith('comm-1', 'r1', 'speaker-1');
+    });
+
+    it('rejects when the actor cannot moderate the community', async () => {
+      roomRepository.findOne.mockResolvedValue({
+        id: 'r1',
+        roomType: CommunityRoomType.STAGE,
+        isActive: true,
+      });
+      communitiesService.canModerateCommunity.mockResolvedValue(false);
+
+      await expect(
+        service.demoteStageSpeaker('intruder', 'comm-1', 'r1', 'speaker-1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(livekitService.revokePublish).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deactivateRoom', () => {
+    it('ends the live LiveKit room so already-connected participants are actually disconnected', async () => {
+      communitiesService.assertCommunityStudioAccess.mockResolvedValue({
+        id: 'comm-1',
+        creatorId: 'host-1',
+      });
+      roomRepository.findOne.mockResolvedValue({ id: 'r1', isActive: true });
+
+      await service.deactivateRoom('host-1', 'comm-1', 'r1');
+
+      expect(roomRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ isActive: false }),
+      );
+      expect(livekitService.endRoom).toHaveBeenCalledWith('comm-1', 'r1');
+    });
   });
 });

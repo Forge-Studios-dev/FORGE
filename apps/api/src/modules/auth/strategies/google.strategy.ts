@@ -41,6 +41,14 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       done(new Error('Google account has no email'), undefined);
       return;
     }
+    // AuthService links/creates accounts by email alone — trusting an
+    // unverified address would let anyone claim a Google Workspace mailbox
+    // they don't control and take over (or silently link into) the matching
+    // FORGE account.
+    if (profile.emails?.[0]?.verified === false) {
+      done(new Error('Google account email is not verified'), undefined);
+      return;
+    }
     const payload: GoogleProfilePayload = {
       providerId: profile.id,
       email: email.trim().toLowerCase(),

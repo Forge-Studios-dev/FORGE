@@ -14,7 +14,7 @@ import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { Repository, MoreThan } from 'typeorm';
 import Mux from '@mux/mux-node';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Stream, StreamEndReason, StreamStatus, StreamVisibility, StreamChatMode } from './entities/stream.entity';
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { Video, VideoStatus, VideoVisibility, PublishStatus } from '../content/entities/video.entity';
@@ -510,6 +510,25 @@ export class StreamingService {
   }
 
   /**
+   * A canceled/downgraded/refunded/suspended subscriber could otherwise keep
+   * their cached socket-join result (assertStreamSocketAccess, up to
+   * SOCKET_ACCESS_CACHE_TTL_SEC) for a tier-gated live room after access was
+   * actually revoked. bustSubscriptionCache in EntitlementsService is the one
+   * choke point every such change already goes through, so this stays a
+   * listener rather than adding a call site there per access-changing method.
+   */
+  @OnEvent('entitlements.subscription-cache.busted', { async: true })
+  async onSubscriptionCacheBusted(payload: { userId: string; creatorId: string }): Promise<void> {
+    const liveStreams = await this.streamRepository.find({
+      where: { userId: payload.creatorId, status: StreamStatus.LIVE },
+      select: ['id'],
+    });
+    await Promise.all(
+      liveStreams.map((s) => this.bustStreamAccessCache(payload.userId, s.id)),
+    );
+  }
+
+  /**
    * Socket join gate with short-lived Redis cache (avoids DB on reconnect storms).
    * Returns false when viewer is not entitled.
    */
@@ -547,6 +566,7 @@ export class StreamingService {
         await this.mux.video.liveStreams.disable(stream.muxLiveStreamId);
       } catch (err) {
         this.logger.warn('Failed to disable Mux stream', err);
+        void this.muxLiveSyncService.scheduleDisableRetry(stream.muxLiveStreamId);
       }
     }
 
@@ -805,6 +825,18 @@ export class StreamingService {
       where: { streamId, userId, status: 'completed' },
     });
     return !!row;
+  }
+
+  /** Revokes ticket access after Stripe reports the charge refunded/disputed. */
+  async revokeEventPurchaseByPaymentIntent(paymentIntentId?: string): Promise<void> {
+    if (!paymentIntentId) return;
+    const purchase = await this.purchaseRepository.findOne({
+      where: { stripePaymentIntentId: paymentIntentId, status: 'completed' },
+    });
+    if (!purchase) return;
+    purchase.status = 'refunded';
+    await this.purchaseRepository.save(purchase);
+    void this.bustStreamAccessCache(purchase.userId, purchase.streamId);
   }
 
   async setPinnedMessage(

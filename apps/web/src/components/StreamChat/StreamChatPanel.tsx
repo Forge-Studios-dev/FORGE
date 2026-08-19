@@ -58,6 +58,7 @@ export function StreamChatPanel({
   const [showSuperChat, setShowSuperChat] = useState(false);
   const [superAmount, setSuperAmount] = useState(500);
   const [superText, setSuperText] = useState('');
+  const [actionError, setActionError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data: modStatus } = useQuery({
@@ -91,14 +92,20 @@ export function StreamChatPanel({
     },
     onSuccess: () => {
       setText('');
+      setActionError(null);
     },
+    onError: () => setActionError('Message failed to send.'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (messageId: string) => {
       await api.delete(`/streams/${streamId}/chat/${messageId}`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['stream-chat', streamId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['stream-chat', streamId] });
+      setActionError(null);
+    },
+    onError: () => setActionError('Could not delete message.'),
   });
 
   const timeoutMutation = useMutation({
@@ -108,12 +115,16 @@ export function StreamChatPanel({
         durationSeconds: 300,
       });
     },
+    onSuccess: () => setActionError(null),
+    onError: () => setActionError('Could not time out user.'),
   });
 
   const banMutation = useMutation({
     mutationFn: async (target: { userId?: string; username?: string }) => {
       await api.post(`/streams/${streamId}/chat/ban`, target);
     },
+    onSuccess: () => setActionError(null),
+    onError: () => setActionError('Could not ban user.'),
   });
 
   const unbanMutation = useMutation({
@@ -122,14 +133,22 @@ export function StreamChatPanel({
         targetUsername: username.replace(/^@/, ''),
       });
     },
-    onSuccess: () => setUnbanUsername(''),
+    onSuccess: () => {
+      setUnbanUsername('');
+      setActionError(null);
+    },
+    onError: () => setActionError('Could not unban user.'),
   });
 
   const pinMutation = useMutation({
     mutationFn: async (messageId: string | null) => {
       await api.patch(`/streams/${streamId}/chat/pin`, { messageId });
     },
-    onSuccess: (_, messageId) => setPinnedId(messageId),
+    onSuccess: (_, messageId) => {
+      setPinnedId(messageId);
+      setActionError(null);
+    },
+    onError: () => setActionError('Could not update pinned message.'),
   });
 
   const superChatMutation = useMutation({
@@ -145,15 +164,21 @@ export function StreamChatPanel({
     onSuccess: () => {
       setSuperText('');
       setShowSuperChat(false);
+      setActionError(null);
       void qc.invalidateQueries({ queryKey: ['stream-chat', streamId] });
     },
+    onError: () => setActionError('Could not start Super Chat checkout.'),
   });
 
   const slowModeMutation = useMutation({
     mutationFn: async (seconds: number) => {
       await api.patch(`/streams/${streamId}/chat/slow-mode`, { slowModeSeconds: seconds });
     },
-    onSuccess: (_, seconds) => setSlowMode(seconds),
+    onSuccess: (_, seconds) => {
+      setSlowMode(seconds);
+      setActionError(null);
+    },
+    onError: () => setActionError('Could not update slow mode.'),
   });
 
   const appendMessage = useCallback(
@@ -293,6 +318,9 @@ export function StreamChatPanel({
           <span className="font-medium">{displayName(pinnedMessage)}</span>
           <span className="text-on-surface-variant">: {pinnedMessage.body}</span>
         </div>
+      ) : null}
+      {actionError ? (
+        <p className="border-b border-error/20 bg-error/5 px-4 py-2 text-sm text-error">{actionError}</p>
       ) : null}
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
         {isLoading ? (
