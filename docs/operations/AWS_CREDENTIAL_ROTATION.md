@@ -105,15 +105,34 @@ const provider: AwsCredentialIdentityProvider = async () => {
 
 The app-side code is ready and defaults to today's static-key behavior when `AWS_ROLE_ARN` is unset. **Nobody should flip the switch until someone with AWS IAM access does this one-time setup and it's verified in staging:**
 
-1. Create an OIDC identity provider in AWS IAM:
-   - Provider URL: `https://oidc.fly.io/<FLY_ORG_SLUG>`
-   - Audience: `sts.amazonaws.com`
-2. Create IAM role `forge-fly-media` with:
-   - Trust policy: `sts:AssumeRoleWithWebIdentity` federated to the Fly OIDC provider, with a condition like
-     `oidc.fly.io/<ORG>:sub` matches the specific Fly app(s) (`forge-studios-api`, `forge-studios-worker`).
-   - Permission policy: same S3 + CloudFront actions currently attached to the `forge-api-media` IAM user.
-3. Set `AWS_ROLE_ARN` in Fly secrets for both apps (`forge-studios-api`, `forge-studios-worker`) — this alone activates the OIDC path, no deploy needed beyond the secret set (which restarts the machines).
-4. Leave `forge-api-media`'s static keys active as an emergency fallback until the OIDC path is proven under real production load for at least one full deploy cycle — then follow the manual-rotation steps above to deactivate and delete them.
+Ready-to-apply policy JSON lives at [`docs/operations/aws-oidc/`](./aws-oidc/) so this is close to copy-paste — the one thing it can't fill in is the exact `sub` claim Fly's OIDC token actually carries (verified below, not guessed).
+
+1. **First, decode a real Fly OIDC token to get the exact `sub` claim** — do this before creating anything, since the trust policy's `sub` condition is a real access-control boundary, not a cosmetic placeholder:
+   ```bash
+   # Run from a shell on the running forge-studios-api machine (fly ssh console -a forge-studios-api)
+   curl -sf --unix-socket /.fly/api -X POST http://localhost/v1/tokens/oidc \
+     -H 'Content-Type: application/json' -d '{"aud":"sts.amazonaws.com"}' \
+     | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
+   # Read the "sub" field from the output — that's the real value.
+   ```
+2. Create the OIDC identity provider (one-time, per AWS account):
+   ```bash
+   aws iam create-open-id-connect-provider \
+     --url "https://oidc.fly.io/<FLY_ORG_SLUG>" \
+     --client-id-list "sts.amazonaws.com" \
+     --thumbprint-list "$(echo | openssl s_client -servername oidc.fly.io -connect oidc.fly.io:443 2>/dev/null | openssl x509 -fingerprint -sha1 -noout | cut -d= -f2 | tr -d ':')"
+   ```
+3. Edit [`aws-oidc/trust-policy.json`](./aws-oidc/trust-policy.json): fill in `<AWS_ACCOUNT_ID>`, `<FLY_ORG_SLUG>`, and replace `REPLACE_ME_VERIFY_FIRST` with the real `sub` value from step 1 (repeat per Fly app if `forge-studios-api` and `forge-studios-worker` carry different `sub` values — verify both, don't assume they match). Edit [`aws-oidc/permission-policy.json`](./aws-oidc/permission-policy.json): fill in `<S3_BUCKET_NAME>`. Note this permission policy is a superset of `scripts/setup-aws-forge.sh`'s `ForgeMediaS3Policy` — it adds `s3:AbortMultipartUpload`, which the app's multipart-upload path (`AbortMultipartUploadCommand` in `video-multipart.service.ts`) calls but the existing static-key policy doesn't explicitly grant; worth checking whether that's silently working under a broader implicit grant or is an existing, separate gap on the static-key path too.
+4. Create the role and attach both policies:
+   ```bash
+   aws iam create-role --role-name forge-fly-media \
+     --assume-role-policy-document file://docs/operations/aws-oidc/trust-policy.json
+   aws iam put-role-policy --role-name forge-fly-media \
+     --policy-name ForgeMediaS3PolicyOidc \
+     --policy-document file://docs/operations/aws-oidc/permission-policy.json
+   ```
+5. Set `AWS_ROLE_ARN` in Fly secrets for both apps (`forge-studios-api`, `forge-studios-worker`) — this alone activates the OIDC path, no deploy needed beyond the secret set (which restarts the machines).
+6. Leave `forge-api-media`'s static keys active as an emergency fallback until the OIDC path is proven under real production load for at least one full deploy cycle — then follow the manual-rotation steps above to deactivate and delete them.
 
 ### Validation
 
