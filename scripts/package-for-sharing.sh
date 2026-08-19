@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build a small shareable ZIP without bloating the working tree (unless --strip-local).
-# Keeps source, configs, .env*, lockfiles, docs, CI. Strips deps/build/cache.
+# Keeps source, configs, lockfiles, docs, CI. Strips deps/build/cache/.env*.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -8,11 +8,13 @@ cd "$ROOT"
 
 STRIP_LOCAL=0
 INCLUDE_GIT=1
+INCLUDE_ENV=0
 OUTPUT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --strip-local) STRIP_LOCAL=1 ;;
     --no-git) INCLUDE_GIT=0 ;;
+    --include-env) INCLUDE_ENV=1 ;;
     -o|--output)
       OUTPUT="${2:?Missing path after $1}"
       shift
@@ -27,9 +29,14 @@ Usage: bash scripts/package-for-sharing.sh [options]
 Creates FORGE-shareable-YYYYMMDD.zip (default: parent of repo) from a clean
 rsync copy — node_modules, .next, dist, and other generated dirs are excluded.
 
+.env* files are excluded by default (they commonly hold live DB/JWT/Stripe/
+SMTP credentials) — pass --include-env only when sharing with someone who
+should already have those secrets.
+
 Options:
   --strip-local   Also delete regenerable dirs from this repo (frees ~1GB+ disk)
   --no-git        Omit .git from the archive (~14MB smaller)
+  --include-env   Include .env* files (excluded by default — may contain live secrets)
   -o PATH         Output .zip path
   -h, --help      Show this help
 
@@ -80,6 +87,12 @@ RSYNC_EXCLUDES=(
 
 if [[ "$INCLUDE_GIT" -eq 0 ]]; then
   RSYNC_EXCLUDES+=(--exclude '.git')
+fi
+
+if [[ "$INCLUDE_ENV" -eq 0 ]]; then
+  # .env*.example files are git-tracked templates, not secrets — keep those.
+  RSYNC_EXCLUDES+=(--include '.env*.example' --exclude '.env' --exclude '.env.*' --exclude '*/secrets/*.env')
+  echo "→ Excluding .env* files (pass --include-env to include them)"
 fi
 
 echo "→ Staging clean copy at $STAGING"

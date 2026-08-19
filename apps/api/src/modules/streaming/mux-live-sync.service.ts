@@ -426,6 +426,32 @@ export class MuxLiveSyncService {
     return `mux-grace-finalize:${streamId}`;
   }
 
+  /**
+   * Retries disabling a Mux live stream after endStream's inline attempt
+   * failed — otherwise a transient Mux/network error leaves the RTMP stream
+   * key live indefinitely even though FORGE's own row shows ENDED.
+   */
+  async scheduleDisableRetry(muxLiveStreamId: string): Promise<void> {
+    try {
+      await this.muxSyncQueue.add(
+        'disable-live-stream',
+        { disableMuxLiveStreamId: muxLiveStreamId },
+        {
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 5_000 },
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to enqueue Mux disable retry: ${(err as Error).message}`);
+    }
+  }
+
+  async retryDisableLiveStream(muxLiveStreamId: string): Promise<void> {
+    await this.mux.video.liveStreams.disable(muxLiveStreamId);
+  }
+
   /** Schedule exact-time finalize after webhook idle — replaces tight polling. */
   async scheduleGraceFinalize(streamId: string): Promise<void> {
     const delay = this.idleGraceMs();

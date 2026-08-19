@@ -281,9 +281,17 @@ export class AdminController {
 
   @Patch('users/bulk')
   @ApiOperation({ summary: 'Update role/status for multiple users at once (admin)' })
-  bulkUpdateUsers(@Body() dto: BulkUpdateUsersDto) {
+  async bulkUpdateUsers(@Body() dto: BulkUpdateUsersDto, @CurrentUser() admin: JwtPayload) {
     const { ids, ...rest } = dto;
-    return this.adminService.bulkUpdateUsers(ids, rest);
+    const result = await this.adminService.bulkUpdateUsers(ids, rest, admin.sub);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'user.bulk_update',
+      targetType: 'user',
+      targetId: ids.join(','),
+      metadata: { ids, ...rest, currentAdminPassword: undefined } as Record<string, unknown>,
+    });
+    return result;
   }
 
   @Patch('users/:id')
@@ -465,14 +473,34 @@ export class AdminController {
 
   @Patch('reports/bulk')
   @ApiOperation({ summary: 'Update status for multiple reports at once (admin)' })
-  bulkUpdateReports(@Body() dto: BulkUpdateReportsDto) {
-    return this.reportsService.bulkUpdateStatus(dto.ids, dto.status);
+  async bulkUpdateReports(@Body() dto: BulkUpdateReportsDto, @CurrentUser() admin: JwtPayload) {
+    const result = await this.reportsService.bulkUpdateStatus(dto.ids, dto.status);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'report.bulk_update_status',
+      targetType: 'report',
+      targetId: dto.ids.join(','),
+      metadata: { status: dto.status, count: dto.ids.length },
+    });
+    return result;
   }
 
   @Patch('reports/:id')
   @ApiOperation({ summary: 'Update report status' })
-  updateReport(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminReportStatusDto) {
-    return this.reportsService.updateStatus(id, dto.status);
+  async updateReport(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAdminReportStatusDto,
+    @CurrentUser() admin: JwtPayload,
+  ) {
+    const result = await this.reportsService.updateStatus(id, dto.status);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'report.update_status',
+      targetType: 'report',
+      targetId: id,
+      metadata: { status: dto.status },
+    });
+    return result;
   }
 
   @Get('analytics/summary')

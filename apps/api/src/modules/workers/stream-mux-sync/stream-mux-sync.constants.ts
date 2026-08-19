@@ -8,4 +8,6 @@ export type StreamMuxSyncJob = {
    * Event-driven — avoids polling Mux/DB every 45–90s for timeout.
    */
   finalizeStreamId?: string;
+  /** Retry disabling a Mux live stream after endStream's inline attempt failed. */
+  disableMuxLiveStreamId?: string;
 };

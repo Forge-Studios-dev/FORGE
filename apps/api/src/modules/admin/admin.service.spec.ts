@@ -37,6 +37,7 @@ describe('AdminService security', () => {
 
   const userRepository = {
     findOne: jest.fn(),
+    find: jest.fn(),
     update: jest.fn(),
     save: jest.fn(async (user: User) => user),
     createQueryBuilder: jest.fn(),
@@ -323,6 +324,56 @@ describe('AdminService security', () => {
       const result = await service.bulkUpdateUsers([], { role: UserRole.CREATOR });
       expect(userRepository.update).not.toHaveBeenCalled();
       expect(result).toEqual({ ok: true, updated: 0 });
+    });
+  });
+
+  describe('bulkUpdateUsers — admin escalation step-up (MED-13)', () => {
+    it('blocks a bulk grant of admin role without the caller current password', async () => {
+      userRepository.find.mockResolvedValue([
+        { id: 'user-1', role: UserRole.CREATOR },
+        { id: 'user-2', role: UserRole.CREATOR },
+      ]);
+      await expect(
+        service.bulkUpdateUsers(['user-1', 'user-2'], { role: UserRole.ADMIN }, adminUser.id),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(userRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('blocks a bulk grant of admin role with the wrong password', async () => {
+      userRepository.find.mockResolvedValue([{ id: 'user-1', role: UserRole.CREATOR }]);
+      await expect(
+        service.bulkUpdateUsers(
+          ['user-1'],
+          { role: UserRole.ADMIN, currentAdminPassword: 'wrong-password' },
+          adminUser.id,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(userRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('allows a bulk grant of admin role with the correct password, and strips it from the persisted patch', async () => {
+      userRepository.find.mockResolvedValue([
+        { id: 'user-1', role: UserRole.CREATOR },
+        { id: 'user-2', role: UserRole.CREATOR },
+      ]);
+      await service.bulkUpdateUsers(
+        ['user-1', 'user-2'],
+        { role: UserRole.ADMIN, currentAdminPassword: 'correct-password' },
+        adminUser.id,
+      );
+      expect(userRepository.update).toHaveBeenCalledWith(
+        { id: In(['user-1', 'user-2']) },
+        { role: UserRole.ADMIN },
+      );
+    });
+
+    it('does not require a password when every target is already admin', async () => {
+      userRepository.find.mockResolvedValue([{ id: 'user-1', role: UserRole.ADMIN }]);
+      await service.bulkUpdateUsers(['user-1'], { role: UserRole.ADMIN }, adminUser.id);
+      expect(userRepository.update).toHaveBeenCalledWith(
+        { id: In(['user-1']) },
+        { role: UserRole.ADMIN },
+      );
     });
   });
 

@@ -22,6 +22,7 @@ export enum PlatformXpAction {
   COMMENT_CREATE = 'comment_create',
   COURSE_ENROLL = 'course_enroll',
   LIVE_ATTEND = 'live_attend',
+  REFERRAL_SUCCESS = 'referral_success',
 }
 
 /** Max total XP any user can earn across all actions in a single calendar day. */
@@ -29,6 +30,18 @@ const GLOBAL_DAILY_XP_CAP = 500;
 /** Max XP grants allowed within any 60-second window (velocity / anti-burst guard). */
 const XP_VELOCITY_WINDOW_SEC = 60;
 const XP_VELOCITY_LIMIT = 5;
+
+/** Max community-scoped XP grants within any 60-second window (chat/post spam has no rate limit of its own). */
+const COMMUNITY_XP_VELOCITY_WINDOW_SEC = 60;
+const COMMUNITY_XP_VELOCITY_LIMIT = 10;
+
+/** Per-source daily cap for community-scoped XP — mirrors awardPlatformXp's anti-farm pattern for activity sources that would otherwise let a user farm unlimited XP by spamming posts/messages. */
+const COMMUNITY_XP_SOURCE_DAILY_CAP: Record<string, number> = {
+  community_post: 10,
+  community_post_comment: 30,
+  channel_message: 50,
+  room_message: 50,
+};
 
 const PLATFORM_XP_CONFIG: Record<string, { xp: number; dailyLimit: number }> = {
   [PlatformXpAction.VIDEO_UPLOAD]: { xp: 50, dailyLimit: 1 },
@@ -39,6 +52,7 @@ const PLATFORM_XP_CONFIG: Record<string, { xp: number; dailyLimit: number }> = {
   [PlatformXpAction.COMMENT_CREATE]: { xp: 3, dailyLimit: 20 },
   [PlatformXpAction.COURSE_ENROLL]: { xp: 20, dailyLimit: 3 },
   [PlatformXpAction.LIVE_ATTEND]: { xp: 10, dailyLimit: 3 },
+  [PlatformXpAction.REFERRAL_SUCCESS]: { xp: 100, dailyLimit: 20 },
 };
 
 /** Bonus XP awarded at streak milestone days (platform check-in). */
@@ -81,6 +95,7 @@ export const ACHIEVEMENT_CATALOG: AchievementDefinition[] = [
   { key: 'subscriber_1000', title: 'Thousand Strong', description: 'Earn 1,000 subscribers', icon: '🎯' },
   { key: 'course_complete', title: 'Lifelong Learner', description: 'Complete your first course', icon: '🎓' },
   { key: 'community_xp_1000', title: 'Community Champion', description: 'Earn 1,000 XP in a community', icon: '🏅' },
+  { key: 'first_referral', title: 'Talent Scout', description: 'Refer your first friend to FORGE', icon: '🤝' },
 ];
 
 const ACHIEVEMENT_CATALOG_MAP = new Map(ACHIEVEMENT_CATALOG.map((a) => [a.key, a]));
@@ -132,7 +147,42 @@ export class GamificationService {
     };
   }
 
-  async awardXp(userId: string, communityId: string, amount: number) {
+  async awardXp(
+    userId: string,
+    communityId: string,
+    amount: number,
+    source?: string,
+  ): Promise<{ xp: number; level: number; streak: number; awarded: number; skippedReason: string | null }> {
+    const velocityKey = `xp:community:velocity:${userId}:${communityId}`;
+    const velocityCount = await this.redis.incr(velocityKey);
+    if (velocityCount === 1) {
+      await this.redis.expire(velocityKey, COMMUNITY_XP_VELOCITY_WINDOW_SEC);
+    }
+    if (velocityCount > COMMUNITY_XP_VELOCITY_LIMIT) {
+      this.logger.warn(
+        `community_xp_velocity_blocked userId=${userId} communityId=${communityId} source=${source ?? 'unknown'}`,
+      );
+      const profile = await this.getProfile(userId, communityId);
+      return { ...profile, awarded: 0, skippedReason: 'velocity_limit_reached' };
+    }
+
+    const dailyCap = source ? COMMUNITY_XP_SOURCE_DAILY_CAP[source] : undefined;
+    if (dailyCap) {
+      const today = new Date().toISOString().slice(0, 10);
+      const dailyKey = `xp:community:daily:${userId}:${communityId}:${source}:${today}`;
+      const dailyCount = await this.redis.incr(dailyKey);
+      if (dailyCount === 1) {
+        await this.redis.expire(dailyKey, 60 * 60 * 24);
+      }
+      if (dailyCount > dailyCap) {
+        this.logger.warn(
+          `community_xp_daily_cap_blocked userId=${userId} communityId=${communityId} source=${source}`,
+        );
+        const profile = await this.getProfile(userId, communityId);
+        return { ...profile, awarded: 0, skippedReason: 'daily_source_cap_reached' };
+      }
+    }
+
     const xp = await this.xpRepository.findOne({ where: { userId, communityId } });
     const row =
       xp ??
@@ -144,7 +194,7 @@ export class GamificationService {
     await this.xpRepository.save(row);
     await this.maybeAwardLevelBadges(userId, communityId, row.level);
     await this.maybeAwardXpRoleBadges(userId, communityId, row.xp);
-    return { xp: row.xp, level: row.level, streak: row.streak };
+    return { xp: row.xp, level: row.level, streak: row.streak, awarded: amount, skippedReason: null };
   }
 
   async checkIn(userId: string, communityId: string) {

@@ -142,6 +142,8 @@ export interface Comment {
   viewerLiked?: boolean;
   viewerDisliked?: boolean;
   createdAt: string;
+  /** Soft-deleted but kept in the thread because it still has live replies — render as a tombstone, not the real content/author. */
+  isDeleted?: boolean;
 }
 
 export type NotificationType =

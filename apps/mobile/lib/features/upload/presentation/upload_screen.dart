@@ -263,6 +263,10 @@ class _UploadScreenState extends ConsumerState<UploadScreen> with WidgetsBinding
       context.go('/studio/videos/$videoId');
     } catch (e) {
       if (mounted) setState(() => _error = 'Upload failed. Check connection and try again.');
+      // The repo already persisted a PendingUpload before the transfer
+      // started — refresh it so the "Resume upload" card appears instead of
+      // silently letting the next tap presign a brand-new upload.
+      await _checkForResumableUpload();
     } finally {
       if (mounted) setState(() => _uploading = false);
     }

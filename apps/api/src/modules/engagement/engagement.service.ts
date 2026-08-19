@@ -381,7 +381,16 @@ export class EngagementService {
       .leftJoinAndSelect('c.user', 'user')
       .where('c.videoId = :videoId', { videoId })
       .andWhere('c.parentId IS NULL')
-      .andWhere('c.deletedAt IS NULL')
+      // A deleted top-level comment still shows as a "[deleted]" tombstone
+      // (see comment.mapper.ts) when it has live replies — otherwise a
+      // deletion would silently strand those replies with no visible parent
+      // in this list. A deleted comment with no replies is dropped entirely,
+      // matching a normal delete.
+      .andWhere(
+        `(c.deletedAt IS NULL OR EXISTS (
+          SELECT 1 FROM comments r WHERE r.parent_id = c.id AND r.deleted_at IS NULL
+        ))`,
+      )
       .take(limit + 1);
 
     if (!isOwner) {
@@ -456,14 +465,22 @@ export class EngagementService {
         : Buffer.from(last.createdAt.toISOString()).toString('base64')
       : null;
 
-    const total = await this.commentRepository.count({
-      where: {
-        videoId,
-        parentId: IsNull(),
-        deletedAt: IsNull(),
-        ...(isOwner ? {} : { moderationStatus: CommentModerationStatus.NONE }),
-      },
-    });
+    // Mirrors the main query's tombstone-inclusion rule (deleted comments with
+    // live replies still count) — a plain .count({where}) can't express the
+    // EXISTS subquery, so this stays a query builder count instead.
+    const totalQuery = this.commentRepository
+      .createQueryBuilder('c')
+      .where('c.videoId = :videoId', { videoId })
+      .andWhere('c.parentId IS NULL')
+      .andWhere(
+        `(c.deletedAt IS NULL OR EXISTS (
+          SELECT 1 FROM comments r WHERE r.parent_id = c.id AND r.deleted_at IS NULL
+        ))`,
+      );
+    if (!isOwner) {
+      totalQuery.andWhere('c.moderationStatus = :none', { none: CommentModerationStatus.NONE });
+    }
+    const total = await totalQuery.getCount();
 
     const likedIds = viewerId
       ? await this.getViewerLikedCommentIds(viewerId, data.map((c) => c.id))
@@ -555,9 +572,9 @@ export class EngagementService {
     const video = await this.assertCanAccessVideoComments(videoId, viewerId);
     const isOwner = !!viewerId && viewerId === video.userId;
 
-    // Don't require the parent to be un-deleted: replies are independent rows
-    // from other users, and gating on the parent's deletedAt made an entire
-    // reply thread permanently unreachable the moment its parent was removed.
+    // A tombstoned parent (deletedAt set, kept only because it still has live
+    // replies — see comment.mapper.ts) must still resolve here, otherwise
+    // opening its reply thread from the "[deleted]" row would 404.
     const parent = await this.commentRepository.findOne({
       where: { id: commentId, videoId },
     });
@@ -1099,6 +1116,12 @@ export class EngagementService {
   }
 
   async getFollowers(userId: string, limit = 20, cursor?: string, viewerId?: string) {
+    // Same channel-level block gate the profile/videos/playlists endpoints
+    // already enforce — without it, a viewer blocked by (or who blocked) the
+    // channel owner could still enumerate that channel's followers.
+    if (viewerId && (await this.isBlockedEitherWay(viewerId, userId))) {
+      throw new ForbiddenException('This channel is not available');
+    }
     const blocked =
       viewerId != null
         ? new Set(await this.getBlockedPeerIds(viewerId))
@@ -1132,6 +1155,9 @@ export class EngagementService {
   }
 
   async getFollowing(userId: string, limit = 20, cursor?: string, viewerId?: string) {
+    if (viewerId && (await this.isBlockedEitherWay(viewerId, userId))) {
+      throw new ForbiddenException('This channel is not available');
+    }
     // Prefer the signed-in viewer's block list; fall back to the list owner's.
     const blockSubject = viewerId ?? userId;
     const blocked = new Set(await this.getBlockedPeerIds(blockSubject));

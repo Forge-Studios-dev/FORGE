@@ -166,6 +166,22 @@ export class FraudDetectionService {
     );
   }
 
+  /**
+   * Suspicious-login signals computed by AuthService (it already holds the
+   * ipHash/session history needed to decide new-device vs rapid-IP-change) —
+   * this listener just persists them as a queryable/admin-visible alert
+   * instead of the account-lockout path's silent Redis counters.
+   */
+  @OnEvent('auth.login.suspicious')
+  async onSuspiciousLogin(payload: {
+    userId: string;
+    signal: FraudSignal;
+    riskScore: number;
+    metadata: Record<string, unknown>;
+  }) {
+    await this.createAlert(payload.userId, payload.signal, payload.riskScore, payload.metadata);
+  }
+
   // ── Admin queries ──────────────────────────────────────────────────────────
 
   async listAlerts(options: {

@@ -153,14 +153,45 @@ export class AdminService {
   }
 
   /** Bulk role/status change — one UPDATE for all rows, then per-user cache bust (unavoidable, cache is keyed per user). */
-  async bulkUpdateUsers(ids: string[], dto: UpdateAdminUserDto) {
+  async bulkUpdateUsers(ids: string[], dto: UpdateAdminUserDto, adminId?: string) {
     if (ids.length === 0) return { ok: true, updated: 0 };
-    await this.userRepository.update({ id: In(ids) }, dto);
+    const { currentAdminPassword, ...patch } = dto;
+
+    if (patch.role === UserRole.ADMIN) {
+      // Same step-up auth as the single-user path (MED-13) — a batch
+      // granting admin to up to 200 accounts must not skip it just because
+      // it goes through the bulk endpoint.
+      await this.assertBulkAdminEscalationAllowed(ids, adminId, currentAdminPassword);
+    }
+
+    await this.userRepository.update({ id: In(ids) }, patch);
     await Promise.all(ids.map((id) => this.authUserCache.bust(id)));
     if (dto.isActive === false) {
       await Promise.all(ids.map((id) => this.authService.logoutAll(id)));
     }
     return { ok: true, updated: ids.length };
+  }
+
+  private async assertBulkAdminEscalationAllowed(
+    targetIds: string[],
+    adminId: string | undefined,
+    currentAdminPassword: string | undefined,
+  ): Promise<void> {
+    const targets = await this.userRepository.find({
+      where: { id: In(targetIds) },
+      select: ['id', 'role'],
+    });
+    const escalatesAnyone = targets.some((t) => t.role !== UserRole.ADMIN);
+    if (!escalatesAnyone) return;
+
+    if (!adminId || !currentAdminPassword) {
+      throw new ForbiddenException('Current password required to grant admin role');
+    }
+    const caller = await this.userRepository.findOne({ where: { id: adminId } });
+    const valid = caller ? await bcrypt.compare(currentAdminPassword, caller.passwordHash) : false;
+    if (!valid) {
+      throw new ForbiddenException('Incorrect password');
+    }
   }
 
   async bulkApproveCreators(ids: string[]) {

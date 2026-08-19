@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ChannelPointsService } from './channel-points.service';
 import {
@@ -38,6 +38,7 @@ describe('ChannelPointsService', () => {
   };
 
   const fakeManager = {
+    query: jest.fn().mockResolvedValue(undefined),
     findOne: jest.fn(),
     count: jest.fn(),
     decrement: jest.fn(),
@@ -319,6 +320,56 @@ describe('ChannelPointsService', () => {
     it('does nothing when the post has no author', async () => {
       await service.onCommunityPost({ communityId: COMMUNITY_ID, post: {} });
       expect(dataSource.query).not.toHaveBeenCalled();
+    });
+
+    it('does not award a second time within the cooldown window (was previously unbounded — no earnOnce guard at all)', async () => {
+      redis.set.mockResolvedValueOnce(null); // NX lock already held -> cooldown active
+      await service.onCommunityPost({ communityId: COMMUNITY_ID, post: { authorId: USER_ID } });
+      expect(dataSource.query).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('redeem — capacity race + rejected-redemption cap accounting', () => {
+    const cappedReward = {
+      id: 'reward-1',
+      communityId: COMMUNITY_ID,
+      costPoints: 100,
+      maxPerUser: 1,
+      globalMax: 1,
+      requiresApproval: false,
+      status: ChannelPointRewardStatus.ACTIVE,
+    };
+
+    it('acquires per-reward and per-user advisory locks before checking caps/balance (TOCTOU fix)', async () => {
+      rewardRepository.findOne.mockResolvedValue(cappedReward);
+      fakeManager.findOne.mockResolvedValue({ balance: 1000 });
+      fakeManager.count.mockResolvedValue(0);
+
+      await service.redeem(USER_ID, COMMUNITY_ID, 'reward-1');
+
+      expect(fakeManager.query).toHaveBeenCalledWith(
+        expect.stringContaining('pg_advisory_xact_lock'),
+        ['channel-point-redeem:reward-1'],
+      );
+      expect(fakeManager.query).toHaveBeenCalledWith(
+        expect.stringContaining('pg_advisory_xact_lock'),
+        [`channel-point-balance:${COMMUNITY_ID}:${USER_ID}`],
+      );
+    });
+
+    it('counts PENDING redemptions toward the per-user cap, not just FULFILLED (was letting unlimited pending requests through)', async () => {
+      rewardRepository.findOne.mockResolvedValue(cappedReward);
+      fakeManager.findOne.mockResolvedValue({ balance: 1000 });
+      fakeManager.count.mockResolvedValue(1); // 1 existing PENDING/FULFILLED redemption
+
+      await expect(service.redeem(USER_ID, COMMUNITY_ID, 'reward-1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+
+      const [, countOpts] = fakeManager.count.mock.calls[0];
+      expect(countOpts.where.status).toEqual(
+        In([ChannelPointRedemptionStatus.FULFILLED, ChannelPointRedemptionStatus.PENDING]),
+      );
     });
   });
 });

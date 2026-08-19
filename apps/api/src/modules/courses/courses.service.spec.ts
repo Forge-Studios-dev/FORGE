@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CoursesService } from './courses.service';
 import { Course, CourseCohort } from './entities/course.entity';
 import {
@@ -84,6 +85,7 @@ describe('CoursesService', () => {
   const accessSessionsService = {
     requirePremiumSession: jest.fn().mockResolvedValue(undefined),
   };
+  const eventEmitterMock = { emit: jest.fn() };
   const communityRepository = {
     findOne: jest.fn(),
     save: jest.fn(async (entity: Community) => ({ ...entity, id: entity.id ?? 'community-1', slug: entity.slug ?? 'test-slug' })),
@@ -115,6 +117,19 @@ describe('CoursesService', () => {
     ]),
   };
 
+  const quizRepository = {
+    findOne: jest.fn().mockResolvedValue(null),
+    find: jest.fn().mockResolvedValue([]),
+    save: jest.fn(async (e: Partial<CourseQuiz>) => ({ ...e, id: 'quiz-1' })),
+    create: jest.fn((dto: Partial<CourseQuiz>) => dto),
+  };
+  const quizAttemptRepository = {
+    findOne: jest.fn().mockResolvedValue(null),
+    find: jest.fn().mockResolvedValue([]),
+    save: jest.fn(async (e: Partial<CourseQuizAttempt>) => ({ ...e, id: 'attempt-1' })),
+    create: jest.fn((dto: Partial<CourseQuizAttempt>) => dto),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     courseRepository.findOne.mockImplementation(async ({ where }: { where: { id?: string; creatorId?: string } }) => {
@@ -143,24 +158,8 @@ describe('CoursesService', () => {
             create: jest.fn((dto: Partial<CourseCertificate>) => dto),
           },
         },
-        {
-          provide: getRepositoryToken(CourseQuiz),
-          useValue: {
-            findOne: jest.fn().mockResolvedValue(null),
-            find: jest.fn().mockResolvedValue([]),
-            save: jest.fn(async (e: Partial<CourseQuiz>) => ({ ...e, id: 'quiz-1' })),
-            create: jest.fn((dto: Partial<CourseQuiz>) => dto),
-          },
-        },
-        {
-          provide: getRepositoryToken(CourseQuizAttempt),
-          useValue: {
-            findOne: jest.fn().mockResolvedValue(null),
-            find: jest.fn().mockResolvedValue([]),
-            save: jest.fn(async (e: Partial<CourseQuizAttempt>) => ({ ...e, id: 'attempt-1' })),
-            create: jest.fn((dto: Partial<CourseQuizAttempt>) => dto),
-          },
-        },
+        { provide: getRepositoryToken(CourseQuiz), useValue: quizRepository },
+        { provide: getRepositoryToken(CourseQuizAttempt), useValue: quizAttemptRepository },
         {
           provide: getRepositoryToken(CourseAssignment),
           useValue: {
@@ -188,6 +187,7 @@ describe('CoursesService', () => {
             getBlockedPeerIds: jest.fn().mockResolvedValue([]),
           },
         },
+        { provide: EventEmitter2, useValue: eventEmitterMock },
       ],
     }).compile();
 
@@ -229,6 +229,65 @@ describe('CoursesService', () => {
     const updated = await service.updateCourse('creator-1', 'course-1', { isPublished: true });
     expect(updated.isPublished).toBe(true);
     expect(courseRepository.save).toHaveBeenCalled();
+  });
+
+  it('emits course.published only on the false->true transition', async () => {
+    courseRepository.findOne.mockResolvedValue({ ...course, isPublished: false });
+    await service.updateCourse('creator-1', 'course-1', { isPublished: true });
+    expect(eventEmitterMock.emit).toHaveBeenCalledWith('course.published', {
+      courseId: 'course-1',
+      creatorId: 'creator-1',
+    });
+  });
+
+  it('does not re-emit course.published when the course is already published', async () => {
+    courseRepository.findOne.mockResolvedValue({ ...course, isPublished: true });
+    await service.updateCourse('creator-1', 'course-1', { title: 'Renamed' });
+    expect(eventEmitterMock.emit).not.toHaveBeenCalledWith('course.published', expect.anything());
+  });
+
+  describe('updateLessonProgress', () => {
+    beforeEach(() => {
+      enrollmentRepository.findOne.mockResolvedValue({ id: 'enroll-1', courseId: 'course-1', userId: 'user-1' });
+      lessonRepository.findOne.mockResolvedValue({ id: 'lesson-1', courseId: 'course-1' });
+    });
+
+    it('emits course.lesson.completed the first time progress reaches 100', async () => {
+      progressRepository.findOne.mockResolvedValue(undefined);
+      const result = await service.updateLessonProgress('user-1', 'course-1', 'lesson-1', 100);
+      expect(result.completedAt).toBeInstanceOf(Date);
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith('course.lesson.completed', {
+        userId: 'user-1',
+        courseId: 'course-1',
+        lessonId: 'lesson-1',
+      });
+    });
+
+    it('does not re-emit or reset completedAt on a repeat 100% update', async () => {
+      const firstCompletedAt = new Date('2026-01-01T00:00:00Z');
+      progressRepository.findOne.mockResolvedValue({
+        enrollmentId: 'enroll-1',
+        lessonId: 'lesson-1',
+        progressPercent: 100,
+        completedAt: firstCompletedAt,
+      });
+      const result = await service.updateLessonProgress('user-1', 'course-1', 'lesson-1', 100);
+      expect(result.completedAt).toBe(firstCompletedAt);
+      expect(eventEmitterMock.emit).not.toHaveBeenCalledWith(
+        'course.lesson.completed',
+        expect.anything(),
+      );
+    });
+
+    it('does not emit while progress is below 100', async () => {
+      progressRepository.findOne.mockResolvedValue(undefined);
+      const result = await service.updateLessonProgress('user-1', 'course-1', 'lesson-1', 50);
+      expect(result.completedAt).toBeUndefined();
+      expect(eventEmitterMock.emit).not.toHaveBeenCalledWith(
+        'course.lesson.completed',
+        expect.anything(),
+      );
+    });
   });
 
   it('denies unpublished course to non-creator', async () => {
@@ -469,6 +528,56 @@ describe('CoursesService', () => {
       await expect(
         service.deleteLesson('creator-1', 'course-1', 'missing-lesson'),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('quizzes', () => {
+    const quiz = {
+      id: 'quiz-1',
+      courseId: 'course-1',
+      lessonId: null,
+      title: 'Quiz 1',
+      passingScore: 70,
+      questions: [
+        { prompt: 'Q1', options: ['a', 'b'], correctAnswer: 'a' },
+        { prompt: 'Q2', options: ['a', 'b'], correctAnswer: 'b' },
+      ],
+      createdAt: new Date(),
+    };
+
+    it('strips correctAnswer from quiz questions for non-creators', async () => {
+      quizRepository.find.mockResolvedValue([quiz]);
+      courseRepository.findOne.mockResolvedValue(null);
+      const [result] = await service.listQuizzes('student-1', 'course-1');
+      expect(courseRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 'course-1', creatorId: 'student-1' },
+      });
+      expect(result.questions[0]).not.toHaveProperty('correctAnswer');
+      expect(result.questions[0]).toMatchObject({ prompt: 'Q1', options: ['a', 'b'] });
+    });
+
+    it('returns correctAnswer to the course creator', async () => {
+      quizRepository.find.mockResolvedValue([quiz]);
+      courseRepository.findOne.mockResolvedValue({ id: 'course-1', creatorId: 'creator-1' });
+      const [result] = await service.listQuizzes('creator-1', 'course-1');
+      expect(result.questions[0]).toHaveProperty('correctAnswer', 'a');
+    });
+
+    it('rejects quiz submission when the user is not enrolled', async () => {
+      quizRepository.findOne.mockResolvedValue(quiz);
+      enrollmentRepository.findOne.mockResolvedValue(null);
+      await expect(
+        service.submitQuiz('student-1', 'quiz-1', ['a', 'b']),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(quizAttemptRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('grades a quiz submission for an enrolled user', async () => {
+      quizRepository.findOne.mockResolvedValue(quiz);
+      enrollmentRepository.findOne.mockResolvedValue({ id: 'enroll-1', courseId: 'course-1', userId: 'student-1' });
+      const attempt = await service.submitQuiz('student-1', 'quiz-1', ['a', 'b']);
+      expect(attempt.scorePercent).toBe(100);
+      expect(attempt.passed).toBe(true);
     });
   });
 });

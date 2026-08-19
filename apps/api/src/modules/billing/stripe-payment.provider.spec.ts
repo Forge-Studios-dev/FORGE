@@ -92,6 +92,31 @@ describe('StripePaymentProvider — refund/dispute reversal', () => {
     });
   });
 
+  it('tags a refunded paid-event ticket charge as checkoutType event, not the generic subscription branch', async () => {
+    constructEvent.mockReturnValue({
+      type: 'charge.refunded',
+      data: {
+        object: {
+          metadata: { type: 'stream_event', userId: 'u4', streamId: 's4' },
+          payment_intent: 'pi_4',
+          invoice: null,
+        },
+      },
+    });
+
+    const result = await provider.verifyWebhook(Buffer.from('{}'), headers);
+
+    expect(result).toMatchObject({
+      handled: true,
+      checkoutType: 'event',
+      status: 'refunded',
+      paymentIntentId: 'pi_4',
+      userId: 'u4',
+      streamId: 's4',
+    });
+    expect(sessionsList).not.toHaveBeenCalled();
+  });
+
   it('still resolves a subscription refund when charge metadata has no tip type', async () => {
     constructEvent.mockReturnValue({
       type: 'charge.refunded',
@@ -139,5 +164,70 @@ describe('StripePaymentProvider — refund/dispute reversal', () => {
         }),
       }),
     );
+  });
+
+  it('forwards the fee split baked into a completed Super Chat checkout session, so the ledger matches what Stripe actually charged', async () => {
+    constructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_paid',
+          metadata: {
+            type: 'super_chat',
+            userId: 'u1',
+            streamId: 's1',
+            messageBody: 'hi',
+            platformFeePercent: '10',
+            platformFeeCents: '50',
+          },
+          amount_total: 500,
+          currency: 'usd',
+          payment_intent: 'pi_1',
+        },
+      },
+    });
+
+    const result = await provider.verifyWebhook(Buffer.from('{}'), headers);
+
+    expect(result).toMatchObject({
+      handled: true,
+      checkoutType: 'super_chat',
+      status: 'completed',
+      platformFeePercent: 10,
+      platformFeeCents: 50,
+    });
+  });
+
+  it('forwards the fee split baked into a completed Super Thanks checkout session', async () => {
+    constructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_thanks_paid',
+          metadata: {
+            type: 'super_thanks',
+            userId: 'u2',
+            videoId: 'v1',
+            creatorId: 'c2',
+            messageBody: 'thanks',
+            platformFeePercent: '10',
+            platformFeeCents: '50',
+          },
+          amount_total: 500,
+          currency: 'usd',
+          payment_intent: 'pi_2',
+        },
+      },
+    });
+
+    const result = await provider.verifyWebhook(Buffer.from('{}'), headers);
+
+    expect(result).toMatchObject({
+      handled: true,
+      checkoutType: 'super_thanks',
+      status: 'completed',
+      platformFeePercent: 10,
+      platformFeeCents: 50,
+    });
   });
 });

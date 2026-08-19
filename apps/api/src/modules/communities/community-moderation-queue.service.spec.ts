@@ -136,4 +136,59 @@ describe('CommunityModerationQueueService', () => {
     expect(aiCommunityService.scoreContentAsync).toHaveBeenCalled();
     expect(queue.add).not.toHaveBeenCalled();
   });
+
+  it('queues borderline content for manual review when the LLM never actually delivered a verdict (budget/API failure), instead of silently approving it', async () => {
+    configValues['ai.moderationLlmEnabled'] = true;
+    configValues['openai.apiKey'] = 'sk-test';
+    configValues['ai.moderationReviewThreshold'] = 0.25;
+    // model: 'regex' with flagged: false here means the config gate passed
+    // (LLM enabled+configured) but the async cascade fell back to baseline —
+    // i.e. the OpenAI call itself failed/budget-skipped, not "not configured".
+    aiCommunityService.scoreContentAsync.mockResolvedValue({
+      flagged: false,
+      score: 0.4,
+      reasons: [],
+      model: 'regex',
+    });
+    service.maybeQueueLlmTail({
+      communityId: 'comm-1',
+      surface: 'room',
+      surfaceId: 'room-1',
+      userId: 'user-1',
+      messageId: 'msg-1',
+      body: 'borderline, AI unavailable',
+      fastPathScore: 0.4,
+    });
+    await new Promise((r) => setImmediate(r));
+
+    expect(queue.add).toHaveBeenCalledWith(
+      'review-flagged',
+      expect.objectContaining({ aiUnavailable: true, detectedBy: 'llm_tail' }),
+      expect.any(Object),
+    );
+  });
+
+  it('queues for manual review when the async LLM tail throws outright', async () => {
+    configValues['ai.moderationLlmEnabled'] = true;
+    configValues['openai.apiKey'] = 'sk-test';
+    configValues['ai.moderationReviewThreshold'] = 0.25;
+    aiCommunityService.scoreContentAsync.mockRejectedValue(new Error('network down'));
+
+    service.maybeQueueLlmTail({
+      communityId: 'comm-1',
+      surface: 'room',
+      surfaceId: 'room-1',
+      userId: 'user-1',
+      messageId: 'msg-1',
+      body: 'borderline, tail throws',
+      fastPathScore: 0.4,
+    });
+    await new Promise((r) => setImmediate(r));
+
+    expect(queue.add).toHaveBeenCalledWith(
+      'review-flagged',
+      expect.objectContaining({ aiUnavailable: true }),
+      expect.any(Object),
+    );
+  });
 });

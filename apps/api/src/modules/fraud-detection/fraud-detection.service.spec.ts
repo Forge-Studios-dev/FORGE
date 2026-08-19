@@ -171,6 +171,24 @@ describe('FraudDetectionService', () => {
       await expect(service.onSubscriptionCancelled({ userId: 'user-1' })).resolves.toBeUndefined();
       expect(alertRepository.save).not.toHaveBeenCalled();
     });
+
+    it('onSuspiciousLogin persists the risk/signal computed by AuthService verbatim', async () => {
+      await service.onSuspiciousLogin({
+        userId: 'user-1',
+        signal: FraudSignal.RAPID_IP_CHANGE,
+        riskScore: 55,
+        metadata: { method: 'email', minutesSinceLastLogin: 2 },
+      });
+
+      expect(alertRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          signal: FraudSignal.RAPID_IP_CHANGE,
+          riskScore: 55,
+          metadata: { method: 'email', minutesSinceLastLogin: 2 },
+        }),
+      );
+    });
   });
 
   describe('admin queries', () => {

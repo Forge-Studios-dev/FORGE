@@ -69,6 +69,40 @@ describe('EntitlementsAnalyticsService', () => {
     expect(analytics.total).toBe(2);
   });
 
+  it('excludes trialing subscribers from MRR — a trial generates $0 until it converts', async () => {
+    const mrrAndWhere = jest.fn().mockReturnThis();
+    subscriptionRepository.createQueryBuilder
+      .mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([
+          { status: MemberSubscriptionStatus.ACTIVE, count: '1' },
+          { status: MemberSubscriptionStatus.TRIAL, count: '5' },
+        ]),
+      })
+      .mockReturnValueOnce({
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: mrrAndWhere,
+        // Only the ACTIVE subscriber's tier should ever reach this query —
+        // if the 5 trialing members' $10 tier leaked in, mrrCents would be
+        // 6099 instead of 999.
+        getMany: jest.fn().mockResolvedValue([
+          { tier: { priceCents: 999, billingInterval: BillingInterval.MONTHLY } },
+        ]),
+      });
+
+    const analytics = await service.getSubscriberAnalytics('creator-1');
+
+    expect(analytics.mrrCents).toBe(999);
+    expect(analytics.trial).toBe(5);
+    expect(mrrAndWhere).toHaveBeenCalledWith('s.status = :status', {
+      status: MemberSubscriptionStatus.ACTIVE,
+    });
+  });
+
   it('exportSubscribersCsv returns CSV header + row per subscriber', async () => {
     subscriptionRepository.createQueryBuilder.mockReturnValueOnce({
       leftJoinAndSelect: jest.fn().mockReturnThis(),

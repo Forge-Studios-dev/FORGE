@@ -81,6 +81,20 @@ export class CommunityAnalyticsService {
       [communityId, since],
     );
 
+    const [newMembersRow] = await this.dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*)::int AS count
+       FROM community_members
+       WHERE community_id = $1 AND joined_at >= $2 AND status = 'active'`,
+      [communityId, since],
+    );
+
+    const [totalMembersRow] = await this.dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*)::int AS count
+       FROM community_members
+       WHERE community_id = $1 AND status = 'active'`,
+      [communityId],
+    );
+
     const channelCount = await this.channelRepository.count({ where: { communityId } });
     const trends = await this.getCommunityDailyTrends(communityId, since);
 
@@ -94,6 +108,8 @@ export class CommunityAnalyticsService {
       activeMembersLast7Days: Number(activeRow?.count ?? 0),
       postsLast7Days: Number(postsRow?.count ?? 0),
       pollVotesLast7Days: Number(pollVotesRow?.count ?? 0),
+      newMembersLast7Days: Number(newMembersRow?.count ?? 0),
+      totalMembers: Number(totalMembersRow?.count ?? 0),
       channelCount,
       retention: await this.getCommunityRetentionMetrics(community.creatorId, communityId),
       trends,
@@ -118,9 +134,18 @@ export class CommunityAnalyticsService {
        GROUP BY 1 ORDER BY 1`,
       [communityId, since],
     );
+    const newMemberRows = await this.dataSource.query<{ day: string; count: string }[]>(
+      `SELECT to_char(date_trunc('day', joined_at), 'YYYY-MM-DD') AS day,
+              COUNT(*)::int AS count
+       FROM community_members
+       WHERE community_id = $1 AND joined_at >= $2 AND status = 'active'
+       GROUP BY 1 ORDER BY 1`,
+      [communityId, since],
+    );
     return {
       dailyMessages: messageRows.map((r) => ({ date: r.day, count: Number(r.count) })),
       dailyPosts: postRows.map((r) => ({ date: r.day, count: Number(r.count) })),
+      dailyNewMembers: newMemberRows.map((r) => ({ date: r.day, count: Number(r.count) })),
     };
   }
 
@@ -300,14 +325,28 @@ export class CommunityAnalyticsService {
         : 0;
 
     // Live event revenue (30d) from paid stream tickets
-    const [liveRevenueRow] = await this.dataSource.query<{ total: string | null }[]>(
+    const [ticketRevenueRow] = await this.dataSource.query<{ total: string | null }[]>(
       `SELECT COALESCE(SUM(sep.amount_cents), 0)::bigint AS total
        FROM stream_event_purchases sep
        INNER JOIN streams s ON s.id = sep.stream_id
        WHERE s.user_id = $1 AND sep.created_at >= $2 AND sep.status = 'completed' AND sep.grant_source = 'purchase'`,
       [creatorId, since],
     );
-    const liveRevenue30dCents = Number(liveRevenueRow?.total ?? 0);
+    const ticketRevenue30dCents = Number(ticketRevenueRow?.total ?? 0);
+
+    // Super chat revenue (30d) — was previously omitted entirely from "live revenue"
+    // even though it's a fully-billed, fee-split monetization surface (stream-chat.service.ts).
+    // Net (post-platform-fee) creator earnings, excluding refunded/disputed messages.
+    const [superChatRevenueRow] = await this.dataSource.query<{ total: string | null }[]>(
+      `SELECT COALESCE(SUM(sm.creator_net_cents), 0)::bigint AS total
+       FROM stream_messages sm
+       INNER JOIN streams s ON s.id = sm.stream_id
+       WHERE s.user_id = $1 AND sm.created_at >= $2
+         AND sm.message_type = 'super_chat' AND sm.refunded_at IS NULL`,
+      [creatorId, since],
+    );
+    const superChatRevenue30dCents = Number(superChatRevenueRow?.total ?? 0);
+    const liveRevenue30dCents = ticketRevenue30dCents + superChatRevenue30dCents;
 
     return {
       periodDays,
@@ -322,6 +361,8 @@ export class CommunityAnalyticsService {
         mrr: membership.mrrCents,
         arr: membership.mrrCents * 12,
         liveEvents30d: liveRevenue30dCents,
+        liveTickets30d: ticketRevenue30dCents,
+        superChat30d: superChatRevenue30dCents,
       },
       kpis: {
         churnRate30d,
@@ -522,6 +563,11 @@ export class CommunityAnalyticsService {
       ['membership', 'trial', a.membership.trial],
       ['membership', 'canceled', a.membership.canceled],
       ['membership', 'mrr_cents', a.membership.mrrCents],
+      ['revenue', 'mrr_cents', a.revenue.mrr],
+      ['revenue', 'arr_cents', a.revenue.arr],
+      ['revenue', 'live_tickets_30d_cents', a.revenue.liveTickets30d],
+      ['revenue', 'super_chat_30d_cents', a.revenue.superChat30d],
+      ['revenue', 'live_events_30d_cents', a.revenue.liveEvents30d],
       ['kpi', 'churn_rate_30d', a.kpis.churnRate30d],
       ['kpi', 'canceled_last_30d', a.kpis.canceledLast30Days],
       ['kpi', 'engagement_score', a.kpis.engagementScore],

@@ -383,6 +383,7 @@ describe('CommunitiesService', () => {
     jest.spyOn(analyticsService, 'getCreatorBusinessAnalytics').mockResolvedValue({
       periodDays: 30,
       membership: { active: 12, trial: 3, canceled: 5, mrrCents: 49900 },
+      revenue: { mrr: 49900, arr: 598800, liveEvents30d: 12000, liveTickets30d: 9000, superChat30d: 3000 },
       kpis: { churnRate30d: 2.5, canceledLast30Days: 5, engagementScore: 0.72, arrCents: 598800 },
       engagement: {
         engagedMembers: 8,
@@ -413,6 +414,9 @@ describe('CommunitiesService', () => {
     expect(csv).toContain('funnel,engaged_xp.rate_from_top,53');
     expect(csv).toContain('community,main.active_members_7d,9');
     expect(csv).toContain('retention_weekly,2026-W24.retention_rate,70');
+    expect(csv).toContain('revenue,live_tickets_30d_cents,9000');
+    expect(csv).toContain('revenue,super_chat_30d_cents,3000');
+    expect(csv).toContain('revenue,live_events_30d_cents,12000');
   });
 
   it('returns join metadata for private communities without access', async () => {

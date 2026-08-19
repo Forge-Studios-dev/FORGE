@@ -77,4 +77,17 @@ describe('CommunityModerationWorker', () => {
     expect(reason).toContain('surface=room');
     expect(reason).toContain('via=fast_path');
   });
+
+  it('goes straight to a manual-review report when aiUnavailable, without re-running the LLM judge (which would fail-open the same way)', async () => {
+    await worker.process(makeJob({ aiUnavailable: true, reasons: ['ai_moderation_unavailable'] }));
+
+    expect(copilotService.judgeFlaggedContent).not.toHaveBeenCalled();
+    expect(moderationService.createAutoSpamReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        communityId: 'comm-1',
+        reportedUserId: 'user-1',
+        reason: expect.stringContaining('Needs manual review'),
+      }),
+    );
+  });
 });

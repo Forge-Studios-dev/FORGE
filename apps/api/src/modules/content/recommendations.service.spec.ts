@@ -198,4 +198,44 @@ describe('RecommendationsService', () => {
       expect(engagement.getBlockedPeerIds).toHaveBeenCalledWith('viewer-1');
     });
   });
+
+  describe('discoverable-video filters (moderation/schedule/index gate)', () => {
+    // Every discovery surface (feed, search) excludes held/blocked videos,
+    // future-scheduled premieres, and not-yet-indexed videos via
+    // applyDiscoverableVideoFilters — recommendations/trending/similar used
+    // to skip all three, letting such content leak into the home "For You"
+    // feed and the public trending/recommended endpoints ahead of schedule
+    // or after a moderator action.
+    function assertHasDiscoverableFilters(query: string) {
+      expect(query).toContain("v.moderation_status = 'none'");
+      expect(query).toContain('v.scheduled_publish_at IS NULL');
+      expect(query).toContain('v.published_at IS NULL');
+      expect(query).toContain('v.indexed_at IS NOT NULL');
+    }
+
+    it('getPersonalizedFeed excludes held/scheduled/unindexed videos', async () => {
+      queryMock
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      await service.getPersonalizedFeed('user-1', { limit: 5 });
+
+      const query = queryMock.mock.calls[2][0] as string;
+      assertHasDiscoverableFilters(query);
+    });
+
+    it('getTrending excludes held/scheduled/unindexed videos', async () => {
+      queryMock.mockResolvedValueOnce([]);
+      await service.getTrending('user-1', 10);
+      assertHasDiscoverableFilters(queryMock.mock.calls[0][0] as string);
+    });
+
+    it('getSimilarVideos excludes held/scheduled/unindexed videos', async () => {
+      queryMock.mockResolvedValueOnce([]);
+      await service.getSimilarVideos('v1', 5);
+      assertHasDiscoverableFilters(queryMock.mock.calls[0][0] as string);
+    });
+  });
 });

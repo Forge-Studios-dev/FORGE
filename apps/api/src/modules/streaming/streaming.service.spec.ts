@@ -74,6 +74,11 @@ describe('StreamingService access gating', () => {
     save: jest.fn(),
     create: jest.fn(),
   };
+  const purchaseRepository = {
+    findOne: jest.fn(),
+    save: jest.fn(async (e: Partial<StreamEventPurchase>) => e),
+    create: jest.fn((x: Partial<StreamEventPurchase>) => x),
+  };
 
   beforeEach(async () => {
     entitlementsService = {
@@ -88,6 +93,8 @@ describe('StreamingService access gating', () => {
     streamRepository.findOne.mockReset();
     streamRepository.find.mockReset();
     videoRepository.findOne.mockReset();
+    purchaseRepository.findOne.mockReset();
+    purchaseRepository.save.mockReset().mockImplementation(async (e: Partial<StreamEventPurchase>) => e);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -100,7 +107,7 @@ describe('StreamingService access gating', () => {
         },
         {
           provide: getRepositoryToken(StreamEventPurchase),
-          useValue: { findOne: jest.fn(), save: jest.fn(), create: jest.fn() },
+          useValue: purchaseRepository,
         },
         {
           provide: getRepositoryToken(Community),
@@ -292,6 +299,69 @@ describe('StreamingService access gating', () => {
       expect(result?.hlsUrl).toBeNull();
     });
   });
+
+  describe('onSubscriptionCacheBusted', () => {
+    it('busts the socket-access cache for every live stream the affected creator currently has, when a subscription changes elsewhere', async () => {
+      streamRepository.find.mockResolvedValue([{ id: 'live-1' }, { id: 'live-2' }]);
+      const redisDel = jest.fn();
+      (service as unknown as { redis: { del: jest.Mock } }).redis = { del: redisDel };
+
+      await service.onSubscriptionCacheBusted({ userId: 'user-1', creatorId: 'creator-1' });
+
+      expect(streamRepository.find).toHaveBeenCalledWith({
+        where: { userId: 'creator-1', status: StreamStatus.LIVE },
+        select: ['id'],
+      });
+      expect(redisDel).toHaveBeenCalledWith('ent:stream-access:user-1:live-1');
+      expect(redisDel).toHaveBeenCalledWith('ent:stream-access:user-1:live-2');
+    });
+
+    it('is a no-op when the creator has no live streams', async () => {
+      streamRepository.find.mockResolvedValue([]);
+      const redisDel = jest.fn();
+      (service as unknown as { redis: { del: jest.Mock } }).redis = { del: redisDel };
+
+      await service.onSubscriptionCacheBusted({ userId: 'user-1', creatorId: 'creator-1' });
+
+      expect(redisDel).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('revokeEventPurchaseByPaymentIntent', () => {
+    it('flips a completed ticket purchase to refunded and busts its access cache', async () => {
+      purchaseRepository.findOne.mockResolvedValue({
+        id: 'purchase-1',
+        userId: 'user-1',
+        streamId: 'stream-1',
+        status: 'completed',
+      });
+      const redisDel = jest.fn();
+      (service as unknown as { redis: { del: jest.Mock } }).redis = { del: redisDel };
+
+      await service.revokeEventPurchaseByPaymentIntent('pi_1');
+
+      expect(purchaseRepository.findOne).toHaveBeenCalledWith({
+        where: { stripePaymentIntentId: 'pi_1', status: 'completed' },
+      });
+      expect(purchaseRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'refunded' }),
+      );
+    });
+
+    it('is a no-op when no matching completed purchase exists', async () => {
+      purchaseRepository.findOne.mockResolvedValue(null);
+
+      await service.revokeEventPurchaseByPaymentIntent('pi_missing');
+
+      expect(purchaseRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op when no paymentIntentId is provided', async () => {
+      await service.revokeEventPurchaseByPaymentIntent(undefined);
+
+      expect(purchaseRepository.findOne).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('StreamingService endStream', () => {
@@ -328,6 +398,7 @@ describe('StreamingService endStream', () => {
       {
         handleWebhookActive: jest.fn(),
         handleWebhookIdle: jest.fn(),
+        scheduleDisableRetry: jest.fn().mockResolvedValue(undefined),
       } as never,
       {
         scheduleReminder: jest.fn().mockResolvedValue(undefined),
@@ -358,6 +429,71 @@ describe('StreamingService endStream', () => {
         endReason: StreamEndReason.HOST_ENDED,
       }),
     );
+  });
+
+  it('schedules a retry when disabling the Mux live stream fails inline, but still ends the stream', async () => {
+    const emit = jest.fn();
+    const scheduleDisableRetry = jest.fn().mockResolvedValue(undefined);
+    const stream = mockStream({
+      userId: 'creator-1',
+      status: StreamStatus.LIVE,
+      muxLiveStreamId: 'real-mux-id',
+    });
+    const streamRepository = {
+      findOne: jest.fn().mockResolvedValue(stream),
+      save: jest.fn().mockImplementation((s) => Promise.resolve(s)),
+    };
+
+    const service = new StreamingService(
+      streamRepository as never,
+      { save: jest.fn(), create: jest.fn() } as never,
+      { findOne: jest.fn() } as never,
+      { findOne: jest.fn(), save: jest.fn(), create: jest.fn() } as never,
+      { findOne: jest.fn() } as never,
+      {
+        get: (key: string) => (key === 'nodeEnv' ? 'test' : 'placeholder'),
+      } as never,
+      { emit } as never,
+      { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn(), handleTrackReady: jest.fn() } as never,
+      { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
+      { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
+      {
+        isDuplicate: jest.fn().mockResolvedValue(false),
+        markProcessed: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
+        trackStreamLive: jest.fn().mockResolvedValue(undefined),
+        trackStreamEnded: jest.fn().mockResolvedValue(undefined),
+        finalizeUniqueViewers: jest.fn().mockResolvedValue(0),
+      } as never,
+      {
+        handleWebhookActive: jest.fn(),
+        handleWebhookIdle: jest.fn(),
+        scheduleDisableRetry,
+      } as never,
+      {
+        scheduleReminder: jest.fn().mockResolvedValue(undefined),
+        cancelReminder: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
+        getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+        isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+      } as never,
+      {
+        get: jest.fn().mockResolvedValue(null),
+        setex: jest.fn().mockResolvedValue('OK'),
+        del: jest.fn(),
+        scan: jest.fn().mockResolvedValue(['0', []]),
+      } as never,
+      { add: jest.fn() } as never,
+    );
+
+    jest.spyOn(service['mux'].video.liveStreams, 'disable').mockRejectedValue(new Error('Mux down'));
+
+    await service.endStream('creator-1', 'stream-1');
+
+    expect(scheduleDisableRetry).toHaveBeenCalledWith(stream.muxLiveStreamId);
+    expect(emit).toHaveBeenCalledWith('stream.ended', expect.objectContaining({ streamId: 'stream-1' }));
   });
 });
 
@@ -404,6 +540,7 @@ describe('StreamingService createStream', () => {
       {
         handleWebhookActive: jest.fn(),
         handleWebhookIdle: jest.fn(),
+        scheduleDisableRetry: jest.fn().mockResolvedValue(undefined),
       } as never,
       {
         scheduleReminder: jest.fn().mockResolvedValue(undefined),

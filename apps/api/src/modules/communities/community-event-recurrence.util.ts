@@ -85,7 +85,11 @@ export function expandCommunityEvents(
     let generated = 0;
 
     while (cursor <= horizonEnd && cursor <= seriesEnd && generated < maxOccurrences) {
-      if (cursor >= now || cursor >= event.startsAt) {
+      // cursor starts at event.startsAt and only advances forward, so
+      // `cursor >= event.startsAt` was always true here — the intended
+      // "skip past occurrences" filter never actually ran, and old
+      // occurrences of a recurring series kept showing up indefinitely.
+      if (cursor >= now) {
         const occurrenceEndsAt =
           durationMs > 0 ? new Date(cursor.getTime() + durationMs).toISOString() : null;
         expanded.push({

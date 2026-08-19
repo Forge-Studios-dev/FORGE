@@ -25,7 +25,7 @@ YouTube-replica video platform: channels, video upload/watch, subscriptions, pla
 
 Guest → user → creator (approved) · admin on separate admin app.
 
-## Status (task-level tracker: 96.6% — see [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md); this table is a simplified per-surface snapshot, see [FORGE_PROJECT_MASTER.md §16](./FORGE_PROJECT_MASTER.md#16-feature-status-matrix) for the authoritative version)
+## Status (task-level tracker: 86.3% — see [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md); this table is a simplified per-surface snapshot, see [FORGE_PROJECT_MASTER.md §16](./FORGE_PROJECT_MASTER.md#16-feature-status-matrix) for the authoritative version)
 
 | Area | API | Web | Mobile | Admin |
 |------|:---:|:---:|:------:|:-----:|

@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Button, PageHeader } from '@forge/design-system';
-import { useToast } from '@forge/design-system/client';
+import { ConfirmDialog, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 
 type AdminStream = {
@@ -32,6 +32,7 @@ export default function AdminLivePage() {
   const [grantUsername, setGrantUsername] = useState('');
   const [grantNote, setGrantNote] = useState('');
   const [chatStreamId, setChatStreamId] = useState<string | null>(null);
+  const [forceEndTarget, setForceEndTarget] = useState<{ id: string; title: string } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-streams'],
@@ -74,8 +75,12 @@ export default function AdminLivePage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-streams'] });
       toast({ title: 'Stream ended', variant: 'success' });
+      setForceEndTarget(null);
     },
-    onError: () => toast({ title: 'Could not end stream', variant: 'critical' }),
+    onError: () => {
+      toast({ title: 'Could not end stream', variant: 'critical' });
+      setForceEndTarget(null);
+    },
   });
 
   const grantAccess = useMutation({
@@ -117,6 +122,9 @@ export default function AdminLivePage() {
         '/admin/streams/backfill-mux-playback-ids',
       );
       return data.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-streams'] });
     },
     onError: () => toast({ title: 'Backfill failed', variant: 'critical' }),
   });
@@ -238,7 +246,7 @@ export default function AdminLivePage() {
                       variant="outline"
                       disabled={forceEnd.isPending}
                       className="!px-3 !py-1.5 text-sm text-error"
-                      onClick={() => forceEnd.mutate(s.id)}
+                      onClick={() => setForceEndTarget({ id: s.id, title: s.title })}
                     >
                       Force end
                     </Button>
@@ -289,6 +297,15 @@ export default function AdminLivePage() {
           ))}
         </ul>
       )}
+      <ConfirmDialog
+        open={forceEndTarget !== null}
+        title={`End "${forceEndTarget?.title ?? ''}" for all current viewers?`}
+        confirmLabel="Force end"
+        variant="danger"
+        loading={forceEnd.isPending}
+        onConfirm={() => forceEndTarget && forceEnd.mutate(forceEndTarget.id)}
+        onCancel={() => setForceEndTarget(null)}
+      />
     </div>
   );
 }

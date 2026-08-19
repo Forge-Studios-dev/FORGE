@@ -43,11 +43,13 @@ export default function CreatorApprovalsPage() {
   const approve = useMutation({
     mutationFn: (id: string) => api.post(`/admin/creators/${id}/approve`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-creators-pending'] }),
+    onError: () => toast({ title: 'Could not approve creator', variant: 'critical' }),
   });
 
   const reject = useMutation({
     mutationFn: ({ id, note }: { id: string; note?: string }) => api.post(`/admin/creators/${id}/reject`, { note }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-creators-pending'] }),
+    onError: () => toast({ title: 'Could not reject creator', variant: 'critical' }),
   });
 
   const bulkApprove = useMutation({

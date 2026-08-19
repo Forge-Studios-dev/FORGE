@@ -12,9 +12,10 @@ import {
   PlaylistVisibility,
 } from './entities/playlist.entity';
 import { PlaylistVideo } from './entities/playlist-video.entity';
-import { Video } from '../content/entities/video.entity';
+import { Video, VideoVisibility } from '../content/entities/video.entity';
 import { Like, VideoReactionType } from '../engagement/entities/like.entity';
 import { EngagementService } from '../engagement/engagement.service';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 
 const LIKED_CLEAR_BATCH = 200;
 
@@ -30,6 +31,7 @@ export class PlaylistsService {
     @InjectRepository(Like)
     private readonly likeRepository: Repository<Like>,
     private readonly engagementService: EngagementService,
+    private readonly entitlementsService: EntitlementsService,
   ) {}
 
   async create(
@@ -77,6 +79,11 @@ export class PlaylistsService {
       if (viewerId) {
         playlist.items = await this.filterBlockedCreatorItems(viewerId, playlist.items);
       }
+      // Defensive re-check: a video can become gated (moderated, made
+      // private, switched to a paid tier) after it was added to this
+      // playlist — addVideo blocks it at insert time, but existing items
+      // must not keep leaking once their video's own access rules change.
+      playlist.items = await this.filterInaccessibleItems(viewerId ?? null, playlist.items);
     }
     return playlist;
   }
@@ -92,6 +99,36 @@ export class PlaylistsService {
       const creatorId = item.video?.userId;
       return !creatorId || !blocked.has(creatorId);
     });
+  }
+
+  /** Drop items whose video the viewer isn't actually entitled to see (mirrors the video-detail access check). */
+  private async filterInaccessibleItems(
+    viewerId: string | null,
+    items: PlaylistVideo[],
+  ): Promise<PlaylistVideo[]> {
+    const results = await Promise.all(
+      items.map(async (item) => {
+        const video = item.video;
+        if (!video) return null;
+        if (
+          video.visibility === VideoVisibility.PUBLIC ||
+          video.visibility === VideoVisibility.UNLISTED
+        ) {
+          return item;
+        }
+        const isOwner = !!viewerId && video.userId === viewerId;
+        if (isOwner) return item;
+        const access = await this.entitlementsService.checkAccess({
+          creatorId: video.userId,
+          visibility: video.visibility,
+          requiredTierId: video.requiredTierId,
+          viewerId: viewerId ?? undefined,
+          isOwner,
+        });
+        return access.allowed ? item : null;
+      }),
+    );
+    return results.filter((item): item is PlaylistVideo => item != null);
   }
 
   async listByUser(userId: string, viewerId?: string | null): Promise<Playlist[]> {
@@ -263,6 +300,22 @@ export class PlaylistsService {
       video.userId &&
       (await this.engagementService.isBlockedEitherWay(requesterId, video.userId))
     ) {
+      throw new ForbiddenException('This video is not available');
+    }
+
+    // Adding a video to your own playlist must not be a side door around the
+    // same visibility/tier checks the video-detail endpoint enforces — a
+    // private/gated video added here would otherwise surface (title,
+    // thumbnail, moderation/tier metadata) to anyone who can see this playlist.
+    const isOwner = video.userId === requesterId;
+    const access = await this.entitlementsService.checkAccess({
+      creatorId: video.userId,
+      visibility: video.visibility,
+      requiredTierId: video.requiredTierId,
+      viewerId: requesterId,
+      isOwner,
+    });
+    if (!access.allowed) {
       throw new ForbiddenException('This video is not available');
     }
 

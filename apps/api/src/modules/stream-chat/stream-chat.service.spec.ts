@@ -334,16 +334,75 @@ describe('StreamChatService', () => {
     expect(result.chatMode).toBe(StreamChatMode.FOLLOWERS);
   });
 
-  it('allows delegated moderators to unban by username', async () => {
-    streamLiveService.canModerate.mockResolvedValue(true);
-    usersService.resolveUserId.mockResolvedValue('banned-1');
+  describe('moderation target guards (ban/timeout/unban)', () => {
+    beforeEach(() => {
+      streamingService.findById.mockResolvedValue({ id: 's1', userId: 'owner-1' } as Stream);
+    });
 
-    await service.unbanUser('s1', 'mod-1', { targetUsername: 'banneduser' });
+    it('allows a delegated moderator to unban a non-moderator by username', async () => {
+      // First canModerate call is the requester-authorization check; the
+      // second (inside assertModerationTargetAllowed) checks whether the
+      // *target* is themselves a moderator — only 'mod-1' is one here.
+      streamLiveService.canModerate.mockImplementation((_streamId: string, userId: string) =>
+        Promise.resolve(userId === 'mod-1'),
+      );
+      usersService.resolveUserId.mockResolvedValue('banned-1');
 
-    expect(moderationRepository.delete).toHaveBeenCalledWith({
-      streamId: 's1',
-      targetUserId: 'banned-1',
-      action: 'ban',
+      await service.unbanUser('s1', 'mod-1', { targetUsername: 'banneduser' });
+
+      expect(moderationRepository.delete).toHaveBeenCalledWith({
+        streamId: 's1',
+        targetUserId: 'banned-1',
+        action: 'ban',
+      });
+    });
+
+    it('blocks a moderator from banning the stream owner', async () => {
+      streamLiveService.canModerate.mockImplementation((_streamId: string, userId: string) =>
+        Promise.resolve(userId === 'mod-1'),
+      );
+      usersService.resolveUserId.mockResolvedValue('owner-1');
+
+      await expect(
+        service.banUser('s1', 'mod-1', { targetUsername: 'owner' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(moderationRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('blocks one moderator from banning another moderator', async () => {
+      // Both 'mod-1' (requester) and 'mod-2' (target) are moderators.
+      streamLiveService.canModerate.mockImplementation((_streamId: string, userId: string) =>
+        Promise.resolve(userId === 'mod-1' || userId === 'mod-2'),
+      );
+      usersService.resolveUserId.mockResolvedValue('mod-2');
+
+      await expect(
+        service.banUser('s1', 'mod-1', { targetUsername: 'othermod' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(moderationRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('blocks a banned moderator from unbanning themselves', async () => {
+      streamLiveService.canModerate.mockImplementation((_streamId: string, userId: string) =>
+        Promise.resolve(userId === 'mod-1'),
+      );
+      usersService.resolveUserId.mockResolvedValue('mod-1');
+
+      await expect(
+        service.unbanUser('s1', 'mod-1', { targetUsername: 'mod-1' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(moderationRepository.delete).not.toHaveBeenCalled();
+    });
+
+    it('lets the stream owner ban a moderator', async () => {
+      streamLiveService.canModerate.mockImplementation((_streamId: string, userId: string) =>
+        Promise.resolve(userId === 'owner-1' || userId === 'mod-2'),
+      );
+      usersService.resolveUserId.mockResolvedValue('mod-2');
+
+      await service.banUser('s1', 'owner-1', { targetUsername: 'othermod' });
+
+      expect(moderationRepository.save).toHaveBeenCalled();
     });
   });
 
@@ -432,6 +491,46 @@ describe('StreamChatService', () => {
       expect(messageRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           amountCents: 500,
+          platformFeePercent: 10,
+          platformFeeCents: 50,
+          creatorNetCents: 450,
+        }),
+      );
+    });
+
+    it('uses the fee percent baked into the charge at checkout time, not the live config, when both are present and differ', async () => {
+      // Live config says 25% now, but the webhook carries the 10% that was
+      // actually applied to the Stripe charge at checkout — the ledger must
+      // match what Stripe transferred, not whatever the config has drifted to.
+      (service as unknown as { configService: { get: (key: string) => unknown } }).configService = {
+        get: (key: string) => (key === 'billing.stripePlatformFeePercent' ? 25 : undefined),
+      };
+      streamingService.findById.mockResolvedValue({
+        id: 's1',
+        userId: 'c1',
+        status: 'live',
+        muxIdleSince: null,
+      } as unknown as Stream);
+      messageRepository.save.mockResolvedValue({ id: 'm1', streamId: 's1', userId: 'viewer-1', body: 'hi' });
+      messageRepository.findOne.mockResolvedValue({
+        id: 'm1',
+        streamId: 's1',
+        userId: 'viewer-1',
+        body: 'hi',
+        createdAt: new Date(),
+        user: { displayName: 'Viewer' },
+      });
+
+      await service.handleSuperChatPaid({
+        streamId: 's1',
+        userId: 'viewer-1',
+        body: 'hi',
+        amountCents: 500,
+        platformFeePercent: 10,
+      });
+
+      expect(messageRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
           platformFeePercent: 10,
           platformFeeCents: 50,
           creatorNetCents: 450,

@@ -25,14 +25,21 @@ else
   APPS=(forge-studios-api forge-studios-worker)
 fi
 
+# `fly secrets import` over stdin (not `secrets set KEY=value` CLI args) —
+# args would leave live keys in shell history and briefly visible via `ps aux`,
+# same reasoning as sync-fly-worker-secrets.sh.
+SECRETS_FILE="$(mktemp)"
+trap 'rm -f "$SECRETS_FILE"' EXIT
+cat > "$SECRETS_FILE" <<EOF
+MUX_TOKEN_ID=${MUX_TOKEN_ID}
+MUX_TOKEN_SECRET=${MUX_TOKEN_SECRET}
+MUX_WEBHOOK_SECRET=${MUX_WEBHOOK_SECRET}
+VIDEO_TRANSCODE_PROVIDER=${TRANSCODE_PROVIDER}
+EOF
+
 for app in "${APPS[@]}"; do
   echo "==> Setting Mux secrets on ${app} (VIDEO_TRANSCODE_PROVIDER=${TRANSCODE_PROVIDER})"
-  fly secrets set \
-    MUX_TOKEN_ID="${MUX_TOKEN_ID}" \
-    MUX_TOKEN_SECRET="${MUX_TOKEN_SECRET}" \
-    MUX_WEBHOOK_SECRET="${MUX_WEBHOOK_SECRET}" \
-    VIDEO_TRANSCODE_PROVIDER="${TRANSCODE_PROVIDER}" \
-    --app "${app}"
+  fly secrets import --app "${app}" < "$SECRETS_FILE"
 done
 
 echo ""

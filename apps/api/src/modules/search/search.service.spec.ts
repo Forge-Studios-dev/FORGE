@@ -138,6 +138,25 @@ describe('SearchService', () => {
       expect(videoRepository.createQueryBuilder).not.toHaveBeenCalled();
     });
 
+    it('bypasses the shared cache (read and write) for a signed-in viewer, since results are block/mute-filtered per viewer', async () => {
+      const cached = {
+        videos: [{ id: 'v1', title: 'Cached' }],
+        users: [],
+        playlists: [],
+        meta: { q: 'forge', mode: 'fts', type: 'all' },
+      };
+      redis.get.mockResolvedValue(JSON.stringify(cached));
+      videoQb.getMany.mockResolvedValue([sampleVideo('v2')]);
+      userQb.getMany.mockResolvedValue([]);
+
+      const result = await service.search('forge', 20, 'all', undefined, 'viewer-1');
+
+      // Ignored the stale cache hit and actually queried, because a viewer was present.
+      expect(videoRepository.createQueryBuilder).toHaveBeenCalled();
+      expect(result.videos).toEqual([{ id: 'v2', title: 'Title v2' }]);
+      expect(redis.setex).not.toHaveBeenCalled();
+    });
+
     it('searches via FTS and caches results', async () => {
       videoQb.getMany.mockResolvedValue([sampleVideo('v1')]);
       userQb.getMany.mockResolvedValue([sampleUser('u1')]);

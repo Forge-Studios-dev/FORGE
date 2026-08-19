@@ -11,6 +11,12 @@ describe('safeReturnPath', () => {
     expect(safeReturnPath('https://evil.com')).toBe('/');
   });
 
+  it('blocks backslash-based open redirects (WHATWG URL parsing normalizes \\ to /)', () => {
+    expect(safeReturnPath('/\\evil.com')).toBe('/');
+    expect(safeReturnPath('/\\/evil.com')).toBe('/');
+    expect(safeReturnPath('/\\\\evil.com')).toBe('/');
+  });
+
   it('blocks auth loops', () => {
     expect(safeReturnPath('/login')).toBe('/');
     expect(safeReturnPath('/login?next=/library')).toBe('/');

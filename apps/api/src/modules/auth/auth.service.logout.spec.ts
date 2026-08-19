@@ -30,6 +30,8 @@ describe('AuthService logout', () => {
     authSessionCache as never,
     { transaction: jest.fn() } as never,
     { claimReferral: jest.fn() } as never,
+    { emit: jest.fn() } as never,
+    {} as never,
   );
 
   beforeEach(() => {

@@ -11,6 +11,9 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { CommunityRoleGuard } from './guards/community-role.guard';
+import { CommunityRoles } from './decorators/community-roles.decorator';
+import { CommunityRoleType } from './entities/community-role.entity';
 
 class ScoreCommunityContentDto {
   @ApiProperty()
@@ -102,7 +105,8 @@ export class CommunityAiController {
   }
 
   @Get('creators/me/communities/:communityId/rooms/:roomId/summary')
-  @UseGuards(CreatorApprovedGuard)
+  @UseGuards(CreatorApprovedGuard, CommunityRoleGuard)
+  @CommunityRoles(CommunityRoleType.OWNER, CommunityRoleType.ADMIN, CommunityRoleType.COACH)
   @ApiOperation({ summary: 'Summarize recent text room discussion' })
   async summarizeRoom(
     @CurrentUser() user: JwtPayload,

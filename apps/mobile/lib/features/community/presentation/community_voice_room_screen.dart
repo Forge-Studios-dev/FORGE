@@ -28,6 +28,7 @@ class _CommunityVoiceRoomScreenState extends ConsumerState<CommunityVoiceRoomScr
   String? _error;
   bool _loading = true;
   bool _connecting = false;
+  bool _joinInFlight = false;
   int _tokenGeneration = 0;
 
   @override
@@ -50,6 +51,12 @@ class _CommunityVoiceRoomScreenState extends ConsumerState<CommunityVoiceRoomScr
   }
 
   Future<void> _join() async {
+    // Reachable from initState, the Retry button, and a host-approval socket
+    // event — without this guard two concurrent calls can each dispose
+    // `_room` and race to reconnect, leaving it pointing at a connection the
+    // other call already tore down.
+    if (_joinInFlight) return;
+    _joinInFlight = true;
     setState(() {
       _loading = true;
       _error = null;
@@ -105,6 +112,8 @@ class _CommunityVoiceRoomScreenState extends ConsumerState<CommunityVoiceRoomScr
           _loading = false;
         });
       }
+    } finally {
+      _joinInFlight = false;
     }
   }
 

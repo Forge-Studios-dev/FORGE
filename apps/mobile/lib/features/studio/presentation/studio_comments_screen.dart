@@ -237,6 +237,7 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
                         itemBuilder: (_, i) {
                           final c = filtered[i];
                           final user = c['user'] as Map<String, dynamic>?;
+                          final isDeleted = c['isDeleted'] == true;
                           final pinned = c['isPinned'] == true;
                           final hearted = c['creatorHearted'] == true;
                           final id = c['id'] as String?;
@@ -282,15 +283,25 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
                                         style: TextStyle(fontSize: 12, color: t.primary),
                                       ),
                                       const SizedBox(height: 8),
-                                      Text(
-                                        c['content'] as String? ?? '',
-                                        style: TextStyle(color: t.onSurface),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        '@${user?['username'] ?? 'user'}',
-                                        style: TextStyle(fontSize: 12, color: t.onSurfaceVariant),
-                                      ),
+                                      if (isDeleted)
+                                        Text(
+                                          '[deleted]',
+                                          style: TextStyle(
+                                            fontStyle: FontStyle.italic,
+                                            color: t.onSurfaceVariant,
+                                          ),
+                                        )
+                                      else ...[
+                                        Text(
+                                          c['content'] as String? ?? '',
+                                          style: TextStyle(color: t.onSurface),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          '@${user?['username'] ?? 'user'}',
+                                          style: TextStyle(fontSize: 12, color: t.onSurfaceVariant),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),
@@ -298,7 +309,7 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
                                 Wrap(
                                   spacing: 4,
                                   children: [
-                                    if (c['parentId'] == null)
+                                    if (!isDeleted && c['parentId'] == null)
                                       TextButton(
                                         onPressed: () async {
                                           try {
@@ -313,28 +324,31 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
                                         },
                                         child: Text(pinned ? 'Unpin' : 'Pin'),
                                       ),
-                                    TextButton(
-                                      onPressed: () async {
-                                        try {
-                                          await _heart(c, !hearted);
-                                        } catch (_) {
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text('Could not update heart')),
-                                            );
+                                    if (!isDeleted)
+                                      TextButton(
+                                        onPressed: () async {
+                                          try {
+                                            await _heart(c, !hearted);
+                                          } catch (_) {
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Could not update heart')),
+                                              );
+                                            }
                                           }
-                                        }
-                                      },
-                                      child: Text(hearted ? 'Remove heart' : 'Heart'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => _remove(c),
-                                      child: Text('Remove', style: TextStyle(color: t.error)),
-                                    ),
-                                    TextButton(
-                                      onPressed: id == null
-                                          ? null
-                                          : () => setState(() {
+                                        },
+                                        child: Text(hearted ? 'Remove heart' : 'Heart'),
+                                      ),
+                                    if (!isDeleted)
+                                      TextButton(
+                                        onPressed: () => _remove(c),
+                                        child: Text('Remove', style: TextStyle(color: t.error)),
+                                      ),
+                                    if (!isDeleted)
+                                      TextButton(
+                                        onPressed: id == null
+                                            ? null
+                                            : () => setState(() {
                                                 if (replying) {
                                                   _replyingTo = null;
                                                   _replyCtrl.clear();
@@ -343,8 +357,8 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
                                                   _replyCtrl.clear();
                                                 }
                                               }),
-                                      child: Text(replying ? 'Cancel' : 'Reply'),
-                                    ),
+                                        child: Text(replying ? 'Cancel' : 'Reply'),
+                                      ),
                                     TextButton(
                                       onPressed: commentHref == null
                                           ? null

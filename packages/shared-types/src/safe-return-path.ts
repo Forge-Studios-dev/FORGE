@@ -10,6 +10,11 @@ export function safeReturnPath(raw: string | null | undefined, fallback = '/'): 
   const trimmed = raw.trim();
   if (!trimmed.startsWith('/') || trimmed.startsWith('//')) return fallback;
   if (/^\/\w+:/i.test(trimmed)) return fallback;
+  // WHATWG URL parsing (browsers, Next.js router) normalizes backslashes to
+  // slashes for special schemes — `new URL('/\\evil.com', origin).href`
+  // resolves to `https://evil.com/`, so a leading `/\` bypasses the `//`
+  // open-redirect check above unless backslashes are rejected outright.
+  if (trimmed.includes('\\')) return fallback;
   const path = trimmed.length > MAX_RETURN_PATH_LEN ? trimmed.slice(0, MAX_RETURN_PATH_LEN) : trimmed;
   if (path === '/login' || path.startsWith('/login?')) return fallback;
   if (path === '/signup' || path.startsWith('/signup?')) return fallback;

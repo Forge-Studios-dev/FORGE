@@ -326,6 +326,7 @@ export class BillingService {
           body: result.superChatBody,
           amountCents: result.amountCents,
           stripeCheckoutSessionId: result.sessionId ?? null,
+          platformFeePercent: result.platformFeePercent,
         });
       }
     } else if (
@@ -333,6 +334,11 @@ export class BillingService {
       (result.status === 'refunded' || result.status === 'disputed')
     ) {
       await this.reverseTipLedger(result.checkoutType, result.sessionId);
+    } else if (
+      result.checkoutType === 'event' &&
+      (result.status === 'refunded' || result.status === 'disputed')
+    ) {
+      await this.streamingService.revokeEventPurchaseByPaymentIntent(result.paymentIntentId);
     } else if (result.checkoutType === 'super_thanks' && result.status === 'completed') {
       if (result.userId && result.videoId && result.creatorId && result.amountCents != null) {
         await this.recordSuperThanks({
@@ -343,6 +349,7 @@ export class BillingService {
           amountCents: result.amountCents,
           currency: result.currency ?? 'usd',
           stripeCheckoutSessionId: result.sessionId ?? null,
+          platformFeePercent: result.platformFeePercent,
         });
       }
     } else if (result.checkoutType === 'subscription') {
@@ -351,37 +358,57 @@ export class BillingService {
         const creatorId = result.creatorId;
         const tierId = result.tierId;
         if (userId && creatorId && tierId) {
-          await this.entitlementsService.grantSubscription(
-            userId,
-            {
-              creatorId,
-              tierId,
-              externalSubscriptionId: result.subscriptionId,
-              ...(result.communityId ? { communityId: result.communityId } : {}),
-            },
-            MemberSubscriptionSource.STRIPE,
+          // Stripe fires customer.subscription.updated on routine renewals too
+          // (period rollover), not just genuine tier changes -- re-running
+          // grantSubscription (cancel + insert a fresh row) on every renewal
+          // would reset startsAt and pile up a duplicate row per billing cycle.
+          // Only (re-)provision when there's no existing row for this
+          // subscription; if one exists with a different tier, update it in
+          // place instead (the synchronous tier-change flow already does this
+          // — this only catches a webhook-only tier change reaching us first).
+          const existing = await this.entitlementsService.getSubscriptionByExternalRef(
+            result.subscriptionId,
           );
-          if (userId) this.eventEmitter.emit('billing.subscription.created', { userId });
+          if (!existing) {
+            await this.entitlementsService.grantSubscription(
+              userId,
+              {
+                creatorId,
+                tierId,
+                externalSubscriptionId: result.subscriptionId,
+                ...(result.communityId ? { communityId: result.communityId } : {}),
+              },
+              MemberSubscriptionSource.STRIPE,
+            );
+            this.eventEmitter.emit('billing.subscription.created', { userId });
+          } else if (existing.tierId !== tierId) {
+            await this.entitlementsService.changeSubscriptionTier(existing.id, tierId);
+          }
         }
       } else if (result.status === 'trial' && result.subscriptionId) {
         const userId = result.userId;
         const creatorId = result.creatorId;
         const tierId = result.tierId;
         if (userId && creatorId && tierId) {
-          await this.entitlementsService.grantSubscription(
-            userId,
-            {
-              creatorId,
-              tierId,
-              externalSubscriptionId: result.subscriptionId,
-              ...(result.communityId ? { communityId: result.communityId } : {}),
-            },
-            MemberSubscriptionSource.STRIPE,
-          );
-          await this.entitlementsService.updateSubscriptionStatusByExternalRef(
+          const existing = await this.entitlementsService.getSubscriptionByExternalRef(
             result.subscriptionId,
-            MemberSubscriptionStatus.TRIAL,
           );
+          if (!existing) {
+            await this.entitlementsService.grantSubscription(
+              userId,
+              {
+                creatorId,
+                tierId,
+                externalSubscriptionId: result.subscriptionId,
+                ...(result.communityId ? { communityId: result.communityId } : {}),
+              },
+              MemberSubscriptionSource.STRIPE,
+            );
+            await this.entitlementsService.updateSubscriptionStatusByExternalRef(
+              result.subscriptionId,
+              MemberSubscriptionStatus.TRIAL,
+            );
+          }
         }
       } else if (result.status === 'renewal_pending' && result.subscriptionId) {
         await this.entitlementsService.updateSubscriptionStatusByExternalRef(

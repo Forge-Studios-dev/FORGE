@@ -11,7 +11,7 @@
 |-----|-----------|-----------|-------|
 | **MRR** | Monthly Recurring Revenue — sum of active subscription prices (cents) for current month | `revenue.mrr` | From `getCreatorBusinessAnalytics` |
 | **ARR** | Annual Recurring Revenue — MRR × 12 | `revenue.arr` | |
-| **Revenue (30d)** | Live event ticket revenue collected in last 30 days (cents), from `stream_event_purchases` | `membership.totalRevenue30d` | Stripe-sourced |
+| **Live Revenue (30d)** | Live-stream monetization in last 30 days (cents): paid event tickets + net (post-platform-fee) super chat revenue, refunded/disputed super chats excluded | `revenue.liveEvents30d` (= `revenue.liveTickets30d` + `revenue.superChat30d`), also mirrored at `membership.totalRevenue30d` | Fixed 2026-08-16 — previously ticket-only, silently excluded super chats |
 | **Trial Conversion** | Percentage of trial members who convert to paid within 14 days | Not yet tracked server-side | Future |
 
 ---

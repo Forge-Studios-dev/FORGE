@@ -68,6 +68,7 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
   const [guestGateMessage, setGuestGateMessage] = useState('Sign in to like community posts.');
   const [deletePostTarget, setDeletePostTarget] = useState<ChannelPost | null>(null);
+  const [actionError, setActionError] = useState('');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['channel-posts', creatorId],
@@ -111,8 +112,10 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
       await api.post(`/communities/${post.communityId}/posts/${post.id}/reactions`);
     },
     onSuccess: () => {
+      setActionError('');
       void qc.invalidateQueries({ queryKey: ['channel-posts', creatorId] });
     },
+    onError: (err) => setActionError(getApiErrorMessage(err, 'Could not like post.')),
   });
 
   const pin = useMutation({
@@ -122,8 +125,10 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
       });
     },
     onSuccess: () => {
+      setActionError('');
       void qc.invalidateQueries({ queryKey: ['channel-posts', creatorId] });
     },
+    onError: (err) => setActionError(getApiErrorMessage(err, 'Could not update pinned post.')),
   });
 
   const removePost = useMutation({
@@ -131,8 +136,10 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
       await api.delete(`/creators/me/communities/${post.communityId}/posts/${post.id}`);
     },
     onSuccess: () => {
+      setActionError('');
       void qc.invalidateQueries({ queryKey: ['channel-posts', creatorId] });
     },
+    onError: (err) => setActionError(getApiErrorMessage(err, 'Could not delete post.')),
   });
 
   const expandedCommunityId =
@@ -274,6 +281,12 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
             </button>
           </div>
         </div>
+      ) : null}
+
+      {actionError ? (
+        <p className="mb-3 text-sm text-error" role="alert">
+          {actionError}
+        </p>
       ) : null}
 
       {isLoading ? (
@@ -503,6 +516,7 @@ export function ChannelCommunityFeed({ creatorId, username }: Props) {
           if (!deletePostTarget) return;
           removePost.mutate(deletePostTarget, {
             onSuccess: () => setDeletePostTarget(null),
+            onError: () => setDeletePostTarget(null),
           });
         }}
         onCancel={() => setDeletePostTarget(null)}

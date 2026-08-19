@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { IsNull, In, Not, Repository } from 'typeorm';
 import { Course, CourseCohort } from './entities/course.entity';
 import { Community, CommunityType } from '../communities/entities/community.entity';
@@ -59,6 +60,7 @@ export class CoursesService {
     private readonly entitlementsService: EntitlementsService,
     private readonly accessSessionsService: AccessSessionsService,
     private readonly engagementService: EngagementService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // isBundle: false everywhere below — bundle-wrapper courses (formerly
@@ -213,10 +215,15 @@ export class CoursesService {
   ) {
     const course = await this.courseRepository.findOne({ where: { id: courseId, creatorId } });
     if (!course) throw new NotFoundException('Course not found');
+    const wasPublished = course.isPublished;
     if (input.title !== undefined) course.title = input.title.trim();
     if (input.description !== undefined) course.description = input.description.trim() || null;
     if (input.isPublished !== undefined) course.isPublished = input.isPublished;
-    return this.courseRepository.save(course);
+    const saved = await this.courseRepository.save(course);
+    if (!wasPublished && saved.isPublished) {
+      this.eventEmitter.emit('course.published', { courseId: saved.id, creatorId });
+    }
+    return saved;
   }
 
   /** Validate/parse optional cohort window dates; enforce end-after-start. */
@@ -533,11 +540,20 @@ export class CoursesService {
     if (!row) {
       row = this.progressRepository.create({ enrollmentId: enrollment.id, lessonId });
     }
+    const wasCompleted = !!row.completedAt;
     row.progressPercent = Math.min(100, Math.max(0, progressPercent));
-    if (row.progressPercent >= 100) {
+    if (row.progressPercent >= 100 && !wasCompleted) {
       row.completedAt = new Date();
     }
-    return this.progressRepository.save(row);
+    const saved = await this.progressRepository.save(row);
+    if (!wasCompleted && saved.completedAt) {
+      this.eventEmitter.emit('course.lesson.completed', {
+        userId,
+        courseId,
+        lessonId,
+      });
+    }
+    return saved;
   }
 
   private async getCourseOrThrow(courseId: string) {
@@ -692,12 +708,21 @@ export class CoursesService {
     );
   }
 
-  async listQuizzes(courseId: string): Promise<CourseQuiz[]> {
-    return this.quizRepository.find({
+  /** Non-creators never see `correctAnswer` — quizzes are graded server-side. */
+  async listQuizzes(userId: string, courseId: string): Promise<CourseQuiz[]> {
+    const quizzes = await this.quizRepository.find({
       where: { courseId },
       order: { createdAt: 'ASC' },
       take: MAX_LIST_LIMIT,
     });
+
+    const course = await this.courseRepository.findOne({ where: { id: courseId, creatorId: userId } });
+    if (course) return quizzes;
+
+    return quizzes.map((quiz) => ({
+      ...quiz,
+      questions: quiz.questions.map(({ correctAnswer: _correctAnswer, ...rest }) => rest),
+    })) as CourseQuiz[];
   }
 
   async submitQuiz(
@@ -707,6 +732,11 @@ export class CoursesService {
   ): Promise<CourseQuizAttempt> {
     const quiz = await this.quizRepository.findOne({ where: { id: quizId } });
     if (!quiz) throw new NotFoundException('Quiz not found');
+
+    const enrollment = await this.enrollmentRepository.findOne({
+      where: { courseId: quiz.courseId, userId },
+    });
+    if (!enrollment) throw new ForbiddenException('Not enrolled in this course');
 
     const correctCount = quiz.questions.reduce((acc, q, i) => {
       return answers[i] !== undefined && String(answers[i]) === String(q.correctAnswer) ? acc + 1 : acc;

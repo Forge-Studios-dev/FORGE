@@ -3,8 +3,8 @@ import { toPublicUserProfile, PublicUserProfile } from '../users/user.mapper';
 
 export type PublicComment = {
   id: string;
-  userId: string;
-  user: PublicUserProfile;
+  userId: string | null;
+  user: PublicUserProfile | null;
   videoId: string;
   content: string;
   parentId: string | null;
@@ -17,6 +17,8 @@ export type PublicComment = {
   createdAt: Date;
   /** Only populated for the video owner/admin — flags a comment awaiting moderation review. */
   moderationStatus?: CommentModerationStatus;
+  /** Soft-deleted but kept in the thread because it still has live replies — content/author are masked, not real. */
+  isDeleted: boolean;
 };
 
 export function toPublicComment(
@@ -28,6 +30,29 @@ export function toPublicComment(
     includeModerationStatus?: boolean;
   },
 ): PublicComment {
+  if (comment.deletedAt) {
+    // A deleted comment only ever reaches this mapper when it still has live
+    // replies (see getComments/getCommentReplies) — removed as a full row
+    // from every listing otherwise. Mask identity/content; keep id/parentId/
+    // createdAt/replyCount so the reply thread stays anchored and orderable.
+    return {
+      id: comment.id,
+      userId: null,
+      user: null,
+      videoId: comment.videoId,
+      content: '[deleted]',
+      parentId: comment.parentId,
+      likeCount: 0,
+      replyCount: extras?.replyCount,
+      isPinned: false,
+      creatorHearted: false,
+      viewerLiked: undefined,
+      viewerDisliked: undefined,
+      createdAt: comment.createdAt,
+      moderationStatus: undefined,
+      isDeleted: true,
+    };
+  }
   return {
     id: comment.id,
     userId: comment.userId,
@@ -43,5 +68,6 @@ export function toPublicComment(
     viewerDisliked: extras?.viewerDisliked,
     createdAt: comment.createdAt,
     moderationStatus: extras?.includeModerationStatus ? comment.moderationStatus : undefined,
+    isDeleted: false,
   };
 }

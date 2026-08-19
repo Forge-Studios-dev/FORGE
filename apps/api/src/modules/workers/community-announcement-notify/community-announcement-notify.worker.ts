@@ -16,7 +16,7 @@ export class CommunityAnnouncementNotifyWorker extends WorkerHost {
   }
 
   async process(job: Job<CommunityAnnouncementNotifyJobData>): Promise<void> {
-    await this.announcementNotify.fanOut(job.data);
+    await this.announcementNotify.fanOut(job);
     this.logger.debug(`Community announcement notify completed for post ${job.data.postId}`);
   }
 }
