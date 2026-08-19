@@ -223,6 +223,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 suffixIcon: _controller.text.isEmpty
                     ? null
                     : IconButton(
+                        tooltip: 'Clear search',
                         icon: Icon(Icons.clear, color: ForgeTokens.of(context).outline),
                         onPressed: () {
                           _controller.clear();

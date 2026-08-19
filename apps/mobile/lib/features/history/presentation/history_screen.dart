@@ -105,6 +105,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       appBar: AppBar(
         title: const Text('Watch history'),
         leading: IconButton(
+          tooltip: 'Back',
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
@@ -152,6 +153,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     suffixIcon: _query.isEmpty
                         ? null
                         : IconButton(
+                            tooltip: 'Clear search',
                             icon: const Icon(Icons.clear),
                             onPressed: () {
                               _searchCtrl.clear();
