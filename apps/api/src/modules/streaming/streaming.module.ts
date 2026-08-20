@@ -102,7 +102,7 @@ import { EngagementModule } from '../engagement/engagement.module';
       Community,
       CommunityRoom,
     ]),
-    UsersModule,
+    forwardRef(() => UsersModule),
     EngagementModule,
     forwardRef(() => ContentModule),
     forwardRef(() => EntitlementsModule),

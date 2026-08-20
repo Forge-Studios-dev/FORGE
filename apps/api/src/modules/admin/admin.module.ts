@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
@@ -36,17 +36,22 @@ import { AdminAuditLogModule } from '../../common/audit/admin-audit-log.module';
       CommunityReport,
       CommunityRole,
     ]),
-    StreamingModule,
-    StreamChatModule,
-    ContentModule,
-    EntitlementsModule,
+    // AdminModule is imported (directly or transitively) by nearly every
+    // other feature module, making it the hub of many require cycles (see
+    // madge --circular). Every edge below that madge flagged as part of a
+    // cycle is forwardRef'd here so load order can't leave the far side
+    // undefined, regardless of which module happens to be required first.
+    forwardRef(() => StreamingModule),
+    forwardRef(() => StreamChatModule),
+    forwardRef(() => ContentModule),
+    forwardRef(() => EntitlementsModule),
     ReportsModule,
-    AnalyticsModule,
+    forwardRef(() => AnalyticsModule),
     CategoriesModule,
-    UsersModule,
-    PlaylistsModule,
-    AuthModule,
-    BillingModule,
+    forwardRef(() => UsersModule),
+    forwardRef(() => PlaylistsModule),
+    forwardRef(() => AuthModule),
+    forwardRef(() => BillingModule),
     AccountStrikesModule,
     CopyrightModule,
     AdminAuditLogModule,
