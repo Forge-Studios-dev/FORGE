@@ -20,9 +20,9 @@ import { forwardRef } from '@nestjs/common';
   imports: [
     BullModule.registerQueue({ name: STREAM_CHAT_INGEST_QUEUE }),
     TypeOrmModule.forFeature([StreamMessage, StreamModerationAction, User]),
-    StreamingModule,
-    EntitlementsModule,
-    UsersModule,
+    forwardRef(() => StreamingModule),
+    forwardRef(() => EntitlementsModule),
+    forwardRef(() => UsersModule),
     EngagementModule,
     forwardRef(() => BillingModule),
   ],

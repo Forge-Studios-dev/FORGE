@@ -1,0 +1,63 @@
+# One-off Fly.io machine recovery (manual only). Use when a specific
+# machine is stuck/unresponsive to the Fly Machines API and is blocking
+# normal deploys or rollbacks (see docs/DEPLOY.md incident notes).
+# Required secret: FLY_API_TOKEN
+
+name: Ops — Fly machine recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Fly app name'
+        type: string
+        default: 'forge-studios-api'
+      machine_id:
+        description: 'Machine ID to act on (from flyctl machines list / the stuck-machine error)'
+        type: string
+        required: true
+      action:
+        description: 'restart (try first) or destroy (only if unresponsive/unrecoverable)'
+        type: choice
+        options: [restart, destroy]
+        default: restart
+
+jobs:
+  recover:
+    name: ${{ inputs.action }} machine
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Require Fly secret
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::Missing GitHub secret: FLY_API_TOKEN (see docs/CI_CD.md)"
+            exit 1
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # v1.5
+
+      - name: Show machine status before
+        run: flyctl machine status "${{ inputs.machine_id }}" -a "${{ inputs.app }}" || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: restart
+        if: inputs.action == 'restart'
+        run: flyctl machine restart "${{ inputs.machine_id }}" -a "${{ inputs.app }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: destroy (force)
+        if: inputs.action == 'destroy'
+        run: flyctl machine destroy "${{ inputs.machine_id }}" -a "${{ inputs.app }}" --force
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Show remaining machines
+        run: flyctl machines list -a "${{ inputs.app }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

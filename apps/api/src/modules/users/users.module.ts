@@ -19,7 +19,7 @@ import { AuthModule } from '../auth/auth.module';
     forwardRef(() => ContentModule),
     EngagementModule,
     forwardRef(() => AdminModule),
-    AuthModule,
+    forwardRef(() => AuthModule),
   ],
   controllers: [UsersController],
   providers: [UsersService],

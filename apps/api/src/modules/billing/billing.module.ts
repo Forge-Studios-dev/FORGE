@@ -76,14 +76,15 @@ import { User } from '../users/entities/user.entity';
 @Module({
   imports: [
     ConfigModule,
-    // EntitlementsModule no longer imports BillingModule back (see
-    // stripe-tier-sync.module.ts) — this is now a genuine one-way edge, so
-    // no forwardRef is needed on either side.
-    EntitlementsModule,
+    // EntitlementsModule no longer imports BillingModule back directly (see
+    // stripe-tier-sync.module.ts), but both still sit in AdminModule's much
+    // larger require cycle (madge --circular), so this edge still needs to
+    // be lazy to avoid load-order-dependent undefined-module crashes.
+    forwardRef(() => EntitlementsModule),
     EngagementModule,
     WebhookIdempotencyModule,
     forwardRef(() => StreamingModule),
-    UsersModule,
+    forwardRef(() => UsersModule),
     StripeTierSyncModule,
     TypeOrmModule.forFeature([StreamEventPurchase, Stream, User, Video, SuperThanks, StreamMessage]),
   ],
