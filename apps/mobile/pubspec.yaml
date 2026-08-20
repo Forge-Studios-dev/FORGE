@@ -27,7 +27,7 @@ dependencies:
   flutter_secure_storage: ^10.3.1
 
   # Connectivity (drives the offline screen — see core/connectivity)
-  connectivity_plus: ^7.3.0
+  connectivity_plus: ^7.3.1
 
   # Offline-first local cache for feed/watch-history/video-detail (HIGH-07)
   hive: ^2.2.3
