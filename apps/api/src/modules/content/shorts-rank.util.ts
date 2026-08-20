@@ -1,5 +1,6 @@
 /**
- * Shorts shelf ranking helpers (no ML) — freshness + engagement with soft creator diversity.
+ * Shorts shelf ranking helpers (no ML) — freshness + engagement + completion,
+ * with soft creator diversity.
  */
 
 export type ShortRankSignals = {
@@ -7,6 +8,14 @@ export type ShortRankSignals = {
   publishedAt: Date | string | null;
   viewCount: number;
   likeCount: number;
+  /**
+   * Avg watched-percent (0-100) from ShortsWatchPercentService's hourly
+   * precompute — YouTube's actual Shorts ranking weighs completion/rewatch
+   * over raw views. Null until first computed (new Short, no watch data
+   * yet) or when never recomputed (Short older than the 7-day window);
+   * contributes 0 in that case rather than penalizing new content.
+   */
+  avgWatchPercent?: number | null;
 };
 
 export function scoreShortForFeed(item: ShortRankSignals, nowMs = Date.now()): number {
@@ -23,7 +32,9 @@ export function scoreShortForFeed(item: ShortRankSignals, nowMs = Date.now()): n
   const freshness = ageHours <= 24 ? 50 : ageHours <= 168 ? 20 : 0;
   const views = Math.log10((item.viewCount || 0) + 1) * 10;
   const likes = Math.log10((item.likeCount || 0) + 1) * 5;
-  return freshness + views + likes;
+  const completion =
+    item.avgWatchPercent != null ? Math.max(0, Math.min(100, item.avgWatchPercent)) * 0.5 : 0;
+  return freshness + views + likes + completion;
 }
 
 /** Stable sort: higher score first; tie-break newer publishedAt. */

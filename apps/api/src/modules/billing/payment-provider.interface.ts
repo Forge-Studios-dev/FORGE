@@ -96,6 +96,9 @@ export type ProviderWebhookResult = {
   paymentIntentId?: string;
   superChatBody?: string;
   periodEndAt?: Date;
+  /** Fee split baked into the Stripe charge at checkout time — must be reused verbatim so the ledger never disagrees with what Stripe actually transferred, even if the live platform-fee config changes before the webhook arrives. */
+  platformFeePercent?: number;
+  platformFeeCents?: number;
 };
 
 export interface PaymentProvider {

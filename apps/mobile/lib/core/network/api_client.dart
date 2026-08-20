@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import '../constants/app_constants.dart';
 import '../router/navigation_key.dart';
+import '../socket/forge_socket.dart';
 import 'certificate_pinning.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
@@ -14,6 +15,7 @@ class ApiClient {
   late final Dio _dio;
   final FlutterSecureStorage _storage;
   final Dio Function() _createRefreshDio;
+  Future<bool>? _refreshInFlight;
 
   /// [dio], [storage], and [createRefreshDio] are test seams (HIGH-09) — real
   /// callers never pass them, so production behavior is unchanged.
@@ -56,7 +58,20 @@ class ApiClient {
     );
   }
 
-  Future<bool> _refreshTokens() async {
+  /// Multiple requests can 401 at once (e.g. app resumes with an expired
+  /// access token and several screens fire calls together). The backend's
+  /// refresh tokens are single-use with reuse-detection that revokes *every*
+  /// session on the account — so if each request independently posted the
+  /// same refresh token, only the first would succeed and every other would
+  /// look like theft, force-logging the user out everywhere. Collapsing
+  /// concurrent callers onto one in-flight refresh keeps that from happening.
+  Future<bool> _refreshTokens() {
+    return _refreshInFlight ??= _performRefresh().whenComplete(() {
+      _refreshInFlight = null;
+    });
+  }
+
+  Future<bool> _performRefresh() async {
     try {
       final refreshToken = await _storage.read(key: AppConstants.refreshTokenKey);
       if (refreshToken == null) return false;
@@ -81,6 +96,10 @@ class ApiClient {
       return true;
     } catch (_) {
       await _storage.deleteAll();
+      // Forced logout bypasses AuthRepository.logout() — the realtime socket
+      // must be torn down here too, or a same-process login as a different
+      // user would reuse it still handshake-authenticated as this session.
+      ForgeSocket.disconnect();
       final ctx = rootNavigatorKey.currentContext;
       if (ctx != null && ctx.mounted) {
         GoRouter.of(ctx).go('/login');

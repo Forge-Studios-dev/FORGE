@@ -17,6 +17,11 @@ export class StreamMuxSyncWorker extends WorkerHost {
   }
 
   async process(job: Job<StreamMuxSyncJob>): Promise<void> {
+    if (job.data.disableMuxLiveStreamId) {
+      await this.muxLiveSyncService.retryDisableLiveStream(job.data.disableMuxLiveStreamId);
+      return;
+    }
+
     if (job.data.finalizeStreamId) {
       await this.muxLiveSyncService.finalizeIfGraceExpired(job.data.finalizeStreamId);
       return;

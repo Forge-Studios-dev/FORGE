@@ -9,6 +9,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import type { Redis } from 'ioredis';
+import { FraudSignal } from '../fraud-detection/entities/fraud-alert.entity';
+import { safeRedisSetNx } from '../../common/redis/redis-safe.util';
 import type { StringValue } from 'ms';
 import { DataSource, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -63,6 +68,8 @@ export class AuthService {
     private readonly authSessionCache: AuthSessionCacheService,
     private readonly dataSource: DataSource,
     private readonly referralService: ReferralService,
+    private readonly eventEmitter: EventEmitter2,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   async signup(dto: SignupDto, meta?: ClientSessionMeta) {
@@ -326,8 +333,9 @@ export class AuthService {
     }
 
     const secret = this.configService.get<string>('jwt.secret');
+    const jti = randomBytes(16).toString('hex');
     const token = this.jwtService.sign(
-      { sub: targetUserId, adminId, purpose: 'impersonate' },
+      { sub: targetUserId, adminId, purpose: 'impersonate', jti },
       { secret, expiresIn: '120s' },
     );
 
@@ -348,15 +356,30 @@ export class AuthService {
 
   async consumeImpersonationToken(rawToken: string, meta?: ClientSessionMeta) {
     const secret = this.configService.get<string>('jwt.secret');
-    let payload: { sub?: string; adminId?: string; purpose?: string };
+    let payload: { sub?: string; adminId?: string; purpose?: string; jti?: string };
     try {
       payload = this.jwtService.verify(rawToken, { secret }) as typeof payload;
     } catch {
       throw new UnauthorizedException('Invalid or expired impersonation link');
     }
 
-    if (payload.purpose !== 'impersonate' || !payload.sub) {
+    if (payload.purpose !== 'impersonate' || !payload.sub || !payload.jti) {
       throw new UnauthorizedException('Invalid impersonation token');
+    }
+
+    // Single-use: the link is meant to be exchanged once. Without this, a leaked
+    // link (browser history, proxy logs) could be replayed within its 120s window
+    // to mint an unbounded number of persistent (refresh-token) sessions as the
+    // target user, well past the token's own short lifetime.
+    const reserved = await safeRedisSetNx(
+      this.redis,
+      `impersonate:used:${payload.jti}`,
+      '1',
+      120,
+      this.logger,
+    );
+    if (!reserved) {
+      throw new UnauthorizedException('Impersonation link already used');
     }
 
     const user = await this.userRepository.findOne({ where: { id: payload.sub } });
@@ -698,7 +721,13 @@ export class AuthService {
     };
   }
 
-  /** Flags sign-in from an IP not seen on any prior active session (suspicious-login signal). */
+  /**
+   * Flags sign-in from an IP not seen on any prior active session. Also
+   * distinguishes a merely-new device from a same-account login switching
+   * networks implausibly fast (< 10 min) — a lightweight, geo-data-free proxy
+   * for "impossible travel" — and raises the latter as a higher-risk fraud
+   * alert instead of a plain analytics event.
+   */
   private async recordNewDeviceIfNeeded(
     userId: string,
     meta: ClientSessionMeta | undefined,
@@ -709,7 +738,8 @@ export class AuthService {
 
     const prior = await this.refreshTokenRepository.find({
       where: { userId, revoked: false },
-      select: ['ipHash'],
+      select: ['ipHash', 'createdAt'],
+      order: { createdAt: 'DESC' },
       take: 20,
     });
     const known = new Set(prior.map((s) => s.ipHash).filter((h): h is string => !!h));
@@ -718,6 +748,24 @@ export class AuthService {
     void this.analyticsService.ingest(userId, {
       eventName: 'auth.login.new_device',
       properties: { method },
+    });
+
+    const lastSession = prior[0];
+    const minutesSinceLastLogin = lastSession
+      ? (Date.now() - lastSession.createdAt.getTime()) / 60_000
+      : null;
+    const isRapidIpChange = minutesSinceLastLogin !== null && minutesSinceLastLogin < 10;
+
+    this.eventEmitter.emit('auth.login.suspicious', {
+      userId,
+      signal: isRapidIpChange ? FraudSignal.RAPID_IP_CHANGE : FraudSignal.NEW_DEVICE_LOGIN,
+      riskScore: isRapidIpChange ? 55 : 25,
+      metadata: {
+        method,
+        minutesSinceLastLogin:
+          minutesSinceLastLogin !== null ? Math.round(minutesSinceLastLogin) : null,
+        priorSessionCount: prior.length,
+      },
     });
   }
 

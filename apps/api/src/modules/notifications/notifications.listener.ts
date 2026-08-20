@@ -162,9 +162,18 @@ export class NotificationsListener {
     const body = payload.title || 'Live session starting soon';
 
     const fromFollows = await this.recipientIdsFromFollowers(payload.userId, followers);
-    const recipientIds = [...new Set([...fromFollows, ...(payload.rsvpUserIds ?? [])])];
+    const recipientIds = [...new Set([...fromFollows, ...(payload.rsvpUserIds ?? [])])].slice(
+      0,
+      FANOUT_RECIPIENT_LIMIT,
+    );
+    if (!recipientIds.length) return;
 
-    await this.pushDispatch.enqueueForUsers(recipientIds, {
+    const blockedPeers = new Set(await this.engagementService.getBlockedPeerIds(payload.userId));
+    const filteredRecipients =
+      blockedPeers.size === 0 ? recipientIds : recipientIds.filter((id) => !blockedPeers.has(id));
+    if (!filteredRecipients.length) return;
+
+    await this.pushDispatch.enqueueForUsers(filteredRecipients, {
       title,
       body,
       data: { type: 'stream_reminder', streamId: payload.streamId },

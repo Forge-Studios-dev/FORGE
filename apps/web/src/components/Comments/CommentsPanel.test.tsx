@@ -241,6 +241,29 @@ describe('CommentsPanel', () => {
     expect(screen.getByPlaceholderText('Add to the discussion…')).toHaveValue('@alice ');
   });
 
+  it('renders a deleted comment as a masked tombstone, keeping its replies reachable', async () => {
+    apiGet.mockResolvedValue(
+      commentsResponse([
+        makeComment({
+          id: 'gone',
+          isDeleted: true,
+          content: 'the real deleted text',
+          user: undefined,
+          replyCount: 2,
+        }),
+      ]),
+    );
+    renderPanel();
+
+    expect(await screen.findByText('[deleted]')).toBeInTheDocument();
+    expect(screen.queryByText('the real deleted text')).not.toBeInTheDocument();
+    // No author, no like/dislike/reply/report/edit actions on a tombstone —
+    // only the reply-thread toggle survives.
+    expect(screen.queryByRole('button', { name: /like comment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reply' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2 replies' })).toBeInTheDocument();
+  });
+
   it('deletes a comment after confirming', async () => {
     apiGet.mockResolvedValue(commentsResponse([makeComment({ id: 'mine', userId: 'me' })]));
     apiDelete.mockResolvedValue({ data: {} });

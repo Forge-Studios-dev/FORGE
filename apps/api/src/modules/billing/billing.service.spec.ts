@@ -23,6 +23,7 @@ describe('BillingService', () => {
   const eventEmitter = { emit: jest.fn() };
   const streamingService = {
     grantEventPurchase: jest.fn(),
+    revokeEventPurchaseByPaymentIntent: jest.fn(),
   };
   const webhookIdempotency = {
     isDuplicate: jest.fn(),
@@ -46,6 +47,7 @@ describe('BillingService', () => {
     markSubscriptionRefunded: jest.fn(),
     updateSubscriptionStatusByExternalRef: jest.fn(),
     getSubscriptionByExternalRef: jest.fn().mockResolvedValue(null),
+    changeSubscriptionTier: jest.fn(),
   };
   const engagementService = {
     isBlockedEitherWay: jest.fn().mockResolvedValue(false),
@@ -106,6 +108,7 @@ describe('BillingService', () => {
     jest.clearAllMocks();
     engagementService.isBlockedEitherWay.mockResolvedValue(false);
     webhookIdempotency.isDuplicate.mockResolvedValue(false);
+    entitlementsService.getSubscriptionByExternalRef.mockResolvedValue(null);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ...baseProviders(),
@@ -148,6 +151,52 @@ describe('BillingService', () => {
     await service.handleWebhook(payload, { 'x-webhook-id': 'evt_1' });
 
     expect(entitlementsService.grantSubscription).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-grant (duplicate row) on a routine renewal webhook for an already-active subscription', async () => {
+    entitlementsService.getSubscriptionByExternalRef.mockResolvedValue({
+      id: 'sub-row-1',
+      tierId: 't1',
+      userId: 'u1',
+      creatorId: 'c1',
+    });
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'subscription',
+      subscriptionId: 'sub_1',
+      status: 'active',
+      userId: 'u1',
+      creatorId: 'c1',
+      tierId: 't1',
+    });
+
+    await service.handleWebhook(Buffer.from('{}'), { 'x-webhook-id': 'evt_renewal' });
+
+    expect(entitlementsService.grantSubscription).not.toHaveBeenCalled();
+    expect(entitlementsService.changeSubscriptionTier).not.toHaveBeenCalled();
+  });
+
+  it('updates the existing row in place (no new row) when a webhook reports a tier change', async () => {
+    entitlementsService.getSubscriptionByExternalRef.mockResolvedValue({
+      id: 'sub-row-1',
+      tierId: 't1',
+      userId: 'u1',
+      creatorId: 'c1',
+    });
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'subscription',
+      subscriptionId: 'sub_1',
+      status: 'active',
+      userId: 'u1',
+      creatorId: 'c1',
+      tierId: 't2',
+    });
+
+    await service.handleWebhook(Buffer.from('{}'), { 'x-webhook-id': 'evt_tier_change' });
+
+    expect(entitlementsService.changeSubscriptionTier).toHaveBeenCalledWith('sub-row-1', 't2');
+    expect(entitlementsService.grantSubscription).not.toHaveBeenCalled();
   });
 
   it('grants event purchase on completed checkout webhook', async () => {
@@ -197,6 +246,21 @@ describe('BillingService', () => {
         cancelUrl: 'https://x/c',
       }),
     ).rejects.toThrow('already have access');
+  });
+
+  it('revokes ticket access on a refunded paid-event charge webhook', async () => {
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'event',
+      status: 'refunded',
+      paymentIntentId: 'pi_4',
+      userId: 'u4',
+      streamId: 's4',
+    });
+
+    await service.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
+
+    expect(streamingService.revokeEventPurchaseByPaymentIntent).toHaveBeenCalledWith('pi_4');
   });
 
   it('marks subscription renewal_pending on invoice.upcoming webhook', async () => {
@@ -526,6 +590,52 @@ describe('BillingService', () => {
       amountCents: 1000,
       body: 'tip',
     });
+
+    expect(superThanksRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountCents: 1000,
+        platformFeePercent: 10,
+        platformFeeCents: 100,
+        creatorNetCents: 900,
+      }),
+    );
+  });
+
+  it('uses the fee percent baked into the webhook payload over a since-changed live config', async () => {
+    // Live config now says 25%, but the webhook result carries the 10% that
+    // was actually applied to the Stripe charge at checkout time — the ledger
+    // must match what Stripe transferred, not whatever the config drifted to.
+    const stubModule = await Test.createTestingModule({
+      providers: [
+        ...baseProviders(),
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) => {
+              if (key === 'billing.provider') return 'stub';
+              if (key === 'billing.stripePlatformFeePercent') return 25;
+              return '';
+            },
+          },
+        },
+      ],
+    }).compile();
+    const stubService = stubModule.get(BillingService);
+    superThanksRepository.findOne.mockResolvedValue(null);
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'super_thanks',
+      status: 'completed',
+      userId: 'fan1',
+      videoId: 'v1',
+      creatorId: 'creator1',
+      amountCents: 1000,
+      superChatBody: 'Thanks!',
+      sessionId: 'cs_drift',
+      platformFeePercent: 10,
+    });
+
+    await stubService.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
 
     expect(superThanksRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({

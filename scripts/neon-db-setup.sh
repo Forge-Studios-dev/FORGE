@@ -35,11 +35,13 @@ if [[ "$DATABASE_URL" == *localhost* ]]; then
 fi
 
 echo "==> Testing Neon connection"
-node -e "
+DATABASE_SSL_REJECT_UNAUTHORIZED="${DATABASE_SSL_REJECT_UNAUTHORIZED:-}" node -e "
 const { Client } = require('pg');
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  // Verify the cert by default, matching apps/api/src/database/parse-database-config.ts —
+  // only disable via an explicit override, never silently.
+  ssl: { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false' },
 });
 client.connect()
   .then(() => client.query('SELECT version()'))

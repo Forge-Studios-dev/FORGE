@@ -478,4 +478,21 @@ describe('EntitlementsService', () => {
     );
     expect(eventEmitter.emit).not.toHaveBeenCalledWith('community.member.suspend', expect.anything());
   });
+
+  it('busts the subscription-cache event on every access-changing write, including a tier downgrade — so other modules with their own short-lived entitlement caches (e.g. live-stream socket access) can invalidate too', async () => {
+    subscriptionRepository.findOne.mockResolvedValue({
+      id: 'sub-1',
+      userId: 'user-1',
+      creatorId: 'creator-1',
+      tierId: 'tier-expensive',
+    });
+    tierRepository.findOne.mockResolvedValue({ id: 'tier-cheap', creatorId: 'creator-1' });
+
+    await service.changeSubscriptionTier('sub-1', 'tier-cheap');
+
+    expect(eventEmitter.emit).toHaveBeenCalledWith('entitlements.subscription-cache.busted', {
+      userId: 'user-1',
+      creatorId: 'creator-1',
+    });
+  });
 });

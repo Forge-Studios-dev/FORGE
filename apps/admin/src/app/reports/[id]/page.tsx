@@ -22,19 +22,20 @@ export default function ReportDetailPage() {
   const id = params.id as string;
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [actionPending, setActionPending] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<'dismiss' | 'block-video' | null>(null);
 
   const load = async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const res = await api.get(`/admin/reports/${id}`);
       setReport(res.data.data as Report);
     } catch {
-      setError('Report not found');
+      setLoadError('Report not found');
     } finally {
       setLoading(false);
     }
@@ -46,11 +47,12 @@ export default function ReportDetailPage() {
 
   const runUpdateStatus = async (status: 'reviewed' | 'dismissed') => {
     setActionPending(true);
+    setActionError(null);
     try {
       await api.patch(`/admin/reports/${id}`, { status });
       setDone(true);
     } catch {
-      setError('Could not update report. Please try again.');
+      setActionError('Could not update report. Please try again.');
     } finally {
       setActionPending(false);
     }
@@ -66,6 +68,7 @@ export default function ReportDetailPage() {
 
   const blockVideoAndReview = async () => {
     setActionPending(true);
+    setActionError(null);
     try {
       await api.patch(`/admin/videos/${report!.targetId}`, {
         moderationStatus: 'blocked',
@@ -73,7 +76,7 @@ export default function ReportDetailPage() {
       });
       await runUpdateStatus('reviewed');
     } catch {
-      setError('Could not block video. Please try again.');
+      setActionError('Could not block video. Please try again.');
       setActionPending(false);
     }
   };
@@ -88,10 +91,10 @@ export default function ReportDetailPage() {
     return <p className="text-on-surface-variant">Loading report…</p>;
   }
 
-  if (error || !report) {
+  if (loadError || !report) {
     return (
       <section>
-        <p className="text-error">{error ?? 'Not found'}</p>
+        <p className="text-error">{loadError ?? 'Not found'}</p>
         <Link href="/reports" className="mt-4 inline-block text-sm text-primary">
           ← Back to reports
         </Link>
@@ -154,6 +157,7 @@ export default function ReportDetailPage() {
         )}
         <p className="whitespace-pre-wrap border-t border-outline-variant/20 pt-3">{report.reason}</p>
       </div>
+      {actionError ? <p className="mb-3 text-sm text-error">{actionError}</p> : null}
       <div className="flex flex-wrap gap-3">
         {report.targetType === 'video' ? (
           <>

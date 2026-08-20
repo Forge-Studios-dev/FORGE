@@ -14,6 +14,8 @@ export type OAuthExchangePayload = {
   accessToken: string;
   sessionId: string;
   user: ReturnType<typeof toPublicUser>;
+  /** Only set for the mobile flow — mobile has no HttpOnly cookie to carry it instead. */
+  refreshToken?: string;
 };
 
 const EXCHANGE_TTL_SEC = 60;
@@ -79,11 +81,13 @@ export class AuthOAuthExchangeService {
     accessToken: string;
     sessionId: string;
     user: ReturnType<typeof toPublicUser>;
+    refreshToken?: string;
   }): OAuthExchangePayload {
     return {
       accessToken: tokens.accessToken,
       sessionId: tokens.sessionId,
       user: tokens.user,
+      ...(tokens.refreshToken ? { refreshToken: tokens.refreshToken } : {}),
     };
   }
 }

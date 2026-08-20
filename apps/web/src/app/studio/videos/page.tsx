@@ -390,6 +390,9 @@ function StudioVideosPageInner() {
       await api.post(`/videos/${videoId}/cancel-upload`);
       setCancelConfirmId(null);
       await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } catch {
+      setCopyHint('Could not cancel upload');
+      setTimeout(() => setCopyHint(null), 2000);
     } finally {
       setCancellingId(null);
     }
@@ -400,6 +403,9 @@ function StudioVideosPageInner() {
     try {
       await api.patch(`/videos/${videoId}`, { scheduledPublishAt: null });
       await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } catch {
+      setCopyHint('Could not publish now');
+      setTimeout(() => setCopyHint(null), 2000);
     } finally {
       setPublishingId(null);
     }
@@ -413,6 +419,9 @@ function StudioVideosPageInner() {
         visibility: 'private',
       });
       await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } catch {
+      setCopyHint('Could not cancel schedule');
+      setTimeout(() => setCopyHint(null), 2000);
     } finally {
       setCancellingScheduleId(null);
     }
@@ -424,6 +433,9 @@ function StudioVideosPageInner() {
       await api.delete(`/videos/${videoId}`);
       setDeleteConfirmId(null);
       await queryClient.invalidateQueries({ queryKey: ['studio-videos'] });
+    } catch {
+      setCopyHint('Could not delete video');
+      setTimeout(() => setCopyHint(null), 2000);
     } finally {
       setDeletingId(null);
     }

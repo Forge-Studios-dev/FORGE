@@ -354,10 +354,19 @@ export class StreamChatService {
     });
   }
 
-  /** Same platform-fee-percent config Super Thanks uses (billing.stripePlatformFeePercent). */
-  private computeSuperChatFeeSplit(amountCents: number) {
+  /**
+   * Prefers the fee split already baked into the Stripe charge at checkout
+   * time (passed through from the webhook) over the live config, so the
+   * ledger never disagrees with what Stripe actually transferred if the
+   * platform-fee config changes between checkout and webhook delivery.
+   * Falls back to the same config Super Thanks uses (billing.stripePlatformFeePercent)
+   * only when no override is available (e.g. a caller other than the webhook path).
+   */
+  private computeSuperChatFeeSplit(amountCents: number, platformFeePercentOverride?: number) {
     const platformFeePercent =
-      this.configService.get<number>('billing.stripePlatformFeePercent') ?? 10;
+      platformFeePercentOverride ??
+      this.configService.get<number>('billing.stripePlatformFeePercent') ??
+      10;
     const platformFeeCents = Math.round((amountCents * platformFeePercent) / 100);
     const creatorNetCents = Math.max(0, amountCents - platformFeeCents);
     return { platformFeePercent, platformFeeCents, creatorNetCents };
@@ -370,6 +379,7 @@ export class StreamChatService {
     body: string;
     amountCents: number;
     stripeCheckoutSessionId?: string | null;
+    platformFeePercent?: number;
   }) {
     // Checkout can complete after the stream ended or entered the reconnect
     // grace window (payment already captured by Stripe before this event
@@ -398,7 +408,7 @@ export class StreamChatService {
       amountCents: payload.amountCents,
       highlightSeconds,
       stripeCheckoutSessionId: payload.stripeCheckoutSessionId ?? null,
-      ...this.computeSuperChatFeeSplit(payload.amountCents),
+      ...this.computeSuperChatFeeSplit(payload.amountCents, payload.platformFeePercent),
     });
   }
 
@@ -696,13 +706,43 @@ export class StreamChatService {
     return { ok: true };
   }
 
+  /**
+   * Blocks moderating the stream owner outright, and blocks a plain moderator
+   * (non-owner, non-admin) from moderating another moderator — including
+   * themselves — so a banned/timed-out moderator can't just self-unban since
+   * banning never touches their StreamModerator row.
+   */
+  private async assertModerationTargetAllowed(
+    stream: Stream,
+    requesterId: string,
+    requesterRole: UserRole | null | undefined,
+    targetUserId: string,
+  ): Promise<void> {
+    if (targetUserId === stream.userId) {
+      throw new ForbiddenException('Cannot moderate the stream owner');
+    }
+    const requesterIsOwnerOrAdmin = stream.userId === requesterId || requesterRole === UserRole.ADMIN;
+    if (!requesterIsOwnerOrAdmin) {
+      const targetIsModerator = await this.streamLiveService.canModerate(
+        stream.id,
+        targetUserId,
+        null,
+        stream,
+      );
+      if (targetIsModerator) {
+        throw new ForbiddenException('Moderators cannot moderate other moderators');
+      }
+    }
+  }
+
   async timeoutUser(
     streamId: string,
     requesterId: string,
     dto: TimeoutUserDto,
     requesterRole?: UserRole | null,
   ) {
-    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole))) {
+    const stream = await this.streamingService.findById(streamId);
+    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole, stream))) {
       throw new ForbiddenException();
     }
 
@@ -712,6 +752,7 @@ export class StreamChatService {
       userId: dto.targetUserId,
       username: dto.targetUsername,
     });
+    await this.assertModerationTargetAllowed(stream, requesterId, requesterRole, targetUserId);
 
     await this.moderationRepository.save(
       this.moderationRepository.create({
@@ -733,7 +774,8 @@ export class StreamChatService {
     dto: TimeoutUserDto,
     requesterRole?: UserRole | null,
   ) {
-    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole))) {
+    const stream = await this.streamingService.findById(streamId);
+    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole, stream))) {
       throw new ForbiddenException();
     }
 
@@ -741,6 +783,7 @@ export class StreamChatService {
       userId: dto.targetUserId,
       username: dto.targetUsername,
     });
+    await this.assertModerationTargetAllowed(stream, requesterId, requesterRole, targetUserId);
 
     await this.moderationRepository.save(
       this.moderationRepository.create({
@@ -821,7 +864,8 @@ export class StreamChatService {
     dto: TimeoutUserDto,
     requesterRole?: UserRole | null,
   ) {
-    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole))) {
+    const stream = await this.streamingService.findById(streamId);
+    if (!(await this.streamLiveService.canModerate(streamId, requesterId, requesterRole, stream))) {
       throw new ForbiddenException();
     }
 
@@ -829,6 +873,7 @@ export class StreamChatService {
       userId: dto.targetUserId,
       username: dto.targetUsername,
     });
+    await this.assertModerationTargetAllowed(stream, requesterId, requesterRole, targetUserId);
 
     await this.moderationRepository.delete({
       streamId,

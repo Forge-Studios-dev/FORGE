@@ -108,16 +108,11 @@ export class SubscriptionMaintenanceService {
 
     if (!pending.length) return;
 
-    // Batch the dedupe writes into one pipelined round-trip alongside the
-    // notification/push fanout — createMany + enqueueMany are already batched
-    // by their downstream implementations.
-    const pipeline = this.redis.pipeline();
-    for (const item of pending) {
-      pipeline.setex(item.dedupeKey, 3 * 24 * 60 * 60, '1');
-    }
-
+    // Send first, mark dedupe second — reserving the dedupe key up front (the
+    // original approach) meant a send failure still left the user "notified"
+    // for 3 days with nothing ever actually sent, since this whole method
+    // only logs and doesn't retry on throw (see runMaintenance's try/catch).
     await Promise.all([
-      pipeline.exec(),
       this.notificationsService.createMany(
         pending.map((item) => ({
           userId: item.userId,
@@ -137,5 +132,11 @@ export class SubscriptionMaintenanceService {
         })),
       ),
     ]);
+
+    const pipeline = this.redis.pipeline();
+    for (const item of pending) {
+      pipeline.setex(item.dedupeKey, 3 * 24 * 60 * 60, '1');
+    }
+    await pipeline.exec();
   }
 }

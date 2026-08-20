@@ -23,13 +23,20 @@ FEE_PERCENT="${STRIPE_PLATFORM_FEE_PERCENT:-10}"
 
 echo "==> Setting Stripe billing secrets on ${APP}"
 
-fly secrets set \
-  BILLING_PROVIDER=stripe \
-  STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY}" \
-  STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET}" \
-  STRIPE_CONNECT_REFRESH_URL="${REFRESH_URL}" \
-  STRIPE_PLATFORM_FEE_PERCENT="${FEE_PERCENT}" \
-  --app "${APP}"
+# `fly secrets import` over stdin (not `secrets set KEY=value` CLI args) —
+# args would leave live keys in shell history and briefly visible via `ps aux`,
+# same reasoning as sync-fly-worker-secrets.sh.
+SECRETS_FILE="$(mktemp)"
+trap 'rm -f "$SECRETS_FILE"' EXIT
+cat > "$SECRETS_FILE" <<EOF
+BILLING_PROVIDER=stripe
+STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+STRIPE_CONNECT_REFRESH_URL=${REFRESH_URL}
+STRIPE_PLATFORM_FEE_PERCENT=${FEE_PERCENT}
+EOF
+
+fly secrets import --app "${APP}" < "$SECRETS_FILE"
 
 echo ""
 echo "OK: Stripe secrets set on ${APP}"

@@ -9,6 +9,7 @@ import {
   CommunityEventRsvpStatus,
 } from './entities/community-event.entity';
 import { CommunitiesService } from './communities.service';
+import { getDataSourceToken } from '@nestjs/typeorm';
 
 describe('CommunityEventsService', () => {
   let service: CommunityEventsService;
@@ -41,6 +42,7 @@ describe('CommunityEventsService', () => {
     find: jest.fn().mockResolvedValue([]),
     upsert: jest.fn().mockResolvedValue({ identifiers: [{ id: 'rsvp-1' }] }),
     findOne: jest.fn(),
+    count: jest.fn().mockResolvedValue(0),
     save: jest.fn(async (entity: CommunityEventRsvp) => ({ ...entity, id: 'rsvp-1' })),
     create: jest.fn((dto: Partial<CommunityEventRsvp>) => dto),
     delete: jest.fn(),
@@ -53,6 +55,22 @@ describe('CommunityEventsService', () => {
   };
   const eventEmitter = {
     emit: jest.fn(),
+  };
+  const managerQuery = jest.fn().mockResolvedValue(undefined);
+  // Capacity-checked RSVPs now go through a transaction (advisory lock) --
+  // delegate the manager's entity-scoped calls straight to rsvpRepository so
+  // existing assertions on it keep working for the capacity-race tests below.
+  const dataSource = {
+    transaction: jest.fn(async (work: (manager: unknown) => Promise<unknown>) => {
+      const manager = {
+        query: managerQuery,
+        findOne: (_entity: unknown, opts: unknown) => rsvpRepository.findOne(opts),
+        count: (_entity: unknown, opts: unknown) => rsvpRepository.count(opts),
+        upsert: (_entity: unknown, dto: unknown, opts: unknown) =>
+          rsvpRepository.upsert(dto, opts),
+      };
+      return work(manager);
+    }),
   };
 
   beforeEach(async () => {
@@ -71,6 +89,7 @@ describe('CommunityEventsService', () => {
         { provide: getRepositoryToken(CommunityEventRsvp), useValue: rsvpRepository },
         { provide: CommunitiesService, useValue: communitiesService },
         { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: getDataSourceToken(), useValue: dataSource },
       ],
     }).compile();
 
@@ -168,5 +187,77 @@ describe('CommunityEventsService', () => {
     const result = await service.deleteEvent('creator-1', 'comm-1', 'evt-1');
     expect(rsvpRepository.delete).toHaveBeenCalledWith({ eventId: 'evt-1' });
     expect(result.deleted).toBe(true);
+  });
+
+  describe('rsvp — office_hours capacity', () => {
+    const officeHoursEvent = {
+      ...event,
+      id: 'evt-oh',
+      eventType: 'office_hours',
+      capacity: 2,
+    } as CommunityEvent;
+
+    beforeEach(() => {
+      eventRepository.findOne.mockImplementation(
+        async ({ where }: { where: Partial<CommunityEvent> }) => {
+          if (where.id === officeHoursEvent.id) return officeHoursEvent;
+          return null;
+        },
+      );
+    });
+
+    it('serializes the capacity check behind a per-event advisory lock (TOCTOU fix)', async () => {
+      rsvpRepository.findOne.mockResolvedValue(null);
+      rsvpRepository.count.mockResolvedValue(0);
+
+      await service.rsvp('user-1', 'comm-1', 'evt-oh', CommunityEventRsvpStatus.GOING);
+
+      expect(dataSource.transaction).toHaveBeenCalled();
+      expect(managerQuery).toHaveBeenCalledWith(
+        expect.stringContaining('pg_advisory_xact_lock'),
+        ['community-event-rsvp:evt-oh'],
+      );
+      expect(rsvpRepository.upsert).toHaveBeenCalledWith(
+        { eventId: 'evt-oh', userId: 'user-1', status: CommunityEventRsvpStatus.GOING },
+        { conflictPaths: ['eventId', 'userId'] },
+      );
+    });
+
+    it('rejects a new GOING rsvp once the slot is at capacity', async () => {
+      rsvpRepository.findOne.mockResolvedValue(null);
+      rsvpRepository.count.mockResolvedValue(2); // already at capacity
+
+      await expect(
+        service.rsvp('user-3', 'comm-1', 'evt-oh', CommunityEventRsvpStatus.GOING),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(rsvpRepository.upsert).not.toHaveBeenCalled();
+    });
+
+    it('allows a user already GOING to re-submit without re-checking capacity (status unchanged)', async () => {
+      rsvpRepository.findOne.mockResolvedValue({
+        id: 'rsvp-1',
+        eventId: 'evt-oh',
+        userId: 'user-1',
+        status: CommunityEventRsvpStatus.GOING,
+      } as CommunityEventRsvp);
+      rsvpRepository.count.mockResolvedValue(2); // at capacity, but this user already holds a slot
+
+      await service.rsvp('user-1', 'comm-1', 'evt-oh', CommunityEventRsvpStatus.GOING);
+
+      expect(rsvpRepository.count).not.toHaveBeenCalled();
+      expect(rsvpRepository.upsert).toHaveBeenCalled();
+    });
+
+    it('does not capacity-check or lock a non-GOING status (e.g. cancelling)', async () => {
+      rsvpRepository.findOne.mockResolvedValue(null);
+
+      await service.rsvp('user-1', 'comm-1', 'evt-oh', CommunityEventRsvpStatus.NOT_GOING);
+
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+      expect(rsvpRepository.upsert).toHaveBeenCalledWith(
+        { eventId: 'evt-oh', userId: 'user-1', status: CommunityEventRsvpStatus.NOT_GOING },
+        { conflictPaths: ['eventId', 'userId'] },
+      );
+    });
   });
 });

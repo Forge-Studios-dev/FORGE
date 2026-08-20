@@ -171,7 +171,9 @@ describe('ReferralService', () => {
       });
       const result = await service.grantReward('newuser2');
       expect(result.rewarded).toBe(true);
-      expect(gamificationService.awardPlatformXp).toHaveBeenCalled();
+      expect(gamificationService.awardPlatformXp).toHaveBeenCalledTimes(1);
+      expect(gamificationService.awardPlatformXp).toHaveBeenCalledWith('referrer1', 'referral_success');
+      expect(gamificationService.unlockAchievement).toHaveBeenCalledWith('referrer1', 'first_referral');
     } finally {
       if (prev === undefined) delete process.env.FEATURES_SKILL_ECONOMY_LMS;
       else process.env.FEATURES_SKILL_ECONOMY_LMS = prev;

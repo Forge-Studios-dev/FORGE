@@ -37,4 +37,15 @@ describe('RolesGuard', () => {
     reflector.getAllAndOverride.mockReturnValue([UserRole.ADMIN]);
     expect(() => guard.canActivate(ctx(UserRole.USER))).toThrow(ForbiddenException);
   });
+
+  it('denies (not throws unhandled) when roles are required but no user is on the request', () => {
+    reflector.getAllAndOverride.mockReturnValue([UserRole.ADMIN]);
+    const noUserCtx = {
+      getHandler: () => ({}),
+      getClass: () => ({}),
+      switchToHttp: () => ({ getRequest: () => ({}) }),
+    } as ExecutionContext;
+
+    expect(() => guard.canActivate(noUserCtx)).toThrow(ForbiddenException);
+  });
 });

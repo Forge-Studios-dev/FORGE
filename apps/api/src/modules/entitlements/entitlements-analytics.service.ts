@@ -96,13 +96,14 @@ export class EntitlementsAnalyticsService {
     const trial = byStatus[MemberSubscriptionStatus.TRIAL] ?? 0;
     const canceled = byStatus[MemberSubscriptionStatus.CANCELED] ?? 0;
 
+    // MRR is active-paying revenue only (see docs/CREATOR_KPI_DEFINITIONS.md)
+    // — a trialing member generates $0 today, so counting their tier price
+    // overstates recurring revenue until they actually convert.
     const payingSubs = await this.subscriptionRepository
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.tier', 'tier')
       .where('s.creator_id = :creatorId', { creatorId })
-      .andWhere('s.status IN (:...statuses)', {
-        statuses: [MemberSubscriptionStatus.ACTIVE, MemberSubscriptionStatus.TRIAL],
-      })
+      .andWhere('s.status = :status', { status: MemberSubscriptionStatus.ACTIVE })
       .getMany();
     const mrrCents = payingSubs.reduce(
       (sum, sub) =>

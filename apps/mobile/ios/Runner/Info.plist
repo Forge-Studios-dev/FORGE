@@ -49,6 +49,19 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Catches the redirect back from the system browser after Google OAuth
+	     (see auth.controller.ts googleCallback, oauth.google.mobileSuccessUrl). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.forgestudios.app.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>forge</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

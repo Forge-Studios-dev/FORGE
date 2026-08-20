@@ -43,12 +43,14 @@ Map<String, dynamic> _commentJson(
   String username = 'viewer1',
   bool isPinned = false,
   bool creatorHearted = false,
+  bool isDeleted = false,
 }) =>
     {
       'id': id,
       'content': content,
       'isPinned': isPinned,
       'creatorHearted': creatorHearted,
+      'isDeleted': isDeleted,
       'user': {'username': username, 'displayName': username},
       'createdAt': '2026-01-01T00:00:00.000Z',
     };
@@ -156,5 +158,26 @@ void main() {
       adapter.requests.any((r) => r.method == 'DELETE' && r.uri.path == '/videos/v1/comments/c1'),
       isTrue,
     );
+  });
+
+  testWidgets('renders a tombstone for a deleted comment with no moderation actions', (tester) async {
+    final client = fakeApiClient({
+      'GET /videos/studio': (_) => _studioVideos([_videoJson('v1')]),
+      'GET /videos/v1/comments': (_) => _comments([
+            _commentJson('c1', content: 'This was removed', username: 'gone', isDeleted: true),
+          ]),
+    });
+
+    useTallViewport(tester);
+    addTearDown(tester.view.resetPhysicalSize);
+    await pumpForgeScreen(tester, const StudioCommentsScreen(), client: client);
+
+    expect(find.text('[deleted]'), findsOneWidget);
+    expect(find.text('This was removed'), findsNothing);
+    expect(find.text('@gone'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Pin'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Heart'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Remove'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Reply'), findsNothing);
   });
 }

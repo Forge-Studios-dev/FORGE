@@ -14,7 +14,8 @@ describe('CommunityAnnouncementNotifyWorker', () => {
       title: 'New announcement',
       body: 'Hello members',
     },
-  } as Job<CommunityAnnouncementNotifyJobData>;
+    updateData: jest.fn().mockResolvedValue(undefined),
+  } as unknown as Job<CommunityAnnouncementNotifyJobData>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -23,7 +24,7 @@ describe('CommunityAnnouncementNotifyWorker', () => {
 
   it('fans out the announcement to community members', async () => {
     await worker.process(job);
-    expect(announcementNotify.fanOut).toHaveBeenCalledWith(job.data);
+    expect(announcementNotify.fanOut).toHaveBeenCalledWith(job);
   });
 
   it('propagates fan-out failures for retry', async () => {

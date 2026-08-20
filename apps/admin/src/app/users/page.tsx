@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { isAxiosError } from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
-import { DataTable, useToast } from '@forge/design-system/client';
+import { ConfirmDialog, DataTable, useToast } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { AdminSearchInput } from '@/components/admin/AdminSearchInput';
 import { AdminPagination } from '@/components/admin/AdminPagination';
+import { GrantAdminDialog } from '@/components/admin/GrantAdminDialog';
 import type { AdminUser } from '@/lib/admin-user-types';
 
 const ROLE_TONE: Record<string, StatusTone> = {
@@ -26,6 +28,16 @@ export default function UsersPage() {
   const [verifiedFilter, setVerifiedFilter] = useState('');
   const [reportedFilter, setReportedFilter] = useState('');
   const [selected, setSelected] = useState<AdminUser[]>([]);
+  const [pendingConfirm, setPendingConfirm] = useState<
+    { role?: string; isActive?: boolean; label: string } | null
+  >(null);
+  const [grantAdminOpen, setGrantAdminOpen] = useState(false);
+  const [grantAdminError, setGrantAdminError] = useState<string | null>(null);
+  const [pendingGrant, setPendingGrant] = useState<
+    | { kind: 'bulk'; ids: string[]; snapshot: Array<{ id: string; role: string; isActive?: boolean }> }
+    | { kind: 'row'; id: string; username: string; prevRole: string }
+    | null
+  >(null);
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -45,13 +57,18 @@ export default function UsersPage() {
   });
 
   const updateRole = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: string }) => api.patch(`/admin/users/${id}`, { role }),
+    mutationFn: ({ id, role, currentAdminPassword }: { id: string; role: string; currentAdminPassword?: string }) =>
+      api.patch(`/admin/users/${id}`, { role, currentAdminPassword }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
   });
 
   const bulkUpdate = useMutation({
-    mutationFn: (payload: { ids: string[]; role?: string; isActive?: boolean }) =>
-      api.patch('/admin/users/bulk', payload),
+    mutationFn: (payload: {
+      ids: string[];
+      role?: string;
+      isActive?: boolean;
+      currentAdminPassword?: string;
+    }) => api.patch('/admin/users/bulk', payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
   });
 
@@ -63,11 +80,11 @@ export default function UsersPage() {
     qc.invalidateQueries({ queryKey: ['admin-users'] });
   }
 
-  function runBulk(action: { role?: string; isActive?: boolean; label: string }) {
+  function runBulk(action: { role?: string; isActive?: boolean; label: string }, currentAdminPassword?: string) {
     const snapshot = selected.map((u) => ({ id: u.id, role: u.role, isActive: u.isActive }));
     const ids = snapshot.map((s) => s.id);
     bulkUpdate.mutate(
-      { ids, role: action.role, isActive: action.isActive },
+      { ids, role: action.role, isActive: action.isActive, currentAdminPassword },
       {
         onSuccess: () => {
           toast({
@@ -76,8 +93,22 @@ export default function UsersPage() {
             action: { label: 'Undo', onClick: () => undoBulk(snapshot) },
           });
           setSelected([]);
+          setGrantAdminOpen(false);
+          setPendingGrant(null);
         },
-        onError: () => toast({ title: 'Bulk update failed', variant: 'critical' }),
+        onError: (err) => {
+          // A bulk admin-role grant needs the step-up password (MED-13) —
+          // surface that in the dialog instead of a dead-end generic toast.
+          if (action.role === 'admin') {
+            const message =
+              isAxiosError<{ message?: string | string[] }>(err) && err.response?.data?.message
+                ? err.response.data.message
+                : 'Could not grant admin role.';
+            setGrantAdminError(Array.isArray(message) ? message[0] : message);
+            return;
+          }
+          toast({ title: 'Bulk update failed', variant: 'critical' });
+        },
       },
     );
   }
@@ -153,6 +184,16 @@ export default function UsersPage() {
                 const role = e.target.value;
                 if (role === u.role) return;
                 const prevRole = u.role;
+                if (role === 'admin') {
+                  // Grant-admin needs the step-up password (MED-13) — route
+                  // through the same dialog the detail page uses instead of
+                  // hitting the backend directly and 403'ing silently.
+                  setGrantAdminError(null);
+                  setPendingGrant({ kind: 'row', id: u.id, username: u.username, prevRole });
+                  setGrantAdminOpen(true);
+                  e.target.value = u.role;
+                  return;
+                }
                 updateRole.mutate(
                   { id: u.id, role },
                   {
@@ -162,6 +203,8 @@ export default function UsersPage() {
                         variant: 'success',
                         action: { label: 'Undo', onClick: () => updateRole.mutate({ id: u.id, role: prevRole }) },
                       }),
+                    onError: () =>
+                      toast({ title: `Could not change @${u.username}'s role`, variant: 'critical' }),
                   },
                 );
               }}
@@ -280,14 +323,14 @@ export default function UsersPage() {
           <>
             <button
               type="button"
-              onClick={() => runBulk({ isActive: false, label: 'Blocked' })}
+              onClick={() => setPendingConfirm({ isActive: false, label: 'Blocked' })}
               className="rounded-full border border-outline-variant px-3 py-1 text-xs font-semibold hover:border-critical hover:text-critical"
             >
               Block
             </button>
             <button
               type="button"
-              onClick={() => runBulk({ isActive: true, label: 'Unblocked' })}
+              onClick={() => setPendingConfirm({ isActive: true, label: 'Unblocked' })}
               className="rounded-full border border-outline-variant px-3 py-1 text-xs font-semibold hover:border-success hover:text-success"
             >
               Unblock
@@ -295,8 +338,18 @@ export default function UsersPage() {
             <select
               defaultValue=""
               onChange={(e) => {
-                if (!e.target.value) return;
-                runBulk({ role: e.target.value, label: `Role set to ${e.target.value}` });
+                const role = e.target.value;
+                if (!role) return;
+                if (role === 'admin') {
+                  // Bulk grant-admin needs the step-up password (MED-13) —
+                  // without this, the backend now 403s with no prompt at all.
+                  setGrantAdminError(null);
+                  const snapshot = selected.map((u) => ({ id: u.id, role: u.role, isActive: u.isActive }));
+                  setPendingGrant({ kind: 'bulk', ids: snapshot.map((s) => s.id), snapshot });
+                  setGrantAdminOpen(true);
+                } else {
+                  setPendingConfirm({ role, label: `Role set to ${role}` });
+                }
                 e.target.value = '';
               }}
               className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-1 text-xs font-semibold"
@@ -308,6 +361,68 @@ export default function UsersPage() {
             </select>
           </>
         )}
+      />
+
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        title={
+          pendingConfirm?.role
+            ? `Set role to ${pendingConfirm.role} for ${selected.length} user${selected.length === 1 ? '' : 's'}?`
+            : pendingConfirm?.isActive === false
+              ? `Block ${selected.length} user${selected.length === 1 ? '' : 's'}? They will be signed out and cannot log in.`
+              : `Unblock ${selected.length} user${selected.length === 1 ? '' : 's'}?`
+        }
+        confirmLabel="Confirm"
+        variant="danger"
+        loading={bulkUpdate.isPending}
+        onConfirm={() => {
+          if (!pendingConfirm) return;
+          runBulk(pendingConfirm);
+          setPendingConfirm(null);
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
+
+      <GrantAdminDialog
+        open={grantAdminOpen}
+        title={
+          pendingGrant?.kind === 'bulk'
+            ? `Grant admin to ${pendingGrant.ids.length} user${pendingGrant.ids.length === 1 ? '' : 's'}?`
+            : pendingGrant?.kind === 'row'
+              ? `Grant admin to @${pendingGrant.username}?`
+              : 'Grant admin?'
+        }
+        loading={bulkUpdate.isPending || updateRole.isPending}
+        error={grantAdminError}
+        onCancel={() => {
+          setGrantAdminOpen(false);
+          setGrantAdminError(null);
+          setPendingGrant(null);
+        }}
+        onConfirm={(password) => {
+          setGrantAdminError(null);
+          if (pendingGrant?.kind === 'bulk') {
+            runBulk({ role: 'admin', label: 'Role set to admin' }, password);
+          } else if (pendingGrant?.kind === 'row') {
+            updateRole.mutate(
+              { id: pendingGrant.id, role: 'admin', currentAdminPassword: password },
+              {
+                onSuccess: () => {
+                  setGrantAdminOpen(false);
+                  setPendingGrant(null);
+                  toast({ title: `@${pendingGrant.username} role changed to admin`, variant: 'success' });
+                },
+                onError: (err) => {
+                  const message =
+                    isAxiosError<{ message?: string | string[] }>(err) && err.response?.data?.message
+                      ? err.response.data.message
+                      : 'Could not grant admin role.';
+                  setGrantAdminError(Array.isArray(message) ? message[0] : message);
+                },
+              },
+            );
+          }
+        }}
       />
       {data?.meta ? (
         <AdminPagination

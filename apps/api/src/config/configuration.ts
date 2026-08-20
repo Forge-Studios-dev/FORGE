@@ -130,6 +130,8 @@ export default () => ({
       webSuccessUrl:
         process.env.WEB_OAUTH_SUCCESS_URL ||
         `${process.env.WEB_URL || 'http://localhost:3000'}/auth/oauth/callback`,
+      /** Custom-scheme deep link the Flutter app registers to catch the OAuth redirect. */
+      mobileSuccessUrl: process.env.GOOGLE_OAUTH_MOBILE_SUCCESS_URL || 'forge://oauth-callback',
     },
   },
 

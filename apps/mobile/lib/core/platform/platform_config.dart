@@ -22,5 +22,7 @@ bool platformGoogleOAuthEnabled(PlatformConfig config) {
 
 String googleOAuthStartUrl() {
   final base = AppConstants.apiBaseUrl.replaceAll(RegExp(r'/+$'), '');
-  return '$base/auth/google';
+  // `platform=mobile` tells the API to redirect back to the app's custom
+  // scheme instead of the web success URL (see oauth_deep_link_gate.dart).
+  return '$base/auth/google?platform=mobile';
 }

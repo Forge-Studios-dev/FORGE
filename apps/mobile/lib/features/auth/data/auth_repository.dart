@@ -8,6 +8,7 @@ import '../../../core/app_check/forge_app_check.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/push/forge_push.dart';
+import '../../../core/socket/forge_socket.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   final api = ref.read(apiClientProvider);
@@ -51,6 +52,16 @@ class AuthRepository {
     );
     final data = response.data['data'] as Map<String, dynamic>;
     await _saveTokens(data, analyticsEvent: 'auth.login', analyticsProps: {'method': 'email', 'mfa': true});
+    return data;
+  }
+
+  /// Completes the Google OAuth flow after the app receives the deep-link
+  /// redirect (see oauth_deep_link_gate.dart) by exchanging the
+  /// short-lived, single-use code for real tokens.
+  Future<Map<String, dynamic>> completeOAuthExchange(String code) async {
+    final response = await _apiClient.dio.post('/auth/oauth/exchange', data: {'code': code});
+    final data = response.data['data'] as Map<String, dynamic>;
+    await _saveTokens(data, analyticsEvent: 'auth.login', analyticsProps: {'method': 'google'});
     return data;
   }
 
@@ -141,6 +152,11 @@ class AuthRepository {
       await _apiClient.dio.post('/auth/logout', data: {'allDevices': allDevices});
     } catch (_) {}
     await _storage.deleteAll();
+    // ForgeSocket is a process-wide singleton keyed to whatever token was
+    // live at first connect() — without disconnecting here, a same-process
+    // login as a different user would reuse this socket still
+    // handshake-authenticated as the account that just logged out.
+    ForgeSocket.disconnect();
   }
 
   Future<bool> isLoggedIn() async {

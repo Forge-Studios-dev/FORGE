@@ -359,6 +359,11 @@ export class StripePaymentProvider implements PaymentProvider {
             typeof session.payment_intent === 'string'
               ? session.payment_intent
               : session.payment_intent?.id,
+          // Reuse the fee split baked into the charge at checkout time (see the
+          // comment on createSuperChatCheckoutSession) rather than re-deriving
+          // from the live config, which may have changed by webhook time.
+          platformFeePercent: meta.platformFeePercent ? Number(meta.platformFeePercent) : undefined,
+          platformFeeCents: meta.platformFeeCents ? Number(meta.platformFeeCents) : undefined,
         };
       }
       if (meta.type === 'super_thanks' && meta.userId && meta.videoId && meta.creatorId) {
@@ -377,6 +382,8 @@ export class StripePaymentProvider implements PaymentProvider {
             typeof session.payment_intent === 'string'
               ? session.payment_intent
               : session.payment_intent?.id,
+          platformFeePercent: meta.platformFeePercent ? Number(meta.platformFeePercent) : undefined,
+          platformFeeCents: meta.platformFeeCents ? Number(meta.platformFeeCents) : undefined,
         };
       }
       if (meta.type === 'lifetime_subscription' && meta.userId && meta.creatorId && meta.tierId) {
@@ -543,6 +550,19 @@ export class StripePaymentProvider implements PaymentProvider {
     status: 'refunded' | 'disputed',
   ): Promise<ProviderWebhookResult> {
     const meta = charge.metadata ?? {};
+
+    if (meta.type === 'stream_event') {
+      const paymentIntentId =
+        typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+      return {
+        handled: true,
+        checkoutType: 'event',
+        status,
+        paymentIntentId,
+        userId: meta.userId,
+        streamId: meta.streamId,
+      };
+    }
 
     if (meta.type === 'super_chat' || meta.type === 'super_thanks') {
       const paymentIntentId =

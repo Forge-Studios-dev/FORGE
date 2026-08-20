@@ -9,6 +9,7 @@ import { ClassSerializerInterceptor, INestApplication, ValidationPipe } from '@n
 import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
 import { DataSource } from 'typeorm';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -94,6 +95,8 @@ describe('Email verification HTTP (HIGH-06)', () => {
         { provide: NotificationsService, useValue: {} },
         { provide: AuthOAuthExchangeService, useValue: {} },
         { provide: FirebaseService, useValue: {} },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: 'default_IORedisModuleConnectionToken', useValue: { set: jest.fn() } },
       ],
     }).compile();
 

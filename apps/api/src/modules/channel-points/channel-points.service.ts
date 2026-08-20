@@ -191,6 +191,25 @@ export class ChannelPointsService {
     if (!reward) throw new NotFoundException('Reward not found or not available');
 
     await this.dataSource.transaction(async (manager) => {
+      // count-then-insert on the cap checks below is a TOCTOU race — two
+      // concurrent redeem calls for a capped reward (e.g. globalMax: 1 merch
+      // item) could both pass the count check before either row commits.
+      // Same fix shape as the RSVP-capacity and strike-escalation races
+      // fixed earlier this session: an advisory lock scoped to the reward
+      // serializes concurrent redemptions of it.
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        `channel-point-redeem:${rewardId}`,
+      ]);
+      // Second lock, same fixed order on every call (reward then
+      // user+community) to avoid a deadlock between two concurrent
+      // transactions each wanting both: also serializes this same user's
+      // own concurrent redemptions (possibly of different rewards) against
+      // each other, so a stale balance read can't let two of their
+      // redemptions both pass the balance check and jointly overspend.
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        `channel-point-balance:${communityId}:${userId}`,
+      ]);
+
       const balance = await manager.findOne(ChannelPointsBalance, {
         where: { userId, communityId },
       });
@@ -198,13 +217,25 @@ export class ChannelPointsService {
         throw new BadRequestException('Insufficient channel points');
       }
 
+      // Both caps count FULFILLED + PENDING (not REJECTED) — a rejected
+      // redemption was refunded and never actually consumed inventory, so
+      // counting it here would permanently shrink a limited reward's real
+      // availability below its configured cap. Counting PENDING here (not
+      // just FULFILLED, as the per-user check previously did) also closes
+      // the gap where a user could rack up unlimited pending requests for a
+      // requiresApproval reward, bounded only by their balance.
+      const unresolvedStatuses = [
+        ChannelPointRedemptionStatus.FULFILLED,
+        ChannelPointRedemptionStatus.PENDING,
+      ];
+
       // Per-user max check
       if (reward.maxPerUser != null) {
         const userCount = await manager.count(ChannelPointRedemption, {
           where: {
             rewardId,
             userId,
-            status: ChannelPointRedemptionStatus.FULFILLED,
+            status: In(unresolvedStatuses),
           },
         });
         if (userCount >= reward.maxPerUser) {
@@ -215,7 +246,7 @@ export class ChannelPointsService {
       // Global max check
       if (reward.globalMax != null) {
         const globalCount = await manager.count(ChannelPointRedemption, {
-          where: { rewardId },
+          where: { rewardId, status: In(unresolvedStatuses) },
         });
         if (globalCount >= reward.globalMax) {
           throw new BadRequestException('This reward is no longer available');
@@ -452,8 +483,16 @@ export class ChannelPointsService {
   async onCommunityPost(payload: { communityId: string; post: { authorId?: string } }) {
     const authorId = (payload.post as Record<string, unknown>)?.authorId as string | undefined;
     if (!authorId || !payload.communityId) return;
-    await this.earnPoints(authorId, payload.communityId, ChannelPointsService.POST_POINTS).catch(
-      () => {},
+    // Unlike every other earn path here (chat: 60s cooldown, watch: 24h
+    // cooldown), this called earnPoints directly with no earnOnce guard —
+    // CommunityPostsService.createPost has no rate limit of its own either,
+    // so a user could farm unlimited points by spamming posts.
+    await this.earnOnce(
+      `cp:post:${payload.communityId}:${authorId}`,
+      60,
+      authorId,
+      payload.communityId,
+      ChannelPointsService.POST_POINTS,
     );
   }
 

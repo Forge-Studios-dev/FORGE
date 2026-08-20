@@ -263,8 +263,8 @@ export class CoursesController {
 
   @Get('courses/:courseId/quizzes')
   @ApiOperation({ summary: 'List quizzes for a course' })
-  listQuizzes(@Param('courseId') courseId: string) {
-    return this.coursesService.listQuizzes(courseId);
+  listQuizzes(@CurrentUser() user: JwtPayload, @Param('courseId') courseId: string) {
+    return this.coursesService.listQuizzes(user.sub, courseId);
   }
 
   @Post('quizzes/:quizId/submit')

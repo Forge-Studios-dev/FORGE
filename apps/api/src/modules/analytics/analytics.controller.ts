@@ -12,6 +12,9 @@ import { RequireAppCheck } from '../firebase/app-check.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { CommunityRoleGuard } from '../communities/guards/community-role.guard';
+import { CommunityRoles } from '../communities/decorators/community-roles.decorator';
+import { CommunityRoleType } from '../communities/entities/community-role.entity';
 
 @ApiTags('Analytics')
 @Controller('analytics')
@@ -70,6 +73,8 @@ export class AnalyticsController {
   }
 
   @Get('kpi/communities/:communityId/churn')
+  @UseGuards(CommunityRoleGuard)
+  @CommunityRoles(CommunityRoleType.OWNER, CommunityRoleType.ADMIN, CommunityRoleType.COACH)
   @ApiOperation({ summary: 'Community growth + engagement KPI for creator' })
   async communityChurn(
     @Param('communityId', ParseUUIDPipe) communityId: string,
@@ -79,6 +84,8 @@ export class AnalyticsController {
   }
 
   @Get('kpi/communities/:communityId/churn-prediction')
+  @UseGuards(CommunityRoleGuard)
+  @CommunityRoles(CommunityRoleType.OWNER, CommunityRoleType.ADMIN, CommunityRoleType.COACH)
   @ApiOperation({ summary: 'P12-T024: Identify at-risk members likely to churn' })
   async communityChurnPrediction(
     @Param('communityId', ParseUUIDPipe) communityId: string,
@@ -88,6 +95,8 @@ export class AnalyticsController {
   }
 
   @Get('kpi/communities/:communityId/predictions')
+  @UseGuards(CommunityRoleGuard)
+  @CommunityRoles(CommunityRoleType.OWNER, CommunityRoleType.ADMIN, CommunityRoleType.COACH)
   @ApiOperation({ summary: 'P12-T023/025/026: Community health score, engagement prediction, and risk assessment' })
   async communityPredictions(@Param('communityId', ParseUUIDPipe) communityId: string) {
     return this.kpiService.communityPredictions(communityId);

@@ -322,4 +322,14 @@ describe('MuxLiveSyncService idle grace finalization', () => {
 
     expect(streamRepository.update).not.toHaveBeenCalled();
   });
+
+  it('enqueues a backed-off retry job when a Mux live-stream disable call needs retrying', async () => {
+    await service.scheduleDisableRetry('mux-live-stuck');
+
+    expect(muxSyncQueue.add).toHaveBeenCalledWith(
+      'disable-live-stream',
+      { disableMuxLiveStreamId: 'mux-live-stuck' },
+      expect.objectContaining({ attempts: 5 }),
+    );
+  });
 });

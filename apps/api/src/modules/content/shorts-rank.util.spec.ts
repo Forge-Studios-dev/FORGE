@@ -56,4 +56,25 @@ describe('shorts-rank.util', () => {
     expect(diversified[1].userId).toBe('c2');
     expect(diversified.map((i) => i.id).sort()).toEqual(['1', '2', '3']);
   });
+
+  it('scores a higher-completion short above an equally fresh, equally viewed one', () => {
+    const base = { userId: 'a', publishedAt: new Date(now - 2 * 3_600_000), viewCount: 100, likeCount: 10 };
+    const highCompletion = scoreShortForFeed({ ...base, avgWatchPercent: 90 }, now);
+    const lowCompletion = scoreShortForFeed({ ...base, avgWatchPercent: 20 }, now);
+    expect(highCompletion).toBeGreaterThan(lowCompletion);
+  });
+
+  it('treats a missing avgWatchPercent (not yet computed) as zero contribution, not a penalty vs. explicit zero', () => {
+    const base = { userId: 'a', publishedAt: new Date(now - 2 * 3_600_000), viewCount: 100, likeCount: 10 };
+    const missing = scoreShortForFeed({ ...base }, now);
+    const explicitZero = scoreShortForFeed({ ...base, avgWatchPercent: 0 }, now);
+    expect(missing).toBe(explicitZero);
+  });
+
+  it('clamps an out-of-range avgWatchPercent instead of letting it dominate or invert the score', () => {
+    const base = { userId: 'a', publishedAt: new Date(now - 2 * 3_600_000), viewCount: 100, likeCount: 10 };
+    const over100 = scoreShortForFeed({ ...base, avgWatchPercent: 250 }, now);
+    const at100 = scoreShortForFeed({ ...base, avgWatchPercent: 100 }, now);
+    expect(over100).toBe(at100);
+  });
 });

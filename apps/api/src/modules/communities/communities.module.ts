@@ -210,5 +210,6 @@ import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lm
     LlmRouterService,
     CommunityMembersService,
     AiCommunityService,
+    CommunityRoleGuard,
   ],})
 export class CommunitiesModule {}

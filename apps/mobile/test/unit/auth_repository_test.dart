@@ -111,6 +111,41 @@ void main() {
     });
   });
 
+  group('AuthRepository.completeOAuthExchange', () {
+    test('persists tokens once the one-time OAuth code is exchanged', () async {
+      final adapter = QueuedAdapter([
+        (_) => jsonResponseBody({
+              'data': {
+                'accessToken': 'access-3',
+                'refreshToken': 'refresh-3',
+                'sessionId': 'session-3',
+                'user': {'id': 'u1', 'email': 'a@b.com'},
+              },
+            }, 200),
+      ]);
+      final repo = buildRepository(adapter);
+
+      final result = await repo.completeOAuthExchange('one-time-code');
+
+      expect(result['accessToken'], 'access-3');
+      expect(storageData[AppConstants.accessTokenKey], 'access-3');
+      expect(storageData[AppConstants.refreshTokenKey], 'refresh-3');
+    });
+
+    test('propagates the error and persists nothing for an expired code', () async {
+      final adapter = QueuedAdapter([
+        (_) => jsonResponseBody({'message': 'Invalid or expired OAuth exchange code'}, 401),
+      ]);
+      final repo = buildRepository(adapter);
+
+      await expectLater(
+        repo.completeOAuthExchange('stale-code'),
+        throwsA(isA<DioException>()),
+      );
+      expect(storageData.containsKey(AppConstants.accessTokenKey), isFalse);
+    });
+  });
+
   group('AuthRepository.getMfaStatus', () {
     test('reflects the enabled flag from the API', () async {
       final adapter = QueuedAdapter([

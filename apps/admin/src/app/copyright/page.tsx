@@ -167,6 +167,15 @@ function CounterNoticesTab() {
   const total = data?.meta.total ?? 0;
   const totalPages = data?.meta.totalPages ?? 1;
 
+  // Resolving the last pending item on a later page can shrink totalPages
+  // below the current page (filtered list), leaving a "no results" page the
+  // admin has to manually back out of — clamp instead.
+  useEffect(() => {
+    if (data && data.meta.totalPages > 0 && page > data.meta.totalPages) {
+      setPage(data.meta.totalPages);
+    }
+  }, [data, page]);
+
   const columns: ColumnDef<CopyrightCounterNotice, unknown>[] = [
     {
       accessorKey: 'uploader',
@@ -305,6 +314,15 @@ function StrikesTab() {
   const strikes = data?.data ?? [];
   const total = data?.meta.total ?? 0;
   const totalPages = data?.meta.totalPages ?? 1;
+
+  // Resolving the last pending appeal on a later page can shrink totalPages
+  // below the current page (filtered list) — clamp instead of showing "no
+  // strikes found" with no way back except manually clicking Prev.
+  useEffect(() => {
+    if (data && data.meta.totalPages > 0 && page > data.meta.totalPages) {
+      setPage(data.meta.totalPages);
+    }
+  }, [data, page]);
 
   const columns: ColumnDef<AccountStrike, unknown>[] = [
     {

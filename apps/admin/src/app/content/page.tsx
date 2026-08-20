@@ -58,7 +58,11 @@ function ContentPageInner() {
     message: string;
   } | null>(null);
   const [selected, setSelected] = useState<Video[]>([]);
-  const [bulkRemoveConfirmOpen, setBulkRemoveConfirmOpen] = useState(false);
+  const [pendingBulkAction, setPendingBulkAction] = useState<{
+    patch: ModerationPatch;
+    label: string;
+    message: string;
+  } | null>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -83,6 +87,10 @@ function ContentPageInner() {
       api.patch(`/admin/videos/${id}`, patch),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-videos'] });
+      setPendingAction(null);
+    },
+    onError: () => {
+      toast({ title: 'Action failed — video was not updated', variant: 'critical' });
       setPendingAction(null);
     },
   });
@@ -285,21 +293,39 @@ function ContentPageInner() {
           <>
             <button
               type="button"
-              onClick={() => void bulkPatch({ moderationStatus: 'held' }, 'Held')}
+              onClick={() =>
+                setPendingBulkAction({
+                  patch: { moderationStatus: 'held' },
+                  label: 'Held',
+                  message: `Hold ${selected.length} video(s) for review?`,
+                })
+              }
               className="rounded-full border border-outline-variant px-3 py-1 text-xs font-semibold hover:border-tertiary hover:text-tertiary"
             >
               Hold
             </button>
             <button
               type="button"
-              onClick={() => void bulkPatch({ moderationStatus: 'blocked', visibility: 'private' }, 'Blocked')}
+              onClick={() =>
+                setPendingBulkAction({
+                  patch: { moderationStatus: 'blocked', visibility: 'private' },
+                  label: 'Blocked',
+                  message: `Block ${selected.length} video(s)?`,
+                })
+              }
               className="rounded-full border border-outline-variant px-3 py-1 text-xs font-semibold hover:border-critical hover:text-critical"
             >
               Block
             </button>
             <button
               type="button"
-              onClick={() => setBulkRemoveConfirmOpen(true)}
+              onClick={() =>
+                setPendingBulkAction({
+                  patch: { status: 'failed' },
+                  label: 'Removed',
+                  message: `Remove ${selected.length} video(s) from the platform?`,
+                })
+              }
               className="rounded-full border border-outline-variant px-3 py-1 text-xs font-semibold hover:border-critical hover:text-critical"
             >
               Remove
@@ -329,15 +355,17 @@ function ContentPageInner() {
       />
 
       <ConfirmDialog
-        open={bulkRemoveConfirmOpen}
-        title={`Remove ${selected.length} video(s) from the platform?`}
-        confirmLabel="Remove"
+        open={pendingBulkAction !== null}
+        title={pendingBulkAction?.message ?? ''}
+        confirmLabel="Confirm"
         variant="danger"
         onConfirm={() => {
-          setBulkRemoveConfirmOpen(false);
-          void bulkPatch({ status: 'failed' }, 'Removed');
+          if (!pendingBulkAction) return;
+          const { patch, label } = pendingBulkAction;
+          setPendingBulkAction(null);
+          void bulkPatch(patch, label);
         }}
-        onCancel={() => setBulkRemoveConfirmOpen(false)}
+        onCancel={() => setPendingBulkAction(null)}
       />
     </section>
   );

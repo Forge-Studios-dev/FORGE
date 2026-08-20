@@ -11,6 +11,8 @@ import { PlaylistVideo } from './entities/playlist-video.entity';
 import { Video } from '../content/entities/video.entity';
 import { Like } from '../engagement/entities/like.entity';
 import { EngagementService } from '../engagement/engagement.service';
+import { EntitlementsService } from '../entitlements/entitlements.service';
+import { VideoVisibility } from '../content/entities/video.entity';
 
 describe('PlaylistsService', () => {
   let service: PlaylistsService;
@@ -75,6 +77,12 @@ describe('PlaylistsService', () => {
           useValue: {
             getBlockedPeerIds: jest.fn().mockResolvedValue([]),
             isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+          },
+        },
+        {
+          provide: EntitlementsService,
+          useValue: {
+            checkAccess: jest.fn().mockResolvedValue({ allowed: true }),
           },
         },
       ],
@@ -155,6 +163,60 @@ describe('PlaylistsService', () => {
       };
       playlistRepository.findOne.mockResolvedValue(playlist);
       await expect(service.findById('pl-1', otherId)).resolves.toBe(playlist);
+    });
+
+    it('drops an item whose video became inaccessible after being added (e.g. later made private)', async () => {
+      const createdAt = new Date();
+      playlistRepository.findOne.mockResolvedValue({
+        id: 'pl-1',
+        userId: ownerId,
+        visibility: PlaylistVisibility.PUBLIC,
+        items: [
+          {
+            position: 0,
+            createdAt,
+            video: { id: 'v-public', userId: 'creator-1', visibility: VideoVisibility.PUBLIC },
+          },
+          {
+            position: 1,
+            createdAt,
+            video: { id: 'v-private', userId: 'creator-1', visibility: VideoVisibility.PRIVATE },
+          },
+        ],
+      });
+      const entitlements = (service as any).entitlementsService as { checkAccess: jest.Mock };
+      entitlements.checkAccess.mockResolvedValue({ allowed: false, reason: 'private' });
+
+      const result = await service.findById('pl-1', otherId);
+
+      expect(result.items.map((i: any) => i.video.id)).toEqual(['v-public']);
+    });
+
+    it('keeps a tier-gated item when the viewer is entitled', async () => {
+      const createdAt = new Date();
+      playlistRepository.findOne.mockResolvedValue({
+        id: 'pl-1',
+        userId: ownerId,
+        visibility: PlaylistVisibility.PUBLIC,
+        items: [
+          {
+            position: 0,
+            createdAt,
+            video: {
+              id: 'v-tier',
+              userId: 'creator-1',
+              visibility: VideoVisibility.TIER,
+              requiredTierId: 'tier-1',
+            },
+          },
+        ],
+      });
+      const entitlements = (service as any).entitlementsService as { checkAccess: jest.Mock };
+      entitlements.checkAccess.mockResolvedValue({ allowed: true });
+
+      const result = await service.findById('pl-1', otherId);
+
+      expect(result.items.map((i: any) => i.video.id)).toEqual(['v-tier']);
     });
   });
 
@@ -335,6 +397,40 @@ describe('PlaylistsService', () => {
         position: 0,
       });
       expect(result.id).toBe('pv-1');
+    });
+
+    it('rejects adding a video the requester has no entitlement to see (private/tier-gated), even from a non-blocked creator', async () => {
+      playlistRepository.findOne.mockResolvedValue({ id: 'pl-1', userId: ownerId });
+      videoRepository.findOne.mockResolvedValue({
+        id: 'v-1',
+        userId: 'creator-1',
+        visibility: VideoVisibility.PRIVATE,
+      });
+      const entitlements = (service as any).entitlementsService as { checkAccess: jest.Mock };
+      entitlements.checkAccess.mockResolvedValueOnce({ allowed: false, reason: 'private' });
+
+      await expect(service.addVideo(ownerId, 'pl-1', 'v-1')).rejects.toThrow(
+        'This video is not available',
+      );
+      expect(playlistVideoRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('allows adding the requester’s own private video', async () => {
+      playlistRepository.findOne.mockResolvedValue({ id: 'pl-1', userId: ownerId });
+      videoRepository.findOne.mockResolvedValue({
+        id: 'v-1',
+        userId: ownerId,
+        visibility: VideoVisibility.PRIVATE,
+      });
+      playlistVideoRepository.findOne.mockResolvedValue(null);
+      const entitlements = (service as any).entitlementsService as { checkAccess: jest.Mock };
+
+      await service.addVideo(ownerId, 'pl-1', 'v-1');
+
+      expect(entitlements.checkAccess).toHaveBeenCalledWith(
+        expect.objectContaining({ isOwner: true }),
+      );
+      expect(playlistVideoRepository.create).toHaveBeenCalled();
     });
   });
 

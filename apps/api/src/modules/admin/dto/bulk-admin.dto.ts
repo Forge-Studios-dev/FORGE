@@ -30,6 +30,15 @@ export class BulkUpdateUsersDto extends BulkIdsDto {
   @IsOptional()
   @IsBoolean()
   isVerified?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      "Step-up auth (MED-13): the calling admin's own current password, required when role is being set to admin for at least one target",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  currentAdminPassword?: string;
 }
 
 export class BulkRejectCreatorsDto extends BulkIdsDto {

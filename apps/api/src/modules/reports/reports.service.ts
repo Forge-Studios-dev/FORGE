@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Report, ReportStatus, ReportTargetType } from './entities/report.entity';
@@ -48,6 +48,22 @@ export class ReportsService {
       user: ReportTargetType.USER,
       comment: ReportTargetType.COMMENT,
     };
+
+    // Same reporter re-reporting the same target while their prior report is
+    // still pending doesn't add triage signal (severity is reason-driven, not
+    // volume-driven) -- it just lets one user pad the admin queue with
+    // duplicates of their own complaint.
+    const duplicatePending = await this.reportRepository.findOne({
+      where: {
+        reporterId,
+        targetType: targetTypeMap[dto.targetType],
+        targetId: dto.targetId,
+        status: ReportStatus.PENDING,
+      },
+    });
+    if (duplicatePending) {
+      throw new BadRequestException('You already have a pending report for this content');
+    }
 
     const report = this.reportRepository.create({
       reporterId,

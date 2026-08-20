@@ -301,98 +301,114 @@ function CommentRow({
         isHighlighted ? 'bg-primary/10 ring-1 ring-primary/40' : ''
       }`}
     >
-      {comment.user?.avatarUrl ? (
+      {!comment.isDeleted && comment.user?.avatarUrl ? (
         <Image src={comment.user.avatarUrl} alt="" width={40} height={40} className="rounded-full object-cover" />
       ) : (
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container-high text-sm font-bold text-primary">
-          {(comment.user?.displayName ?? '?')[0]}
+          {comment.isDeleted ? (
+            <Icon name="block" className="text-base text-on-surface-variant" />
+          ) : (
+            (comment.user?.displayName ?? '?')[0]
+          )}
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-2">
-          {pinned ? (
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-              Pinned
-            </span>
-          ) : null}
-          {comment.user?.username ? (
-            <Link
-              href={`/${comment.user.username}`}
-              className="text-sm font-medium text-on-surface hover:text-primary"
-            >
-              {comment.user.displayName ?? comment.user.username}
-            </Link>
-          ) : (
-            <span className="text-sm font-medium text-on-surface">
-              {comment.user?.displayName ?? 'User'}
-            </span>
-          )}
-          <span className="font-label-caps text-[10px] text-outline">{timeAgo(comment.createdAt)}</span>
-          {hearted ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-error" title="Hearted by creator">
-              ❤ Creator
-            </span>
-          ) : null}
-        </div>
-        {editing ? (
-          <div className="mt-2 space-y-2">
-            <textarea
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              rows={2}
-              className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
-            />
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => editMut.mutate()}
-                disabled={editMut.isPending || !editText.trim()}
-                className="text-xs font-semibold text-primary"
-              >
-                Save
-              </button>
-              <button type="button" onClick={() => setEditing(false)} className="text-xs text-outline">
-                Cancel
-              </button>
-            </div>
+        {comment.isDeleted ? (
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="text-sm italic text-on-surface-variant">[deleted]</span>
+            <span className="font-label-caps text-[10px] text-outline">{timeAgo(comment.createdAt)}</span>
           </div>
         ) : (
-          <CommentBody content={comment.content} onSeek={onSeek} />
+          <div className="flex flex-wrap items-baseline gap-2">
+            {pinned ? (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                Pinned
+              </span>
+            ) : null}
+            {comment.user?.username ? (
+              <Link
+                href={`/${comment.user.username}`}
+                className="text-sm font-medium text-on-surface hover:text-primary"
+              >
+                {comment.user.displayName ?? comment.user.username}
+              </Link>
+            ) : (
+              <span className="text-sm font-medium text-on-surface">
+                {comment.user?.displayName ?? 'User'}
+              </span>
+            )}
+            <span className="font-label-caps text-[10px] text-outline">{timeAgo(comment.createdAt)}</span>
+            {hearted ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-error" title="Hearted by creator">
+                ❤ Creator
+              </span>
+            ) : null}
+          </div>
         )}
+        {!comment.isDeleted &&
+          (editing ? (
+            <div className="mt-2 space-y-2">
+              <textarea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                rows={2}
+                className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => editMut.mutate()}
+                  disabled={editMut.isPending || !editText.trim()}
+                  className="text-xs font-semibold text-primary"
+                >
+                  Save
+                </button>
+                <button type="button" onClick={() => setEditing(false)} className="text-xs text-outline">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <CommentBody content={comment.content} onSeek={onSeek} />
+          ))}
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-          <button
-            type="button"
-            aria-label={liked ? `Unlike comment, ${likeCount} likes` : `Like comment, ${likeCount} likes`}
-            aria-pressed={liked}
-            disabled={likeMut.isPending || dislikeMut.isPending}
-            onClick={() => {
-              if (!currentUser) {
-                onGuestInteract?.();
-                return;
-              }
-              likeMut.mutate(liked);
-            }}
-            className={`inline-flex items-center gap-1 font-semibold ${liked ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
-          >
-            <Icon name="thumb_up" filled={liked} className="text-sm" />
-            {likeCount > 0 ? formatCount(likeCount) : 'Like'}
-          </button>
-          <button
-            type="button"
-            aria-label={disliked ? 'Remove dislike' : 'Dislike comment'}
-            aria-pressed={disliked}
-            disabled={likeMut.isPending || dislikeMut.isPending}
-            onClick={() => {
-              if (!currentUser) {
-                onGuestInteract?.();
-                return;
-              }
-              dislikeMut.mutate(disliked);
-            }}
-            className={`inline-flex items-center font-semibold ${disliked ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
-          >
-            <Icon name="thumb_down" filled={disliked} className="text-sm" />
-          </button>
+          {!comment.isDeleted && (
+            <>
+              <button
+                type="button"
+                aria-label={liked ? `Unlike comment, ${likeCount} likes` : `Like comment, ${likeCount} likes`}
+                aria-pressed={liked}
+                disabled={likeMut.isPending || dislikeMut.isPending}
+                onClick={() => {
+                  if (!currentUser) {
+                    onGuestInteract?.();
+                    return;
+                  }
+                  likeMut.mutate(liked);
+                }}
+                className={`inline-flex items-center gap-1 font-semibold ${liked ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
+              >
+                <Icon name="thumb_up" filled={liked} className="text-sm" />
+                {likeCount > 0 ? formatCount(likeCount) : 'Like'}
+              </button>
+              <button
+                type="button"
+                aria-label={disliked ? 'Remove dislike' : 'Dislike comment'}
+                aria-pressed={disliked}
+                disabled={likeMut.isPending || dislikeMut.isPending}
+                onClick={() => {
+                  if (!currentUser) {
+                    onGuestInteract?.();
+                    return;
+                  }
+                  dislikeMut.mutate(disliked);
+                }}
+                className={`inline-flex items-center font-semibold ${disliked ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
+              >
+                <Icon name="thumb_down" filled={disliked} className="text-sm" />
+              </button>
+            </>
+          )}
           {depth === 0 && (comment.replyCount ?? 0) > 0 ? (
             <button
               type="button"
@@ -405,7 +421,7 @@ function CommentRow({
                 : `${formatCount(comment.replyCount!)} ${comment.replyCount === 1 ? 'reply' : 'replies'}`}
             </button>
           ) : null}
-          {depth === 0 && (
+          {!comment.isDeleted && depth === 0 && (
             <button
               type="button"
               onClick={() => {
@@ -420,7 +436,7 @@ function CommentRow({
               Reply
             </button>
           )}
-          {isOwn && !editing && (
+          {!comment.isDeleted && isOwn && !editing && (
             <>
               <button type="button" onClick={() => setEditing(true)} className="text-on-surface-variant hover:text-primary">
                 Edit
@@ -434,7 +450,7 @@ function CommentRow({
               </button>
             </>
           )}
-          {isVideoOwner && !isOwn && (
+          {!comment.isDeleted && isVideoOwner && !isOwn && (
             <button
               type="button"
               onClick={() => setConfirmAction('remove')}
@@ -444,7 +460,7 @@ function CommentRow({
               Remove
             </button>
           )}
-          {isVideoOwner && depth === 0 && (
+          {!comment.isDeleted && isVideoOwner && depth === 0 && (
             <button
               type="button"
               disabled={pinMut.isPending}
@@ -456,7 +472,7 @@ function CommentRow({
               {pinned ? 'Unpin' : 'Pin'}
             </button>
           )}
-          {isVideoOwner && (
+          {!comment.isDeleted && isVideoOwner && (
             <button
               type="button"
               disabled={heartMut.isPending}
@@ -469,18 +485,20 @@ function CommentRow({
               <Icon name="favorite" filled={hearted} className="text-sm" />
             </button>
           )}
-          {!isOwn && currentUser && (
+          {!comment.isDeleted && !isOwn && currentUser && (
             <button type="button" onClick={() => setReportOpen(true)} className="text-on-surface-variant hover:text-primary">
               Report
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => void copyCommentLink()}
-            className="text-on-surface-variant hover:text-primary"
-          >
-            {linkHint ?? 'Copy link'}
-          </button>
+          {!comment.isDeleted && (
+            <button
+              type="button"
+              onClick={() => void copyCommentLink()}
+              className="text-on-surface-variant hover:text-primary"
+            >
+              {linkHint ?? 'Copy link'}
+            </button>
+          )}
         </div>
         {showReplies && (
           <div className="mt-4 space-y-4 border-l border-outline-variant/30 pl-4">

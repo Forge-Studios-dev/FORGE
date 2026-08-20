@@ -1,0 +1,21 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "FlyOidcWebIdentity",
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<AWS_ACCOUNT_ID>:oidc-provider/oidc.fly.io/<FLY_ORG_SLUG>"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.fly.io/<FLY_ORG_SLUG>:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "oidc.fly.io/<FLY_ORG_SLUG>:sub": "REPLACE_ME_VERIFY_FIRST"
+        }
+      }
+    }
+  ]
+}

@@ -51,4 +51,30 @@ describe('expandCommunityEvents', () => {
     expect(result.length).toBeGreaterThanOrEqual(3);
     expect(result.every((r) => r.seriesEventId === 'evt-1')).toBe(true);
   });
+
+  it('excludes past occurrences of a recurring series once "now" has moved past them', () => {
+    const startsAt = new Date('2026-06-01T18:00:00Z'); // Monday
+    const result = expandCommunityEvents(
+      [
+        {
+          ...base,
+          startsAt,
+          endsAt: null,
+          eventType: 'recurring',
+          recurrenceRule: 'weekly',
+          recurrenceUntil: new Date('2026-07-13T18:00:00Z'),
+        },
+      ],
+      // "now" is 3 weeks after the series started — the first 3 weekly
+      // occurrences are in the past and must not show up in an upcoming list.
+      { now: new Date('2026-06-22T12:00:00Z'), horizonDays: 60, maxOccurrences: 10 },
+    );
+
+    expect(result.length).toBeGreaterThan(0);
+    for (const occurrence of result) {
+      expect(new Date(occurrence.occurrenceStartsAt).getTime()).toBeGreaterThanOrEqual(
+        new Date('2026-06-22T12:00:00Z').getTime(),
+      );
+    }
+  });
 });

@@ -157,8 +157,11 @@ export class SearchService {
     const term = q.trim();
     const searchType = this.normalizeType(type);
     const normalized = this.normalizeFilters(filters);
-    // Personal watch filters must not hit the shared Redis cache.
-    const skipCache = normalized.watched !== 'any';
+    // Results are personalized per viewer (block/mute exclusions, watched
+    // filter) but the cache key isn't — never read or write the shared cache
+    // for a signed-in viewer, matching feed.service.ts's pattern, or one
+    // viewer's block/mute-filtered results leak into another viewer's results.
+    const skipCache = normalized.watched !== 'any' || !!viewerId;
     if (term.length >= 2) {
       if (!skipCache) {
         const cacheKey = this.searchCacheKey(term, limit, searchType, normalized);

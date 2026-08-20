@@ -335,6 +335,17 @@ export class CommunityRoomsService {
       CommunityRoomPermission.VIEW,
       viewerRole,
     );
+
+    // Enforced here (live participant count) rather than relying on LiveKit's
+    // own room-level cap, which is set once at first-creation and never
+    // updated if a host lowers maxParticipants afterward via updateRoom.
+    if (!canModerate && room.maxParticipants != null) {
+      const current = await this.livekitService.getParticipantCount(communityId, roomId);
+      if (current >= room.maxParticipants) {
+        throw new BadRequestException('This room is at capacity');
+      }
+    }
+
     const canPublish = await this.resolveCanPublish(room, community, userId, canModerate);
 
     const token = await this.livekitService.createJoinToken({
@@ -474,6 +485,42 @@ export class CommunityRoomsService {
     return { data: { approved: true, userId: targetUserId } };
   }
 
+  /** Counterpart to approveStageSpeaker — demotes a speaker and revokes their live publish rights immediately, not just at their token's natural expiry. */
+  async demoteStageSpeaker(
+    actorId: string,
+    communityId: string,
+    roomId: string,
+    targetUserId: string,
+    viewerRole?: UserRole | null,
+  ) {
+    const community = await this.communitiesService.assertCommunityAccess(
+      communityId,
+      actorId,
+      viewerRole,
+    );
+    const canModerate = await this.communitiesService.canModerateCommunity(
+      communityId,
+      community.creatorId,
+      actorId,
+      viewerRole,
+    );
+    if (!canModerate) throw new ForbiddenException('Only hosts can remove speakers');
+
+    const room = await this.roomRepository.findOne({
+      where: { id: roomId, communityId, isActive: true },
+    });
+    if (!room) throw new NotFoundException('Room not found');
+
+    await this.redis.srem(this.stageSpeakersKey(roomId), targetUserId);
+    await this.livekitService.revokePublish(communityId, roomId, targetUserId);
+    this.eventEmitter.emit('room.speaker.removed', {
+      communityId,
+      roomId,
+      userId: targetUserId,
+    });
+    return { data: { approved: false, userId: targetUserId } };
+  }
+
   async updateRoom(
     actorId: string,
     communityId: string,
@@ -526,6 +573,9 @@ export class CommunityRoomsService {
     room.isActive = false;
     await this.roomRepository.save(room);
     await this.redis.del(this.raiseHandKey(roomId), this.stageSpeakersKey(roomId));
+    // Deactivating in the DB alone left anyone already connected still live
+    // in the actual LiveKit room — end it so the session actually stops.
+    await this.livekitService.endRoom(communityId, roomId);
     return { data: { id: room.id, isActive: false } };
   }
 }
