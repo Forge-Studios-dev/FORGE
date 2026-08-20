@@ -190,8 +190,24 @@ jobs:
             fi
             if grep -qi 'no capacity available in bom' "$OUT2"; then
               echo "bom has zero machine capacity for a plain deploy too — last resort: adding sin as a secondary region (primary-region stays bom, so min_machines_running keeps protecting the existing bom machines)"
-              flyctl deploy --remote-only --primary-region bom --regions bom,sin --skip-release-command
-              exit $?
+              OUT3=$(mktemp)
+              flyctl deploy --remote-only --primary-region bom --regions bom,sin --skip-release-command 2>&1 | tee "$OUT3"
+              rc=${PIPESTATUS[0]}
+              if [ "$rc" -eq 0 ]; then
+                exit 0
+              fi
+              # --regions bom,sin still tries bom first per machine and can fail
+              # outright without ever placing in sin. Only when the app has zero
+              # machines right now (nothing for min_machines_running to protect,
+              # since there's nothing running to lose protection over) do we force
+              # sin alone so Fly has no choice but to place there.
+              MACHINE_COUNT=$(flyctl machines list -a forge-studios-api --json 2>/dev/null | jq 'length' || echo -1)
+              if grep -qi 'no capacity available in bom' "$OUT3" && [ "$MACHINE_COUNT" = "0" ]; then
+                echo "App has zero machines and bom+sin attempt still failed — forcing sin alone to get anything serving again"
+                flyctl deploy --remote-only --primary-region bom --regions sin --skip-release-command
+                exit $?
+              fi
+              exit "$rc"
             fi
             exit "$rc"
           fi
