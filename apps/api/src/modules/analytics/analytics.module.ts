@@ -10,10 +10,12 @@ import { AnalyticsRetentionService } from './analytics-retention.service';
 import { AnalyticsRetentionScheduler } from './analytics-retention.scheduler';
 import { KpiService } from './kpi.service';
 import { CommunitiesModule } from '../communities/communities.module';
+import { CommunityRole } from '../communities/entities/community-role.entity';
+import { Community } from '../communities/entities/community.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AnalyticsEvent]),
+    TypeOrmModule.forFeature([AnalyticsEvent, CommunityRole, Community]),
     BullModule.registerQueue({ name: ANALYTICS_INGEST_QUEUE }),
     BullModule.registerQueue({ name: ANALYTICS_RETENTION_QUEUE }),
     CommunitiesModule,
