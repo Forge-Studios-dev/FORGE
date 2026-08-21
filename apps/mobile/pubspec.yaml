@@ -43,7 +43,7 @@ dependencies:
   google_fonts: ^8.2.1
 
   # Utils
-  intl: ^0.20.2
+  intl: ^0.20.3
   equatable: ^2.0.5
   crypto: ^3.0.3
   freezed_annotation: ^3.1.0
