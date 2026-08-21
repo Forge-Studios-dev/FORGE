@@ -3,7 +3,8 @@
 # Set secrets same as API + WORKER_ONLY=true
 
 app = 'forge-studios-worker'
-primary_region = 'bom'
+# bom is deprecated by Fly (2026-08-21) — see fly.toml for detail.
+primary_region = 'sin'
 
 [build]
   dockerfile = 'apps/api/Dockerfile.worker'

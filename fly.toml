@@ -3,7 +3,10 @@
 # Create app once: fly apps create forge-studios-api --org personal
 
 app = 'forge-studios-api'
-primary_region = 'bom'
+# 2026-08-21: bom is deprecated by Fly ("Region bom is deprecated and cannot
+# have new resources provisioned") — not a capacity blip, a permanent removal.
+# Machines and release_command VMs now run in sin. See docs/operations/FLY_SLO.md.
+primary_region = 'sin'
 
 [build]
   dockerfile = 'apps/api/Dockerfile'
@@ -12,7 +15,7 @@ primary_region = 'bom'
 [deploy]
   release_command = "node node_modules/typeorm/cli.js migration:run -d apps/api/dist/apps/api/src/database/data-source.js"
 
-  # BOM often has no spare capacity for one-off release machines; use a smaller VM.
+  # Small VM for the one-off release_command machine.
   [deploy.release_command_vm]
     size = "shared-cpu-1x"
     memory = "512mb"
@@ -29,9 +32,8 @@ primary_region = 'bom'
 [http_service]
   internal_port = 3001
   force_https = true
-  # Keep both API machines warm. auto_stop + primary_region=sin (CI override for
-  # release_command capacity) made min_machines_running a no-op for bom machines,
-  # so idle VMs stopped and cold starts (~20s Nest boot) caused proxy 502s.
+  # Keep both API machines warm — auto_stop lets idle VMs stop, and cold
+  # starts (~20s Nest boot) cause proxy 502s.
   auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 2

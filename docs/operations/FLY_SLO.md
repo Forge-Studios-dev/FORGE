@@ -10,17 +10,21 @@
 |---------|-------|------|
 | `min_machines_running` | **2** (Wave 6 — rolling deploy / zero-downtime swap) | [fly.toml](../../fly.toml) |
 | `auto_stop_machines` | **`false`** (keep both warm; avoids cold-start proxy 502s) | [fly.toml](../../fly.toml) |
-| Region | **`bom`** primary + machines (CI: `--primary-region bom --regions bom`) | [fly.toml](../../fly.toml) |
+| Region | **`sin`** primary + machines (CI: `--primary-region sin --regions sin`) | [fly.toml](../../fly.toml) |
 | Worker | Separate app, no HTTP; `restart.policy = 'always'`, `max_retries = 10` | [fly.worker.toml](../../fly.worker.toml) |
 
 With `min_machines_running = 2` and `auto_stop_machines = false`, two API machines stay warm — Fly can swap machines during deploy without a brief outage. Cost: ~2× baseline API machine RAM/CPU vs `min = 1`. Previous F-1002 used `min = 1` for cost; Wave 6 raised this for HA during rolling deploys.
 
-> **Note (2026-07-28):** Do not set `--primary-region sin` while machines live in `bom`. `min_machines_running` only counts the primary region; a sin primary left bom machines unprotected under auto-stop and caused Nest cold-start (~20s) proxy timeouts. Release one-off capacity uses the smaller `[deploy.release_command_vm]` in bom instead.
-
-> **Note (2026-07-29):** When Fly returns `no capacity available in bom` for the `release_command` VM, the Release workflow retries then:
+> **Note (2026-08-21): `bom` is permanently deprecated by Fly** — `flyctl deploy` now returns `Region bom is deprecated and cannot have new resources provisioned`, not a capacity error. This is not transient; do not retry `bom`. `primary_region` moved to `sin` in `fly.toml`, `fly.worker.toml`, and every workflow that pins a region. Machines and release_command VMs run in `sin`.
+>
+> Between 2026-08-20 and 2026-08-21 this masqueraded as a capacity outage (the two notes below describe that era) and the Release workflow's `bom`-only capacity retries silently stopped matching once Fly switched to the deprecation error, so releases failed closed without ever reaching the sin fallback tier. A migration merged 2026-08-20 (`avg_watch_percent`) went unapplied to production for ~2 days while code referencing it kept shipping via `--skip-release-command`, causing live 500s on video detail and search. Fixed by moving to `sin` outright rather than treating it as a fallback tier.
+>
+> **Historical (2026-07-28 note, no longer applicable):** previously, `--primary-region sin` while machines lived in `bom` broke `min_machines_running` protection for the `bom` machines (it only counts the primary region) and caused cold-start proxy timeouts. Moot now that `sin` is primary and holds all machines.
+>
+> **Note (2026-07-29, generalized 2026-08-21):** When Fly returns `no capacity available in sin` for the `release_command` VM, the Release workflow retries then:
 > - **No TypeORM migration files in the SHA** → deploys with `--skip-release-command` (safe for config/code-only releases).
 > - **Migrations present** → fails closed. Operator path: apply pending TypeORM migrations out-of-band (Neon MCP / `machine run` in a region with capacity), then:
-> `flyctl deploy --remote-only --primary-region bom --regions bom --skip-release-command`
+> `flyctl deploy --remote-only --primary-region sin --regions sin --skip-release-command`
 > Manual override: Actions → Release (production) → Run workflow → `skip_release_command=true` (only when schema is already current).
 > Image rollback also uses `--skip-release-command` so a capacity miss cannot strand the previous image. Docs/rules-only merges on `main` **skip** the Release deploy jobs entirely (manual `workflow_dispatch` still deploys).
 
