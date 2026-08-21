@@ -29,7 +29,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       # H-D1: pinned to superfly/flyctl-actions@1.5 SHA (mutable @master rejected).
-      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # v1.5
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
 
       - name: Deploy to staging Fly app
         run: flyctl deploy --remote-only --ha=false --app forge-studios-api-staging

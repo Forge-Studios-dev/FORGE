@@ -21,13 +21,13 @@ dependencies:
   go_router: ^17.3.0
 
   # HTTP
-  dio: ^5.4.3
+  dio: ^5.11.0
 
   # Secure storage
   flutter_secure_storage: ^10.3.1
 
   # Connectivity (drives the offline screen — see core/connectivity)
-  connectivity_plus: ^7.3.0
+  connectivity_plus: ^7.3.1
 
   # Offline-first local cache for feed/watch-history/video-detail (HIGH-07)
   hive: ^2.2.3
@@ -40,7 +40,7 @@ dependencies:
   # Image
   cached_network_image: ^3.3.1
 
-  google_fonts: ^8.2.0
+  google_fonts: ^8.2.1
 
   # Utils
   intl: ^0.20.2
@@ -51,13 +51,13 @@ dependencies:
   uuid: ^4.3.3
   file_picker: ^11.0.2
 
-  firebase_core: ^4.12.1
+  firebase_core: ^4.13.0
   firebase_messaging: ^16.4.3
-  firebase_app_check: ^0.4.5+2
+  firebase_app_check: ^0.4.6
   url_launcher: ^6.3.0
   share_plus: ^12.0.2
   socket_io_client: ^3.0.2
-  livekit_client: ^2.9.0
+  livekit_client: ^2.11.0
 
   # Crash reporting (CRIT-02) — enabled via --dart-define=SENTRY_DSN=...
   sentry_flutter: ^9.25.0
@@ -70,11 +70,11 @@ dev_dependencies:
   build_runner: ^2.15.1
   riverpod_generator: ^4.0.4
   freezed: ^3.2.6-dev.1
-  json_serializable: ^6.14.0
+  json_serializable: ^6.14.1
   # Test-only fake platform for FlutterSecureStorage (HIGH-09) — already a
   # transitive dep via flutter_secure_storage; declared explicitly since
   # test code imports it directly.
-  flutter_secure_storage_platform_interface: ^2.0.1
+  flutter_secure_storage_platform_interface: ^2.0.3
   # Widget tests import `Override` (package:riverpod/misc.dart) directly for
   # ProviderScope overrides — already a transitive dep via flutter_riverpod.
   riverpod: ^3.3.2
