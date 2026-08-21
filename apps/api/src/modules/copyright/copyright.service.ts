@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { LessThanOrEqual, Repository } from 'typeorm';
+import { In, LessThanOrEqual, Repository } from 'typeorm';
 import { CopyrightNotice, CopyrightNoticeStatus } from './entities/copyright-notice.entity';
 import {
   CopyrightCounterNotice,
@@ -228,8 +228,13 @@ export class CopyrightService {
     });
     if (!due.length) return { reinstated: 0 };
 
+    const notices = await this.noticeRepository.find({
+      where: { id: In(due.map((c) => c.noticeId)) },
+    });
+    const noticeById = new Map(notices.map((n) => [n.id, n]));
+
     for (const counterNotice of due) {
-      const notice = await this.noticeRepository.findOne({ where: { id: counterNotice.noticeId } });
+      const notice = noticeById.get(counterNotice.noticeId);
       if (!notice) continue;
 
       await this.videoRepository.update(notice.videoId, {

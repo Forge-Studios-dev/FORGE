@@ -262,11 +262,11 @@ describe('CopyrightService', () => {
       counterNoticeRepository.find.mockResolvedValue([
         { id: 'counter-1', noticeId: 'notice-1', uploaderUserId: 'uploader-1', status: CounterNoticeStatus.PENDING },
       ]);
-      noticeRepository.findOne.mockResolvedValue({
+      noticeRepository.find.mockResolvedValue([{
         id: 'notice-1',
         videoId: 'v1',
         previousVisibility: VideoVisibility.UNLISTED,
-      });
+      }]);
 
       const result = await service.runDueReinstatements();
 
@@ -294,11 +294,11 @@ describe('CopyrightService', () => {
       counterNoticeRepository.find.mockResolvedValue([
         { id: 'counter-1', noticeId: 'notice-1', uploaderUserId: 'uploader-1', status: CounterNoticeStatus.PENDING },
       ]);
-      noticeRepository.findOne.mockResolvedValue({
+      noticeRepository.find.mockResolvedValue([{
         id: 'notice-1',
         videoId: 'v1',
         previousVisibility: VideoVisibility.PUBLIC,
-      });
+      }]);
       accountStrikesService.findActiveBySource.mockResolvedValue({ id: 'strike-1', userId: 'uploader-1' });
 
       await service.runDueReinstatements();
@@ -314,11 +314,11 @@ describe('CopyrightService', () => {
       counterNoticeRepository.find.mockResolvedValue([
         { id: 'counter-1', noticeId: 'notice-1', uploaderUserId: 'uploader-1', status: CounterNoticeStatus.PENDING },
       ]);
-      noticeRepository.findOne.mockResolvedValue({
+      noticeRepository.find.mockResolvedValue([{
         id: 'notice-1',
         videoId: 'v1',
         previousVisibility: VideoVisibility.PUBLIC,
-      });
+      }]);
       accountStrikesService.findActiveBySource.mockResolvedValue(null);
 
       await service.runDueReinstatements();
