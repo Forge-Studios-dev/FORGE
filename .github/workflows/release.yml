@@ -129,21 +129,16 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Deploy to Fly.io (migrations via fly.toml release_command)
-        # Keep primary_region=bom with app machines. min_machines_running only
-        # counts the primary region — a sin primary left bom VMs unprotected
-        # under auto_stop and caused cold-start proxy 502s. Release VM size is
-        # already reduced in fly.toml [deploy.release_command_vm] for bom capacity.
-        # Prefer release_command for schema safety. On BOM capacity exhaustion:
-        # if this SHA has no TypeORM migration files, skip release_command and
-        # deploy the image (same as FLY_SLO operator path). Migration-bearing
-        # SHAs still fail closed for out-of-band migrate + manual redeploy.
-        #
-        # 2026-08-20: bom lost capacity for *any* new machine (release_command
-        # AND plain deploy machines), so even --skip-release-command failed.
-        # Last-resort tier adds sin via --regions (never --primary-region) so
-        # min_machines_running keeps enforcing on bom as before — it only
-        # protects the primary region, which is the exact mechanism the prior
-        # sin-primary incident broke. Still gated on HAS_MIGRATIONS=false.
+        # 2026-08-21: bom is deprecated by Fly outright ("Region bom is
+        # deprecated and cannot have new resources provisioned") — not a
+        # capacity blip, a permanent removal. primary_region is now sin
+        # everywhere (fly.toml, this workflow, deploy-fly.yml, rollback below).
+        # Prefer release_command for schema safety. If sin hits a transient
+        # capacity miss for the release_command VM and this SHA has no
+        # TypeORM migration files, fall back to --skip-release-command (same
+        # as the FLY_SLO operator path). Migration-bearing SHAs fail closed —
+        # apply pending migrations out-of-band, then manually redeploy with
+        # --skip-release-command.
         run: |
           set +e
           SKIP="${{ github.event_name == 'workflow_dispatch' && inputs.skip_release_command }}"
@@ -154,7 +149,7 @@ jobs:
           fi
           echo "skip_release_command_input=${SKIP:-false} has_migrations=$HAS_MIGRATIONS"
 
-          deploy_args=(--remote-only --primary-region bom --regions bom)
+          deploy_args=(--remote-only --primary-region sin --regions sin)
           if [ "$SKIP" = "true" ]; then
             echo "Manual skip_release_command requested"
             deploy_args+=(--skip-release-command)
@@ -170,9 +165,9 @@ jobs:
             if [ "$rc" -eq 0 ]; then
               exit 0
             fi
-            if grep -qi 'no capacity available in bom' "$OUT"; then
+            if grep -qi 'no capacity available in sin' "$OUT"; then
               if [ "$attempt" -lt 5 ]; then
-                echo "BOM release_command capacity miss — sleeping before retry"
+                echo "sin release_command capacity miss — sleeping before retry"
                 sleep $((attempt * 45))
               fi
               continue
@@ -181,40 +176,12 @@ jobs:
           done
 
           if [ "$HAS_MIGRATIONS" = "false" ]; then
-            echo "BOM capacity exhausted and no migration files in this SHA — deploying with --skip-release-command"
-            OUT2=$(mktemp)
-            flyctl deploy --remote-only --primary-region bom --regions bom --skip-release-command 2>&1 | tee "$OUT2"
-            rc=${PIPESTATUS[0]}
-            if [ "$rc" -eq 0 ]; then
-              exit 0
-            fi
-            if grep -qi 'no capacity available in bom' "$OUT2"; then
-              echo "bom has zero machine capacity for a plain deploy too — last resort: adding sin as a secondary region (primary-region stays bom, so min_machines_running keeps protecting the existing bom machines)"
-              OUT3=$(mktemp)
-              flyctl deploy --remote-only --primary-region bom --regions bom,sin --skip-release-command 2>&1 | tee "$OUT3"
-              rc=${PIPESTATUS[0]}
-              if [ "$rc" -eq 0 ]; then
-                exit 0
-              fi
-              # --regions is a legacy/Nomad-era flag — on the machines platform,
-              # --primary-region alone dictates where new machines get scheduled
-              # regardless of --regions (confirmed live: --regions sin with
-              # --primary-region bom still failed with "no capacity in bom").
-              # Only when the app has zero machines right now (nothing for
-              # min_machines_running to protect, since there's nothing running to
-              # lose protection over) do we flip primary-region to sin too.
-              MACHINE_COUNT=$(flyctl machines list -a forge-studios-api --json 2>/dev/null | jq 'length' || echo -1)
-              if grep -qi 'no capacity available in bom' "$OUT3" && [ "$MACHINE_COUNT" = "0" ]; then
-                echo "App has zero machines and bom+sin attempt still failed — forcing primary-region+regions to sin to get anything serving again"
-                flyctl deploy --remote-only --primary-region sin --regions sin --skip-release-command
-                exit $?
-              fi
-              exit "$rc"
-            fi
-            exit "$rc"
+            echo "sin capacity exhausted and no migration files in this SHA — deploying with --skip-release-command"
+            flyctl deploy --remote-only --primary-region sin --regions sin --skip-release-command
+            exit $?
           fi
 
-          echo "::error::BOM capacity exhausted for release_command VM. Apply pending TypeORM migrations out-of-band (Neon / machine run), then: flyctl deploy --remote-only --primary-region bom --regions bom --skip-release-command"
+          echo "::error::sin capacity exhausted for release_command VM. Apply pending TypeORM migrations out-of-band (Neon / machine run), then: flyctl deploy --remote-only --primary-region sin --regions sin --skip-release-command"
           exit 1
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -254,10 +221,8 @@ jobs:
           if [ -n "$PREV_IMAGE" ]; then
             echo "Rolling back to previous image: $PREV_IMAGE"
             # Skip release_command — schema is already at the failed attempt's
-            # migration head (or unchanged); re-running needs another bom VM.
-            # regions includes sin (primary stays bom) in case the failed
-            # deploy's last-resort tier already placed a machine there.
-            flyctl deploy --image "$PREV_IMAGE" -a forge-studios-api --primary-region bom --regions bom,sin --skip-release-command
+            # migration head (or unchanged); re-running needs another VM.
+            flyctl deploy --image "$PREV_IMAGE" -a forge-studios-api --primary-region sin --regions sin --skip-release-command
           else
             echo "No previous release image available for rollback"
           fi

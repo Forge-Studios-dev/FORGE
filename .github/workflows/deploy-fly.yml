@@ -36,9 +36,10 @@ jobs:
         # M-D7: pin the same region topology as the release workflow so an
         # emergency redeploy doesn't silently ship into a different region
         # than the routinely-tested production path. `fly.toml` currently uses
-        # primary_region='bom'; keep this flag explicit so it stays in lockstep
-        # with .github/workflows/release.yml even if fly.toml is later edited.
-        run: flyctl deploy --remote-only --primary-region bom --regions bom
+        # primary_region='sin' (bom was deprecated by Fly on 2026-08-21); keep
+        # this flag explicit so it stays in lockstep with
+        # .github/workflows/release.yml even if fly.toml is later edited.
+        run: flyctl deploy --remote-only --primary-region sin --regions sin
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 

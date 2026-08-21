@@ -10,21 +10,21 @@
 
 | Component | Region / topology today |
 |---|---|
-| Fly API (`forge-studios-api`) | `bom` (Mumbai) only, `primary_region` in `fly.toml` |
-| Fly Worker (`forge-studios-worker`) | `bom` only, `--ha=false` (single machine — see `docs/PLATFORM_AUDIT_2026-08-09.md §2.9`, accepted SPOF) |
+| Fly API (`forge-studios-api`) | `sin` (Singapore) only, `primary_region` in `fly.toml` — moved from `bom` (Mumbai) on 2026-08-21 after Fly deprecated `bom` outright (see `docs/operations/FLY_SLO.md`) |
+| Fly Worker (`forge-studios-worker`) | `sin` only, `--ha=false` (single machine — see `docs/PLATFORM_AUDIT_2026-08-09.md §2.9`, accepted SPOF) |
 | PostgreSQL | Neon, single region (see `docs/operations/DISASTER_RECOVERY.md` for backup/PITR — that's data-loss protection, not region failover) |
 | Redis | Single `REDIS_URL` (Upstash in production). `SCALE_LIVE.md` proposes an Upstash multi-region read-replica cluster for live pub/sub at 100K-viewer scale — not adopted platform-wide |
 | S3 | `ap-south-1`, single region, no cross-region replication configured |
 | CDN | Optional CloudFront — global edge, not itself a regional-failure point |
 
-**What a full `bom` region outage does today:** API and worker both go down together (same region, no standby). Neon and S3 outages in their respective regions have no fallback either. There is no documented runbook for this scenario — `DISASTER_RECOVERY.md` covers Neon PITR restore (data loss), not a live region failing.
+**What a full `sin` region outage does today:** API and worker both go down together (same region, no standby). Neon and S3 outages in their respective regions have no fallback either. There is no documented runbook for this scenario — `DISASTER_RECOVERY.md` covers Neon PITR restore (data loss), not a live region failing. (`bom`, the original primary, was deprecated by Fly on 2026-08-21 and can no longer provision any resources at all — a reminder that single-region risk isn't just outages, a region can disappear.)
 
 ## 2. Proposed direction
 
 Match effort to actual failure probability — Fly region outages are rare but not zero; a full design should be cheap to build incrementally, not a rewrite.
 
 ### 2.1 Compute (Fly) — do this first, cheapest
-- Add a second Fly region for the API app (e.g. `bom` + `sin` or `bom` + `syd` — pick by where the actual user base concentrates once there's traffic data to look at).
+- Add a second Fly region for the API app (e.g. `sin` + `syd` or `sin` + `nrt` — pick by where the actual user base concentrates once there's traffic data to look at; `bom` is no longer selectable, Fly deprecated it 2026-08-21).
 - Fly's built-in `fly_replay`/anycast routing handles request distribution across regions automatically once a second region is added to `fly.toml` — no app-code change needed for stateless HTTP.
 - Worker stays single-region initially (BullMQ jobs aren't request-latency-sensitive) but should move off `--ha=false` to at least 2 machines in the primary region before multi-region is worth doing — fix the closer SPOF first.
 
