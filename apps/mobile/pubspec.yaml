@@ -40,7 +40,7 @@ dependencies:
   # Image
   cached_network_image: ^3.3.1
 
-  google_fonts: ^8.2.0
+  google_fonts: ^8.2.1
 
   # Utils
   intl: ^0.20.2
