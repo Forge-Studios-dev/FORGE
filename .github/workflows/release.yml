@@ -196,15 +196,17 @@ jobs:
               if [ "$rc" -eq 0 ]; then
                 exit 0
               fi
-              # --regions bom,sin still tries bom first per machine and can fail
-              # outright without ever placing in sin. Only when the app has zero
-              # machines right now (nothing for min_machines_running to protect,
-              # since there's nothing running to lose protection over) do we force
-              # sin alone so Fly has no choice but to place there.
+              # --regions is a legacy/Nomad-era flag — on the machines platform,
+              # --primary-region alone dictates where new machines get scheduled
+              # regardless of --regions (confirmed live: --regions sin with
+              # --primary-region bom still failed with "no capacity in bom").
+              # Only when the app has zero machines right now (nothing for
+              # min_machines_running to protect, since there's nothing running to
+              # lose protection over) do we flip primary-region to sin too.
               MACHINE_COUNT=$(flyctl machines list -a forge-studios-api --json 2>/dev/null | jq 'length' || echo -1)
               if grep -qi 'no capacity available in bom' "$OUT3" && [ "$MACHINE_COUNT" = "0" ]; then
-                echo "App has zero machines and bom+sin attempt still failed — forcing sin alone to get anything serving again"
-                flyctl deploy --remote-only --primary-region bom --regions sin --skip-release-command
+                echo "App has zero machines and bom+sin attempt still failed — forcing primary-region+regions to sin to get anything serving again"
+                flyctl deploy --remote-only --primary-region sin --regions sin --skip-release-command
                 exit $?
               fi
               exit "$rc"
