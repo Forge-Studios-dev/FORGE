@@ -74,7 +74,7 @@ dev_dependencies:
   # Test-only fake platform for FlutterSecureStorage (HIGH-09) — already a
   # transitive dep via flutter_secure_storage; declared explicitly since
   # test code imports it directly.
-  flutter_secure_storage_platform_interface: ^2.0.1
+  flutter_secure_storage_platform_interface: ^2.0.3
   # Widget tests import `Override` (package:riverpod/misc.dart) directly for
   # ProviderScope overrides — already a transitive dep via flutter_riverpod.
   riverpod: ^3.3.2
