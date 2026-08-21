@@ -91,7 +91,7 @@ jobs:
           fi
       - name: Upload npm audit flake artifact
         if: always() && hashFiles('artifacts/npm-audit-registry-unavailable.json') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: npm-audit-registry-flake
           path: artifacts/npm-audit-registry-unavailable.json
