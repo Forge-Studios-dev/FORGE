@@ -39,6 +39,9 @@ import { CommunitiesModule } from './modules/communities/communities.module';
 import { CoursesModule } from './modules/courses/courses.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
 import { ChannelPointsModule } from './modules/channel-points/channel-points.module';
+import { ArticlesModule } from './modules/articles/articles.module';
+import { QaSessionsModule } from './modules/qa-sessions/qa-sessions.module';
+import { StudyGroupsModule } from './modules/study-groups/study-groups.module';
 import { FraudDetectionModule } from './modules/fraud-detection/fraud-detection.module';
 import { AccessSessionsModule } from './modules/access-sessions/access-sessions.module';
 import { DirectMessagesModule } from './modules/direct-messages/direct-messages.module';
@@ -207,6 +210,9 @@ function sentryFilterProviders() {
     CreatorResourcesModule,
     GamificationModule.register(),
     ChannelPointsModule.register(),
+    ArticlesModule.register(),
+    QaSessionsModule.register(),
+    StudyGroupsModule.register(),
     FraudDetectionModule,
     ReferralModule,
     AccessSessionsModule,

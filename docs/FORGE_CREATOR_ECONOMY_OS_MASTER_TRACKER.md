@@ -43,22 +43,22 @@
 | Metric | Value |
 |--------|-------|
 | **Total tasks** | 678 |
-| **Completed ✅** | 617 (91.0%) |
+| **Completed ✅** | 624 (92.0%) |
 | **In Progress 🔄** | 0 |
 | **Needs Review 👀** | 5 |
-| **Pending ⏳** | 42 |
+| **Pending ⏳** | 35 |
 | **Blocked 🚫** | 14 |
 
-> **Note:** The V3.0 blueprint §Implementation Status Tracker (~98%) is **aspirational**. This tracker (91.0% ✅) is the **authoritative** evidence-based score.
+> **Note:** The V3.0 blueprint §Implementation Status Tracker (~98%) is **aspirational**. This tracker (92.0% ✅) is the **authoritative** evidence-based score.
 
 ### Completion by domain (phase-weighted)
 
 | Domain | ~Complete |
 |--------|-----------|
 | Community | 100% |
-| Memberships | 96% |
+| Memberships | 100% |
+| Content/Feed | 96% |
 | Creator Studio | 94% |
-| Content/Feed | 91% |
 | Live | 90% |
 | Scale/Infra | 80% |
 | AI | 75% |
@@ -267,7 +267,7 @@ See [FORGE_PROJECT_MASTER.md §5](./FORGE_PROJECT_MASTER.md#5-background-workers
 | CEOS-P01-T023 | Ownership: multi-brand per creator | API | ✅ | brands.controller.ts | - | P1 | M | - | Backend |
 | CEOS-P01-T024 | Notification gap: community activity notify listener | API | ✅ | community-activity-notify.listener.ts | - | P1 | M | - | Backend |
 | CEOS-P01-T025 | Feed gap: no semantic recommendations | API | ⏳ | - | Missing | P3 | XL | - | Backend |
-| CEOS-P01-T026 | Engagement gap: no study/accountability groups | API | ⏳ | - | Missing | P3 | L | - | Backend |
+| CEOS-P01-T026 | Engagement gap: no study/accountability groups | API | ✅ | modules/study-groups/ (StudyGroup+Member+CheckIn, join/approve/streak), gated by FEATURES_SKILL_ECONOMY_LMS | - | P3 | L | - | Backend |
 | CEOS-P01-T027 | Live gap: no breakout rooms | API | ⏳ | - | Missing | P3 | XL | - | Backend |
 | CEOS-P01-T028 | Content gap: no unified shorts/articles model | API | ⏳ | - | Missing | P2 | L | - | Backend |
 | CEOS-P01-T029 | Gamification gap: no platform-wide referrals | API | ✅ | modules/referral/ (service+controller+entity) wired into gamification.listener.ts REFERRAL_SUCCESS | - | P2 | M | - | Backend |
@@ -485,8 +485,8 @@ See [FORGE_PROJECT_MASTER.md §5](./FORGE_PROJECT_MASTER.md#5-background-workers
 | CEOS-P05-T049 | Subscription maintenance worker | Worker | ✅ | subscription-maintenance worker | - | P0 | M | - | Backend |
 | CEOS-P05-T050 | Trial lifecycle state machine | API | ✅ | expireDueSubscriptions+getExpiringSubscriptions cover TRIAL; worker safety-net trial->expired; trial-ending reminders | - | P2 | L | - | Backend |
 | CEOS-P05-T051 | Pause/grace period states | API | ✅ | grace_period/paused/renewal_pending/failed_payment set via Stripe webhooks; renewal_pending added to expiry safety-net; grace_period excluded to preserve dunning window | - | P2 | L | - | Backend |
-| CEOS-P05-T052 | Seat-limited access model | API | ⏳ | - | Missing | P3 | L | - | Backend |
-| CEOS-P05-T053 | Lifetime access SKU | API | ⏳ | - | Missing | P3 | M | - | Backend |
+| CEOS-P05-T052 | Seat-limited access model | API | ✅ | subscription-tier.entity.ts maxMembers (null=unlimited) enforced in billing.service.ts checkout | - | P3 | L | - | Backend |
+| CEOS-P05-T053 | Lifetime access SKU | API | ✅ | BillingInterval.LIFETIME wired through stripe-tier-sync/stripe-payment/entitlements-analytics | - | P3 | M | - | Backend |
 | CEOS-P05-T054 | Bundle access evaluation | API | ✅ | creator bundles entitlements | - | P1 | M | - | Backend |
 | CEOS-P05-T055 | Upgrade/downgrade UX flows | Web | ✅ | settings/memberships TierChangeSelect: checkoutUrl redirect, proration-accurate copy, error surfacing, sorted upgrade/downgrade labels | - | P1 | M | - | Frontend |
 | CEOS-P05-T056 | Smoke memberships script | Infra | ✅ | scripts/smoke-memberships.sh | - | P1 | S | - | Platform |
@@ -518,12 +518,12 @@ See [FORGE_PROJECT_MASTER.md §5](./FORGE_PROJECT_MASTER.md#5-background-workers
 | CEOS-P06-T022 | Playlists web UI | Web | ✅ | playlists/ | - | P2 | M | - | Frontend |
 | CEOS-P06-T023 | Playlists mobile UI | Mobile | ✅ | PlaylistsScreen (list+create) + PlaylistDetailScreen (view/remove/watch); /playlists routes; Library hub entry | - | P2 | M | - | Mobile |
 | CEOS-P06-T024 | Shorts content type | API | ✅ | video.entity.ts VideoType.SHORT + SHORT_DURATION_THRESHOLD_SECONDS | - | P2 | L | - | Backend |
-| CEOS-P06-T025 | Articles content type | API | ⏳ | - | Missing | P3 | L | - | Backend |
+| CEOS-P06-T025 | Articles content type | API | ✅ | modules/articles/ (Article entity, publish flow, tier-gated visibility), gated by FEATURES_SKILL_ECONOMY_LMS | - | P3 | L | - | Backend |
 | CEOS-P06-T026 | Announcements (community) | API | ✅ | engagement announcements | - | P1 | M | - | Backend |
 | CEOS-P06-T027 | Podcasts content type | API | ✅ | podcasts.service.ts + PodcastSeries entity + iTunes RSS feed | - | P3 | XL | - | Backend |
 | CEOS-P06-T028 | Downloads/resources library | API | ✅ | modules/creator-resources/ (service+controller) | - | P2 | L | - | Backend |
 | CEOS-P06-T029 | Polls (video + community + live) | API | ✅ | multiple poll modules | - | P1 | M | - | Backend |
-| CEOS-P06-T030 | Q&A sessions content type | API | ⏳ | - | Missing | P3 | L | - | Backend |
+| CEOS-P06-T030 | Q&A sessions content type | API | ✅ | modules/qa-sessions/ (session lifecycle, question submit/upvote/answer), gated by FEATURES_SKILL_ECONOMY_LMS | - | P3 | L | - | Backend |
 | CEOS-P06-T031 | Assignments/challenges (course) | API | ⏳ | - | Missing | P3 | L | - | Backend |
 | CEOS-P06-T032 | Content tagging system | API | ✅ | Full skill-tag lifecycle: controlled taxonomy (categories/:id/skill-tags, upload-options), AI suggest-tags, denormalized tags_search_text feeding GENERATED search_vector (FTS A/B/C weights, GIN), tag-based discovery (feed by-skills + search FTS), clickable tag landing pages (web /explore/skills/[slug]), and now POST-publish re-tagging via PATCH /videos/:id skillTagIds (category-consistency validated, tags_search_text recomputed) + web Studio tag editor; videos.tag-edit.spec covers it | - | P2 | M | - | Backend |
 | CEOS-P06-T033 | Content visibility discovery rules | API | ✅ | users.service.getUserVideos restricts non-owner listings to VideoVisibility.PUBLIC (UNLISTED is link-only), aligned with feed discovery contract | - | P1 | M | - | Backend |
@@ -666,8 +666,8 @@ See [FORGE_PROJECT_MASTER.md §5](./FORGE_PROJECT_MASTER.md#5-background-workers
 | CEOS-P10-T007 | Surveys engagement | API | ✅ | engagement surveys | - | P1 | M | - | Backend |
 | CEOS-P10-T008 | Challenges engagement | API | ✅ | engagement challenges | - | P1 | M | - | Backend |
 | CEOS-P10-T009 | Events/meetups calendar | API | ✅ | community events | - | P1 | M | - | Backend |
-| CEOS-P10-T010 | Study groups | API | ⏳ | - | Missing | P3 | L | - | Backend |
-| CEOS-P10-T011 | Accountability groups | API | ⏳ | - | Missing | P3 | L | - | Backend |
+| CEOS-P10-T010 | Study groups | API | ✅ | modules/study-groups/ StudyGroupType.STUDY | - | P3 | L | - | Backend |
+| CEOS-P10-T011 | Accountability groups | API | ✅ | modules/study-groups/ StudyGroupType.ACCOUNTABILITY (check-ins + streak) | - | P3 | L | - | Backend |
 | CEOS-P10-T012 | Office hours scheduling | API | ⏳ | - | Missing | P3 | L | - | Backend |
 | CEOS-P10-T013 | Mentorship matching | API | ✅ | communities/mentorship.service.ts + mentorship.controller.ts, skill-overlap matching, 7 endpoints | - | P3 | XL | - | Backend |
 | CEOS-P10-T014 | Daily engagement loops (product) | Product | ⏳ | - | Missing | P2 | L | - | Product |
@@ -968,7 +968,7 @@ See [FORGE_PROJECT_MASTER.md §5](./FORGE_PROJECT_MASTER.md#5-background-workers
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-08-22 | Single tracker replaces Community 2.0/3.0 docs | Deleted/stale docs; one source of truth |
-| 2026-08-22 | Evidence-based 91.0% vs V3.0 98% claim | Code audit; aspirational vs shipped |
+| 2026-08-22 | Evidence-based 92.0% vs V3.0 98% claim | Code audit; aspirational vs shipped |
 | 2026-08-22 | Fixed: Super Chat/Super Thanks fee-split can drift from what Stripe charged | webhook path re-derived platformFeePercent from live config instead of reusing the value baked into the charge at checkout; ledger could silently disagree with real Stripe transfers if the config changed between checkout and webhook. Fixed in stripe-payment.provider.ts/billing.service.ts/stream-chat.service.ts |
 | 2026-08-22 | Fixed: canceled/downgraded/refunded subscriber could keep live-stream socket access for up to 60s | StreamingService.assertStreamSocketAccess caches the entitlement check separately from EntitlementsService's own cache, and nothing busted it on subscription change. bustSubscriptionCache now emits entitlements.subscription-cache.busted; StreamingService listens and busts its per-stream cache for the affected creator's live streams |
 | 2026-08-22 | Deliberately deferred: webhook idempotency check-then-act race (billing + Mux webhooks) | WebhookIdempotencyService.isDuplicate/markProcessed is non-atomic -- two near-simultaneous deliveries of the same event can both pass the duplicate check before either commits. Fixing via atomic Redis SETNX reservation needs a rollback-on-failure design (else a failed attempt permanently blocks the legitimate Stripe/Mux retry until the 24h TTL) across two call sites (billing.service.ts, streaming.service.ts handleMuxWebhook) -- deserves its own dedicated, tested pass rather than a bolt-on. Not currently exploitable for double-crediting (DB unique constraints on super_thanks/stream_event_purchases close that gap); worst case today is duplicate content-scan calls/notifications |
