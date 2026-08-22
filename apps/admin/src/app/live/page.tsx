@@ -34,7 +34,7 @@ export default function AdminLivePage() {
   const [chatStreamId, setChatStreamId] = useState<string | null>(null);
   const [forceEndTarget, setForceEndTarget] = useState<{ id: string; title: string } | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-streams'],
     queryFn: async () => {
       const { data: res } = await api.get<{
@@ -188,7 +188,18 @@ export default function AdminLivePage() {
           </ul>
         </div>
       ) : null}
-      {isLoading ? (
+      {isError ? (
+        <div className="glass-panel flex flex-col items-center rounded-xl px-6 py-12 text-center">
+          <p className="text-error">Failed to load streams.</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="mt-4 text-sm text-primary hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      ) : isLoading ? (
         <ul className="space-y-3" aria-busy="true" aria-label="Loading streams">
           {Array.from({ length: 4 }).map((_, i) => (
             <li key={i} className="glass-panel animate-pulse rounded-xl p-4">

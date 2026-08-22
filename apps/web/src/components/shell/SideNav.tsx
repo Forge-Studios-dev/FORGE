@@ -34,6 +34,12 @@ const YOU: NavItem[] = [
     guestHref: '/login?next=/library',
   },
   {
+    href: '/updates',
+    label: 'Updates',
+    icon: 'campaign',
+    guestHref: '/login?next=/updates',
+  },
+  {
     href: '/history',
     label: 'History',
     icon: 'history',

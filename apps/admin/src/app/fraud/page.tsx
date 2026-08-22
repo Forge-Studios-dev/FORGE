@@ -55,7 +55,7 @@ export default function FraudPage() {
     setPage(1);
   }, [statusFilter]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['fraud-alerts', statusFilter, page],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -207,6 +207,7 @@ export default function FraudPage() {
         data={alerts}
         getRowId={(alert) => alert.id}
         loading={isLoading}
+        error={isError ? { title: 'Failed to load fraud alerts', onRetry: () => refetch() } : undefined}
         emptyState={{ title: 'No alerts found' }}
       />
 

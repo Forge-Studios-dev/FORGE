@@ -90,7 +90,12 @@ const ENGAGEMENT_LABEL_TONE: Record<EngagementScoreKpi['label'], StatusTone> = {
 };
 
 export default function DashboardPage() {
-  const { data: stats, isLoading: statsLoading } = useQuery<Stats>({
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    isError: statsError,
+    refetch: refetchStats,
+  } = useQuery<Stats>({
     queryKey: ['admin-stats'],
     queryFn: async () => {
       const { data } = await api.get('/admin/stats');
@@ -98,7 +103,11 @@ export default function DashboardPage() {
     },
   });
 
-  const { data: pending } = useQuery({
+  const {
+    data: pending,
+    isError: pendingError,
+    refetch: refetchPending,
+  } = useQuery({
     queryKey: ['admin-creators-pending-preview'],
     queryFn: async () => {
       const { data } = await api.get('/admin/creators/pending?limit=5');
@@ -106,7 +115,11 @@ export default function DashboardPage() {
     },
   });
 
-  const { data: reports } = useQuery({
+  const {
+    data: reports,
+    isError: reportsError,
+    refetch: refetchReports,
+  } = useQuery({
     queryKey: ['admin-reports-preview'],
     queryFn: async () => {
       const { data } = await api.get('/admin/reports?limit=5&status=pending');
@@ -114,7 +127,11 @@ export default function DashboardPage() {
     },
   });
 
-  const { data: fraudAlerts } = useQuery({
+  const {
+    data: fraudAlerts,
+    isError: fraudError,
+    refetch: refetchFraud,
+  } = useQuery({
     queryKey: ['admin-fraud-preview'],
     queryFn: async () => {
       const { data } = await api.get<{ data: FraudAlertPreview[] }>('/admin/fraud/alerts?status=open&limit=5');
@@ -173,7 +190,11 @@ export default function DashboardPage() {
       .slice(0, 8);
   }, [fraudAlerts, reports, pending]);
 
-  const { data: kpi } = useQuery<PlatformKpiDashboard>({
+  const {
+    data: kpi,
+    isError: kpiError,
+    refetch: refetchKpi,
+  } = useQuery<PlatformKpiDashboard>({
     queryKey: ['admin-kpi-dashboard'],
     queryFn: async () => {
       const { data } = await api.get('/analytics/kpi/platform/dashboard');
@@ -192,11 +213,44 @@ export default function DashboardPage() {
     );
   }
 
+  if (statsError) {
+    return (
+      <div className="glass-panel flex flex-col items-center rounded-xl px-6 py-12 text-center">
+        <p className="text-error">Failed to load dashboard stats.</p>
+        <button
+          type="button"
+          onClick={() => refetchStats()}
+          className="mt-4 text-sm text-primary hover:underline"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  const secondaryError = pendingError || reportsError || fraudError || kpiError;
   const churn = kpi?.churn ? churnStatus(kpi.churn.churnRate) : null;
 
   return (
     <div>
       <PageHeader title="Dashboard" subtitle="Platform overview" />
+      {secondaryError ? (
+        <div className="glass-panel mb-6 flex items-center justify-between rounded-xl px-4 py-3">
+          <p className="text-sm text-error">Some dashboard data failed to load — figures below may be incomplete.</p>
+          <button
+            type="button"
+            onClick={() => {
+              void refetchPending();
+              void refetchReports();
+              void refetchFraud();
+              void refetchKpi();
+            }}
+            className="text-sm text-primary hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
       <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Link href="/users" className="block transition hover:-translate-y-0.5">
           <StatCard label="Total users" value={stats?.userCount ?? 0} icon="group" />

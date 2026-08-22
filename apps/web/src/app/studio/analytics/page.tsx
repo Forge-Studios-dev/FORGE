@@ -6,7 +6,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { EmptyState, PageHeader, StatCardsSkeleton, StatusPill, type StatusTone } from '@forge/design-system';
 import { getMyVideos } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
-import { formatCount } from '@/lib/utils';
+import { formatCentsUsd, formatCount } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { CreatorFunnelChart } from '@/components/Community/CreatorFunnelChart';
 import { CreatorCohortChart } from '@/components/Community/CreatorCohortChart';
@@ -220,7 +220,7 @@ export default function StudioAnalyticsPage() {
         <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">MRR</p>
           <p className="font-display-forge mt-1 text-2xl font-bold">
-            ₹{((subscriberStats?.mrrCents ?? 0) / 100).toFixed(0)}
+            {formatCentsUsd(subscriberStats?.mrrCents ?? 0)}
           </p>
         </article>
       </section>

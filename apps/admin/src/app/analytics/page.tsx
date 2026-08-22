@@ -6,7 +6,12 @@ import { PageHeader, StatCard } from '@forge/design-system';
 import { api } from '@/lib/api';
 
 export default function AnalyticsPage() {
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    isError: statsError,
+    refetch: refetchStats,
+  } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: async () => {
       const { data } = await api.get('/admin/stats');
@@ -14,7 +19,12 @@ export default function AnalyticsPage() {
     },
   });
 
-  const { data: analytics, isLoading: analyticsLoading } = useQuery({
+  const {
+    data: analytics,
+    isLoading: analyticsLoading,
+    isError: analyticsError,
+    refetch: refetchAnalytics,
+  } = useQuery({
     queryKey: ['admin-analytics-summary'],
     queryFn: async () => {
       const { data } = await api.get('/admin/analytics/summary');
@@ -26,6 +36,7 @@ export default function AnalyticsPage() {
   });
 
   const loading = statsLoading || analyticsLoading;
+  const hasError = statsError || analyticsError;
   const chartData =
     analytics?.byEvent?.map((row) => ({
       name: row.eventName,
@@ -37,6 +48,20 @@ export default function AnalyticsPage() {
       <PageHeader title="Analytics" subtitle="Platform metrics (last 7 days)" />
       {loading ? (
         <p className="text-on-surface-variant">Loading…</p>
+      ) : hasError ? (
+        <div className="glass-panel flex flex-col items-center rounded-xl px-6 py-12 text-center">
+          <p className="text-error">Failed to load analytics.</p>
+          <button
+            type="button"
+            onClick={() => {
+              void refetchStats();
+              void refetchAnalytics();
+            }}
+            className="mt-4 text-sm text-primary hover:underline"
+          >
+            Retry
+          </button>
+        </div>
       ) : (
         <>
           <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

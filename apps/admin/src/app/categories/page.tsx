@@ -31,7 +31,12 @@ export default function CategoriesPage() {
   const [error, setError] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Category | null>(null);
 
-  const { data, isLoading } = useQuery<Category[]>({
+  const {
+    data,
+    isLoading,
+    isError: categoriesError,
+    refetch: refetchCategories,
+  } = useQuery<Category[]>({
     queryKey: ['admin-categories'],
     queryFn: async () => {
       const { data } = await api.get('/categories');
@@ -172,6 +177,17 @@ export default function CategoriesPage() {
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="glass-panel h-28 animate-pulse rounded-xl" />
           ))}
+        </div>
+      ) : categoriesError ? (
+        <div className="glass-panel flex flex-col items-center rounded-xl px-6 py-12 text-center">
+          <p className="text-error">Failed to load categories.</p>
+          <button
+            type="button"
+            onClick={() => refetchCategories()}
+            className="mt-4 text-sm text-primary hover:underline"
+          >
+            Retry
+          </button>
         </div>
       ) : !data?.length ? (
         <div className="glass-panel flex flex-col items-center rounded-xl px-6 py-12 text-center">
