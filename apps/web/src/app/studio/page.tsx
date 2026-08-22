@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { fetchStudioLibrary, getMyVideos } from '@/lib/creator-studio';
 import { useStudioAccess } from '@/hooks/useStudioAccess';
-import { formatCount } from '@/lib/utils';
+import { formatCentsUsd, formatCount } from '@/lib/utils';
 
 interface CreatorAttention {
   counts: {
@@ -131,11 +131,7 @@ export default function StudioPage() {
     (attention?.counts.scheduledUpcoming ?? 0);
   const isFirstTimeCreator =
     libraryPreview?.pagination.total === 0 && !attentionLoading && !hasAttentionItems;
-  const mrrDisplay = ((subscriberStats?.mrrCents ?? 0) / 100).toLocaleString(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  });
+  const mrrDisplay = formatCentsUsd(subscriberStats?.mrrCents ?? 0);
   const readyVideoCount = topVideos.length;
 
   if (isCollaborator && !isCreator) {

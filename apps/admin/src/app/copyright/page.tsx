@@ -66,7 +66,7 @@ const CONSEQUENCE_LABEL: Record<string, string> = {
 
 function NoticesTab() {
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['copyright-notices', page],
     queryFn: async () => {
       const res = await api.get<{
@@ -119,6 +119,7 @@ function NoticesTab() {
         data={notices}
         getRowId={(n) => n.id}
         loading={isLoading}
+        error={isError ? { title: 'Failed to load DMCA notices', onRetry: () => refetch() } : undefined}
         emptyState={{ title: 'No DMCA notices' }}
       />
       {!isLoading && total > 0 ? (
@@ -142,7 +143,7 @@ function CounterNoticesTab() {
   const [page, setPage] = useState(1);
   const [confirming, setConfirming] = useState<CopyrightCounterNotice | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['copyright-counter-notices', page],
     queryFn: async () => {
       const res = await api.get<{
@@ -234,6 +235,7 @@ function CounterNoticesTab() {
         data={counterNotices}
         getRowId={(cn) => cn.id}
         loading={isLoading}
+        error={isError ? { title: 'Failed to load counter-notices', onRetry: () => refetch() } : undefined}
         emptyState={{ title: 'No counter-notices' }}
       />
       {!isLoading && total > 0 ? (
@@ -288,7 +290,7 @@ function StrikesTab() {
     setPage(1);
   }, [appealFilter]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['strikes', page, appealFilter],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
@@ -397,6 +399,7 @@ function StrikesTab() {
         data={strikes}
         getRowId={(s) => s.id}
         loading={isLoading}
+        error={isError ? { title: 'Failed to load strikes', onRetry: () => refetch() } : undefined}
         emptyState={{ title: 'No strikes found' }}
       />
       {!isLoading && total > 0 ? (

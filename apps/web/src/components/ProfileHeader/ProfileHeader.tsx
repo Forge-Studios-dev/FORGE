@@ -1,6 +1,6 @@
 'use client';
 
-import { Avatar } from '@forge/design-system';
+import { Avatar, StatusPill } from '@forge/design-system';
 import { User } from '@/types';
 import { formatCount } from '@/lib/utils';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -109,11 +109,7 @@ export function ProfileHeader({ user }: Props) {
           <div className="min-w-0 flex-1 pb-2">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="truncate text-2xl font-bold">{user.displayName}</h1>
-              {user.isVerified && (
-                <span className="rounded-full border border-forge-500/20 bg-forge-500/10 px-2 py-0.5 text-sm text-forge-400">
-                  Verified
-                </span>
-              )}
+              {user.isVerified && <StatusPill tone="primary" label="Verified" icon="verified" />}
             </div>
             <p className="text-sm text-on-surface-variant">@{user.username}</p>
           </div>

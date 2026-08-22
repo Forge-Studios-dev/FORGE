@@ -110,6 +110,13 @@ export default function LibraryPage() {
           <span className="font-semibold">History</span>
         </Link>
         <Link
+          href="/updates"
+          className="glass-panel flex items-center gap-3 rounded-2xl px-4 py-4 hover:border-primary/30"
+        >
+          <Icon name="campaign" className="text-primary" />
+          <span className="font-semibold">Updates</span>
+        </Link>
+        <Link
           href={watchLater ? `/playlists/${watchLater.id}` : '/playlists/me/watch-later'}
           className="glass-panel flex items-center gap-3 rounded-2xl px-4 py-4 hover:border-primary/30"
         >

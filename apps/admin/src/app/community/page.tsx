@@ -66,7 +66,12 @@ export default function AdminCommunityPage() {
   const [connectFilter, setConnectFilter] = useState<'all' | 'connected' | 'incomplete' | 'none'>('all');
   const [expandedCommunityId, setExpandedCommunityId] = useState<string | null>(null);
 
-  const { data: reports, isLoading: reportsLoading } = useQuery({
+  const {
+    data: reports,
+    isLoading: reportsLoading,
+    isError: reportsError,
+    refetch: refetchReports,
+  } = useQuery({
     queryKey: ['admin-community-reports'],
     queryFn: async () => {
       const { data } = await api.get<{ data: Report[] }>('/admin/community-reports');
@@ -75,7 +80,12 @@ export default function AdminCommunityPage() {
     enabled: tab === 'reports',
   });
 
-  const { data: communities, isLoading: communitiesLoading } = useQuery({
+  const {
+    data: communities,
+    isLoading: communitiesLoading,
+    isError: communitiesError,
+    refetch: refetchCommunities,
+  } = useQuery({
     queryKey: ['admin-communities', search],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: '50' });
@@ -88,7 +98,12 @@ export default function AdminCommunityPage() {
     enabled: tab === 'communities',
   });
 
-  const { data: connectRows, isLoading: connectLoading } = useQuery({
+  const {
+    data: connectRows,
+    isLoading: connectLoading,
+    isError: connectError,
+    refetch: refetchConnect,
+  } = useQuery({
     queryKey: ['admin-creator-connect', search, connectFilter],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: '50', filter: connectFilter });
@@ -163,7 +178,18 @@ export default function AdminCommunityPage() {
       </div>
 
       {tab === 'reports' ? (
-        reportsLoading ? (
+        reportsError ? (
+          <div className="glass-panel flex flex-col items-center rounded-xl px-6 py-12 text-center">
+            <p className="text-error">Failed to load reports.</p>
+            <button
+              type="button"
+              onClick={() => refetchReports()}
+              className="mt-4 text-sm text-primary hover:underline"
+            >
+              Retry
+            </button>
+          </div>
+        ) : reportsLoading ? (
           <ul className="space-y-3" aria-busy="true" aria-label="Loading reports">
             {Array.from({ length: 3 }).map((_, i) => (
               <li key={i} className="animate-pulse rounded-xl border border-outline-variant/30 px-4 py-3">
@@ -198,7 +224,18 @@ export default function AdminCommunityPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          {communitiesLoading ? (
+          {communitiesError ? (
+            <div className="glass-panel flex flex-col items-center rounded-xl px-6 py-12 text-center">
+              <p className="text-error">Failed to load communities.</p>
+              <button
+                type="button"
+                onClick={() => refetchCommunities()}
+                className="mt-4 text-sm text-primary hover:underline"
+              >
+                Retry
+              </button>
+            </div>
+          ) : communitiesLoading ? (
             <ul className="space-y-2" aria-busy="true" aria-label="Loading communities">
               {Array.from({ length: 4 }).map((_, i) => (
                 <li key={i} className="animate-pulse rounded-xl border border-outline-variant/30 px-4 py-3">
@@ -311,7 +348,18 @@ export default function AdminCommunityPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          {connectLoading ? (
+          {connectError ? (
+            <div className="glass-panel flex flex-col items-center rounded-xl px-6 py-12 text-center">
+              <p className="text-error">Failed to load creator connect status.</p>
+              <button
+                type="button"
+                onClick={() => refetchConnect()}
+                className="mt-4 text-sm text-primary hover:underline"
+              >
+                Retry
+              </button>
+            </div>
+          ) : connectLoading ? (
             <ul className="space-y-2" aria-busy="true" aria-label="Loading connect status">
               {Array.from({ length: 3 }).map((_, i) => (
                 <li key={i} className="animate-pulse rounded-xl border border-outline-variant/30 px-4 py-3">

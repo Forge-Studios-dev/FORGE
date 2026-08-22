@@ -11,6 +11,15 @@ export function formatCount(n: number): string {
   return String(n);
 }
 
+/** Formats cents as whole-unit USD (e.g. 12345 -> "$123"). Single source of truth so revenue figures can't drift between surfaces (studio dashboard vs analytics). */
+export function formatCentsUsd(cents: number): string {
+  return (cents / 100).toLocaleString(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  });
+}
+
 export function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
