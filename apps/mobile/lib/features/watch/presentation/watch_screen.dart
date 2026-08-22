@@ -28,7 +28,11 @@ import 'save_to_playlist_sheet.dart';
 import '../data/miniplayer_provider.dart';
 import '../data/watch_repository.dart';
 import 'chapters_panel.dart';
+import 'expandable_description.dart';
 import 'player_captions_overlay.dart';
+import 'playlist_queue_section.dart';
+import 'related_videos_section.dart';
+import 'report_video_button.dart';
 import 'transcript_panel.dart';
 
 const _autoplayPrefKey = 'forge.watch.autoplay';
@@ -85,7 +89,7 @@ String _accessMessage(String? reason) {
   }
 }
 
-String _watchListHref(String videoId, {String? playlistId, bool shuffle = false}) {
+String watchListHref(String videoId, {String? playlistId, bool shuffle = false}) {
   if (playlistId == null || playlistId.isEmpty) return '/watch/$videoId';
   final params = <String, String>{'list': playlistId};
   if (shuffle) params['shuffle'] = '1';
@@ -387,7 +391,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
     }
     if (nextId == null) return null;
     return (
-      href: _watchListHref(nextId, playlistId: listId, shuffle: widget.shuffle),
+      href: watchListHref(nextId, playlistId: listId, shuffle: widget.shuffle),
       title: titleOf(nextId),
     );
   }
@@ -690,7 +694,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
             title: const Text('Shuffle', style: TextStyle(fontSize: 14)),
             value: widget.shuffle,
             onChanged: (v) {
-              final href = _watchListHref(videoId, playlistId: listId, shuffle: v);
+              final href = watchListHref(videoId, playlistId: listId, shuffle: v);
               context.pushReplacement(href);
             },
           ),
@@ -712,7 +716,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
         _WatchEngageRow(video: video),
         if (video.description != null && video.description!.isNotEmpty) ...[
           const SizedBox(height: 12),
-          _ExpandableDescription(videoId: videoId, description: video.description!),
+          ExpandableDescription(videoId: videoId, description: video.description!),
         ],
         if (chapters.length >= 3) ...[
           const SizedBox(height: 12),
@@ -734,10 +738,10 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
           ),
         ],
         const SizedBox(height: 16),
-        _ReportVideoButton(videoId: videoId),
+        ReportVideoButton(videoId: videoId),
         if (_playlist != null && listId != null) ...[
           const SizedBox(height: 24),
-          _PlaylistQueueSection(
+          PlaylistQueueSection(
             playlist: _playlist!,
             listId: listId,
             currentVideoId: videoId,
@@ -745,7 +749,7 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
           ),
         ],
         const SizedBox(height: 24),
-        _RelatedVideosSection(
+        RelatedVideosSection(
           videoId: videoId,
           playlistId: listId,
           shuffle: widget.shuffle,
@@ -756,216 +760,6 @@ class _WatchBodyState extends ConsumerState<_WatchBody> {
           highlightCommentId: widget.highlightCommentId,
         ),
       ],
-    );
-  }
-}
-
-class _PlaylistQueueSection extends StatelessWidget {
-  final Map<String, dynamic> playlist;
-  final String listId;
-  final String currentVideoId;
-  final bool shuffle;
-  const _PlaylistQueueSection({
-    required this.playlist,
-    required this.listId,
-    required this.currentVideoId,
-    required this.shuffle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final items = (playlist['items'] as List?) ?? [];
-    final title = playlist['title'] as String? ?? 'Playlist';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Playlist', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 4),
-        Text(
-          '$title · ${items.length} videos${shuffle ? ' · Shuffle on' : ''}',
-          style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant, fontSize: 13),
-        ),
-        const SizedBox(height: 8),
-        ...items.asMap().entries.map((entry) {
-          final i = entry.key;
-          final item = entry.value as Map<String, dynamic>;
-          final video = item['video'] as Map<String, dynamic>?;
-          final videoId = item['videoId'] as String? ?? video?['id'] as String?;
-          final active = videoId == currentVideoId;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: ForgeCard(
-              onTap: videoId == null
-                  ? null
-                  : () => context.push(
-                        _watchListHref(videoId, playlistId: listId, shuffle: shuffle),
-                      ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 24,
-                    child: Text(
-                      '${i + 1}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: active ? ForgeTokens.of(context).primary : ForgeTokens.of(context).outline,
-                        fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      video?['title'] as String? ?? 'Video',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: ForgeTokens.of(context).onSurface,
-                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                    ),
-                  ),
-                  if (active)
-                    Icon(Icons.play_arrow, size: 18, color: ForgeTokens.of(context).primary),
-                ],
-              ),
-            ),
-          );
-        }),
-      ],
-    );
-  }
-}
-
-class _ExpandableDescription extends ConsumerStatefulWidget {
-  final String videoId;
-  final String description;
-  const _ExpandableDescription({required this.videoId, required this.description});
-
-  @override
-  ConsumerState<_ExpandableDescription> createState() => _ExpandableDescriptionState();
-}
-
-class _ExpandableDescriptionState extends ConsumerState<_ExpandableDescription> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = widget.description;
-    final needsToggle = text.length > 180 || text.contains('\n');
-    final shown = (!_expanded && needsToggle && text.length > 180)
-        ? '${text.substring(0, 180).trimRight()}…'
-        : text;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _LinkifiedText(
-          text: shown,
-          videoId: widget.videoId,
-          style: TextStyle(height: 1.4, color: ForgeTokens.of(context).onSurfaceVariant),
-        ),
-        if (needsToggle)
-          TextButton(
-            onPressed: () => setState(() => _expanded = !_expanded),
-            child: Text(_expanded ? 'Show less' : 'Show more'),
-          ),
-      ],
-    );
-  }
-}
-
-class _LinkifiedText extends ConsumerWidget {
-  final String text;
-  final String videoId;
-  final TextStyle? style;
-  const _LinkifiedText({required this.text, required this.videoId, this.style});
-
-  static final _tokenRe = RegExp(
-    r'(#[\w\u00C0-\u024F]{2,64})|(@[a-zA-Z0-9_]{2,32})|(\b(?:\d{1,2}:)?\d{1,2}:\d{2}\b)',
-    unicode: true,
-  );
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final spans = <InlineSpan>[];
-    var start = 0;
-    for (final match in _tokenRe.allMatches(text)) {
-      if (match.start > start) {
-        spans.add(TextSpan(text: text.substring(start, match.start)));
-      }
-      final token = match.group(0)!;
-      if (token.startsWith('#')) {
-        final q = token.substring(1);
-        spans.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: GestureDetector(
-              onTap: () => context.push('/search?q=${Uri.encodeComponent(q)}'),
-              child: Text(
-                token,
-                style: TextStyle(
-                  color: ForgeTokens.of(context).primary,
-                  fontWeight: FontWeight.w600,
-                  height: style?.height,
-                ),
-              ),
-            ),
-          ),
-        );
-      } else if (token.startsWith('@')) {
-        final username = token.substring(1);
-        spans.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: GestureDetector(
-              onTap: () => context.push('/profile/$username'),
-              child: Text(
-                token,
-                style: TextStyle(
-                  color: ForgeTokens.of(context).primary,
-                  fontWeight: FontWeight.w600,
-                  height: style?.height,
-                ),
-              ),
-            ),
-          ),
-        );
-      } else {
-        final seconds = parseTimestampToSeconds(token);
-        spans.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: GestureDetector(
-              onTap: seconds == null
-                  ? null
-                  : () => ref.read(watchSeekSecondsProvider(videoId).notifier).state = seconds,
-              child: Text(
-                token,
-                style: TextStyle(
-                  color: seconds != null ? ForgeTokens.of(context).primary : ForgeTokens.of(context).onSurfaceVariant,
-                  fontWeight: seconds != null ? FontWeight.w600 : FontWeight.normal,
-                  height: style?.height,
-                ),
-              ),
-            ),
-          ),
-        );
-      }
-      start = match.end;
-    }
-    if (start < text.length) {
-      spans.add(TextSpan(text: text.substring(start)));
-    }
-    return Text.rich(
-      TextSpan(
-        style: style ?? TextStyle(height: 1.4, color: ForgeTokens.of(context).onSurfaceVariant),
-        children: spans,
-      ),
     );
   }
 }
@@ -1535,89 +1329,6 @@ class _WatchEngageRowState extends ConsumerState<_WatchEngageRow> {
   }
 }
 
-class _ReportVideoButton extends ConsumerStatefulWidget {
-  final String videoId;
-  const _ReportVideoButton({required this.videoId});
-
-  @override
-  ConsumerState<_ReportVideoButton> createState() => _ReportVideoButtonState();
-}
-
-class _ReportVideoButtonState extends ConsumerState<_ReportVideoButton> {
-  // Matches @forge/shared-types VIDEO_REPORT_REASONS — keep in sync (Dart
-  // can't import the TS enum directly; see report-reasons.ts for the
-  // canonical source and severity mapping).
-  static const _reasons = [
-    'Spam or misleading',
-    'Hate speech or harassment',
-    'Sexual content',
-    'Violent or repulsive content',
-    'Harmful or dangerous acts',
-    'Child abuse',
-    'Promotes terrorism',
-    'Copyright infringement',
-    'Privacy violation',
-    'Other',
-  ];
-
-  Future<void> _openSheet() async {
-    final reason = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(
-              title: Text('Report video', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            ..._reasons.map(
-              (r) => ListTile(
-                title: Text(r),
-                onTap: () => Navigator.pop(ctx, r),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (reason == null || !mounted) return;
-    try {
-      await ref.read(watchRepositoryProvider).reportVideo(
-            videoId: widget.videoId,
-            reason: reason,
-          );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Report submitted')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sign in to report content')),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: TextButton.icon(
-        onPressed: _openSheet,
-        icon: Icon(Icons.flag_outlined, size: 18),
-        label: const Text('Report'),
-        style: TextButton.styleFrom(foregroundColor: ForgeTokens.of(context).outline),
-      ),
-    );
-  }
-}
-
 class _WatchCommentsSection extends ConsumerStatefulWidget {
   final String videoId;
   final String videoOwnerId;
@@ -2158,7 +1869,7 @@ class _WatchCommentsSectionState extends ConsumerState<_WatchCommentsSection> {
                                 ),
                               ],
                             )
-                          : _LinkifiedText(
+                          : LinkifiedText(
                               text: m['content'] as String? ?? '',
                               videoId: widget.videoId,
                               style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
@@ -2579,177 +2290,6 @@ class _HlsPlayerBlockState extends ConsumerState<_HlsPlayerBlock> with WidgetsBi
                   )
                 : Center(child: CircularProgressIndicator(color: ForgeTokens.of(context).primary)),
       ),
-    );
-  }
-}
-
-/// "Up next" rail backed by the content-based related recommendations endpoint
-/// (`GET /videos/:id/related`). Best-effort: silently hides if nothing relevant.
-class _RelatedVideosSection extends ConsumerStatefulWidget {
-  final String videoId;
-  final String? playlistId;
-  final bool shuffle;
-  const _RelatedVideosSection({
-    required this.videoId,
-    this.playlistId,
-    this.shuffle = false,
-  });
-
-  @override
-  ConsumerState<_RelatedVideosSection> createState() => _RelatedVideosSectionState();
-}
-
-class _RelatedVideosSectionState extends ConsumerState<_RelatedVideosSection> {
-  List<dynamic> _items = [];
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void didUpdateWidget(covariant _RelatedVideosSection oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.videoId != widget.videoId) {
-      setState(() {
-        _items = [];
-        _loading = true;
-      });
-      _load();
-    }
-  }
-
-  Future<void> _load() async {
-    try {
-      final data = await ref.read(watchRepositoryProvider).getRelated(widget.videoId);
-      if (!mounted) return;
-      setState(() {
-        _items = data;
-        _loading = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading || _items.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Up next', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        ..._items.map((raw) {
-          final v = raw as Map<String, dynamic>;
-          final id = v['id'] as String?;
-          final user = v['user'] as Map<String, dynamic>?;
-          final thumb = v['thumbnailUrl'] as String?;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: ForgeCard(
-              onTap: id == null
-                  ? null
-                  : () => context.push(
-                        _watchListHref(
-                          id,
-                          playlistId: widget.playlistId,
-                          shuffle: widget.shuffle,
-                        ),
-                      ),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: SizedBox(
-                      width: 96,
-                      height: 54,
-                      child: thumb != null && thumb.isNotEmpty
-                          ? Image.network(
-                              thumb,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => ColoredBox(
-                                color: ForgeTokens.of(context).surfaceContainerHigh,
-                                child: Icon(Icons.play_circle_outline,
-                                    color: ForgeTokens.of(context).outline),
-                              ),
-                            )
-                          : ColoredBox(
-                              color: ForgeTokens.of(context).surfaceContainerHigh,
-                              child: Icon(Icons.play_circle_outline,
-                                  color: ForgeTokens.of(context).outline),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          v['title'] as String? ?? 'Video',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: ForgeTokens.of(context).onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '@${user?['username'] ?? 'creator'}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: ForgeTokens.of(context).onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (id != null)
-                    PopupMenuButton<String>(
-                      tooltip: 'More',
-                      onSelected: (value) async {
-                        try {
-                          final repo = ref.read(watchRepositoryProvider);
-                          if (value == 'not_interested') {
-                            await repo.markNotInterested(id);
-                          } else if (value == 'dont_recommend') {
-                            await repo.dontRecommendChannel(id);
-                          }
-                          if (!mounted) return;
-                          setState(() {
-                            _items = _items.where((item) {
-                              final m = item as Map<String, dynamic>;
-                              return m['id'] != id;
-                            }).toList();
-                          });
-                        } catch (_) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Sign in to update preferences')),
-                          );
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(value: 'not_interested', child: Text('Not interested')),
-                        PopupMenuItem(value: 'dont_recommend', child: Text("Don't recommend channel")),
-                      ],
-                      icon: const Icon(Icons.more_vert, size: 20),
-                    ),
-                ],
-              ),
-            ),
-          );
-        }),
-        const SizedBox(height: 24),
-      ],
     );
   }
 }
