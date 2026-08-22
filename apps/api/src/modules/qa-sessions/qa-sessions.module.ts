@@ -5,6 +5,7 @@ import { QaSessionsService } from './qa-sessions.service';
 import { QaSessionsController } from './qa-sessions.controller';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
+import { UsersModule } from '../users/users.module';
 import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 
 /**
@@ -21,7 +22,10 @@ export class QaSessionsModule {
 
     return {
       module: QaSessionsModule,
-      imports: [TypeOrmModule.forFeature([QaSession, QaQuestion, QaQuestionUpvote])],
+      imports: [
+        TypeOrmModule.forFeature([QaSession, QaQuestion, QaQuestionUpvote]),
+        UsersModule,
+      ],
       providers: [QaSessionsService, CreatorApprovedGuard, OptionalJwtAuthGuard],
       controllers: [QaSessionsController],
       exports: [QaSessionsService],

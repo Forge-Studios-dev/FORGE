@@ -5,6 +5,7 @@ import { ArticlesService } from './articles.service';
 import { ArticlesController } from './articles.controller';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { EngagementModule } from '../engagement/engagement.module';
+import { UsersModule } from '../users/users.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
@@ -23,7 +24,12 @@ export class ArticlesModule {
 
     return {
       module: ArticlesModule,
-      imports: [TypeOrmModule.forFeature([Article]), EntitlementsModule, EngagementModule],
+      imports: [
+        TypeOrmModule.forFeature([Article]),
+        EntitlementsModule,
+        EngagementModule,
+        UsersModule,
+      ],
       providers: [ArticlesService, CreatorApprovedGuard, OptionalJwtAuthGuard],
       controllers: [ArticlesController],
       exports: [ArticlesService],
