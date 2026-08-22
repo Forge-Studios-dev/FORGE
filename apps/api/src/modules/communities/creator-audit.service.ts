@@ -3,6 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreatorAuditLog } from './entities/community-room-message.entity';
+import { clampLimit } from '../../common/utils/pagination.util';
 
 @Injectable()
 export class CreatorAuditService {
@@ -35,7 +36,7 @@ export class CreatorAuditService {
     const rows = await this.auditRepository.find({
       where: { creatorId },
       order: { createdAt: 'DESC' },
-      take: Math.min(limit, 200),
+      take: clampLimit(limit, 50, 200),
     });
     return { data: rows };
   }

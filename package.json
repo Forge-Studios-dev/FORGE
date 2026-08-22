@@ -11,7 +11,7 @@
   "scripts": {
     "dev:api": "npm run dev --workspace=apps/api",
     "dev:web": "npm run build --workspace=@forge/shared-types && npm run dev --workspace=apps/web",
-    "dev:admin": "npm run dev --workspace=apps/admin",
+    "dev:admin": "npm run build --workspace=@forge/shared-types && npm run dev --workspace=apps/admin",
     "build:api": "npm run build --workspace=apps/api",
     "build:web": "npm run build --workspace=apps/web",
     "build:admin": "npm run build --workspace=apps/admin",

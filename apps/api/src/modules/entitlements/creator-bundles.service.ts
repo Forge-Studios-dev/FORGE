@@ -10,6 +10,7 @@ import { Repository } from 'typeorm';
 import { CreatorBundle, CreatorBundleItem } from './entities/creator-bundle.entity';
 import { SubscriptionTier } from './entities/subscription-tier.entity';
 import { TierEntitlement, TierEntitlementResourceType } from './entities/tier-entitlement.entity';
+import { slugify } from '../../common/utils/slugify.util';
 import { CreateBundleDto, UpdateBundleDto } from './dto/bundle.dto';
 import { EngagementService } from '../engagement/engagement.service';
 
@@ -27,15 +28,6 @@ export class CreatorBundlesService {
     private readonly eventEmitter: EventEmitter2,
     private readonly engagementService: EngagementService,
   ) {}
-
-  private slugify(text: string): string {
-    return text
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .slice(0, 120);
-  }
 
   private async assertTierOwned(creatorId: string, tierId: string) {
     const tier = await this.tierRepository.findOne({ where: { id: tierId } });
@@ -158,7 +150,7 @@ export class CreatorBundlesService {
 
   async create(creatorId: string, input: CreateBundleDto) {
     await this.assertTierOwned(creatorId, input.tierId);
-    const slug = this.slugify(input.name);
+    const slug = slugify(input.name, 120);
     const existing = await this.bundleRepository.findOne({ where: { creatorId, slug } });
     if (existing) throw new BadRequestException('Bundle slug already exists');
 
@@ -207,7 +199,7 @@ export class CreatorBundlesService {
     if (input.tierId) await this.assertTierOwned(creatorId, input.tierId);
 
     if (input.name && input.name.trim() !== bundle.name) {
-      const slug = this.slugify(input.name);
+      const slug = slugify(input.name, 120);
       const slugConflict = await this.bundleRepository.findOne({
         where: { creatorId, slug },
       });

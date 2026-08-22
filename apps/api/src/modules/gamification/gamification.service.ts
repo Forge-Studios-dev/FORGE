@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
+import { clampLimit } from '../../common/utils/pagination.util';
 import Redis from 'ioredis';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import {
@@ -419,7 +420,7 @@ export class GamificationService {
   }
 
   async platformLeaderboard(limit = 20) {
-    const take = Math.min(limit, 100);
+    const take = clampLimit(limit, 20, 100);
     const rows = await this.platformXpRepository.find({
       order: { xp: 'DESC' },
       take,

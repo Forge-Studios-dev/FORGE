@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { clampLimit } from '../../common/utils/pagination.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -66,7 +67,7 @@ export class DirectMessagesService {
       .where('m.conversation_id = :conversationId', { conversationId })
       .andWhere('m.deleted_at IS NULL')
       .orderBy('m.created_at', 'DESC')
-      .take(Math.min(limit, 50) + 1);
+      .take(clampLimit(limit, 50, 50) + 1);
 
     if (cursor) {
       const cursorDate = new Date(Buffer.from(cursor, 'base64').toString('utf-8'));
