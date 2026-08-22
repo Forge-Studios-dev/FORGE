@@ -1414,8 +1414,4 @@ export class EntitlementsService {
       take: 500,
     });
   }
-
-  slugify(name: string): string {
-    return name.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
-  }
 }

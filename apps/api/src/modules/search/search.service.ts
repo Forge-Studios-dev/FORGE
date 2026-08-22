@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, In, IsNull, SelectQueryBuilder } from 'typeorm';
+import { clampLimit } from '../../common/utils/pagination.util';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import type { Redis } from 'ioredis';
 import { createHash } from 'crypto';
@@ -371,7 +372,7 @@ export class SearchService {
     filters: Required<SearchFilters>,
     viewerId?: string,
   ) {
-    const take = Math.min(limit, 50);
+    const take = clampLimit(limit, 20, 50);
     const term = q.trim();
     if (term.length < 2) {
       return this.emptyResult(term, type, filters);
@@ -467,7 +468,7 @@ export class SearchService {
     if (prefix.length < 2) {
       return { titles: [] as string[], channels: [] as { username: string; displayName: string }[] };
     }
-    const take = Math.min(limit, 20);
+    const take = clampLimit(limit, 8, 20);
     const channelTake = Math.min(5, take);
     const excluded = await this.excludedCreatorIds(viewerId);
     const titleQb = applyDiscoverableVideoFilters(
@@ -505,7 +506,7 @@ export class SearchService {
     filters: Required<SearchFilters>,
     viewerId?: string,
   ) {
-    const take = Math.min(limit, 50);
+    const take = clampLimit(limit, 20, 50);
     const term = q.trim();
     if (term.length < 2) {
       return this.emptyResult(term, type, filters);

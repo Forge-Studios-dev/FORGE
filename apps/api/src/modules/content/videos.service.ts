@@ -8,6 +8,7 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
+import { clampLimit } from '../../common/utils/pagination.util';
 import { createReadStream, promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
 import { resolve as resolvePath, sep as pathSep } from 'path';
@@ -1230,7 +1231,7 @@ export class VideosService {
     data: PublicVideo[];
     nextCursor: string | null;
   }> {
-    const limit = Math.min(opts.limit ?? 20, 50);
+    const limit = clampLimit(opts.limit, 20, 50);
     const fetchLimit = Math.min(limit * 3, 60);
     const qb = this.videoRepository
       .createQueryBuilder('v')

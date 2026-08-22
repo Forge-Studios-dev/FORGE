@@ -1,6 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { clampLimit } from '../common/utils/pagination.util';
 
 export type QueryStatRow = {
   queryid: string;
@@ -26,7 +27,7 @@ export class DatabaseObservabilityService {
     stats: QueryStatRow[];
     message?: string;
   }> {
-    const capped = Math.min(Math.max(limit, 1), 100);
+    const capped = clampLimit(limit, 50, 100);
     const available = await this.isPgStatStatementsAvailable();
     if (!available) {
       return {

@@ -5,6 +5,7 @@ import { Article, ArticlePublishStatus, ArticleVisibility } from './entities/art
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { EngagementService } from '../engagement/engagement.service';
 import { clampLimit, clampPage } from '../../common/utils/pagination.util';
+import { slugify } from '../../common/utils/slugify.util';
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_EXCERPT_LENGTH = 500;
@@ -19,18 +20,8 @@ export class ArticlesService {
     private readonly engagementService: EngagementService,
   ) {}
 
-  private slugify(text: string): string {
-    return text
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 200);
-  }
-
   private async uniqueSlug(creatorId: string, title: string, excludeId?: string): Promise<string> {
-    const base = this.slugify(title) || 'article';
+    const base = slugify(title, 200) || 'article';
     let slug = base;
     let suffix = 1;
     for (;;) {

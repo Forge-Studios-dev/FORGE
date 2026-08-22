@@ -13,6 +13,7 @@ import Redis from 'ioredis';
 import { Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
 import { CommunityRoom, CommunityRoomType } from './entities/community-room.entity';
+import { slugify } from '../../common/utils/slugify.util';
 import { CommunityRoomLivekitService } from './community-room-livekit.service';
 import { CommunitiesService } from './communities.service';
 import { EntitlementsService } from '../entitlements/entitlements.service';
@@ -41,15 +42,6 @@ export class CommunityRoomsService {
     @InjectRedis() private readonly redis: Redis,
     private readonly eventEmitter: EventEmitter2,
   ) {}
-
-  private slugify(text: string): string {
-    return text
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .slice(0, 120);
-  }
 
   private raiseHandKey(roomId: string): string {
     return `community-room:raise-hand:${roomId}`;
@@ -199,7 +191,7 @@ export class CommunityRoomsService {
     viewerRole?: UserRole | null,
   ) {
     await this.assertCommunityStudio(creatorId, communityId, viewerRole);
-    const slug = this.slugify(input.name);
+    const slug = slugify(input.name, 120);
     const existing = await this.roomRepository.findOne({ where: { communityId, slug } });
     if (existing) throw new BadRequestException('Room slug already exists');
 
@@ -282,7 +274,7 @@ export class CommunityRoomsService {
     const name = `${baseName} — discussion`.slice(0, 200);
     // Disambiguate slug with a short stream suffix so concurrent/identical
     // titles never collide on the unique (community, slug) pair.
-    const slug = this.slugify(`${baseName}-live-${streamId.slice(0, 8)}`);
+    const slug = slugify(`${baseName}-live-${streamId.slice(0, 8)}`, 120);
 
     const settings: RoomSettings = { sourceStreamId: streamId };
     const room = await this.roomRepository.save(
@@ -543,7 +535,7 @@ export class CommunityRoomsService {
 
     if (input.name?.trim()) {
       room.name = input.name.trim();
-      room.slug = this.slugify(input.name);
+      room.slug = slugify(input.name, 120);
     }
     if (input.description !== undefined) room.description = input.description?.trim() || null;
     if (input.maxParticipants !== undefined) room.maxParticipants = input.maxParticipants;

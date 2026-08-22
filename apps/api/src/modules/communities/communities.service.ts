@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { clampLimit } from '../../common/utils/pagination.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -718,7 +719,7 @@ export class CommunitiesService {
     const term = query.trim();
     if (term.length < 2) return { data: [] };
     const pattern = `%${term}%`;
-    const take = Math.min(limit, 50);
+    const take = clampLimit(limit, 20, 50);
     const qb = this.communityRepository
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.creator', 'creator')
@@ -744,7 +745,7 @@ export class CommunitiesService {
   }
 
   async listFeaturedCommunities(limit = 12, type?: CommunityType, viewerId?: string | null) {
-    const take = Math.min(limit, 24);
+    const take = clampLimit(limit, 12, 24);
     const qb = this.communityRepository
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.creator', 'creator')

@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
+import { slugify } from '../../common/utils/slugify.util';
 import {
   CommunityChallenge,
   CommunityChallengeParticipant,
@@ -37,15 +38,6 @@ export class CommunityEngagementService {
     private readonly communitiesService: CommunitiesService,
   ) {}
 
-  private slugify(text: string): string {
-    return text
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .slice(0, 128);
-  }
-
   private async assertCommunityOwner(creatorId: string, communityId: string) {
     const community = await this.communityRepository.findOne({ where: { id: communityId } });
     if (!community || community.creatorId !== creatorId) {
@@ -73,7 +65,7 @@ export class CommunityEngagementService {
     input: { title: string; body?: string; sortOrder?: number },
   ) {
     await this.assertCommunityOwner(creatorId, communityId);
-    const slug = this.slugify(input.title);
+    const slug = slugify(input.title, 128);
     const existing = await this.wikiRepository.findOne({ where: { communityId, slug } });
     if (existing) throw new BadRequestException('Wiki page slug already exists');
     const page = await this.wikiRepository.save(
@@ -100,7 +92,7 @@ export class CommunityEngagementService {
     if (!page) throw new NotFoundException('Wiki page not found');
     if (input.title?.trim()) {
       page.title = input.title.trim();
-      page.slug = this.slugify(input.title);
+      page.slug = slugify(input.title, 128);
     }
     if (input.body !== undefined) page.body = input.body.trim();
     if (input.sortOrder !== undefined) page.sortOrder = input.sortOrder;

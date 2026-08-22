@@ -9,6 +9,7 @@ import { In, Repository } from 'typeorm';
 import { Course, CourseBundleItem } from './entities/course.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CoursesService } from './courses.service';
+import { slugify } from '../../common/utils/slugify.util';
 
 /**
  * "Programs" are bundle courses — Course rows with isBundle=true whose content
@@ -30,15 +31,6 @@ export class CreatorProgramsService {
     private readonly communityRepository: Repository<Community>,
     private readonly coursesService: CoursesService,
   ) {}
-
-  private slugify(text: string): string {
-    return text
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .slice(0, 120);
-  }
 
   private async getBundleOrThrow(creatorId: string | undefined, programId: string): Promise<Course> {
     const where = creatorId ? { id: programId, creatorId, isBundle: true } : { id: programId, isBundle: true };
@@ -160,7 +152,7 @@ export class CreatorProgramsService {
       courseIds?: string[];
     },
   ) {
-    const slug = this.slugify(input.name);
+    const slug = slugify(input.name, 120);
     const existing = await this.courseRepository.findOne({ where: { creatorId, slug } });
     if (existing) throw new BadRequestException('Program slug already exists');
 
@@ -207,7 +199,7 @@ export class CreatorProgramsService {
 
     if (input.name !== undefined) {
       program.title = input.name.trim();
-      program.slug = this.slugify(input.name);
+      program.slug = slugify(input.name, 120);
     }
     if (input.description !== undefined) program.description = input.description?.trim() ?? null;
     if (input.communityId !== undefined) {

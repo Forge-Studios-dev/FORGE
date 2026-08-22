@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { clampLimit } from '../../common/utils/pagination.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import {
@@ -298,7 +299,7 @@ export class MentorshipService {
 
   /** Platform admin overview — no community owner check. */
   async adminOverview(limit = 50) {
-    const take = Math.min(Math.max(limit, 1), 100);
+    const take = clampLimit(limit, 50, 100);
     const [counts, recent] = await Promise.all([
       this.dataSource.query<Array<{ status: string; cnt: string }>>(
         `SELECT status, COUNT(*)::text AS cnt FROM mentorship_matches GROUP BY status`,
