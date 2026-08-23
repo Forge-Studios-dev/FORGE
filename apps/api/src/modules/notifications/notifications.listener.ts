@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { Repository } from 'typeorm';
-import { categoryForNotificationType } from '@forge/shared-types';
+import { categoryForNotificationType, isCategoryMuted } from '@forge/shared-types';
 import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
 import { NotificationsService } from './notifications.service';
 import { PushDispatchService } from './push-dispatch.service';
@@ -137,6 +137,7 @@ export class NotificationsListener {
     });
     await this.maybeEmailUser(
       payload.userId,
+      NotificationType.VIDEO_READY,
       'Your FORGE video is ready',
       `Video processing finished. Video ID: ${payload.videoId}`,
     );
@@ -205,6 +206,7 @@ export class NotificationsListener {
     });
     await this.maybeEmailUser(
       payload.userId,
+      NotificationType.STREAM_STARTED,
       'You are live on FORGE',
       payload.title ? `Stream started: ${payload.title}` : 'Your live stream started.',
     );
@@ -480,10 +482,19 @@ export class NotificationsListener {
     });
   }
 
-  private async maybeEmailUser(userId: string, subject: string, body: string) {
+  private async maybeEmailUser(
+    userId: string,
+    type: NotificationType,
+    subject: string,
+    body: string,
+  ) {
     try {
-      const user = await this.userRepository.findOne({ where: { id: userId } });
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+        select: { id: true, email: true, notificationPreferences: true },
+      });
       if (!user?.email) return;
+      if (isCategoryMuted(user.notificationPreferences, categoryForNotificationType(type))) return;
       await this.mailService.sendMail(user.email, subject, body);
     } catch (e) {
       this.logger.warn(`Optional email notification failed: ${(e as Error).message}`);

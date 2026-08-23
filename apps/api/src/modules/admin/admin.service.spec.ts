@@ -31,6 +31,7 @@ import { StreamingService } from '../streaming/streaming.service';
 import { StreamLiveService } from '../streaming/stream-live.service';
 import { StreamChatService } from '../stream-chat/stream-chat.service';
 import { StripeConnectService } from '../billing/stripe-connect.service';
+import { OAuthAccount } from '../auth/entities/oauth-account.entity';
 
 describe('AdminService security', () => {
   let service: AdminService;
@@ -59,6 +60,7 @@ describe('AdminService security', () => {
   };
   const communityReportRepository = { count: jest.fn() };
   const communityRoleRepository = { find: jest.fn() };
+  const oauthAccountRepository = { delete: jest.fn().mockResolvedValue({ affected: 0 }) };
   const dataSource = { query: jest.fn() };
   const usersService = { getWatchHistory: jest.fn(), resolveUserId: jest.fn() };
   const playlistsService = { listByUser: jest.fn() };
@@ -134,6 +136,7 @@ describe('AdminService security', () => {
         { provide: getRepositoryToken(Community), useValue: communityRepository },
         { provide: getRepositoryToken(CommunityReport), useValue: communityReportRepository },
         { provide: getRepositoryToken(CommunityRole), useValue: communityRoleRepository },
+        { provide: getRepositoryToken(OAuthAccount), useValue: oauthAccountRepository },
         { provide: DataSource, useValue: dataSource },
         { provide: UsersService, useValue: usersService },
         { provide: PlaylistsService, useValue: playlistsService },
@@ -169,9 +172,22 @@ describe('AdminService security', () => {
           email: expect.stringContaining('deleted+'),
           username: expect.stringMatching(/^deleted_/),
           displayName: 'Deleted user',
+          bio: '',
+          avatarUrl: '',
+          bannerUrl: '',
+          websiteUrl: null,
+          channelLinks: null,
+          mfaSecretEncrypted: null,
+          mfaBackupCodeHashes: null,
+          stripeConnectAccountId: null,
         }),
       );
       expect(authService.logoutAll).toHaveBeenCalledWith(regularUser.id);
+    });
+
+    it('removes linked OAuth accounts so the real third-party email does not survive deletion', async () => {
+      await service.deleteUser(regularUser.id);
+      expect(oauthAccountRepository.delete).toHaveBeenCalledWith({ userId: regularUser.id });
     });
 
     it('hides owned public videos and ends active streams', async () => {

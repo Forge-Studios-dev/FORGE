@@ -14,24 +14,28 @@ import { WatchHistory } from '../engagement/entities/watch-history.entity';
 
 describe('NotificationsListener', () => {
   let listener: NotificationsListener;
-  const pushDispatch = { enqueueForUsers: jest.fn().mockResolvedValue(undefined) };
+  const pushDispatch = { enqueueForUsers: jest.fn().mockResolvedValue(undefined), enqueueForUser: jest.fn().mockResolvedValue(undefined) };
   const engagementService = { getBlockedPeerIds: jest.fn().mockResolvedValue([]) };
   const followRepository = { find: jest.fn() };
+  const notificationsService = { create: jest.fn() };
+  const mailService = { sendMail: jest.fn().mockResolvedValue(undefined) };
+  const userRepository = { findOne: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     engagementService.getBlockedPeerIds.mockResolvedValue([]);
+    userRepository.findOne.mockResolvedValue(null);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationsListener,
-        { provide: NotificationsService, useValue: { create: jest.fn() } },
+        { provide: NotificationsService, useValue: notificationsService },
         { provide: PushDispatchService, useValue: pushDispatch },
-        { provide: MailService, useValue: { sendMail: jest.fn() } },
+        { provide: MailService, useValue: mailService },
         { provide: EntitlementsService, useValue: {} },
         { provide: PremiumContentNotifyService, useValue: {} },
         { provide: EngagementService, useValue: engagementService },
-        { provide: getRepositoryToken(User), useValue: {} },
+        { provide: getRepositoryToken(User), useValue: userRepository },
         { provide: getRepositoryToken(Follow), useValue: followRepository },
         { provide: getRepositoryToken(Comment), useValue: {} },
         { provide: getRepositoryToken(WatchHistory), useValue: {} },
@@ -40,6 +44,36 @@ describe('NotificationsListener', () => {
     }).compile();
 
     listener = module.get(NotificationsListener);
+  });
+
+  describe('maybeEmailUser (via onVideoReady)', () => {
+    it('sends the transactional email when the user has not muted that category', async () => {
+      userRepository.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'u1@example.com',
+        notificationPreferences: null,
+      });
+
+      await listener.onVideoReady({ videoId: 'v1', userId: 'u1' });
+
+      expect(mailService.sendMail).toHaveBeenCalledWith(
+        'u1@example.com',
+        expect.any(String),
+        expect.any(String),
+      );
+    });
+
+    it('does not send the transactional email when the user has muted that category', async () => {
+      userRepository.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'u1@example.com',
+        notificationPreferences: { mutedCategories: ['content'], emailDigest: false },
+      });
+
+      await listener.onVideoReady({ videoId: 'v1', userId: 'u1' });
+
+      expect(mailService.sendMail).not.toHaveBeenCalled();
+    });
   });
 
   describe('onStreamReminder', () => {

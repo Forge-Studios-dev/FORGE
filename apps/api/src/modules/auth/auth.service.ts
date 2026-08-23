@@ -106,7 +106,18 @@ export class AuthService {
       displayName: dto.displayName,
       passwordHash,
     });
-    await this.userRepository.save(user);
+    try {
+      await this.userRepository.save(user);
+    } catch (err) {
+      // The findOne/queryBuilder checks above are TOCTOU-racy under concurrent
+      // signups for the same email/username; the DB's unique index (email,
+      // username) is the real guard. Convert its 23505 into the same friendly
+      // error the pre-check would have thrown instead of a raw 500.
+      if ((err as { code?: string }).code === '23505') {
+        throw new BadRequestException('Email or username already taken');
+      }
+      throw err;
+    }
 
     const tokens = await this.issueTokens(user, meta);
     try {
@@ -248,26 +259,38 @@ export class AuthService {
     if (!user) {
       const username = await this.uniqueUsernameFromEmail(profile.email);
       const passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), this.BCRYPT_ROUNDS);
-      user = await this.dataSource.transaction(async (manager) => {
-        const created = await manager.save(
-          manager.create(User, {
-            email: profile.email,
-            username,
-            displayName: profile.displayName,
-            passwordHash,
-            isVerified: true,
-          }),
-        );
-        await manager.save(
-          manager.create(OAuthAccount, {
-            userId: created.id,
-            provider,
-            providerId: profile.providerId,
-            email: profile.email,
-          }),
-        );
-        return created;
-      });
+      try {
+        user = await this.dataSource.transaction(async (manager) => {
+          const created = await manager.save(
+            manager.create(User, {
+              email: profile.email,
+              username,
+              displayName: profile.displayName,
+              passwordHash,
+              isVerified: true,
+            }),
+          );
+          await manager.save(
+            manager.create(OAuthAccount, {
+              userId: created.id,
+              provider,
+              providerId: profile.providerId,
+              email: profile.email,
+            }),
+          );
+          return created;
+        });
+      } catch (err) {
+        // Two concurrent first-time OAuth logins for the same email/username
+        // can both pass the pre-checks above and then race on the DB's
+        // unique index. Surface it as a retryable client error instead of a
+        // raw 500 -- the caller retrying the OAuth flow will hit the
+        // now-existing user via the `!oauth` branch.
+        if ((err as { code?: string }).code === '23505') {
+          throw new BadRequestException('Account creation conflict — please try signing in again');
+        }
+        throw err;
+      }
     } else if (!oauth) {
       await this.oauthAccountRepository.save(
         this.oauthAccountRepository.create({
@@ -413,7 +436,24 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    await this.refreshTokenRepository.update(storedToken.id, { revoked: true });
+    // Atomically claim the token so two concurrent requests presenting the
+    // same refresh token can't both pass the `revoked` check above and both
+    // issue a fresh token pair (TOCTOU race). Only the request whose UPDATE
+    // actually flips the row wins; the other is treated as reuse.
+    const claim = await this.refreshTokenRepository
+      .createQueryBuilder()
+      .update(RefreshToken)
+      .set({ revoked: true })
+      .where('id = :id AND revoked = false', { id: storedToken.id })
+      .execute();
+
+    if (!claim.affected) {
+      await this.refreshTokenRepository.update({ userId: storedToken.userId }, { revoked: true });
+      throw new UnauthorizedException(
+        'Refresh token reuse detected — sign in again on all devices',
+      );
+    }
+
     await this.authSessionCache.markRevoked(storedToken.id);
     return this.issueTokens(storedToken.user, meta);
   }

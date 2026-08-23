@@ -19,6 +19,7 @@ import { Stream } from '../streaming/entities/stream.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CommunityReport } from '../communities/entities/community-moderation.entity';
 import { CommunityRole } from '../communities/entities/community-role.entity';
+import { OAuthAccount } from '../auth/entities/oauth-account.entity';
 import { BillingModule } from '../billing/billing.module';
 import { DatabaseObservabilityService } from '../../database/database-observability.service';
 import { AccountStrikesModule } from '../account-strikes/account-strikes.module';
@@ -35,6 +36,7 @@ import { AdminAuditLogModule } from '../../common/audit/admin-audit-log.module';
       Community,
       CommunityReport,
       CommunityRole,
+      OAuthAccount,
     ]),
     // AdminModule is imported (directly or transitively) by nearly every
     // other feature module, making it the hub of many require cycles (see

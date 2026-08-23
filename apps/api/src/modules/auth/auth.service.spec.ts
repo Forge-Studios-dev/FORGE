@@ -29,12 +29,19 @@ describe('AuthService', () => {
       getOne: jest.fn().mockResolvedValue(null),
     })),
   };
+  const refreshQueryBuilderMock = {
+    update: jest.fn().mockReturnThis(),
+    set: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    execute: jest.fn().mockResolvedValue({ affected: 1 }),
+  };
   const refreshRepoMock = {
     create: jest.fn((x) => x),
     save: jest.fn(),
     update: jest.fn(),
     findOne: jest.fn(),
     find: jest.fn().mockResolvedValue([]),
+    createQueryBuilder: jest.fn(() => refreshQueryBuilderMock),
   };
   const resetRepoMock = {
     save: jest.fn(),
@@ -159,6 +166,26 @@ describe('AuthService', () => {
     expect(mailMock.sendMail).toHaveBeenCalled();
   });
 
+  it('signup converts a concurrent unique-constraint race into a friendly 400', async () => {
+    userRepoMock.findOne.mockResolvedValue(null);
+    userRepoMock.create.mockReturnValue({ id: 'u1' } as unknown as User);
+    userRepoMock.save.mockRejectedValue({ code: '23505' });
+
+    const svc = await setupService();
+    await expect(
+      svc.signup(
+        {
+          email: 'a@b.com',
+          username: 'ab',
+          displayName: 'AB',
+          password: 'Abcd1234',
+          acceptedTerms: true,
+        } as never,
+        {},
+      ),
+    ).rejects.toThrow(/already taken/);
+  });
+
   it('forgotPassword is a no-op when user missing', async () => {
     userRepoMock.findOne.mockResolvedValue(null);
     const svc = await setupService();
@@ -213,13 +240,33 @@ describe('AuthService', () => {
     });
     refreshRepoMock.update.mockResolvedValue({});
     refreshRepoMock.save.mockResolvedValue({ id: 'sid-1' });
+    refreshQueryBuilderMock.execute.mockResolvedValue({ affected: 1 });
 
     const svc = await setupService();
     const result = await svc.refreshWithToken('opaque-refresh-token');
 
     expect(result.accessToken).toBe('access.jwt');
-    expect(refreshRepoMock.update).toHaveBeenCalled();
+    expect(refreshQueryBuilderMock.where).toHaveBeenCalledWith(
+      'id = :id AND revoked = false',
+      { id: 'rt1' },
+    );
     expect(refreshRepoMock.save).toHaveBeenCalled();
+  });
+
+  it('refreshWithToken rejects the loser of a concurrent rotation race as reuse', async () => {
+    const user = { id: 'u1', email: 'a@b.com', role: 'user' } as User;
+    refreshRepoMock.findOne.mockResolvedValue({
+      id: 'rt1',
+      userId: 'u1',
+      user,
+      expiresAt: new Date(Date.now() + 86400000),
+      revoked: false,
+    });
+    refreshQueryBuilderMock.execute.mockResolvedValue({ affected: 0 });
+
+    const svc = await setupService();
+    await expect(svc.refreshWithToken('opaque-refresh-token')).rejects.toThrow(/reuse detected/);
+    expect(refreshRepoMock.update).toHaveBeenCalledWith({ userId: 'u1' }, { revoked: true });
   });
 
   describe('verifyEmail (token link)', () => {
