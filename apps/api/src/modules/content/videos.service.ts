@@ -1342,6 +1342,19 @@ export class VideosService {
     await this.videoRepository.remove(video);
   }
 
+  /**
+   * System-triggered hard delete for a video whose owner's account has passed
+   * the post-deletion grace period (see AccountPurgeService). No ownership
+   * check -- the caller has already scoped this to a specific soft-deleted
+   * account's videos.
+   */
+  async purgeVideoForDeletedAccount(video: Video): Promise<void> {
+    await this.deleteVideoAssets(video);
+    await this.bustVideoDetailCache(video.id);
+    this.eventEmitter.emit('video.updated', { videoId: video.id });
+    await this.videoRepository.remove(video);
+  }
+
   private pendingViewKey(videoId: string): string {
     return `video:views:pending:${videoId}`;
   }

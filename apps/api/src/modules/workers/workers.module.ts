@@ -29,6 +29,9 @@ import { SHORTS_WATCH_PERCENT_QUEUE } from '../content/shorts-watch-percent.cons
 import { CopyrightReinstatementWorker } from './copyright-reinstatement/copyright-reinstatement.worker';
 import { COPYRIGHT_REINSTATEMENT_QUEUE } from '../copyright/copyright-reinstatement.constants';
 import { CopyrightModule } from '../copyright/copyright.module';
+import { AccountPurgeWorker } from './account-purge/account-purge.worker';
+import { ACCOUNT_PURGE_QUEUE } from '../users/account-purge.constants';
+import { UsersModule } from '../users/users.module';
 import { StreamChatIngestWorker } from './stream-chat-ingest/stream-chat-ingest.worker';
 import { STREAM_CHAT_INGEST_QUEUE } from './stream-chat-ingest/stream-chat-ingest.constants';
 import { StreamSnapshotRetentionWorker } from './stream-snapshot-retention/stream-snapshot-retention.worker';
@@ -123,6 +126,12 @@ function shouldRegisterCopyrightReinstatement(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+function shouldRegisterAccountPurge(): boolean {
+  if (process.env.DISABLE_ACCOUNT_PURGE === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
 function shouldRegisterStreamChatIngest(): boolean {
   if (isDedicatedWorkerProcess()) return true;
   return process.env.NODE_ENV !== 'production';
@@ -183,6 +192,7 @@ function shouldRegisterEmailDigest(): boolean {
     StreamingModule,
     EngagementModule,
     CommunitiesModule,
+    UsersModule,
     TypeOrmModule.forFeature([Video, AnalyticsEvent, DeviceToken, Stream, StreamMessage, StreamAnalyticsSnapshot, StreamRsvp]),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,
@@ -279,6 +289,14 @@ function shouldRegisterEmailDigest(): boolean {
       },
     }),
     BullModule.registerQueue({
+      name: ACCOUNT_PURGE_QUEUE,
+      defaultJobOptions: {
+        attempts: 2,
+        removeOnComplete: { age: 7 * 86400, count: 30 },
+        removeOnFail: { age: 7 * 86400, count: 30 },
+      },
+    }),
+    BullModule.registerQueue({
       name: STREAM_CHAT_INGEST_QUEUE,
       defaultJobOptions: {
         attempts: 3,
@@ -371,6 +389,7 @@ function shouldRegisterEmailDigest(): boolean {
     ...(shouldRegisterScheduledPublish() ? [ScheduledPublishWorker] : []),
     ...(shouldRegisterShortsWatchPercent() ? [ShortsWatchPercentWorker] : []),
     ...(shouldRegisterCopyrightReinstatement() ? [CopyrightReinstatementWorker] : []),
+    ...(shouldRegisterAccountPurge() ? [AccountPurgeWorker] : []),
     ...(shouldRegisterStreamChatIngest() ? [StreamChatIngestWorker] : []),
     ...(shouldRegisterStreamSnapshotRetention() ? [StreamSnapshotRetentionWorker] : []),
     ...(shouldRegisterStreamMuxSync() ? [StreamMuxSyncWorker] : []),

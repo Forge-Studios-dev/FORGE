@@ -30,6 +30,7 @@ import { Community } from '../communities/entities/community.entity';
 import { CommunityReport } from '../communities/entities/community-moderation.entity';
 import { CommunityRole, CommunityRoleType } from '../communities/entities/community-role.entity';
 import { StripeConnectService } from '../billing/stripe-connect.service';
+import { OAuthAccount } from '../auth/entities/oauth-account.entity';
 import { UpdateAdminCommunityDto } from './dto/update-admin-community.dto';
 
 export type AdminUserDetail = {
@@ -74,6 +75,8 @@ export class AdminService {
     private readonly communityReportRepository: Repository<CommunityReport>,
     @InjectRepository(CommunityRole)
     private readonly communityRoleRepository: Repository<CommunityRole>,
+    @InjectRepository(OAuthAccount)
+    private readonly oauthAccountRepository: Repository<OAuthAccount>,
     private readonly dataSource: DataSource,
     private readonly usersService: UsersService,
     private readonly playlistsService: PlaylistsService,
@@ -292,8 +295,24 @@ export class AdminService {
     user.displayName = 'Deleted user';
     user.emailVerificationTokenHash = null;
     user.emailVerificationExpiresAt = null;
+    // PII/media that would otherwise keep rendering on the anonymized
+    // profile page (avatar/banner) or leaking real contact/social info
+    // (bio/website/channelLinks) indefinitely after "deletion".
+    user.bio = '';
+    user.avatarUrl = '';
+    user.bannerUrl = '';
+    user.websiteUrl = null;
+    user.channelLinks = null;
+    user.mfaSecretEncrypted = null;
+    user.mfaBackupCodeHashes = null;
+    user.stripeConnectAccountId = null;
     await this.userRepository.save(user);
     await this.authService.logoutAll(id);
+
+    // Not FK-cascaded because the user row is soft-deleted, not removed --
+    // without this the real linked email (e.g. Google address) survives
+    // indefinitely in an orphaned row.
+    await this.oauthAccountRepository.delete({ userId: id });
 
     const ownedVideos = await this.videoRepository.find({
       where: { userId: id },
