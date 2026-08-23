@@ -35,6 +35,6 @@ import { ACCOUNT_PURGE_QUEUE } from './account-purge.constants';
   ],
   controllers: [UsersController],
   providers: [UsersService, AccountPurgeService, AccountPurgeScheduler],
-  exports: [UsersService],
+  exports: [UsersService, AccountPurgeService],
 })
 export class UsersModule {}
