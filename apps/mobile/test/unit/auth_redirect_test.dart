@@ -5,9 +5,9 @@ void main() {
   // Exercises the REAL protectedRoutes list from app_router.dart (HIGH-09) —
   // unlike the old version of this test, removing a route here now makes
   // this test fail instead of silently passing against a stale local copy.
-  test('protected routes include library and profile', () {
+  test('protected routes include library and the profile settings sub-path', () {
     expect(protectedRoutes, contains('/library'));
-    expect(protectedRoutes, contains('/profile'));
+    expect(protectedRoutes, contains('/profile/settings'));
   });
 
   group('resolveRedirect', () {
@@ -59,6 +59,44 @@ void main() {
     test('matches protected routes by prefix (nested paths), not exact match only', () async {
       final result = await resolveRedirect(
         path: '/profile/settings/notifications',
+        hasSession: false,
+        onboardingDone: true,
+      );
+      expect(result, isNotNull);
+      expect(result, startsWith('/login'));
+    });
+
+    test('lets an unauthenticated user view a public channel page (parity with web)', () async {
+      final result = await resolveRedirect(
+        path: '/profile/some-creator',
+        hasSession: false,
+        onboardingDone: true,
+      );
+      expect(result, isNull);
+    });
+
+    test('lets an unauthenticated user view a public playlist by id (parity with web)', () async {
+      final result = await resolveRedirect(
+        path: '/playlists/abc-123',
+        hasSession: false,
+        onboardingDone: true,
+      );
+      expect(result, isNull);
+    });
+
+    test('sends an unauthenticated user to /login for their own playlists home (exact match)', () async {
+      final result = await resolveRedirect(
+        path: '/playlists',
+        hasSession: false,
+        onboardingDone: true,
+      );
+      expect(result, isNotNull);
+      expect(result, startsWith('/login'));
+    });
+
+    test('sends an unauthenticated user to /login for owned system playlists', () async {
+      final result = await resolveRedirect(
+        path: '/playlists/me/liked',
         hasSession: false,
         onboardingDone: true,
       );

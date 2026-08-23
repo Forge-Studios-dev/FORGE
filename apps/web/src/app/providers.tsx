@@ -6,7 +6,7 @@ import { RealtimeToasts } from '@/components/RealtimeToasts';
 import { PlatformBootstrap } from '@/components/PlatformBootstrap';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { MiniPlayerProvider } from '@/lib/miniplayer';
-import { MiniPlayerDock } from '@/components/watch/MiniPlayerDock';
+import { MiniPlayerDockLazy } from '@/components/watch/MiniPlayerDockLazy';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -28,7 +28,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <MiniPlayerProvider>
           {children}
           <Suspense fallback={null}>
-            <MiniPlayerDock />
+            <MiniPlayerDockLazy />
           </Suspense>
           <PlatformBootstrap />
           <RealtimeToasts />

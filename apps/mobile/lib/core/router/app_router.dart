@@ -59,10 +59,21 @@ import 'navigation_key.dart';
 
 const _storage = FlutterSecureStorage();
 
-/// Routes that require a live session. Exported (not `_`-prefixed) so tests
-/// exercise this real list instead of a hand-copied duplicate (HIGH-09) —
-/// a future edit here is caught by auth_redirect_test.dart automatically.
-const protectedRoutes = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/library', '/profile', '/updates', '/playlists', '/subscriptions'];
+/// Routes that require a live session, matched by prefix (`path == p ||
+/// path.startsWith('$p/')`). Exported (not `_`-prefixed) so tests exercise
+/// this real list instead of a hand-copied duplicate (HIGH-09) — a future
+/// edit here is caught by auth_redirect_test.dart automatically.
+///
+/// Does NOT include bare `/profile` or `/playlists` — prefix-matching those
+/// would also gate `/profile/:username` (a public channel page, matching
+/// web's ungated `/[username]`) and `/playlists/:id` (a public playlist,
+/// matching web's ungated `/playlists/[id]`). See protectedExactRoutes for
+/// the owned pages at those exact paths.
+const protectedRoutes = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/library', '/updates', '/playlists/me', '/subscriptions'];
+
+/// Routes that require a live session, matched EXACTLY only — their
+/// sub-paths must stay public (see protectedRoutes doc above).
+const protectedExactRoutes = ['/playlists'];
 
 // Screens a first-time signed-in user must still be able to reach even
 // before completing onboarding (auth flows, the onboarding screen itself,
@@ -92,7 +103,8 @@ Future<String?> resolveRedirect({
   required bool hasSession,
   required bool onboardingDone,
 }) async {
-  final needsAuth = protectedRoutes.any((p) => path == p || path.startsWith('$p/'));
+  final needsAuth = protectedRoutes.any((p) => path == p || path.startsWith('$p/')) ||
+      protectedExactRoutes.contains(path);
 
   if (needsAuth && !hasSession) {
     return '/login?next=${Uri.encodeComponent(path)}';
