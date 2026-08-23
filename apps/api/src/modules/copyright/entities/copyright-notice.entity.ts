@@ -34,12 +34,17 @@ export class CopyrightNotice {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'video_id', type: 'uuid' })
-  videoId: string;
+  /**
+   * Nullable — ON DELETE SET NULL (not CASCADE). A legally defensible DMCA
+   * record must survive the underlying video being deleted; hard-deleting
+   * the notice along with its video would destroy the audit trail.
+   */
+  @Column({ name: 'video_id', type: 'uuid', nullable: true })
+  videoId: string | null;
 
-  @ManyToOne(() => Video, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Video, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'video_id' })
-  video: Video;
+  video: Video | null;
 
   @Column({ name: 'claimant_name', type: 'varchar', length: 300 })
   claimantName: string;

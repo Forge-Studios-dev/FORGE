@@ -283,6 +283,29 @@ describe('CopyrightService', () => {
       );
     });
 
+    it('resolves the notice/counter-notice without touching a video whose id is null (deleted since the notice was filed)', async () => {
+      counterNoticeRepository.find.mockResolvedValue([
+        { id: 'counter-1', noticeId: 'notice-1', uploaderUserId: 'uploader-1', status: CounterNoticeStatus.PENDING },
+      ]);
+      noticeRepository.find.mockResolvedValue([{
+        id: 'notice-1',
+        videoId: null,
+        previousVisibility: VideoVisibility.UNLISTED,
+      }]);
+
+      const result = await service.runDueReinstatements();
+
+      expect(result).toEqual({ reinstated: 1 });
+      expect(videoRepository.update).not.toHaveBeenCalled();
+      expect(noticeRepository.update).toHaveBeenCalledWith('notice-1', {
+        status: CopyrightNoticeStatus.REINSTATED,
+        resolvedAt: expect.any(Date),
+      });
+      expect(counterNoticeRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: CounterNoticeStatus.REINSTATED }),
+      );
+    });
+
     it('does nothing when none are due', async () => {
       counterNoticeRepository.find.mockResolvedValue([]);
       const result = await service.runDueReinstatements();
