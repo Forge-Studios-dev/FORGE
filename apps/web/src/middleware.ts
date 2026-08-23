@@ -59,9 +59,9 @@ const PROTECTED_PREFIXES = [
   '/notifications',
   '/library',
   '/profile',
-  '/profile/settings',
   '/messages',
   '/playlists/me',
+  '/settings',
 ];
 
 const PLAYLIST_PROTECTED = ['/playlists/new'];
