@@ -121,7 +121,9 @@ export class CopyrightService {
       throw new BadRequestException('This notice is not awaiting a counter-notice');
     }
 
-    const video = await this.videoRepository.findOne({ where: { id: notice.videoId } });
+    const video = notice.videoId
+      ? await this.videoRepository.findOne({ where: { id: notice.videoId } })
+      : null;
     if (!video || video.userId !== uploaderId) {
       throw new ForbiddenException('Only the uploader may file a counter-notice for this video');
     }
@@ -237,10 +239,15 @@ export class CopyrightService {
       const notice = noticeById.get(counterNotice.noticeId);
       if (!notice) continue;
 
-      await this.videoRepository.update(notice.videoId, {
-        visibility: (notice.previousVisibility as VideoVisibility) ?? VideoVisibility.PUBLIC,
-      });
-      await this.videosService.bustVideoDetailCache(notice.videoId);
+      // notice.videoId is nullable — the video may have since been hard-deleted
+      // (video_id ON DELETE SET NULL preserves the notice as a legal record).
+      // Nothing to restore visibility on; still resolve the notice/strike below.
+      if (notice.videoId) {
+        await this.videoRepository.update(notice.videoId, {
+          visibility: (notice.previousVisibility as VideoVisibility) ?? VideoVisibility.PUBLIC,
+        });
+        await this.videosService.bustVideoDetailCache(notice.videoId);
+      }
 
       await this.noticeRepository.update(notice.id, {
         status: CopyrightNoticeStatus.REINSTATED,

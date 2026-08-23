@@ -13,6 +13,7 @@ import { EngagementService } from '../engagement/engagement.service';
 describe('UsersService', () => {
   const userRepo = {
     findOne: jest.fn(),
+    find: jest.fn().mockResolvedValue([]),
     save: jest.fn((u) => Promise.resolve(u)),
     update: jest.fn(),
     createQueryBuilder: jest.fn(),
@@ -358,6 +359,20 @@ describe('UsersService', () => {
     expect(userRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         notificationPreferences: { mutedCategories: ['live', 'social'], emailDigest: true },
+      }),
+    );
+  });
+
+  it('searchUsersForPicker excludes deleted/deactivated users from both match branches', async () => {
+    const svc = await setup();
+    await svc.searchUsersForPicker('alice');
+
+    expect(userRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: [
+          expect.objectContaining({ isActive: true, deletedAt: expect.anything() }),
+          expect.objectContaining({ isActive: true, deletedAt: expect.anything() }),
+        ],
       }),
     );
   });

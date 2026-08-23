@@ -9,10 +9,11 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { Repository, ILike } from 'typeorm';
+import { Repository, ILike, IsNull } from 'typeorm';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createS3Client } from '../../common/create-s3-client';
+import { clampLimit } from '../../common/utils/pagination.util';
 import { v4 as uuidv4 } from 'uuid';
 import { CreatorStatus, User, UserRole } from './entities/user.entity';
 import {
@@ -113,9 +114,12 @@ export class UsersService {
   async searchUsersForPicker(q: string, limit = 10) {
     const term = q.trim().replace(/^@/, '');
     if (term.length < 2) return [];
-    const take = Math.min(Math.max(limit, 1), 20);
+    const take = clampLimit(limit, 10, 20);
     const users = await this.userRepository.find({
-      where: [{ username: ILike(`${term}%`) }, { displayName: ILike(`${term}%`) }],
+      where: [
+        { username: ILike(`${term}%`), isActive: true, deletedAt: IsNull() },
+        { displayName: ILike(`${term}%`), isActive: true, deletedAt: IsNull() },
+      ],
       take,
       order: { username: 'ASC' },
     });
