@@ -109,6 +109,37 @@ export class CopyrightService {
     return notice;
   }
 
+  /**
+   * Lets the uploader whose video was hit read what they're being asked to
+   * counter-notice — previously there was no creator-readable path to the
+   * claim at all (only `admin/copyright/notices` exposed the full record).
+   * Deliberately omits claimant email/address: the uploader needs to know
+   * who's claiming and why to decide whether to counter-notice, not the
+   * claimant's raw contact details.
+   */
+  async getNoticeForUploader(noticeId: string, uploaderId: string) {
+    const notice = await this.noticeRepository.findOne({ where: { id: noticeId } });
+    if (!notice) throw new NotFoundException('Notice not found');
+
+    const video = notice.videoId
+      ? await this.videoRepository.findOne({ where: { id: notice.videoId } })
+      : null;
+    if (!video || video.userId !== uploaderId) {
+      throw new ForbiddenException('You do not have access to this notice');
+    }
+
+    return {
+      id: notice.id,
+      videoId: notice.videoId,
+      claimantName: notice.claimantName,
+      workDescription: notice.workDescription,
+      infringingDescription: notice.infringingDescription,
+      status: notice.status,
+      createdAt: notice.createdAt,
+      resolvedAt: notice.resolvedAt,
+    };
+  }
+
   /** Only the uploader whose video was taken down may file a counter-notice. */
   async submitCounterNotice(
     noticeId: string,

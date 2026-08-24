@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { CopyrightService } from './copyright.service';
@@ -25,6 +25,15 @@ export class CopyrightController {
   })
   submitNotice(@Body() dto: SubmitCopyrightNoticeDto) {
     return this.copyrightService.submitNotice(dto);
+  }
+
+  @Get('notices/:id')
+  @ApiOperation({
+    summary: "View a DMCA notice against the current user's video",
+    description: 'Scoped to the video owner; omits claimant email/address.',
+  })
+  getNotice(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
+    return this.copyrightService.getNoticeForUploader(id, user.sub);
   }
 
   @Post('notices/:id/counter-notice')

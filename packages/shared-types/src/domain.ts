@@ -164,7 +164,12 @@ export type NotificationType =
   | 'community_post_new'
   | 'achievement_unlocked'
   | 'xp_level_up'
-  | 'super_thanks';
+  | 'super_thanks'
+  | 'copyright_takedown'
+  | 'copyright_video_reinstated'
+  | 'strike_issued'
+  | 'strike_rescinded'
+  | 'strike_appeal_resolved';
 
 export interface Notification {
   id: string;

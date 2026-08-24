@@ -143,6 +143,12 @@ export default function ProfileSettingsPage() {
         >
           Memberships
         </Link>
+        <Link
+          href="/settings/strikes"
+          className="rounded-full bg-surface-container-high px-4 py-1.5 text-sm text-on-surface-variant hover:text-on-surface"
+        >
+          Strikes
+        </Link>
         <a
           href="#security"
           className="rounded-full bg-surface-container-high px-4 py-1.5 text-sm text-on-surface-variant hover:text-on-surface"

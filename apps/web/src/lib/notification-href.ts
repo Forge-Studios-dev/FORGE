@@ -63,6 +63,12 @@ export function notificationHref(
     case 'xp_level_up':
       // LMS soft-retired: no dedicated rewards surface in YouTube mode
       return null;
+    case 'copyright_takedown':
+    case 'copyright_video_reinstated':
+    case 'strike_issued':
+    case 'strike_rescinded':
+    case 'strike_appeal_resolved':
+      return '/settings/strikes';
     default:
       return videoId ? videoHref(videoId) : null;
   }
