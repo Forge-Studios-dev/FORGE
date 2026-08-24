@@ -54,6 +54,11 @@ const NOTIFICATION_META: Record<NotificationType, { icon: string; tone: StatusTo
   achievement_unlocked: { icon: 'emoji_events', tone: 'reward' },
   xp_level_up: { icon: 'trending_up', tone: 'reward' },
   super_thanks: { icon: 'volunteer_activism', tone: 'reward' },
+  copyright_takedown: { icon: 'gavel', tone: 'critical' },
+  copyright_video_reinstated: { icon: 'verified', tone: 'success' },
+  strike_issued: { icon: 'warning', tone: 'critical' },
+  strike_rescinded: { icon: 'verified', tone: 'success' },
+  strike_appeal_resolved: { icon: 'gavel', tone: 'primary' },
 };
 
 const DEFAULT_META = { icon: 'notifications', tone: 'neutral' as StatusTone };

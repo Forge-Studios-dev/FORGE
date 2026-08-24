@@ -482,6 +482,116 @@ export class NotificationsListener {
     });
   }
 
+  @OnEvent('copyright.takedown_issued')
+  async onCopyrightTakedown(payload: { videoId: string; userId: string; noticeId: string }) {
+    const title = 'Your video was taken down (copyright claim)';
+    const body = 'A copyright owner claimed this video. You can file a counter-notice if you believe this is a mistake.';
+    await this.notificationsService.create({
+      userId: payload.userId,
+      type: NotificationType.COPYRIGHT_TAKEDOWN,
+      title,
+      body,
+      metadata: { videoId: payload.videoId, noticeId: payload.noticeId },
+    });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title,
+      body,
+      data: { type: 'copyright_takedown', videoId: payload.videoId, noticeId: payload.noticeId },
+      category: categoryForNotificationType(NotificationType.COPYRIGHT_TAKEDOWN),
+    });
+    await this.maybeEmailUser(payload.userId, NotificationType.COPYRIGHT_TAKEDOWN, title, body);
+  }
+
+  @OnEvent('copyright.video_reinstated')
+  async onCopyrightVideoReinstated(payload: { videoId: string; userId: string; noticeId: string }) {
+    const title = 'Your video was reinstated';
+    const body = 'The copyright claim against your video was resolved in your favor.';
+    await this.notificationsService.create({
+      userId: payload.userId,
+      type: NotificationType.COPYRIGHT_VIDEO_REINSTATED,
+      title,
+      body,
+      metadata: { videoId: payload.videoId, noticeId: payload.noticeId },
+    });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title,
+      body,
+      data: { type: 'copyright_video_reinstated', videoId: payload.videoId },
+      category: categoryForNotificationType(NotificationType.COPYRIGHT_VIDEO_REINSTATED),
+    });
+  }
+
+  @OnEvent('account.strike_issued')
+  async onStrikeIssued(payload: {
+    userId: string;
+    strikeId: string;
+    type: string;
+    strikeNumber: number;
+    consequence: string;
+  }) {
+    const kind = payload.type === 'copyright' ? 'copyright' : 'community guideline';
+    const title = `Strike ${payload.strikeNumber}: ${kind} violation`;
+    const body =
+      payload.consequence === 'termination_recommended'
+        ? 'Your channel is under review for termination after a third strike.'
+        : payload.consequence === 'upload_restriction_2w'
+          ? "You can't upload for 2 weeks as a result of this strike."
+          : 'This is a warning — no restriction yet, but further strikes escalate.';
+    await this.notificationsService.create({
+      userId: payload.userId,
+      type: NotificationType.STRIKE_ISSUED,
+      title,
+      body,
+      metadata: { strikeId: payload.strikeId },
+    });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title,
+      body,
+      data: { type: 'strike_issued', strikeId: payload.strikeId },
+      category: categoryForNotificationType(NotificationType.STRIKE_ISSUED),
+    });
+    await this.maybeEmailUser(payload.userId, NotificationType.STRIKE_ISSUED, title, body);
+  }
+
+  @OnEvent('account.strike_rescinded')
+  async onStrikeRescinded(payload: { userId: string; strikeId: string; reason: string }) {
+    const title = 'A strike on your account was rescinded';
+    await this.notificationsService.create({
+      userId: payload.userId,
+      type: NotificationType.STRIKE_RESCINDED,
+      title,
+      body: payload.reason,
+      metadata: { strikeId: payload.strikeId },
+    });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title,
+      body: payload.reason,
+      data: { type: 'strike_rescinded', strikeId: payload.strikeId },
+      category: categoryForNotificationType(NotificationType.STRIKE_RESCINDED),
+    });
+  }
+
+  @OnEvent('account.strike_appeal_resolved')
+  async onStrikeAppealResolved(payload: { userId: string; strikeId: string; granted: boolean }) {
+    const title = payload.granted ? 'Your strike appeal was granted' : 'Your strike appeal was denied';
+    const body = payload.granted
+      ? 'The strike has been removed from your account.'
+      : 'The strike remains on your account.';
+    await this.notificationsService.create({
+      userId: payload.userId,
+      type: NotificationType.STRIKE_APPEAL_RESOLVED,
+      title,
+      body,
+      metadata: { strikeId: payload.strikeId, granted: payload.granted },
+    });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title,
+      body,
+      data: { type: 'strike_appeal_resolved', strikeId: payload.strikeId },
+      category: categoryForNotificationType(NotificationType.STRIKE_APPEAL_RESOLVED),
+    });
+  }
+
   private async maybeEmailUser(
     userId: string,
     type: NotificationType,

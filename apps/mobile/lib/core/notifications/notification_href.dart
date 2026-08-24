@@ -57,6 +57,14 @@ String? notificationHref(String? type, Map<String, dynamic>? metadata) {
     case 'achievement_unlocked':
     case 'xp_level_up':
       return null;
+    case 'copyright_takedown':
+    case 'copyright_video_reinstated':
+    case 'strike_issued':
+    case 'strike_rescinded':
+    case 'strike_appeal_resolved':
+      // No dedicated mobile strikes screen yet (web has /settings/strikes) —
+      // stay put rather than opening the now-private video.
+      return null;
     default:
       return videoId != null ? videoPath(videoId) : null;
   }

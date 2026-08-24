@@ -132,6 +132,55 @@ describe('CopyrightService', () => {
     });
   });
 
+  describe('getNoticeForUploader', () => {
+    it('returns notice details for the video owner, omitting claimant contact info', async () => {
+      noticeRepository.findOne.mockResolvedValue({
+        id: 'notice-1',
+        videoId: 'v1',
+        claimantName: 'Jane Claimant',
+        claimantEmail: 'jane@example.com',
+        claimantAddress: '123 Main St',
+        workDescription: 'My short film',
+        infringingDescription: 'This video',
+        status: CopyrightNoticeStatus.TAKEDOWN_ISSUED,
+        createdAt: new Date('2026-01-01'),
+        resolvedAt: null,
+      });
+      videoRepository.findOne.mockResolvedValue({ id: 'v1', userId: 'uploader-1' });
+
+      const result = await service.getNoticeForUploader('notice-1', 'uploader-1');
+
+      expect(result).toEqual({
+        id: 'notice-1',
+        videoId: 'v1',
+        claimantName: 'Jane Claimant',
+        workDescription: 'My short film',
+        infringingDescription: 'This video',
+        status: CopyrightNoticeStatus.TAKEDOWN_ISSUED,
+        createdAt: new Date('2026-01-01'),
+        resolvedAt: null,
+      });
+      expect(result).not.toHaveProperty('claimantEmail');
+      expect(result).not.toHaveProperty('claimantAddress');
+    });
+
+    it('rejects access from someone other than the video owner', async () => {
+      noticeRepository.findOne.mockResolvedValue({ id: 'notice-1', videoId: 'v1' });
+      videoRepository.findOne.mockResolvedValue({ id: 'v1', userId: 'uploader-1' });
+
+      await expect(
+        service.getNoticeForUploader('notice-1', 'someone-else'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('throws NotFoundException when the notice does not exist', async () => {
+      noticeRepository.findOne.mockResolvedValue(null);
+      await expect(
+        service.getNoticeForUploader('missing', 'uploader-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   describe('submitCounterNotice', () => {
     const counterDto = {
       contactInfo: '456 Oak Ave, Springfield, uploader@example.com',

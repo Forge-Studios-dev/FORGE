@@ -69,6 +69,13 @@ const Map<String, _NotificationMeta> _notificationMetaByType = {
   'achievement_unlocked':
       _NotificationMeta(Icons.emoji_events, _NotifTone.tertiary, _NotifCategory.reward),
   'xp_level_up': _NotificationMeta(Icons.trending_up, _NotifTone.tertiary, _NotifCategory.reward),
+  'copyright_takedown': _NotificationMeta(Icons.gavel, _NotifTone.critical, _NotifCategory.creator),
+  'copyright_video_reinstated':
+      _NotificationMeta(Icons.verified, _NotifTone.success, _NotifCategory.creator),
+  'strike_issued': _NotificationMeta(Icons.warning, _NotifTone.critical, _NotifCategory.creator),
+  'strike_rescinded': _NotificationMeta(Icons.verified, _NotifTone.success, _NotifCategory.creator),
+  'strike_appeal_resolved':
+      _NotificationMeta(Icons.gavel, _NotifTone.primary, _NotifCategory.creator),
 };
 
 _NotificationMeta _metaFor(String? type) =>

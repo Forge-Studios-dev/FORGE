@@ -76,6 +76,75 @@ describe('NotificationsListener', () => {
     });
   });
 
+  describe('copyright and strike notifications', () => {
+    beforeEach(() => {
+      userRepository.findOne.mockResolvedValue({
+        id: 'u1',
+        email: 'u1@example.com',
+        notificationPreferences: null,
+      });
+    });
+
+    it('notifies and emails the uploader when their video is taken down', async () => {
+      await listener.onCopyrightTakedown({ videoId: 'v1', userId: 'u1', noticeId: 'n1' });
+
+      expect(notificationsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u1', metadata: { videoId: 'v1', noticeId: 'n1' } }),
+      );
+      expect(pushDispatch.enqueueForUser).toHaveBeenCalledWith('u1', expect.any(Object));
+      expect(mailService.sendMail).toHaveBeenCalled();
+    });
+
+    it('notifies the uploader when their video is reinstated (no email)', async () => {
+      await listener.onCopyrightVideoReinstated({ videoId: 'v1', userId: 'u1', noticeId: 'n1' });
+
+      expect(notificationsService.create).toHaveBeenCalled();
+      expect(mailService.sendMail).not.toHaveBeenCalled();
+    });
+
+    it('notifies and emails the user when a strike is issued, with consequence-specific wording', async () => {
+      await listener.onStrikeIssued({
+        userId: 'u1',
+        strikeId: 's1',
+        type: 'copyright',
+        strikeNumber: 3,
+        consequence: 'termination_recommended',
+      });
+
+      expect(notificationsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u1',
+          body: expect.stringContaining('termination'),
+        }),
+      );
+      expect(mailService.sendMail).toHaveBeenCalled();
+    });
+
+    it('notifies the user when a strike is rescinded', async () => {
+      await listener.onStrikeRescinded({ userId: 'u1', strikeId: 's1', reason: 'Notice withdrawn' });
+
+      expect(notificationsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u1', body: 'Notice withdrawn' }),
+      );
+    });
+
+    it('notifies the user when their strike appeal is granted', async () => {
+      await listener.onStrikeAppealResolved({ userId: 'u1', strikeId: 's1', granted: true });
+
+      expect(notificationsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u1', title: expect.stringContaining('granted') }),
+      );
+    });
+
+    it('notifies the user when their strike appeal is denied', async () => {
+      await listener.onStrikeAppealResolved({ userId: 'u1', strikeId: 's1', granted: false });
+
+      expect(notificationsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u1', title: expect.stringContaining('denied') }),
+      );
+    });
+  });
+
   describe('onStreamReminder', () => {
     it('excludes a blocked-either-way peer from the reminder fan-out, matching notifyAudienceOfLive', async () => {
       followRepository.find.mockResolvedValue([

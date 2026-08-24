@@ -19,6 +19,11 @@ export enum NotificationType {
   ACHIEVEMENT_UNLOCKED = 'achievement_unlocked',
   XP_LEVEL_UP = 'xp_level_up',
   SUPER_THANKS = 'super_thanks',
+  COPYRIGHT_TAKEDOWN = 'copyright_takedown',
+  COPYRIGHT_VIDEO_REINSTATED = 'copyright_video_reinstated',
+  STRIKE_ISSUED = 'strike_issued',
+  STRIKE_RESCINDED = 'strike_rescinded',
+  STRIKE_APPEAL_RESOLVED = 'strike_appeal_resolved',
 }
 
 @Entity('notifications')

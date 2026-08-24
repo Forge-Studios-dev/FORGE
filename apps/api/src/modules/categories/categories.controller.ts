@@ -1,9 +1,8 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 import { Public } from '../../common/decorators/public.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { SuggestTagsDto } from './dto/suggest-tags.dto';
 
 @ApiTags('Categories')
@@ -40,7 +39,7 @@ export class CategoriesController {
   }
 
   @Post(':id/ai/suggest-tags')
-  @Roles(UserRole.CREATOR, UserRole.ADMIN)
+  @UseGuards(CreatorApprovedGuard)
   @ApiOperation({ summary: 'AI-suggested skill tags from a draft title/description' })
   async suggestTags(@Param('id') id: string, @Body() body: SuggestTagsDto) {
     return {

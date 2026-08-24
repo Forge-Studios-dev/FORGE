@@ -42,6 +42,11 @@ export const NOTIFICATION_CATEGORY_BY_TYPE: Record<NotificationType, Notificatio
   achievement_unlocked: 'reward',
   xp_level_up: 'reward',
   super_thanks: 'billing',
+  copyright_takedown: 'creator',
+  copyright_video_reinstated: 'creator',
+  strike_issued: 'creator',
+  strike_rescinded: 'creator',
+  strike_appeal_resolved: 'creator',
 };
 
 export function categoryForNotificationType(type: NotificationType | string): NotificationCategory {
