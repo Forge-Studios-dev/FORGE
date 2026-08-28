@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
-import { PageHeader } from '@forge/design-system';
+import { Button, PageHeader, buttonClassName } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { loginHrefWithNext } from '@/lib/safe-return-path';
@@ -53,7 +53,7 @@ export function NewPlaylistClient() {
           <p className="mt-2 text-sm text-on-surface-variant">Sign in to save videos to a playlist.</p>
           <Link
             href={loginHrefWithNext('/playlists/new')}
-            className="primary-button mt-6 inline-flex rounded-full px-6 py-2 text-sm font-semibold text-on-primary"
+            className={`${buttonClassName('primary')} mt-6`}
           >
             Sign in
           </Link>
@@ -103,14 +103,15 @@ export function NewPlaylistClient() {
             <option value="private">Private</option>
           </select>
         </label>
-        <button
+        <Button
           type="button"
+          variant="primary"
           onClick={() => create.mutate()}
           disabled={create.isPending || title.trim().length < 2}
-          className="primary-button w-full rounded-full py-3 text-sm font-semibold text-on-primary disabled:opacity-40"
+          className="w-full py-3 disabled:opacity-40"
         >
           {create.isPending ? 'Creating…' : 'Create playlist'}
-        </button>
+        </Button>
       </div>
     </main>
   );

@@ -42,6 +42,7 @@ import '../../features/studio/presentation/studio_channel_posts_screen.dart';
 import '../../features/community/presentation/discover_communities_screen.dart';
 import '../../features/profile/presentation/my_memberships_screen.dart';
 import '../../features/profile/presentation/profile_settings_screen.dart';
+import '../../features/profile/presentation/strikes_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/messages/presentation/messages_screen.dart';
 import '../../features/profile/presentation/follower_list_screen.dart';
@@ -69,7 +70,7 @@ const _storage = FlutterSecureStorage();
 /// web's ungated `/[username]`) and `/playlists/:id` (a public playlist,
 /// matching web's ungated `/playlists/[id]`). See protectedExactRoutes for
 /// the owned pages at those exact paths.
-const protectedRoutes = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/library', '/updates', '/playlists/me', '/subscriptions'];
+const protectedRoutes = ['/studio', '/upload', '/notifications', '/messages', '/history', '/profile/settings', '/settings/memberships', '/settings/strikes', '/library', '/updates', '/playlists/me', '/subscriptions'];
 
 /// Routes that require a live session, matched EXACTLY only — their
 /// sub-paths must stay public (see protectedRoutes doc above).
@@ -278,6 +279,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/studio/settings', builder: (_, __) => const StudioSettingsScreen()),
       GoRoute(path: '/studio/branding', builder: (_, __) => const ProfileSettingsScreen()),
       GoRoute(path: '/studio/copilot', redirect: (_, __) => '/studio'),
+      GoRoute(path: '/settings/strikes', builder: (_, __) => const StrikesScreen()),
       GoRoute(path: '/profile/settings', builder: (_, __) => const ProfileSettingsScreen()),
       GoRoute(path: '/settings/memberships', builder: (_, __) => const MyMembershipsScreen()),
       GoRoute(path: '/upload', builder: (_, __) => const UploadScreen()),

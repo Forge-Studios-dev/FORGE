@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../../core/network/api_client.dart';
+import '../data/profile_repository.dart';
 import '../../../core/theme/forge_tokens.dart';
 
 class MyMembershipsScreen extends ConsumerStatefulWidget {
@@ -24,10 +24,9 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
 
   Future<void> _load() async {
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get('/subscriptions/me');
+      final list = await ref.read(profileRepositoryProvider).listMySubscriptions();
       setState(() {
-        _subscriptions = (response.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _subscriptions = list;
         _loading = false;
       });
     } catch (_) {
@@ -37,11 +36,9 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
 
   Future<void> _openBillingPortal() async {
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.post('/billing/portal', data: {
-        'returnUrl': 'forge://memberships',
-      });
-      final url = response.data['data']?['url'] as String?;
+      final url = await ref.read(profileRepositoryProvider).createBillingPortal(
+            returnUrl: 'forge://memberships',
+          );
       if (url != null) {
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       }
@@ -72,9 +69,10 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
     );
     if (confirmed != true) return;
     try {
-      final client = ref.read(apiClientProvider);
-      final qs = cancelAtPeriodEnd ? '?cancelAtPeriodEnd=true' : '';
-      await client.dio.delete('/subscriptions/me/$creatorId$qs');
+      await ref.read(profileRepositoryProvider).cancelSubscription(
+            creatorId,
+            cancelAtPeriodEnd: cancelAtPeriodEnd,
+          );
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -129,11 +127,10 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
 
   Future<void> _changeTier(String creatorId, String tierId) async {
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/billing/subscriptions/change-tier', data: {
-        'creatorId': creatorId,
-        'tierId': tierId,
-      });
+      await ref.read(profileRepositoryProvider).changeSubscriptionTier(
+            creatorId: creatorId,
+            tierId: tierId,
+          );
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -151,9 +148,7 @@ class _MyMembershipsScreenState extends ConsumerState<MyMembershipsScreen> {
 
   Future<List<Map<String, dynamic>>> _fetchTiers(String creatorId) async {
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get('/creators/$creatorId/tiers');
-      return (response.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      return await ref.read(profileRepositoryProvider).getCreatorTiers(creatorId);
     } catch (_) {
       return [];
     }

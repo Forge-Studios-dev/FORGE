@@ -395,6 +395,7 @@ export class EngagementController {
       clampLimit(limit),
       cursor,
       viewer?.sub,
+      viewer?.role,
     );
   }
 

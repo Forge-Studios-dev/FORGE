@@ -607,7 +607,9 @@ export function VideoPlayer({
         </button>
       ) : null}
       {!isShorts ? (
-      <div className="pointer-events-none absolute left-2 top-2 flex flex-wrap gap-2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+      // Hover/focus reveal on desktop; always visible on touch (no hover) so
+      // quality/speed/PiP remain reachable — YouTube parity for mobile web.
+      <div className="pointer-events-none absolute left-2 top-2 flex flex-wrap gap-2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
         {levels.length > 1 ? (
           <select
             aria-label="Playback quality"

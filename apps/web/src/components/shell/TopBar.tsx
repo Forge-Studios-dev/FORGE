@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Icon, IconButton } from '@forge/design-system';
+import { Icon, IconButton, buttonClassName } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
@@ -84,7 +84,7 @@ export function TopBar() {
             <Link href="/login" className="rounded-full px-3 py-2 text-sm text-on-surface-variant hover:text-on-surface md:px-4">
               Sign in
             </Link>
-            <Link href="/signup" className="primary-button hidden rounded-full px-5 py-2 text-sm font-semibold text-on-primary md:block">
+            <Link href="/signup" className={`${buttonClassName('primary')} hidden md:block`}>
               Join FORGE
             </Link>
           </>
@@ -99,51 +99,53 @@ export function TopBar() {
               </Link>
             )}
             {(canUpload || canGoLive) && (
-              <PopoverMenu
-                label="Create"
-                align="right"
-                panelClassName="w-52"
-                triggerClassName="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50"
-                trigger={<Icon name="add_circle" />}
-              >
-                {(close) => (
-                  <>
-                    {canUpload ? (
-                      <>
+              <div className="hidden md:block">
+                <PopoverMenu
+                  label="Create"
+                  align="right"
+                  panelClassName="w-52"
+                  triggerClassName="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-highest/50"
+                  trigger={<Icon name="add_circle" />}
+                >
+                  {(close) => (
+                    <>
+                      {canUpload ? (
+                        <>
+                          <Link
+                            href="/upload"
+                            role="menuitem"
+                            className={menuItemClass}
+                            onClick={close}
+                          >
+                            <Icon name="upload" className="text-base" />
+                            Upload video
+                          </Link>
+                          <Link
+                            href="/upload?type=short"
+                            role="menuitem"
+                            className={menuItemClass}
+                            onClick={close}
+                          >
+                            <Icon name="smart_display" className="text-base" />
+                            Create a Short
+                          </Link>
+                        </>
+                      ) : null}
+                      {canGoLive ? (
                         <Link
-                          href="/upload"
+                          href="/studio/live"
                           role="menuitem"
                           className={menuItemClass}
                           onClick={close}
                         >
-                          <Icon name="upload" className="text-base" />
-                          Upload video
+                          <Icon name="sensors" className="text-base" />
+                          Go live
                         </Link>
-                        <Link
-                          href="/upload?type=short"
-                          role="menuitem"
-                          className={menuItemClass}
-                          onClick={close}
-                        >
-                          <Icon name="smart_display" className="text-base" />
-                          Create a Short
-                        </Link>
-                      </>
-                    ) : null}
-                    {canGoLive ? (
-                      <Link
-                        href="/studio/live"
-                        role="menuitem"
-                        className={menuItemClass}
-                        onClick={close}
-                      >
-                        <Icon name="sensors" className="text-base" />
-                        Go live
-                      </Link>
-                    ) : null}
-                  </>
-                )}
-              </PopoverMenu>
+                      ) : null}
+                    </>
+                  )}
+                </PopoverMenu>
+              </div>
             )}
             {canEngage && (
               <>

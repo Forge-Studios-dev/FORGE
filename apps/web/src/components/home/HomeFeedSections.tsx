@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Icon } from '@forge/design-system';
+import { Icon, buttonClassName } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
 
 export function HomeFeedSections() {
@@ -16,7 +16,7 @@ export function HomeFeedSections() {
             Explore videos and live streams from creators. Sign in to subscribe and build your library.
           </p>
           <div className="flex flex-wrap justify-center gap-3 md:justify-start">
-            <Link href="/signup" className="primary-button rounded-full px-8 py-3 font-semibold text-on-primary">
+            <Link href="/signup" className={buttonClassName('primary')}>
               Get started
             </Link>
             <Link
@@ -35,7 +35,7 @@ export function HomeFeedSections() {
             <p className="font-label-caps text-secondary">Creator mode</p>
             <p className="text-sm text-on-surface-variant">Manage uploads and analytics in Studio</p>
           </div>
-          <Link href="/studio" className="primary-button shrink-0 rounded-full px-6 py-2 text-center text-sm font-semibold text-on-primary">
+          <Link href="/studio" className={`${buttonClassName('primary')} shrink-0 text-center`}>
             Open Studio
           </Link>
         </section>

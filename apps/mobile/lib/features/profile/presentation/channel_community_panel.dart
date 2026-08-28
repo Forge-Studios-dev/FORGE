@@ -1,28 +1,16 @@
-import 'dart:io';
-
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/network/api_client.dart';
-import '../../../core/network/s3_upload_client.dart';
+import '../data/profile_repository.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 
 final channelPostsProvider =
     FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, creatorId) async {
-  final client = ref.read(apiClientProvider);
-  final res = await client.dio.get(
-    '/creators/$creatorId/channel-posts',
-    queryParameters: {'limit': 20},
-  );
-  final root = res.data['data'];
-  final list = root is Map ? root['data'] : root;
-  if (list is! List) return [];
-  return list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  return ref.read(profileRepositoryProvider).listChannelPosts(creatorId);
 });
 
 /// YouTube-style channel Community tab: posts feed + owner compose + like.
@@ -70,7 +58,7 @@ class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
       _composeMsg = null;
     });
     try {
-      final client = ref.read(apiClientProvider);
+      final repo = ref.read(profileRepositoryProvider);
       final remaining = _maxImages - _mediaUrls.length;
       for (final file in result.files.take(remaining)) {
         final path = file.path;
@@ -81,25 +69,10 @@ class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
             : name.endsWith('.webp')
                 ? 'image/webp'
                 : 'image/jpeg';
-        final presign = await client.dio.post(
-          '/creators/me/channel-posts/media-upload-url',
-          queryParameters: {'contentType': contentType},
+        final publicUrl = await repo.uploadChannelPostMedia(
+          filePath: path,
+          contentType: contentType,
         );
-        final data = presign.data['data'] as Map<String, dynamic>;
-        final uploadUrl = data['uploadUrl'] as String;
-        final publicUrl = data['publicUrl'] as String;
-        final put = await createS3UploadDio().put(
-          uploadUrl,
-          data: await File(path).readAsBytes(),
-          options: Options(
-            headers: {'Content-Type': contentType},
-            sendTimeout: const Duration(minutes: 2),
-            receiveTimeout: const Duration(minutes: 2),
-          ),
-        );
-        if (put.statusCode == null || put.statusCode! < 200 || put.statusCode! >= 300) {
-          throw StateError('Upload failed');
-        }
         _mediaUrls.add(publicUrl);
       }
       if (mounted) setState(() {});
@@ -122,11 +95,10 @@ class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
       _composeMsg = null;
     });
     try {
-      await ref.read(apiClientProvider).dio.post('/creators/me/channel-posts', data: {
-        if (text.isNotEmpty) 'body': text,
-        if (text.isEmpty) 'body': ' ',
-        if (_mediaUrls.isNotEmpty) 'mediaUrls': List<String>.from(_mediaUrls),
-      });
+      await ref.read(profileRepositoryProvider).createChannelPost(
+            body: text.isNotEmpty ? text : ' ',
+            mediaUrls: _mediaUrls.isNotEmpty ? List<String>.from(_mediaUrls) : null,
+          );
       _composeCtrl.clear();
       _mediaUrls.clear();
       ref.invalidate(channelPostsProvider(widget.creatorId));
@@ -146,8 +118,9 @@ class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
     if (id == null || communityId == null || _likeBusy.contains(id)) return;
     setState(() => _likeBusy.add(id));
     try {
-      await ref.read(apiClientProvider).dio.post(
-            '/communities/$communityId/posts/$id/reactions',
+      await ref.read(profileRepositoryProvider).togglePostReaction(
+            communityId: communityId,
+            postId: id,
           );
       ref.invalidate(channelPostsProvider(widget.creatorId));
     } catch (_) {
@@ -345,10 +318,11 @@ class _PostCardState extends ConsumerState<_PostCard> {
     final next = widget.post['isPinned'] != true;
     setState(() => _pinBusy = true);
     try {
-      await ref.read(apiClientProvider).dio.post(
-        '/creators/me/communities/$communityId/posts/$postId/pin',
-        data: {'isPinned': next},
-      );
+      await ref.read(profileRepositoryProvider).pinChannelPost(
+            communityId: communityId,
+            postId: postId,
+            isPinned: next,
+          );
       ref.invalidate(channelPostsProvider(widget.creatorId));
     } catch (_) {
       if (!mounted) return;
@@ -377,8 +351,9 @@ class _PostCardState extends ConsumerState<_PostCard> {
     );
     if (ok != true) return;
     try {
-      await ref.read(apiClientProvider).dio.delete(
-            '/creators/me/communities/$communityId/posts/$postId',
+      await ref.read(profileRepositoryProvider).deleteChannelPost(
+            communityId: communityId,
+            postId: postId,
           );
       ref.invalidate(channelPostsProvider(widget.creatorId));
     } catch (_) {
@@ -407,14 +382,10 @@ class _PostCardState extends ConsumerState<_PostCard> {
     if (postId == null || communityId == null) return;
     setState(() => _loadingComments = true);
     try {
-      final res = await ref.read(apiClientProvider).dio.get(
-            '/communities/$communityId/posts/$postId/comments',
+      final comments = await ref.read(profileRepositoryProvider).listPostComments(
+            communityId: communityId,
+            postId: postId,
           );
-      final root = res.data['data'];
-      final list = root is Map ? root['data'] : root;
-      final comments = list is List
-          ? list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
-          : <Map<String, dynamic>>[];
       if (!mounted) return;
       setState(() => _comments = comments);
     } catch (_) {
@@ -432,13 +403,12 @@ class _PostCardState extends ConsumerState<_PostCard> {
     if (text.isEmpty || postId == null || communityId == null) return;
     setState(() => _postingComment = true);
     try {
-      await ref.read(apiClientProvider).dio.post(
-        '/communities/$communityId/posts/$postId/comments',
-        data: {
-          'body': text,
-          if (_replyToId != null) 'parentId': _replyToId,
-        },
-      );
+      await ref.read(profileRepositoryProvider).createPostComment(
+            communityId: communityId,
+            postId: postId,
+            body: text,
+            parentId: _replyToId,
+          );
       _commentCtrl.clear();
       _replyToId = null;
       await _loadComments();

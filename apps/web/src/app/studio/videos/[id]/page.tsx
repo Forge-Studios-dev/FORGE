@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Icon, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
+import { Button, Icon, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
@@ -649,15 +649,16 @@ export default function StudioVideoDetailEditorPage() {
           )}
 
           <div className="flex flex-wrap gap-3">
-            <button
+            <Button
               type="button"
+              variant="primary"
               disabled={saveMutation.isPending || title.trim().length < 1}
               onClick={() => saveMutation.mutate()}
-              className="primary-button inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50"
+              className="gap-2 px-5"
             >
               <Icon name="save" />
               {saveMutation.isPending ? 'Saving…' : 'Save changes'}
-            </button>
+            </Button>
             <button
               type="button"
               onClick={() => router.push('/studio/videos')}

@@ -8,11 +8,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/access/creator_status_provider.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../live/data/live_repository.dart';
 import '../../watch/data/watch_repository.dart';
+import '../data/profile_repository.dart';
 import '../../../shared/models/video.dart';
 import 'membership_panel.dart';
 import 'channel_community_panel.dart';
@@ -24,17 +24,11 @@ class ChannelUnavailableException implements Exception {
 
 final userVideosProvider = FutureProvider.autoDispose
     .family<List<VideoModel>, ({String userId, String type, String sort})>((ref, args) async {
-  final client = ref.read(apiClientProvider);
-  final response = await client.dio.get(
-    '/users/${args.userId}/videos',
-    queryParameters: {
-      'limit': 30,
-      'type': args.type,
-      if (args.sort != 'newest') 'sort': args.sort,
-    },
-  );
-  final list = response.data['data']['data'] as List<dynamic>? ?? [];
-  return list.map((e) => VideoModel.fromJson(e as Map<String, dynamic>)).toList();
+  return ref.read(profileRepositoryProvider).getUserVideos(
+        args.userId,
+        type: args.type,
+        sort: args.sort,
+      );
 });
 
 final channelStreamsProvider = FutureProvider.autoDispose
@@ -50,28 +44,12 @@ final channelStreamsProvider = FutureProvider.autoDispose
 
 final channelPlaylistsProvider =
     FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, userId) async {
-  final client = ref.read(apiClientProvider);
-  final response = await client.dio.get('/users/$userId/playlists');
-  final data = response.data['data'];
-  if (data is List) {
-    return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-  }
-  if (data is Map && data['data'] is List) {
-    return (data['data'] as List)
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
-  }
-  return [];
+  return ref.read(profileRepositoryProvider).getUserPlaylists(userId);
 });
 
 final userProfileProvider = FutureProvider.autoDispose.family<UserModel, String>((ref, username) async {
-  final client = ref.read(apiClientProvider);
   try {
-    final response = username == 'me'
-        ? await client.dio.get('/users/me')
-        : await client.dio.get('/users/by-username/$username');
-    return UserModel.fromJson(response.data['data'] as Map<String, dynamic>);
+    return await ref.read(profileRepositoryProvider).getUserProfile(username);
   } on DioException catch (e) {
     if (e.response?.statusCode == 403) {
       throw const ChannelUnavailableException();
@@ -1066,11 +1044,11 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
     if (_followBusy) return;
     setState(() => _followBusy = true);
     try {
-      final client = ref.read(apiClientProvider);
+      final repo = ref.read(profileRepositoryProvider);
       if (_following) {
-        await client.dio.delete('/channels/${widget.user.id}/subscribe');
+        await repo.unsubscribe(widget.user.id);
       } else {
-        await client.dio.post('/channels/${widget.user.id}/subscribe');
+        await repo.subscribe(widget.user.id);
       }
       setState(() => _following = !_following);
     } catch (_) {
@@ -1086,11 +1064,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
 
   Future<void> _setNotify(String level) async {
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.patch(
-        '/channels/${widget.user.id}/subscription/notify',
-        data: {'notifyLevel': level},
-      );
+      await ref.read(profileRepositoryProvider).setSubscriptionNotifyLevel(widget.user.id, level);
       if (mounted) {
         final label = switch (level) {
           'all' => 'All notifications',

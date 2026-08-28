@@ -8,7 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { In, IsNull, Repository } from 'typeorm';
+import { In, IsNull, QueryFailedError, Repository } from 'typeorm';
 import { Like, VideoReactionType } from './entities/like.entity';
 import { Comment, CommentModerationStatus } from './entities/comment.entity';
 import { CommentLike, CommentReactionType } from './entities/comment-like.entity';
@@ -147,6 +147,29 @@ export class EngagementService {
   }
 
   private async setVideoReaction(
+    userId: string,
+    videoId: string,
+    reaction: VideoReactionType,
+  ) {
+    try {
+      return await this.applyVideoReaction(userId, videoId, reaction);
+    } catch (err) {
+      if (this.isLikeUniqueViolation(err)) {
+        return this.applyVideoReaction(userId, videoId, reaction);
+      }
+      throw err;
+    }
+  }
+
+  private isLikeUniqueViolation(err: unknown): boolean {
+    return (
+      err instanceof QueryFailedError &&
+      (err as QueryFailedError & { driverError?: { code?: string } }).driverError?.code ===
+        '23505'
+    );
+  }
+
+  private async applyVideoReaction(
     userId: string,
     videoId: string,
     reaction: VideoReactionType,
@@ -1115,7 +1138,22 @@ export class EngagementService {
     return !!follow;
   }
 
-  async getFollowers(userId: string, limit = 20, cursor?: string, viewerId?: string) {
+  async getFollowers(
+    userId: string,
+    limit = 20,
+    cursor?: string,
+    viewerId?: string,
+    viewerRole?: UserRole,
+  ) {
+    // YouTube parity: subscriber identities are private to the channel owner
+    // (and platform admins). Guests and other authenticated users must not
+    // enumerate who subscribed.
+    const isOwner = viewerId === userId;
+    const isAdmin = viewerRole === UserRole.ADMIN;
+    if (!isOwner && !isAdmin) {
+      throw new ForbiddenException('Subscriber list is private');
+    }
+
     // Same channel-level block gate the profile/videos/playlists endpoints
     // already enforce — without it, a viewer blocked by (or who blocked) the
     // channel owner could still enumerate that channel's followers.

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
-import { EmptyState, FeedGridSkeleton, PageHeader } from '@forge/design-system';
+import { Button, EmptyState, FeedGridSkeleton, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { Stream, User } from '@/types';
 import { resolveStreamPoster } from '@/lib/stream-poster';
@@ -59,14 +59,15 @@ export default function LiveDirectoryPage() {
               placeholder="Session title (min 3 characters)"
               className="flex-1 min-w-0 rounded-lg border border-outline-variant/40 bg-surface-container-low px-3 py-2 text-sm text-on-surface placeholder:text-outline focus:border-primary focus:outline-none"
             />
-            <button
+            <Button
               type="button"
+              variant="primary"
               disabled={creating || title.trim().length < 3}
               onClick={() => void startStream()}
-              className="primary-button shrink-0 rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50"
+              className="shrink-0 px-4 py-2"
             >
               {creating ? 'Starting…' : 'Create stream'}
-            </button>
+            </Button>
           </div>
           {createErr ? <p className="text-sm text-error">{createErr}</p> : null}
         </div>

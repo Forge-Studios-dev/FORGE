@@ -3,50 +3,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/navigation/public_video_path.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../shared/models/video.dart';
 import '../../history/data/history_repository.dart';
+import '../../notifications/data/notifications_repository.dart';
 import '../../playlists/presentation/create_playlist_dialog.dart';
+import '../data/library_repository.dart';
 
 final libraryUnreadCountProvider = FutureProvider.autoDispose<int>((ref) async {
   try {
-    final api = ref.read(apiClientProvider);
-    final res = await api.dio.get('/notifications/unread-count');
-    final data = res.data['data'];
-    if (data is Map) return (data['count'] as num?)?.toInt() ?? 0;
-    if (data is num) return data.toInt();
-    return 0;
+    return await ref.read(notificationsRepositoryProvider).getUnreadCount();
   } catch (_) {
     return 0;
   }
 });
 
 final libraryPlaylistCountsProvider =
-    FutureProvider.autoDispose<({int? watchLater, int? liked, int? playlists})>((ref) async {
+    FutureProvider.autoDispose<LibraryPlaylistCounts>((ref) async {
   try {
-    final api = ref.read(apiClientProvider);
-    final res = await api.dio.get('/playlists/me');
-    final list = res.data['data'];
-    if (list is! List) return (watchLater: null, liked: null, playlists: null);
-    int? watchLater;
-    int? liked;
-    var custom = 0;
-    for (final raw in list) {
-      if (raw is! Map) continue;
-      final p = Map<String, dynamic>.from(raw);
-      final system = p['systemType'] as String?;
-      final count = (p['videoCount'] as num?)?.toInt();
-      if (system == 'watch_later') {
-        watchLater = count;
-      } else if (system == 'liked') {
-        liked = count;
-      } else if (system == null) {
-        custom += 1;
-      }
-    }
-    return (watchLater: watchLater, liked: liked, playlists: custom);
+    return await ref.read(libraryRepositoryProvider).getPlaylistCounts();
   } catch (_) {
     return (watchLater: null, liked: null, playlists: null);
   }

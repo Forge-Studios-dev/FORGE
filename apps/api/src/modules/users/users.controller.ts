@@ -258,7 +258,7 @@ export class UsersController {
     @Query('cursor') cursor?: string,
     @CurrentUser() viewer?: JwtPayload,
   ) {
-    return this.engagementService.getFollowers(id, limit || 20, cursor, viewer?.sub);
+    return this.engagementService.getFollowers(id, limit || 20, cursor, viewer?.sub, viewer?.role);
   }
 
   @Public()

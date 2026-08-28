@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Icon, PageHeader } from '@forge/design-system';
+import { Button, Icon, PageHeader } from '@forge/design-system';
 import { NoAccessCallout } from '@/components/NoAccessCallout';
 import { DescriptionChaptersEditor } from '@/components/studio/DescriptionChaptersEditor';
 import { useAuth } from '@/lib/auth';
@@ -506,7 +506,19 @@ function UploadStepContent() {
         {step === 2 && (
           <>
             <span className="block font-label-caps text-outline">Video file</span>
-            <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-12 text-center text-on-surface-variant hover:border-primary">
+            <label
+              className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-12 text-center text-on-surface-variant hover:border-primary"
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const dropped = e.dataTransfer.files?.[0];
+                if (dropped) void selectFile(dropped);
+              }}
+            >
               <input
                 type="file"
                 accept="video/mp4,video/quicktime,.mp4,.mov"
@@ -526,6 +538,22 @@ function UploadStepContent() {
                 </>
               )}
             </label>
+            {!file && draft.fileName ? (
+              <div className="mt-3 rounded-lg border border-tertiary/30 bg-tertiary/5 p-4">
+                <p className="text-sm text-on-surface-variant">
+                  Video file was lost after changing steps. Re-select your file to continue.
+                </p>
+                <label className="mt-3 inline-block cursor-pointer text-sm font-semibold text-primary hover:underline">
+                  Re-select video
+                  <input
+                    type="file"
+                    accept="video/mp4,video/quicktime,.mp4,.mov"
+                    className="hidden"
+                    onChange={(e) => selectFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+              </div>
+            ) : null}
           </>
         )}
 
@@ -701,8 +729,9 @@ function UploadStepContent() {
             </Link>
           )}
           {step < TOTAL ? (
-            <button
+            <Button
               type="button"
+              variant="primary"
               disabled={
                 (step === 1 && !canContinueStep1) ||
                 (step === 2 && !canContinueStep2)
@@ -713,19 +742,20 @@ function UploadStepContent() {
                   : undefined
               }
               onClick={goNext}
-              className="primary-button ml-auto rounded-full px-8 py-2 text-sm font-semibold text-on-primary disabled:opacity-40"
+              className="ml-auto px-8 py-2 disabled:opacity-40"
             >
               Continue
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
+              variant="primary"
               disabled={uploading || !canPublish}
               onClick={() => void handlePublish()}
-              className="primary-button ml-auto rounded-full px-8 py-2 text-sm font-semibold text-on-primary disabled:opacity-40"
+              className="ml-auto px-8 py-2 disabled:opacity-40"
             >
               {uploading ? 'Publishing…' : 'Publish'}
-            </button>
+            </Button>
           )}
         </div>
       </div>

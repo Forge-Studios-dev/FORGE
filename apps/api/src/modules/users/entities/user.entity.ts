@@ -22,6 +22,12 @@ export enum UserRole {
   ADMIN = 'admin',
 }
 
+/** Platform admin capability when role=admin. Default full preserves existing admins. */
+export enum AdminTier {
+  FULL = 'full',
+  MODERATOR = 'moderator',
+}
+
 export enum CreatorStatus {
   PENDING = 'pending',
   APPROVED = 'approved',
@@ -79,6 +85,14 @@ export class User {
     default: UserRole.USER,
   })
   role: UserRole;
+
+  @Column({
+    name: 'admin_tier',
+    type: 'enum',
+    enum: AdminTier,
+    default: AdminTier.FULL,
+  })
+  adminTier: AdminTier;
 
   @Column({
     name: 'creator_status',

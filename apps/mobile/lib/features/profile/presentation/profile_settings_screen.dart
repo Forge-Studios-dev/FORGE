@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/cache/local_cache.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/utils/username_cooldown.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../watch/data/watch_repository.dart';
+import '../data/profile_repository.dart';
 import '../../../core/theme/forge_tokens.dart';
 
 const _autoplayPrefKey = 'forge.watch.autoplay';
@@ -58,9 +58,8 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       if (autoplayPref == '1') _autoplay = true;
       _loopVideo = LocalCache.read(_loopPrefKey) == '1';
 
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.get('/users/me');
-      final data = res.data['data'] as Map<String, dynamic>;
+      final repo = ref.read(profileRepositoryProvider);
+      final data = await repo.getMe();
       _userId = data['id'] as String?;
       _username.text = data['username'] as String? ?? '';
       _usernameChangedAt = data['usernameChangedAt'] as String?;
@@ -83,8 +82,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
               ),
         );
       try {
-        final privacy = await client.dio.get('/users/me/privacy');
-        final privacyData = privacy.data['data'] as Map<String, dynamic>?;
+        final privacyData = await repo.getPrivacy();
         _watchHistoryPaused = privacyData?['watchHistoryPaused'] as bool? ?? false;
       } catch (_) {
         /* privacy endpoint optional on older builds */
@@ -123,8 +121,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       _privacySaving = true;
     });
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.put('/users/me/privacy', data: {'watchHistoryPaused': next});
+      await ref.read(profileRepositoryProvider).updatePrivacy(watchHistoryPaused: next);
     } catch (_) {
       if (mounted) {
         setState(() => _watchHistoryPaused = !next);
@@ -170,26 +167,12 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
 
     setState(() => _mediaUploading = true);
     try {
-      final client = ref.read(apiClientProvider);
-      final path = banner ? 'banner-upload-url' : 'avatar-upload-url';
-      final presign = await client.dio.post(
-        '/users/$userId/$path',
-        data: {'contentType': contentType, 'fileSizeBytes': bytes.length},
-      );
-      final data = presign.data['data'] as Map<String, dynamic>;
-      final uploadUrl = data['uploadUrl'] as String;
-      final publicUrl = data['publicUrl'] as String;
-      final key = data['key'] as String;
-      await client.dio.put(
-        uploadUrl,
-        data: bytes,
-        options: Options(
-          headers: {'Content-Type': contentType},
-          contentType: contentType,
-        ),
-      );
-      final completePath = banner ? 'banner-upload-complete' : 'avatar-upload-complete';
-      await client.dio.post('/users/$userId/$completePath', data: {'key': key});
+      final publicUrl = await ref.read(profileRepositoryProvider).uploadChannelImage(
+            userId: userId,
+            banner: banner,
+            contentType: contentType,
+            bytes: bytes,
+          );
       if (!mounted) return;
       setState(() {
         if (banner) {
@@ -216,7 +199,6 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
     if (_userId == null) return;
     setState(() => _saving = true);
     try {
-      final client = ref.read(apiClientProvider);
       final cleanedLinks = _channelLinks
           .map(
             (l) => {
@@ -228,18 +210,16 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
           .toList();
       final nextUsername = _username.text.trim().replaceFirst(RegExp(r'^@'), '');
       final usernameLocked = isUsernameRenameLocked(_usernameChangedAt);
-      final res = await client.dio.put('/users/$_userId', data: {
-        if (!usernameLocked) 'username': nextUsername,
-        'displayName': _displayName.text.trim(),
-        'bio': _bio.text.trim().isEmpty ? null : _bio.text.trim(),
-        'websiteUrl': _websiteUrl.text.trim().isEmpty ? null : _websiteUrl.text.trim(),
-        'channelLinks': cleanedLinks,
-      });
-      final updated = res.data['data'];
-      if (updated is Map<String, dynamic>) {
-        _username.text = updated['username'] as String? ?? nextUsername;
-        _usernameChangedAt = updated['usernameChangedAt'] as String?;
-      }
+      final updated = await ref.read(profileRepositoryProvider).updateProfile(
+            _userId!,
+            username: usernameLocked ? null : nextUsername,
+            displayName: _displayName.text.trim(),
+            bio: _bio.text.trim().isEmpty ? null : _bio.text.trim(),
+            websiteUrl: _websiteUrl.text.trim().isEmpty ? null : _websiteUrl.text.trim(),
+            channelLinks: cleanedLinks,
+          );
+      _username.text = updated['username'] as String? ?? nextUsername;
+      _usernameChangedAt = updated['usernameChangedAt'] as String?;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Settings saved')),
@@ -473,6 +453,11 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/memberships'),
           ),
+          ListTile(
+            title: const Text('Channel strikes'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/strikes'),
+          ),
           const SizedBox(height: 24),
           const Text('Security', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
@@ -608,8 +593,8 @@ class _ChangePasswordSectionState extends ConsumerState<_ChangePasswordSection> 
       _message = null;
     });
     try {
-      final me = await ref.read(apiClientProvider).dio.get('/users/me');
-      final email = (me.data['data'] as Map<String, dynamic>?)?['email'] as String?;
+      final me = await ref.read(profileRepositoryProvider).getMe();
+      final email = me['email'] as String?;
       if (email == null || email.isEmpty) {
         throw StateError('missing email');
       }
@@ -1054,9 +1039,7 @@ class _ActiveSessionsSectionState extends ConsumerState<_ActiveSessionsSection> 
 
   Future<void> _load() async {
     try {
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.get('/auth/sessions');
-      final list = (res.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final list = await ref.read(profileRepositoryProvider).listSessions();
       setState(() {
         _sessions = list;
         _loading = false;
@@ -1067,8 +1050,7 @@ class _ActiveSessionsSectionState extends ConsumerState<_ActiveSessionsSection> 
   }
 
   Future<void> _revoke(String sessionId) async {
-    final client = ref.read(apiClientProvider);
-    await client.dio.delete('/auth/sessions/$sessionId');
+    await ref.read(profileRepositoryProvider).revokeSession(sessionId);
     await _load();
   }
 
@@ -1444,19 +1426,16 @@ class _InterestsSectionState extends ConsumerState<_InterestsSection> {
       _error = false;
     });
     try {
-      final client = ref.read(apiClientProvider);
+      final repo = ref.read(profileRepositoryProvider);
       final results = await Future.wait([
-        client.dio.get('/categories'),
-        client.dio.get('/users/me/interests'),
+        repo.listCategories(),
+        repo.getInterestCategoryIds(),
       ]);
-      final cats = (results[0].data['data'] as List?) ?? [];
-      final interestsPayload = results[1].data['data'];
-      final ids = interestsPayload is Map
-          ? ((interestsPayload['categoryIds'] as List?) ?? []).whereType<String>()
-          : <String>[];
+      final cats = results[0] as List<Map<String, dynamic>>;
+      final ids = results[1] as List<String>;
       if (!mounted) return;
       setState(() {
-        _categories = cats.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _categories = cats;
         _selected
           ..clear()
           ..addAll(ids);
@@ -1486,10 +1465,7 @@ class _InterestsSectionState extends ConsumerState<_InterestsSection> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.put('/users/me/interests', data: {
-        'categoryIds': _selected.toList(),
-      });
+      await ref.read(profileRepositoryProvider).setInterests(_selected.toList());
       if (!mounted) return;
       setState(() => _saved = Set<String>.from(_selected));
       ScaffoldMessenger.of(context).showSnackBar(

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../core/widgets/forge_empty_state.dart';
+import '../data/community_repository.dart';
 
 /// Creator updates feed — announcement posts across the communities the
 /// viewer has joined. Mirrors the web `/updates` page and the notifications
@@ -30,18 +30,14 @@ class _CommunityUpdatesScreenState extends ConsumerState<CommunityUpdatesScreen>
 
   Future<void> _load({String? cursor}) async {
     try {
-      final api = ref.read(apiClientProvider);
-      final params = <String, dynamic>{'limit': 20};
-      if (cursor != null) params['cursor'] = cursor;
-      final res = await api.dio.get('/me/community-updates', queryParameters: params);
-      final payload = res.data['data'] as Map<String, dynamic>;
-      final data = payload['data'] as List<dynamic>? ?? [];
-      final meta = payload['meta'] as Map<String, dynamic>? ?? {};
+      final page = await ref
+          .read(communityRepositoryProvider)
+          .getCommunityUpdates(cursor: cursor);
       if (!mounted) return;
       setState(() {
-        _items = cursor != null ? [..._items, ...data] : data;
-        _nextCursor = meta['cursor'] as String?;
-        _hasMore = meta['hasMore'] == true;
+        _items = cursor != null ? [..._items, ...page.items] : page.items;
+        _nextCursor = page.nextCursor;
+        _hasMore = page.hasMore;
         _loading = false;
       });
     } catch (_) {

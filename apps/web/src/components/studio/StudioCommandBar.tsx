@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Icon } from '@forge/design-system';
+import { Icon, buttonClassName } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { PopoverMenu } from '@/components/shell/PopoverMenu';
@@ -101,7 +101,7 @@ export function StudioCommandBar({ collaboratorMode = false }: { collaboratorMod
             label="Create"
             align="right"
             panelClassName="w-56 p-0"
-            triggerClassName="primary-button inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-on-primary"
+            triggerClassName={`${buttonClassName('primary')} gap-2`}
             trigger={
               <>
                 <Icon name="add" />
@@ -127,7 +127,7 @@ export function StudioCommandBar({ collaboratorMode = false }: { collaboratorMod
         ) : (
           <Link
             href="/studio/moderation"
-            className="primary-button inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-on-primary"
+            className={`${buttonClassName('primary')} gap-2`}
           >
             <Icon name="shield" />
             Moderation

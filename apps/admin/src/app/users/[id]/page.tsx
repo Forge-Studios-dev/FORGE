@@ -6,8 +6,9 @@ import { isAxiosError } from 'axios';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { StatusPill, type StatusTone } from '@forge/design-system';
+import { Button, StatusPill, type StatusTone } from '@forge/design-system';
 import { ConfirmDialog, DataTable, Dialog, Tabs, useToast } from '@forge/design-system/client';
+import { isFullAdmin, useAdminProfile } from '@/lib/admin-profile';
 import { api } from '@/lib/api';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import { GrantAdminDialog } from '@/components/admin/GrantAdminDialog';
@@ -50,6 +51,8 @@ export default function AdminUserDetailPage() {
   const qc = useQueryClient();
   const webBase = process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000';
   const { toast } = useToast();
+  const { data: adminProfile } = useAdminProfile();
+  const fullAdmin = isFullAdmin(adminProfile);
 
   const [videoPage, setVideoPage] = useState(1);
   const [videoStatus, setVideoStatus] = useState('');
@@ -80,15 +83,19 @@ export default function AdminUserDetailPage() {
       qc.invalidateQueries({ queryKey: ['admin-user-summary', userId] });
       qc.invalidateQueries({ queryKey: ['admin-users'] });
       setPendingConfirm(null);
+      toast({ title: 'User updated', variant: 'success' });
     },
+    onError: () => toast({ title: 'Could not update user', variant: 'critical' }),
   });
 
   const deleteUser = useMutation({
     mutationFn: () => api.delete(`/admin/users/${userId}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-users'] });
+      toast({ title: 'User deleted', variant: 'success' });
       router.push('/users');
     },
+    onError: () => toast({ title: 'Could not delete user', variant: 'critical' }),
   });
 
   const resendVerification = useMutation({
@@ -96,16 +103,25 @@ export default function AdminUserDetailPage() {
     onSuccess: () => {
       toast({ title: 'Verification email sent', description: '(if SMTP is configured)', variant: 'success' });
     },
+    onError: () => toast({ title: 'Could not resend verification email', variant: 'critical' }),
   });
 
   const approveCreator = useMutation({
     mutationFn: () => api.post(`/admin/creators/${userId}/approve`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-user-summary', userId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-user-summary', userId] });
+      toast({ title: 'Creator approved', variant: 'success' });
+    },
+    onError: () => toast({ title: 'Could not approve creator', variant: 'critical' }),
   });
 
   const rejectCreator = useMutation({
     mutationFn: (note?: string) => api.post(`/admin/creators/${userId}/reject`, { note }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-user-summary', userId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-user-summary', userId] });
+      toast({ title: 'Creator rejected', variant: 'success' });
+    },
+    onError: () => toast({ title: 'Could not reject creator', variant: 'critical' }),
   });
 
   const impersonate = useMutation({
@@ -122,7 +138,9 @@ export default function AdminUserDetailPage() {
         targetName: result.targetUser.displayName,
         expiresInSeconds: result.expiresInSeconds,
       });
+      toast({ title: 'Impersonation link ready', variant: 'success' });
     },
+    onError: () => toast({ title: 'Could not start impersonation', variant: 'critical' }),
   });
 
   const updateVideo = useMutation({
@@ -132,7 +150,9 @@ export default function AdminUserDetailPage() {
       qc.invalidateQueries({ queryKey: ['admin-user-videos', userId] });
       qc.invalidateQueries({ queryKey: ['admin-user-summary', userId] });
       qc.invalidateQueries({ queryKey: ['admin-videos'] });
+      toast({ title: 'Video updated', variant: 'success' });
     },
+    onError: () => toast({ title: 'Could not update video', variant: 'critical' }),
   });
 
   const { data: videosData, isLoading: videosLoading } = useQuery({
@@ -208,6 +228,7 @@ export default function AdminUserDetailPage() {
         user={user}
         summary={summary}
         webBase={webBase}
+        fullAdmin={fullAdmin}
         onRoleChange={(role) => {
           if (role === 'admin') {
             setGrantAdminError(null);
@@ -346,6 +367,7 @@ function UserHeader({
   user,
   summary,
   webBase,
+  fullAdmin,
   onRoleChange,
   onVerifyToggle,
   onBlockToggle,
@@ -361,6 +383,7 @@ function UserHeader({
   user: AdminUser;
   summary: AdminUserSummary;
   webBase: string;
+  fullAdmin: boolean;
   onRoleChange: (role: string) => void;
   onVerifyToggle: () => void;
   onBlockToggle: () => void;
@@ -419,7 +442,7 @@ function UserHeader({
           >
             View on web
           </a>
-          {user.role !== 'admin' ? (
+          {fullAdmin && user.role !== 'admin' ? (
             <button
               type="button"
               disabled={isImpersonating}
@@ -429,6 +452,7 @@ function UserHeader({
               {isImpersonating ? 'Opening…' : 'Sign in as user'}
             </button>
           ) : null}
+          {fullAdmin ? (
           <select
             value={user.role}
             onChange={(e) => onRoleChange(e.target.value)}
@@ -438,6 +462,8 @@ function UserHeader({
             <option value="creator">creator</option>
             <option value="admin">admin</option>
           </select>
+          ) : null}
+          {fullAdmin ? (
           <button
             type="button"
             onClick={onVerifyToggle}
@@ -445,7 +471,8 @@ function UserHeader({
           >
             {user.isVerified ? 'Mark unverified' : 'Mark verified'}
           </button>
-          {!user.isVerified ? (
+          ) : null}
+          {fullAdmin && !user.isVerified ? (
             <button
               type="button"
               disabled={isResending}
@@ -455,7 +482,7 @@ function UserHeader({
               {isResending ? 'Sending…' : 'Resend verification email'}
             </button>
           ) : null}
-          {user.role !== 'admin' ? (
+          {fullAdmin && user.role !== 'admin' ? (
             <>
               <button
                 type="button"
@@ -476,13 +503,14 @@ function UserHeader({
           ) : null}
           {user.creatorStatus === 'pending' ? (
             <>
-              <button
+              <Button
                 type="button"
+                variant="primary"
                 onClick={onApprove}
-                className="primary-button rounded-full px-4 py-2 text-xs font-semibold text-on-primary"
+                className="!px-4 !py-2 text-xs"
               >
                 Approve creator
-              </button>
+              </Button>
               <button
                 type="button"
                 onClick={onReject}

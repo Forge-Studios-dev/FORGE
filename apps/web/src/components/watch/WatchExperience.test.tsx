@@ -207,7 +207,7 @@ describe('WatchExperience', () => {
     expect(screen.getByText('Comments for v1')).toBeInTheDocument();
   });
 
-  it('enters theater mode and hides the comments column', async () => {
+  it('enters theater mode and keeps comments visible', async () => {
     const user = userEvent.setup();
     renderWatch(makeVideo());
 
@@ -216,7 +216,7 @@ describe('WatchExperience', () => {
     await user.click(screen.getByRole('button', { name: 'Theater mode' }));
 
     expect(screen.getByRole('button', { name: 'Exit theater mode' })).toBeInTheDocument();
-    expect(screen.queryByText('Comments for v1')).not.toBeInTheDocument();
+    expect(screen.getByText('Comments for v1')).toBeInTheDocument();
     expect(window.localStorage.getItem('forge.watch.theater')).toBe('1');
   });
 

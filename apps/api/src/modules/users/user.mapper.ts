@@ -1,5 +1,5 @@
 import { permissionsForUser } from '../../common/auth/permissions';
-import { User } from './entities/user.entity';
+import { User, UserRole } from './entities/user.entity';
 
 export type PublicUser = {
   id: string;
@@ -27,6 +27,7 @@ export type PublicUser = {
   createdAt: Date;
   updatedAt: Date;
   permissions: ReturnType<typeof permissionsForUser>;
+  adminTier?: User['adminTier'];
   /** @deprecated Prefer viewerSubscribed. */
   viewerFollowing?: boolean;
   viewerSubscribed?: boolean;
@@ -57,6 +58,7 @@ export function toPublicUser(user: User): PublicUser {
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     permissions: permissionsForUser(user),
+    adminTier: user.role === UserRole.ADMIN ? user.adminTier : undefined,
     usernameChangedAt: user.usernameChangedAt
       ? user.usernameChangedAt.toISOString()
       : null,

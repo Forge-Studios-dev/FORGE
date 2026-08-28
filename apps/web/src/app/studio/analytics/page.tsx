@@ -4,22 +4,36 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { EmptyState, PageHeader, StatCardsSkeleton, StatusPill, type StatusTone } from '@forge/design-system';
-import { getMyVideos } from '@/lib/creator-studio';
+import { fetchStudioLibrary } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
 import { formatCentsUsd, formatCount } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { CreatorFunnelChart } from '@/components/Community/CreatorFunnelChart';
 import { CreatorCohortChart } from '@/components/Community/CreatorCohortChart';
+import type { Video } from '@/types';
+
+async function fetchAllReadyStudioVideos(): Promise<Video[]> {
+  const items: Video[] = [];
+  let page = 1;
+  while (page <= 20) {
+    const result = await fetchStudioLibrary({
+      status: 'ready',
+      limit: 100,
+      page,
+    });
+    items.push(...result.items);
+    if (!result.pagination.hasMore) break;
+    page += 1;
+  }
+  return items;
+}
 
 export default function StudioAnalyticsPage() {
   const { user, isCreator } = useAuth();
   const [perfDays, setPerfDays] = useState(28);
   const { data: videos, isLoading, isError } = useQuery({
     queryKey: ['studio-analytics', user?.id],
-    queryFn: async () => {
-      const all = await getMyVideos(user?.id);
-      return all.filter((v) => v.status === 'ready');
-    },
+    queryFn: fetchAllReadyStudioVideos,
     enabled: !!user?.id && isCreator,
   });
 
@@ -93,6 +107,18 @@ export default function StudioAnalyticsPage() {
           avgWatchPercent: number | null;
         };
       }>('/analytics/studio/video-performance', { params: { days: perfDays } });
+      return data.data;
+    },
+  });
+
+  const { data: realtime } = useQuery({
+    queryKey: ['studio-realtime', user?.id],
+    enabled: !!user?.id && isCreator,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: { windowMinutes: number; views: number; impressions: number };
+      }>('/analytics/studio/realtime');
       return data.data;
     },
   });
@@ -177,6 +203,17 @@ export default function StudioAnalyticsPage() {
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">
+            Realtime views ({realtime?.windowMinutes ?? 60}m)
+          </p>
+          <p className="font-display-forge mt-1 text-2xl font-bold text-primary">
+            {formatCount(realtime?.views ?? 0)}
+          </p>
+          <p className="mt-1 text-xs text-on-surface-variant">
+            {formatCount(realtime?.impressions ?? 0)} impressions in window
+          </p>
+        </article>
         <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Total views</p>
           <p className="font-display-forge mt-1 text-2xl font-bold text-primary">{formatCount(totalViews)}</p>
@@ -330,7 +367,10 @@ export default function StudioAnalyticsPage() {
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Top videos</h2>
           <ul className="space-y-2">
-            {videos.slice(0, 5).map((v) => (
+            {[...videos]
+              .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
+              .slice(0, 5)
+              .map((v) => (
               <li
                 key={v.id}
                 className="glass-panel flex items-center justify-between rounded-xl px-4 py-3 text-sm"

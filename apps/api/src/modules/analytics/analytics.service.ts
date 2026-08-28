@@ -215,4 +215,39 @@ export class AnalyticsService {
       }),
     };
   }
+
+  /** Rolling 60-minute Studio pulse: views + impressions for the creator's catalog. */
+  async getStudioRealtime(creatorId: string) {
+    const since = new Date(Date.now() - 60 * 60 * 1000);
+    const [row] = await this.dataSource.query<
+      { views: string; impressions: string }[]
+    >(
+      `
+      SELECT
+        (
+          SELECT COUNT(*)::int
+          FROM analytics_events ae
+          INNER JOIN videos v ON v.id = ae.video_id
+          WHERE v.user_id = $1
+            AND ae.event_name = 'video.view'
+            AND ae.created_at >= $2
+        ) AS views,
+        (
+          SELECT COUNT(*)::int
+          FROM analytics_events ae
+          INNER JOIN videos v ON v.id = ae.video_id
+          WHERE v.user_id = $1
+            AND ae.event_name = 'video.impression'
+            AND ae.created_at >= $2
+        ) AS impressions
+      `,
+      [creatorId, since],
+    );
+    return {
+      windowMinutes: 60,
+      since: since.toISOString(),
+      views: Number(row?.views ?? 0),
+      impressions: Number(row?.impressions ?? 0),
+    };
+  }
 }

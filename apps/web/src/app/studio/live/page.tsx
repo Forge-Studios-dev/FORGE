@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Icon, PageHeader, StatusPill } from '@forge/design-system';
+import { Button, Icon, PageHeader, StatusPill } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
@@ -36,8 +36,8 @@ export default function StudioLivePage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
-  const { data: streams, refetch } = useLiveStreamsQuery();
-  const { data: upcoming } = useUpcomingStreamsQuery();
+  const { data: streams, refetch } = useLiveStreamsQuery(user?.id, { enabled: !!user?.id });
+  const { data: upcoming } = useUpcomingStreamsQuery(user?.id, { enabled: !!user?.id });
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -297,15 +297,16 @@ export default function StudioLivePage() {
                   label={VISIBILITY_OPTIONS.find((o) => o.value === visibility)?.label ?? visibility}
                 />
               </div>
-              <button
+              <Button
                 type="button"
+                variant="primary"
                 disabled={creating || title.trim().length < 3}
                 onClick={() => void startStream()}
-                className="primary-button mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-on-primary disabled:opacity-40"
+                className="mt-6 w-full gap-2 px-6 py-3"
               >
                 <Icon name="sensors" />
                 {creating ? 'Starting…' : scheduledAt ? 'Schedule & open room' : 'Go live'}
-              </button>
+              </Button>
               <p className="mt-3 text-xs text-on-surface-variant">
                 After start, you will land in the host control room with chat, polls, Q&A, and RTMP details.
               </p>
@@ -354,7 +355,7 @@ export default function StudioLivePage() {
             ))}
           </ul>
         ) : (
-          <p className="text-on-surface-variant">No live sessions right now.</p>
+          <p className="text-on-surface-variant">You have no live sessions right now.</p>
         )}
       </section>
 

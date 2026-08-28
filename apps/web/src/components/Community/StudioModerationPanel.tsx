@@ -100,7 +100,12 @@ export function StudioModerationPanel({ communityId }: { communityId: string }) 
     window.setTimeout(() => setStatusMsg(''), 3000);
   };
 
-  const { data: roles } = useQuery({
+  const {
+    data: roles,
+    isLoading: rolesLoading,
+    isError: rolesError,
+    refetch: refetchRoles,
+  } = useQuery({
     queryKey: ['community-roles', communityId],
     queryFn: async () => {
       const { data } = await api.get<{ data: RoleRow[] }>(
@@ -110,7 +115,12 @@ export function StudioModerationPanel({ communityId }: { communityId: string }) 
     },
   });
 
-  const { data: bans } = useQuery({
+  const {
+    data: bans,
+    isLoading: bansLoading,
+    isError: bansError,
+    refetch: refetchBans,
+  } = useQuery({
     queryKey: ['community-bans', communityId],
     queryFn: async () => {
       const { data } = await api.get<{ data: BanRow[] }>(
@@ -120,7 +130,12 @@ export function StudioModerationPanel({ communityId }: { communityId: string }) 
     },
   });
 
-  const { data: reports } = useQuery({
+  const {
+    data: reports,
+    isLoading: reportsLoading,
+    isError: reportsError,
+    refetch: refetchReports,
+  } = useQuery({
     queryKey: ['community-reports', communityId],
     queryFn: async () => {
       const { data } = await api.get<{ data: ReportRow[] }>(
@@ -226,6 +241,19 @@ export function StudioModerationPanel({ communityId }: { communityId: string }) 
         >
           Ban
         </Button>
+        {bansLoading ? <p className="text-xs text-on-surface-variant">Loading bans…</p> : null}
+        {bansError ? (
+          <div className="space-y-1">
+            <p className="text-xs text-error">Failed to load bans.</p>
+            <button
+              type="button"
+              className="text-xs font-semibold text-primary hover:underline"
+              onClick={() => void refetchBans()}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
         <ul className="space-y-2 pt-2">
           {(bans ?? []).map((b) => (
             <li key={b.id} className="flex items-center justify-between text-sm">
@@ -273,6 +301,19 @@ export function StudioModerationPanel({ communityId }: { communityId: string }) 
         >
           Assign
         </Button>
+        {rolesLoading ? <p className="text-xs text-on-surface-variant">Loading roles…</p> : null}
+        {rolesError ? (
+          <div className="space-y-1">
+            <p className="text-xs text-error">Failed to load roles.</p>
+            <button
+              type="button"
+              className="text-xs font-semibold text-primary hover:underline"
+              onClick={() => void refetchRoles()}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
         <ul className="space-y-2 pt-2">
           {(roles ?? []).map((r) => (
             <li key={r.id} className="flex items-center justify-between text-sm">
@@ -293,9 +334,23 @@ export function StudioModerationPanel({ communityId }: { communityId: string }) 
 
       <section className="glass-panel space-y-3 rounded-xl p-6">
         <h3 className="font-label-caps text-outline">Open reports</h3>
-        {(reports ?? []).length === 0 ? (
+        {reportsLoading ? <p className="text-sm text-on-surface-variant">Loading reports…</p> : null}
+        {reportsError ? (
+          <div className="space-y-1">
+            <p className="text-sm text-error">Failed to load reports.</p>
+            <button
+              type="button"
+              className="text-sm font-semibold text-primary hover:underline"
+              onClick={() => void refetchReports()}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+        {!reportsLoading && !reportsError && (reports ?? []).length === 0 ? (
           <p className="text-sm text-on-surface-variant">No open reports.</p>
-        ) : (
+        ) : null}
+        {!reportsLoading && !reportsError && (reports ?? []).length > 0 ? (
           <ul className="space-y-2">
             {(reports ?? []).map((r) => (
               <li key={r.id} className="rounded-lg border border-outline-variant/40 p-3 text-sm">
@@ -320,7 +375,7 @@ export function StudioModerationPanel({ communityId }: { communityId: string }) 
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
       </section>
     </div>
   );

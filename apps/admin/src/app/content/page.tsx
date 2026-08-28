@@ -88,6 +88,7 @@ function ContentPageInner() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-videos'] });
       setPendingAction(null);
+      toast({ title: 'Video updated', variant: 'success' });
     },
     onError: () => {
       toast({ title: 'Action failed — video was not updated', variant: 'critical' });

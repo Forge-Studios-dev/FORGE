@@ -1,3 +1,4 @@
+import { buttonClassName } from './Button';
 import { Icon } from './Icon';
 
 export function EmptyState({
@@ -13,8 +14,7 @@ export function EmptyState({
   action?: { label: string; href: string };
   onAction?: () => void;
 }) {
-  const ctaClass =
-    'primary-button mt-6 rounded-full px-6 py-2 text-sm font-semibold text-on-primary';
+  const ctaClass = `${buttonClassName('primary')} mt-6`;
 
   return (
     <section className="glass-panel forge-fade-in flex flex-col items-center rounded-xl px-6 py-12 text-center">

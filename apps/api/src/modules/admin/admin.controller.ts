@@ -14,6 +14,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AdminFullOnly } from '../../common/decorators/admin-full.decorator';
 import { CreatorStatus, User, UserRole } from '../users/entities/user.entity';
 import { ModerationStatus, Video, VideoStatus } from '../content/entities/video.entity';
 import { UpdateAdminVideoDto } from './dto/update-admin-video.dto';
@@ -135,6 +136,7 @@ export class AdminController {
   }
 
   @Post('copyright/counter-notices/:id/reject')
+  @AdminFullOnly()
   @ApiOperation({
     summary: 'Reject a pending counter-notice (e.g. claimant reported litigation)',
     description: 'Blocks the automatic reinstatement this counter-notice would otherwise get.',
@@ -151,6 +153,7 @@ export class AdminController {
   }
 
   @Post('users/:userId/strikes')
+  @AdminFullOnly()
   @ApiOperation({ summary: 'Issue an account strike (community-guideline or copyright)' })
   async issueStrike(
     @Param('userId', ParseUUIDPipe) userId: string,
@@ -267,6 +270,7 @@ export class AdminController {
   }
 
   @Post('users/:id/impersonate')
+  @AdminFullOnly()
   @ApiOperation({ summary: 'Create a short-lived link to sign in on web as this user' })
   async impersonateUser(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
     const result = await this.adminService.createImpersonation(admin.sub, id);
@@ -280,6 +284,7 @@ export class AdminController {
   }
 
   @Patch('users/bulk')
+  @AdminFullOnly()
   @ApiOperation({ summary: 'Update role/status for multiple users at once (admin)' })
   async bulkUpdateUsers(@Body() dto: BulkUpdateUsersDto, @CurrentUser() admin: JwtPayload) {
     const { ids, ...rest } = dto;
@@ -295,6 +300,7 @@ export class AdminController {
   }
 
   @Patch('users/:id')
+  @AdminFullOnly()
   @ApiOperation({ summary: 'Update user role or status (admin)' })
   async updateUser(
     @Param('id', ParseUUIDPipe) id: string,
@@ -313,6 +319,7 @@ export class AdminController {
   }
 
   @Delete('users/:id')
+  @AdminFullOnly()
   @ApiOperation({ summary: 'Soft-delete user account (admin)' })
   async deleteUser(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
     const result = await this.adminService.deleteUser(id);
@@ -364,19 +371,35 @@ export class AdminController {
 
   @Post('creators/bulk-approve')
   @ApiOperation({ summary: 'Approve multiple pending creator requests at once' })
-  bulkApproveCreators(@Body() dto: BulkIdsDto) {
-    return this.adminService.bulkApproveCreators(dto.ids);
+  async bulkApproveCreators(@Body() dto: BulkIdsDto, @CurrentUser() admin: JwtPayload) {
+    const result = await this.adminService.bulkApproveCreators(dto.ids);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'creator.bulk_approve',
+      targetType: 'user',
+      targetId: dto.ids.join(','),
+      metadata: { ids: dto.ids },
+    });
+    return result;
   }
 
   @Post('creators/bulk-reject')
   @ApiOperation({ summary: 'Reject multiple pending creator requests at once' })
-  bulkRejectCreators(@Body() dto: BulkRejectCreatorsDto) {
-    return this.adminService.bulkRejectCreators(dto.ids, dto.note);
+  async bulkRejectCreators(@Body() dto: BulkRejectCreatorsDto, @CurrentUser() admin: JwtPayload) {
+    const result = await this.adminService.bulkRejectCreators(dto.ids, dto.note);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'creator.bulk_reject',
+      targetType: 'user',
+      targetId: dto.ids.join(','),
+      metadata: { ids: dto.ids, note: dto.note ?? null },
+    });
+    return result;
   }
 
   @Post('creators/:id/approve')
   @ApiOperation({ summary: 'Approve a creator request' })
-  async approveCreator(@Param('id', ParseUUIDPipe) id: string) {
+  async approveCreator(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
     await this.userRepository.update(id, {
       role: UserRole.CREATOR,
       creatorStatus: CreatorStatus.APPROVED,
@@ -387,12 +410,22 @@ export class AdminController {
     });
     await this.authUserCache.bust(id);
     this.eventEmitter.emit('creator.approved', { userId: id });
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'creator.approve',
+      targetType: 'user',
+      targetId: id,
+    });
     return { ok: true };
   }
 
   @Post('creators/:id/reject')
   @ApiOperation({ summary: 'Reject a creator request' })
-  async rejectCreator(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RejectCreatorDto) {
+  async rejectCreator(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RejectCreatorDto,
+    @CurrentUser() admin: JwtPayload,
+  ) {
     await this.userRepository.update(id, {
       role: UserRole.CREATOR,
       creatorStatus: CreatorStatus.REJECTED,
@@ -401,6 +434,13 @@ export class AdminController {
     });
     await this.authUserCache.bust(id);
     this.eventEmitter.emit('creator.rejected', { userId: id, note: dto.note ?? null });
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'creator.reject',
+      targetType: 'user',
+      targetId: id,
+      reason: dto.note ?? null,
+    });
     return { ok: true };
   }
 
@@ -511,21 +551,31 @@ export class AdminController {
   }
 
   @Post('categories')
+  @AdminFullOnly()
   @ApiOperation({ summary: 'Create a category (admin)' })
   createCategory(@Body() dto: CreateCategoryDto) {
     return this.categoriesService.create(dto);
   }
 
   @Patch('categories/:id')
+  @AdminFullOnly()
   @ApiOperation({ summary: 'Update a category (admin)' })
   updateCategory(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCategoryDto) {
     return this.categoriesService.update(id, dto);
   }
 
   @Delete('categories/:id')
+  @AdminFullOnly()
   @ApiOperation({ summary: 'Delete a category (admin)' })
-  deleteCategory(@Param('id', ParseUUIDPipe) id: string) {
-    return this.categoriesService.remove(id);
+  async deleteCategory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
+    const result = await this.categoriesService.remove(id);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'category.delete',
+      targetType: 'category',
+      targetId: id,
+    });
+    return result;
   }
 
   @Get('billing/transactions')
@@ -556,15 +606,25 @@ export class AdminController {
   }
 
   @Post('database/query-stats/reset')
+  @AdminFullOnly()
   @ApiOperation({ summary: 'Reset pg_stat_statements counters (admin)' })
   resetDatabaseQueryStats() {
     return this.databaseObservability.resetQueryStats();
   }
 
   @Post('subscriptions/grant')
+  @AdminFullOnly()
   @ApiOperation({ summary: 'Grant membership to a user (admin)' })
-  grantSubscription(@Body() dto: AdminGrantSubscriptionDto) {
-    return this.entitlementsService.adminGrantSubscription(dto);
+  async grantSubscription(@Body() dto: AdminGrantSubscriptionDto, @CurrentUser() admin: JwtPayload) {
+    const result = await this.entitlementsService.adminGrantSubscription(dto);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'subscription.admin_grant',
+      targetType: 'user',
+      targetId: dto.userId,
+      metadata: dto as unknown as Record<string, unknown>,
+    });
+    return result;
   }
 
   @Get('streams')
@@ -583,18 +643,33 @@ export class AdminController {
 
   @Post('streams/:id/force-end')
   @ApiOperation({ summary: 'Force end a live stream (admin)' })
-  forceEndStream(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
-    return this.adminService.forceEndStream(id, admin.sub);
+  async forceEndStream(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() admin: JwtPayload) {
+    const result = await this.adminService.forceEndStream(id, admin.sub);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'stream.force_end',
+      targetType: 'stream',
+      targetId: id,
+    });
+    return result;
   }
 
   @Post('streams/:id/grant-access')
   @ApiOperation({ summary: 'Grant paid event access to a user (admin)' })
-  grantStreamAccess(
+  async grantStreamAccess(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() admin: JwtPayload,
     @Body() dto: GrantStreamAccessDto,
   ) {
-    return this.adminService.grantStreamAccess(admin.sub, id, dto);
+    const result = await this.adminService.grantStreamAccess(admin.sub, id, dto);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'stream.grant_access',
+      targetType: 'stream',
+      targetId: id,
+      metadata: dto as unknown as Record<string, unknown>,
+    });
+    return result;
   }
 
   @Get('streams/:id/chat')
@@ -609,15 +684,29 @@ export class AdminController {
 
   @Delete('streams/:id/chat/:messageId')
   @ApiOperation({ summary: 'Delete a stream chat message (admin)' })
-  deleteStreamChatMessage(
+  async deleteStreamChatMessage(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
     @CurrentUser() admin: JwtPayload,
   ) {
-    return this.adminService.deleteStreamChatMessage(id, messageId, admin.sub, admin.role);
+    const result = await this.adminService.deleteStreamChatMessage(
+      id,
+      messageId,
+      admin.sub,
+      admin.role,
+    );
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'stream.chat_message_delete',
+      targetType: 'stream_chat_message',
+      targetId: messageId,
+      metadata: { streamId: id },
+    });
+    return result;
   }
 
   @Post('streams/backfill-mux-playback-ids')
+  @AdminFullOnly()
   @ApiOperation({ summary: 'Backfill mux_playback_id from playback_url on streams' })
   backfillMuxPlaybackIds() {
     return this.adminService.backfillMuxPlaybackIds();
@@ -641,8 +730,20 @@ export class AdminController {
 
   @Patch('communities/:id')
   @ApiOperation({ summary: 'Update community visibility or name (admin)' })
-  updateCommunity(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminCommunityDto) {
-    return this.adminService.updateCommunity(id, dto);
+  async updateCommunity(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAdminCommunityDto,
+    @CurrentUser() admin: JwtPayload,
+  ) {
+    const result = await this.adminService.updateCommunity(id, dto);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'community.admin_update',
+      targetType: 'community',
+      targetId: id,
+      metadata: dto as unknown as Record<string, unknown>,
+    });
+    return result;
   }
 
   @Get('creators/connect-status')

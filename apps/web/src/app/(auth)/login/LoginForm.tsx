@@ -15,6 +15,7 @@ import { GoogleOAuthSetupNotice } from '@/components/auth/GoogleOAuthSetupNotice
 import { isGoogleOAuthEnabled, loadPlatformConfig } from '@/lib/platform-config';
 import type { PlatformPublicConfig } from '@forge/shared-types';
 import { LegalLinks } from '@/components/legal/LegalLinks';
+import { Button } from '@forge/design-system';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -193,13 +194,9 @@ export function LoginForm({
               placeholder="123456"
             />
           </div>
-          <button
-            type="submit"
-            disabled={mfaPending}
-            className="primary-button w-full rounded-full py-4 font-semibold text-on-primary disabled:opacity-60"
-          >
+          <Button type="submit" variant="primary" disabled={mfaPending} className="w-full py-4">
             {mfaPending ? 'Verifying…' : 'Verify'}
-          </button>
+          </Button>
           <button
             type="button"
             onClick={() => {
@@ -263,13 +260,9 @@ export function LoginForm({
             className={authFieldClass}
           />
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="primary-button w-full rounded-full py-4 font-semibold text-on-primary disabled:opacity-60"
-        >
+        <Button type="submit" variant="primary" disabled={loading} className="w-full py-4">
           {loading ? 'Signing in…' : 'Sign in'}
-        </button>
+        </Button>
         {showGoogle && (
           <a
             href={`${API_URL}/auth/google`}

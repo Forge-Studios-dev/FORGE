@@ -7,7 +7,15 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { SocketEvents } from '@forge/shared-types';
 import { getActiveUpload, subscribeActiveUpload } from '@/lib/upload-manager';
-import { EmptyState, Icon, ListSkeleton, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
+import {
+  EmptyState,
+  Icon,
+  ListSkeleton,
+  PageHeader,
+  StatusPill,
+  buttonClassName,
+  type StatusTone,
+} from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
 import { fetchStudioLibrary, studioPublicPath, type StudioVideoSort } from '@/lib/creator-studio';
 import { fetchUploadOptions, type UploadCategoryOption } from '@/lib/categories';
@@ -498,7 +506,7 @@ function StudioVideosPageInner() {
         <div className="flex flex-wrap items-center gap-3">
           <Link
             href="/upload"
-            className="primary-button inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-on-primary"
+            className={`${buttonClassName('primary')} gap-2`}
           >
             <Icon name="add" />
             New upload

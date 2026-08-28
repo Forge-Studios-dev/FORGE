@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { Button } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { AuthGateModal } from '@/components/gates/AuthGateModal';
@@ -148,14 +149,15 @@ export function ReportContentButton({ targetType, targetId, className, role }: P
               >
                 Cancel
               </button>
-              <button
+              <Button
                 type="button"
+                variant="primary"
                 disabled={!canSubmit}
                 onClick={() => submit.mutate()}
-                className="primary-button rounded-full px-5 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
+                className="px-5 py-2"
               >
                 {submit.isPending ? 'Submitting…' : 'Submit report'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

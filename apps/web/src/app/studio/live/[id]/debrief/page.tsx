@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Icon, PageHeader, StatusPill } from '@forge/design-system';
+import { Icon, PageHeader, StatusPill, buttonClassName } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
@@ -156,7 +156,7 @@ export default function StudioPostStreamDebriefPage() {
           {replay && !replay.accessDenied ? (
             <Link
               href={`/watch/${replay.id}`}
-              className="primary-button inline-flex items-center gap-2 rounded-full px-4 py-2 font-semibold text-on-primary"
+              className={`${buttonClassName('primary')} gap-2`}
             >
               <Icon name="play_circle" />
               Watch replay

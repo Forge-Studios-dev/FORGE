@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Suspense, useState } from 'react';
+import { ToastProvider } from '@forge/design-system/client';
 import { RealtimeToasts } from '@/components/RealtimeToasts';
 import { PlatformBootstrap } from '@/components/PlatformBootstrap';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
@@ -25,14 +26,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <MiniPlayerProvider>
-          {children}
-          <Suspense fallback={null}>
-            <MiniPlayerDockLazy />
-          </Suspense>
-          <PlatformBootstrap />
-          <RealtimeToasts />
-        </MiniPlayerProvider>
+        <ToastProvider>
+          <MiniPlayerProvider>
+            {children}
+            <Suspense fallback={null}>
+              <MiniPlayerDockLazy />
+            </Suspense>
+            <PlatformBootstrap />
+            <RealtimeToasts />
+          </MiniPlayerProvider>
+        </ToastProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

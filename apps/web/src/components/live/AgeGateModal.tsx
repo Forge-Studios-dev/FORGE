@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@forge/design-system';
 import { api } from '@/lib/api';
 
 type Props = {
@@ -31,14 +32,15 @@ export function AgeGateModal({ onConfirmed }: Props) {
         This live session may include mature content. Confirm you are 18 or older to continue.
       </p>
       {error ? <p className="text-sm text-error">{error}</p> : null}
-      <button
+      <Button
         type="button"
+        variant="primary"
         disabled={loading}
         onClick={() => void confirm()}
-        className="primary-button rounded-full px-6 py-2 text-sm font-semibold disabled:opacity-50"
+        className="py-2"
       >
         {loading ? 'Saving…' : 'I am 18 or older'}
-      </button>
+      </Button>
     </div>
   );
 }

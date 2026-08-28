@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertStrip, Icon, PageHeader, type AlertStripItem, type StatusTone } from '@forge/design-system';
+import { AlertStrip, Icon, PageHeader, buttonClassName, type AlertStripItem, type StatusTone } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { fetchStudioLibrary, getMyVideos } from '@/lib/creator-studio';
+import { fetchStudioLibrary } from '@/lib/creator-studio';
 import { useStudioAccess } from '@/hooks/useStudioAccess';
 import { formatCentsUsd, formatCount } from '@/lib/utils';
 
@@ -105,11 +105,13 @@ export default function StudioPage() {
     queryKey: ['studio-dashboard-top-content', user?.id],
     enabled: isCreator && !!user?.id,
     queryFn: async () => {
-      const videos = await getMyVideos(user?.id);
-      return videos
-        .filter((v) => v.status === 'ready')
-        .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
-        .slice(0, 5);
+      const page = await fetchStudioLibrary({
+        status: 'ready',
+        sort: 'views',
+        limit: 5,
+        page: 1,
+      });
+      return page.items;
     },
   });
 
@@ -165,10 +167,7 @@ export default function StudioPage() {
             ))}
           </ul>
           <div className="flex flex-wrap gap-3 pt-2">
-            <Link
-              href="/studio/moderation"
-              className="primary-button inline-flex rounded-full px-5 py-2.5 text-sm font-semibold text-on-primary"
-            >
+            <Link href="/studio/moderation" className={buttonClassName('primary')}>
               Open moderation inbox
             </Link>
             <Link href="/messages" className="text-sm text-primary hover:underline self-center">

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../core/widgets/forge_empty_state.dart';
+import '../data/playlists_repository.dart';
 import 'create_playlist_dialog.dart';
 
 /// Lists the current user's playlists (public + private) and allows creating
@@ -39,11 +39,10 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
 
   Future<void> _load() async {
     try {
-      final api = ref.read(apiClientProvider);
-      final res = await api.dio.get('/playlists/me');
+      final items = await ref.read(playlistsRepositoryProvider).listMine();
       if (!mounted) return;
       setState(() {
-        _items = res.data['data'] as List<dynamic>? ?? [];
+        _items = items;
         _loading = false;
       });
     } catch (_) {

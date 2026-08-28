@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Icon } from '@forge/design-system';
+import { Icon, buttonClassName } from '@forge/design-system';
 import { Dialog } from '@forge/design-system/client';
 
 export function VerifyEmailGateModal({
@@ -30,10 +30,7 @@ export function VerifyEmailGateModal({
         </h2>
         <p className="mb-6 text-on-surface-variant">{message}</p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Link
-            href="/verify-email"
-            className="primary-button rounded-full px-8 py-3 font-semibold text-on-primary"
-          >
+          <Link href="/verify-email" className={buttonClassName('primary')}>
             Verify email
           </Link>
           <button

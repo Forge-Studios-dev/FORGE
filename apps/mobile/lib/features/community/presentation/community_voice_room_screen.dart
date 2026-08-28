@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:livekit_client/livekit_client.dart';
-import '../../../core/network/api_client.dart';
+import '../data/community_repository.dart';
 import 'community_stage_raise_hand_panel.dart';
 
 class CommunityVoiceRoomScreen extends ConsumerStatefulWidget {
@@ -62,11 +62,9 @@ class _CommunityVoiceRoomScreenState extends ConsumerState<CommunityVoiceRoomScr
       _error = null;
     });
     try {
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.post(
-        '/communities/${widget.communityId}/rooms/${widget.roomId}/token',
-      );
-      final data = res.data['data'] as Map<String, dynamic>?;
+      final data = await ref
+          .read(communityRepositoryProvider)
+          .getVoiceRoomToken(widget.communityId, widget.roomId);
       if (data == null) throw Exception('No join payload');
 
       final roomName = data['roomName'] as String?;

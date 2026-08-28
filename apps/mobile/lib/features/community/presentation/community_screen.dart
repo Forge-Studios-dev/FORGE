@@ -4,10 +4,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../profile/presentation/membership_panel.dart';
 import '../../auth/data/auth_repository.dart';
+import '../data/community_repository.dart';
 import 'community_welcome_dialog.dart';
 
 class CommunityScreen extends ConsumerStatefulWidget {
@@ -54,18 +54,14 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           await ref.read(authRepositoryProvider).refreshStoredUser() ??
           await ref.read(authRepositoryProvider).getStoredUser();
       _myUserId = user?['id'] as String?;
-      final client = ref.read(apiClientProvider);
-      final path = widget.communitySlug != null
-          ? '/creators/${widget.creatorId}/communities/${widget.communitySlug}'
-          : '/creators/${widget.creatorId}/communities';
-      final response = widget.communitySlug != null
-          ? await client.dio.get(path)
-          : await _loadFirstCommunity(client);
-      if (response == null) {
+      final data = await ref.read(communityRepositoryProvider).resolveCommunity(
+            creatorId: widget.creatorId,
+            slug: widget.communitySlug,
+          );
+      if (data == null) {
         setState(() => _loading = false);
         return;
       }
-      final data = response.data['data'] as Map<String, dynamic>;
       final community = data['community'] as Map<String, dynamic>?;
       _communityId = community?['id'] as String?;
       setState(() {
@@ -114,11 +110,10 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
   Future<void> _loadAccessMeta() async {
     try {
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.get(
-        '/creators/${widget.creatorId}/communities/${widget.communitySlug}/access',
-      );
-      final meta = res.data['data'] as Map<String, dynamic>;
+      final meta = await ref.read(communityRepositoryProvider).getCommunityAccess(
+            creatorId: widget.creatorId,
+            slug: widget.communitySlug!,
+          );
       setState(() {
         _communityRestrictedId = meta['communityId'] as String?;
         _canRequestJoin = meta['canRequestJoin'] == true;
@@ -136,8 +131,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     final id = _communityRestrictedId ?? _communityId;
     if (id == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/communities/$id/join-request');
+      await ref.read(communityRepositoryProvider).requestJoin(id);
       setState(() {
         _joinPending = true;
         _canRequestJoin = false;
@@ -156,51 +150,38 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
     }
   }
 
-  Future<dynamic> _loadFirstCommunity(dynamic client) async {
-    final listRes = await client.dio.get('/creators/${widget.creatorId}/communities');
-    final list = (listRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    if (list.isEmpty) return null;
-    final slug = list.first['slug'] as String?;
-    if (slug == null) return null;
-    return client.dio.get('/creators/${widget.creatorId}/communities/$slug');
-  }
-
   Future<void> _loadPosts() async {
     if (_communityId == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get('/communities/$_communityId/posts');
-      final data = response.data['data']['data'] as List;
-      setState(() => _posts = data.cast<Map<String, dynamic>>());
+      final posts = await ref.read(communityRepositoryProvider).getPosts(_communityId!);
+      setState(() => _posts = posts);
     } catch (_) {}
   }
 
   Future<void> _loadPoll() async {
     if (_communityId == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get('/communities/$_communityId/polls/active');
-      setState(() => _activePoll = response.data['data'] as Map<String, dynamic>?);
+      final poll = await ref.read(communityRepositoryProvider).getActivePoll(_communityId!);
+      setState(() => _activePoll = poll);
     } catch (_) {}
   }
 
   Future<void> _loadLiveStreams() async {
     if (_communityId == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get('/communities/$_communityId/live');
-      final data = response.data['data'] as List? ?? [];
-      setState(() => _liveStreams = data.cast<Map<String, dynamic>>());
+      final streams =
+          await ref.read(communityRepositoryProvider).getLiveStreams(_communityId!);
+      setState(() => _liveStreams = streams);
     } catch (_) {}
   }
 
   Future<void> _loadPostComments(String postId) async {
     if (_communityId == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get('/communities/$_communityId/posts/$postId/comments');
-      final data = response.data['data']['data'] as List? ?? [];
-      setState(() => _postComments = data.cast<Map<String, dynamic>>());
+      final comments = await ref
+          .read(communityRepositoryProvider)
+          .getPostComments(_communityId!, postId);
+      setState(() => _postComments = comments);
     } catch (_) {
       setState(() => _postComments = []);
     }
@@ -209,23 +190,13 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Future<void> _loadRoomsContent() async {
     if (_communityId == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      final results = await Future.wait([
-        client.dio.get('/communities/$_communityId/rooms'),
-        client.dio.get('/communities/$_communityId/events'),
-      ]);
+      final repo = ref.read(communityRepositoryProvider);
+      final rooms = await repo.getRooms(_communityId!);
+      final events = await repo.getEvents(_communityId!);
       setState(() {
-        final rooms = (results[0].data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         _voiceRooms = rooms.where((r) => r['roomType'] != 'text').toList();
         _textRooms = rooms.where((r) => r['roomType'] == 'text').toList();
-        final eventsPayload = results[1].data['data'];
-        if (eventsPayload is List) {
-          _events = eventsPayload.cast<Map<String, dynamic>>();
-        } else if (eventsPayload is Map && eventsPayload['data'] is List) {
-          _events = (eventsPayload['data'] as List).cast<Map<String, dynamic>>();
-        } else {
-          _events = [];
-        }
+        _events = events;
       });
     } catch (_) {}
   }
@@ -233,11 +204,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Future<void> _rsvpEvent(String eventId) async {
     if (_communityId == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post(
-        '/communities/$_communityId/events/$eventId/rsvp',
-        data: {'status': 'going'},
-      );
+      await ref.read(communityRepositoryProvider).rsvpEvent(_communityId!, eventId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('RSVP recorded')),
@@ -255,8 +222,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Future<void> _reportPoll() async {
     if (_communityId == null || _activePoll == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/communities/$_communityId/reports', data: {
+      await ref.read(communityRepositoryProvider).submitReport(_communityId!, {
         'targetType': 'poll',
         'pollId': _activePoll!['id'],
         'reason': 'Inappropriate poll',
@@ -278,8 +244,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Future<void> _reportPost(String postId) async {
     if (_communityId == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/communities/$_communityId/reports', data: {
+      await ref.read(communityRepositoryProvider).submitReport(_communityId!, {
         'targetType': 'post',
         'postId': postId,
         'reason': 'Inappropriate post',
@@ -301,11 +266,11 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Future<void> _votePoll(int optionIndex) async {
     if (_communityId == null || _activePoll == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post(
-        '/communities/$_communityId/polls/${_activePoll!['id']}/vote',
-        data: {'optionIndex': optionIndex},
-      );
+      await ref.read(communityRepositoryProvider).votePoll(
+            _communityId!,
+            '${_activePoll!['id']}',
+            optionIndex: optionIndex,
+          );
       await _loadPoll();
     } catch (_) {
       if (mounted) {
@@ -319,8 +284,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Future<void> _toggleLike(String postId) async {
     if (_communityId == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/communities/$_communityId/posts/$postId/reactions');
+      await ref
+          .read(communityRepositoryProvider)
+          .togglePostReaction(_communityId!, postId);
       await _loadPosts();
     } catch (_) {
       if (mounted) {
@@ -334,13 +300,12 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   Future<void> _addComment(String postId) async {
     if (_communityId == null || _commentCtrl.text.trim().isEmpty) return;
     try {
-      final client = ref.read(apiClientProvider);
-      final payload = <String, dynamic>{'body': _commentCtrl.text.trim()};
-      if (_replyToCommentId != null) payload['parentId'] = _replyToCommentId;
-      await client.dio.post(
-        '/communities/$_communityId/posts/$postId/comments',
-        data: payload,
-      );
+      await ref.read(communityRepositoryProvider).addPostComment(
+            _communityId!,
+            postId,
+            body: _commentCtrl.text.trim(),
+            parentId: _replyToCommentId,
+          );
       _commentCtrl.clear();
       setState(() {
         _expandedPostId = postId;

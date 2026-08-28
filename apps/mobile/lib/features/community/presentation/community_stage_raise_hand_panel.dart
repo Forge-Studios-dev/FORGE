@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/observability/capture_error.dart';
 import '../../../core/socket/forge_socket.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
+import '../data/community_repository.dart';
 
 class CommunityStageRaiseHandPanel extends ConsumerStatefulWidget {
   const CommunityStageRaiseHandPanel({
@@ -119,13 +119,12 @@ class _CommunityStageRaiseHandPanelState extends ConsumerState<CommunityStageRai
   Future<void> _pollRaisedHands() async {
     if (!widget.isHost) return;
     try {
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.get(
-        '/communities/${widget.communityId}/rooms/${widget.roomId}/raise-hands',
-      );
+      final hands = await ref
+          .read(communityRepositoryProvider)
+          .getRaisedHands(widget.communityId, widget.roomId);
       if (!mounted) return;
       setState(() {
-        _raisedHands = (res.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _raisedHands = hands;
       });
     } catch (e, st) { captureError(e, st, 'pollRaisedHands'); }
   }
@@ -134,16 +133,12 @@ class _CommunityStageRaiseHandPanelState extends ConsumerState<CommunityStageRai
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final client = ref.read(apiClientProvider);
+      final repo = ref.read(communityRepositoryProvider);
       if (_handRaised) {
-        await client.dio.delete(
-          '/communities/${widget.communityId}/rooms/${widget.roomId}/raise-hand',
-        );
+        await repo.lowerHand(widget.communityId, widget.roomId);
         if (mounted) setState(() => _handRaised = false);
       } else {
-        await client.dio.post(
-          '/communities/${widget.communityId}/rooms/${widget.roomId}/raise-hand',
-        );
+        await repo.raiseHand(widget.communityId, widget.roomId);
         if (mounted) setState(() => _handRaised = true);
       }
     } catch (_) {
@@ -161,10 +156,11 @@ class _CommunityStageRaiseHandPanelState extends ConsumerState<CommunityStageRai
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post(
-        '/communities/${widget.communityId}/rooms/${widget.roomId}/raise-hand/$targetUserId/approve',
-      );
+      await ref.read(communityRepositoryProvider).approveSpeaker(
+            widget.communityId,
+            widget.roomId,
+            targetUserId,
+          );
       await _pollRaisedHands();
       widget.onSpeakerApproved?.call();
     } catch (_) {

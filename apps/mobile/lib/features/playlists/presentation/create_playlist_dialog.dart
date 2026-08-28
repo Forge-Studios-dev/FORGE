@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/network/api_client.dart';
+import '../data/playlists_repository.dart';
 
 /// YouTube-style New playlist dialog (title, optional description, visibility).
 /// Returns the created playlist id, or null if cancelled / failed.
@@ -66,18 +66,11 @@ Future<String?> showCreatePlaylistDialog(BuildContext context, WidgetRef ref) as
     if (title.isEmpty) return null;
 
     final description = descCtrl.text.trim();
-    final api = ref.read(apiClientProvider);
-    final res = await api.dio.post(
-      '/playlists',
-      data: {
-        'title': title,
-        'visibility': visibility,
-        if (description.isNotEmpty) 'description': description,
-      },
-    );
-    final data = res.data['data'];
-    if (data is Map && data['id'] is String) return data['id'] as String;
-    return null;
+    return await ref.read(playlistsRepositoryProvider).create(
+          title: title,
+          visibility: visibility,
+          description: description.isEmpty ? null : description,
+        );
   } catch (_) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/notifications/notification_href.dart';
 import '../../../core/theme/forge_palette.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../library/presentation/library_screen.dart';
+import '../data/notifications_repository.dart';
 
 /// Icon + tone + category per notification type — mirrors
 /// apps/web/src/lib/notification-category.ts.
@@ -128,20 +128,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       });
     }
     try {
-      final api = ref.read(apiClientProvider);
-      final params = <String, dynamic>{'limit': 30};
-      if (cursor != null) params['cursor'] = cursor;
-      final res = await api.dio.get('/notifications', queryParameters: params);
-      final payload = res.data['data'] as Map<String, dynamic>;
-      final data = (payload['data'] as List<dynamic>? ?? [])
+      final page = await ref
+          .read(notificationsRepositoryProvider)
+          .list(cursor: cursor);
+      final data = page.items
           .where((raw) => !_isRetiredLms((raw as Map)['type']?.toString()))
           .toList();
-      final meta = payload['meta'] as Map<String, dynamic>? ?? {};
       if (!mounted) return;
       setState(() {
         _items = cursor != null ? [..._items, ...data] : data;
-        _nextCursor = meta['cursor'] as String?;
-        _hasMore = meta['hasMore'] == true;
+        _nextCursor = page.nextCursor;
+        _hasMore = page.hasMore;
         _loading = false;
         _loadError = false;
       });
@@ -161,8 +158,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _markRead(String id) async {
     try {
-      final api = ref.read(apiClientProvider);
-      await api.dio.post('/notifications/$id/read');
+      await ref.read(notificationsRepositoryProvider).markRead(id);
       if (!mounted) return;
       setState(() {
         _items = _items.map((raw) {
@@ -191,8 +187,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _markAllRead() async {
     try {
-      final api = ref.read(apiClientProvider);
-      await api.dio.post('/notifications/read-all');
+      await ref.read(notificationsRepositoryProvider).markAllRead();
       _invalidateUnreadBadge();
       await _load();
     } catch (_) {}

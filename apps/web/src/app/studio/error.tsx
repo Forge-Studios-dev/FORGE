@@ -3,7 +3,7 @@
 import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { Icon } from '@forge/design-system';
+import { Button, Icon } from '@forge/design-system';
 
 export default function StudioError({
   error,
@@ -25,13 +25,9 @@ export default function StudioError({
           {error.message || 'Something went wrong in Creator Studio.'}
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <button
-            type="button"
-            onClick={() => reset()}
-            className="primary-button rounded-full px-8 py-3 font-semibold text-on-primary"
-          >
+          <Button type="button" variant="primary" onClick={() => reset()} className="px-8 py-3">
             Try again
-          </button>
+          </Button>
           <Link
             href="/studio"
             className="inline-flex items-center justify-center rounded-full border border-outline px-8 py-3 font-semibold hover:bg-surface-container"

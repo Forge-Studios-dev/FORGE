@@ -21,6 +21,20 @@ export class RolesGuard implements CanActivate {
     if (!hasRole) {
       throw new ForbiddenException('Insufficient permissions');
     }
+
+    // Admin capability (ban users, delete content, grant paid memberships,
+    // etc.) is otherwise protected by nothing stronger than a normal user
+    // password. Require MFA on the account before any admin-only route is
+    // reachable -- enrollment itself only needs a plain authenticated
+    // session (/auth/mfa/enroll, /mfa/verify), so this can't lock an admin
+    // out of setting it up.
+    if (requiredRoles.includes(UserRole.ADMIN) && user.role === UserRole.ADMIN && !user.mfaEnabled) {
+      throw new ForbiddenException({
+        message: 'Enable multi-factor authentication before using admin features',
+        code: 'ADMIN_MFA_REQUIRED',
+      });
+    }
+
     return true;
   }
 }

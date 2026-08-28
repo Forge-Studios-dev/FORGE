@@ -108,23 +108,9 @@ class FeedRepository {
       return page;
     } catch (e) {
       final cached = cacheKey != null ? LocalCache.read(cacheKey) : null;
-      if (cached != null) return FeedPage.fromCachedJson(cached);
+      if (cached != null)       return FeedPage.fromCachedJson(cached);
       rethrow;
     }
-  }
-
-  Future<FeedPage> getShortsFeed({String? cursor}) async {
-    final params = <String, dynamic>{'limit': AppConstants.feedPageSize};
-    if (cursor != null) params['cursor'] = cursor;
-    final response = await _apiClient.dio.get('/videos/shorts', queryParameters: params);
-    final data = response.data['data'] as Map<String, dynamic>;
-    final list = data['data'] as List? ?? const [];
-    final videos = list.map((v) => VideoModel.fromJson(v as Map<String, dynamic>)).toList();
-    final next = data['nextCursor'] as String? ??
-        (data['meta'] is Map ? (data['meta'] as Map)['cursor'] as String? : null);
-    final hasMore = next != null ||
-        (data['meta'] is Map ? (data['meta'] as Map)['hasMore'] == true : false);
-    return FeedPage(videos: videos, nextCursor: next, hasMore: hasMore);
   }
 
   Future<FeedPage> getTrendingFeed({String? cursor}) async {

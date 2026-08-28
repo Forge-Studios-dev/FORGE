@@ -241,7 +241,7 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
                               const Text('Membership', style: TextStyle(fontWeight: FontWeight.w600)),
                               const SizedBox(height: 8),
                               Text(
-                                'Active: ${membership?['active'] ?? 0} · MRR ₹${((membership?['mrrCents'] as num? ?? 0) / 100).round()}',
+                                'Active: ${membership?['active'] ?? 0} · MRR \$${((membership?['mrrCents'] as num? ?? 0) / 100).round()}',
                                 style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
                               ),
                             ],

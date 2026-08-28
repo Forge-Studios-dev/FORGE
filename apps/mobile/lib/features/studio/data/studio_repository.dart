@@ -207,12 +207,14 @@ class StudioRepository {
     return res.data['data'] as Map<String, dynamic>;
   }
 
+  /// Scan recent ready videos for comments — aligned with web studio inbox
+  /// (24 videos × 8 comments, capped at 80).
   Future<List<Map<String, dynamic>>> getRecentComments() async {
     final page = await getMyVideos(limit: 50);
     final comments = <Map<String, dynamic>>[];
-    for (final v in page.items.where((v) => v.status == 'ready').take(12)) {
+    for (final v in page.items.where((v) => v.status == 'ready').take(24)) {
       try {
-        final res = await _api.dio.get('/videos/${v.id}/comments', queryParameters: {'limit': 5});
+        final res = await _api.dio.get('/videos/${v.id}/comments', queryParameters: {'limit': 8});
         final list = res.data['data']['data'] as List;
         for (final c in list) {
           final m = Map<String, dynamic>.from(c as Map);
@@ -228,6 +230,6 @@ class StudioRepository {
       final bd = DateTime.tryParse(b['createdAt'] as String? ?? '') ?? DateTime(1970);
       return bd.compareTo(ad);
     });
-    return comments.take(40).toList();
+    return comments.take(80).toList();
   }
 }

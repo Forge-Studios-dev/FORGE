@@ -16,6 +16,7 @@ describe('AuthMfaService', () => {
   };
   const config = { get: jest.fn().mockReturnValue(encryptionKey) };
   const redis = { get: jest.fn(), setex: jest.fn(), del: jest.fn() };
+  const authUserCache = { bust: jest.fn().mockResolvedValue(undefined) };
 
   let service: AuthMfaService;
 
@@ -27,6 +28,7 @@ describe('AuthMfaService', () => {
       userRepository as never,
       config as unknown as ConfigService,
       redis as never,
+      authUserCache as never,
     );
   });
 
@@ -64,6 +66,7 @@ describe('AuthMfaService', () => {
       const saved = userRepository.save.mock.calls[0][0];
       expect(saved.mfaEnabled).toBe(true);
       expect(saved.mfaBackupCodeHashes).toHaveLength(10);
+      expect(authUserCache.bust).toHaveBeenCalledWith('user-1');
     });
 
     it('rejects an invalid code', async () => {
@@ -156,6 +159,7 @@ describe('AuthMfaService', () => {
         mfaSecretEncrypted: null,
         mfaBackupCodeHashes: null,
       });
+      expect(authUserCache.bust).toHaveBeenCalledWith('user-1');
     });
   });
 

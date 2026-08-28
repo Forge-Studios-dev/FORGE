@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Icon, PageHeader, StatusPill } from '@forge/design-system';
+import { Icon, PageHeader, StatusPill, buttonClassName } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
 import { useStudioAccess } from '@/hooks/useStudioAccess';
 
@@ -123,7 +123,7 @@ export default function StudioSettingsPage() {
         <div className="mt-5 flex flex-wrap gap-3">
           <Link
             href="/profile/settings"
-            className="primary-button inline-flex rounded-full px-5 py-2.5 text-sm font-semibold text-on-primary"
+            className={buttonClassName('primary')}
           >
             Edit profile
           </Link>

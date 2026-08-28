@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { buttonClassName } from '@forge/design-system';
 
 export default function UnauthorizedPage() {
   return (
@@ -7,10 +8,7 @@ export default function UnauthorizedPage() {
       <p className="mt-3 max-w-md text-sm text-on-surface-variant">
         This account does not have admin privileges. Use an admin account or contact your platform operator.
       </p>
-      <Link
-        href="/login"
-        className="primary-button mt-8 inline-flex rounded-full px-8 py-3 text-sm font-semibold text-on-primary"
-      >
+      <Link href="/login" className={`${buttonClassName('primary')} mt-8 !px-8 !py-3`}>
         Back to admin sign in
       </Link>
     </main>

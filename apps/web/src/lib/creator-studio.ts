@@ -4,8 +4,8 @@ import { Comment, Video } from '@/types';
 
 /** Studio list — all statuses (uploading, processing, ready, failed). */
 export async function getStudioVideos(): Promise<Video[]> {
-  const { data } = await api.get<{ data: { data: Video[] } }>('/videos/studio');
-  return data.data?.data ?? [];
+  const page = await fetchStudioLibrary({ limit: 100, page: 1 });
+  return page.items;
 }
 
 export type StudioVideoSort = 'recent' | 'oldest' | 'views' | 'title';
@@ -79,37 +79,73 @@ export type StudioCommentItem = Comment & {
   videoType?: string | null;
 };
 
+export type StudioCommentsResult = {
+  items: StudioCommentItem[];
+  /** Client-side cap or more videos exist — inbox is a recent slice, not exhaustive. */
+  truncated: boolean;
+  videosScanned: number;
+};
+
+/** No dedicated creator-comments list API — scan recent ready videos. */
+const STUDIO_COMMENTS_VIDEO_LIMIT = 24;
+const STUDIO_COMMENTS_PER_VIDEO = 8;
+const STUDIO_COMMENTS_MAX = 80;
+
 export async function getRecentCommentsOnMyVideos(
   userId: string | undefined,
-  limitPerVideo = 5,
-): Promise<StudioCommentItem[]> {
-  if (!userId) return [];
-  const { items: videos } = await fetchStudioLibrary({
+  opts?: {
+    videoLimit?: number;
+    limitPerVideo?: number;
+    maxComments?: number;
+  },
+): Promise<StudioCommentsResult> {
+  if (!userId) return { items: [], truncated: false, videosScanned: 0 };
+
+  const videoLimit = opts?.videoLimit ?? STUDIO_COMMENTS_VIDEO_LIMIT;
+  const limitPerVideo = opts?.limitPerVideo ?? STUDIO_COMMENTS_PER_VIDEO;
+  const maxComments = opts?.maxComments ?? STUDIO_COMMENTS_MAX;
+
+  const { items: videos, pagination } = await fetchStudioLibrary({
     status: 'ready',
     sort: 'recent',
-    limit: 24,
+    limit: videoLimit,
   });
-  if (!videos.length) return [];
+  if (!videos.length) return { items: [], truncated: false, videosScanned: 0 };
 
-  const batches = await Promise.all(
-    videos.slice(0, 12).map(async (video) => {
-      try {
-        const { data } = await api.get<{ data: { data: Comment[] } }>(
-          `/videos/${video.id}/comments?limit=${limitPerVideo}`,
-        );
-        return (data.data.data ?? []).map((c) => ({
-          ...c,
-          videoTitle: video.title,
-          videoType: video.videoType,
-        }));
-      } catch {
-        return [];
-      }
+  const settled = await Promise.allSettled(
+    videos.map(async (video) => {
+      const { data } = await api.get<{ data: { data: Comment[] } }>(
+        `/videos/${video.id}/comments?limit=${limitPerVideo}`,
+      );
+      return (data.data.data ?? []).map((c) => ({
+        ...c,
+        videoTitle: video.title,
+        videoType: video.videoType,
+      }));
     }),
   );
 
-  return batches
+  const batches: StudioCommentItem[][] = [];
+  let failures = 0;
+  let firstError: unknown;
+  for (const result of settled) {
+    if (result.status === 'fulfilled') {
+      batches.push(result.value);
+    } else {
+      failures += 1;
+      if (!firstError) firstError = result.reason;
+    }
+  }
+
+  if (batches.length === 0 && failures > 0) {
+    throw firstError instanceof Error ? firstError : new Error('Failed to load comments');
+  }
+
+  const sorted = batches
     .flat()
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 40);
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const items = sorted.slice(0, maxComments);
+  const truncated = sorted.length > maxComments || pagination.hasMore;
+
+  return { items, truncated, videosScanned: videos.length };
 }

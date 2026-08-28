@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { EmptyState, Icon, Input, ListSkeleton, PageHeader } from '@forge/design-system';
+import { Button, EmptyState, Icon, Input, ListSkeleton, PageHeader } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
 import { getRecentCommentsOnMyVideos } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
@@ -36,15 +36,18 @@ export default function StudioCommentsPage() {
     null,
   );
   const [linkHintId, setLinkHintId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(40);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['studio-comments', user?.id],
     queryFn: () => getRecentCommentsOnMyVideos(user?.id),
     enabled: !!user?.id && isCreator,
   });
 
+  const comments = data?.items ?? [];
+
   const filtered = useMemo(() => {
-    const list = data ?? [];
+    const list = comments;
     const q = query.trim().toLowerCase();
     return list.filter((c) => {
       if (filter === 'pinned' && !c.isPinned) return false;
@@ -58,7 +61,10 @@ export default function StudioCommentsPage() {
         content.includes(q) || title.includes(q) || username.includes(q) || display.includes(q)
       );
     });
-  }, [data, filter, query]);
+  }, [comments, filter, query]);
+
+  const visible = filtered.slice(0, visibleCount);
+  const canShowMore = filtered.length > visibleCount;
 
   const replyMutation = useMutation({
     mutationFn: async ({
@@ -159,9 +165,21 @@ export default function StudioCommentsPage() {
 
       {error ? <p className="text-sm text-error">{error}</p> : null}
       {isLoading && <ListSkeleton rows={4} />}
-      {isError && <p className="text-error">Failed to load comments.</p>}
+      {isError ? (
+        <div className="space-y-2">
+          <p className="text-error">Failed to load comments.</p>
+          <button
+            type="button"
+            className="text-sm font-semibold text-primary hover:underline"
+            disabled={isFetching}
+            onClick={() => void refetch()}
+          >
+            {isFetching ? 'Retrying…' : 'Retry'}
+          </button>
+        </div>
+      ) : null}
 
-      {!isLoading && !isError && !data?.length && (
+      {!isLoading && !isError && !comments.length && (
         <EmptyState
           icon="forum"
           title="No comments yet"
@@ -170,7 +188,7 @@ export default function StudioCommentsPage() {
         />
       )}
 
-      {!isLoading && !isError && !!data?.length ? (
+      {!isLoading && !isError && !!comments.length ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="relative min-w-[200px] flex-1">
             <Icon
@@ -206,7 +224,14 @@ export default function StudioCommentsPage() {
         </div>
       ) : null}
 
-      {!isLoading && !isError && !!data?.length && !filtered.length ? (
+      {!isLoading && !isError && !!comments.length && data?.truncated ? (
+        <p className="text-sm text-on-surface-variant">
+          Showing recent {comments.length} comments from your latest{' '}
+          {data.videosScanned} videos.
+        </p>
+      ) : null}
+
+      {!isLoading && !isError && !!comments.length && !filtered.length ? (
         <EmptyState
           icon="search_off"
           title="No matching comments"
@@ -222,7 +247,7 @@ export default function StudioCommentsPage() {
       ) : null}
 
       <ul className="space-y-3">
-        {filtered.map((c) => (
+        {visible.map((c) => (
           <li key={c.id} className="glass-panel rounded-2xl p-4">
             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-outline">
               {c.isPinned ? (
@@ -330,8 +355,9 @@ export default function StudioCommentsPage() {
                   placeholder="Write a helpful reply…"
                   className="w-full rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-2 text-sm outline-none focus:border-primary"
                 />
-                <button
+                <Button
                   type="button"
+                  variant="primary"
                   disabled={!replyText.trim() || replyMutation.isPending}
                   onClick={() =>
                     replyMutation.mutate({
@@ -340,15 +366,25 @@ export default function StudioCommentsPage() {
                       content: replyText.trim(),
                     })
                   }
-                  className="primary-button rounded-full px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
+                  className="px-4 py-2"
                 >
                   {replyMutation.isPending ? 'Posting…' : 'Post reply'}
-                </button>
+                </Button>
               </div>
             ) : null}
           </li>
         ))}
       </ul>
+
+      {canShowMore ? (
+        <button
+          type="button"
+          className="text-sm font-semibold text-primary hover:underline"
+          onClick={() => setVisibleCount((n) => n + 40)}
+        >
+          Load more
+        </button>
+      ) : null}
 
       <ConfirmDialog
         open={!!removeTarget}
