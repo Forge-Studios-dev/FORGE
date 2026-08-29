@@ -33,6 +33,16 @@ final videoPerformanceProvider =
   }
 });
 
+final studioRealtimeProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+  try {
+    final client = ref.read(apiClientProvider);
+    final res = await client.dio.get('/analytics/studio/realtime');
+    return res.data['data'] as Map<String, dynamic>?;
+  } catch (_) {
+    return null;
+  }
+});
+
 final studioAnalyticsProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) async {
   final page = await ref.read(studioRepositoryProvider).getMyVideos(limit: 50);
   return page.items;
@@ -113,6 +123,7 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
     final videosAsync = ref.watch(studioAnalyticsProvider);
     final businessAsync = ref.watch(businessAnalyticsProvider);
     final performanceAsync = ref.watch(videoPerformanceProvider(_periodDays));
+    final realtimeAsync = ref.watch(studioRealtimeProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -181,15 +192,34 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
           final totalLikes = videos.fold<int>(0, (s, v) => s + v.likeCount);
           final ready = videos.where((v) => v.status == 'ready').length;
           final perf = performanceAsync.value;
+          final realtime = realtimeAsync.value;
           final impressions = (perf?['impressions'] as num?)?.toInt();
           final ctr = (perf?['ctr'] as num?)?.toDouble();
           final avgWatch = (perf?['avgWatchPercent'] as num?)?.toDouble();
           final periodDays = (perf?['periodDays'] as num?)?.toInt() ?? 28;
           final topVideos = (perf?['topVideos'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+          final realtimeViews = (realtime?['views'] as num?)?.toInt();
+          final realtimeImpressions = (realtime?['impressions'] as num?)?.toInt();
+          final realtimeWindow = (realtime?['windowMinutes'] as num?)?.toInt() ?? 60;
 
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              if (realtimeViews != null || realtimeImpressions != null) ...[
+                Text(
+                  'Last $realtimeWindow minutes',
+                  style: TextStyle(fontSize: 13, color: ForgeTokens.of(context).onSurfaceVariant),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: _stat('Realtime views', '${realtimeViews ?? 0}')),
+                    const SizedBox(width: 12),
+                    Expanded(child: _stat('Realtime impressions', '${realtimeImpressions ?? 0}')),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
               if (impressions != null || ctr != null || avgWatch != null) ...[
                 Text(
                   'Last $periodDays days',

@@ -14,6 +14,7 @@ class WatchCommentsSection extends ConsumerStatefulWidget {
   final String videoOwnerId;
   final String? highlightCommentId;
   const WatchCommentsSection({
+    super.key,
     required this.videoId,
     required this.videoOwnerId,
     this.highlightCommentId,

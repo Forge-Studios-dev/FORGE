@@ -5,17 +5,26 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Button, Icon, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
 import { fetchCategorySkillTags, fetchUploadOptions, type UploadCategoryOption, type UploadSkillTag } from '@/lib/categories';
 import { studioPublicPath } from '@/lib/creator-studio';
-import { DescriptionChaptersEditor } from '@/components/studio/DescriptionChaptersEditor';
-import { SaveToPlaylistModal } from '@/components/playlists/SaveToPlaylistModal';
 import { formatCount } from '@/lib/utils';
 import type { UploadVisibility } from '@/lib/upload-draft';
 import type { Video } from '@/types';
+
+const DescriptionChaptersEditor = dynamic(
+  () =>
+    import('@/components/studio/DescriptionChaptersEditor').then((m) => m.DescriptionChaptersEditor),
+  { ssr: false },
+);
+const SaveToPlaylistModal = dynamic(
+  () => import('@/components/playlists/SaveToPlaylistModal').then((m) => m.SaveToPlaylistModal),
+  { ssr: false },
+);
 
 const STATUS_LABEL: Record<string, string> = {
   uploading: 'Uploading',

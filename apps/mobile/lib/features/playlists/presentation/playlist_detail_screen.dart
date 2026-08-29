@@ -49,14 +49,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       _unavailable = false;
     });
     try {
-      final results = await Future.wait([
+      final results = await Future.wait<Map<String, dynamic>?>([
         _repo.getById(widget.playlistId),
         _repo.getMe(),
       ]);
       if (!mounted) return;
-      final me = results[1] as Map<String, dynamic>?;
+      final me = results[1];
       setState(() {
-        _playlist = results[0] as Map<String, dynamic>?;
+        _playlist = results[0];
         _currentUserId = me?['id'] as String?;
         _loading = false;
       });

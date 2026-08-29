@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/socket/forge_socket.dart';
@@ -201,10 +202,30 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
       _recipientQueryCtrl.clear();
       await _loadConversations();
       await _openConversation(msg['conversationId'] as String);
+    } on DioException catch (e) {
+      if (mounted) {
+        final msg = e.response?.data is Map
+            ? (e.response!.data['message'] as String? ??
+                (e.response!.data['data'] is Map
+                    ? (e.response!.data['data'] as Map)['message'] as String?
+                    : null))
+            : null;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              msg != null && msg.isNotEmpty ? msg : 'Could not send message. Tap Send to retry.',
+            ),
+            action: SnackBarAction(label: 'Retry', onPressed: _send),
+          ),
+        );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not send message')),
+          SnackBar(
+            content: const Text('Could not send message. Tap Send to retry.'),
+            action: SnackBarAction(label: 'Retry', onPressed: _send),
+          ),
         );
       }
     } finally {

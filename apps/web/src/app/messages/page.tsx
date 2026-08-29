@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, EmptyState } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { getApiErrorMessage } from '@/lib/api-message';
 import { useAuth } from '@/lib/auth';
 import { getSocket, joinRoom, leaveRoom } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
@@ -73,6 +74,7 @@ export default function MessagesPage() {
     },
     onSuccess: (msg) => {
       setDraft('');
+      setThreadDraft('');
       setRecipientQuery('');
       setSelectedRecipient(null);
       setActiveId(msg.conversationId);
@@ -80,6 +82,10 @@ export default function MessagesPage() {
       void qc.invalidateQueries({ queryKey: ['dm-messages', msg.conversationId] });
     },
   });
+
+  const sendError = send.isError
+    ? getApiErrorMessage(send.error, 'Could not send message. Try again.')
+    : null;
 
   useEffect(() => {
     if (!accessToken || !activeId) return;
@@ -209,8 +215,13 @@ export default function MessagesPage() {
             }
             className="w-full rounded-lg py-2"
           >
-            Send
+            {send.isPending ? 'Sending…' : 'Send'}
           </Button>
+          {sendError ? (
+            <p className="mt-2 text-xs text-error" role="alert" aria-live="polite">
+              {sendError}
+            </p>
+          ) : null}
         </div>
       </aside>
 
@@ -265,9 +276,14 @@ export default function MessagesPage() {
                 }}
                 className="shrink-0 self-end rounded-lg px-4 py-2"
               >
-                Send
+                {send.isPending ? 'Sending…' : 'Send'}
               </Button>
             </div>
+            {sendError ? (
+              <p className="border-t border-outline-variant/20 px-4 pb-3 text-xs text-error" role="alert" aria-live="polite">
+                {sendError}
+              </p>
+            ) : null}
           </>
         ) : (
           <p className="flex flex-1 items-center justify-center text-on-surface-variant">

@@ -116,7 +116,9 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
             ),
         ],
       ),
-      body: _loading
+      body: Semantics(
+        label: 'Subscriptions feed',
+        child: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error
               ? ForgeEmptyState(
@@ -217,6 +219,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                         ),
                       ],
                     ),
+      ),
     );
   }
 }
@@ -237,7 +240,11 @@ class _ChannelChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens.of(context);
-    return InkWell(
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: selected ? '$label, selected channel filter' : 'Filter by $label',
+      child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
@@ -273,6 +280,7 @@ class _ChannelChip extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

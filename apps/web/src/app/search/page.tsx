@@ -5,13 +5,18 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Button, EmptyState, FeedGridSkeleton, Icon, Input, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { trackSearchQuery } from '@/lib/analytics';
 import { pushSearchHistory } from '@/lib/search-history';
 import { Stream, User, Video } from '@/types';
-import { FeedCard } from '@/components/FeedCard/FeedCard';
+
+const FeedCard = dynamic(
+  () => import('@/components/FeedCard/FeedCard').then((m) => m.FeedCard),
+  { loading: () => null },
+);
 
 type SearchType = 'all' | 'video' | 'channel' | 'playlist';
 type SearchDuration = 'any' | 'short' | 'medium' | 'long';

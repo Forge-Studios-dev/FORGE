@@ -14,7 +14,7 @@ import 'watch_screen.dart';
 
 class WatchEngageRow extends ConsumerStatefulWidget {
   final VideoModel video;
-  const WatchEngageRow({required this.video});
+  const WatchEngageRow({super.key, required this.video});
 
   @override
   ConsumerState<WatchEngageRow> createState() => _WatchEngageRowState();
