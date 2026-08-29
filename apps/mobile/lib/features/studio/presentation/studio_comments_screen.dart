@@ -144,6 +144,7 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
         title: const Text('Comments'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
         actions: [
@@ -191,6 +192,7 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
                         ? null
                         : IconButton(
                             icon: const Icon(Icons.clear),
+                            tooltip: 'Clear search',
                             onPressed: () {
                               _searchCtrl.clear();
                               setState(() => _query = '');

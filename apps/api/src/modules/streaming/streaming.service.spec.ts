@@ -497,6 +497,66 @@ describe('StreamingService endStream', () => {
   });
 });
 
+describe('StreamingService rotateStreamKey', () => {
+  it('rotates mock stream keys without calling Mux', async () => {
+    const stream = mockStream({
+      userId: 'creator-1',
+      status: StreamStatus.IDLE,
+      muxLiveStreamId: 'mock-stream-id',
+      streamKey: 'mock-stream-key',
+    });
+    const streamRepository = {
+      findOne: jest.fn().mockResolvedValue(stream),
+      save: jest.fn().mockImplementation((s) => Promise.resolve(s)),
+    };
+    const service = new StreamingService(
+      streamRepository as never,
+      { save: jest.fn(), create: jest.fn() } as never,
+      { findOne: jest.fn() } as never,
+      { findOne: jest.fn(), save: jest.fn(), create: jest.fn() } as never,
+      { findOne: jest.fn() } as never,
+      { get: () => 'placeholder' } as never,
+      { emit: jest.fn() } as never,
+      { handleAssetReady: jest.fn(), handleAssetErrored: jest.fn(), handleTrackReady: jest.fn() } as never,
+      { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
+      { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
+      {
+        isDuplicate: jest.fn().mockResolvedValue(false),
+        markProcessed: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
+        trackStreamLive: jest.fn().mockResolvedValue(undefined),
+        trackStreamEnded: jest.fn().mockResolvedValue(undefined),
+        finalizeUniqueViewers: jest.fn().mockResolvedValue(0),
+      } as never,
+      {
+        handleWebhookActive: jest.fn(),
+        handleWebhookIdle: jest.fn(),
+        scheduleDisableRetry: jest.fn(),
+      } as never,
+      {
+        scheduleReminder: jest.fn().mockResolvedValue(undefined),
+        cancelReminder: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
+        getBlockedPeerIds: jest.fn().mockResolvedValue([]),
+        isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+      } as never,
+      {
+        get: jest.fn().mockResolvedValue(null),
+        setex: jest.fn().mockResolvedValue('OK'),
+        del: jest.fn(),
+        scan: jest.fn().mockResolvedValue(['0', []]),
+      } as never,
+      { add: jest.fn() } as never,
+    );
+
+    const result = await service.rotateStreamKey('creator-1', 'stream-1');
+    expect(result.streamKey).toMatch(/^mock-rotated-/);
+    expect(streamRepository.save).toHaveBeenCalled();
+  });
+});
+
 describe('StreamingService createStream', () => {
   const streamRepository = {
     findOne: jest.fn(),

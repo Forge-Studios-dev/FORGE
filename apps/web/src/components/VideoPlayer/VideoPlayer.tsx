@@ -95,6 +95,7 @@ export function VideoPlayer({
   const [seekFlash, setSeekFlash] = useState<'back' | 'fwd' | null>(null);
   const seekFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [shortsMuted, setShortsMuted] = useState(false);
+  const [shortsCaptionsOn, setShortsCaptionsOn] = useState(true);
 
   const flashSeek = (dir: 'back' | 'fwd') => {
     setSeekFlash(dir);
@@ -205,13 +206,23 @@ export function VideoPlayer({
         }
         return;
       }
-      // Shorts: mute / play-pause only — ArrowUp/Down belong to ShortsFeed scroll.
+      // Shorts: mute / captions / play-pause — ArrowUp/Down belong to ShortsFeed scroll.
       if (isShorts) {
         if (key === 'm') {
           e.preventDefault();
           video.muted = !video.muted;
           setShortsMuted(video.muted);
           writePreferredVolume(video.volume, video.muted);
+          return;
+        }
+        if (key === 'c' && hasCaptions) {
+          e.preventDefault();
+          const track = video.textTracks?.[0];
+          if (track) {
+            const next = track.mode !== 'showing';
+            track.mode = next ? 'showing' : 'hidden';
+            setShortsCaptionsOn(next);
+          }
           return;
         }
         if (key === 'k' || key === ' ') {
@@ -650,21 +661,44 @@ export function VideoPlayer({
         ) : null}
       </div>
       ) : (
-        <button
-          type="button"
-          aria-label={shortsMuted ? 'Unmute' : 'Mute'}
-          aria-pressed={shortsMuted}
-          className="absolute left-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70"
-          onClick={() => {
-            const video = videoRef.current;
-            if (!video) return;
-            video.muted = !video.muted;
-            setShortsMuted(video.muted);
-            writePreferredVolume(video.volume, video.muted);
-          }}
-        >
-          <Icon name={shortsMuted ? 'volume_off' : 'volume_up'} className="text-xl text-white" />
-        </button>
+        <div className="absolute left-3 top-3 z-10 flex flex-col gap-2">
+          <button
+            type="button"
+            aria-label={shortsMuted ? 'Unmute' : 'Mute'}
+            aria-pressed={shortsMuted}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70"
+            onClick={() => {
+              const video = videoRef.current;
+              if (!video) return;
+              video.muted = !video.muted;
+              setShortsMuted(video.muted);
+              writePreferredVolume(video.volume, video.muted);
+            }}
+          >
+            <Icon name={shortsMuted ? 'volume_off' : 'volume_up'} className="text-xl text-white" />
+          </button>
+          {hasCaptions ? (
+            <button
+              type="button"
+              aria-label={shortsCaptionsOn ? 'Turn off captions' : 'Turn on captions'}
+              aria-pressed={shortsCaptionsOn}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70"
+              onClick={() => {
+                const video = videoRef.current;
+                const track = video?.textTracks?.[0];
+                if (!track) return;
+                const next = track.mode !== 'showing';
+                track.mode = next ? 'showing' : 'hidden';
+                setShortsCaptionsOn(next);
+              }}
+            >
+              <Icon
+                name="closed_caption"
+                className={`text-xl ${shortsCaptionsOn ? 'text-primary' : 'text-white'}`}
+              />
+            </button>
+          ) : null}
+        </div>
       )}
       {reconnecting ? (
         <div className="absolute inset-x-0 top-0 bg-warning px-3 py-2 text-center text-xs font-medium text-on-warning">

@@ -11,7 +11,7 @@ import { Stream, User } from '@/types';
 import { VideoPlayer } from '@/components/VideoPlayer/VideoPlayerLazy';
 import { StreamChatPanel } from '@/components/StreamChat/StreamChatPanel';
 import { useAuth } from '@/lib/auth';
-import { getSocket } from '@/lib/socket';
+import { getSocket, leaveRoom } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
 import { EmptyState, PaywallCard, SkeletonBlock } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
@@ -140,6 +140,16 @@ export default function LiveWatchPage() {
     },
   });
 
+  const rotateKeyMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post<{ data: Stream }>(`/streams/${id}/rotate-stream-key`);
+      return data.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['stream', id] });
+    },
+  });
+
   const isOwner = me && stream && stream.userId === me.id;
   const needsPremiumSession =
     !!me &&
@@ -173,18 +183,21 @@ export default function LiveWatchPage() {
     if (!accessToken || !id) return;
     const socket = getSocket(accessToken);
     if (!socket) return;
-    socket.emit(
-      'join-stream',
-      { streamId: id },
-      (ack?: { reconnecting?: boolean; since?: string | null; timeoutSec?: number | null }) => {
-        // Seeds overlay state for a viewer who (re)joins mid-reconnect — e.g. a
-        // page refresh during the grace window — without waiting for the next
-        // stream:reconnecting broadcast.
-        if (ack?.reconnecting && ack.since && ack.timeoutSec) {
-          setReconnectDeadlineMs(new Date(ack.since).getTime() + ack.timeoutSec * 1000);
-        }
-      },
-    );
+
+    const join = () => {
+      socket.emit(
+        'join-stream',
+        { streamId: id },
+        (ack?: { reconnecting?: boolean; since?: string | null; timeoutSec?: number | null }) => {
+          // Seeds overlay for viewers who (re)join mid-reconnect grace window.
+          if (ack?.reconnecting && ack.since && ack.timeoutSec) {
+            setReconnectDeadlineMs(new Date(ack.since).getTime() + ack.timeoutSec * 1000);
+          }
+        },
+      );
+    };
+    join();
+
     const onViewerCount = (payload: { streamId: string; viewerCount: number }) => {
       if (payload.streamId === id) setViewerCount(payload.viewerCount);
     };
@@ -205,18 +218,22 @@ export default function LiveWatchPage() {
     const onReconnected = (payload: { streamId: string }) => {
       if (payload.streamId === id) setReconnectDeadlineMs(null);
     };
+    const onConnect = () => join();
+
     socket.on(SocketEvents.STREAM_VIEWER_COUNT, onViewerCount);
     socket.on(SocketEvents.STREAM_STARTED, onStreamStarted);
     socket.on(SocketEvents.STREAM_ENDED, onStreamEnded);
     socket.on(SocketEvents.STREAM_RECONNECTING, onReconnecting);
     socket.on(SocketEvents.STREAM_RECONNECTED, onReconnected);
+    socket.on('connect', onConnect);
     return () => {
-      socket.emit('leave-stream', { streamId: id });
+      leaveRoom('leave-stream', { streamId: id });
       socket.off(SocketEvents.STREAM_VIEWER_COUNT, onViewerCount);
       socket.off(SocketEvents.STREAM_STARTED, onStreamStarted);
       socket.off(SocketEvents.STREAM_ENDED, onStreamEnded);
       socket.off(SocketEvents.STREAM_RECONNECTING, onReconnecting);
       socket.off(SocketEvents.STREAM_RECONNECTED, onReconnected);
+      socket.off('connect', onConnect);
     };
   }, [accessToken, id, qc]);
 
@@ -465,6 +482,26 @@ export default function LiveWatchPage() {
                         Stream key:{' '}
                         <code className="break-all text-on-surface">{stream.streamKey ?? '—'}</code>
                       </p>
+                      <button
+                        type="button"
+                        disabled={rotateKeyMutation.isPending}
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              'Reset stream key? The current key stops working immediately. Update OBS before going live again.',
+                            )
+                          ) {
+                            return;
+                          }
+                          rotateKeyMutation.mutate();
+                        }}
+                        className="mt-2 rounded-full border border-outline-variant px-3 py-1 text-xs hover:border-primary disabled:opacity-50"
+                      >
+                        {rotateKeyMutation.isPending ? 'Resetting…' : 'Reset stream key'}
+                      </button>
+                      {rotateKeyMutation.isError ? (
+                        <p className="mt-1 text-xs text-error">Could not reset stream key.</p>
+                      ) : null}
                     </>
                   ) : (
                     <BrowserGoLivePanel

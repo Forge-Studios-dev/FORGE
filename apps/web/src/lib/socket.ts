@@ -45,7 +45,12 @@ export function getSocket(accessToken?: string | null): Socket | null {
 }
 
 export function joinRoom(
-  roomEvent: 'join-video' | 'join-stream' | 'join-live-feed' | 'join-conversation',
+  roomEvent:
+    | 'join-video'
+    | 'join-stream'
+    | 'join-stream-chat'
+    | 'join-live-feed'
+    | 'join-conversation',
   payload: Record<string, unknown> = {},
 ) {
   return new Promise<void>((resolve) => {
@@ -56,7 +61,7 @@ export function joinRoom(
 }
 
 export function leaveRoom(
-  roomEvent: 'leave-video' | 'leave-stream' | 'leave-conversation',
+  roomEvent: 'leave-video' | 'leave-stream' | 'leave-stream-chat' | 'leave-conversation',
   payload: Record<string, unknown>,
 ) {
   if (!socket) return;

@@ -44,6 +44,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   bool _handRaised = false;
   bool _raisingHand = false;
   bool _markingClip = false;
+  bool _rotatingKey = false;
   List<Map<String, dynamic>> _clips = [];
   bool _pipSupported = false;
 
@@ -349,6 +350,34 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
     await client.dio.post('/streams/${widget.streamId}/end');
     if (!mounted) return;
     context.go('/studio/live/${widget.streamId}/debrief');
+  }
+
+  Future<void> _rotateStreamKey() async {
+    if (_rotatingKey) return;
+    setState(() => _rotatingKey = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      final res = await client.dio.post('/streams/${widget.streamId}/rotate-stream-key');
+      final data = res.data['data'] as Map<String, dynamic>?;
+      if (!mounted) return;
+      setState(() {
+        if (data != null && _stream != null) {
+          _stream = {..._stream!, ...data};
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Stream key reset — update OBS')),
+      );
+    } catch (e, st) {
+      captureError(e, st, 'rotateStreamKey');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not reset stream key')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _rotatingKey = false);
+    }
   }
 
   Future<void> _loadClips() async {
@@ -708,6 +737,37 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                   ],
                   Text('RTMP: ${_stream!['rtmpUrl'] ?? 'rtmps://global-live.mux.com:443/app'}'),
                   Text('Key: ${_stream!['streamKey'] ?? '—'}'),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: _rotatingKey
+                          ? null
+                          : () async {
+                              final ok = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Reset stream key?'),
+                                  content: const Text(
+                                    'The current key stops working immediately. Update OBS before going live again.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Reset'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (ok == true) await _rotateStreamKey();
+                            },
+                      child: Text(_rotatingKey ? 'Resetting…' : 'Reset stream key'),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   if (status == 'live') ...[
                     Text(

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { getSocket } from '@/lib/socket';
+import { getSocket, joinRoom, leaveRoom } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
 
 type ChatMode = 'all' | 'followers' | 'subscribers' | 'mods_only';
@@ -213,7 +213,11 @@ export function StreamChatPanel({
     const socket = getSocket(accessToken);
     if (!socket) return;
 
-    socket.emit('join-stream-chat', { streamId });
+    const join = () => {
+      void joinRoom('join-stream-chat', { streamId });
+    };
+    join();
+
     const onMessage = (msg: ChatMessage) => appendMessage(msg);
     const onDelete = ({ messageId }: { messageId: string }) => {
       qc.setQueryData<ChatMessage[]>(['stream-chat', streamId], (prev) =>
@@ -226,20 +230,23 @@ export function StreamChatPanel({
       if (payload.chatEnabled !== undefined) setEnabled(payload.chatEnabled);
       if (payload.chatMode) setMode(payload.chatMode);
     };
+    const onConnect = () => join();
 
     socket.on(SocketEvents.STREAM_CHAT_MESSAGE, onMessage);
     socket.on(SocketEvents.STREAM_CHAT_DELETE, onDelete);
     socket.on(SocketEvents.STREAM_CHAT_SLOW_MODE, onSlowMode);
     socket.on(SocketEvents.STREAM_CHAT_PINNED, onPinned);
     socket.on(SocketEvents.STREAM_CHAT_SETTINGS, onSettings);
+    socket.on('connect', onConnect);
 
     return () => {
-      socket.emit('leave-stream-chat', { streamId });
+      leaveRoom('leave-stream-chat', { streamId });
       socket.off(SocketEvents.STREAM_CHAT_MESSAGE, onMessage);
       socket.off(SocketEvents.STREAM_CHAT_DELETE, onDelete);
       socket.off(SocketEvents.STREAM_CHAT_SLOW_MODE, onSlowMode);
       socket.off(SocketEvents.STREAM_CHAT_PINNED, onPinned);
       socket.off(SocketEvents.STREAM_CHAT_SETTINGS, onSettings);
+      socket.off('connect', onConnect);
     };
   }, [accessToken, appendMessage, enabled, qc, streamId]);
 
