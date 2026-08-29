@@ -1,12 +1,20 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
-import { UserRole } from '../../users/entities/user.entity';
+import { AdminTier, UserRole } from '../../users/entities/user.entity';
 
 export class UpdateAdminUserDto {
   @ApiPropertyOptional({ enum: UserRole })
   @IsOptional()
   @IsEnum(UserRole)
   role?: UserRole;
+
+  @ApiPropertyOptional({
+    enum: AdminTier,
+    description: 'Platform admin capability when role=admin (full vs moderator)',
+  })
+  @IsOptional()
+  @IsEnum(AdminTier)
+  adminTier?: AdminTier;
 
   @ApiPropertyOptional()
   @IsOptional()

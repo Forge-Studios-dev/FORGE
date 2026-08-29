@@ -75,6 +75,7 @@ export default function AdminUserDetailPage() {
   const updateUser = useMutation({
     mutationFn: (body: {
       role?: string;
+      adminTier?: 'full' | 'moderator';
       isVerified?: boolean;
       isActive?: boolean;
       currentAdminPassword?: string;
@@ -237,6 +238,7 @@ export default function AdminUserDetailPage() {
           }
           setPendingConfirm({ kind: 'role', role });
         }}
+        onAdminTierChange={(adminTier) => updateUser.mutate({ adminTier })}
         onVerifyToggle={() => updateUser.mutate({ isVerified: !user.isVerified })}
         onBlockToggle={() =>
           setPendingConfirm({ kind: 'block', nextActive: user.isActive === false })
@@ -369,6 +371,7 @@ function UserHeader({
   webBase,
   fullAdmin,
   onRoleChange,
+  onAdminTierChange,
   onVerifyToggle,
   onBlockToggle,
   onDelete,
@@ -385,6 +388,7 @@ function UserHeader({
   webBase: string;
   fullAdmin: boolean;
   onRoleChange: (role: string) => void;
+  onAdminTierChange: (tier: 'full' | 'moderator') => void;
   onVerifyToggle: () => void;
   onBlockToggle: () => void;
   onDelete: () => void;
@@ -411,6 +415,12 @@ function UserHeader({
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-display-forge text-2xl font-bold">{user.displayName}</h1>
             <StatusPill tone={ROLE_TONE[user.role] ?? ROLE_TONE.user} label={user.role} />
+            {user.role === 'admin' ? (
+              <StatusPill
+                tone="reward"
+                label={`tier: ${user.adminTier === 'moderator' ? 'moderator' : 'full'}`}
+              />
+            ) : null}
             {user.creatorStatus ? (
               <StatusPill tone="reward" label={`creator: ${user.creatorStatus}`} />
             ) : null}
@@ -462,6 +472,17 @@ function UserHeader({
             <option value="creator">creator</option>
             <option value="admin">admin</option>
           </select>
+          ) : null}
+          {fullAdmin && user.role === 'admin' ? (
+            <select
+              aria-label="Admin tier"
+              value={user.adminTier === 'moderator' ? 'moderator' : 'full'}
+              onChange={(e) => onAdminTierChange(e.target.value as 'full' | 'moderator')}
+              className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-xs"
+            >
+              <option value="full">full admin</option>
+              <option value="moderator">moderator</option>
+            </select>
           ) : null}
           {fullAdmin ? (
           <button

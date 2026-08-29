@@ -188,4 +188,4 @@ Closed remaining High/P0–P2 gaps from §4 on branch `feature/continuous-parity
 | Community HTTP e2e: mock `CommunityModerationQueueService` | Closed |
 | H23 `HlsPlayerBlock` extract from `watch_screen.dart` | Closed |
 
-Still deferred: ops secrets/staging soak; assign `adminTier` via admin UI.
+Still deferred: ops secrets/staging soak.

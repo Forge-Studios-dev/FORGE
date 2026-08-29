@@ -7,6 +7,7 @@ export type AdminUser = {
   avatarUrl?: string | null;
   bannerUrl?: string | null;
   role: string;
+  adminTier?: 'full' | 'moderator';
   isVerified: boolean;
   isActive?: boolean;
   deletedAt?: string | null;
