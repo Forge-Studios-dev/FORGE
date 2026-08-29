@@ -31,13 +31,15 @@ function liveFeedPollInterval(
 }
 
 /** Shared live streams query — updates via LiveStreamsSocketSync + fallback poll when offline. */
-export function useLiveStreamsQuery() {
+export function useLiveStreamsQuery(creatorId?: string, opts?: { enabled?: boolean }) {
   const { accessToken } = useAuth();
 
   return useQuery({
-    queryKey: LIVE_STREAMS_QUERY_KEY,
+    queryKey: creatorId ? [...LIVE_STREAMS_QUERY_KEY, creatorId] : LIVE_STREAMS_QUERY_KEY,
+    enabled: opts?.enabled ?? true,
     queryFn: async () => {
-      const { data } = await api.get<{ data: Stream[] }>('/streams/live');
+      const qs = creatorId ? `?creatorId=${encodeURIComponent(creatorId)}` : '';
+      const { data } = await api.get<{ data: Stream[] }>(`/streams/live${qs}`);
       return data.data;
     },
     staleTime: 30_000,
@@ -46,13 +48,15 @@ export function useLiveStreamsQuery() {
   });
 }
 
-export function useUpcomingStreamsQuery() {
+export function useUpcomingStreamsQuery(creatorId?: string, opts?: { enabled?: boolean }) {
   const { accessToken } = useAuth();
 
   return useQuery({
-    queryKey: UPCOMING_STREAMS_QUERY_KEY,
+    queryKey: creatorId ? [...UPCOMING_STREAMS_QUERY_KEY, creatorId] : UPCOMING_STREAMS_QUERY_KEY,
+    enabled: opts?.enabled ?? true,
     queryFn: async () => {
-      const { data } = await api.get<{ data: Stream[] }>('/streams/upcoming');
+      const qs = creatorId ? `?creatorId=${encodeURIComponent(creatorId)}` : '';
+      const { data } = await api.get<{ data: Stream[] }>(`/streams/upcoming${qs}`);
       return data.data;
     },
     staleTime: 60_000,

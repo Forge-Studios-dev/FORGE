@@ -2,10 +2,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../shared/models/video.dart';
+import '../data/playlists_repository.dart';
 
 /// System playlists: Watch later / Liked (YouTube Library shelves).
 class SystemPlaylistScreen extends ConsumerStatefulWidget {
@@ -27,8 +27,8 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
   final _itemSearchCtrl = TextEditingController();
 
   String get _title => widget.kind == 'liked' ? 'Liked videos' : 'Watch later';
-  String get _path =>
-      widget.kind == 'liked' ? '/playlists/me/liked' : '/playlists/me/watch-later';
+
+  PlaylistsRepository get _repo => ref.read(playlistsRepositoryProvider);
 
   @override
   void initState() {
@@ -48,41 +48,11 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
       _error = false;
     });
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get(_path);
-      final root = response.data['data'];
-      String? playlistId;
-      List list;
-      if (root is Map && root['videos'] is List) {
-        list = root['videos'] as List;
-        playlistId = root['id'] as String?;
-      } else if (root is Map && root['items'] is List) {
-        list = root['items'] as List;
-        playlistId = root['id'] as String?;
-      } else if (root is Map && root['data'] is List) {
-        list = root['data'] as List;
-        playlistId = root['id'] as String?;
-      } else if (root is List) {
-        list = root;
-      } else {
-        list = const [];
-      }
-      final videos = <VideoModel>[];
-      for (final item in list) {
-        if (item is! Map<String, dynamic>) continue;
-        final videoJson = item['video'] is Map<String, dynamic>
-            ? item['video'] as Map<String, dynamic>
-            : item;
-        try {
-          videos.add(VideoModel.fromJson(videoJson));
-        } catch (_) {
-          /* skip malformed */
-        }
-      }
+      final result = await _repo.getSystemPlaylist(widget.kind);
       if (!mounted) return;
       setState(() {
-        _videos = videos;
-        _playlistId = playlistId;
+        _videos = result.videos;
+        _playlistId = result.playlistId;
         _loading = false;
       });
     } catch (_) {
@@ -117,12 +87,7 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
 
   Future<void> _remove(VideoModel video) async {
     try {
-      final client = ref.read(apiClientProvider);
-      if (widget.kind == 'liked') {
-        await client.dio.delete('/videos/${video.id}/like');
-      } else {
-        await client.dio.delete('/playlists/me/watch-later/videos/${video.id}');
-      }
+      await _repo.removeFromSystemPlaylist(kind: widget.kind, videoId: video.id);
       if (!mounted) return;
       setState(() {
         _videos = _videos.where((v) => v.id != video.id).toList();
@@ -150,12 +115,7 @@ class _SystemPlaylistScreenState extends ConsumerState<SystemPlaylistScreen> {
     if (confirmed != true || !mounted) return;
     setState(() => _clearing = true);
     try {
-      final client = ref.read(apiClientProvider);
-      if (widget.kind == 'liked') {
-        await client.dio.delete('/playlists/me/liked/videos');
-      } else {
-        await client.dio.delete('/playlists/me/watch-later/videos');
-      }
+      await _repo.clearSystemPlaylist(widget.kind);
       if (!mounted) return;
       setState(() {
         _videos = [];

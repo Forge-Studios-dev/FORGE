@@ -485,7 +485,7 @@ describe('EngagementService', () => {
       blockRepo.findOne.mockResolvedValue({ blockerId: 'owner-1', blockedId: 'viewer-1' });
 
       await expect(service.getFollowers('owner-1', 20, undefined, 'viewer-1')).rejects.toThrow(
-        'This channel is not available',
+        'Subscriber list is private',
       );
       expect(followRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
@@ -501,7 +501,19 @@ describe('EngagementService', () => {
       expect(followRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
 
-    it('getFollowers allows an unrelated viewer through to the normal query', async () => {
+    it('getFollowers rejects guests and non-owner viewers (subscriber list privacy)', async () => {
+      const followRepo = (service as any).followRepository;
+
+      await expect(service.getFollowers('owner-1', 20, undefined, undefined)).rejects.toThrow(
+        'Subscriber list is private',
+      );
+      await expect(service.getFollowers('owner-1', 20, undefined, 'viewer-1')).rejects.toThrow(
+        'Subscriber list is private',
+      );
+      expect(followRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('getFollowers allows the channel owner through to the normal query', async () => {
       const blockRepo = (service as any).userBlockRepository;
       const followRepo = (service as any).followRepository;
       blockRepo.findOne.mockResolvedValue(null);
@@ -516,7 +528,26 @@ describe('EngagementService', () => {
       followRepo.createQueryBuilder.mockReturnValue(qb);
 
       await expect(
-        service.getFollowers('owner-1', 20, undefined, 'viewer-1'),
+        service.getFollowers('owner-1', 20, undefined, 'owner-1'),
+      ).resolves.toEqual({ data: [], meta: { cursor: null, hasMore: false } });
+    });
+
+    it('getFollowers allows an admin through to the normal query', async () => {
+      const blockRepo = (service as any).userBlockRepository;
+      const followRepo = (service as any).followRepository;
+      blockRepo.findOne.mockResolvedValue(null);
+      const qb = {
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      followRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await expect(
+        service.getFollowers('owner-1', 20, undefined, 'admin-1', UserRole.ADMIN),
       ).resolves.toEqual({ data: [], meta: { cursor: null, hasMore: false } });
     });
   });

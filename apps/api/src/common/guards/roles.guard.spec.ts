@@ -8,12 +8,12 @@ describe('RolesGuard', () => {
   let reflector: { getAllAndOverride: jest.Mock };
   let guard: RolesGuard;
 
-  const ctx = (role: UserRole) =>
+  const ctx = (role: UserRole, mfaEnabled?: boolean) =>
     ({
       getHandler: () => ({}),
       getClass: () => ({}),
       switchToHttp: () => ({
-        getRequest: () => ({ user: { sub: 'u1', role } }),
+        getRequest: () => ({ user: { sub: 'u1', role, mfaEnabled } }),
       }),
     }) as ExecutionContext;
 
@@ -47,5 +47,27 @@ describe('RolesGuard', () => {
     } as ExecutionContext;
 
     expect(() => guard.canActivate(noUserCtx)).toThrow(ForbiddenException);
+  });
+
+  describe('admin MFA gate', () => {
+    it('blocks an admin route when the admin has not enabled MFA', () => {
+      reflector.getAllAndOverride.mockReturnValue([UserRole.ADMIN]);
+      expect(() => guard.canActivate(ctx(UserRole.ADMIN, false))).toThrow(ForbiddenException);
+    });
+
+    it('blocks an admin route when mfaEnabled is missing from the token entirely', () => {
+      reflector.getAllAndOverride.mockReturnValue([UserRole.ADMIN]);
+      expect(() => guard.canActivate(ctx(UserRole.ADMIN, undefined))).toThrow(ForbiddenException);
+    });
+
+    it('allows an admin route once the admin has MFA enabled', () => {
+      reflector.getAllAndOverride.mockReturnValue([UserRole.ADMIN]);
+      expect(guard.canActivate(ctx(UserRole.ADMIN, true))).toBe(true);
+    });
+
+    it('does not require MFA for a non-admin role even on a mixed-role route', () => {
+      reflector.getAllAndOverride.mockReturnValue([UserRole.ADMIN, UserRole.CREATOR]);
+      expect(guard.canActivate(ctx(UserRole.CREATOR, false))).toBe(true);
+    });
   });
 });

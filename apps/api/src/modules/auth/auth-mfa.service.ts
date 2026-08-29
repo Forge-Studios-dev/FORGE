@@ -10,6 +10,7 @@ import { authenticator } from 'otplib';
 import { User } from '../users/entities/user.entity';
 import { decryptWithKey, encryptWithKey } from '../../common/utils/encryption.util';
 import { safeRedisDel, safeRedisGetResult, safeRedisSetex } from '../../common/redis/redis-safe.util';
+import { AuthUserCacheService } from './auth-user-cache.service';
 
 const BACKUP_CODE_COUNT = 10;
 const MAX_VERIFY_ATTEMPTS = 5;
@@ -23,6 +24,7 @@ export class AuthMfaService {
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     private readonly configService: ConfigService,
     @InjectRedis() private readonly redis: Redis,
+    private readonly authUserCache: AuthUserCacheService,
   ) {}
 
   private encryptionKey(): string | undefined {
@@ -66,6 +68,7 @@ export class AuthMfaService {
     user.mfaBackupCodeHashes = await Promise.all(backupCodes.map((c) => bcrypt.hash(c, 10)));
     user.mfaEnabled = true;
     await this.userRepository.save(user);
+    await this.authUserCache.bust(userId);
 
     return { backupCodes };
   }
@@ -76,6 +79,7 @@ export class AuthMfaService {
       mfaSecretEncrypted: null,
       mfaBackupCodeHashes: null,
     });
+    await this.authUserCache.bust(userId);
   }
 
   /**

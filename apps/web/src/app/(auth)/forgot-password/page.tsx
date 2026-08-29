@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { AuthScreen, authFieldClass, authLabelClass } from '@/components/auth/AuthScreen';
+import { Button } from '@forge/design-system';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -54,13 +55,9 @@ export default function ForgotPasswordPage() {
               placeholder="name@company.com"
             />
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="primary-button w-full rounded-full py-4 font-semibold text-on-primary disabled:opacity-60"
-          >
+          <Button type="submit" variant="primary" disabled={loading} className="w-full py-4">
             {loading ? 'Sending…' : 'Send reset link'}
-          </button>
+          </Button>
           <p className="text-center text-sm text-on-surface-variant">
             <Link href="/login" className="text-primary hover:underline">
               Back to sign in

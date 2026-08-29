@@ -4,22 +4,36 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { EmptyState, PageHeader, StatCardsSkeleton, StatusPill, type StatusTone } from '@forge/design-system';
-import { getMyVideos } from '@/lib/creator-studio';
+import { fetchStudioLibrary } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
 import { formatCentsUsd, formatCount } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { CreatorFunnelChart } from '@/components/Community/CreatorFunnelChart';
 import { CreatorCohortChart } from '@/components/Community/CreatorCohortChart';
+import type { Video } from '@/types';
+
+async function fetchAllReadyStudioVideos(): Promise<Video[]> {
+  const items: Video[] = [];
+  let page = 1;
+  while (page <= 20) {
+    const result = await fetchStudioLibrary({
+      status: 'ready',
+      limit: 100,
+      page,
+    });
+    items.push(...result.items);
+    if (!result.pagination.hasMore) break;
+    page += 1;
+  }
+  return items;
+}
 
 export default function StudioAnalyticsPage() {
   const { user, isCreator } = useAuth();
   const [perfDays, setPerfDays] = useState(28);
   const { data: videos, isLoading, isError } = useQuery({
     queryKey: ['studio-analytics', user?.id],
-    queryFn: async () => {
-      const all = await getMyVideos(user?.id);
-      return all.filter((v) => v.status === 'ready');
-    },
+    queryFn: fetchAllReadyStudioVideos,
     enabled: !!user?.id && isCreator,
   });
 
@@ -91,8 +105,25 @@ export default function StudioAnalyticsPage() {
           views: number;
           ctr: number | null;
           avgWatchPercent: number | null;
+          audienceRetention?: Array<{
+            bucketPercent: number;
+            relativePercent: number;
+            sessions: number;
+          }>;
         };
       }>('/analytics/studio/video-performance', { params: { days: perfDays } });
+      return data.data;
+    },
+  });
+
+  const { data: realtime } = useQuery({
+    queryKey: ['studio-realtime', user?.id],
+    enabled: !!user?.id && isCreator,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: { windowMinutes: number; views: number; impressions: number };
+      }>('/analytics/studio/realtime');
       return data.data;
     },
   });
@@ -178,6 +209,17 @@ export default function StudioAnalyticsPage() {
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <article className="glass-panel rounded-2xl p-5">
+          <p className="text-sm text-on-surface-variant">
+            Realtime views ({realtime?.windowMinutes ?? 60}m)
+          </p>
+          <p className="font-display-forge mt-1 text-2xl font-bold text-primary">
+            {formatCount(realtime?.views ?? 0)}
+          </p>
+          <p className="mt-1 text-xs text-on-surface-variant">
+            {formatCount(realtime?.impressions ?? 0)} impressions in window
+          </p>
+        </article>
+        <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Total views</p>
           <p className="font-display-forge mt-1 text-2xl font-bold text-primary">{formatCount(totalViews)}</p>
         </article>
@@ -224,6 +266,31 @@ export default function StudioAnalyticsPage() {
           </p>
         </article>
       </section>
+
+      {videoPerformance?.audienceRetention && videoPerformance.audienceRetention.length > 0 ? (
+        <section className="glass-panel rounded-2xl p-6">
+          <h2 className="text-lg font-semibold">Audience retention</h2>
+          <p className="mt-1 text-xs text-on-surface-variant">
+            Share of watch sessions that reached each point in the video (from last known progress,{' '}
+            {videoPerformance.periodDays}d). Not a per-second beacon curve.
+          </p>
+          <div className="mt-4 flex h-36 items-end gap-1.5">
+            {videoPerformance.audienceRetention.map((point) => (
+              <div
+                key={point.bucketPercent}
+                className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1"
+              >
+                <div
+                  className="w-full rounded-t bg-primary/80"
+                  style={{ height: `${Math.max(point.relativePercent, 2)}%` }}
+                  title={`${point.relativePercent}% still watching at ${point.bucketPercent}%`}
+                />
+                <span className="text-[10px] text-outline">{point.bucketPercent}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {subscriberStats ? (
         <div className="grid gap-4 sm:grid-cols-3">
@@ -330,7 +397,10 @@ export default function StudioAnalyticsPage() {
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Top videos</h2>
           <ul className="space-y-2">
-            {videos.slice(0, 5).map((v) => (
+            {[...videos]
+              .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
+              .slice(0, 5)
+              .map((v) => (
               <li
                 key={v.id}
                 className="glass-panel flex items-center justify-between rounded-xl px-4 py-3 text-sm"

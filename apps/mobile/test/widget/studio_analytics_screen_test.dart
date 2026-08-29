@@ -103,7 +103,7 @@ void main() {
     expect(find.text('5000'), findsOneWidget);
     expect(find.text('4.5%'), findsOneWidget);
     expect(find.text('62%'), findsOneWidget);
-    expect(find.text('Active: 12 · MRR ₹500'), findsOneWidget);
+    expect(find.text('Active: 12 · MRR \$500'), findsOneWidget);
     expect(find.text('Export videos CSV'), findsOneWidget);
     expect(find.textContaining('100 views · 2000 impr.'), findsOneWidget);
   });

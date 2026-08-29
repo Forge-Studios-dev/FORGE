@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { EmptyState, Icon, Input, ListSkeleton, PageHeader } from '@forge/design-system';
+import { EmptyState, Icon, Input, ListSkeleton, PageHeader, buttonClassName } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
 import { isAxiosError } from 'axios';
 import { api } from '@/lib/api';
@@ -239,7 +239,7 @@ export function PlaylistDetailClient({ playlistId }: { playlistId: string }) {
           {playAllHref ? (
             <Link
               href={playAllHref}
-              className="primary-button inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-on-primary"
+              className={`${buttonClassName('primary')} gap-2`}
             >
               <Icon name="play_arrow" />
               Play all

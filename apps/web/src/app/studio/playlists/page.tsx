@@ -3,12 +3,12 @@
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { EmptyState, Icon, ListSkeleton, PageHeader, StatusPill } from '@forge/design-system';
+import { Button, EmptyState, Icon, ListSkeleton, PageHeader, StatusPill } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
-import { getMyVideos } from '@/lib/creator-studio';
+import { fetchStudioLibrary } from '@/lib/creator-studio';
 
 type Playlist = {
   id: string;
@@ -98,8 +98,13 @@ export default function StudioPlaylistsPage() {
     queryKey: ['studio-playlist-attachable-videos', user?.id],
     enabled: canEngage && !!manageId,
     queryFn: async () => {
-      const videos = await getMyVideos(user?.id);
-      return videos.filter((v) => v.status === 'ready');
+      const page = await fetchStudioLibrary({
+        status: 'ready',
+        sort: 'recent',
+        limit: 100,
+        page: 1,
+      });
+      return page.items;
     },
   });
 
@@ -281,15 +286,16 @@ export default function StudioPlaylistsPage() {
             <option value="private">Private</option>
           </select>
         </label>
-        <button
+        <Button
           type="button"
+          variant="primary"
           disabled={!title.trim() || createMutation.isPending}
           onClick={() => createMutation.mutate()}
-          className="primary-button inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50"
+          className="gap-2 px-5"
         >
           <Icon name="add" />
           {createMutation.isPending ? 'Creating…' : 'Create playlist'}
-        </button>
+        </Button>
         {!isCreator ? (
           <p className="text-xs text-outline">
             Anyone can create personal playlists. Creators can also attach them during upload.
@@ -478,14 +484,15 @@ export default function StudioPlaylistsPage() {
                 </option>
               ))}
             </select>
-            <button
+            <Button
               type="button"
+              variant="primary"
               disabled={!attachVideoId || attachMutation.isPending}
               onClick={() => attachMutation.mutate()}
-              className="primary-button inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-50"
+              className="gap-2 px-5"
             >
               {attachMutation.isPending ? 'Adding…' : 'Add video'}
-            </button>
+            </Button>
           </div>
 
           {managedItems.length >= 4 ? (

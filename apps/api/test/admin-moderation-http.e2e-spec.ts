@@ -140,6 +140,26 @@ describe('Admin moderation HTTP guard + action (HIGH-07)', () => {
     expect(reportRepository.update).not.toHaveBeenCalled();
   });
 
+  it('403s an admin JWT that has not enabled MFA (ADMIN_MFA_REQUIRED)', async () => {
+    userRepository.findOne.mockResolvedValue({
+      id: 'user-1',
+      email: 'a@b.com',
+      role: UserRole.ADMIN,
+      isVerified: true,
+      isActive: true,
+      deletedAt: null,
+      mfaEnabled: false,
+    });
+    const token = signToken(UserRole.ADMIN);
+    const res = await request(app.getHttpServer())
+      .patch(`/api/v1/admin/reports/${REPORT_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: ReportStatus.REVIEWED })
+      .expect(403);
+    expect(res.body.message?.code ?? res.body.code).toBe('ADMIN_MFA_REQUIRED');
+    expect(reportRepository.update).not.toHaveBeenCalled();
+  });
+
   it('200s and performs the moderation action for an admin JWT', async () => {
     userRepository.findOne.mockResolvedValue({
       id: 'user-1',
@@ -148,6 +168,7 @@ describe('Admin moderation HTTP guard + action (HIGH-07)', () => {
       isVerified: true,
       isActive: true,
       deletedAt: null,
+      mfaEnabled: true,
     });
     const token = signToken(UserRole.ADMIN);
 

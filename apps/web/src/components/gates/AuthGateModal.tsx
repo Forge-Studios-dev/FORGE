@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Icon } from '@forge/design-system';
+import { Icon, buttonClassName } from '@forge/design-system';
 import { Dialog } from '@forge/design-system/client';
 import { currentReturnPath, loginHrefWithNext, safeReturnPath } from '@/lib/safe-return-path';
 
@@ -36,7 +36,7 @@ export function AuthGateModal({
         </h2>
         <p className="mb-6 text-on-surface-variant">{message}</p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Link href={loginHref} className="primary-button rounded-full px-8 py-3 font-semibold text-on-primary">
+          <Link href={loginHref} className={buttonClassName('primary')}>
             Sign in
           </Link>
           <Link href={signupHref} className="rounded-full border border-outline-variant px-8 py-3 hover:border-primary">

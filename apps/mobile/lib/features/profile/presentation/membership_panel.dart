@@ -2,16 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../../core/network/api_client.dart';
 import '../../auth/data/auth_repository.dart';
+import '../data/profile_repository.dart';
 import '../../../core/theme/forge_tokens.dart';
 
 final creatorTiersProvider = FutureProvider.autoDispose
     .family<List<Map<String, dynamic>>, String>((ref, creatorId) async {
-  final client = ref.read(apiClientProvider);
-  final response = await client.dio.get('/creators/$creatorId/tiers');
-  final list = response.data['data'] as List? ?? [];
-  return list.cast<Map<String, dynamic>>();
+  return ref.read(profileRepositoryProvider).getCreatorTiers(creatorId);
 });
 
 final myMembershipProvider = FutureProvider.autoDispose
@@ -19,9 +16,7 @@ final myMembershipProvider = FutureProvider.autoDispose
   final loggedIn = await ref.read(authRepositoryProvider).isLoggedIn();
   if (!loggedIn) return null;
   try {
-    final client = ref.read(apiClientProvider);
-    final response = await client.dio.get('/creators/$creatorId/membership/me');
-    return response.data['data'] as Map<String, dynamic>;
+    return await ref.read(profileRepositoryProvider).getMyMembership(creatorId);
   } catch (_) {
     return null;
   }
@@ -120,15 +115,13 @@ class MembershipPanel extends ConsumerWidget {
 
   Future<void> _checkout(BuildContext context, WidgetRef ref, String tierId) async {
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.post('/billing/checkout', data: {
-        'creatorId': creatorId,
-        'tierId': tierId,
-        if (communityId != null) 'communityId': communityId,
-        'successUrl': 'https://forgestudios.net/settings/memberships',
-        'cancelUrl': 'https://forgestudios.net/settings/memberships',
-      });
-      final checkoutUrl = response.data['data']?['checkoutUrl'] as String?;
+      final checkoutUrl = await ref.read(profileRepositoryProvider).createCheckout(
+            creatorId: creatorId,
+            tierId: tierId,
+            communityId: communityId,
+            successUrl: 'https://forgestudios.net/settings/memberships',
+            cancelUrl: 'https://forgestudios.net/settings/memberships',
+          );
       if (checkoutUrl != null && checkoutUrl.isNotEmpty) {
         final uri = Uri.parse(checkoutUrl);
         if (await canLaunchUrl(uri)) {
@@ -163,11 +156,10 @@ class MembershipPanel extends ConsumerWidget {
 
   Future<void> _mockJoin(BuildContext context, WidgetRef ref, String tierId) async {
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/subscriptions/mock', data: {
-        'creatorId': creatorId,
-        'tierId': tierId,
-      });
+      await ref.read(profileRepositoryProvider).mockJoinSubscription(
+            creatorId: creatorId,
+            tierId: tierId,
+          );
       ref.invalidate(myMembershipProvider(creatorId));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

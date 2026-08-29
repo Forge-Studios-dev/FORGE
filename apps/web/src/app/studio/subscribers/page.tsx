@@ -1,7 +1,7 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { Button, EmptyState, Input, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
@@ -21,6 +21,16 @@ type Subscriber = {
   startsAt: string;
   expiresAt?: string | null;
 };
+
+type SubscriberAnalytics = {
+  active: number;
+  trial: number;
+  canceled: number;
+  total: number;
+  byStatus?: Record<string, number>;
+};
+
+const PAGE_SIZE = 50;
 
 function statusTone(status: string): StatusTone {
   if (status === 'active' || status === 'trialing') return 'success';
@@ -62,24 +72,59 @@ export default function StudioSubscribersPage() {
     },
   });
 
-  const { data: subscribers, isLoading } = useQuery({
-    queryKey: ['studio-subscribers', user?.id],
+  const { data: analytics } = useQuery({
+    queryKey: ['studio-subscribers-analytics', user?.id],
     enabled: !!user?.id && isCreator,
     queryFn: async () => {
-      const { data } = await api.get<{ data: Subscriber[] }>('/creators/me/subscribers');
+      const { data } = await api.get<{ data: SubscriberAnalytics }>(
+        '/creators/me/subscribers/analytics',
+      );
       return data.data;
     },
   });
+
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    isFetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['studio-subscribers', user?.id],
+    enabled: !!user?.id && isCreator,
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const { data: res } = await api.get<{ data: Subscriber[] }>(
+        `/creators/me/subscribers?limit=${PAGE_SIZE}&offset=${pageParam}`,
+      );
+      return { items: res.data ?? [], offset: pageParam as number };
+    },
+    getNextPageParam: (last) =>
+      last.items.length < PAGE_SIZE ? undefined : last.offset + PAGE_SIZE,
+  });
+
+  const subscribers = useMemo(
+    () => data?.pages.flatMap((p) => p.items) ?? [],
+    [data],
+  );
+
+  const invalidateSubscriberQueries = () => {
+    void qc.invalidateQueries({ queryKey: ['studio-subscribers', user?.id] });
+    void qc.invalidateQueries({ queryKey: ['studio-subscribers-analytics', user?.id] });
+  };
 
   const exportMutation = useMutation({
     mutationFn: async () => {
       setExportPhase('preparing');
       setExportError('');
-      const { data } = await api.get<Blob>('/creators/me/subscribers/export', {
+      const { data: blob } = await api.get<Blob>('/creators/me/subscribers/export', {
         responseType: 'blob',
       });
       setExportPhase('downloading');
-      const url = URL.createObjectURL(data);
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = 'subscribers.csv';
@@ -104,7 +149,7 @@ export default function StudioSubscribersPage() {
     },
     onSuccess: () => {
       setSuspendTargetId(null);
-      void qc.invalidateQueries({ queryKey: ['studio-subscribers', user?.id] });
+      invalidateSubscriberQueries();
     },
   });
 
@@ -119,14 +164,17 @@ export default function StudioSubscribersPage() {
     },
     onSuccess: () => {
       setGrantUserId('');
-      void qc.invalidateQueries({ queryKey: ['studio-subscribers', user?.id] });
+      invalidateSubscriberQueries();
     },
   });
 
-  const statusCounts = (subscribers ?? []).reduce<Record<string, number>>((acc, s) => {
-    acc[s.status] = (acc[s.status] ?? 0) + 1;
-    return acc;
-  }, {});
+  const byStatus = analytics?.byStatus ?? {};
+  const totalCount = analytics?.total ?? subscribers.length;
+  const activeCount = analytics?.active ?? byStatus.active ?? 0;
+  const trialCount =
+    analytics?.trial ?? byStatus.trialing ?? byStatus.trial ?? 0;
+  const atRiskCount =
+    (byStatus.past_due ?? 0) + (byStatus.failed_payment ?? 0);
 
   if (!isCreator) {
     return (
@@ -184,21 +232,19 @@ export default function StudioSubscribersPage() {
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Total</p>
-          <p className="mt-2 text-3xl font-semibold">{subscribers?.length ?? 0}</p>
+          <p className="mt-2 text-3xl font-semibold">{totalCount}</p>
         </article>
         <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Active</p>
-          <p className="mt-2 text-3xl font-semibold">{statusCounts.active ?? 0}</p>
+          <p className="mt-2 text-3xl font-semibold">{activeCount}</p>
         </article>
         <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Trials</p>
-          <p className="mt-2 text-3xl font-semibold">{statusCounts.trialing ?? statusCounts.trial ?? 0}</p>
+          <p className="mt-2 text-3xl font-semibold">{trialCount}</p>
         </article>
         <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">At risk</p>
-          <p className="mt-2 text-3xl font-semibold">
-            {(statusCounts.past_due ?? 0) + (statusCounts.failed_payment ?? 0)}
-          </p>
+          <p className="mt-2 text-3xl font-semibold">{atRiskCount}</p>
         </article>
       </section>
 
@@ -261,32 +307,58 @@ export default function StudioSubscribersPage() {
 
       {isLoading ? (
         <p className="text-sm text-on-surface-variant">Loading…</p>
-      ) : (subscribers ?? []).length === 0 ? (
-        <EmptyState icon="group" title="No subscribers yet" description="Members who join a paid tier will show up here." />
+      ) : isError ? (
+        <div className="space-y-2">
+          <p className="text-sm text-error">Failed to load subscribers.</p>
+          <Button
+            variant="secondary"
+            disabled={isFetching}
+            onClick={() => void refetch()}
+          >
+            {isFetching ? 'Retrying…' : 'Retry'}
+          </Button>
+        </div>
+      ) : subscribers.length === 0 ? (
+        <EmptyState
+          icon="group"
+          title="No subscribers yet"
+          description="Members who join a paid tier will show up here."
+        />
       ) : (
-        <ul className="space-y-2">
-          {(subscribers ?? []).map((s) => (
-            <li key={s.id} className="glass-panel flex items-center justify-between gap-4 rounded-2xl p-4">
-              <div className="min-w-0">
-                <p className="font-medium">{s.displayName ?? s.username ?? s.userId}</p>
-                <p className="mt-1 text-xs text-on-surface-variant">
-                  {s.tierName ?? 'No tier'} · {s.source}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <StatusPill tone={statusTone(s.status)} label={s.status.replace(/_/g, ' ')} />
-                <Button
-                  variant="ghost"
-                  className="text-xs text-error"
-                  disabled={suspendMutation.isPending}
-                  onClick={() => setSuspendTargetId(s.id)}
-                >
-                  Suspend
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-2">
+            {subscribers.map((s) => (
+              <li key={s.id} className="glass-panel flex items-center justify-between gap-4 rounded-2xl p-4">
+                <div className="min-w-0">
+                  <p className="font-medium">{s.displayName ?? s.username ?? s.userId}</p>
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    {s.tierName ?? 'No tier'} · {s.source}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <StatusPill tone={statusTone(s.status)} label={s.status.replace(/_/g, ' ')} />
+                  <Button
+                    variant="ghost"
+                    className="text-xs text-error"
+                    disabled={suspendMutation.isPending}
+                    onClick={() => setSuspendTargetId(s.id)}
+                  >
+                    Suspend
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {hasNextPage ? (
+            <Button
+              variant="secondary"
+              disabled={isFetchingNextPage}
+              onClick={() => void fetchNextPage()}
+            >
+              {isFetchingNextPage ? 'Loading…' : 'Load more'}
+            </Button>
+          ) : null}
+        </>
       )}
 
       <ConfirmDialog

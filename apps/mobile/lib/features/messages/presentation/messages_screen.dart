@@ -1,12 +1,13 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/socket/forge_socket.dart';
 import '../../../core/theme/forge_palette.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../auth/data/auth_repository.dart';
+import '../data/messages_repository.dart';
 
 class _SearchUser {
   final String id;
@@ -50,6 +51,8 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
   Timer? _searchDebounce;
   void Function(dynamic)? _onDmMessage;
 
+  MessagesRepository get _repo => ref.read(messagesRepositoryProvider);
+
   @override
   void initState() {
     super.initState();
@@ -64,11 +67,10 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
 
   Future<void> _loadConversations() async {
     try {
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.get('/messages/conversations');
+      final list = await _repo.listConversations();
       if (mounted) {
         setState(() {
-          _conversations = res.data['data'] as List<dynamic>? ?? [];
+          _conversations = list;
           _loading = false;
         });
       }
@@ -87,15 +89,11 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
       _messages = [];
     });
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post('/messages/conversations/$id/read');
-      final res = await client.dio.get(
-        '/messages/conversations/$id',
-        queryParameters: {'limit': 50},
-      );
+      await _repo.markRead(id);
+      final messages = await _repo.getMessages(id);
       if (mounted) {
         setState(() {
-          _messages = res.data['data']['data'] as List<dynamic>? ?? [];
+          _messages = messages;
         });
       }
       await _bindSocket(id);
@@ -127,16 +125,12 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
     final id = _activeId;
     if (id == null) return;
     try {
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.get(
-        '/messages/conversations/$id',
-        queryParameters: {'limit': 50},
-      );
+      final messages = await _repo.getMessages(id);
       if (!mounted || _activeId != id) return;
       setState(() {
-        _messages = res.data['data']['data'] as List<dynamic>? ?? [];
+        _messages = messages;
       });
-      await client.dio.post('/messages/conversations/$id/read');
+      await _repo.markRead(id);
     } catch (_) {}
   }
 
@@ -157,17 +151,11 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
 
   Future<void> _searchUsers(String q) async {
     try {
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.get(
-        '/users/search',
-        queryParameters: {'q': q, 'limit': 5},
-      );
-      final list = (res.data['data'] as List?) ?? [];
+      final list = await _repo.searchUsers(q: q);
       if (!mounted) return;
       setState(() {
         _suggestions = list
-            .whereType<Map>()
-            .map((e) => _SearchUser.fromJson(Map<String, dynamic>.from(e)))
+            .map(_SearchUser.fromJson)
             .where((u) => u.id != _myUserId && u.username.isNotEmpty)
             .toList();
       });
@@ -201,12 +189,10 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
 
     setState(() => _sending = true);
     try {
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.post('/messages', data: {
-        'recipientId': recipientId,
-        'content': content,
-      });
-      final msg = res.data['data'] as Map<String, dynamic>;
+      final msg = await _repo.sendMessage(
+        recipientId: recipientId,
+        content: content,
+      );
       _draftCtrl.clear();
       setState(() {
         _selectedRecipient = null;
@@ -216,10 +202,30 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
       _recipientQueryCtrl.clear();
       await _loadConversations();
       await _openConversation(msg['conversationId'] as String);
+    } on DioException catch (e) {
+      if (mounted) {
+        final msg = e.response?.data is Map
+            ? (e.response!.data['message'] as String? ??
+                (e.response!.data['data'] is Map
+                    ? (e.response!.data['data'] as Map)['message'] as String?
+                    : null))
+            : null;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              msg != null && msg.isNotEmpty ? msg : 'Could not send message. Tap Send to retry.',
+            ),
+            action: SnackBarAction(label: 'Retry', onPressed: _send),
+          ),
+        );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not send message')),
+          SnackBar(
+            content: const Text('Could not send message. Tap Send to retry.'),
+            action: SnackBarAction(label: 'Retry', onPressed: _send),
+          ),
         );
       }
     } finally {

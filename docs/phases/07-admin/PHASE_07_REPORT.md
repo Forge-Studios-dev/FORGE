@@ -1,6 +1,6 @@
 # Phase 07 — Report
 
-**Completion:** ~92% for shell consistency  
+**Completion:** ~95% (RBAC tiers + nav/action gating shipped 2026-08-28)  
 **Readiness:** proceed to Phase 08 Video.
 
 ## Shipped

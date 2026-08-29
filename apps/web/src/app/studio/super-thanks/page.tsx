@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { EmptyState, PageHeader } from '@forge/design-system';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { Button, EmptyState, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getApiErrorMessage } from '@/lib/api-message';
@@ -49,20 +49,32 @@ type DailySummary = {
   }>;
 };
 
+const PAGE_SIZE = 50;
+
 export default function StudioSuperThanksPage() {
   const { isCreator } = useAuth();
   const [exportError, setExportError] = useState('');
   const [exporting, setExporting] = useState(false);
 
-  const { data, isLoading, isError } = useQuery({
+  const {
+    data,
+    isLoading,
+    isError,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['studio-super-thanks'],
     enabled: isCreator,
-    queryFn: async () => {
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
       const { data: res } = await api.get<{ data: SuperThanksResponse }>(
-        '/billing/super-thanks/received?limit=50',
+        `/billing/super-thanks/received?limit=${PAGE_SIZE}&page=${pageParam}`,
       );
       return res.data;
     },
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.hasMore ? lastPage.pagination.page + 1 : undefined,
   });
 
   const { data: daily } = useQuery({
@@ -75,6 +87,9 @@ export default function StudioSuperThanksPage() {
       return res.data;
     },
   });
+
+  const tips = useMemo(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
+  const summary = data?.pages[0]?.summary;
 
   async function downloadCsv() {
     setExporting(true);
@@ -104,8 +119,6 @@ export default function StudioSuperThanksPage() {
     );
   }
 
-  const tips = data?.data ?? [];
-  const summary = data?.summary;
   const breakdown = daily?.daysBreakdown ?? [];
 
   return (
@@ -204,36 +217,47 @@ export default function StudioSuperThanksPage() {
           description="When viewers send Super Thanks, they appear here."
         />
       ) : (
-        <ul className="glass-panel divide-y divide-outline-variant/20 overflow-hidden rounded-2xl">
-          {tips.map((tip) => (
-            <li key={tip.id} className="flex flex-wrap items-start justify-between gap-3 px-5 py-4">
-              <div className="min-w-0 space-y-1">
-                <p className="font-medium text-on-surface">
-                  {tip.tipper?.displayName ?? 'Viewer'}{' '}
-                  <span className="font-normal text-on-surface-variant">
-                    sent ${(tip.amountCents / 100).toFixed(2)}
-                  </span>
+        <div className="space-y-4">
+          <ul className="glass-panel divide-y divide-outline-variant/20 overflow-hidden rounded-2xl">
+            {tips.map((tip) => (
+              <li key={tip.id} className="flex flex-wrap items-start justify-between gap-3 px-5 py-4">
+                <div className="min-w-0 space-y-1">
+                  <p className="font-medium text-on-surface">
+                    {tip.tipper?.displayName ?? 'Viewer'}{' '}
+                    <span className="font-normal text-on-surface-variant">
+                      sent ${(tip.amountCents / 100).toFixed(2)}
+                    </span>
+                  </p>
+                  {tip.body ? (
+                    <p className="text-sm text-on-surface-variant">“{tip.body}”</p>
+                  ) : null}
+                  <p className="text-xs text-outline">
+                    {tip.videoTitle ? (
+                      <Link href={`/watch/${tip.videoId}`} className="hover:underline">
+                        {tip.videoTitle}
+                      </Link>
+                    ) : (
+                      'Video'
+                    )}{' '}
+                    · {timeAgo(tip.createdAt)}
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-semibold text-warning">
+                  +${(tip.amountCents / 100).toFixed(2)}
                 </p>
-                {tip.body ? (
-                  <p className="text-sm text-on-surface-variant">“{tip.body}”</p>
-                ) : null}
-                <p className="text-xs text-outline">
-                  {tip.videoTitle ? (
-                    <Link href={`/watch/${tip.videoId}`} className="hover:underline">
-                      {tip.videoTitle}
-                    </Link>
-                  ) : (
-                    'Video'
-                  )}{' '}
-                  · {timeAgo(tip.createdAt)}
-                </p>
-              </div>
-              <p className="shrink-0 text-sm font-semibold text-warning">
-                +${(tip.amountCents / 100).toFixed(2)}
-              </p>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+          {hasNextPage ? (
+            <Button
+              variant="secondary"
+              disabled={isFetchingNextPage}
+              onClick={() => void fetchNextPage()}
+            >
+              {isFetchingNextPage ? 'Loading…' : 'Load more'}
+            </Button>
+          ) : null}
+        </div>
       )}
     </main>
   );

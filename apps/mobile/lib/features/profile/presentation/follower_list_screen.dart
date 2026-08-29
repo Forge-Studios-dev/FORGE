@@ -1,7 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/network/api_client.dart';
+import '../data/profile_repository.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 
@@ -22,6 +23,8 @@ class FollowerListScreen extends ConsumerStatefulWidget {
 class _FollowerListScreenState extends ConsumerState<FollowerListScreen> {
   List<dynamic> _users = [];
   bool _loading = true;
+  /// True when GET /channels/:id/subscribers returns 403 (owner/admin only).
+  bool _listPrivate = false;
   String? _nextCursor;
   bool _hasMore = false;
   String? _listOwnerId;
@@ -31,6 +34,10 @@ class _FollowerListScreenState extends ConsumerState<FollowerListScreen> {
   bool get _isManage =>
       widget.following && _meId != null && _listOwnerId != null && _meId == _listOwnerId;
 
+  /// Subscriber lists are owner/admin-only; API returns 403 ForbiddenException.
+  static bool _isPrivateSubscriberList(DioException e) =>
+      e.response?.statusCode == 403;
+
   @override
   void initState() {
     super.initState();
@@ -39,42 +46,52 @@ class _FollowerListScreenState extends ConsumerState<FollowerListScreen> {
 
   Future<void> _load({String? cursor}) async {
     try {
-      final client = ref.read(apiClientProvider);
-      final userRes = await client.dio.get('/users/by-username/${widget.username}');
-      final userId = userRes.data['data']['id'] as String;
+      final repo = ref.read(profileRepositoryProvider);
+      final user = await repo.getByUsername(widget.username);
+      final userId = user['id'] as String;
       String? meId = _meId;
       if (cursor == null) {
         try {
-          final meRes = await client.dio.get('/users/me');
-          meId = meRes.data['data']?['id'] as String?;
+          final me = await repo.getMe();
+          meId = me['id'] as String?;
         } catch (_) {
           meId = null;
         }
       }
-      final path = widget.following
-          ? '/channels/$userId/subscriptions'
-          : '/channels/$userId/subscribers';
-      final params = <String, dynamic>{'limit': 30};
-      if (cursor != null) params['cursor'] = cursor;
-      final res = await client.dio.get(path, queryParameters: params);
-      final payload = res.data['data'] as Map<String, dynamic>;
-      final data = payload['data'] as List<dynamic>? ?? [];
-      final meta = payload['meta'] as Map<String, dynamic>? ?? {};
+      final page = await repo.listChannelFollowGraph(
+        userId,
+        following: widget.following,
+        cursor: cursor,
+      );
       if (!mounted) return;
       setState(() {
         _listOwnerId = userId;
         _meId = meId;
-        _users = cursor != null ? [..._users, ...data] : data;
-        _nextCursor = meta['cursor'] as String?;
-        _hasMore = meta['hasMore'] == true;
+        _listPrivate = false;
+        _users = cursor != null ? [..._users, ...page.items] : page.items;
+        _nextCursor = page.nextCursor;
+        _hasMore = page.hasMore;
         _loading = false;
-        for (final raw in data) {
+        for (final raw in page.items) {
           if (raw is! Map) continue;
           final id = raw['id'] as String?;
           final level = raw['notifyLevel'] as String?;
           if (id != null && level != null) {
             _notifyLevels[id] = level;
           }
+        }
+      });
+    } on DioException catch (e) {
+      if (!mounted) return;
+      // Privacy gate applies to subscriber lists only (not subscriptions/following).
+      final private = !widget.following && _isPrivateSubscriberList(e);
+      setState(() {
+        _loading = false;
+        if (private) {
+          _listPrivate = true;
+          _users = [];
+          _hasMore = false;
+          _nextCursor = null;
         }
       });
     } catch (_) {
@@ -85,9 +102,8 @@ class _FollowerListScreenState extends ConsumerState<FollowerListScreen> {
   Future<void> _ensureNotifyLevel(String channelId) async {
     if (_notifyLevels.containsKey(channelId)) return;
     try {
-      final client = ref.read(apiClientProvider);
-      final res = await client.dio.get('/channels/$channelId/subscription');
-      final level = res.data['data']?['notifyLevel'] as String? ?? 'all';
+      final level =
+          await ref.read(profileRepositoryProvider).getSubscriptionNotifyLevel(channelId);
       if (!mounted) return;
       setState(() => _notifyLevels[channelId] = level);
     } catch (_) {
@@ -98,11 +114,7 @@ class _FollowerListScreenState extends ConsumerState<FollowerListScreen> {
 
   Future<void> _setNotify(String channelId, String level) async {
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.patch(
-        '/channels/$channelId/subscription/notify',
-        data: {'notifyLevel': level},
-      );
+      await ref.read(profileRepositoryProvider).setSubscriptionNotifyLevel(channelId, level);
       if (!mounted) return;
       setState(() => _notifyLevels[channelId] = level);
       final label = switch (level) {
@@ -133,8 +145,7 @@ class _FollowerListScreenState extends ConsumerState<FollowerListScreen> {
     );
     if (ok != true || !mounted) return;
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.delete('/channels/$channelId/subscribe');
+      await ref.read(profileRepositoryProvider).unsubscribe(channelId);
       if (!mounted) return;
       setState(() {
         _users = _users.where((raw) {
@@ -159,7 +170,18 @@ class _FollowerListScreenState extends ConsumerState<FollowerListScreen> {
       appBar: AppBar(title: Text('@${widget.username} · $title')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _users.isEmpty
+          : _listPrivate
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      "This channel's subscriber list is private.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                    ),
+                  ),
+                )
+              : _users.isEmpty
               ? Center(
                   child: Text(
                     'No ${widget.following ? 'subscriptions' : 'subscribers'} yet',

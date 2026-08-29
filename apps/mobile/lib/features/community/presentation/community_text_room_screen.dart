@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/socket/forge_socket.dart';
+import '../data/community_repository.dart';
 
 class CommunityTextRoomScreen extends ConsumerStatefulWidget {
   const CommunityTextRoomScreen({
@@ -98,21 +98,16 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final client = ref.read(apiClientProvider);
-      final roomRes = await client.dio.get(
-        '/communities/${widget.communityId}/rooms/${widget.roomId}',
-      );
-      final msgRes = await client.dio.get(
-        '/communities/${widget.communityId}/rooms/${widget.roomId}/messages',
-      );
+      final repo = ref.read(communityRepositoryProvider);
+      final room = await repo.getRoom(widget.communityId, widget.roomId);
+      final messages = await repo.getRoomMessages(widget.communityId, widget.roomId);
       String? userId;
       try {
-        final me = await client.dio.get('/users/me');
-        userId = me.data['data']?['id'] as String?;
+        userId = await repo.getCurrentUserId();
       } catch (_) {}
       setState(() {
-        _roomName = roomRes.data['data']?['name'] as String?;
-        _messages = (msgRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _roomName = room?['name'] as String?;
+        _messages = messages;
         _currentUserId = userId;
       });
     } finally {
@@ -161,10 +156,9 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
     reasonCtrl.dispose();
     if (reason == null || reason.isEmpty || !mounted) return;
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.post(
-        '/communities/${widget.communityId}/reports',
-        data: {
+      await ref.read(communityRepositoryProvider).submitReport(
+        widget.communityId,
+        {
           'targetType': 'message',
           'roomId': widget.roomId,
           'messageId': msg['id'],
@@ -190,16 +184,14 @@ class _CommunityTextRoomScreenState extends ConsumerState<CommunityTextRoomScree
     if (body.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
-      final client = ref.read(apiClientProvider);
-      final payload = <String, dynamic>{'body': body};
-      if (_replyToId != null) payload['parentMessageId'] = _replyToId;
-      final res = await client.dio.post(
-        '/communities/${widget.communityId}/rooms/${widget.roomId}/messages',
-        data: payload,
-      );
+      final message = await ref.read(communityRepositoryProvider).sendRoomMessage(
+            widget.communityId,
+            widget.roomId,
+            body: body,
+            parentMessageId: _replyToId,
+          );
       _draftCtrl.clear();
       _clearReply();
-      final message = res.data['data'] as Map<String, dynamic>?;
       if (message != null && !_messages.any((m) => m['id'] == message['id'])) {
         setState(() => _messages = [..._messages, message]);
       }

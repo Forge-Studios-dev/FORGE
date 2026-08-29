@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
+import { Button } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { AuthScreen, authFieldClass } from '@/components/auth/AuthScreen';
@@ -104,8 +105,9 @@ export function VerifyEmailPrompt({ welcome }: { welcome?: boolean }) {
               placeholder="123456"
               autoComplete="one-time-code"
             />
-            <button
+            <Button
               type="button"
+              variant="primary"
               disabled={verifyOtp.isPending || code.length !== 6}
               onClick={() => {
                 setOtpError('');
@@ -123,25 +125,26 @@ export function VerifyEmailPrompt({ welcome }: { welcome?: boolean }) {
                   },
                 });
               }}
-              className="primary-button w-full rounded-full py-4 font-semibold text-on-primary disabled:opacity-60"
+              className="w-full py-4 disabled:opacity-60"
             >
               {verifyOtp.isPending ? 'Verifying…' : 'Verify with code'}
-            </button>
+            </Button>
             {otpError && <p className="text-sm text-error text-center">{otpError}</p>}
           </div>
         )}
-        <button
+        <Button
           type="button"
+          variant="primary"
           disabled={resend.isPending}
           onClick={() => {
             resend.mutate(undefined, {
               onSuccess: () => refresh(),
             });
           }}
-          className="primary-button w-full rounded-full py-4 font-semibold text-on-primary disabled:opacity-60"
+          className="w-full py-4 disabled:opacity-60"
         >
           {resend.isPending ? 'Sending…' : 'Resend verification email'}
-        </button>
+        </Button>
         {resend.isError && (
           <p className="text-sm text-error">
             {(resend.error as { response?: { data?: { message?: string } } })?.response?.data

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { PageHeader } from '@forge/design-system';
+import { Button, PageHeader } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
 import { api } from '@/lib/api';
 
@@ -177,14 +177,14 @@ export default function ReportDetailPage() {
             </Link>
           </>
         ) : null}
-        <button
+        <Button
           type="button"
+          variant="primary"
           disabled={report.status !== 'pending' || actionPending}
           onClick={() => updateStatus('reviewed')}
-          className="primary-button rounded-full px-6 py-2 text-sm font-semibold text-on-primary disabled:opacity-40"
         >
           {actionPending ? 'Working…' : 'Mark reviewed'}
-        </button>
+        </Button>
         <button
           type="button"
           disabled={report.status !== 'pending' || actionPending}

@@ -130,3 +130,62 @@ Full Medium/Low catalogue retained in the three sub-audit transcripts (linked in
 ## 7. Deferred / Backlog
 
 Every Medium/Low finding and every XL/High-risk roadmap item above is explicitly deferred, not dropped. They are sequenced into their most relevant later phase per the table in §4. This phase does not claim the UI/UX surface is "done" — it fixes the highest-confidence, lowest-risk, real-user-facing bugs found, and hands off a prioritized, evidence-backed list for everything else.
+
+---
+
+## 8. Continuous parity delivery (2026-08-26)
+
+Closed remaining High/P0–P2 gaps from §4 on branch `feature/continuous-parity-delivery` (codebase as source of truth; no Master phase re-doc).
+
+| Item | Status |
+| --- | --- |
+| Admin MFA gate (`ADMIN_MFA_REQUIRED` + live `mfaEnabled` + cache bust) | Shipped (API WIP + tests) |
+| Studio Live creator-scoped streams (`?creatorId=`) | Closed |
+| Public subscriber identity list → owner/ADMIN only | Closed (API + web) |
+| Theater mode keeps engagement UI | Closed |
+| Duplicate mobile Create (hide masthead Create below `md`) | Closed |
+| Studio comments / moderation / subscribers pagination + errors | Closed |
+| Upload step 2 drag-drop + lost-file warning | Closed |
+| RealtimeToasts → DS `ToastProvider`/`useToast` | Closed |
+| `primary-button` → `Button` (error/auth/studio live batch) | Closed (remaining Link-based sites deferred) |
+| Touch-reachable player quality/speed/PiP | Closed (`@media(hover:none)`) |
+| Super Thanks `hasMore` pagination | Closed |
+| Studio playlists attachable videos via `fetchStudioLibrary` | Closed |
+| Admin user-detail mutation toasts (Wave 3) | Closed |
+| Mobile subscriber list 403 privacy UX | Closed |
+| Additional `Button` CTA batch (studio/upload/search/messages/…) | Closed |
+| Deprecated `getMyVideos` studio dashboard/analytics (H13) | Closed |
+| Admin creator-approvals + content success toasts | Closed |
+| Search page writes search history (H9) | Closed |
+| Admin AI budget page (`/ai` → `GET /admin/ai/budget`) (H19) | Closed |
+| Admin AI moderation queue depth on same endpoint | Closed |
+| Link CTAs via `buttonClassName('primary')` (shell/gates/studio) | Closed |
+| Mobile studio comments scan parity with web | Closed |
+| Residual web/admin `primary-button` → DS helpers (H4) | Closed |
+| CommentsPanel → `comments-api.ts` wrappers (H8 partial) | Closed |
+| CommentsPanel file-split (`CommentBody` / `CommentRow`) (H8) | Closed |
+| Mobile notifications `data/` repository (H22 slice) | Closed |
+| Mobile library + messages `data/` repositories (H22) | Closed |
+| Mobile playlists / subscriptions / profile / community / shorts `data/` (H22) | Closed |
+| Mobile studio analytics MRR currency → USD (parity with web) | Closed |
+
+### Master Execution Wave 11 (2026-08-28)
+
+| Item | Status |
+| --- | --- |
+| Design-system `buttonClassName` dist rebuild (vitest fix) | Closed |
+| Likes dedupe + unique constraint migration + race retry | Closed |
+| Admin RBAC tiers H21 (`AdminTier` + `AdminFullGuard` + admin UI) | Closed |
+| Mobile `/settings/strikes` + notification deep-links (Phase 06 parity) | Closed |
+| `watch_screen` split (`WatchEngageRow`, `WatchCommentsSection`, `HlsPlayerBlock`) | Closed (H23) |
+| Studio realtime analytics (`GET /analytics/studio/realtime`) | Closed |
+| Phase 07 execution doc | Closed |
+
+### Master Execution Wave 12 (2026-08-29)
+
+| Item | Status |
+| --- | --- |
+| Community HTTP e2e: mock `CommunityModerationQueueService` | Closed |
+| H23 `HlsPlayerBlock` extract from `watch_screen.dart` | Closed |
+
+Still deferred: ops secrets/staging soak.

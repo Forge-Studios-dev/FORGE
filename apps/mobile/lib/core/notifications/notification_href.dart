@@ -62,9 +62,7 @@ String? notificationHref(String? type, Map<String, dynamic>? metadata) {
     case 'strike_issued':
     case 'strike_rescinded':
     case 'strike_appeal_resolved':
-      // No dedicated mobile strikes screen yet (web has /settings/strikes) —
-      // stay put rather than opening the now-private video.
-      return null;
+      return '/settings/strikes';
     default:
       return videoId != null ? videoPath(videoId) : null;
   }

@@ -3,11 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/navigation/public_video_path.dart';
-
-import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../shared/models/video.dart';
+import '../data/library_repository.dart';
 
 /// Private Disliked videos shelf (YouTube Library parity).
 class DislikedVideosScreen extends ConsumerStatefulWidget {
@@ -43,29 +42,8 @@ class _DislikedVideosScreenState extends ConsumerState<DislikedVideosScreen> {
       _error = false;
     });
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get(
-        '/me/disliked-videos',
-        queryParameters: {'limit': 100},
-      );
-      final root = response.data['data'];
-      List list;
-      if (root is Map && root['data'] is List) {
-        list = root['data'] as List;
-      } else if (root is List) {
-        list = root;
-      } else {
-        list = const [];
-      }
-      final videos = <VideoModel>[];
-      for (final item in list) {
-        if (item is! Map<String, dynamic>) continue;
-        try {
-          videos.add(VideoModel.fromJson(item));
-        } catch (_) {
-          /* skip malformed */
-        }
-      }
+      final videos =
+          await ref.read(libraryRepositoryProvider).getDislikedVideos(limit: 100);
       if (!mounted) return;
       setState(() {
         _videos = videos;
@@ -83,8 +61,7 @@ class _DislikedVideosScreenState extends ConsumerState<DislikedVideosScreen> {
 
   Future<void> _remove(VideoModel video) async {
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.delete('/videos/${video.id}/dislike');
+      await ref.read(libraryRepositoryProvider).removeDislike(video.id);
       if (!mounted) return;
       setState(() {
         _videos = _videos.where((v) => v.id != video.id).toList();
@@ -112,8 +89,7 @@ class _DislikedVideosScreenState extends ConsumerState<DislikedVideosScreen> {
     if (confirmed != true || !mounted) return;
     setState(() => _clearing = true);
     try {
-      final client = ref.read(apiClientProvider);
-      await client.dio.delete('/me/disliked-videos');
+      await ref.read(libraryRepositoryProvider).clearDislikedVideos();
       if (!mounted) return;
       setState(() {
         _videos = [];

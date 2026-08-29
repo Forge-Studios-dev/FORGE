@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { EmptyState } from '@forge/design-system';
+import { Button, EmptyState } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { getApiErrorMessage } from '@/lib/api-message';
 import { useAuth } from '@/lib/auth';
 import { getSocket, joinRoom, leaveRoom } from '@/lib/socket';
 import { SocketEvents } from '@forge/shared-types';
@@ -73,6 +74,7 @@ export default function MessagesPage() {
     },
     onSuccess: (msg) => {
       setDraft('');
+      setThreadDraft('');
       setRecipientQuery('');
       setSelectedRecipient(null);
       setActiveId(msg.conversationId);
@@ -80,6 +82,10 @@ export default function MessagesPage() {
       void qc.invalidateQueries({ queryKey: ['dm-messages', msg.conversationId] });
     },
   });
+
+  const sendError = send.isError
+    ? getApiErrorMessage(send.error, 'Could not send message. Try again.')
+    : null;
 
   useEffect(() => {
     if (!accessToken || !activeId) return;
@@ -199,17 +205,23 @@ export default function MessagesPage() {
             rows={2}
             className="mb-2 w-full rounded-lg border border-outline-variant bg-transparent px-3 py-2 text-sm"
           />
-          <button
+          <Button
             type="button"
+            variant="primary"
             disabled={!canSend}
             onClick={() =>
               selectedRecipient &&
               send.mutate({ recipientId: selectedRecipient.id, content: draft.trim() })
             }
-            className="primary-button w-full rounded-lg py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
+            className="w-full rounded-lg py-2"
           >
-            Send
-          </button>
+            {send.isPending ? 'Sending…' : 'Send'}
+          </Button>
+          {sendError ? (
+            <p className="mt-2 text-xs text-error" role="alert" aria-live="polite">
+              {sendError}
+            </p>
+          ) : null}
         </div>
       </aside>
 
@@ -248,8 +260,9 @@ export default function MessagesPage() {
                 rows={2}
                 className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-transparent px-3 py-2 text-sm"
               />
-              <button
+              <Button
                 type="button"
+                variant="primary"
                 disabled={!canReply}
                 onClick={() => {
                   const peerId = activeConv?.participants[0]?.id;
@@ -261,11 +274,16 @@ export default function MessagesPage() {
                     },
                   );
                 }}
-                className="primary-button shrink-0 self-end rounded-lg px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
+                className="shrink-0 self-end rounded-lg px-4 py-2"
               >
-                Send
-              </button>
+                {send.isPending ? 'Sending…' : 'Send'}
+              </Button>
             </div>
+            {sendError ? (
+              <p className="border-t border-outline-variant/20 px-4 pb-3 text-xs text-error" role="alert" aria-live="polite">
+                {sendError}
+              </p>
+            ) : null}
           </>
         ) : (
           <p className="flex flex-1 items-center justify-center text-on-surface-variant">

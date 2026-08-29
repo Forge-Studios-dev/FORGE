@@ -12,10 +12,10 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../shared/models/video.dart';
-import '../../feed/data/feed_repository.dart';
 import '../../watch/data/watch_repository.dart';
 import '../../watch/presentation/player_captions_overlay.dart';
 import '../../watch/presentation/save_to_playlist_sheet.dart';
+import '../data/shorts_repository.dart';
 
 class ShortsScreen extends ConsumerStatefulWidget {
   const ShortsScreen({super.key, this.initialVideoId});
@@ -70,7 +70,7 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
       _deepLinkUnavailable = false;
     });
     try {
-      final page = await ref.read(feedRepositoryProvider).getShortsFeed();
+      final page = await ref.read(shortsRepositoryProvider).getFeed();
       VideoModel? pinned;
       var deepLinkBlocked = false;
       final deepLink = widget.initialVideoId?.trim();
@@ -121,7 +121,7 @@ class _ShortsScreenState extends ConsumerState<ShortsScreen> {
     if (_loadingMore || !_hasMore || _nextCursor == null) return;
     setState(() => _loadingMore = true);
     try {
-      final page = await ref.read(feedRepositoryProvider).getShortsFeed(cursor: _nextCursor);
+      final page = await ref.read(shortsRepositoryProvider).getFeed(cursor: _nextCursor);
       if (!mounted) return;
       setState(() {
         _videos.addAll(page.videos);

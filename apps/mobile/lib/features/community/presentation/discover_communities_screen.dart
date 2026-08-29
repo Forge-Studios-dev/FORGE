@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/network/api_client.dart';
+import '../data/community_repository.dart';
 
 class DiscoverCommunitiesScreen extends ConsumerStatefulWidget {
   const DiscoverCommunitiesScreen({super.key});
@@ -18,10 +18,9 @@ class _DiscoverCommunitiesScreenState extends ConsumerState<DiscoverCommunitiesS
 
   Future<void> _loadFeatured() async {
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.get('/communities/discover/featured');
-      final data = response.data['data'] as List? ?? [];
-      setState(() => _featured = data.cast<Map<String, dynamic>>());
+      final featured =
+          await ref.read(communityRepositoryProvider).getFeaturedCommunities();
+      setState(() => _featured = featured);
     } catch (_) {
       setState(() => _featured = []);
     }
@@ -30,11 +29,10 @@ class _DiscoverCommunitiesScreenState extends ConsumerState<DiscoverCommunitiesS
   Future<void> _search([String? q]) async {
     setState(() => _loading = true);
     try {
-      final client = ref.read(apiClientProvider);
       final query = (q ?? _queryCtrl.text).trim();
-      final response = await client.dio.get('/communities/search', queryParameters: {'q': query});
-      final data = response.data['data'] as List? ?? [];
-      setState(() => _results = data.cast<Map<String, dynamic>>());
+      final results =
+          await ref.read(communityRepositoryProvider).searchCommunities(query);
+      setState(() => _results = results);
     } catch (_) {
       setState(() => _results = []);
     } finally {

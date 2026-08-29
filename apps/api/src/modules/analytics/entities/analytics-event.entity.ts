@@ -12,6 +12,7 @@ import { Video } from '../../content/entities/video.entity';
 
 @Entity('analytics_events')
 @Index(['eventName', 'createdAt'])
+@Index(['videoId', 'eventName', 'createdAt'])
 export class AnalyticsEvent {
   @PrimaryGeneratedColumn('uuid')
   id: string;

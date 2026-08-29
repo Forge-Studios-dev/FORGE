@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { EmptyState, ListSkeleton, PageHeader, StatusPill } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -35,10 +35,18 @@ type UnifiedReport = {
   createdAt: string;
 };
 
+const INBOX_PAGE_SIZE = 30;
+
 export default function StudioModerationHubPage() {
   const { user, isGuest, isCreator } = useAuth();
+  const [inboxVisible, setInboxVisible] = useState(INBOX_PAGE_SIZE);
 
-  const { data: moderated = [], isLoading: moderatedLoading } = useQuery({
+  const {
+    data: moderated = [],
+    isLoading: moderatedLoading,
+    isError: moderatedError,
+    refetch: refetchModerated,
+  } = useQuery({
     queryKey: ['moderated-communities', user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
@@ -49,7 +57,12 @@ export default function StudioModerationHubPage() {
     },
   });
 
-  const { data: owned = [], isLoading: ownedLoading } = useQuery({
+  const {
+    data: owned = [],
+    isLoading: ownedLoading,
+    isError: ownedError,
+    refetch: refetchOwned,
+  } = useQuery({
     queryKey: ['studio-owned-communities-mod', user?.id],
     enabled: !!user?.id && isCreator,
     queryFn: async () => {
@@ -60,14 +73,20 @@ export default function StudioModerationHubPage() {
     },
   });
 
-  const { data: inbox, isLoading: inboxLoading } = useQuery({
+  const {
+    data: inbox,
+    isLoading: inboxLoading,
+    isError: inboxError,
+    refetch: refetchInbox,
+    isFetching: inboxFetching,
+  } = useQuery({
     queryKey: ['unified-mod-inbox', user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
       const { data: res } = await api.get<{ data: { data: UnifiedReport[] } }>(
         '/creators/me/moderation/inbox',
       );
-      return res.data.data;
+      return res.data.data ?? [];
     },
   });
 
@@ -93,6 +112,10 @@ export default function StudioModerationHubPage() {
   }, [moderated, owned, user]);
 
   const isLoading = moderatedLoading || ownedLoading;
+  const communitiesError = moderatedError || ownedError;
+  const inboxItems = inbox ?? [];
+  const visibleInbox = inboxItems.slice(0, inboxVisible);
+  const openReportCount = inboxItems.length;
 
   if (isGuest) {
     return (
@@ -112,11 +135,15 @@ export default function StudioModerationHubPage() {
       <section className="grid gap-4 sm:grid-cols-3">
         <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Open reports</p>
-          <p className="mt-2 text-3xl font-semibold">{inbox?.length ?? 0}</p>
+          <p className="mt-2 text-3xl font-semibold">
+            {inboxLoading ? '—' : openReportCount}
+          </p>
         </article>
         <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Communities you moderate</p>
-          <p className="mt-2 text-3xl font-semibold">{communities.length}</p>
+          <p className="mt-2 text-3xl font-semibold">
+            {isLoading ? '—' : communities.length}
+          </p>
         </article>
         <article className="glass-panel rounded-2xl p-5">
           <p className="text-sm text-on-surface-variant">Quick actions</p>
@@ -135,42 +162,88 @@ export default function StudioModerationHubPage() {
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Unified inbox</h2>
           {inboxLoading ? <ListSkeleton rows={4} /> : null}
-          {!inboxLoading && !(inbox?.length ?? 0) ? (
+          {inboxError ? (
+            <div className="space-y-2">
+              <p className="text-sm text-error">Failed to load moderation inbox.</p>
+              <button
+                type="button"
+                className="text-sm font-semibold text-primary hover:underline"
+                disabled={inboxFetching}
+                onClick={() => void refetchInbox()}
+              >
+                {inboxFetching ? 'Retrying…' : 'Retry'}
+              </button>
+            </div>
+          ) : null}
+          {!inboxLoading && !inboxError && openReportCount === 0 ? (
             <EmptyState
               icon="shield"
               title="Queue is clear"
               description="No open reports right now. New community reports will land here first."
             />
           ) : null}
-          <ul className="space-y-2">
-            {(inbox ?? []).slice(0, 30).map((r) => (
-              <li
-                key={r.id}
-                className="glass-panel flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm"
-              >
-                <div className="min-w-0">
-                  <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <StatusPill tone="warning" label={r.status} />
-                    <span className="text-xs text-outline">{r.targetType ?? 'content'}</span>
-                  </div>
-                  <p className="font-medium">{r.communityName ?? r.communityId}</p>
-                  <p className="truncate text-xs text-on-surface-variant">{r.reason ?? 'Reported'}</p>
-                </div>
-                <Link
-                  href={`/studio/moderation/${r.communityId}`}
-                  className="shrink-0 text-xs text-primary hover:underline"
+          {!inboxLoading && !inboxError && openReportCount > 0 ? (
+            <>
+              {openReportCount > visibleInbox.length ? (
+                <p className="text-sm text-on-surface-variant">
+                  Showing {visibleInbox.length} of {openReportCount} reports
+                </p>
+              ) : null}
+              <ul className="space-y-2">
+                {visibleInbox.map((r) => (
+                  <li
+                    key={r.id}
+                    className="glass-panel flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
+                        <StatusPill tone="warning" label={r.status} />
+                        <span className="text-xs text-outline">{r.targetType ?? 'content'}</span>
+                      </div>
+                      <p className="font-medium">{r.communityName ?? r.communityId}</p>
+                      <p className="truncate text-xs text-on-surface-variant">{r.reason ?? 'Reported'}</p>
+                    </div>
+                    <Link
+                      href={`/studio/moderation/${r.communityId}`}
+                      className="shrink-0 text-xs text-primary hover:underline"
+                    >
+                      Review
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              {visibleInbox.length < openReportCount ? (
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-primary hover:underline"
+                  onClick={() => setInboxVisible((n) => n + INBOX_PAGE_SIZE)}
                 >
-                  Review
-                </Link>
-              </li>
-            ))}
-          </ul>
+                  Load more
+                </button>
+              ) : null}
+            </>
+          ) : null}
         </div>
 
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Your communities</h2>
           {isLoading ? <ListSkeleton rows={3} /> : null}
-          {!isLoading && !communities.length ? (
+          {communitiesError ? (
+            <div className="space-y-2">
+              <p className="text-sm text-error">Failed to load communities.</p>
+              <button
+                type="button"
+                className="text-sm font-semibold text-primary hover:underline"
+                onClick={() => {
+                  void refetchModerated();
+                  void refetchOwned();
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
+          {!isLoading && !communitiesError && !communities.length ? (
             <p className="text-sm text-on-surface-variant">
               You do not have moderator access on any communities yet.
             </p>

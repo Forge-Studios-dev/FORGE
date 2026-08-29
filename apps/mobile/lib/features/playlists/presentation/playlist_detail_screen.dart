@@ -4,10 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../core/widgets/forge_empty_state.dart';
+import '../data/playlists_repository.dart';
 
 /// Shows a single playlist and its videos. Owners can remove items; tapping a
 /// video opens the watch screen. Mirrors the web `/playlists/:id` page.
@@ -40,6 +40,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     super.dispose();
   }
 
+  PlaylistsRepository get _repo => ref.read(playlistsRepositoryProvider);
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -47,15 +49,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       _unavailable = false;
     });
     try {
-      final api = ref.read(apiClientProvider);
-      final results = await Future.wait([
-        api.dio.get('/playlists/${widget.playlistId}'),
-        api.dio.get('/users/me'),
+      final results = await Future.wait<Map<String, dynamic>?>([
+        _repo.getById(widget.playlistId),
+        _repo.getMe(),
       ]);
       if (!mounted) return;
-      final me = results[1].data['data'] as Map<String, dynamic>?;
+      final me = results[1];
       setState(() {
-        _playlist = results[0].data['data'] as Map<String, dynamic>?;
+        _playlist = results[0];
         _currentUserId = me?['id'] as String?;
         _loading = false;
       });
@@ -94,8 +95,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
     if (ok != true || !mounted) return;
     try {
-      final api = ref.read(apiClientProvider);
-      await api.dio.delete('/playlists/${widget.playlistId}/videos/$videoId');
+      await _repo.removeVideo(playlistId: widget.playlistId, videoId: videoId);
       await _load();
     } catch (_) {
       if (mounted) {
@@ -108,15 +108,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
 
   Future<void> _addVideos() async {
     try {
-      final api = ref.read(apiClientProvider);
-      final res = await api.dio.get('/videos/studio', queryParameters: {'limit': 50, 'status': 'ready'});
-      final data = res.data['data'] as Map<String, dynamic>?;
-      final list = (data?['data'] as List?) ?? [];
-      final studioVideos = list
-          .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .where((v) => v['id'] is String && v['status'] == 'ready')
-          .toList();
+      final studioVideos = await _repo.listStudioReadyVideos(limit: 50);
 
       final existing = <String>{};
       for (final raw in (_playlist?['items'] as List?) ?? []) {
@@ -203,10 +195,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
 
       if (selected == null || selected.isEmpty || !mounted) return;
       for (final videoId in selected) {
-        await api.dio.post(
-          '/playlists/${widget.playlistId}/videos',
-          data: {'videoId': videoId},
-        );
+        await _repo.addVideo(playlistId: widget.playlistId, videoId: videoId);
       }
       await _load();
     } catch (_) {
@@ -273,14 +262,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     descCtrl.dispose();
     if (saved != true || title.isEmpty) return;
     try {
-      final api = ref.read(apiClientProvider);
-      await api.dio.patch(
-        '/playlists/${widget.playlistId}',
-        data: {
-          'title': title,
-          'description': description.isEmpty ? null : description,
-          'visibility': visibility,
-        },
+      await _repo.update(
+        playlistId: widget.playlistId,
+        title: title,
+        description: description.isEmpty ? null : description,
+        visibility: visibility,
       );
       await _load();
     } catch (_) {
@@ -312,8 +298,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
     if (ok != true) return;
     try {
-      final api = ref.read(apiClientProvider);
-      await api.dio.delete('/playlists/${widget.playlistId}');
+      await _repo.delete(widget.playlistId);
       if (!mounted) return;
       if (context.canPop()) {
         context.pop();
@@ -345,11 +330,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         .whereType<String>()
         .toList();
     try {
-      final api = ref.read(apiClientProvider);
-      await api.dio.put(
-        '/playlists/${widget.playlistId}/reorder',
-        data: {'videoIds': orderedIds},
-      );
+      await _repo.reorder(playlistId: widget.playlistId, videoIds: orderedIds);
       await _load();
     } catch (_) {
       if (mounted) {

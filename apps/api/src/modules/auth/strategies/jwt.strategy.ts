@@ -5,7 +5,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ClsService } from 'nestjs-cls';
 import { Repository } from 'typeorm';
-import { User, UserRole } from '../../users/entities/user.entity';
+import { AdminTier, User, UserRole } from '../../users/entities/user.entity';
 import { AUTH_USER_CLS_KEY, type AuthUserSnapshot } from '../../../common/cls/auth-cls.keys';
 import { AuthUserCacheService } from '../auth-user-cache.service';
 import { AuthSessionCacheService } from '../auth-session-cache.service';
@@ -15,6 +15,16 @@ export interface JwtPayload {
   email: string;
   role: UserRole;
   isVerified: boolean;
+  /**
+   * Re-resolved live from cache/DB every request (see `validate` below), same
+   * as `role` -- never signed into the token itself, so enabling MFA takes
+   * effect on the very next request without re-login. Optional because
+   * `JwtPayload` also describes the *signed* token shape (issueTokens),
+   * which never sets this field.
+   */
+  mfaEnabled?: boolean;
+  /** Live-resolved admin capability tier (only meaningful when role=admin). */
+  adminTier?: AdminTier;
   /** Refresh-token session id — enables instant revoke when session ends. */
   sid?: string;
   /**
@@ -77,13 +87,25 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         email: cached.email,
         role: cached.role,
         isVerified: cached.isVerified,
+        mfaEnabled: cached.mfaEnabled,
+        adminTier: cached.adminTier,
         sid: payload.sid,
       };
     }
 
     const user = await this.userRepository.findOne({
       where: { id: payload.sub },
-      select: ['id', 'email', 'role', 'creatorStatus', 'isVerified', 'isActive', 'deletedAt'],
+      select: [
+        'id',
+        'email',
+        'role',
+        'creatorStatus',
+        'isVerified',
+        'isActive',
+        'deletedAt',
+        'mfaEnabled',
+        'adminTier',
+      ],
     });
     if (!user || user.deletedAt) throw new UnauthorizedException('User no longer exists');
     if (user.isActive === false) {
@@ -100,6 +122,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       isVerified: user.isVerified,
       isActive: user.isActive,
       deletedAt: null,
+      mfaEnabled: user.mfaEnabled,
+      adminTier: user.adminTier,
     });
     this.applyClsSnapshot(user);
     return {
@@ -107,6 +131,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       email: user.email,
       role: user.role,
       isVerified: user.isVerified,
+      mfaEnabled: user.mfaEnabled,
+      adminTier: user.adminTier,
       sid: payload.sid,
     };
   }

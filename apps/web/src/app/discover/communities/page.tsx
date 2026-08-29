@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { EmptyState, Input, PageHeader } from '@forge/design-system';
+import { Button, EmptyState, Input, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 
 type SearchResult = {
@@ -58,12 +58,9 @@ export default function DiscoverCommunitiesPage() {
           placeholder="Search by name or slug…"
           className="flex-1"
         />
-        <button
-          type="submit"
-          className="primary-button rounded-full px-5 py-2 text-sm font-semibold text-on-primary"
-        >
+        <Button type="submit" variant="primary" className="px-5 py-2">
           Search
-        </button>
+        </Button>
       </form>
 
       {searchTerm.length < 2 ? (

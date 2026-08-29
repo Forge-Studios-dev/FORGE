@@ -2,7 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Icon } from '@forge/design-system';
+import { Icon, buttonClassName } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
 import { useAuth } from '@/lib/auth';
 import {
@@ -126,8 +126,8 @@ export function SubscribeChannelControl({
 
   const subscribeBtn =
     variant === 'channel'
-      ? 'primary-button shrink-0 rounded-xl px-6 py-2 font-semibold text-on-primary disabled:opacity-60'
-      : 'primary-button rounded-full px-6 py-2 text-sm font-semibold text-on-primary disabled:opacity-60';
+      ? `${buttonClassName('primary')} shrink-0 !rounded-xl`
+      : buttonClassName('primary');
 
   if (onGuestAction) {
     return (

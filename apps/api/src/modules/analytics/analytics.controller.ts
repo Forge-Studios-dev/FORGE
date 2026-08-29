@@ -52,6 +52,12 @@ export class AnalyticsController {
     );
   }
 
+  @Get('studio/realtime')
+  @ApiOperation({ summary: 'Creator Studio realtime pulse (last 60 minutes)' })
+  async studioRealtime(@CurrentUser() user: JwtPayload) {
+    return this.analyticsService.getStudioRealtime(user.sub);
+  }
+
   @Get('kpi/platform/churn')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Platform churn rate KPI (admin)' })

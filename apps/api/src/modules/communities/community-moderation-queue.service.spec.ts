@@ -7,7 +7,16 @@ import { COMMUNITY_MODERATION_QUEUE } from '../workers/community-moderation/comm
 
 describe('CommunityModerationQueueService', () => {
   let service: CommunityModerationQueueService;
-  const queue = { add: jest.fn().mockResolvedValue(undefined) };
+  const queue = {
+    add: jest.fn().mockResolvedValue(undefined),
+    getJobCounts: jest.fn().mockResolvedValue({
+      waiting: 3,
+      active: 1,
+      completed: 10,
+      failed: 2,
+      delayed: 0,
+    }),
+  };
   const aiCommunityService = {
     scoreContentAsync: jest
       .fn()
@@ -47,6 +56,35 @@ describe('CommunityModerationQueueService', () => {
       expect.objectContaining({ messageBody: 'spam link' }),
       expect.objectContaining({ removeOnComplete: expect.any(Object) }),
     );
+  });
+
+  it('returns queue job counts with zero defaults', async () => {
+    const counts = await service.getQueueCounts();
+    expect(queue.getJobCounts).toHaveBeenCalledWith(
+      'waiting',
+      'active',
+      'completed',
+      'failed',
+      'delayed',
+    );
+    expect(counts).toEqual({
+      waiting: 3,
+      active: 1,
+      completed: 10,
+      failed: 2,
+      delayed: 0,
+    });
+  });
+
+  it('defaults missing job count fields to zero', async () => {
+    queue.getJobCounts.mockResolvedValueOnce({});
+    await expect(service.getQueueCounts()).resolves.toEqual({
+      waiting: 0,
+      active: 0,
+      completed: 0,
+      failed: 0,
+      delayed: 0,
+    });
   });
 
   it('skips the LLM tail when moderation LLM is disabled', async () => {

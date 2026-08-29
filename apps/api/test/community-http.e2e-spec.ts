@@ -36,6 +36,7 @@ import { CommunityEventsService } from '../src/modules/communities/community-eve
 import { CommunityAiController } from '../src/modules/communities/community-ai.controller';
 import { AiCommunityService } from '../src/modules/communities/ai-community.service';
 import { AiBudgetService } from '../src/modules/communities/ai-budget.service';
+import { CommunityModerationQueueService } from '../src/modules/communities/community-moderation-queue.service';
 import { CreatorAuditService } from '../src/modules/communities/creator-audit.service';
 import { EntitlementsController } from '../src/modules/entitlements/entitlements.controller';
 import { EntitlementsService } from '../src/modules/entitlements/entitlements.service';
@@ -224,7 +225,13 @@ describe('Community HTTP (mocked e2e)', () => {
         { provide: CommunityRoomPermissionsService, useValue: roomPermissionsService },
         { provide: CommunityEventsService, useValue: eventsService },
         { provide: AiCommunityService, useValue: aiCommunityService },
-        { provide: AiBudgetService, useValue: { checkAndCharge: jest.fn().mockResolvedValue({ allowed: true, remaining: 100 }) } },
+        { provide: AiBudgetService, useValue: { checkAndCharge: jest.fn().mockResolvedValue({ allowed: true, remaining: 100 }), usage: jest.fn().mockResolvedValue({ used: 0, limit: 100 }) } },
+        {
+          provide: CommunityModerationQueueService,
+          useValue: {
+            getQueueCounts: jest.fn().mockResolvedValue({ waiting: 0, active: 0, failed: 0, delayed: 0 }),
+          },
+        },
         { provide: CreatorAuditService, useValue: auditService },
         { provide: CommunityMembersService, useValue: membersService },
         { provide: EntitlementsService, useValue: entitlementsService },

@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/navigation/public_video_path.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../shared/models/video.dart';
 import '../../feed/data/feed_repository.dart';
+import '../data/subscriptions_repository.dart';
 
 /// Subscriptions = videos from channels you subscribe to (YouTube parity).
 class SubscriptionsScreen extends ConsumerStatefulWidget {
@@ -37,25 +37,15 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
 
   Future<void> _loadChannels() async {
     try {
-      final api = ref.read(apiClientProvider);
-      final me = await api.dio.get('/users/me');
-      final meData = me.data['data'] as Map?;
-      final meId = meData?['id'] as String?;
-      final username = meData?['username'] as String?;
-      if (meId == null) return;
-      final res = await api.dio.get('/channels/$meId/subscriptions', queryParameters: {'limit': 40});
-      final payload = res.data['data'];
-      final list = payload is Map
-          ? (payload['data'] as List? ?? [])
-          : (payload is List ? payload : []);
-      if (!mounted) return;
+      final page = await ref
+          .read(subscriptionsRepositoryProvider)
+          .listMySubscriptionChannels(limit: 40);
+      if (page == null || !mounted) return;
       setState(() {
-        _myUsername = username;
+        _myUsername = page.username;
         _channels
           ..clear()
-          ..addAll(
-            list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)),
-          );
+          ..addAll(page.channels);
       });
     } catch (_) {}
   }
@@ -126,7 +116,9 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
             ),
         ],
       ),
-      body: _loading
+      body: Semantics(
+        label: 'Subscriptions feed',
+        child: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error
               ? ForgeEmptyState(
@@ -227,6 +219,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                         ),
                       ],
                     ),
+      ),
     );
   }
 }
@@ -247,7 +240,11 @@ class _ChannelChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens.of(context);
-    return InkWell(
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: selected ? '$label, selected channel filter' : 'Filter by $label',
+      child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
@@ -283,6 +280,7 @@ class _ChannelChip extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

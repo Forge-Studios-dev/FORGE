@@ -2,6 +2,7 @@
 
 import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
+import { Button } from '@forge/design-system';
 import './globals.css';
 
 export default function GlobalError({
@@ -22,13 +23,9 @@ export default function GlobalError({
         <p className="max-w-md text-center text-sm text-on-surface-variant">
           An unexpected error occurred. You can try again or return home.
         </p>
-        <button
-          type="button"
-          onClick={() => reset()}
-          className="primary-button rounded-full px-5 py-2 text-sm font-semibold text-on-primary"
-        >
+        <Button type="button" variant="primary" onClick={() => reset()} className="px-5 py-2 text-sm">
           Try again
-        </button>
+        </Button>
       </body>
     </html>
   );

@@ -2,7 +2,7 @@
 
 import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
-import { Icon } from '@forge/design-system';
+import { Button, Icon } from '@forge/design-system';
 
 export default function AdminError({
   error,
@@ -23,13 +23,9 @@ export default function AdminError({
         <p className="mb-8 text-on-surface-variant">
           {error.message || 'Something went wrong loading this admin view.'}
         </p>
-        <button
-          type="button"
-          onClick={() => reset()}
-          className="primary-button rounded-full px-8 py-3 font-semibold text-on-primary"
-        >
+        <Button type="button" variant="primary" onClick={() => reset()} className="!px-8 !py-3">
           Try again
-        </button>
+        </Button>
       </div>
     </main>
   );

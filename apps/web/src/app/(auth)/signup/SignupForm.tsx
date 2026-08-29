@@ -17,6 +17,7 @@ import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter';
 import { LegalLinks } from '@/components/legal/LegalLinks';
 import { isGoogleOAuthEnabled, loadPlatformConfig } from '@/lib/platform-config';
 import type { PlatformPublicConfig } from '@forge/shared-types';
+import { Button } from '@forge/design-system';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -160,13 +161,14 @@ export function SignupForm({
             <LegalLinks linkClassName="text-primary underline hover:underline" />.
           </span>
         </label>
-        <button
+        <Button
           type="submit"
+          variant="primary"
           disabled={loading || !acceptedTerms}
-          className="primary-button w-full rounded-full py-4 font-semibold text-on-primary disabled:opacity-60"
+          className="w-full py-4"
         >
           {loading ? 'Creating account…' : 'Create account'}
-        </button>
+        </Button>
         {showGoogle && (
           <a
             href={`${API_URL}/auth/google`}

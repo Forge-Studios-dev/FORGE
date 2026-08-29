@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getAccessToken, persistAuthSession } from '@/lib/auth-storage';
 import { User } from '@/types';
-import { Icon } from '@forge/design-system';
+import { Button, Icon } from '@forge/design-system';
 
 export default function ApprovalRejectedPage() {
   const router = useRouter();
@@ -51,14 +51,15 @@ export default function ApprovalRejectedPage() {
         ) : null}
 
         <div className="flex flex-wrap gap-3">
-          <button
+          <Button
             type="button"
+            variant="primary"
             onClick={() => reRequest.mutate()}
             disabled={reRequest.isPending}
-            className="primary-button rounded-full px-6 py-2.5 font-semibold text-on-primary disabled:opacity-60"
+            className="px-6 py-2.5"
           >
             {reRequest.isPending ? 'Submitting…' : 'Request again'}
-          </button>
+          </Button>
           <Link
             href="/"
             className="rounded-full border border-outline-variant px-6 py-2.5 font-semibold hover:border-primary"

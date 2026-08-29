@@ -25,6 +25,11 @@ vi.mock('../../lib/analytics', () => ({
   trackSearchQuery: vi.fn(),
 }));
 
+const pushSearchHistory = vi.fn();
+vi.mock('../../lib/search-history', () => ({
+  pushSearchHistory: (...args: unknown[]) => pushSearchHistory(...args),
+}));
+
 vi.mock('next/image', () => ({
   default: (props: Record<string, unknown>) => <img {...props} />,
 }));
@@ -230,6 +235,7 @@ describe('SearchPage', () => {
     await user.type(input, '  forge  ');
     await user.click(screen.getByRole('button', { name: 'Search' }));
 
+    expect(pushSearchHistory).toHaveBeenCalledWith('forge');
     expect(routerPush).toHaveBeenCalledWith('/search?q=forge');
   });
 

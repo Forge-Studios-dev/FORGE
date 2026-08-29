@@ -24,6 +24,29 @@ export class CommunityModerationQueueService {
     });
   }
 
+  async getQueueCounts(): Promise<{
+    waiting: number;
+    active: number;
+    completed: number;
+    failed: number;
+    delayed: number;
+  }> {
+    const counts = await this.queue.getJobCounts(
+      'waiting',
+      'active',
+      'completed',
+      'failed',
+      'delayed',
+    );
+    return {
+      waiting: counts.waiting ?? 0,
+      active: counts.active ?? 0,
+      completed: counts.completed ?? 0,
+      failed: counts.failed ?? 0,
+      delayed: counts.delayed ?? 0,
+    };
+  }
+
   /**
    * Async LLM judge tail (AI-LLM-STRATEGY Phase I) shared by all UGC surfaces
    * (room messages, post comments). Runs only on borderline content that passed

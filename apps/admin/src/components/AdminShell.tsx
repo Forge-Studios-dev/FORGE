@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Icon } from '@forge/design-system';
 import { adminLogout } from '@/lib/api';
+import { FULL_ADMIN_ONLY_HREFS, useAdminProfile } from '@/lib/admin-profile';
 import { useTheme } from '@/components/theme/ThemeProvider';
 
 type NavItem = { href: string; label: string; icon: string };
@@ -21,6 +22,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/creator-approvals', label: 'Approvals', icon: 'verified' },
       { href: '/content', label: 'Content', icon: 'video_library' },
       { href: '/reports', label: 'Reports', icon: 'flag' },
+      { href: '/ai', label: 'AI budget', icon: 'psychology' },
       { href: '/users', label: 'Users', icon: 'group' },
       { href: '/copyright', label: 'Copyright & Strikes', icon: 'gavel' },
     ],
@@ -52,18 +54,25 @@ function isActive(pathname: string, href: string): boolean {
 function NavLinks({
   pathname,
   onNavigate,
+  fullAdmin,
 }: {
   pathname: string;
   onNavigate?: () => void;
+  fullAdmin: boolean;
 }) {
   return (
     <>
-      {NAV_GROUPS.map((group) => (
+      {NAV_GROUPS.map((group) => {
+        const items = group.items.filter(
+          (item) => fullAdmin || !FULL_ADMIN_ONLY_HREFS.has(item.href),
+        );
+        if (items.length === 0) return null;
+        return (
         <section key={group.label} className="mb-3 last:mb-0">
           <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-outline">
             {group.label}
           </p>
-          {group.items.map((item) => {
+          {items.map((item) => {
             const active = isActive(pathname, item.href);
             return (
               <Link
@@ -82,7 +91,8 @@ function NavLinks({
             );
           })}
         </section>
-      ))}
+        );
+      })}
     </>
   );
 }
@@ -109,6 +119,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
+  const { data: adminProfile } = useAdminProfile();
+  const fullAdmin = adminProfile?.adminTier !== 'moderator';
   const [mobileOpen, setMobileOpen] = useState(false);
 
   if (pathname === '/login' || pathname === '/unauthorized') {
@@ -129,7 +141,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
-          <NavLinks pathname={pathname} />
+          <NavLinks pathname={pathname} fullAdmin={fullAdmin} />
         </nav>
         <SidebarFooter onLogout={logout} />
       </aside>
@@ -178,7 +190,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             />
             <aside className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-outline-variant/20 bg-surface-container-low md:hidden">
               <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4 pt-6">
-                <NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} />
+                <NavLinks pathname={pathname} fullAdmin={fullAdmin} onNavigate={() => setMobileOpen(false)} />
               </nav>
               <SidebarFooter onLogout={logout} onNavigate={() => setMobileOpen(false)} />
             </aside>

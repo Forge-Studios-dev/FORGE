@@ -6,6 +6,7 @@ import { AiBudgetService } from './ai-budget.service';
 import { CreatorAuditService } from './creator-audit.service';
 import { CommunitiesService } from './communities.service';
 import { CommunityRoomMessagesService } from './community-room-messages.service';
+import { CommunityModerationQueueService } from './community-moderation-queue.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
@@ -69,6 +70,7 @@ export class CommunityAiController {
     private readonly roomMessagesService: CommunityRoomMessagesService,
     private readonly communitiesService: CommunitiesService,
     private readonly aiBudget: AiBudgetService,
+    private readonly moderationQueue: CommunityModerationQueueService,
   ) {}
 
   @Post('creators/me/ai/moderation/score')
@@ -130,9 +132,12 @@ export class CommunityAiController {
 
   @Get('admin/ai/budget')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Daily AI/LLM budget usage (admin)' })
+  @ApiOperation({ summary: 'Daily AI/LLM budget usage and moderation queue depth (admin)' })
   async budgetUsage() {
-    return this.aiBudget.usage();
+    return {
+      ...(await this.aiBudget.usage()),
+      queue: await this.moderationQueue.getQueueCounts(),
+    };
   }
 
   @Post('creators/me/copilot/insights')

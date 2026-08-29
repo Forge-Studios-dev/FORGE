@@ -3,7 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
-import { CreatorStatus, User, UserRole } from '../users/entities/user.entity';
+import { AdminTier, CreatorStatus, User, UserRole } from '../users/entities/user.entity';
 import {
   ModerationStatus,
   Video,
@@ -42,6 +42,8 @@ export type AdminUserDetail = {
   avatarUrl: string | null;
   bannerUrl: string | null;
   role: UserRole;
+  /** Present when role=admin — full can mutate platform settings; moderator is read+moderation. */
+  adminTier?: AdminTier;
   isVerified: boolean;
   isActive: boolean;
   deletedAt: Date | null;
@@ -123,6 +125,14 @@ export class AdminService {
 
     if (patch.role === UserRole.ADMIN) {
       await this.assertAdminEscalationAllowed(id, adminId, currentAdminPassword);
+    }
+
+    if (patch.adminTier !== undefined) {
+      const target = await this.userRepository.findOne({ where: { id }, select: ['id', 'role'] });
+      const resultingRole = patch.role ?? target?.role;
+      if (resultingRole !== UserRole.ADMIN) {
+        throw new BadRequestException('adminTier can only be set on admin accounts');
+      }
     }
 
     await this.userRepository.update(id, patch);
@@ -257,6 +267,7 @@ export class AdminService {
       avatarUrl: user.avatarUrl ?? null,
       bannerUrl: user.bannerUrl ?? null,
       role: user.role,
+      adminTier: user.role === UserRole.ADMIN ? user.adminTier : undefined,
       isVerified: user.isVerified,
       isActive: user.isActive,
       deletedAt: user.deletedAt ?? null,

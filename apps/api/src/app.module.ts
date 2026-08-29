@@ -54,6 +54,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { ClsUserInterceptor } from './common/interceptors/cls-user.interceptor';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { AdminFullGuard } from './common/guards/admin-full.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { ConsumerOnlyGuard } from './common/guards/consumer-only.guard';
 import { EmailVerifiedGuard } from './common/guards/email-verified.guard';
@@ -245,6 +246,7 @@ function sentryFilterProviders() {
     // about to be rejected anyway (audit finding, forge-performance.md).
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: AdminFullGuard },
     { provide: APP_GUARD, useClass: ConsumerOnlyGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_GUARD, useExisting: EmailVerifiedGuard },

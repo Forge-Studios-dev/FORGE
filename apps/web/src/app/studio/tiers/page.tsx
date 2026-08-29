@@ -210,14 +210,15 @@ export default function StudioTiersPage() {
           rows={3}
           className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-4 py-2.5"
         />
-        <button
+        <Button
           type="button"
+          variant="primary"
           disabled={!name.trim() || createMutation.isPending}
           onClick={() => createMutation.mutate()}
-          className="primary-button rounded-full px-6 py-2.5 text-sm font-semibold text-on-primary disabled:opacity-40"
+          className="disabled:opacity-40"
         >
           {createMutation.isPending ? 'Creating…' : 'Create tier'}
-        </button>
+        </Button>
       </section>
 
       <h2 className="mb-4 font-semibold">Your tiers</h2>

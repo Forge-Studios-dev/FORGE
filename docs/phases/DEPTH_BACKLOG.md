@@ -2,6 +2,76 @@
 
 Master phases 01–24 are documented. This list tracks **remaining depth** that is intentionally deferred or partially shipped.
 
+### Master Execution Wave 13 (2026-08-29)
+
+- Admin user detail: assign `adminTier` (`full` / `moderator`) via PATCH + UI select (full-admin only)
+- Community e2e DI + H23 `HlsPlayerBlock` already on tip
+
+### Master Execution Wave 12 (2026-08-29)
+
+- Community HTTP e2e: mock `CommunityModerationQueueService` for `CommunityAiController` DI
+- H23 complete: extract `HlsPlayerBlock` from `watch_screen.dart` (player + volume prefs + PiP lifecycle)
+
+### Master Execution Wave 11 (2026-08-28)
+
+On `feature/continuous-parity-delivery`: likes dedupe migration + race-safe `setVideoReaction`; `AdminTier` full/moderator + `AdminFullGuard`; mobile `/settings/strikes`; studio realtime analytics endpoint; design-system dist rebuild; H23 partial (`WatchEngageRow` / `WatchCommentsSection`). See [PHASE-01-UI-UX §8](../execution/PHASE-01-UI-UX.md).
+
+## Shipped in continuous parity delivery (2026-08-26)
+
+Wave 0–2 on `feature/continuous-parity-delivery` (see [PHASE-01-UI-UX §8](../execution/PHASE-01-UI-UX.md)):
+
+- Admin MFA hard-gate + JWT live `mfaEnabled` + MFA cache bust + admin audit-log fill-in
+- Studio Live scoped to creator (`useLiveStreamsQuery(creatorId)`)
+- Subscriber list private to owner/ADMIN (`getFollowers` ForbiddenException + web privacy UX)
+- Theater mode keeps comments/info/chapters; TopBar Create hidden below `md`
+- Studio comments/moderation/subscribers pagination + real error/retry
+- Upload step 2 drag-drop + lost-file warning; RealtimeToasts on DS Toast
+- Error/auth/studio `Button variant="primary"` batch; VideoPlayer touch secondary controls; Super Thanks infinite query; playlists attach via `fetchStudioLibrary`
+
+### Wave 3 continuation (same day)
+
+- Admin user detail: success/error toasts on update/delete/resend/approve/reject/impersonate/video mutations (`apps/admin/.../users/[id]/page.tsx`)
+- Mobile `FollowerListScreen`: 403 → private-list message (widget tests); matches web
+- Additional web `primary-button` → `Button` on studio/upload/search/messages/comments/settings CTAs (Links left as-is)
+
+### Wave 4 (same day)
+
+- Studio dashboard + analytics: drop deprecated `getMyVideos`; use `fetchStudioLibrary` (views sort / paginated ready library)
+- Admin creator-approvals + content moderation: success toasts on single actions
+- Analytics “Top videos” sorted by `viewCount`
+
+### Wave 5 (same day)
+
+- Search page form submit writes `pushSearchHistory` (H9) + vitest
+- Admin `/ai` AI budget page wired to existing `GET /admin/ai/budget` (H19 thin surface) + Moderation nav
+
+### Wave 6 (same day)
+
+- `GET /admin/ai/budget` includes BullMQ community-moderation queue counts; admin AI page shows Waiting/Active/Failed/Delayed
+- Exported `buttonClassName()` from design-system; high-traffic Links use it (closes Link `primary-button` debt on shell/gates/studio)
+- Mobile studio comments scan aligned to web (24×8, cap 80)
+
+### Wave 7 (same day)
+
+- Residual web + admin + DS EmptyState/StatusPage `primary-button` → `buttonClassName` / `Button` (apps/web zero raw hits)
+- Partial H8: `apps/web/src/lib/comments-api.ts` + CommentsPanel wired (12 tests green)
+- Validation: web 43 + API 68 targeted tests green
+
+### Wave 8 (same day)
+
+- H8 complete: `CommentsPanel.tsx` split → `CommentBody.tsx` + `CommentRow.tsx` + slim panel (12 vitest green). Like/dislike already pass state into `mutationFn` (no stale-closure race).
+- H22 slice: `notifications/data/notifications_repository.dart` + screen/library unread badge wired; unit tests green
+
+### Wave 9 (same day)
+
+- H22: `library/data/library_repository.dart` (playlist counts + disliked videos) + unit tests
+- H22: `messages/data/messages_repository.dart` (conversations/messages/send/markRead/search) + unit tests; socket stays in presentation
+
+### Wave 10 (same day)
+
+- H22 complete for remaining feature folders: playlists, subscriptions, profile, community, shorts — each with `data/*_repository.dart` + unit tests; sockets stay in presentation
+- Mobile studio analytics MRR display aligned to USD (`$`) to match web `formatCentsUsd` (was hardcoded `₹`)
+
 ## Shipped in fresh Phase 01 re-audit (2026-08-08)
 
 Re-ran a scoped UI/UX audit of `apps/web` + `apps/admin` + `packages/design-system` against the closed [PHASE_01_REPORT](01-ui-ux/PHASE_01_REPORT.md) baseline. Design-system token adoption confirmed clean (zero raw hex / default-Tailwind bypass in either app). Fixed:

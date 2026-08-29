@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Icon, PageHeader } from '@forge/design-system';
+import { Icon, PageHeader, buttonClassName } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
 import { useStudioAccess } from '@/hooks/useStudioAccess';
 
@@ -23,10 +23,7 @@ function GateCard({ title, subtitle, icon, primary, secondary }: GateVariant) {
         <PageHeader title={title} subtitle={subtitle} />
         <div className="mt-8 flex flex-col items-center gap-3">
           {primary ? (
-            <Link
-              href={primary.href}
-              className="primary-button inline-flex rounded-full px-8 py-3 font-semibold text-on-primary"
-            >
+            <Link href={primary.href} className={buttonClassName('primary')}>
               {primary.label}
             </Link>
           ) : null}

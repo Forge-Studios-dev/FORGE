@@ -5,12 +5,18 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useRef, useState } from 'react';
-import { EmptyState, FeedGridSkeleton, Icon, Input, PageHeader } from '@forge/design-system';
+import dynamic from 'next/dynamic';
+import { Button, EmptyState, FeedGridSkeleton, Icon, Input, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { trackSearchQuery } from '@/lib/analytics';
+import { pushSearchHistory } from '@/lib/search-history';
 import { Stream, User, Video } from '@/types';
-import { FeedCard } from '@/components/FeedCard/FeedCard';
+
+const FeedCard = dynamic(
+  () => import('@/components/FeedCard/FeedCard').then((m) => m.FeedCard),
+  { loading: () => null },
+);
 
 type SearchType = 'all' | 'video' | 'channel' | 'playlist';
 type SearchDuration = 'any' | 'short' | 'medium' | 'long';
@@ -478,7 +484,9 @@ function SearchPageContent() {
         className="mb-6 flex gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          pushSearch({ q: input.trim() });
+          const term = input.trim();
+          pushSearchHistory(term);
+          pushSearch({ q: term });
         }}
       >
         <div className="relative flex-1">
@@ -490,9 +498,9 @@ function SearchPageContent() {
             className="pl-11"
           />
         </div>
-        <button type="submit" className="primary-button shrink-0 rounded-full px-6 py-2.5 text-sm font-semibold text-on-primary">
+        <Button type="submit" variant="primary" className="shrink-0">
           Search
-        </button>
+        </Button>
       </form>
 
       {q.length >= 2 ? (

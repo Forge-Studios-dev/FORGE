@@ -9,7 +9,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as bcrypt from 'bcrypt';
 import { DataSource, In } from 'typeorm';
 import { AdminService } from './admin.service';
-import { User, UserRole } from '../users/entities/user.entity';
+import { User, UserRole, AdminTier } from '../users/entities/user.entity';
 import {
   ModerationStatus,
   Video,
@@ -319,6 +319,23 @@ describe('AdminService security', () => {
         role: UserRole.ADMIN,
         isVerified: true,
       });
+    });
+  });
+
+  describe('updateUser — adminTier', () => {
+    it('allows setting adminTier on an admin account', async () => {
+      await service.updateUser(adminUser.id, { adminTier: AdminTier.MODERATOR }, adminUser.id);
+      expect(userRepository.update).toHaveBeenCalledWith(adminUser.id, {
+        adminTier: AdminTier.MODERATOR,
+      });
+      expect(authUserCache.bust).toHaveBeenCalledWith(adminUser.id);
+    });
+
+    it('rejects adminTier on a non-admin account', async () => {
+      await expect(
+        service.updateUser(regularUser.id, { adminTier: AdminTier.MODERATOR }, adminUser.id),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(userRepository.update).not.toHaveBeenCalled();
     });
   });
 

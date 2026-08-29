@@ -1,6 +1,7 @@
 'use client';
 
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import Image from 'next/image';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -19,23 +20,32 @@ export function UserListPage({
 }) {
   const { user: me } = useAuth();
   const isOwnFollowing = type === 'following' && !!me?.id && me.id === userId;
+  const canViewFollowers =
+    type !== 'followers' ||
+    (!!me?.id && (me.id === userId || me.role === 'admin'));
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
-    queryKey: [type, userId],
-    queryFn: async ({ pageParam }) => {
-      const params = new URLSearchParams({ limit: '20' });
-      if (pageParam) params.set('cursor', pageParam as string);
-      const listPath = type === 'followers' ? 'subscribers' : 'subscriptions';
-      const { data } = await api.get<{ data: { data: User[]; meta: { cursor: string | null; hasMore: boolean } } }>(
-        `/channels/${userId}/${listPath}?${params}`,
-      );
-      return data.data;
-    },
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => (last.meta.hasMore ? last.meta.cursor ?? undefined : undefined),
-  });
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, isError } =
+    useInfiniteQuery({
+      queryKey: [type, userId],
+      enabled: type === 'following' || canViewFollowers,
+      queryFn: async ({ pageParam }) => {
+        const params = new URLSearchParams({ limit: '20' });
+        if (pageParam) params.set('cursor', pageParam as string);
+        const listPath = type === 'followers' ? 'subscribers' : 'subscriptions';
+        const { data } = await api.get<{
+          data: { data: User[]; meta: { cursor: string | null; hasMore: boolean } };
+        }>(`/channels/${userId}/${listPath}?${params}`);
+        return data.data;
+      },
+      initialPageParam: undefined as string | undefined,
+      getNextPageParam: (last) => (last.meta.hasMore ? last.meta.cursor ?? undefined : undefined),
+    });
 
   const users = data?.pages.flatMap((p) => p.data) ?? [];
+  const followersForbidden =
+    type === 'followers' &&
+    (!canViewFollowers ||
+      (isError && isAxiosError(error) && error.response?.status === 403));
 
   const title = type === 'followers' ? 'Subscribers' : isOwnFollowing ? 'Manage subscriptions' : 'Subscriptions';
   const emptyLabel = type === 'followers' ? 'No subscribers yet.' : 'No subscriptions yet.';
@@ -52,7 +62,11 @@ export function UserListPage({
         </p>
       ) : null}
 
-      {isLoading ? (
+      {followersForbidden ? (
+        <p className="mt-6 text-on-surface-variant">
+          This channel&apos;s subscriber list is private.
+        </p>
+      ) : isLoading ? (
         <p className="mt-6 text-on-surface-variant">Loading…</p>
       ) : users.length === 0 ? (
         <p className="mt-6 text-on-surface-variant">{emptyLabel}</p>
@@ -95,7 +109,7 @@ export function UserListPage({
         </ul>
       )}
 
-      {hasNextPage && (
+      {!followersForbidden && hasNextPage && (
         <button
           type="button"
           onClick={() => fetchNextPage()}

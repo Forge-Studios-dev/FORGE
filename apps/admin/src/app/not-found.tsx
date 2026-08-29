@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Icon } from '@forge/design-system';
+import { Icon, buttonClassName } from '@forge/design-system';
 
 export default function AdminNotFound() {
   return (
@@ -10,7 +10,7 @@ export default function AdminNotFound() {
         <p className="mb-8 text-on-surface-variant">
           This admin route does not exist or was removed.
         </p>
-        <Link href="/dashboard" className="primary-button inline-block rounded-full px-8 py-3 font-semibold text-on-primary">
+        <Link href="/dashboard" className={`${buttonClassName('primary')} !px-8 !py-3`}>
           Back to dashboard
         </Link>
       </div>

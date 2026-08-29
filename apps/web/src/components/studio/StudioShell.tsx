@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Icon } from '@forge/design-system';
+import { Icon, buttonClassName } from '@forge/design-system';
 import { StudioCommandBar } from '@/components/studio/StudioCommandBar';
 import { StudioCollaboratorDenied } from '@/components/studio/StudioCollaboratorDenied';
 import { useStudioAccess } from '@/hooks/useStudioAccess';
@@ -110,16 +110,13 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
             {isCollaborator ? (
               <Link
                 href="/studio/moderation"
-                className="primary-button mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-4 py-3 font-semibold text-on-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                className={`${buttonClassName('primary')} mt-4 w-full gap-2`}
               >
                 <Icon name="shield" />
                 Open moderation
               </Link>
             ) : (
-              <Link
-                href="/upload"
-                className="primary-button mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-4 py-3 font-semibold text-on-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-              >
+              <Link href="/upload" className={`${buttonClassName('primary')} mt-4 w-full gap-2`}>
                 <Icon name="add" />
                 Create
               </Link>

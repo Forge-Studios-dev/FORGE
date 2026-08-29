@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { getApiErrorMessage } from '@/lib/api-message';
 
@@ -105,14 +106,15 @@ export function InterestsSettings() {
       ) : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button
+        <Button
           type="button"
+          variant="primary"
           disabled={!dirty || save.isPending}
           onClick={() => save.mutate(selected)}
-          className="primary-button rounded-full px-5 py-2 text-sm font-semibold text-on-primary disabled:opacity-50"
+          className="px-5 py-2"
         >
           {save.isPending ? 'Saving…' : 'Save interests'}
-        </button>
+        </Button>
         <span className="text-xs text-on-surface-variant">
           {selected.length}/{MAX_INTERESTS} selected
         </span>

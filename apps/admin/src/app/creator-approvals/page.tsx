@@ -42,25 +42,33 @@ export default function CreatorApprovalsPage() {
 
   const approve = useMutation({
     mutationFn: (id: string) => api.post(`/admin/creators/${id}/approve`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-creators-pending'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-creators-pending'] });
+      toast({ title: 'Creator approved', variant: 'success' });
+    },
     onError: () => toast({ title: 'Could not approve creator', variant: 'critical' }),
   });
 
   const reject = useMutation({
     mutationFn: ({ id, note }: { id: string; note?: string }) => api.post(`/admin/creators/${id}/reject`, { note }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-creators-pending'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-creators-pending'] });
+      toast({ title: 'Creator rejected', variant: 'success' });
+    },
     onError: () => toast({ title: 'Could not reject creator', variant: 'critical' }),
   });
 
   const bulkApprove = useMutation({
     mutationFn: (ids: string[]) => api.post('/admin/creators/bulk-approve', { ids }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-creators-pending'] }),
+    onError: () => toast({ title: 'Bulk approve failed', variant: 'critical' }),
   });
 
   const bulkReject = useMutation({
     mutationFn: ({ ids, note }: { ids: string[]; note?: string }) =>
       api.post('/admin/creators/bulk-reject', { ids, note }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-creators-pending'] }),
+    onError: () => toast({ title: 'Bulk reject failed', variant: 'critical' }),
   });
 
   function runBulkApprove() {

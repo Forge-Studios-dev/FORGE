@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import type { Redis } from 'ioredis';
-import { UserRole, CreatorStatus } from '../users/entities/user.entity';
+import { AdminTier, UserRole, CreatorStatus } from '../users/entities/user.entity';
 import { safeRedisDel, safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
 
 /** Cached fields required for JWT validation (F-501). */
@@ -13,6 +13,8 @@ export type CachedAuthUser = {
   isVerified: boolean;
   isActive: boolean;
   deletedAt: string | null;
+  mfaEnabled: boolean;
+  adminTier: AdminTier;
 };
 
 const TTL_SEC = 60;

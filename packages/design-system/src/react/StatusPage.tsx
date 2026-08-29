@@ -1,3 +1,4 @@
+import { buttonClassName } from './Button';
 import { Icon } from './Icon';
 
 export type StatusPageAction = { label: string; href: string };
@@ -28,7 +29,7 @@ export function StatusPage({
           {action && (
             <a
               href={action.href}
-              className="primary-button rounded-full px-8 py-3 font-semibold text-on-primary"
+              className={`${buttonClassName('primary')} px-8 py-3`}
             >
               {action.label}
             </a>

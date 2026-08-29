@@ -443,17 +443,7 @@ export function WatchExperience({
         <p className="text-sm text-on-surface-variant">Starting secure session…</p>
       </div>
     ) : (
-        <div className={theaterMode ? 'fixed inset-0 z-50 flex flex-col bg-background p-4' : 'relative'}>
-        {theaterMode ? (
-          <button
-            type="button"
-            onClick={() => setTheater(false)}
-            aria-label="Exit theater mode"
-            className="mb-3 self-end text-sm text-primary hover:underline"
-          >
-            Exit theater
-          </button>
-        ) : null}
+        <div className="relative">
         <div className="relative">
           <VideoPlayer
             videoId={video.id}
@@ -509,73 +499,71 @@ export function WatchExperience({
             </div>
           ) : null}
         </div>
-        {!theaterMode ? (
-          <div className="mt-2 flex flex-wrap items-center gap-4">
+        <div className="mt-2 flex flex-wrap items-center gap-4">
+          <button
+            type="button"
+            onClick={() => setTheater(!theaterMode)}
+            aria-label={theaterMode ? 'Exit theater mode' : 'Theater mode'}
+            className="text-xs text-primary hover:underline"
+          >
+            {theaterMode ? 'Exit theater' : 'Theater mode'}
+          </button>
+          {canPlay && video.hlsUrl ? (
             <button
               type="button"
-              onClick={() => setTheater(true)}
-              aria-label="Theater mode"
+              onClick={minimizeToDock}
+              aria-label="Miniplayer"
               className="text-xs text-primary hover:underline"
             >
-              Theater mode
+              Miniplayer
             </button>
-            {canPlay && video.hlsUrl ? (
-              <button
-                type="button"
-                onClick={minimizeToDock}
-                aria-label="Miniplayer"
-                className="text-xs text-primary hover:underline"
-              >
-                Miniplayer
-              </button>
-            ) : null}
-            <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-on-surface-variant">
-              <input
-                type="checkbox"
-                checked={autoplayNext}
-                onChange={toggleAutoplay}
-                className="rounded border-outline-variant"
-              />
-              Autoplay next
-            </label>
-            <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-on-surface-variant">
-              <input
-                type="checkbox"
-                checked={loopVideo}
-                onChange={toggleLoop}
-                className="rounded border-outline-variant"
-              />
-              Loop video
-            </label>
-            {listId ? (
-              <>
-                <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-on-surface-variant">
-                  <input
-                    type="checkbox"
-                    checked={shuffleOn}
-                    onChange={toggleShuffle}
-                    className="rounded border-outline-variant"
-                  />
-                  Shuffle
-                </label>
-                <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-on-surface-variant">
-                  <input
-                    type="checkbox"
-                    checked={loopPlaylist}
-                    onChange={toggleLoopPlaylist}
-                    className="rounded border-outline-variant"
-                  />
-                  Loop playlist
-                </label>
-              </>
-            ) : null}
-            {upNextHint ? (
-              <span className="text-xs text-secondary" role="status">
-                {upNextHint}
-              </span>
-            ) : null}
-          </div>
-        ) : null}
+          ) : null}
+          <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-on-surface-variant">
+            <input
+              type="checkbox"
+              checked={autoplayNext}
+              onChange={toggleAutoplay}
+              className="rounded border-outline-variant"
+            />
+            Autoplay next
+          </label>
+          <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-on-surface-variant">
+            <input
+              type="checkbox"
+              checked={loopVideo}
+              onChange={toggleLoop}
+              className="rounded border-outline-variant"
+            />
+            Loop video
+          </label>
+          {listId ? (
+            <>
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-on-surface-variant">
+                <input
+                  type="checkbox"
+                  checked={shuffleOn}
+                  onChange={toggleShuffle}
+                  className="rounded border-outline-variant"
+                />
+                Shuffle
+              </label>
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-on-surface-variant">
+                <input
+                  type="checkbox"
+                  checked={loopPlaylist}
+                  onChange={toggleLoopPlaylist}
+                  className="rounded border-outline-variant"
+                />
+                Loop playlist
+              </label>
+            </>
+          ) : null}
+          {upNextHint ? (
+            <span className="text-xs text-secondary" role="status">
+              {upNextHint}
+            </span>
+          ) : null}
+        </div>
       </div>
     )
   ) : (
@@ -602,7 +590,7 @@ export function WatchExperience({
       >
         <div className="min-w-0 space-y-6">
           {playerBlock}
-          {!theaterMode && chapters.length > 0 ? (
+          {chapters.length > 0 ? (
             <ChaptersBar
               chapters={chapters}
               durationSeconds={video.durationSeconds}
@@ -610,125 +598,119 @@ export function WatchExperience({
               onSeek={(seconds) => setSeekToSeconds(seconds)}
             />
           ) : null}
-          {!theaterMode ? (
-            <TranscriptPanel
-              videoId={video.id}
-              captionUrl={video.captionUrl}
-              captionTracks={video.captionTracks}
-              currentSeconds={playbackSeconds}
-              onSeek={(seconds) => setSeekToSeconds(seconds)}
+          <TranscriptPanel
+            videoId={video.id}
+            captionUrl={video.captionUrl}
+            captionTracks={video.captionTracks}
+            currentSeconds={playbackSeconds}
+            onSeek={(seconds) => setSeekToSeconds(seconds)}
+          />
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <VideoInfo
+                video={video}
+                onGuestAction={onEngageBlocked}
+                onSeekTo={(seconds) => setSeekToSeconds(seconds)}
+                playbackSeconds={playbackSeconds}
+                listId={listId}
+              />
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {!isGuest && !isOwner ? (
+                <PopoverMenu
+                  label="More options"
+                  align="right"
+                  panelClassName="w-56 p-1"
+                  triggerClassName="rounded-full p-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                  trigger={<Icon name="more_vert" className="text-xl" />}
+                >
+                  {(close) => (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={menuItemClass}
+                        onClick={() => {
+                          if (onEngageBlocked) {
+                            onEngageBlocked();
+                            close();
+                            return;
+                          }
+                          void (async () => {
+                            try {
+                              await api.post(`/videos/${video.id}/not-interested`);
+                              close();
+                              router.push('/');
+                            } catch {
+                              close();
+                            }
+                          })();
+                        }}
+                      >
+                        <Icon name="visibility_off" className="text-base" />
+                        Not interested
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={menuItemClass}
+                        onClick={() => {
+                          if (onEngageBlocked) {
+                            onEngageBlocked();
+                            close();
+                            return;
+                          }
+                          void (async () => {
+                            try {
+                              await api.post(`/videos/${video.id}/dont-recommend-channel`);
+                              close();
+                              router.push('/');
+                            } catch {
+                              close();
+                            }
+                          })();
+                        }}
+                      >
+                        <Icon name="block" className="text-base" />
+                        Don’t recommend channel
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`${menuItemClass} text-error`}
+                        onClick={() => {
+                          if (onEngageBlocked) {
+                            onEngageBlocked();
+                            close();
+                            return;
+                          }
+                          close();
+                          setConfirmBlock(true);
+                        }}
+                      >
+                        <Icon name="person_off" className="text-base" />
+                        Block user
+                      </button>
+                    </>
+                  )}
+                </PopoverMenu>
+              ) : null}
+              <ReportContentButton targetType="video" targetId={video.id} />
+            </div>
+          </div>
+          {video.sourceStreamId ? (
+            <StreamChatReplayPanel
+              streamId={video.sourceStreamId}
+              playbackSeconds={playbackSeconds}
             />
           ) : null}
-          {!theaterMode ? (
-            <>
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <VideoInfo
-                    video={video}
-                    onGuestAction={onEngageBlocked}
-                    onSeekTo={(seconds) => setSeekToSeconds(seconds)}
-                    playbackSeconds={playbackSeconds}
-                    listId={listId}
-                  />
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  {!isGuest && !isOwner ? (
-                    <PopoverMenu
-                      label="More options"
-                      align="right"
-                      panelClassName="w-56 p-1"
-                      triggerClassName="rounded-full p-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-                      trigger={<Icon name="more_vert" className="text-xl" />}
-                    >
-                      {(close) => (
-                        <>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className={menuItemClass}
-                            onClick={() => {
-                              if (onEngageBlocked) {
-                                onEngageBlocked();
-                                close();
-                                return;
-                              }
-                              void (async () => {
-                                try {
-                                  await api.post(`/videos/${video.id}/not-interested`);
-                                  close();
-                                  router.push('/');
-                                } catch {
-                                  close();
-                                }
-                              })();
-                            }}
-                          >
-                            <Icon name="visibility_off" className="text-base" />
-                            Not interested
-                          </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className={menuItemClass}
-                            onClick={() => {
-                              if (onEngageBlocked) {
-                                onEngageBlocked();
-                                close();
-                                return;
-                              }
-                              void (async () => {
-                                try {
-                                  await api.post(`/videos/${video.id}/dont-recommend-channel`);
-                                  close();
-                                  router.push('/');
-                                } catch {
-                                  close();
-                                }
-                              })();
-                            }}
-                          >
-                            <Icon name="block" className="text-base" />
-                            Don’t recommend channel
-                          </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className={`${menuItemClass} text-error`}
-                            onClick={() => {
-                              if (onEngageBlocked) {
-                                onEngageBlocked();
-                                close();
-                                return;
-                              }
-                              close();
-                              setConfirmBlock(true);
-                            }}
-                          >
-                            <Icon name="person_off" className="text-base" />
-                            Block user
-                          </button>
-                        </>
-                      )}
-                    </PopoverMenu>
-                  ) : null}
-                  <ReportContentButton targetType="video" targetId={video.id} />
-                </div>
-              </div>
-              {video.sourceStreamId ? (
-                <StreamChatReplayPanel
-                  streamId={video.sourceStreamId}
-                  playbackSeconds={playbackSeconds}
-                />
-              ) : null}
-              <CommentsPanel
-                videoId={video.id}
-                videoOwnerId={video.userId}
-                commentCount={video.commentCount}
-                onGuestInteract={onEngageBlocked}
-                onSeek={(seconds) => setSeekToSeconds(seconds)}
-              />
-            </>
-          ) : null}
+          <CommentsPanel
+            videoId={video.id}
+            videoOwnerId={video.userId}
+            commentCount={video.commentCount}
+            onGuestInteract={onEngageBlocked}
+            onSeek={(seconds) => setSeekToSeconds(seconds)}
+          />
         </div>
         {!theaterMode ? (
           <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
