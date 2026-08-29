@@ -148,6 +148,16 @@ export class StreamingController {
     return this.streamingService.endStream(user.sub, id);
   }
 
+  @Post(':id/rotate-stream-key')
+  @UseGuards(CreatorApprovedGuard)
+  @Permissions(Permission.START_STREAM)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset Mux ingest stream key (invalidates previous key)' })
+  async rotateStreamKey(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
+    const stream = await this.streamingService.rotateStreamKey(user.sub, id);
+    return toPublicStream(stream, true);
+  }
+
   @Patch(':id/slow-mode')
   @UseGuards(CreatorApprovedGuard)
   @Permissions(Permission.START_STREAM)

@@ -3,7 +3,7 @@
 import { Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { getSocket } from '@/lib/socket';
+import { getSocket, joinRoom, leaveRoom } from '@/lib/socket';
 import { getAccessToken } from '@/lib/auth-storage';
 import { VIDEO_READY_EVENT, dispatchVideoReady, type VideoReadyDetail } from '@/lib/video-events';
 import { Video } from '@/types';
@@ -39,14 +39,20 @@ function WatchPageBody({
     const token = getAccessToken();
     const socket = token ? getSocket(token) : null;
     if (socket) {
-      socket.emit('join-video', { videoId: initial.id });
+      const join = () => {
+        void joinRoom('join-video', { videoId: initial.id });
+      };
+      join();
       const onReady = (payload: VideoReadyDetail) => {
         if (payload.videoId === initial.id) dispatchVideoReady(payload);
       };
+      const onConnect = () => join();
       socket.on('video:ready', onReady);
+      socket.on('connect', onConnect);
       return () => {
         socket.off('video:ready', onReady);
-        socket.emit('leave-video', { videoId: initial.id });
+        socket.off('connect', onConnect);
+        leaveRoom('leave-video', { videoId: initial.id });
       };
     }
     return undefined;

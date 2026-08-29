@@ -44,6 +44,8 @@ void main() {
         ForgeSocket.leaveLiveFeed();
         ForgeSocket.joinVideo('v1');
         ForgeSocket.leaveVideo('v1');
+        ForgeSocket.joinConversation('conv1');
+        ForgeSocket.leaveConversation('conv1');
         ForgeSocket.reactStream('s1', 'heart');
         ForgeSocket.on('some-event', (_) {});
         ForgeSocket.off('some-event');

@@ -589,6 +589,46 @@ export class StreamingService {
     return saved;
   }
 
+  /**
+   * Rotate the Mux ingest stream key (YouTube-style "Reset stream key").
+   * Invalidates the previous key immediately — OBS must be updated.
+   */
+  async rotateStreamKey(userId: string, streamId: string): Promise<Stream> {
+    const stream = await this.findById(streamId);
+    if (stream.userId !== userId) {
+      throw new NotFoundException('Stream not found');
+    }
+    if (stream.status === StreamStatus.ENDED) {
+      throw new BadRequestException('Cannot rotate key on an ended stream');
+    }
+
+    if (!stream.muxLiveStreamId || stream.muxLiveStreamId === 'mock-stream-id') {
+      stream.streamKey = `mock-rotated-${Date.now().toString(36)}`;
+    } else {
+      try {
+        const response = await this.mux.video.liveStreams.resetStreamKey(stream.muxLiveStreamId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw = response as any;
+        const nextKey = (raw.stream_key as string | undefined) ?? null;
+        if (!nextKey) {
+          throw new ServiceUnavailableException('Mux did not return a new stream key');
+        }
+        stream.streamKey = nextKey;
+      } catch (err) {
+        if (err instanceof ServiceUnavailableException) throw err;
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`Mux resetStreamKey failed: ${message}`);
+        throw new ServiceUnavailableException(
+          'Could not rotate stream key. Please try again shortly.',
+        );
+      }
+    }
+
+    const saved = await this.streamRepository.save(stream);
+    void this.bustStreamDetailCache(saved.id);
+    return saved;
+  }
+
   async getUpcomingStreams(
     viewerId?: string | null,
     viewerRole?: UserRole | null,
