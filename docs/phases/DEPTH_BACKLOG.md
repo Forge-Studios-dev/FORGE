@@ -2,6 +2,11 @@
 
 Master phases 01–24 are documented. This list tracks **remaining depth** that is intentionally deferred or partially shipped.
 
+### Master Execution Wave 12 (2026-08-29)
+
+- Community HTTP e2e: mock `CommunityModerationQueueService` for `CommunityAiController` DI
+- H23 complete: extract `HlsPlayerBlock` from `watch_screen.dart` (player + volume prefs + PiP lifecycle)
+
 ### Master Execution Wave 11 (2026-08-28)
 
 On `feature/continuous-parity-delivery`: likes dedupe migration + race-safe `setVideoReaction`; `AdminTier` full/moderator + `AdminFullGuard`; mobile `/settings/strikes`; studio realtime analytics endpoint; design-system dist rebuild; H23 partial (`WatchEngageRow` / `WatchCommentsSection`). See [PHASE-01-UI-UX §8](../execution/PHASE-01-UI-UX.md).

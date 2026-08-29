@@ -177,8 +177,15 @@ Closed remaining High/P0–P2 gaps from §4 on branch `feature/continuous-parity
 | Likes dedupe + unique constraint migration + race retry | Closed |
 | Admin RBAC tiers H21 (`AdminTier` + `AdminFullGuard` + admin UI) | Closed |
 | Mobile `/settings/strikes` + notification deep-links (Phase 06 parity) | Closed |
-| `watch_screen` partial split (`WatchEngageRow`, `WatchCommentsSection`; ~1047 LOC) | Closed (H23 core extractions) |
+| `watch_screen` split (`WatchEngageRow`, `WatchCommentsSection`, `HlsPlayerBlock`) | Closed (H23) |
 | Studio realtime analytics (`GET /analytics/studio/realtime`) | Closed |
 | Phase 07 execution doc | Closed |
 
-Still deferred: `watch_screen` player block extraction (~280 LOC); ops secrets/staging soak; assign `adminTier` via admin UI.
+### Master Execution Wave 12 (2026-08-29)
+
+| Item | Status |
+| --- | --- |
+| Community HTTP e2e: mock `CommunityModerationQueueService` | Closed |
+| H23 `HlsPlayerBlock` extract from `watch_screen.dart` | Closed |
+
+Still deferred: ops secrets/staging soak; assign `adminTier` via admin UI.
