@@ -20,6 +20,8 @@ class ForgeSocket {
   static final Set<String> _videoIds = {};
   static bool _liveFeed = false;
 
+  static String? _lastAuthToken;
+
   static void _hookReconnect() {
     if (_connectHooked || _socket == null) return;
     _connectHooked = true;
@@ -57,7 +59,16 @@ class ForgeSocket {
     final token = await _storage.read(key: AppConstants.accessTokenKey);
     if (token == null || token.isEmpty) return null;
 
-    if (_socket != null && _socket!.connected) return _socket;
+    // Mirror web getSocket: if token rotated while connected, refresh auth + reconnect.
+    if (_socket != null && _socket!.connected) {
+      if (_lastAuthToken != null && _lastAuthToken != token) {
+        _socket!.auth = {'token': token};
+        _lastAuthToken = token;
+        _socket!.disconnect();
+        _socket!.connect();
+      }
+      return _socket;
+    }
 
     final base = AppConstants.apiBaseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
     // Recreate if we had a disconnected socket so auth/transports stay fresh.
@@ -66,6 +77,7 @@ class ForgeSocket {
       _socket = null;
       _connectHooked = false;
     }
+    _lastAuthToken = token;
     _socket = io.io(
       '$base/events',
       io.OptionBuilder()
@@ -180,6 +192,7 @@ class ForgeSocket {
     _socket?.disconnect();
     _socket = null;
     _connectHooked = false;
+    _lastAuthToken = null;
     _streamIds.clear();
     _streamChatIds.clear();
     _channelIds.clear();
