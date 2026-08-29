@@ -105,6 +105,11 @@ export default function StudioAnalyticsPage() {
           views: number;
           ctr: number | null;
           avgWatchPercent: number | null;
+          audienceRetention?: Array<{
+            bucketPercent: number;
+            relativePercent: number;
+            sessions: number;
+          }>;
         };
       }>('/analytics/studio/video-performance', { params: { days: perfDays } });
       return data.data;
@@ -261,6 +266,31 @@ export default function StudioAnalyticsPage() {
           </p>
         </article>
       </section>
+
+      {videoPerformance?.audienceRetention && videoPerformance.audienceRetention.length > 0 ? (
+        <section className="glass-panel rounded-2xl p-6">
+          <h2 className="text-lg font-semibold">Audience retention</h2>
+          <p className="mt-1 text-xs text-on-surface-variant">
+            Share of watch sessions that reached each point in the video (from last known progress,{' '}
+            {videoPerformance.periodDays}d). Not a per-second beacon curve.
+          </p>
+          <div className="mt-4 flex h-36 items-end gap-1.5">
+            {videoPerformance.audienceRetention.map((point) => (
+              <div
+                key={point.bucketPercent}
+                className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1"
+              >
+                <div
+                  className="w-full rounded-t bg-primary/80"
+                  style={{ height: `${Math.max(point.relativePercent, 2)}%` }}
+                  title={`${point.relativePercent}% still watching at ${point.bucketPercent}%`}
+                />
+                <span className="text-[10px] text-outline">{point.bucketPercent}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {subscriberStats ? (
         <div className="grid gap-4 sm:grid-cols-3">

@@ -2,6 +2,11 @@
 
 Master phases 01–24 are documented. This list tracks **remaining depth** that is intentionally deferred or partially shipped.
 
+### Master Execution Wave 13 (2026-08-29)
+
+- Admin user detail: assign `adminTier` (`full` / `moderator`) via PATCH + UI select (full-admin only)
+- Community e2e DI + H23 `HlsPlayerBlock` already on tip
+
 ### Master Execution Wave 12 (2026-08-29)
 
 - Community HTTP e2e: mock `CommunityModerationQueueService` for `CommunityAiController` DI

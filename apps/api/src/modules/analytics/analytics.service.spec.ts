@@ -57,12 +57,22 @@ describe('AnalyticsService', () => {
           impressions: '10',
           avg_watch_pct: '40',
         },
+      ])
+      .mockResolvedValueOnce([
+        { bucket: '0', sessions: '10', total: '10' },
+        { bucket: '50', sessions: '4', total: '10' },
+        { bucket: '90', sessions: '1', total: '10' },
       ]);
     const result = await service.getStudioVideoPerformance('creator-1', 28);
     expect(result.impressions).toBe(10);
     expect(result.views).toBe(5);
     expect(result.ctr).toBe(0.5);
     expect(result.avgWatchPercent).toBe(42.5);
+    expect(result.audienceRetention).toEqual([
+      { bucketPercent: 0, relativePercent: 100, sessions: 10 },
+      { bucketPercent: 50, relativePercent: 40, sessions: 4 },
+      { bucketPercent: 90, relativePercent: 10, sessions: 1 },
+    ]);
     expect(result.topVideos[0]).toMatchObject({
       videoId: 'v1',
       ctr: 0.5,
@@ -71,6 +81,7 @@ describe('AnalyticsService', () => {
     // watch_history uses watched_at (no created_at column)
     expect(String(dataSource.query.mock.calls[0][0])).toContain('wh.watched_at');
     expect(String(dataSource.query.mock.calls[1][0])).toContain('wh.watched_at');
+    expect(String(dataSource.query.mock.calls[2][0])).toContain('wh.watched_at');
     expect(String(dataSource.query.mock.calls[0][0])).not.toContain('wh.created_at');
   });
 });

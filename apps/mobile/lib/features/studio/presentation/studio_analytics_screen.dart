@@ -247,6 +247,57 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
                 ),
                 const SizedBox(height: 16),
               ],
+              if ((perf?['audienceRetention'] as List?)?.isNotEmpty == true) ...[
+                Text(
+                  'Audience retention',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Share of sessions that reached each point (last known progress).',
+                  style: TextStyle(fontSize: 12, color: ForgeTokens.of(context).onSurfaceVariant),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 120,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      for (final point
+                          in (perf!['audienceRetention'] as List).cast<Map<String, dynamic>>())
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Container(
+                                  height: (100 *
+                                          (((point['relativePercent'] as num?)?.toDouble() ?? 0) / 100)
+                                              .clamp(0.02, 1.0))
+                                      .toDouble(),
+                                  decoration: BoxDecoration(
+                                    color: ForgeTokens.of(context).primary.withValues(alpha: 0.8),
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${point['bucketPercent'] ?? ''}',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: ForgeTokens.of(context).onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               businessAsync.when(
                 loading: () => const SizedBox.shrink(),
                 error: (_, __) => const SizedBox.shrink(),
