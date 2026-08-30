@@ -14,6 +14,7 @@ import { Community } from '../communities/entities/community.entity';
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { WebhookIdempotencyService } from '../../common/webhooks/webhook-idempotency.service';
 import { StreamViewerService } from './stream-viewer.service';
+import { StreamClipExportService } from '../workers/stream-clip-export/stream-clip-export.service';
 import { MuxLiveSyncService } from './mux-live-sync.service';
 import { StreamReminderScheduler } from './stream-reminder.scheduler';
 import { EngagementService } from '../engagement/engagement.service';
@@ -161,6 +162,13 @@ describe('StreamingService access gating', () => {
           useValue: {
             scheduleReminder: jest.fn().mockResolvedValue(undefined),
             cancelReminder: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: StreamClipExportService,
+          useValue: {
+            handleClipAssetReady: jest.fn().mockResolvedValue(false),
+            enqueueMarkedClipsForStream: jest.fn(),
           },
         },
         {
@@ -409,6 +417,10 @@ describe('StreamingService endStream', () => {
         isBlockedEitherWay: jest.fn().mockResolvedValue(false),
       } as never,
       {
+        handleClipAssetReady: jest.fn().mockResolvedValue(false),
+        enqueueMarkedClipsForStream: jest.fn(),
+      } as never,
+      {
         get: jest.fn().mockResolvedValue(null),
         setex: jest.fn().mockResolvedValue('OK'),
         del: jest.fn(),
@@ -480,6 +492,10 @@ describe('StreamingService endStream', () => {
         isBlockedEitherWay: jest.fn().mockResolvedValue(false),
       } as never,
       {
+        handleClipAssetReady: jest.fn().mockResolvedValue(false),
+        enqueueMarkedClipsForStream: jest.fn(),
+      } as never,
+      {
         get: jest.fn().mockResolvedValue(null),
         setex: jest.fn().mockResolvedValue('OK'),
         del: jest.fn(),
@@ -541,6 +557,10 @@ describe('StreamingService rotateStreamKey', () => {
       {
         getBlockedPeerIds: jest.fn().mockResolvedValue([]),
         isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+      } as never,
+      {
+        handleClipAssetReady: jest.fn().mockResolvedValue(false),
+        enqueueMarkedClipsForStream: jest.fn(),
       } as never,
       {
         get: jest.fn().mockResolvedValue(null),
@@ -609,6 +629,10 @@ describe('StreamingService createStream', () => {
       {
         getBlockedPeerIds: jest.fn().mockResolvedValue([]),
         isBlockedEitherWay: jest.fn().mockResolvedValue(false),
+      } as never,
+      {
+        handleClipAssetReady: jest.fn().mockResolvedValue(false),
+        enqueueMarkedClipsForStream: jest.fn(),
       } as never,
       {
         get: jest.fn().mockResolvedValue(null),

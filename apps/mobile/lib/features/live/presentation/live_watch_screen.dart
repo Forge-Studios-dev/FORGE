@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
@@ -45,7 +46,13 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   bool _raisingHand = false;
   bool _markingClip = false;
   bool _rotatingKey = false;
+  bool _chatSettingsBusy = false;
+  bool _modsBusy = false;
   List<Map<String, dynamic>> _clips = [];
+  List<Map<String, dynamic>> _moderators = [];
+  final _modUsernameCtrl = TextEditingController();
+  final _grantUsernameCtrl = TextEditingController();
+  bool _grantBusy = false;
   bool _pipSupported = false;
 
   /// Host disconnect grace-period deadline (epoch ms) — non-null while the
@@ -174,6 +181,7 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
 
       if (_myUserId != null && stream['userId'] == _myUserId) {
         unawaited(_loadClips());
+        unawaited(_loadModerators());
       }
 
       // Seed the reconnect overlay from the REST snapshot (first paint, or a
@@ -390,6 +398,91 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
     }
   }
 
+  Future<void> _loadModerators() async {
+    try {
+      final mods = await ref.read(liveRepositoryProvider).listModerators(widget.streamId);
+      if (!mounted) return;
+      setState(() => _moderators = mods);
+    } catch (e, st) {
+      captureError(e, st, 'loadModerators');
+    }
+  }
+
+  Future<void> _addModerator() async {
+    final username = _modUsernameCtrl.text.trim().replaceFirst(RegExp(r'^@'), '');
+    if (username.isEmpty || _modsBusy) return;
+    setState(() => _modsBusy = true);
+    try {
+      await ref.read(liveRepositoryProvider).addModerator(widget.streamId, username: username);
+      _modUsernameCtrl.clear();
+      await _loadModerators();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Added @$username as moderator')),
+        );
+      }
+    } catch (e, st) {
+      captureError(e, st, 'addModerator');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not add moderator')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _modsBusy = false);
+    }
+  }
+
+  Future<void> _removeModerator(String userId, String label) async {
+    if (_modsBusy) return;
+    setState(() => _modsBusy = true);
+    try {
+      await ref.read(liveRepositoryProvider).removeModerator(widget.streamId, userId);
+      await _loadModerators();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Removed $label')),
+        );
+      }
+    } catch (e, st) {
+      captureError(e, st, 'removeModerator');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not remove moderator')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _modsBusy = false);
+    }
+  }
+
+  Future<void> _grantEventAccess() async {
+    final username = _grantUsernameCtrl.text.trim().replaceFirst(RegExp(r'^@'), '');
+    if (username.isEmpty || _grantBusy) return;
+    setState(() => _grantBusy = true);
+    try {
+      await ref.read(liveRepositoryProvider).grantEventAccess(
+            widget.streamId,
+            username: username,
+          );
+      _grantUsernameCtrl.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Granted access to @$username')),
+        );
+      }
+    } catch (e, st) {
+      captureError(e, st, 'grantEventAccess');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not grant access')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _grantBusy = false);
+    }
+  }
+
   Future<void> _markHighlight() async {
     if (_markingClip) return;
     setState(() => _markingClip = true);
@@ -422,6 +515,45 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
       return '$m:${sec.toString().padLeft(2, '0')}';
     }
     return '${stamp(startMs)}–${stamp(endMs)}';
+  }
+
+  Future<void> _patchChatSettings({bool? chatEnabled, String? chatMode}) async {
+    if (_chatSettingsBusy || _stream == null) return;
+    final prevEnabled = _stream!['chatEnabled'] != false;
+    final prevMode = (_stream!['chatMode'] as String?) ?? 'all';
+    setState(() {
+      _chatSettingsBusy = true;
+      if (chatEnabled != null) _stream!['chatEnabled'] = chatEnabled;
+      if (chatMode != null) _stream!['chatMode'] = chatMode;
+    });
+    try {
+      final updated = await ref.read(liveRepositoryProvider).updateChatSettings(
+            widget.streamId,
+            chatEnabled: chatEnabled,
+            chatMode: chatMode,
+          );
+      if (!mounted) return;
+      setState(() {
+        if (updated.containsKey('chatEnabled')) {
+          _stream!['chatEnabled'] = updated['chatEnabled'];
+        }
+        if (updated.containsKey('chatMode')) {
+          _stream!['chatMode'] = updated['chatMode'];
+        }
+      });
+    } catch (e, st) {
+      captureError(e, st, 'updateChatSettings');
+      if (!mounted) return;
+      setState(() {
+        _stream!['chatEnabled'] = prevEnabled;
+        _stream!['chatMode'] = prevMode;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update chat settings')),
+      );
+    } finally {
+      if (mounted) setState(() => _chatSettingsBusy = false);
+    }
   }
 
   Future<void> _acknowledgeAge() async {
@@ -464,25 +596,36 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
   }
 
   Widget _buildReactionBar() {
-    const reactions = {'heart': '❤️', 'fire': '🔥', 'clap': '👏', '100': '💯'};
+    const reactions = {
+      'heart': ('❤️', 'Heart'),
+      'fire': ('🔥', 'Fire'),
+      'clap': ('👏', 'Clap'),
+      '100': ('💯', 'Hundred'),
+    };
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         ...reactions.entries.map((e) {
           final count = _reactionCounts[e.key] ?? 0;
+          final emoji = e.value.$1;
+          final label = e.value.$2;
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Material(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(20),
-              child: InkWell(
+            child: Semantics(
+              button: true,
+              label: count > 0 ? '$label reaction, $count' : 'Send $label reaction',
+              child: Material(
+                color: Colors.black54,
                 borderRadius: BorderRadius.circular(20),
-                onTap: () => ForgeSocket.reactStream(widget.streamId, e.key),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  child: Text(
-                    count > 0 ? '${e.value} $count' : e.value,
-                    style: const TextStyle(fontSize: 16),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => ForgeSocket.reactStream(widget.streamId, e.key),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Text(
+                      count > 0 ? '$emoji $count' : emoji,
+                      style: const TextStyle(fontSize: 16),
+                    ),
                   ),
                 ),
               ),
@@ -522,6 +665,8 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
     ForgeSocket.leaveStreamChat(widget.streamId);
     _chewieController?.dispose();
     _videoController?.dispose();
+    _modUsernameCtrl.dispose();
+    _grantUsernameCtrl.dispose();
     super.dispose();
   }
 
@@ -769,6 +914,155 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                     ),
                   ),
                   const SizedBox(height: 8),
+                  Text(
+                    'Chat settings',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: ForgeTokens.of(context).onSurface,
+                    ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Chat enabled'),
+                    subtitle: const Text('Viewers can send messages while live.'),
+                    value: _stream!['chatEnabled'] != false,
+                    onChanged: _chatSettingsBusy
+                        ? null
+                        : (v) => _patchChatSettings(chatEnabled: v),
+                  ),
+                  Text(
+                    'Who can send messages',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: ForgeTokens.of(context).onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final opt in const [
+                        ('all', 'Everyone'),
+                        ('followers', 'Subscribers'),
+                        ('subscribers', 'Members'),
+                        ('mods_only', 'Mods only'),
+                      ])
+                        ChoiceChip(
+                          label: Text(opt.$2),
+                          selected: ((_stream!['chatMode'] as String?) ?? 'all') == opt.$1,
+                          onSelected: _chatSettingsBusy || _stream!['chatEnabled'] == false
+                              ? null
+                              : (_) => _patchChatSettings(chatMode: opt.$1),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Moderators',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: ForgeTokens.of(context).onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  if (_moderators.isEmpty)
+                    Text(
+                      'No delegated moderators yet.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: ForgeTokens.of(context).onSurfaceVariant,
+                      ),
+                    )
+                  else
+                    ..._moderators.map((m) {
+                      final username = m['username'] as String? ?? m['userId'] as String? ?? 'user';
+                      final display = m['displayName'] as String?;
+                      final userId = m['userId'] as String?;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: Text(
+                          display != null && display.isNotEmpty ? '@$username · $display' : '@$username',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        trailing: userId == null
+                            ? null
+                            : TextButton(
+                                onPressed: _modsBusy
+                                    ? null
+                                    : () => _removeModerator(userId, '@$username'),
+                                child: Text(
+                                  'Remove',
+                                  style: TextStyle(color: ForgeTokens.of(context).error),
+                                ),
+                              ),
+                      );
+                    }),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _modUsernameCtrl,
+                          enabled: !_modsBusy,
+                          decoration: const InputDecoration(
+                            labelText: 'Add moderator',
+                            hintText: '@username',
+                            isDense: true,
+                          ),
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _addModerator(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.tonal(
+                        onPressed: _modsBusy ? null : _addModerator,
+                        child: Text(_modsBusy ? '…' : 'Add'),
+                      ),
+                    ],
+                  ),
+                  if ((_stream!['visibility'] as String?) == 'paid_event') ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Grant event access',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: ForgeTokens.of(context).onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Give a viewer access to this paid event by username.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: ForgeTokens.of(context).onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _grantUsernameCtrl,
+                            enabled: !_grantBusy,
+                            decoration: const InputDecoration(
+                              labelText: 'Username',
+                              hintText: '@username',
+                              isDense: true,
+                            ),
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _grantEventAccess(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.tonal(
+                          onPressed: _grantBusy ? null : _grantEventAccess,
+                          child: Text(_grantBusy ? '…' : 'Grant'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 12),
                   if (status == 'live') ...[
                     Text(
                       'Highlights — mark a ~30s clip at the current live moment.',
@@ -790,15 +1084,45 @@ class _LiveWatchScreenState extends ConsumerState<LiveWatchScreen> with WidgetsB
                       ..._clips.take(8).map((clip) {
                         final title = clip['title'] as String? ?? 'Highlight';
                         final statusLabel = clip['status'] as String? ?? '';
+                        final playbackUrl = clip['playbackUrl'] as String?;
+                        final exportError = clip['exportError'] as String?;
+                        final range = _formatClipRange(clip);
+                        final statusSuffix =
+                            statusLabel.isNotEmpty && statusLabel != 'ready' ? ' · $statusLabel' : '';
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Text(
-                            '$title · ${_formatClipRange(clip)}'
-                            '${statusLabel.isNotEmpty && statusLabel != 'ready' ? ' · $statusLabel' : ''}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: ForgeTokens.of(context).onSurfaceVariant,
-                            ),
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '$title · $range$statusSuffix',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: ForgeTokens.of(context).onSurfaceVariant,
+                                ),
+                              ),
+                              if (playbackUrl != null && playbackUrl.isNotEmpty)
+                                TextButton(
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  onPressed: () => launchUrl(
+                                    Uri.parse(playbackUrl),
+                                    mode: LaunchMode.externalApplication,
+                                  ),
+                                  child: const Text('Play clip'),
+                                ),
+                              if (exportError != null && exportError.isNotEmpty)
+                                Text(
+                                  'Export failed',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: ForgeTokens.of(context).error,
+                                  ),
+                                ),
+                            ],
                           ),
                         );
                       }),

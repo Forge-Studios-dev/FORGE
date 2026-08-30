@@ -129,6 +129,7 @@ class _DescriptionChaptersEditorState extends State<DescriptionChaptersEditor> {
                         ),
                         IconButton(
                           icon: const Icon(Icons.close, size: 18),
+                          tooltip: 'Remove chapter',
                           onPressed: () {
                             setState(() {
                               _times.removeAt(i).dispose();

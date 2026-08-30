@@ -7,8 +7,11 @@ export const env = createEnv({
   },
   client: {
     NEXT_PUBLIC_API_URL: z.string().url().default('http://localhost:3001/api/v1'),
+    NEXT_PUBLIC_WEB_URL: z.string().url().optional(),
     NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
     NEXT_PUBLIC_SENTRY_ENVIRONMENT: z.string().optional(),
+    NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: z.string().optional(),
+    NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII: z.string().optional(),
     NEXT_PUBLIC_APP_CHECK_SITE_KEY: z.string().optional(),
     NEXT_PUBLIC_FIREBASE_API_KEY: z.string().optional(),
     NEXT_PUBLIC_FIREBASE_PROJECT_ID: z.string().optional(),
@@ -17,8 +20,11 @@ export const env = createEnv({
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+    NEXT_PUBLIC_WEB_URL: process.env.NEXT_PUBLIC_WEB_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
+    NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE,
+    NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII: process.env.NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII,
     NEXT_PUBLIC_APP_CHECK_SITE_KEY: process.env.NEXT_PUBLIC_APP_CHECK_SITE_KEY,
     NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
     NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,

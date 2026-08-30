@@ -13,8 +13,10 @@ import { StreamAnalyticsService } from './stream-analytics.service';
 const LIVE_INDEX_KEY = 'streams:live:ids';
 const LEADER_LOCK_KEY = 'leader:stream-viewer-flush';
 const LEADER_LOCK_TTL_SEC = 25;
-/** Reconcile Redis index from DB every ~10 minutes (20 × 30s flushes). */
-const RECONCILE_EVERY_N_FLUSHES = 20;
+/** When anything is live, reconcile Redis index from DB every ~10 minutes (20 × 30s). */
+export const RECONCILE_EVERY_N_FLUSHES = 20;
+/** When idle, skip Postgres except a safety reconcile every ~30 minutes (60 × 30s). */
+export const SAFETY_RECONCILE_EVERY_N_FLUSHES = 60;
 /** Analytics snapshot INSERT + chat COUNT at most once per minute per stream. */
 const SNAPSHOT_THROTTLE_SEC = 60;
 
@@ -145,7 +147,10 @@ export class StreamViewerService implements OnModuleInit, OnModuleDestroy {
       // Skip lock + work when nothing is live (common idle case).
       const liveCount = await this.redis.scard(LIVE_INDEX_KEY);
       this.flushCount += 1;
-      const shouldReconcile = this.flushCount % RECONCILE_EVERY_N_FLUSHES === 0;
+      const shouldReconcile =
+        liveCount === 0
+          ? this.flushCount % SAFETY_RECONCILE_EVERY_N_FLUSHES === 0
+          : this.flushCount % RECONCILE_EVERY_N_FLUSHES === 0;
 
       if (liveCount === 0 && !shouldReconcile) return;
 

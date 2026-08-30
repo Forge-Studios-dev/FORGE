@@ -8,3 +8,5 @@ export type { TabItem } from './react/Tabs';
 export { DataTable } from './react/DataTable';
 export { Sparkline, TrendChart } from './react/Chart';
 export { ToastProvider, useToast } from './react/Toast';
+export { ThemeProvider, useTheme } from './react/ThemeProvider';
+export type { ThemeMode, ThemeProviderProps } from './react/ThemeProvider';

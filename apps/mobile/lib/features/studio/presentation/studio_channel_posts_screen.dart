@@ -48,6 +48,7 @@ class _StudioChannelPostsScreenState extends ConsumerState<StudioChannelPostsScr
         title: const Text('Community posts'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
         actions: [

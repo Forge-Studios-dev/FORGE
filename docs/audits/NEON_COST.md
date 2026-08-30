@@ -61,14 +61,16 @@ June 2026 audit #1 addressed query polling (Mux on HTTP, frontend polls, worker 
 
 | Job | Frequency | Owner | Notes |
 |-----|-----------|-------|-------|
-| Stream viewer flush | 30s (live only) | API | Leader-elected (one replica) |
-| View count flush | 60s | API | Leader-elected (one replica) |
-| Mux live sync | 45s live / 90s idle / **15m dormant** | Worker | Redis dormant gate skips DB |
-| Stream reminder | 5m | Worker | **Dormant gate** — skips DB when platform idle |
-| Subscription maintenance | Hourly | Worker | **Dormant gate** on expiring scan; always runs `expireDueSubscriptions` |
+| Stream viewer flush | 30s Redis (live only) | API | Leader-elected; Postgres reconcile **10m when live, 30m when idle** (skip DB if Redis live set empty) |
+| View count flush | 60s | API | Leader-elected; Redis-first, no DB when empty |
+| Mux live sync | **5m live/idle / 15m dormant** | Worker | Redis dormant gate skips DB |
+| Stream reminder | Delayed job + **30m backup** | Worker | Dormant gate skips backup scan |
+| Scheduled publish | Delayed job at `scheduledPublishAt` + **15m backup** | Worker | Was a 1-minute poll (blocked Neon autosuspend). Select `id, userId` only. |
+| Subscription maintenance | Hourly | Worker | Dormant gate on expiring scan; always runs `expireDueSubscriptions` |
 | Engagement reconciliation | Daily | Worker | SQL batch (not O(users)) |
 | Analytics retention | Daily | Worker | |
 | Snapshot retention | Daily 04:00 UTC | Worker | |
+| Synthetic `/health/*` | Manual only | GitHub `workflow_dispatch` | No cron. Optional diagnostic smoke. |
 
 ---
 
@@ -105,6 +107,16 @@ curl "https://api.forgestudios.net/api/v1/admin/database/query-stats?limit=50" \
 - [ ] `query-stats` — reset baseline after Audit #3 deploy; compare top queries
 - [x] Live go-live / end still works (webhooks + mux sync) — health OK 2026-06-16
 - [x] **Audit #3 deployed** — Release `27631934106` (2026-06-16) after merge PR #80
+
+### Post-deploy checklist (resource audit 2026-08-30)
+
+After shipping delayed scheduled-publish + idle reconcile + **no continuous health probes**:
+
+- [ ] `GET /admin/database/query-stats` — scheduled-publish full-row `SELECT` should drop from ~1,440/day toward the 15m backup (~96/day) plus delayed jobs
+- [ ] Neon console: compute `active` ↔ `idle` overnight (`suspend_timeout_seconds=300`)
+- [ ] `scripts/neon-consumption-report.sh --days 7` — idle-day CU-hr vs the ~5 CU-hr/day August baseline
+- [ ] Scheduled videos still appear in feed/search at/after `scheduledPublishAt`
+- [ ] Manual: `GET /api/v1/health/live` and `GET /api/v1/health/ready` still 200 when you curl them; Fly has no continuous `[[http_service.checks]]`
 
 ---
 

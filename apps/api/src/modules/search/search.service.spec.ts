@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { SearchService } from './search.service';
+import { SearchService, normalizeCaptionsFilter } from './search.service';
 import { Video, VideoStatus, VideoVisibility } from '../content/entities/video.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { Playlist } from '../playlists/entities/playlist.entity';
@@ -356,11 +356,60 @@ describe('SearchService', () => {
       });
     });
 
+    it('falls back to contains match when prefix results are sparse', async () => {
+      videoRepository.createQueryBuilder.mockImplementation(() => suggestionQb);
+      suggestionQb.getRawMany
+        .mockResolvedValueOnce([{ title: 'Only Prefix' }])
+        .mockResolvedValueOnce([{ title: 'Only Prefix' }, { title: 'Learn Forge Craft' }]);
+      userQb.getMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ username: 'mid_forge', displayName: 'Mid Forge' }]);
+
+      const result = await service.suggestions('forge', 8);
+
+      expect(result.titles).toEqual(['Only Prefix', 'Learn Forge Craft']);
+      expect(result.channels).toEqual([{ username: 'mid_forge', displayName: 'Mid Forge' }]);
+      expect(suggestionQb.andWhere).toHaveBeenCalledWith('v.title ILIKE :p', { p: '%forge%' });
+    });
+
+    it('falls back to 1-edit typo prefixes when contains stays sparse', async () => {
+      videoRepository.createQueryBuilder.mockImplementation(() => suggestionQb);
+      suggestionQb.getRawMany
+        .mockResolvedValueOnce([{ title: 'Only One' }]) // prefix
+        .mockResolvedValueOnce([{ title: 'Only One' }]) // contains
+        .mockResolvedValueOnce([{ title: 'Only One' }, { title: 'Forge Craft' }]); // typo
+      userQb.getMany.mockResolvedValue([{ username: 'ok', displayName: 'Ok' }]);
+
+      const result = await service.suggestions('frge', 8);
+
+      expect(result.titles).toContain('Forge Craft');
+      expect(suggestionQb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('OR'),
+        expect.objectContaining({ typo0: expect.stringMatching(/%$/) }),
+      );
+    });
+
     it('caps suggestion limit at 20', async () => {
       videoRepository.createQueryBuilder.mockImplementation(() => suggestionQb);
       userQb.getMany.mockResolvedValue([]);
       await service.suggestions('forge', 50);
       expect(suggestionQb.take).toHaveBeenCalledWith(20);
     });
+  });
+});
+
+describe('normalizeCaptionsFilter', () => {
+  it('accepts any, yes, and language codes', () => {
+    expect(normalizeCaptionsFilter(undefined)).toBe('any');
+    expect(normalizeCaptionsFilter('any')).toBe('any');
+    expect(normalizeCaptionsFilter('yes')).toBe('yes');
+    expect(normalizeCaptionsFilter('EN')).toBe('en');
+    expect(normalizeCaptionsFilter('es-MX')).toBe('es-mx');
+  });
+
+  it('rejects invalid values', () => {
+    expect(normalizeCaptionsFilter('english')).toBe('any');
+    expect(normalizeCaptionsFilter('e')).toBe('any');
+    expect(normalizeCaptionsFilter('!!')).toBe('any');
   });
 });

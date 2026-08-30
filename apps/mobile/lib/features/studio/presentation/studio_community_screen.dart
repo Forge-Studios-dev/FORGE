@@ -600,6 +600,7 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen>
                         children: [
                           IconButton(
                             icon: const Icon(Icons.edit, size: 20),
+                            tooltip: 'Edit category',
                             onPressed: catId == null
                                 ? null
                                 : () {
@@ -611,6 +612,7 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen>
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 20),
+                            tooltip: 'Delete category',
                             onPressed: catId == null ? null : () => _deleteCategory(catId),
                           ),
                         ],

@@ -25,6 +25,7 @@ import { DatabaseObservabilityService } from '../../database/database-observabil
 import { AccountStrikesModule } from '../account-strikes/account-strikes.module';
 import { CopyrightModule } from '../copyright/copyright.module';
 import { AdminAuditLogModule } from '../../common/audit/admin-audit-log.module';
+import { EngagementModule } from '../engagement/engagement.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { AdminAuditLogModule } from '../../common/audit/admin-audit-log.module';
     forwardRef(() => PlaylistsModule),
     forwardRef(() => AuthModule),
     forwardRef(() => BillingModule),
+    forwardRef(() => EngagementModule),
     AccountStrikesModule,
     CopyrightModule,
     AdminAuditLogModule,

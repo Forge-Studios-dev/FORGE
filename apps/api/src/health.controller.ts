@@ -23,7 +23,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
-/** Fly liveness only — readiness stays throttled (DB/Redis/queue checks). */
+/** Manual / on-demand health — no continuous infra probes call these. */
 @Controller('health')
 export class HealthController {
   constructor(
@@ -47,8 +47,7 @@ export class HealthController {
   }
 
   /**
-   * Liveness probe: must be cheap and dependency-free.
-   * Used by Fly checks to avoid paying baseline DB/Redis ops.
+   * Liveness: cheap and dependency-free. Call manually when needed.
    */
   @Public()
   @SkipThrottle()
@@ -62,8 +61,7 @@ export class HealthController {
   }
 
   /**
-   * Readiness probe: dependency checks (DB/Redis/Queue).
-   * Keep this for dashboards / internal inspection, not for frequent infra probes.
+   * Readiness: dependency checks (DB/Redis/Queue). Manual / deploy diagnostics only.
    */
   @Public()
   @Get('ready')
@@ -90,6 +88,18 @@ export class HealthController {
 
     const transcodeProvider =
       (this.configService.get<string>('video.transcodeProvider') || 'mux').toLowerCase();
+
+    const scanKind = (this.configService.get<string>('contentScan.provider') || 'none').toLowerCase();
+    const scanUrl = (this.configService.get<string>('contentScan.webhookUrl') || '').trim();
+    if (scanKind === 'webhook' && scanUrl) {
+      checks.contentScan = 'webhook';
+    } else if (scanKind === 'webhook') {
+      checks.contentScan = 'misconfigured';
+      degraded = true;
+    } else {
+      // Default noop — expected until a vendor webhook is configured (legal/ops).
+      checks.contentScan = 'noop';
+    }
 
     if (transcodeProvider === 'mux' && this.muxVodQueue) {
       try {

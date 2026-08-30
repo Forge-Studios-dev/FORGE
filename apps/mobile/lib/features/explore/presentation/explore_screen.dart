@@ -364,6 +364,27 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     selected: _captions,
                     onSelected: (v) => setState(() => _captions = _captions == v ? 'any' : v),
                   ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'English CC',
+                    value: 'en',
+                    selected: _captions,
+                    onSelected: (v) => setState(() => _captions = _captions == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'Spanish CC',
+                    value: 'es',
+                    selected: _captions,
+                    onSelected: (v) => setState(() => _captions = _captions == v ? 'any' : v),
+                  ),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                    label: 'Hindi CC',
+                    value: 'hi',
+                    selected: _captions,
+                    onSelected: (v) => setState(() => _captions = _captions == v ? 'any' : v),
+                  ),
                   const SizedBox(width: 12),
                   _filterChip(
                     label: 'Live',
@@ -439,6 +460,18 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ActionChip(
+                avatar: const Icon(Icons.local_fire_department, size: 18),
+                label: const Text('Trending'),
+                onPressed: () => context.push('/trending'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           if (_recentSearches.isNotEmpty) ...[
             Row(
               children: [
@@ -575,21 +608,65 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
         if (bundle == null) return const SizedBox.shrink();
         final data = bundle.catalog;
         if (bundle.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.search_off, size: 48, color: ForgeTokens.of(context).outline),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No results for "${data.query.isNotEmpty ? data.query : q}"',
-                    style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+          return FutureBuilder<SearchSuggestions>(
+            future: ref.read(searchRepositoryProvider).suggestions(q),
+            builder: (context, suggestSnap) {
+              final titles = suggestSnap.data?.titles ?? const <String>[];
+              final channels = suggestSnap.data?.channels ?? const <({String username, String displayName})>[];
+              final qLower = q.toLowerCase();
+              String? titleHint;
+              for (final t in titles) {
+                final trimmed = t.trim();
+                if (trimmed.isNotEmpty && trimmed.toLowerCase() != qLower) {
+                  titleHint = trimmed;
+                  break;
+                }
+              }
+              ({String username, String displayName})? channelHint;
+              for (final c in channels) {
+                if (c.displayName.trim().toLowerCase() != qLower &&
+                    c.username.trim().toLowerCase() != qLower) {
+                  channelHint = c;
+                  break;
+                }
+              }
+              final t = ForgeTokens.of(context);
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.search_off, size: 48, color: t.outline),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No results for "${data.query.isNotEmpty ? data.query : q}"',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: t.onSurfaceVariant),
+                      ),
+                      if (titleHint != null) ...[
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () {
+                            _controller.text = titleHint!;
+                            _controller.selection =
+                                TextSelection.collapsed(offset: titleHint.length);
+                            _commitSearch(titleHint);
+                          },
+                          child: Text('Did you mean "$titleHint"?'),
+                        ),
+                      ] else if (channelHint != null) ...[
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () => context.push('/profile/${channelHint!.username}'),
+                          child: Text('Did you mean @${channelHint.username}?'),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           );
         }
         return ListView(

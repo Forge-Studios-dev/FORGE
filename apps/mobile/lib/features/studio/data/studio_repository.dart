@@ -207,29 +207,84 @@ class StudioRepository {
     return res.data['data'] as Map<String, dynamic>;
   }
 
-  /// Scan recent ready videos for comments — aligned with web studio inbox
-  /// (24 videos × 8 comments, capped at 80).
-  Future<List<Map<String, dynamic>>> getRecentComments() async {
-    final page = await getMyVideos(limit: 50);
-    final comments = <Map<String, dynamic>>[];
-    for (final v in page.items.where((v) => v.status == 'ready').take(24)) {
-      try {
-        final res = await _api.dio.get('/videos/${v.id}/comments', queryParameters: {'limit': 8});
-        final list = res.data['data']['data'] as List;
-        for (final c in list) {
-          final m = Map<String, dynamic>.from(c as Map);
-          m['videoTitle'] = v.title;
-          m['videoId'] = v.id;
-          m['videoType'] = v.videoType;
-          comments.add(m);
-        }
-      } catch (_) {}
-    }
-    comments.sort((a, b) {
-      final ad = DateTime.tryParse(a['createdAt'] as String? ?? '') ?? DateTime(1970);
-      final bd = DateTime.tryParse(b['createdAt'] as String? ?? '') ?? DateTime(1970);
-      return bd.compareTo(ad);
-    });
-    return comments.take(80).toList();
+  /// Studio comments inbox — cursor-paginated across all owned videos.
+  Future<StudioCommentsPage> getStudioComments({
+    String filter = 'all',
+    String? q,
+    int limit = 40,
+    String? cursor,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (filter != 'all') params['filter'] = filter;
+    final term = q?.trim();
+    if (term != null && term.length >= 2) params['q'] = term;
+    if (cursor != null && cursor.isNotEmpty) params['cursor'] = cursor;
+
+    final res = await _api.dio.get('/creators/me/comments', queryParameters: params);
+    final payload = res.data['data'] as Map<String, dynamic>? ?? {};
+    final list = payload['data'] as List? ?? [];
+    final meta = payload['meta'] as Map<String, dynamic>? ?? {};
+    return StudioCommentsPage(
+      items: list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(),
+      nextCursor: meta['cursor'] as String?,
+      hasMore: meta['hasMore'] == true,
+    );
   }
+
+  /// @deprecated Prefer [getStudioComments].
+  Future<List<Map<String, dynamic>>> getRecentComments() async {
+    final page = await getStudioComments(limit: 50);
+    return page.items;
+  }
+
+  /// Unified community-report inbox across owned + moderated communities.
+  Future<StudioModerationInboxPage> getModerationInbox({
+    String status = 'open',
+    int limit = 30,
+    String? cursor,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (status != 'open') params['status'] = status;
+    if (cursor != null && cursor.isNotEmpty) params['cursor'] = cursor;
+
+    final res = await _api.dio.get(
+      '/creators/me/moderation/inbox',
+      queryParameters: params,
+    );
+    final payload = res.data['data'] as Map<String, dynamic>? ?? {};
+    final list = payload['data'] as List? ?? [];
+    final meta = payload['meta'] as Map<String, dynamic>? ?? {};
+    return StudioModerationInboxPage(
+      items: list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(),
+      nextCursor: meta['cursor'] as String?,
+      hasMore: meta['hasMore'] == true,
+      total: (meta['total'] as num?)?.toInt() ?? list.length,
+    );
+  }
+}
+
+class StudioCommentsPage {
+  final List<Map<String, dynamic>> items;
+  final String? nextCursor;
+  final bool hasMore;
+
+  const StudioCommentsPage({
+    required this.items,
+    required this.nextCursor,
+    required this.hasMore,
+  });
+}
+
+class StudioModerationInboxPage {
+  final List<Map<String, dynamic>> items;
+  final String? nextCursor;
+  final bool hasMore;
+  final int total;
+
+  const StudioModerationInboxPage({
+    required this.items,
+    required this.nextCursor,
+    required this.hasMore,
+    required this.total,
+  });
 }

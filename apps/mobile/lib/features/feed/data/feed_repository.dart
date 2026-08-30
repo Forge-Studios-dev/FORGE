@@ -131,4 +131,20 @@ class FeedRepository {
       hasMore: meta['hasMore'] as bool? ?? false,
     );
   }
+
+  /// Velocity trending (`GET /videos/trending`) — window `now` (24h) or `week` (7d).
+  Future<List<VideoModel>> getVelocityTrending({String window = 'week', int limit = 24}) async {
+    final response = await _apiClient.dio.get(
+      '/videos/trending',
+      queryParameters: {'limit': limit, 'window': window},
+    );
+    final payload = response.data['data'];
+    final list = payload is List
+        ? payload
+        : (payload is Map ? (payload['data'] as List? ?? []) : <dynamic>[]);
+    return list
+        .whereType<Map>()
+        .map((e) => VideoModel.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
 }

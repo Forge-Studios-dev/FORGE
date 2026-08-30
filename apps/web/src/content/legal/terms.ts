@@ -60,7 +60,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     title: '7. Intellectual property',
     paragraphs: [
       'The FORGE name, logos, product design, and platform software are owned by Forge Studios or its licensors. You may not copy, modify, or reverse engineer the Service except as permitted by law.',
-      'If you believe content on FORGE infringes your copyright, contact legal@forgestudios.net with sufficient detail for us to evaluate a notice under applicable law.',
+      'If you believe content on FORGE infringes your copyright, file a notice at /copyright/notice or contact legal@forgestudios.net with sufficient detail for us to evaluate a notice under applicable law.',
     ],
   },
   {

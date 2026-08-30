@@ -144,6 +144,8 @@ export interface Comment {
   createdAt: string;
   /** Soft-deleted but kept in the thread because it still has live replies — render as a tombstone, not the real content/author. */
   isDeleted?: boolean;
+  /** Present for video owners / admins — `held` means auto-flagged pending release. */
+  moderationStatus?: 'none' | 'held' | 'blocked';
 }
 
 export type NotificationType =

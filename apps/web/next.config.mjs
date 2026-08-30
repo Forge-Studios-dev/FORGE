@@ -55,7 +55,12 @@ const nextConfig = {
       '/studio/communities',
       '/studio/communities/:path*',
       '/studio/ai-copilot',
+      '/studio/copilot',
       '/studio/system-states',
+    ];
+    const studioAliasRedirects = [
+      { source: '/studio/rooms', destination: '/studio/community' },
+      { source: '/studio/engagement', destination: '/studio/community' },
     ];
     const publicOrphans = [
       { source: '/podcasts', destination: '/' },
@@ -72,6 +77,7 @@ const nextConfig = {
         destination: '/studio',
         permanent: false,
       })),
+      ...studioAliasRedirects.map((r) => ({ ...r, permanent: false })),
       ...publicOrphans.map((r) => ({ ...r, permanent: false })),
     ];
   },

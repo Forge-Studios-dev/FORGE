@@ -108,25 +108,38 @@ export function DataTable<T>({
                     />
                   </th>
                 ) : null}
-                {headerGroup.headers.map((header) => (
+                {headerGroup.headers.map((header) => {
+                  const sorted = header.column.getIsSorted();
+                  const canSort = header.column.getCanSort();
+                  return (
                   <th
                     key={header.id}
                     className="border-b border-subtle px-4 py-2.5 text-left font-label-caps text-on-surface-variant"
+                    aria-sort={
+                      !canSort
+                        ? undefined
+                        : sorted === 'asc'
+                          ? 'ascending'
+                          : sorted === 'desc'
+                            ? 'descending'
+                            : 'none'
+                    }
                   >
                     {header.isPlaceholder ? null : (
                       <button
                         type="button"
-                        disabled={!header.column.getCanSort()}
+                        disabled={!canSort}
                         onClick={header.column.getToggleSortingHandler()}
                         className="inline-flex items-center gap-1 disabled:cursor-default"
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getIsSorted() === 'asc' ? <Icon name="arrow_upward" className="text-xs" /> : null}
-                        {header.column.getIsSorted() === 'desc' ? <Icon name="arrow_downward" className="text-xs" /> : null}
+                        {sorted === 'asc' ? <Icon name="arrow_upward" className="text-xs" /> : null}
+                        {sorted === 'desc' ? <Icon name="arrow_downward" className="text-xs" /> : null}
                       </button>
                     )}
                   </th>
-                ))}
+                  );
+                })}
               </tr>
             ))}
           </thead>

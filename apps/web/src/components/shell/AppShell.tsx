@@ -25,9 +25,14 @@ function isShortsRoute(pathname: string) {
   return pathname === '/shorts' || pathname.startsWith('/shorts/');
 }
 
-/** Watch — YouTube masthead (search/account); no SideNav/MobileNav */
-function isWatchRoute(pathname: string) {
-  return pathname.startsWith('/watch/');
+/** Watch / live watch / community rooms — masthead only (no SideNav/MobileNav) */
+function isWatchLikeRoute(pathname: string) {
+  if (pathname.startsWith('/watch/')) return true;
+  // /live/[id] but keep /live list on full chrome
+  if (pathname.startsWith('/live/') && pathname.length > '/live/'.length) return true;
+  // Community voice/text rooms
+  if (/\/community\/[^/]+\/(voice|text)\//.test(pathname)) return true;
+  return false;
 }
 
 /** Creator Studio — TopBar only (StudioShell owns the sidebar) */
@@ -39,7 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const minimal = MINIMAL_PREFIXES.some((p) => pathname.startsWith(p));
   const shorts = isShortsRoute(pathname);
-  const watch = isWatchRoute(pathname);
+  const watchLike = isWatchLikeRoute(pathname);
   const studio = isStudioRoute(pathname);
 
   if (minimal) {
@@ -58,8 +63,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Watch + Studio share TopBar-only chrome (YouTube masthead / Studio shell).
-  if (watch || studio) {
+  // Watch-like + Studio share TopBar-only chrome (YouTube masthead / Studio shell).
+  if (watchLike || studio) {
     return (
       <>
         <TopBar />

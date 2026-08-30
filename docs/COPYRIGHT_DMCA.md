@@ -65,6 +65,6 @@ Strikes expire after 90 days (`expiresAt`), matching YouTube's current policy fo
 ## 5. What's not done
 
 - **Designated agent registration** (see §1) — a real filing outside this codebase, blocking full DMCA safe-harbor reliance.
-- No frontend UI for filing a notice, counter-notice, or appeal — API only. `legal@forgestudios.net` (see `LEGAL.md`) is the interim manual intake path referenced in the Terms of Service.
-- No cross-linking between a `CopyrightNotice`/`AccountStrike` and the platform `Report`/community-moderation systems — see `PLATFORM_AUDIT_2026-08-09.md §2.1` row 4 on why those stay separate for now.
+- Counter-notice and strike-appeal UIs remain API-driven (uploader strikes page covers counter-notice when a notice id is known). **Wave 24 (2026-08-29):** public notice form at `/copyright/notice`; video report “Copyright infringement” redirects there instead of creating a generic report. **Wave 28:** site footer Copyright link → `/copyright/notice`. **Wave 30:** mobile Channel strikes counter-notice form.
+- Cross-linking a `CopyrightNotice` to the platform `Report` table is intentionally not done — see `PLATFORM_AUDIT_2026-08-09.md §2.1` row 4.
 - Repeat-infringer policy (permanently terminating accounts with a pattern of copyright strikes, required for DMCA safe harbor) is implicit in the 3-strike ladder above but not separately documented as a standalone policy statement — have counsel confirm this satisfies §512(i) before relying on it.

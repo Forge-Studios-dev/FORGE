@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Button, PageHeader, StatusPill } from '@forge/design-system';
@@ -19,13 +20,62 @@ interface PendingCreator {
   isVerified: boolean;
 }
 
+function parsePage(raw: string | null): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
 export default function CreatorApprovalsPage() {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
+  return (
+    <Suspense fallback={<p className="text-on-surface-variant">Loading creator approvals…</p>}>
+      <CreatorApprovalsPageInner />
+    </Suspense>
+  );
+}
+
+function CreatorApprovalsPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const searchParam = searchParams.get('search') ?? '';
+  const pageParam = searchParams.get('page');
+
+  const [page, setPage] = useState(() => parsePage(pageParam));
+  const [searchDraft, setSearchDraft] = useState(searchParam);
+  const [search, setSearch] = useState(searchParam);
   const [selected, setSelected] = useState<PendingCreator[]>([]);
   const [rejectNote, setRejectNote] = useState('');
   const qc = useQueryClient();
   const { toast } = useToast();
+
+  useEffect(() => {
+    setSearchDraft(searchParam);
+    setSearch(searchParam);
+    setPage(parsePage(pageParam));
+  }, [searchParam, pageParam]);
+
+  function syncUrl(next: { search?: string; page?: number }) {
+    const params = new URLSearchParams();
+    const q = (next.search ?? search).trim();
+    const nextPage = next.page ?? page;
+    if (q) params.set('search', q);
+    if (nextPage > 1) params.set('page', String(nextPage));
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const next = searchDraft.trim();
+      if (next === search) return;
+      setSearch(next);
+      setPage(1);
+      syncUrl({ search: next, page: 1 });
+    }, 300);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce draft only
+  }, [searchDraft]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-creators-pending', page, search],
@@ -167,9 +217,9 @@ export default function CreatorApprovalsPage() {
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <PageHeader title="Creator approvals" subtitle="Review pending creator requests" />
         <AdminSearchInput
-          value={search}
+          value={searchDraft}
           onChange={(v) => {
-            setSearch(v);
+            setSearchDraft(v);
             setPage(1);
           }}
           placeholder="Search applicants…"
@@ -211,8 +261,16 @@ export default function CreatorApprovalsPage() {
           totalPages={data.meta.totalPages}
           total={data.meta.total}
           label="pending"
-          onPrev={() => setPage((p) => Math.max(1, p - 1))}
-          onNext={() => setPage((p) => p + 1)}
+          onPrev={() => {
+            const next = Math.max(1, page - 1);
+            setPage(next);
+            syncUrl({ page: next });
+          }}
+          onNext={() => {
+            const next = page + 1;
+            setPage(next);
+            syncUrl({ page: next });
+          }}
         />
       ) : null}
     </section>

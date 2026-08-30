@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Button, Input, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { env } from '@/env';
 
 interface SearchUser {
   id: string;
@@ -15,7 +17,7 @@ interface SearchUser {
 interface SearchVideo {
   id: string;
   title: string;
-  user?: { username: string; displayName: string };
+  user?: { id?: string; username: string; displayName: string };
 }
 
 type SearchPayload = {
@@ -24,11 +26,43 @@ type SearchPayload = {
   meta: { q: string };
 };
 
-const WEB_ORIGIN = process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000';
+const WEB_ORIGIN = env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000';
+
+function parseQ(raw: string | null): string {
+  const q = (raw ?? '').trim();
+  return q.length >= 2 ? q : '';
+}
 
 export default function AdminSearchPage() {
-  const [q, setQ] = useState('');
-  const [submitted, setSubmitted] = useState('');
+  return (
+    <Suspense fallback={<p className="text-on-surface-variant">Loading search…</p>}>
+      <AdminSearchPageInner />
+    </Suspense>
+  );
+}
+
+function AdminSearchPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const qParam = parseQ(searchParams.get('q'));
+
+  const [q, setQ] = useState(qParam || searchParams.get('q') || '');
+  const [submitted, setSubmitted] = useState(qParam);
+
+  useEffect(() => {
+    const next = parseQ(searchParams.get('q'));
+    setSubmitted(next);
+    setQ(searchParams.get('q') ?? '');
+  }, [searchParams]);
+
+  function syncUrl(nextQ: string) {
+    const trimmed = nextQ.trim();
+    const params = new URLSearchParams();
+    if (trimmed.length >= 2) params.set('q', trimmed);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin-search', submitted],
@@ -44,7 +78,10 @@ export default function AdminSearchPage() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const t = q.trim();
-    if (t.length >= 2) setSubmitted(t);
+    if (t.length >= 2) {
+      setSubmitted(t);
+      syncUrl(t);
+    }
   }
 
   return (
@@ -91,14 +128,24 @@ export default function AdminSearchPage() {
                         {v.user?.displayName ?? '—'} · id {v.id.slice(0, 8)}…
                       </p>
                     </div>
-                    <a
-                      href={`${WEB_ORIGIN}/watch/${v.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-xs text-primary hover:underline"
-                    >
-                      Open on web
-                    </a>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      {v.user?.id ? (
+                        <Link
+                          href={`/content?userId=${v.user.id}`}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Creator videos
+                        </Link>
+                      ) : null}
+                      <a
+                        href={`${WEB_ORIGIN}/watch/${v.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Open on web
+                      </a>
+                    </div>
                   </li>
                 ))}
               </ul>

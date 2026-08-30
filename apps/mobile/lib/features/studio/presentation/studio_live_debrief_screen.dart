@@ -94,6 +94,7 @@ class _StudioLiveDebriefScreenState extends ConsumerState<StudioLiveDebriefScree
         title: const Text('Stream debrief'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.go('/studio/live'),
         ),
       ),

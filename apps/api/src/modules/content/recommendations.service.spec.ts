@@ -1,5 +1,15 @@
-import { RecommendationsService, RecommendedVideo } from './recommendations.service';
+import { RecommendationsService, RecommendedVideo, parseTrendingWindowHours } from './recommendations.service';
 import { DataSource } from 'typeorm';
+
+describe('parseTrendingWindowHours', () => {
+  it('maps now/24h to 24 and week/default to 168', () => {
+    expect(parseTrendingWindowHours('now')).toBe(24);
+    expect(parseTrendingWindowHours('24h')).toBe(24);
+    expect(parseTrendingWindowHours('week')).toBe(168);
+    expect(parseTrendingWindowHours(undefined)).toBe(168);
+    expect(parseTrendingWindowHours('')).toBe(168);
+  });
+});
 
 describe('RecommendationsService', () => {
   let service: RecommendationsService;
@@ -37,8 +47,10 @@ describe('RecommendationsService', () => {
       const videos = [fakeVideo(), fakeVideo({ id: 'v2', title: 'Learn Piano', score: 30 })];
 
       // Enough rows that getTrending fallback is skipped (limit 2).
+      // Queries: top cats → session cats → watched → main
       queryMock
         .mockResolvedValueOnce([{ category_id: 'cat-1', watch_count: '10' }])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ video_id: 'already-watched' }])
         .mockResolvedValueOnce(videos);
 
@@ -48,24 +60,55 @@ describe('RecommendationsService', () => {
       expect(result.data[0].id).toBe('v1');
       expect(result.data[1].id).toBe('v2');
 
-      expect(queryMock).toHaveBeenCalledTimes(3);
+      expect(queryMock).toHaveBeenCalledTimes(4);
       const [topCatQuery] = queryMock.mock.calls[0];
       expect(topCatQuery).toContain('watch_history');
       expect(topCatQuery).toContain('category_id');
     });
 
+    it('prefers session categories ahead of long-term affinity', async () => {
+      queryMock
+        .mockResolvedValueOnce([{ category_id: 'long-term', watch_count: '50' }])
+        .mockResolvedValueOnce([{ category_id: 'session-cat' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([fakeVideo({ id: 'v1' }), fakeVideo({ id: 'v2' })]);
+
+      await service.getPersonalizedFeed('user-1', { limit: 2 });
+
+      const mainParams = queryMock.mock.calls[3][1] as unknown[];
+      expect(mainParams[1]).toEqual(['session-cat', 'long-term']);
+      const sessionQuery = queryMock.mock.calls[1][0] as string;
+      expect(sessionQuery).toContain("INTERVAL '2 hours'");
+    });
+
+    it('includes session_creators CTE in ranking SQL', async () => {
+      queryMock
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([fakeVideo({ id: 'v1' }), fakeVideo({ id: 'v2' })]);
+
+      await service.getPersonalizedFeed('user-1', { limit: 2 });
+
+      const mainQuery = queryMock.mock.calls[3][0] as string;
+      expect(mainQuery).toContain('session_creators');
+      expect(mainQuery).toContain('session_affinity');
+    });
+
     it('clamps limit to 50', async () => {
-      // Return 50 rows so fallback getTrending is not invoked.
+      // Return 50 rows so fallback getTrending is not invoked; exploration runs on first page.
       const rows = Array.from({ length: 50 }, (_, i) => fakeVideo({ id: `v${i}` }));
       queryMock
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
-        .mockResolvedValueOnce(rows);
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(rows)
+        .mockResolvedValueOnce([]);
 
       await service.getPersonalizedFeed('user-1', { limit: 200 });
 
-      const mainQuery = queryMock.mock.calls[2][0] as string;
-      const params = queryMock.mock.calls[2][1] as unknown[];
+      const mainQuery = queryMock.mock.calls[3][0] as string;
+      const params = queryMock.mock.calls[3][1] as unknown[];
       const limitParam = params[params.length - 2];
       expect(limitParam).toBe(50);
       expect(mainQuery).toContain('ORDER BY score DESC');
@@ -78,13 +121,15 @@ describe('RecommendationsService', () => {
       queryMock
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce(personalizedVideos)
         .mockResolvedValueOnce(trendingFallback);
 
       const result = await service.getPersonalizedFeed('user-1', { limit: 20 });
 
       expect(result.data.length).toBeGreaterThanOrEqual(2);
-      expect(queryMock).toHaveBeenCalledTimes(4);
+      // top + session + watched + main + trending = 5; rows after fallback < 4 → no exploration
+      expect(queryMock).toHaveBeenCalledTimes(5);
     });
 
     it('excludes specified video IDs', async () => {
@@ -93,22 +138,61 @@ describe('RecommendationsService', () => {
       queryMock
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
-        .mockResolvedValueOnce(rows);
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(rows)
+        .mockResolvedValueOnce([]);
 
       await service.getPersonalizedFeed('user-1', {
         limit: 10,
         excludeVideoIds: ['exclude-1', 'exclude-2'],
       });
 
-      const params = queryMock.mock.calls[2][1] as unknown[];
+      const params = queryMock.mock.calls[3][1] as unknown[];
       expect(params).toContain('exclude-1');
       expect(params).toContain('exclude-2');
+    });
+
+    it('weaves exploration candidates on the first page', async () => {
+      const rows = Array.from({ length: 8 }, (_, i) =>
+        fakeVideo({ id: `a${i}`, userId: `c${i}` }),
+      );
+      const exploration = [
+        fakeVideo({ id: 'e1', userId: 'explorer', reason: 'exploration', score: 12 }),
+      ];
+
+      queryMock
+        .mockResolvedValueOnce([{ category_id: 'cat-1', watch_count: '3' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(rows)
+        .mockResolvedValueOnce(exploration);
+
+      const result = await service.getPersonalizedFeed('user-1', { limit: 8 });
+
+      expect(result.data.some((v) => v.id === 'e1')).toBe(true);
+      const explorationQuery = queryMock.mock.calls[4][0] as string;
+      expect(explorationQuery).toContain("'exploration'");
+      expect(explorationQuery).toContain('NOT IN (SELECT following_id FROM follows');
+    });
+
+    it('skips exploration on offset pages', async () => {
+      const rows = Array.from({ length: 8 }, (_, i) => fakeVideo({ id: `a${i}` }));
+      queryMock
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(rows);
+
+      await service.getPersonalizedFeed('user-1', { limit: 8, offset: 8 });
+
+      expect(queryMock).toHaveBeenCalledTimes(4);
     });
 
     it('handles user with no watch history gracefully', async () => {
       const trending = [fakeVideo({ id: 't1', reason: 'trending' })];
 
       queryMock
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
@@ -135,8 +219,20 @@ describe('RecommendationsService', () => {
       expect(result[0].id).toBe('tr1');
 
       const query = queryMock.mock.calls[0][0] as string;
+      const params = queryMock.mock.calls[0][1] as unknown[];
       expect(query).toContain('publish_status');
       expect(query).toContain("visibility = 'public'");
+      expect(query).toContain('watched_at');
+      expect(params[0]).toBe(10);
+      expect(params[1]).toBe(168);
+      expect(params[2]).toBe('user-1');
+    });
+
+    it('uses 24h window when requested', async () => {
+      queryMock.mockResolvedValueOnce([]);
+      await service.getTrending(undefined, 10, [], 24);
+      const params = queryMock.mock.calls[0][1] as unknown[];
+      expect(params[1]).toBe(24);
     });
 
     it('excludes specific video IDs', async () => {
@@ -218,11 +314,12 @@ describe('RecommendationsService', () => {
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
       await service.getPersonalizedFeed('user-1', { limit: 5 });
 
-      const query = queryMock.mock.calls[2][0] as string;
+      const query = queryMock.mock.calls[3][0] as string;
       assertHasDiscoverableFilters(query);
     });
 

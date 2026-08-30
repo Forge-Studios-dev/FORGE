@@ -122,6 +122,14 @@ describe('AdminService security', () => {
     });
     videoRepository.findOne.mockResolvedValue({ ...video });
     videoRepository.find.mockResolvedValue([]);
+    videoRepository.createQueryBuilder.mockReturnValue({
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ raw: [] }),
+    });
     streamRepository.find.mockResolvedValue([]);
     communityRepository.find.mockResolvedValue([]);
     communityRoleRepository.find.mockResolvedValue([]);
@@ -191,25 +199,26 @@ describe('AdminService security', () => {
     });
 
     it('hides owned public videos and ends active streams', async () => {
-      videoRepository.find.mockResolvedValue([
-        { ...video, id: 'video-1', visibility: VideoVisibility.PUBLIC },
-        { ...video, id: 'video-2', visibility: VideoVisibility.PRIVATE },
-      ]);
+      videoRepository.createQueryBuilder.mockReturnValue({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ raw: [{ id: 'video-1' }] }),
+      });
       streamRepository.find.mockResolvedValue([{ id: 'stream-1', userId: regularUser.id }]);
 
       await service.deleteUser(regularUser.id);
 
-      expect(videoRepository.save).toHaveBeenCalledWith([
-        expect.objectContaining({ id: 'video-1', visibility: VideoVisibility.PRIVATE }),
-      ]);
+      expect(videoRepository.createQueryBuilder).toHaveBeenCalled();
       expect(videosService.bustVideoDetailCache).toHaveBeenCalledWith('video-1');
-      expect(videosService.bustVideoDetailCache).not.toHaveBeenCalledWith('video-2');
       expect(streamingService.endStream).toHaveBeenCalledWith(regularUser.id, 'stream-1');
     });
 
     it('skips video/stream cleanup when the user owns none', async () => {
       await service.deleteUser(regularUser.id);
-      expect(videoRepository.save).not.toHaveBeenCalled();
+      expect(videosService.bustVideoDetailCache).not.toHaveBeenCalled();
       expect(streamingService.endStream).not.toHaveBeenCalled();
     });
 
@@ -250,7 +259,21 @@ describe('AdminService security', () => {
       });
     });
 
-    it('leaves the community untouched when no OWNER/ADMIN delegate exists', async () => {
+    it('falls back to the longest-standing MODERATOR when there is no OWNER/ADMIN', async () => {
+      communityRepository.find.mockResolvedValue([{ id: 'comm-1', creatorId: regularUser.id }]);
+      communityRoleRepository.find.mockResolvedValue([
+        { userId: 'moderator-delegate', role: CommunityRoleType.MODERATOR, createdAt: new Date('2026-01-01') },
+        { userId: 'coach-delegate', role: CommunityRoleType.COACH, createdAt: new Date('2025-01-01') },
+      ]);
+
+      await service.deleteUser(regularUser.id);
+
+      expect(communityRepository.update).toHaveBeenCalledWith('comm-1', {
+        creatorId: 'moderator-delegate',
+      });
+    });
+
+    it('privatizes the community when no OWNER/ADMIN/MODERATOR delegate exists', async () => {
       communityRepository.find.mockResolvedValue([{ id: 'comm-1', creatorId: regularUser.id }]);
       communityRoleRepository.find.mockResolvedValue([
         { userId: 'coach-delegate', role: CommunityRoleType.COACH, createdAt: new Date('2026-01-01') },
@@ -258,10 +281,15 @@ describe('AdminService security', () => {
 
       await service.deleteUser(regularUser.id);
 
-      expect(communityRepository.update).not.toHaveBeenCalled();
-      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
-        'community.ownership_transferred',
-        expect.anything(),
+      expect(communityRepository.update).toHaveBeenCalledWith('comm-1', {
+        visibility: 'private',
+      });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'community.orphaned_on_owner_delete',
+        expect.objectContaining({
+          communityId: 'comm-1',
+          previousOwnerId: regularUser.id,
+        }),
       );
     });
   });

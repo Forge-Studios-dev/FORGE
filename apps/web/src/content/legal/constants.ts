@@ -4,7 +4,7 @@ export const LEGAL_PLATFORM_NAME = 'FORGE';
 export const LEGAL_WEBSITE = 'https://forgestudios.net';
 export const LEGAL_CONTACT_EMAIL = 'legal@forgestudios.net';
 export const LEGAL_PRIVACY_EMAIL = 'privacy@forgestudios.net';
-export const LEGAL_LAST_UPDATED = '3 June 2026';
+export const LEGAL_LAST_UPDATED = '29 August 2026';
 
 export type LegalSection = {
   id: string;

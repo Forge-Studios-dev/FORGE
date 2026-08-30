@@ -19,6 +19,7 @@ import { jitterTtl, singleFlight } from '../../common/redis/cache-stampede.util'
 import { getMutedChannelIds } from '../feed/not-interested.util';
 import { mergeExcludedCreatorIds } from '../feed/viewer-exclusions.util';
 import { EngagementService } from '../engagement/engagement.service';
+import { suggestTypoPrefixes } from './suggest-typo.util';
 
 const SEARCH_CACHE_TTL_SEC = 120;
 
@@ -29,8 +30,11 @@ export type SearchDuration = 'any' | 'short' | 'medium' | 'long';
 export type SearchUploaded = 'any' | 'hour' | 'today' | 'week' | 'month' | 'year';
 /** Video result ordering (YouTube Sort by). */
 export type SearchSort = 'relevance' | 'date' | 'views';
-/** Feature filters (YouTube Features). */
-export type SearchCaptions = 'any' | 'yes';
+/**
+ * Feature filters (YouTube Features).
+ * Language codes (e.g. `en`, `es`, `hi`) match `caption_tracks[].language`.
+ */
+export type SearchCaptions = 'any' | 'yes' | string;
 /** Restrict to long-form videos or Shorts (`video_type`). */
 export type SearchKind = 'any' | 'video' | 'short';
 /** Filter by whether the signed-in viewer has watched the video. */
@@ -44,6 +48,16 @@ export type SearchFilters = {
   kind?: SearchKind;
   watched?: SearchWatched;
 };
+
+const CAPTION_LANG_RE = /^[a-z]{2}(-[a-z]{2})?$/i;
+
+export function normalizeCaptionsFilter(raw?: string | null): SearchCaptions {
+  if (!raw || raw === 'any') return 'any';
+  if (raw === 'yes') return 'yes';
+  const lower = raw.toLowerCase();
+  if (CAPTION_LANG_RE.test(lower)) return lower;
+  return 'any';
+}
 
 export type PublicSearchPlaylist = {
   id: string;
@@ -105,7 +119,7 @@ export class SearchService {
       filters?.sort === 'date' || filters?.sort === 'views' || filters?.sort === 'relevance'
         ? filters.sort
         : 'relevance';
-    const captions = filters?.captions === 'yes' ? 'yes' : 'any';
+    const captions = normalizeCaptionsFilter(filters?.captions);
     const kind =
       filters?.kind === 'video' || filters?.kind === 'short' ? filters.kind : 'any';
     const watched =
@@ -127,7 +141,7 @@ export class SearchService {
       )
       .digest('hex')
       .slice(0, 16);
-    return `search:v8:${hash}`;
+    return `search:v9:${hash}`;
   }
 
   private emptyResult(term: string, type: SearchType, filters: Required<SearchFilters>) {
@@ -235,6 +249,15 @@ export class SearchService {
     if (filters.captions === 'yes') {
       qb.andWhere(
         `(v.caption_url IS NOT NULL OR (v.caption_tracks IS NOT NULL AND jsonb_array_length(v.caption_tracks) > 0))`,
+      );
+    } else if (filters.captions !== 'any') {
+      // Language-specific CC filter — matches caption_tracks[].language (e.g. en, es, hi).
+      qb.andWhere(
+        `(v.caption_tracks IS NOT NULL AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(v.caption_tracks) AS t(elem)
+          WHERE lower(t.elem->>'language') = :captionLang
+        ))`,
+        { captionLang: filters.captions },
       );
     }
     if (filters.kind === 'short') {
@@ -471,25 +494,107 @@ export class SearchService {
     const take = clampLimit(limit, 8, 20);
     const channelTake = Math.min(5, take);
     const excluded = await this.excludedCreatorIds(viewerId);
+    const titlePattern = `${prefix}%`;
     const titleQb = applyDiscoverableVideoFilters(
       this.videoRepository.createQueryBuilder('v').select('v.title', 'title'),
-    ).andWhere('v.title ILIKE :p', { p: `${prefix}%` });
+    ).andWhere('v.title ILIKE :p', { p: titlePattern });
     if (excluded.length > 0) {
       titleQb.andWhere('v.user_id NOT IN (:...excluded)', { excluded });
     }
     const channelQb = this.userRepository
       .createQueryBuilder('u')
       .select(['u.id', 'u.username', 'u.displayName'])
-      .where('(u.username ILIKE :p OR u.display_name ILIKE :p)', { p: `${prefix}%` })
+      .where('(u.username ILIKE :p OR u.display_name ILIKE :p)', { p: titlePattern })
       .orderBy('u.username', 'ASC')
       .take(channelTake);
     if (excluded.length > 0) {
       channelQb.andWhere('u.id NOT IN (:...excluded)', { excluded });
     }
-    const [rows, channels] = await Promise.all([
+    const [rows, channelsInitial] = await Promise.all([
       titleQb.orderBy('v.title', 'ASC').distinct(true).take(take).getRawMany<{ title: string }>(),
       channelQb.getMany(),
     ]);
+    let channels = channelsInitial;
+
+    // Contains fallback when prefix matches are sparse (helps mid-word / near-typo queries).
+    if (rows.length < Math.min(3, take) || channels.length === 0) {
+      const contains = `%${prefix}%`;
+      const needTitles = rows.length < Math.min(3, take);
+      const needChannels = channels.length === 0;
+      const containTitleQb = needTitles
+        ? applyDiscoverableVideoFilters(
+            this.videoRepository.createQueryBuilder('v').select('v.title', 'title'),
+          ).andWhere('v.title ILIKE :p', { p: contains })
+        : null;
+      if (containTitleQb && excluded.length > 0) {
+        containTitleQb.andWhere('v.user_id NOT IN (:...excluded)', { excluded });
+      }
+      const containChannelQb = needChannels
+        ? this.userRepository
+            .createQueryBuilder('u')
+            .select(['u.id', 'u.username', 'u.displayName'])
+            .where('(u.username ILIKE :p OR u.display_name ILIKE :p)', { p: contains })
+            .orderBy('u.username', 'ASC')
+            .take(channelTake)
+        : null;
+      if (containChannelQb && excluded.length > 0) {
+        containChannelQb.andWhere('u.id NOT IN (:...excluded)', { excluded });
+      }
+      const [moreRows, moreChannels] = await Promise.all([
+        containTitleQb
+          ? containTitleQb.orderBy('v.title', 'ASC').distinct(true).take(take).getRawMany<{ title: string }>()
+          : Promise.resolve([] as { title: string }[]),
+        containChannelQb ? containChannelQb.getMany() : Promise.resolve([] as User[]),
+      ]);
+      if (needTitles && moreRows.length) {
+        const seen = new Set(rows.map((r) => r.title.toLowerCase()));
+        for (const row of moreRows) {
+          const key = row.title.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          rows.push(row);
+          if (rows.length >= take) break;
+        }
+      }
+      if (needChannels && moreChannels.length) {
+        channels = moreChannels;
+      }
+    }
+
+    // 1-edit prefix OR when still sparse (transpositions / missing letter) — no pg_trgm.
+    if (rows.length < Math.min(3, take) && prefix.length >= 3) {
+      const variants = suggestTypoPrefixes(prefix, 8);
+      if (variants.length) {
+        const params: Record<string, string> = {};
+        const clauses = variants.map((v, i) => {
+          const key = `typo${i}`;
+          params[key] = `${v}%`;
+          return `v.title ILIKE :${key}`;
+        });
+        const typoQb = applyDiscoverableVideoFilters(
+          this.videoRepository.createQueryBuilder('v').select('v.title', 'title'),
+        ).andWhere(`(${clauses.join(' OR ')})`, params);
+        if (excluded.length > 0) {
+          typoQb.andWhere('v.user_id NOT IN (:...excluded)', { excluded });
+        }
+        const typoRows = await typoQb
+          .orderBy('v.title', 'ASC')
+          .distinct(true)
+          .take(take)
+          .getRawMany<{ title: string }>();
+        if (typoRows.length) {
+          const seen = new Set(rows.map((r) => r.title.toLowerCase()));
+          for (const row of typoRows) {
+            const key = row.title.toLowerCase();
+            if (seen.has(key)) continue;
+            seen.add(key);
+            rows.push(row);
+            if (rows.length >= take) break;
+          }
+        }
+      }
+    }
+
     return {
       titles: rows.map((r) => r.title),
       channels: channels.map((u) => ({

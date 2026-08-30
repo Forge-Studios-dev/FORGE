@@ -26,6 +26,7 @@ import { StreamReactionPanel } from '@/components/live/StreamReactionPanel';
 import { StreamRaiseHandPanel } from '@/components/live/StreamRaiseHandPanel';
 import { useAccessSession } from '@/lib/access-session';
 import { AccessSessionConflict } from '@/components/Community/AccessSessionConflict';
+import { env } from '@/env';
 
 const ACCESS_MESSAGES: Record<string, string> = {
   login_required: 'Sign in to watch this stream.',
@@ -38,7 +39,7 @@ const ACCESS_MESSAGES: Record<string, string> = {
   not_available: 'This stream is not available.',
 };
 
-const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+const LIVEKIT_URL = env.NEXT_PUBLIC_LIVEKIT_URL;
 
 export default function LiveWatchPage() {
   const params = useParams();
@@ -55,6 +56,7 @@ export default function LiveWatchPage() {
   const [lastEndReason, setLastEndReason] = useState<Stream['endReason']>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
+  const [shareHint, setShareHint] = useState('');
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -315,17 +317,10 @@ export default function LiveWatchPage() {
           </div>
         );
       }
+      // Theater widens the player column (parent grid) — never use fixed fullscreen
+      // overlay so chat / polls / Q&A stay reachable (YouTube live parity; watch theater pattern).
       return (
-        <div className={theaterMode ? 'fixed inset-0 z-50 flex flex-col bg-background p-4' : 'relative'}>
-          {theaterMode ? (
-            <button
-              type="button"
-              onClick={() => setTheaterMode(false)}
-              className="mb-3 self-end text-sm text-primary hover:underline"
-            >
-              Exit theater
-            </button>
-          ) : null}
+        <div className="relative">
           <div className="relative">
             <VideoPlayer
               hlsUrl={stream.playbackUrl}
@@ -336,7 +331,11 @@ export default function LiveWatchPage() {
               dvrEnabled={stream.dvrEnabled}
             />
             {isReconnecting ? (
-              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/80 text-center backdrop-blur-sm">
+              <div
+                className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/80 text-center backdrop-blur-sm"
+                role="alert"
+                aria-live="assertive"
+              >
                 <p className="text-sm font-semibold text-on-surface">
                   Host connection lost. Waiting for reconnection…
                 </p>
@@ -347,15 +346,14 @@ export default function LiveWatchPage() {
             ) : null}
             <StreamReactionPanel streamId={id} />
           </div>
-          {!theaterMode ? (
-            <button
-              type="button"
-              onClick={() => setTheaterMode(true)}
-              className="mt-2 text-xs text-primary hover:underline"
-            >
-              Theater mode
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => setTheaterMode(!theaterMode)}
+            aria-label={theaterMode ? 'Exit theater mode' : 'Theater mode'}
+            className="mt-2 text-xs text-primary hover:underline"
+          >
+            {theaterMode ? 'Exit theater' : 'Theater mode'}
+          </button>
         </div>
       );
     }
@@ -402,10 +400,16 @@ export default function LiveWatchPage() {
   }
 
   return (
-    <main className="mx-auto max-w-[var(--spacing-container-max)] px-5 py-8 md:px-12">
-      <Link href="/live" className="mb-6 inline-block text-sm text-primary hover:underline">
-        ← All live streams
-      </Link>
+    <main
+      className={`mx-auto px-5 py-8 md:px-12 ${
+        theaterMode ? 'max-w-none' : 'max-w-[var(--spacing-container-max)]'
+      }`}
+    >
+      {!theaterMode ? (
+        <Link href="/live" className="mb-6 inline-block text-sm text-primary hover:underline">
+          ← All live streams
+        </Link>
+      ) : null}
 
       {isLoading ? (
         <div className="space-y-6">
@@ -429,18 +433,57 @@ export default function LiveWatchPage() {
           onAction={() => refetch()}
         />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+        <div
+          className={`grid gap-6 ${
+            theaterMode
+              ? 'lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]'
+              : 'lg:grid-cols-[1fr_340px]'
+          }`}
+        >
           <div className="space-y-6">
-            <div>
-              <h1 className="font-display-forge text-2xl font-bold">{stream.title}</h1>
-              <p className="mt-1 text-sm text-on-surface-variant">
-                {(stream.user as User)?.displayName ?? 'Creator'} ·{' '}
-                <span className="capitalize">{stream.status}</span>
-                {displayViewers ? ` · ${displayViewers} viewers` : ''}
-                {stream.visibility === 'paid_event' && stream.ticketPriceCents
-                  ? ` · $${(stream.ticketPriceCents / 100).toFixed(2)} ticket`
-                  : ''}
-              </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="font-display-forge text-2xl font-bold">{stream.title}</h1>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  {(stream.user as User)?.displayName ?? 'Creator'} ·{' '}
+                  <span className="capitalize">{stream.status}</span>
+                  {displayViewers ? ` · ${displayViewers} viewers` : ''}
+                  {stream.visibility === 'paid_event' && stream.ticketPriceCents
+                    ? ` · $${(stream.ticketPriceCents / 100).toFixed(2)} ticket`
+                    : ''}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <button
+                  type="button"
+                  className="rounded-full border border-outline-variant/40 px-3 py-1.5 text-sm text-on-surface hover:border-primary"
+                  onClick={() => {
+                    const url = window.location.href;
+                    void (async () => {
+                      try {
+                        if (typeof navigator.share === 'function') {
+                          await navigator.share({ title: stream.title, url });
+                          setShareHint('');
+                        } else {
+                          await navigator.clipboard.writeText(url);
+                          setShareHint('Link copied');
+                          window.setTimeout(() => setShareHint(''), 2000);
+                        }
+                      } catch {
+                        setShareHint('Could not share');
+                        window.setTimeout(() => setShareHint(''), 2000);
+                      }
+                    })();
+                  }}
+                >
+                  Share
+                </button>
+                {shareHint ? (
+                  <span className="text-xs text-on-surface-variant" role="status">
+                    {shareHint}
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             {renderPlayer()}

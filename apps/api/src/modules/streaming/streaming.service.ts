@@ -64,6 +64,7 @@ import {
   PREMIUM_CONTENT_NOTIFY_QUEUE,
   type PremiumContentNotifyJobData,
 } from '../workers/premium-content-notify/premium-content-notify.constants';
+import { StreamClipExportService } from '../workers/stream-clip-export/stream-clip-export.service';
 
 @Injectable()
 export class StreamingService {
@@ -95,6 +96,7 @@ export class StreamingService {
     private readonly muxLiveSyncService: MuxLiveSyncService,
     private readonly streamReminderScheduler: StreamReminderScheduler,
     private readonly engagementService: EngagementService,
+    private readonly streamClipExport: StreamClipExportService,
     @InjectRedis() private readonly redis: Redis,
     @InjectQueue(PREMIUM_CONTENT_NOTIFY_QUEUE)
     private readonly premiumContentNotifyQueue: Queue<PremiumContentNotifyJobData>,
@@ -985,11 +987,18 @@ export class StreamingService {
       const activeAssetId = data.active_asset_id as string | undefined;
       if (activeAssetId) {
         await this.streamRepository.update({ muxLiveStreamId }, { muxAssetId: activeAssetId });
+        const stream = await this.streamRepository.findOne({ where: { muxLiveStreamId } });
+        if (stream) {
+          await this.streamClipExport.enqueueMarkedClipsForStream(stream.id);
+        }
       }
     } else if (eventType === 'video.live_stream.idle') {
       const muxLiveStreamId = data.id as string;
       await this.muxLiveSyncService.handleWebhookIdle(muxLiveStreamId);
     } else if (eventType === 'video.asset.ready') {
+      const handledClip = await this.streamClipExport.handleClipAssetReady(payload);
+      if (handledClip) return;
+
       const handledVod = await this.muxVodService.handleAssetReady(payload);
       if (handledVod) return;
 

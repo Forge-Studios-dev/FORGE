@@ -145,9 +145,13 @@ function ShortSlide({
       typeof window !== 'undefined'
         ? `${window.location.origin}/shorts?v=${video.id}`
         : `/shorts?v=${video.id}`;
+    const recordShare = (channel: 'native' | 'copy_link') => {
+      void api.post(`/videos/${video.id}/share`, { channel }).catch(() => {});
+    };
     try {
       if (navigator.share) {
         await navigator.share({ title: video.title, url });
+        recordShare('native');
         return;
       }
     } catch {
@@ -156,6 +160,7 @@ function ShortSlide({
     try {
       if (navigator.clipboard) {
         await navigator.clipboard.writeText(url);
+        recordShare('copy_link');
         setShareHint('Link copied');
         window.setTimeout(() => setShareHint(null), 2000);
       }

@@ -23,12 +23,26 @@ curl_smoke() {
   return 1
 }
 
-code="$(curl_smoke -o /tmp/forge-smoke-health.json -w "%{http_code}" "${BASE}/health" || true)"
+code="$(curl_smoke -o /tmp/forge-smoke-health.json -w "%{http_code}" "${BASE}/health/live" || true)"
 if [[ "$code" != "200" ]]; then
-  echo "FAIL: GET ${BASE}/health expected 200, got ${code:-curl-error}" >&2
+  echo "FAIL: GET ${BASE}/health/live expected 200, got ${code:-curl-error}" >&2
   exit 1
 fi
-echo "OK: GET ${BASE}/health ($code)"
+echo "OK: GET ${BASE}/health/live ($code)"
+
+if [[ "$MODE" == "live" ]]; then
+  echo "All live smoke checks passed (FORGE_SMOKE_MODE=live)."
+  exit 0
+fi
+
+if [[ "$MODE" == "full" ]]; then
+  ready_code="$(curl_smoke -o /tmp/forge-smoke-ready.json -w "%{http_code}" "${BASE}/health/ready" || true)"
+  if [[ "$ready_code" != "200" ]]; then
+    echo "FAIL: GET ${BASE}/health/ready expected 200, got ${ready_code:-curl-error}" >&2
+    exit 1
+  fi
+  echo "OK: GET ${BASE}/health/ready ($ready_code)"
+fi
 
 feed_code="$(curl_smoke -o /dev/null -w "%{http_code}" "${BASE}/videos/feed?limit=1&sort=latest" || true)"
 if [[ "$feed_code" != "200" ]]; then
@@ -79,7 +93,7 @@ sys.exit(1)
 fi
 
 API_ROOT="${BASE%/api/v1}"
-health_headers="$(curl_smoke -sSI "${BASE}/health" 2>/dev/null || true)"
+health_headers="$(curl_smoke -sSI "${BASE}/health/live" 2>/dev/null || true)"
 if echo "$health_headers" | grep -qi 'x-correlation-id:'; then
   echo "OK: health returns x-correlation-id"
 else

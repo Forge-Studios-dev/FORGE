@@ -15,10 +15,12 @@ export class ScheduledPublishWorker extends WorkerHost {
     super();
   }
 
-  async process(_job: Job<ScheduledPublishJob>): Promise<void> {
-    const { published } = await this.scheduledPublish.runScheduledPublish();
+  async process(job: Job<ScheduledPublishJob>): Promise<void> {
+    const { published } = job.data?.videoId
+      ? await this.scheduledPublish.publishVideoIfDue(job.data.videoId)
+      : await this.scheduledPublish.runScheduledPublish();
     if (published > 0) {
-      this.logger.log(`Scheduled publish scan indexed ${published} video(s)`);
+      this.logger.log(`Scheduled publish indexed ${published} video(s)`);
     }
   }
 }

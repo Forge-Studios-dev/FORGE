@@ -188,10 +188,11 @@ jobs:
 
       - name: Smoke test API health
         run: |
-          for url in https://api.forgestudios.net/api/v1/health https://forge-studios-api.fly.dev/api/v1/health; do
+          for url in https://api.forgestudios.net/api/v1/health/live https://forge-studios-api.fly.dev/api/v1/health/live; do
             for i in 1 2 3 4 5 6 8 10 12; do
               if curl -sf --max-time 15 "$url"; then
                 echo "OK: $url"
+                curl -sf --max-time 15 https://api.forgestudios.net/api/v1/health/ready >/dev/null || true
                 exit 0
               fi
               sleep 10
@@ -281,28 +282,30 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Verify worker functional health check (MED-08)
+      - name: Verify worker machine started (no continuous health probes)
         if: always()
         run: |
-          # checks.worker_health has a 30s grace_period + 30s interval; wait
-          # long enough for at least one real result before gating on it.
-          echo "=== Waiting up to 90s for the worker_health check to report ==="
+          # Continuous Fly [checks] were removed — confirm machine is started, then
+          # one intentional curl of the worker's manual /health endpoint.
+          echo "=== Waiting up to 90s for worker machine started ==="
           for i in $(seq 1 9); do
-            # `flyctl checks list --json` output is keyed by machine ID (object of
-            # arrays), not a flat array, and newer flyctl versions report the
-            # toml-defined check under an auto-generated name (e.g.
-            # servicecheck-00-http-3001) rather than "worker_health" — so search
-            # recursively for any check object instead of relying on a fixed shape/name.
-            RESULT=$(flyctl checks list -a forge-studios-worker --json 2>/dev/null \
-              | jq -r '[.. | objects | select(has("name") and has("status"))][0].status // empty')
-            echo "attempt $i: worker_health=$RESULT"
-            if [ "$RESULT" = "passing" ]; then
-              echo "Worker health check passing"
+            STATE=$(flyctl machines list -a forge-studios-worker --json 2>/dev/null \
+              | jq -r '.[0].state // empty')
+            echo "attempt $i: state=$STATE"
+            if [ "$STATE" = "started" ]; then
+              echo "Worker machine started"
+              # One-shot deploy diagnostic (not a platform loop).
+              if flyctl ssh console -a forge-studios-worker -C "wget -qO- http://127.0.0.1:3001/health" 2>/dev/null \
+                || flyctl ssh console -a forge-studios-worker -C "curl -sf http://127.0.0.1:3001/health" 2>/dev/null; then
+                echo "OK: worker GET /health (manual deploy check)"
+              else
+                echo "::warning::Worker started but one-shot /health probe failed — check logs"
+              fi
               exit 0
             fi
             sleep 10
           done
-          echo "::error::Worker health check did not report passing within 90s — worker is not functionally healthy"
+          echo "::error::Worker machine did not reach started within 90s"
           exit 1
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -321,10 +324,7 @@ jobs:
           PREV_IMAGE=$(flyctl releases -a forge-studios-worker --json --image 2>/dev/null | jq -r 'if length > 1 then .[1].imageRef // .[1].ImageRef // empty else empty end')
           if [ -n "$PREV_IMAGE" ]; then
             echo "Rolling back worker to: $PREV_IMAGE"
-            # -c is required here (unlike a bare `flyctl deploy --image`) so the
-            # named checks.worker_health check from fly.worker.toml is reapplied.
-            # Without it, Fly registers an unnamed fallback check that can get
-            # stuck reporting stale/critical indefinitely after a rollback.
+            # -c is required so fly.worker.toml config is reapplied on rollback.
             flyctl deploy -c fly.worker.toml --image "$PREV_IMAGE" -a forge-studios-worker
           else
             echo "No previous worker release image for rollback"

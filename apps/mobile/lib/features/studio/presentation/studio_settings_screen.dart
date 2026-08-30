@@ -22,6 +22,7 @@ class StudioSettingsScreen extends ConsumerWidget {
         title: const Text('Studio settings'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
       ),
@@ -96,6 +97,14 @@ class StudioSettingsScreen extends ConsumerWidget {
               title: 'Attention queue',
               subtitle: 'Comments, moderation, and processing failures',
               onTap: () => context.push('/studio/attention'),
+            ),
+            const SizedBox(height: 10),
+            _shortcut(
+              context,
+              icon: Icons.payments_outlined,
+              title: 'Earnings',
+              subtitle: 'Memberships, Super Thanks, and Super Chat summary',
+              onTap: () => context.push('/studio/earnings'),
             ),
             const SizedBox(height: 10),
             _shortcut(

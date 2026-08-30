@@ -33,11 +33,9 @@ async function bootstrapWorker() {
   const logger = app.get(Logger);
   logger.log('FORGE worker process started (BullMQ consumers; no HTTP listener)');
 
-  // MED-08: a bare http.Server (not routed through Nest/Express) purely so
-  // Fly has a real functional liveness check for the worker, instead of only
-  // checking machine state. Reachable only after the Nest application
-  // context above has fully booted (DI + config validation succeeded), so
-  // its absence is itself the correct failure signal for Fly to act on.
+  // Manual/on-demand health only — no Fly continuous [checks]. A bare
+  // http.Server (not Nest/Express) so operators can curl GET /health after
+  // the Nest application context has fully booted.
   const port = Number(process.env.PORT) || 3001;
   createServer((req, res) => {
     if (req.url === '/health') {
@@ -47,7 +45,7 @@ async function bootstrapWorker() {
       res.writeHead(404);
       res.end();
     }
-  }).listen(port, () => logger.log(`Worker health endpoint listening on :${port}`));
+  }).listen(port, () => logger.log(`Worker health endpoint listening on :${port} (manual only)`));
 }
 
 async function bootstrap() {

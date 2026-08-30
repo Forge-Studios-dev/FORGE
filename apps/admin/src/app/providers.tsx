@@ -6,7 +6,12 @@ import { ToastProvider } from '@forge/design-system/client';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 
 export function AdminProviders({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { staleTime: 30000 } } }));
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: { queries: { staleTime: 30000, refetchOnWindowFocus: false } },
+      }),
+  );
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>

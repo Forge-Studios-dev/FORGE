@@ -1,7 +1,8 @@
 'use client';
 
+import { Suspense, useEffect, useId, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useId, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Button, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
 import { DataTable, Dialog, useToast } from '@forge/design-system/client';
@@ -35,25 +36,67 @@ const STATUS_TONE: Record<string, StatusTone> = {
   false_positive: 'neutral',
 };
 
+const FRAUD_STATUSES = ['open', 'under_review', 'resolved', 'false_positive'] as const;
+
 const RISK_COLOR = (score: number) => {
   if (score >= 80) return 'text-error';
   if (score >= 50) return 'text-warning';
   return 'text-success';
 };
 
+function parsePage(raw: string | null): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
+function parseStatus(raw: string | null): string {
+  if (!raw) return 'open';
+  if (raw === 'all') return '';
+  return FRAUD_STATUSES.includes(raw as (typeof FRAUD_STATUSES)[number]) ? raw : 'open';
+}
+
 export default function FraudPage() {
+  return (
+    <Suspense fallback={<p className="text-on-surface-variant">Loading fraud alerts…</p>}>
+      <FraudPageInner />
+    </Suspense>
+  );
+}
+
+function FraudPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const statusParam = searchParams.get('status');
+  const pageParam = searchParams.get('page');
+
   const qc = useQueryClient();
   const { toast } = useToast();
   const dialogTitleId = useId();
-  const [statusFilter, setStatusFilter] = useState<string>('open');
-  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState(() => parseStatus(statusParam));
+  const [page, setPage] = useState(() => parsePage(pageParam));
   const [selectedAlert, setSelectedAlert] = useState<FraudAlert | null>(null);
   const [notes, setNotes] = useState('');
   const [newStatus, setNewStatus] = useState('');
 
   useEffect(() => {
-    setPage(1);
-  }, [statusFilter]);
+    setStatusFilter(parseStatus(statusParam));
+    setPage(parsePage(pageParam));
+  }, [statusParam, pageParam]);
+
+  function syncUrl(next: { status?: string; page?: number }) {
+    const params = new URLSearchParams();
+    const status = next.status ?? statusFilter;
+    const nextPage = next.page ?? page;
+
+    if (status === '') params.set('status', 'all');
+    else if (status !== 'open') params.set('status', status);
+    if (nextPage > 1) params.set('page', String(nextPage));
+
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['fraud-alerts', statusFilter, page],
@@ -195,7 +238,11 @@ export default function FraudPage() {
             type="button"
             variant={statusFilter === s ? 'primary' : 'secondary'}
             className="!px-3 !py-1 text-sm"
-            onClick={() => setStatusFilter(s)}
+            onClick={() => {
+              setStatusFilter(s);
+              setPage(1);
+              syncUrl({ status: s, page: 1 });
+            }}
           >
             {s ? STATUS_LABELS[s] : 'All'}
           </Button>
@@ -217,8 +264,16 @@ export default function FraudPage() {
           totalPages={totalPages}
           total={total}
           label="alerts"
-          onPrev={() => setPage((p) => Math.max(1, p - 1))}
-          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          onPrev={() => {
+            const next = Math.max(1, page - 1);
+            setPage(next);
+            syncUrl({ page: next });
+          }}
+          onNext={() => {
+            const next = Math.min(totalPages, page + 1);
+            setPage(next);
+            syncUrl({ page: next });
+          }}
         />
       ) : null}
 

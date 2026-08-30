@@ -13,11 +13,21 @@ export function formatCount(n: number): string {
 
 /** Formats cents as whole-unit USD (e.g. 12345 -> "$123"). Single source of truth so revenue figures can't drift between surfaces (studio dashboard vs analytics). */
 export function formatCentsUsd(cents: number): string {
-  return (cents / 100).toLocaleString(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  });
+  return formatCentsCurrency(cents, 'USD');
+}
+
+/** Formats cents for a given ISO 4217 currency (defaults USD). */
+export function formatCentsCurrency(cents: number, currency = 'USD'): string {
+  const code = (currency || 'USD').trim().toUpperCase() || 'USD';
+  try {
+    return (cents / 100).toLocaleString(undefined, {
+      style: 'currency',
+      currency: code,
+      maximumFractionDigits: 0,
+    });
+  } catch {
+    return formatCentsUsd(cents);
+  }
 }
 
 export function formatDuration(seconds: number): string {

@@ -10,6 +10,7 @@ import {
 describe('ScheduledPublishService', () => {
   const videoRepository = {
     find: jest.fn(),
+    findOne: jest.fn(),
     update: jest.fn().mockResolvedValue({ affected: 1 }),
   };
   const videosService = { bustVideoDetailCache: jest.fn().mockResolvedValue(undefined) };
@@ -26,13 +27,14 @@ describe('ScheduledPublishService', () => {
     );
   });
 
-  it('queries only videos that are ready, published, public, unmoderated, past schedule, and not yet indexed', async () => {
+  it('queries only id and userId for due, ready, public, unmoderated videos', async () => {
     videoRepository.find.mockResolvedValue([]);
 
     await service.runScheduledPublish();
 
     expect(videoRepository.find).toHaveBeenCalledWith(
       expect.objectContaining({
+        select: ['id', 'userId'],
         where: expect.objectContaining({
           status: VideoStatus.READY,
           publishStatus: PublishStatus.PUBLISHED,
@@ -76,5 +78,29 @@ describe('ScheduledPublishService', () => {
     expect(result).toEqual({ published: 0 });
     expect(videoRepository.update).not.toHaveBeenCalled();
     expect(eventEmitter.emit).not.toHaveBeenCalled();
+  });
+
+  it('publishVideoIfDue indexes a single matching video', async () => {
+    videoRepository.findOne.mockResolvedValue({ id: 'v1', userId: 'u1' });
+
+    const result = await service.publishVideoIfDue('v1');
+
+    expect(result).toEqual({ published: 1 });
+    expect(videoRepository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: ['id', 'userId'],
+        where: expect.objectContaining({ id: 'v1' }),
+      }),
+    );
+    expect(videoRepository.update).toHaveBeenCalledWith('v1', { indexedAt: expect.any(Date) });
+  });
+
+  it('publishVideoIfDue no-ops when the video is not due', async () => {
+    videoRepository.findOne.mockResolvedValue(null);
+
+    const result = await service.publishVideoIfDue('v1');
+
+    expect(result).toEqual({ published: 0 });
+    expect(videoRepository.update).not.toHaveBeenCalled();
   });
 });

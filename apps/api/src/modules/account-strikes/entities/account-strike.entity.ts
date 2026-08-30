@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { Video } from '../../content/entities/video.entity';
 
 /**
  * Mirrors YouTube's own published Community Guidelines strike system
@@ -62,6 +63,10 @@ export class AccountStrike {
 
   @Column({ name: 'source_video_id', type: 'uuid', nullable: true })
   sourceVideoId: string | null;
+
+  @ManyToOne(() => Video, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'source_video_id' })
+  sourceVideo: Video | null;
 
   @Column({ name: 'source_report_id', type: 'uuid', nullable: true })
   sourceReportId: string | null;

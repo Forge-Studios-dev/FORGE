@@ -1,15 +1,29 @@
-# Phase 04 — Report (2026-08-04)
+# Phase 04 — Report (2026-08-29)
 
-**Completion:** ~95%  
+**Completion:** ~98%  
 **Readiness:** 9 / 10  
-**Recommendation:** Closed. Phase 05 next in app code. **Phase 03 Neon migrate still needs approval.**
+**Recommendation:** Closed. Continue Master Phase 05+ (already largely done).
 
-## Changes
+## This pass (Wave 17)
 
-- Docs refreshed for Phase 01 Create IA + AppShell contracts
-- No code edits this slice (navigation already corrected in Phase 01)
+| ID | Pri | Change |
+| --- | --- | --- |
+| P04-A1 | P0 | `AppShell`: `/live/[id]` + `/community/*/voice|text/*` use TopBar-only chrome (watch-like), not SideNav/MobileNav |
+| P04-R1 | P1 | Web redirects: `/studio/copilot` → `/studio`; `/studio/rooms` + `/studio/engagement` → `/studio/community` |
+| N4 | P1 | Mobile `/trending` + `TrendingScreen` (`getTrendingFeed`); Library splits Trending vs Explore |
+| — | P1 | Admin redirects: `/mentorship`, `/channel-points` → `/dashboard` |
+
+## Already closed (prior waves)
+
+Create TopBar/MobileNav split, settings middleware, LMS redirects, community/username redirects, MiniPlayerDockLazy, mobile public channel/playlist auth.
+
+## Deferred / skip
+
+- Guest `/subscriptions`/`/updates` middleware vs empty-state (product)
+- Identifier-scheme unify, playlists rename
+- Short upload `?type=short` until upload sets `videoType` (Phase 08)
 
 ## Risks
 
-- Short upload query param until upload pipeline sets `videoType`
-- Prod DB lag (Phase 03 C1) can make some navigated features error at API layer
+- Live list `/live` correctly keeps full chrome; only `/live/[id]` is immersive
+- Admin orphan redirects are soft (temporary) — safe for bookmarks

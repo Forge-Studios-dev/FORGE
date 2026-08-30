@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CommunityModerationService } from './community-moderation.service';
@@ -14,6 +14,7 @@ import { CommunityRoomMessage } from './entities/community-room-message.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CommunitiesService } from './communities.service';
 import { CreatorAuditService } from './creator-audit.service';
+import { TRUSTED_DAILY_REPORT_CAP } from '../reports/reporter-trust.util';
 
 describe('CommunityModerationService', () => {
   let service: CommunityModerationService;
@@ -32,7 +33,7 @@ describe('CommunityModerationService', () => {
     find: jest.Mock;
     delete: jest.Mock;
   };
-  let communityRepository: { findOne: jest.Mock };
+  let communityRepository: { findOne: jest.Mock; find: jest.Mock };
   let channelRepository: { findOne: jest.Mock };
   let messageRepository: { findOne: jest.Mock };
   let postRepository: { findOne: jest.Mock };
@@ -44,6 +45,8 @@ describe('CommunityModerationService', () => {
     create: jest.Mock;
     find: jest.Mock;
     findOne: jest.Mock;
+    count: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -63,6 +66,7 @@ describe('CommunityModerationService', () => {
     };
     communityRepository = {
       findOne: jest.fn().mockResolvedValue({ id: 'comm-1', creatorId: 'creator-1' }),
+      find: jest.fn().mockResolvedValue([]),
     };
     channelRepository = {
       findOne: jest.fn().mockResolvedValue({ id: 'ch-1', communityId: 'comm-1' }),
@@ -86,11 +90,13 @@ describe('CommunityModerationService', () => {
       save: jest.fn().mockResolvedValue({ id: 'report-1', status: 'open' }),
       create: jest.fn((x) => x),
       find: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
       findOne: jest.fn().mockResolvedValue({
         id: 'report-1',
         communityId: 'comm-1',
         status: 'open',
       }),
+      createQueryBuilder: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -162,6 +168,19 @@ describe('CommunityModerationService', () => {
       undefined,
       { skipBlockGate: true },
     );
+  });
+
+  it('rejects reports over the daily cap', async () => {
+    reportRepository.count.mockResolvedValue(TRUSTED_DAILY_REPORT_CAP);
+    await expect(
+      service.createReport('reporter-1', {
+        communityId: 'comm-1',
+        targetType: 'post',
+        postId: 'post-1',
+        reason: 'spam',
+      }),
+    ).rejects.toBeInstanceOf(HttpException);
+    expect(reportRepository.save).not.toHaveBeenCalled();
   });
 
   it('rejects report when channel is not in community', async () => {
@@ -338,5 +357,95 @@ describe('CommunityModerationService', () => {
     await expect(service.banMember('coach-1', 'comm-1', 'user-bad')).rejects.toThrow(
       ForbiddenException,
     );
+  });
+
+  describe('listUnifiedReportsForCreator', () => {
+    function mockQb(rows: Array<Record<string, unknown>>) {
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(rows),
+      };
+      reportRepository.createQueryBuilder.mockReturnValue(qb);
+      return qb;
+    }
+
+    it('returns empty meta when creator has no communities', async () => {
+      communityRepository.find.mockResolvedValue([]);
+      roleRepository.find.mockResolvedValue([]);
+
+      const result = await service.listUnifiedReportsForCreator('creator-1', 'open');
+
+      expect(result).toEqual({
+        data: [],
+        meta: { cursor: null, hasMore: false, total: 0 },
+      });
+      expect(reportRepository.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('cursor-paginates and reports total open count', async () => {
+      communityRepository.find.mockResolvedValue([
+        { id: 'comm-1', name: 'Main', slug: 'main' },
+      ]);
+      roleRepository.find.mockResolvedValue([]);
+      const older = new Date('2026-08-01T10:00:00.000Z');
+      const newer = new Date('2026-08-02T10:00:00.000Z');
+      const qb = mockQb([
+        {
+          id: 'r2',
+          communityId: 'comm-1',
+          reason: 'Spam',
+          status: 'open',
+          createdAt: newer,
+        },
+        {
+          id: 'r1',
+          communityId: 'comm-1',
+          reason: 'Hate',
+          status: 'open',
+          createdAt: older,
+        },
+      ]);
+      reportRepository.count.mockResolvedValue(5);
+
+      const result = await service.listUnifiedReportsForCreator('creator-1', 'open', {
+        limit: 1,
+      });
+
+      expect(qb.take).toHaveBeenCalledWith(2);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toMatchObject({
+        id: 'r2',
+        communityName: 'Main',
+      });
+      expect(result.meta.hasMore).toBe(true);
+      expect(result.meta.total).toBe(5);
+      expect(result.meta.cursor).toBe(
+        Buffer.from(`${newer.toISOString()}|r2`).toString('base64'),
+      );
+    });
+
+    it('applies cursor filter on subsequent pages', async () => {
+      communityRepository.find.mockResolvedValue([
+        { id: 'comm-1', name: 'Main', slug: 'main' },
+      ]);
+      roleRepository.find.mockResolvedValue([]);
+      const qb = mockQb([]);
+      reportRepository.count.mockResolvedValue(0);
+      const cursor = Buffer.from('2026-08-02T10:00:00.000Z|r2').toString('base64');
+
+      await service.listUnifiedReportsForCreator('creator-1', 'open', { cursor, limit: 30 });
+
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(r.createdAt < :cursorAt OR (r.createdAt = :cursorAt AND r.id < :cursorId))',
+        {
+          cursorAt: new Date('2026-08-02T10:00:00.000Z'),
+          cursorId: 'r2',
+        },
+      );
+    });
   });
 });

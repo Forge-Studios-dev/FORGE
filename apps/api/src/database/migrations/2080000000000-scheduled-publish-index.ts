@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/** Backs the 1-minute ScheduledPublishService scan — see scheduled-publish.service.ts. */
+/** Partial index for the scheduled-publish backup scan (delayed jobs are the primary path). */
 export class ScheduledPublishIndex2080000000000 implements MigrationInterface {
   name = 'ScheduledPublishIndex2080000000000';
 

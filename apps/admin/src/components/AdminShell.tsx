@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@forge/design-system';
-import { adminLogout } from '@/lib/api';
+import { adminLogout, api } from '@/lib/api';
 import { FULL_ADMIN_ONLY_HREFS, useAdminProfile } from '@/lib/admin-profile';
 import { useTheme } from '@/components/theme/ThemeProvider';
+import { env } from '@/env';
 
 type NavItem = { href: string; label: string; icon: string };
 type NavGroup = { label: string; items: NavItem[] };
@@ -21,10 +22,12 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/creator-approvals', label: 'Approvals', icon: 'verified' },
       { href: '/content', label: 'Content', icon: 'video_library' },
+      { href: '/comments', label: 'Held comments', icon: 'forum' },
       { href: '/reports', label: 'Reports', icon: 'flag' },
       { href: '/ai', label: 'AI budget', icon: 'psychology' },
       { href: '/users', label: 'Users', icon: 'group' },
       { href: '/copyright', label: 'Copyright & Strikes', icon: 'gavel' },
+      { href: '/audit', label: 'Audit log', icon: 'history' },
     ],
   },
   {
@@ -101,7 +104,7 @@ function SidebarFooter({ onLogout, onNavigate }: { onLogout: () => void; onNavig
   return (
     <div className="border-t border-outline-variant/20 p-4">
       <Link
-        href={process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000'}
+        href={env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000'}
         className="mb-2 flex items-center gap-2 text-xs text-outline hover:text-on-surface"
         onClick={onNavigate}
       >
@@ -122,6 +125,33 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { data: adminProfile } = useAdminProfile();
   const fullAdmin = adminProfile?.adminTier !== 'moderator';
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mfaEnabled, setMfaEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (pathname === '/login' || pathname === '/unauthorized') return;
+    let cancelled = false;
+    const load = () => {
+      void api
+        .get<{ data: { enabled: boolean } }>('/auth/mfa/status')
+        .then(({ data }) => {
+          if (!cancelled) setMfaEnabled(!!data.data.enabled);
+        })
+        .catch(() => {
+          if (!cancelled) setMfaEnabled(null);
+        });
+    };
+    load();
+    const onMfa = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ enabled?: boolean }>).detail;
+      if (typeof detail?.enabled === 'boolean') setMfaEnabled(detail.enabled);
+      else load();
+    };
+    window.addEventListener('forge-admin-mfa', onMfa);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('forge-admin-mfa', onMfa);
+    };
+  }, [pathname]);
 
   if (pathname === '/login' || pathname === '/unauthorized') {
     return <>{children}</>;
@@ -130,6 +160,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const logout = () => {
     void adminLogout().then(() => router.push('/login'));
   };
+
+  const showMfaBanner = mfaEnabled === false && pathname !== '/settings';
 
   return (
     <div className="flex min-h-screen bg-surface-container-lowest">
@@ -179,6 +211,18 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
+
+        {showMfaBanner ? (
+          <div
+            className="border-b border-error/30 bg-error-container/20 px-4 py-3 text-sm text-on-surface md:px-6"
+            role="status"
+          >
+            Two-factor authentication is required for admin API actions.{' '}
+            <Link href="/settings" className="font-semibold text-primary hover:underline">
+              Enable MFA in Settings
+            </Link>
+          </div>
+        ) : null}
 
         {mobileOpen && (
           <>

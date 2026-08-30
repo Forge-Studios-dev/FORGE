@@ -3,8 +3,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/analytics/forge_analytics.dart';
 import '../../../core/cache/local_cache.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/theme_mode_provider.dart';
+import '../../../core/utils/json_export_util.dart';
 import '../../../core/utils/username_cooldown.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../auth/data/auth_repository.dart';
@@ -31,15 +34,17 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
   final _websiteUrl = TextEditingController();
   final _scrollController = ScrollController();
   final _privacyKey = GlobalKey();
+  final _analyticsKey = GlobalKey();
   final List<_ChannelLinkDraft> _channelLinks = [];
   bool _loading = true;
   bool _saving = false;
   bool _mediaUploading = false;
   bool _watchHistoryPaused = false;
   bool _privacySaving = false;
-  bool _didScrollToPrivacy = false;
+  bool _didScrollToSection = false;
   bool _autoplay = true;
   bool _loopVideo = false;
+  bool _analyticsOptIn = true;
   String? _userId;
   String? _bannerUrl;
   String? _avatarUrl;
@@ -57,6 +62,7 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
       if (autoplayPref == '0') _autoplay = false;
       if (autoplayPref == '1') _autoplay = true;
       _loopVideo = LocalCache.read(_loopPrefKey) == '1';
+      _analyticsOptIn = analyticsOptInGranted();
 
       final repo = ref.read(profileRepositoryProvider);
       final data = await repo.getMe();
@@ -92,21 +98,22 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
     } finally {
       if (mounted) {
         setState(() => _loading = false);
-        WidgetsBinding.instance.addPostFrameCallback((_) => _maybeScrollToPrivacy());
+        WidgetsBinding.instance.addPostFrameCallback((_) => _maybeScrollToSection());
       }
     }
   }
 
-  void _maybeScrollToPrivacy() {
-    if (_didScrollToPrivacy || !mounted) return;
+  void _maybeScrollToSection() {
+    if (_didScrollToSection || !mounted) return;
     final section = GoRouterState.of(context).uri.queryParameters['section'];
-    if (section != 'privacy') return;
-    final ctx = _privacyKey.currentContext;
+    if (section != 'privacy' && section != 'analytics' && section != 'cookies') return;
+    final key = section == 'privacy' ? _privacyKey : _analyticsKey;
+    final ctx = key.currentContext;
     if (ctx == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeScrollToPrivacy());
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeScrollToSection());
       return;
     }
-    _didScrollToPrivacy = true;
+    _didScrollToSection = true;
     Scrollable.ensureVisible(
       ctx,
       duration: const Duration(milliseconds: 350),
@@ -437,6 +444,19 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
               await LocalCache.write(_loopPrefKey, v ? '1' : '0');
             },
           ),
+          SwitchListTile(
+            key: _analyticsKey,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Product analytics'),
+            subtitle: const Text(
+              'Help improve FORGE with anonymous usage events. Off stays local to this device.',
+            ),
+            value: _analyticsOptIn,
+            onChanged: (v) async {
+              setState(() => _analyticsOptIn = v);
+              await setAnalyticsOptIn(v);
+            },
+          ),
           const SizedBox(height: 8),
           const _ThemeModeTile(),
           const SizedBox(height: 16),
@@ -482,6 +502,10 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
             ),
             child: const Text('Sign out'),
           ),
+          const SizedBox(height: 24),
+          const Text('Download your data', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const _DataExportSection(),
           const SizedBox(height: 24),
           const Text('Delete account', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
@@ -896,6 +920,67 @@ class _MfaSectionState extends ConsumerState<_MfaSection> {
         if (_message != null) ...[
           const SizedBox(height: 8),
           Text(_message!, style: TextStyle(color: t.secondary, fontSize: 13)),
+        ],
+      ],
+    );
+  }
+}
+
+class _DataExportSection extends ConsumerStatefulWidget {
+  const _DataExportSection();
+
+  @override
+  ConsumerState<_DataExportSection> createState() => _DataExportSectionState();
+}
+
+class _DataExportSectionState extends ConsumerState<_DataExportSection> {
+  bool _pending = false;
+  String? _error;
+  String? _message;
+
+  Future<void> _export() async {
+    setState(() {
+      _pending = true;
+      _error = null;
+      _message = null;
+    });
+    try {
+      final stamp = DateTime.now().toIso8601String().split('T').first;
+      await JsonExportUtil.downloadAndShare(
+        dio: ref.read(apiClientProvider).dio,
+        apiPath: '/users/me/export',
+        filename: 'forge-data-export-$stamp.json',
+      );
+      if (mounted) setState(() => _message = 'Export ready — use the share sheet to save it.');
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not export your data. Try again.');
+    } finally {
+      if (mounted) setState(() => _pending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Get a JSON copy of your profile, videos, playlists, watch history, comments, community posts, and account strikes.',
+          style: TextStyle(fontSize: 13, color: t.onSurfaceVariant),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: _pending ? null : _export,
+          child: Text(_pending ? 'Preparing…' : 'Download JSON'),
+        ),
+        if (_message != null) ...[
+          const SizedBox(height: 8),
+          Text(_message!, style: TextStyle(color: t.secondary, fontSize: 13)),
+        ],
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Text(_error!, style: TextStyle(color: t.error, fontSize: 13)),
         ],
       ],
     );

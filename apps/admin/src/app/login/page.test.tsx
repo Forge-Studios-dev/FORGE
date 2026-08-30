@@ -71,6 +71,37 @@ describe('AdminLoginPage', () => {
     expect(push).toHaveBeenCalledWith('/dashboard');
   });
 
+  it('prompts for MFA when login returns mfaRequired, then verifies', async () => {
+    apiPost
+      .mockResolvedValueOnce({
+        data: { data: { mfaRequired: true, challengeToken: 'chal-admin' } },
+      })
+      .mockResolvedValueOnce({
+        data: { data: { accessToken: 'mfa-token', refreshToken: 'r', user: { role: 'admin' } } },
+      });
+    const user = userEvent.setup();
+    const { container } = render(<AdminLoginPage />);
+    const { emailInput, passwordInput } = getFields(container);
+
+    await user.type(emailInput, 'admin@forge.local');
+    await user.type(passwordInput, 'ForgeAdmin123!');
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+    expect(await screen.findByText(/two-factor verification/i)).toBeInTheDocument();
+    const codeInput = screen.getByLabelText(/authentication code/i);
+    await user.type(codeInput, '123456');
+    await user.click(screen.getByRole('button', { name: /verify/i }));
+
+    await waitFor(() =>
+      expect(apiPost).toHaveBeenLastCalledWith('/auth/mfa/login-verify', {
+        challengeToken: 'chal-admin',
+        code: '123456',
+      }),
+    );
+    expect(persistAdminSession).toHaveBeenCalledWith('mfa-token');
+    expect(push).toHaveBeenCalledWith('/dashboard');
+  });
+
   it('rejects an obviously invalid email client-side without calling the API', async () => {
     const user = userEvent.setup();
     const { container } = render(<AdminLoginPage />);

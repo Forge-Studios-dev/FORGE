@@ -25,6 +25,7 @@ import '../../features/playlists/presentation/playlist_detail_screen.dart';
 import '../../features/community/presentation/community_voice_room_screen.dart';
 import '../../features/watch/presentation/watch_screen.dart';
 import '../../features/explore/presentation/explore_screen.dart';
+import '../../features/explore/presentation/trending_screen.dart';
 import '../../features/studio/presentation/studio_screen.dart';
 import '../../features/studio/presentation/studio_videos_screen.dart';
 import '../../features/studio/presentation/studio_video_edit_screen.dart';
@@ -35,9 +36,11 @@ import '../../features/studio/presentation/studio_live_debrief_screen.dart';
 import '../../features/studio/presentation/studio_settings_screen.dart';
 import '../../features/studio/presentation/studio_analytics_screen.dart';
 import '../../features/studio/presentation/studio_super_thanks_screen.dart';
+import '../../features/studio/presentation/studio_earnings_screen.dart';
 import '../../features/studio/presentation/studio_tiers_screen.dart';
 import '../../features/studio/presentation/studio_subscribers_screen.dart';
 import '../../features/studio/presentation/studio_community_screen.dart';
+import '../../features/studio/presentation/studio_moderation_screen.dart';
 import '../../features/studio/presentation/studio_channel_posts_screen.dart';
 import '../../features/community/presentation/discover_communities_screen.dart';
 import '../../features/profile/presentation/my_memberships_screen.dart';
@@ -226,12 +229,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/approval-rejected', builder: (_, __) => const ApprovalRejectedScreen()),
       GoRoute(path: '/offline', builder: (_, __) => const OfflineScreen()),
       GoRoute(path: '/maintenance', builder: (_, __) => const MaintenanceScreen()),
-      GoRoute(path: '/studio/videos', builder: (_, __) => const StudioVideosScreen()),
+      GoRoute(
+        path: '/studio/videos',
+        builder: (_, state) => StudioVideosScreen(
+          initialStatus: state.uri.queryParameters['status'],
+          initialScheduled: state.uri.queryParameters['scheduled'] == 'true' ||
+              state.uri.queryParameters['scheduled'] == '1',
+        ),
+      ),
       GoRoute(
         path: '/studio/videos/:id',
         builder: (_, state) => StudioVideoEditScreen(videoId: state.pathParameters['id']!),
       ),
-      GoRoute(path: '/studio/comments', builder: (_, __) => const StudioCommentsScreen()),
+      GoRoute(
+        path: '/studio/comments',
+        builder: (context, state) => StudioCommentsScreen(
+          initialFilter: state.uri.queryParameters['filter'],
+          initialQuery: state.uri.queryParameters['q'],
+        ),
+      ),
       GoRoute(path: '/studio/channel-posts', builder: (_, __) => const StudioChannelPostsScreen()),
       GoRoute(path: '/studio/attention', builder: (_, __) => const StudioAttentionScreen()),
       GoRoute(path: '/studio/live', builder: (_, __) => const StudioLiveScreen()),
@@ -240,6 +256,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => StudioLiveDebriefScreen(streamId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/studio/analytics', builder: (_, __) => const StudioAnalyticsScreen()),
+      GoRoute(path: '/studio/earnings', builder: (_, __) => const StudioEarningsScreen()),
       GoRoute(path: '/studio/super-thanks', builder: (_, __) => const StudioSuperThanksScreen()),
       GoRoute(path: '/studio/tiers', builder: (_, __) => const StudioTiersScreen()),
       // Skill-economy LMS soft-retire — keep deep links from crashing; send to YouTube-parity surfaces.
@@ -266,7 +283,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/studio/moderation',
-        redirect: (_, __) => '/studio/community?tab=moderation',
+        builder: (_, __) => const StudioModerationScreen(),
       ),
       GoRoute(path: '/studio/programs', redirect: (_, __) => '/studio/videos'),
       GoRoute(path: '/studio/courses', redirect: (_, __) => '/studio/videos'),
@@ -397,6 +414,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(path: '/explore', builder: (_, __) => const ExploreScreen()),
+          GoRoute(path: '/trending', builder: (_, __) => const TrendingScreen()),
           GoRoute(path: '/subscriptions', builder: (_, __) => const SubscriptionsScreen()),
           GoRoute(
             path: '/search',

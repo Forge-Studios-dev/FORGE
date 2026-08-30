@@ -42,7 +42,7 @@ With `min_machines_running = 2` and `auto_stop_machines = false`, two API machin
 ## Measuring cold start (before changing config)
 
 ```bash
-# After API idle ~5+ min, time liveness:
+# After API idle ~5+ min, time a manual liveness call:
 for i in 1 2 3 4 5; do
   curl -o /dev/null -s -w "%{time_total}\n" https://api.forgestudios.net/api/v1/health/live
   sleep 2
@@ -51,11 +51,13 @@ done
 
 Compare Fly dashboard **Time to first byte** before/after config changes.
 
+**Health probes:** `fly.toml` has **no** continuous `[[http_service.checks]]`. Machines stay warm via `min_machines_running=2` / `auto_stop_machines=false`. Call `/health/live` or `/health/ready` only when diagnosing.
+
 ---
 
 ## Worker note
 
-The worker app (`forge-studios-worker`) does not expose HTTP. Queue depth is monitored via API Prometheus metrics (`forge_bullmq_jobs_*`) when `METRICS_ENABLED=true` — see [OBSERVABILITY.md](../OBSERVABILITY.md).
+The worker app (`forge-studios-worker`) has no public HTTP edge service. It exposes `GET /health` on its internal PORT for **manual / deploy-time** diagnostics only (no continuous Fly `[checks]`). Queue depth is monitored via API Prometheus metrics (`forge_bullmq_jobs_*`) when `METRICS_ENABLED=true` — see [OBSERVABILITY.md](../OBSERVABILITY.md).
 
 `release.yml`'s `deploy-worker` job force-starts the worker machine after deploy (`if: always()`) to reset Fly's exhausted-retries counter — without this, a machine that crash-looped past `max_retries = 10` on a prior bad deploy stays stopped even after a good deploy ships. See [CI_CD.md](../CI_CD.md) for the full step list.
 

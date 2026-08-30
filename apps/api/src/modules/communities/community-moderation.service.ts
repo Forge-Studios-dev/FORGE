@@ -2,12 +2,14 @@ import {
   BadRequestException,
   ForbiddenException,
   forwardRef,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, MoreThan } from 'typeorm';
 import {
   CommunityMemberBan,
   CommunityReport,
@@ -25,6 +27,8 @@ import { NotificationType } from '../notifications/entities/notification.entity'
 import { UserRole } from '../users/entities/user.entity';
 import { CommunitiesService } from './communities.service';
 import { CreatorAuditService } from './creator-audit.service';
+import { TRUSTED_DAILY_REPORT_CAP } from '../reports/reporter-trust.util';
+import { clampLimit } from '../../common/utils/pagination.util';
 
 @Injectable()
 export class CommunityModerationService {
@@ -143,6 +147,17 @@ export class CommunityModerationService {
       }
     } else {
       throw new BadRequestException('Invalid report target type');
+    }
+
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const created24h = await this.reportRepository.count({
+      where: { reporterId, createdAt: MoreThan(since24h) },
+    });
+    if (created24h >= TRUSTED_DAILY_REPORT_CAP) {
+      throw new HttpException(
+        'Report limit reached for today. Try again tomorrow.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     const report = await this.reportRepository.save(
@@ -376,7 +391,15 @@ export class CommunityModerationService {
     });
   }
 
-  async listUnifiedReportsForCreator(userId: string, status = 'open') {
+  /**
+   * Studio moderation hub — open reports across owned + moderated communities.
+   * Cursor-paginated by created_at DESC (replaces hard take:200 + client slice).
+   */
+  async listUnifiedReportsForCreator(
+    userId: string,
+    status = 'open',
+    opts?: { limit?: number; cursor?: string },
+  ) {
     const [owned, roles] = await Promise.all([
       this.communityRepository.find({
         where: { creatorId: userId },
@@ -403,18 +426,60 @@ export class CommunityModerationService {
 
     const communities = [...byId.values()];
     const communityIds = communities.map((c) => c.id);
-    if (!communityIds.length) return { data: [] };
-    const reports = await this.reportRepository.find({
-      where: { communityId: In(communityIds), status },
-      order: { createdAt: 'DESC' },
-      take: 200,
-    });
+    if (!communityIds.length) {
+      return { data: [], meta: { cursor: null, hasMore: false, total: 0 } };
+    }
+
+    const limit = clampLimit(opts?.limit, 30, 50);
+    const qb = this.reportRepository
+      .createQueryBuilder('r')
+      .where('r.communityId IN (:...communityIds)', { communityIds })
+      .andWhere('r.status = :status', { status })
+      .orderBy('r.createdAt', 'DESC')
+      .addOrderBy('r.id', 'DESC')
+      .take(limit + 1);
+
+    if (opts?.cursor) {
+      try {
+        const raw = Buffer.from(opts.cursor, 'base64').toString('utf-8');
+        const sep = raw.lastIndexOf('|');
+        if (sep > 0) {
+          const cursorAt = new Date(raw.slice(0, sep));
+          const cursorId = raw.slice(sep + 1);
+          if (!Number.isNaN(cursorAt.getTime()) && cursorId) {
+            qb.andWhere(
+              '(r.createdAt < :cursorAt OR (r.createdAt = :cursorAt AND r.id < :cursorId))',
+              { cursorAt, cursorId },
+            );
+          }
+        }
+      } catch {
+        /* ignore bad cursor */
+      }
+    }
+
+    const [rows, total] = await Promise.all([
+      qb.getMany(),
+      this.reportRepository.count({
+        where: { communityId: In(communityIds), status },
+      }),
+    ]);
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
+    const nextCursor =
+      hasMore && last
+        ? Buffer.from(`${last.createdAt.toISOString()}|${last.id}`).toString('base64')
+        : null;
+
     const nameById = new Map(communities.map((c) => [c.id, c.name]));
     return {
-      data: reports.map((r) => ({
+      data: page.map((r) => ({
         ...r,
         communityName: nameById.get(r.communityId) ?? r.communityId,
       })),
+      meta: { cursor: nextCursor, hasMore, total },
     };
   }
 

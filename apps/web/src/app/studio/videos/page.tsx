@@ -3,7 +3,7 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { SocketEvents } from '@forge/shared-types';
 import { getActiveUpload, subscribeActiveUpload } from '@/lib/upload-manager';
@@ -274,6 +274,8 @@ export default function StudioVideosPage() {
 }
 
 function StudioVideosPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, accessToken, isCreator } = useAuth();
   const queryClient = useQueryClient();
@@ -291,14 +293,39 @@ function StudioVideosPageInner() {
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get('search')?.trim() ?? '');
   const [sort, setSort] = useState<StudioVideoSort>('recent');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const s = searchParams.get('status') ?? '';
+    return ['ready', 'processing', 'failed', 'uploading', 'pending'].includes(s) ? s : '';
+  });
   const [visibilityFilter, setVisibilityFilter] = useState('');
   const [videoTypeFilter, setVideoTypeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [scheduledOnly, setScheduledOnly] = useState(false);
+  const [scheduledOnly, setScheduledOnly] = useState(
+    () => searchParams.get('scheduled') === '1' || searchParams.get('scheduled') === 'true',
+  );
   const [categories, setCategories] = useState<UploadCategoryOption[]>([]);
 
   const PAGE_SIZE = 30;
+
+  function syncLibraryUrl(next: {
+    search?: string;
+    status?: string;
+    scheduled?: boolean;
+  }) {
+    const params = new URLSearchParams();
+    const q = (next.search ?? debouncedSearch).trim();
+    const status = next.status ?? statusFilter;
+    const scheduled = next.scheduled ?? scheduledOnly;
+    if (q) params.set('search', q);
+    if (status) params.set('status', status);
+    if (scheduled) params.set('scheduled', '1');
+    const qs = params.toString();
+    const href = qs ? `${pathname}?${qs}` : pathname;
+    const current = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname;
+    if (href !== current) {
+      router.replace(href, { scroll: false });
+    }
+  }
 
   useEffect(() => {
     if (!isCreator) return;
@@ -334,11 +361,23 @@ function StudioVideosPageInner() {
     const fromUrl = searchParams.get('search') ?? '';
     setSearch(fromUrl);
     setDebouncedSearch(fromUrl.trim());
+    const status = searchParams.get('status') ?? '';
+    setStatusFilter(
+      ['ready', 'processing', 'failed', 'uploading', 'pending'].includes(status) ? status : '',
+    );
+    setScheduledOnly(
+      searchParams.get('scheduled') === '1' || searchParams.get('scheduled') === 'true',
+    );
   }, [searchParams]);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    const t = setTimeout(() => {
+      const next = search.trim();
+      setDebouncedSearch(next);
+      syncLibraryUrl({ search: next });
+    }, 350);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce search only
   }, [search]);
 
   const {
@@ -543,7 +582,11 @@ function StudioVideosPageInner() {
           Status
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setStatusFilter(next);
+              syncLibraryUrl({ status: next });
+            }}
             aria-label="Filter by status"
             className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface"
           >
@@ -606,7 +649,11 @@ function StudioVideosPageInner() {
           <input
             type="checkbox"
             checked={scheduledOnly}
-            onChange={(e) => setScheduledOnly(e.target.checked)}
+            onChange={(e) => {
+              const next = e.target.checked;
+              setScheduledOnly(next);
+              syncLibraryUrl({ scheduled: next });
+            }}
             className="rounded border-outline-variant"
           />
           Scheduled only

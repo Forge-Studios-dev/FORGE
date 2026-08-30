@@ -21,6 +21,7 @@ import { UsersService } from '../users/users.service';
 import { MuxLiveSyncService } from './mux-live-sync.service';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import { StreamClipExportService } from '../workers/stream-clip-export/stream-clip-export.service';
 
 @Injectable()
 export class StreamLiveService {
@@ -47,6 +48,7 @@ export class StreamLiveService {
     private readonly usersService: UsersService,
     private readonly eventEmitter: EventEmitter2,
     private readonly muxLiveSyncService: MuxLiveSyncService,
+    private readonly streamClipExport: StreamClipExportService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
@@ -337,6 +339,8 @@ export class StreamLiveService {
       startOffsetMs: Number(c.startOffsetMs),
       endOffsetMs: Number(c.endOffsetMs),
       status: c.status,
+      playbackUrl: c.playbackUrl ?? null,
+      exportError: c.exportError ?? null,
       createdAt: c.createdAt,
     }));
   }
@@ -361,6 +365,8 @@ export class StreamLiveService {
       throw new BadRequestException('Clip end must be after start');
     }
 
+    const initialStatus = stream.muxAssetId ? 'exporting' : 'marked';
+
     const clip = await this.clipRepository.save(
       this.clipRepository.create({
         streamId,
@@ -368,9 +374,14 @@ export class StreamLiveService {
         title: dto.title?.trim() || `Highlight at ${Math.floor(startOffsetMs / 1000)}s`,
         startOffsetMs,
         endOffsetMs,
-        status: 'ready',
+        status: initialStatus,
+        muxClipAssetId: null,
+        playbackUrl: null,
+        exportError: null,
       }),
     );
+
+    await this.streamClipExport.enqueueClip(clip.id);
 
     this.eventEmitter.emit('stream.clip.created', {
       streamId,
@@ -389,6 +400,7 @@ export class StreamLiveService {
       startOffsetMs: Number(clip.startOffsetMs),
       endOffsetMs: Number(clip.endOffsetMs),
       status: clip.status,
+      playbackUrl: clip.playbackUrl ?? null,
     };
   }
 

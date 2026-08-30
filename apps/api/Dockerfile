@@ -51,7 +51,6 @@ USER nestjs
 
 EXPOSE 3001
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD curl -f http://localhost:3001/api/v1/health/live || exit 1
+# No continuous HEALTHCHECK — /api/v1/health/* remains available for manual curl.
 
 CMD ["apps/api/docker-entrypoint.sh"]

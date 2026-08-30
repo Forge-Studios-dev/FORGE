@@ -96,6 +96,11 @@ export async function setCreatorHeart(
   await api.post(`/videos/${videoId}/comments/${commentId}/creator-heart`, { creatorHearted });
 }
 
+/** Video owner releases a held (auto-flagged) comment. */
+export async function approveComment(videoId: string, commentId: string): Promise<void> {
+  await api.post(`/videos/${videoId}/comments/${commentId}/approve`);
+}
+
 export async function reportComment(
   commentId: string,
   body: { reason: string; reasonCategory?: string },

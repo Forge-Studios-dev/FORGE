@@ -47,12 +47,28 @@ export class AiModerationService {
     const baseline = this.scoreSpam(text);
     if (baseline.flagged) return baseline;
 
+    const openai = await this.scoreWithOpenAiOnly(text);
+    if (!openai) return baseline;
+    return {
+      score: Math.max(baseline.score, openai.score),
+      flagged: openai.flagged,
+      reasons: openai.flagged ? openai.reasons : baseline.reasons,
+      provider: 'openai',
+    };
+  }
+
+  /**
+   * OpenAI Moderation only (skips regex). Used to re-judge regex-held UGC
+   * so false positives can be auto-released. Returns null when LLM is
+   * unavailable (disabled, no key, budget, or API error).
+   */
+  async scoreWithOpenAiOnly(text: string): Promise<ModerationScore | null> {
     const apiKey = this.configService?.get<string>('openai.apiKey')?.trim();
-    if (!apiKey || text.length < 3) return baseline;
+    if (!apiKey || text.length < 3) return null;
 
     if (this.aiBudget && !(await this.aiBudget.tryConsume())) {
       recordAiLlmCall('moderation', 'budget_skipped');
-      return baseline;
+      return null;
     }
 
     try {
@@ -66,7 +82,7 @@ export class AiModerationService {
       });
       if (!res.ok) {
         recordAiLlmCall('moderation', 'error');
-        return baseline;
+        return null;
       }
       const json = (await res.json()) as {
         results?: Array<{ flagged?: boolean; category_scores?: Record<string, number> }>;
@@ -74,16 +90,16 @@ export class AiModerationService {
       const result = json.results?.[0];
       if (!result) {
         recordAiLlmCall('moderation', 'error');
-        return baseline;
+        return null;
       }
       const scores = result.category_scores ?? {};
       const maxScore = Math.max(0, ...Object.values(scores));
       const flagged = !!result.flagged || maxScore >= 0.75;
       recordAiLlmCall('moderation', 'success');
       return {
-        score: Math.max(baseline.score, maxScore),
+        score: maxScore,
         flagged,
-        reasons: flagged ? ['openai_moderation'] : baseline.reasons,
+        reasons: flagged ? ['openai_moderation'] : [],
         provider: 'openai',
       };
     } catch (err) {
@@ -91,7 +107,7 @@ export class AiModerationService {
       this.logger.debug(
         `OpenAI moderation skipped: ${err instanceof Error ? err.message : String(err)}`,
       );
-      return baseline;
+      return null;
     }
   }
 }

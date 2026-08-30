@@ -2,9 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { StreamViewerService } from './stream-viewer.service';
+import { StreamViewerService, SAFETY_RECONCILE_EVERY_N_FLUSHES } from './stream-viewer.service';
 import { StreamAnalyticsService } from './stream-analytics.service';
-import { Stream } from './entities/stream.entity';
+import { Stream, StreamStatus } from './entities/stream.entity';
 
 describe('StreamViewerService', () => {
   let service: StreamViewerService;
@@ -16,7 +16,13 @@ describe('StreamViewerService', () => {
     pfcount: jest.fn().mockResolvedValue(0),
     expire: jest.fn().mockResolvedValue(1),
     scard: jest.fn().mockResolvedValue(0),
-    set: jest.fn(),
+    set: jest.fn().mockResolvedValue('OK'),
+    smembers: jest.fn().mockResolvedValue([]),
+    pipeline: jest.fn(() => ({
+      del: jest.fn().mockReturnThis(),
+      sadd: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([]),
+    })),
   };
   const streamRepository = { update: jest.fn().mockResolvedValue({ affected: 1 }), find: jest.fn() };
   const streamAnalyticsService = { recordSnapshot: jest.fn().mockResolvedValue(undefined) };
@@ -102,5 +108,31 @@ describe('StreamViewerService', () => {
     redis.set.mockResolvedValue(null);
     await service.syncCountsForStreams(['s1', 's1', 's2']);
     expect(streamRepository.update).toHaveBeenCalledTimes(2);
+  });
+
+  async function flush(): Promise<void> {
+    await (
+      service as unknown as { flushAllLiveStreams: () => Promise<void> }
+    ).flushAllLiveStreams();
+  }
+
+  it('does not query Postgres when Redis says nothing is live', async () => {
+    redis.scard.mockResolvedValue(0);
+    await flush();
+    expect(streamRepository.find).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('runs a safety DB reconcile after 30 minutes of idle flushes', async () => {
+    redis.scard.mockResolvedValue(0);
+    redis.set.mockResolvedValue('OK');
+    streamRepository.find.mockResolvedValue([]);
+    for (let i = 0; i < SAFETY_RECONCILE_EVERY_N_FLUSHES; i += 1) {
+      await flush();
+    }
+    expect(streamRepository.find).toHaveBeenCalledWith({
+      where: { status: StreamStatus.LIVE },
+      select: ['id'],
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { isAllowedAnalyticsEvent, type AnalyticsEventName } from '@forge/shared-types/analytics';
 import { api } from '@/lib/api';
 import { getAppCheckToken } from '@/lib/app-check';
+import { analyticsConsentGranted } from '@/lib/cookie-consent';
 
 type TrackProps = Record<string, unknown>;
 
@@ -10,6 +11,8 @@ export async function trackEvent(
   videoId?: string,
 ) {
   if (!isAllowedAnalyticsEvent(eventName)) return;
+  // Optional product analytics wait for cookie consent (essential-only = no fire).
+  if (typeof window !== 'undefined' && !analyticsConsentGranted()) return;
   try {
     const headers: Record<string, string> = {};
     const appCheck = await getAppCheckToken();

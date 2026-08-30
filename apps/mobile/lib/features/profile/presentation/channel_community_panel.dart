@@ -191,6 +191,7 @@ class _ChannelCommunityPanelState extends ConsumerState<ChannelCommunityPanel> {
                               iconSize: 16,
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                              tooltip: 'Remove image',
                               onPressed: () => setState(() => _mediaUrls.removeAt(i)),
                               icon: Icon(Icons.close, color: t.onSurface),
                             ),
@@ -625,6 +626,7 @@ class _PostCardState extends ConsumerState<_PostCard> {
                         ),
                       ),
                       IconButton(
+                        tooltip: 'Post comment',
                         onPressed: _postingComment ? null : _submitComment,
                         icon: const Icon(Icons.send, size: 20),
                       ),

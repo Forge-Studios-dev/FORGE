@@ -62,23 +62,31 @@ export class UsersController {
 
   @Get('me/export')
   @ApiOperation({
-    summary: 'Export current user data (profile, owned videos, watch history)',
+    summary:
+      'Export current user data (profile, owned videos, watch history, comments, community posts, strikes)',
     description:
-      'DSAR-style self-service export. Does not yet include comments, community posts/messages, or analytics events.',
+      'DSAR-style self-service export. Includes up to 2000 rows per UGC collection. Chat/DM bodies and analytics events are not included.',
   })
   async exportMyData(@CurrentUser() user: JwtPayload) {
-    const [profile, videos, watchHistory, playlists] = await Promise.all([
-      this.usersService.findById(user.sub),
-      this.usersService.exportOwnedVideos(user.sub),
-      this.usersService.getWatchHistory(user.sub, 1000),
-      this.playlistsService.listByUser(user.sub, user.sub),
-    ]);
+    const [profile, videos, watchHistory, playlists, comments, communityPosts, strikes] =
+      await Promise.all([
+        this.usersService.findById(user.sub),
+        this.usersService.exportOwnedVideos(user.sub),
+        this.usersService.getWatchHistory(user.sub, 1000),
+        this.playlistsService.listByUser(user.sub, user.sub),
+        this.usersService.exportAuthoredComments(user.sub),
+        this.usersService.exportAuthoredCommunityPosts(user.sub),
+        this.usersService.exportAccountStrikes(user.sub),
+      ]);
     return {
       exportedAt: new Date().toISOString(),
       profile: toPublicUser(profile),
       videos,
       watchHistory,
       playlists,
+      comments,
+      communityPosts,
+      strikes,
     };
   }
 

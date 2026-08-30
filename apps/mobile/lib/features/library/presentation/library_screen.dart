@@ -124,11 +124,20 @@ class LibraryScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
           ForgeCard(
-            onTap: () => context.push('/explore'),
+            onTap: () => context.push('/trending'),
             child: const _LibraryRow(
               icon: Icons.trending_up,
-              title: 'Trending & Explore',
-              subtitle: 'Popular videos and categories',
+              title: 'Trending',
+              subtitle: 'Popular videos right now',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ForgeCard(
+            onTap: () => context.push('/explore'),
+            child: const _LibraryRow(
+              icon: Icons.explore_outlined,
+              title: 'Explore',
+              subtitle: 'Search and browse categories',
             ),
           ),
           const SizedBox(height: 12),

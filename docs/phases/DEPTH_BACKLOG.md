@@ -2,9 +2,366 @@
 
 Master phases 01–24 are documented. This list tracks **remaining depth** that is intentionally deferred or partially shipped.
 
-### Master Execution Wave 13 (2026-08-29)
+### Master Execution Wave 73 (2026-08-30) — Admin URL sync (approvals, search, copyright)
 
-- Admin user detail: assign `adminTier` (`full` / `moderator`) via PATCH + UI select (full-admin only)
+- Admin `/creator-approvals` reads/writes `?search=&page=` (debounced search)
+- Admin `/search` reads/writes `?q=` on submit; auto-runs when URL has ≥2 chars
+- Admin `/copyright` reads/writes `?tab=&page=&appeal=` (strikes pending-appeals filter)
+
+### Master Execution Wave 74 (2026-08-30) — Admin fraud filter URL sync
+
+- Admin `/fraud` reads/writes `?status=&page=` (`status=all` for unfiltered; default open omits param)
+
+### Master Execution Wave 72 (2026-08-29) — Live IconButton a11y tooltips
+
+- Mobile live list “Go live” + stream chat Send IconButtons: `tooltip:` for TalkBack/VoiceOver
+
+### Master Execution Wave 71 (2026-08-29) — Admin users filter URL sync
+
+- Admin `/users` reads/writes `?search=&role=&creatorStatus=&isActive=&emailVerified=&hasPendingReports=&page=`
+- Debounced search; shareable pending-creator / blocked / reported triage links
+
+### Master Execution Wave 70 (2026-08-29) — Mobile Studio comments `?q=` + web videos URL write
+
+- Mobile Studio comments: deep-link `?q=` + preserve q when changing filter chips
+- Web Studio videos: write `?search=&status=&scheduled=` when filters change
+
+### Master Execution Wave 69 (2026-08-29) — Admin content status/page URL sync
+
+- Admin `/content` reads/writes `?status=&page=` (keeps userId / moderationStatus / videoId)
+
+### Master Execution Wave 68 (2026-08-29) — Studio comments search URL sync
+
+- Web Studio comments: `?q=` shareable with filter (debounced, ≥2 chars)
+
+### Master Execution Wave 67 (2026-08-29) — Studio Attention count deep-links
+
+- Web + mobile Attention count cards navigate to comments / held / moderation / earnings / videos filters
+- Mobile + web Studio videos honor `?status=` and `?scheduled=` from Attention links
+
+### Master Execution Wave 66 (2026-08-29) — Admin held comments URL sync
+
+- Admin `/comments` reads/writes `?q=&page=` (shareable held-queue search)
+- Cross-link to pending reports (`/reports?status=pending`)
+
+### Master Execution Wave 65 (2026-08-29) — Admin audit filter URL sync
+
+- Admin `/audit` reads/writes `?action=&targetType=&page=` (shareable investigation deep-links)
+
+### Master Execution Wave 64 (2026-08-29) — Admin reports filter URL sync
+
+- Admin `/reports` reads/writes `?status=&severity=&targetType=&page=` (shareable triage deep-links)
+- Phase 01 ROADMAP: mark N2/N4/CategoryFilter Done (already shipped in code)
+
+### Master Execution Wave 63 (2026-08-29) — Mobile Studio moderation hub
+
+- `/studio/moderation` opens dedicated hub (no longer redirects to community tab only)
+- Parse real `moderated-communities` shape (`communityId` + nested `community`) + merge owned communities
+- Unified inbox via `GET /creators/me/moderation/inbox` (cursor Load more + Review → community tools)
+- Closes mobile parity gap vs web Wave 62 hub
+
+### Master Execution Wave 62 (2026-08-29) — Studio moderation inbox pagination
+
+- `GET /creators/me/moderation/inbox` cursor-paginated (`limit`/`cursor`) + `meta.total`
+- Web Studio moderation hub: `useInfiniteQuery` Load more (no client slice / take-200 cap)
+- Attention strip uses `meta.total` + `limit: 5` preview (accurate open-report count)
+- Closes Phase 01 H16
+
+### Master Execution Wave 61 (2026-08-29) — A11y + reports targetType filter
+
+- Design-system `DataTable`: `aria-sort` on sortable headers
+- `GET /admin/reports?targetType=video|comment|user` + admin chip filter
+- Live reconnect banners: `aria-live="assertive"` (host health + viewer overlay)
+
+### Master Execution Wave 60 (2026-08-29) — Admin reports severity triage UI
+
+- `GET /admin/reports?severity=p0|p1|p2|p3` filter (list already severity-sorted)
+- Admin reports table: Severity column + chip filter; detail shows severity + reasonCategory
+- Mobile Explore idle: Trending chip → `/trending`
+
+### Master Execution Wave 59 (2026-08-29) — Admin report comment targets
+
+- `GET /admin/reports/:id` enriches video/comment/user targets (title, snippet, author, videoId)
+- Admin report detail: watch deep-link for comments (`?lc=`), Remove comment → `DELETE /admin/comments/:id` + mark reviewed
+- `DELETE /admin/comments/:id` removes any comment (not only held); held-queue bulk still held-gated
+- Doc hygiene: Phase 01 N4/N5 marked Closed
+
+### Master Execution Wave 58 (2026-08-29) — Mobile Shorts held-comment Release
+
+- Mobile Shorts comments sheet: Held badge + Release for video owners (`POST …/approve`)
+- Parity with watch comments (Wave 56) and web Shorts `CommentsPanel`
+- Doc hygiene: Phase 01 N1 live theater marked Closed (already shipped in code)
+
+### Master Execution Wave 57 (2026-08-29) — Studio comments inbox API
+
+- `GET /creators/me/comments` — cursor-paginated across all owned videos (`filter`, `q`, `limit`, `cursor`)
+- Web + mobile Studio comments use the API (no more 24×8 client scan / 80-cap)
+- Closes Phase 01 N2
+
+### Master Execution Wave 56 (2026-08-29) — Watch held-comment Release
+
+- Web `CommentRow` + mobile watch comments: Held badge + Release for video owners
+- Attention held items deep-link to `/watch/…?lc=` (owner can release in place)
+
+### Master Execution Wave 55 (2026-08-29) — Mobile settings analytics deep-link
+
+- `?section=analytics|cookies` scrolls to Product analytics toggle (privacy section unchanged)
+
+### Master Execution Wave 54 (2026-08-29) — Admin audit UX polish
+
+- Debounced action filter; DataTable loading / empty / error slots
+
+### Master Execution Wave 53 (2026-08-29) — Admin content videoId deep link
+
+- `GET /admin/videos?videoId=` exact-id filter; Content UI reads `?videoId=`
+- Audit log video targets → `/content?videoId=…`
+
+### Master Execution Wave 52 (2026-08-29) — Studio comments filter URL sync
+
+- Web + mobile Studio comments: filter chips write `?filter=` (shareable / Attention deep-link stable)
+- Web syncs filter state when `filter` query changes
+
+### Master Execution Wave 51 (2026-08-29) — Admin audit log depth
+
+- Audit list: actor `@username` join; action `ILIKE` partial match; `targetType` filter
+- Admin `/audit` chips + target-type select; richer target links (comment/report/copyright)
+
+### Master Execution Wave 50 (2026-08-29) — Search empty “Did you mean”
+
+- Web + mobile empty search: suggestion from `/search/suggestions` (title first, else channel)
+- DEPTH cleanup: Wave 39 backfill note + Waves 43–44 grant “web-first” stale lines
+
+### Master Execution Wave 49 (2026-08-29) — Studio attention held comments
+
+- `getCreatorAttention`: `heldComments` count + warning-tone items (Wave 56: deep-link `/watch/…?lc=`)
+- Unreplied-comment query excludes `moderation_status=held`
+- Web/mobile Attention + Studio home badge include held; comments deep-link `?filter=held`
+
+### Master Execution Wave 48 (2026-08-29) — Mobile Studio held comments
+
+- Mobile Studio comments: “Held for review” filter (Published excludes held) + Release via `POST …/approve`
+- Held badge on inbox rows (parity with web Studio)
+
+### Master Execution Wave 47 (2026-08-29) — Admin bulk held-comment actions
+
+- `POST /admin/comments/held/bulk-release` + `bulk-remove` (cap 50); selectable DataTable on `/comments`
+
+### Master Execution Wave 46 (2026-08-29) — Admin held-comment search + a11y/cookies polish
+
+- `GET /admin/comments/held?q=` filters by comment/author/video/channel; admin UI search box
+- Cookie banner links to Settings `#cookies`; admin search → creator videos filter
+- Mobile live reaction buttons: Semantics labels for screen readers
+
+### Master Execution Wave 45 (2026-08-29) — Mobile paid-event grant access
+
+- Mobile live host: grant paid-event access by @username when `visibility=paid_event`
+- LIVE.md host dashboard row fully mobile-parity for chat/clips/mods/grants
+
+### Master Execution Wave 44 (2026-08-29) — Mobile live moderators
+
+- Mobile live host: list / add (@username) / remove stream moderators
+- Paid-event grant-access: shipped mobile in Wave 45
+
+### Master Execution Wave 43 (2026-08-29) — Mobile live chat settings + analytics opt-out
+
+- Mobile live host: Chat enabled toggle + Everyone / Subscribers / Members / Mods-only chips (`PATCH …/chat/settings`)
+- Mobile Settings: Product analytics opt-in (local; gates `ForgeAnalytics.track`)
+- LIVE.md host dashboard row updated (mods/grants completed in Waves 44–45)
+
+### Master Execution Wave 42 (2026-08-29) — Cookie prefs + DNT/GPC
+
+- Settings → Cookies & analytics to change Accept / Essential after the banner
+- `analyticsConsentGranted` respects Do Not Track + Global Privacy Control
+- Privacy policy cookies section updated
+
+### Master Execution Wave 41 (2026-08-29) — Live clip export UX (mobile) + captions filter tests
+
+- Mobile live host highlights: Play clip link + Export failed (parity with web Wave 40)
+- `normalizeCaptionsFilter` unit coverage for lang codes
+
+### Master Execution Wave 40 (2026-08-29) — Caption FTS backfill + clip export UX
+
+- `POST /admin/videos/backfill-caption-search` (+ Content UI button) batch-fills `caption_text` for videos with tracks/URL but empty FTS text
+- Host dashboard highlights show Mux export failure (`exportError`)
+- Mobile Explore: English / Spanish / Hindi CC filter chips (parity with web Wave 39)
+- Still deferred: non-English FTS configs / `pg_trgm`
+
+### Master Execution Wave 39 (2026-08-29) — Shared ThemeProvider + multi-lang caption index
+
+- `@forge/design-system` `ThemeProvider` / `useTheme` (storageKey + preferSystemLight); web/admin thin wrappers
+- Caption FTS: `buildCaptionSearchText` indexes up to 8 tracks (~200k chars); Mux `video.captions.updated` → `CaptionIndexListener` → `reindexCaptionSearchText`
+- Search `?captions=en|es|hi|…` language filter + web chips; cache `search:v9`
+- Caption FTS backfill: shipped in Wave 40 (`POST /admin/videos/backfill-caption-search`)
+- Still deferred: dedicated non-English FTS configs / `pg_trgm`
+
+### Master Execution Wave 38 (2026-08-29) — watched_at fix + trending windows
+
+- Bugfix: all `watch_history` velocity SQL used nonexistent `created_at` → `watched_at` (recommendations CTEs, content-library trending join, exclude-watched list)
+- `GET /videos/trending?window=now|week` (24h / 7d); cache key `recs:trending:v2:{hours}h`
+- Web `/trending` + mobile Trending: Now / This week tabs
+- PHASE_12 regional/time-window deferred row closed for time-window half (geo still N/A)
+
+### Master Execution Wave 37 (2026-08-29) — A11y depth + LMS flag doc
+
+- Mobile: tooltips on community post media remove/send, disliked clear, playlist clear search, chapter editor remove
+- Roadmap: LMS flag-gating post-MVP row marked **Resolved** (audit §1 already closed; no code change)
+
+### Master Execution Wave 36 (2026-08-29) — Session dwell creators + Studio a11y
+
+- `session-watch.util`: Redis sliding list of creators watched ≥15s; `recordWatch` writes; forYou SQL boosts `session_affinity` (+25)
+- Mobile Studio: `tooltip:` on bare back/clear/edit/delete IconButtons (videos, analytics, live, settings, community, rooms, …)
+- PHASE_12: click/dwell micro-signal (creator-level) marked shipped; regional trending still deferred
+
+### Master Execution Wave 35 (2026-08-29) — Typo-tolerant search suggest
+
+- `suggestTypoPrefixes` (1-char delete + adjacent swap) fills title suggestions when prefix + contains stay sparse
+- No `pg_trgm` dependency; capped OR-clause (≤8 variants)
+
+### Master Execution Wave 34 (2026-08-29) — Session affinity in forYou
+
+- `getPersonalizedFeed`: categories from watches in the last 2 hours prepend long-term affinity (session > history)
+- PHASE_12: exploration + session boost marked shipped; regional trending still deferred (no viewer geo)
+
+### Master Execution Wave 33 (2026-08-29) — forYou exploration + eligibility UI
+
+- `applyExplorationBudget` (~15% slots after skipFirst=3) weaves non-followed / off-affinity candidates into first-page `getPersonalizedFeed`
+- Studio Earnings (web + mobile): Partner Program eligibility snapshot from `GET /creators/me/monetization/eligibility`
+- Roadmap: session exploration budget row marked shipped; eligibility remains read-only until ads
+
+### Master Execution Wave 32 (2026-08-29) — Studio earnings + suggest contains fallback
+
+- Studio `/studio/earnings` (web + mobile): unified MRR / Super Thanks / Super Chat summary + CSV (`GET /creators/me/earnings`)
+- Search suggestions: `%term%` fill when prefix matches are sparse
+- Roadmap: earnings UI, synthetic monitoring, Personalized bell engagement gate marked shipped/accurate
+
+### Master Execution Wave 31 (2026-08-29) — DSAR strikes + caption language config
+
+- `GET /users/me/export` includes account strikes; web/mobile download copy updated
+- Mux VOD ingest auto-captions language/name via `MUX_AUTO_CAPTION_LANGUAGE` / `MUX_AUTO_CAPTION_NAME` (default English)
+- Roadmap: multi-language captions note — language is ops-configurable; multi-track FTS indexing shipped in Waves 39–40
+
+### Master Execution Wave 30 (2026-08-29) — Mobile DMCA counter-notice + MVP-2 doc closeout
+
+- Mobile Channel strikes: file counter-notice (parity with web `/settings/strikes`) via existing `ProfileRepository.fileCounterNotice`
+- MVP-2 phase-doc rows marked corrected (07/14/15/18/19/21); Stripe refund/dispute path marked verified against existing unit tests
+- `PHASE_07_ADMIN.md` shipped list includes report/copyright/strikes/held-comments/audit
+
+### Master Execution Wave 29 (2026-08-29) — Admin audit UI + Trending a11y
+
+- Admin `/audit` page lists `GET /admin/audit-log` (action filter + pagination); Moderation nav link
+- Mobile Trending rows: `Semantics` button labels for screen readers
+- Roadmap post-MVP rows: audit log, AdminTier moderator, content-scan health marked shipped/updated
+
+### Master Execution Wave 28 (2026-08-29) — Legal footer Copyright + MFA live update
+
+- Site footer `LegalLinks` includes Copyright → `/copyright/notice` (forms stay Terms/Privacy only)
+- Cookie consent banner Privacy link targets `/privacy#cookies`
+- Admin MFA enroll/disable dispatches `forge-admin-mfa` so the shell banner updates without navigation
+- Roadmap: email-digest comment + PHASE_11/12 MVP-2 rows marked fixed/corrected
+
+### Master Execution Wave 27 (2026-08-29) — Admin MFA UX + content-scan health + privacy
+
+- Admin Settings unlocked for moderator-tier (`/settings` removed from `FULL_ADMIN_ONLY_HREFS`) so MFA enroll is reachable
+- AdminShell banner when MFA is off → link to Settings
+- `/health` readiness exposes `contentScan` (`noop` | `webhook` | `misconfigured`); misconfigured webhook degrades status
+- Admin Settings health panel explains noop / misconfigured content scan
+- Privacy policy: cookie consent + DSAR download copy; `LEGAL_LAST_UPDATED` → 29 August 2026
+- Roadmap MVP-2 a11y row corrected (mobile a11y started; not “zero”)
+
+### Master Execution Wave 26 (2026-08-29) — Mobile DMCA + admin MFA
+
+- Mobile video report: “Copyright infringement” opens web `/copyright/notice?videoId=` (no `/reports` POST) — watch / feed / Shorts
+- Admin login: MFA challenge step (`/auth/mfa/login-verify`)
+- Admin Settings: TOTP enroll/disable (`AdminMfaSettings`) for `RolesGuard` MFA hard-gate
+
+### Master Execution Wave 25 (2026-08-29) — Mobile DSAR + cookie consent
+
+- Mobile Settings: Download your data → `GET /users/me/export` via share sheet (`JsonExportUtil`)
+- Web: cookie consent banner; product analytics (`trackEvent`) gated on Accept (essential-only blocks)
+- Web live watch: Share (native share / copy link) — URL share only; video `Share` table remains VOD-scoped by design
+- Roadmap corrections: admin MFA API hard-gate; re-transcode already shipped; moderation systems explicitly bounded (platform `reports` vs community inbox — no XL merge)
+
+### Master Execution Wave 24 (2026-08-29) — Copyright report → DMCA notice
+
+- Video reports with `Copyright infringement` → `422 COPYRIGHT_USE_DMCA_NOTICE` (no pending triage report)
+- Web report dialog links to `/copyright/notice?videoId=…`; public DMCA notice form posts `POST /copyright/notices`
+- Designated-agent USPTO filing still outside codebase
+
+### Master Execution Wave 23 (2026-08-29) — DSAR export depth + settings download
+
+- `GET /users/me/export` adds authored video comments + community posts (cap 2000 each); soft-deleted comment bodies redacted
+- Web Settings: “Download your data” JSON download (`DataExportSettings`)
+- Chat/DM bodies + analytics events still excluded (volume / privacy)
+
+### Master Execution Wave 22 (2026-08-29) — Async LLM comment re-judge + community report cap
+
+- BullMQ `video-comment-moderation`: regex-held video comments re-scored via OpenAI Moderation only (`scoreWithOpenAiOnly`); false positives auto-release + `comment.created`
+- Enqueue from `EngagementService.createComment` when `moderation.provider === 'regex'` (gated on `ai.moderationLlmEnabled` + API key)
+- Owner `approveComment` now emits `comment.created` (parity with admin release)
+- Community reports: 24h daily cap (`TRUSTED_DAILY_REPORT_CAP`) → 429, aligned with platform reports
+- Unit tests: `video-comment-moderation.service.spec.ts` + engagement mock wiring
+
+### Master Execution Wave 21 (2026-08-29) — Admin held comments queue
+
+- `EngagementService.listHeldCommentsForAdmin` / `adminReleaseHeldComment` / `adminRemoveHeldComment`
+- Admin API: `GET /admin/comments/held`, `POST …/release`, `DELETE …/:id` (+ audit log)
+- Admin UI `/comments` + Moderation nav; complements Studio owner Release
+- 41 engagement tests green
+
+### Master Execution Wave 20 (2026-08-29) — Mux highlight clip export
+
+- Migration `228` — `stream_clips.mux_clip_asset_id` / `playback_url` / `export_error`
+- BullMQ `stream-clip-export`: create Mux clip asset from live recording; webhook completes HLS URL
+- Markers stay `marked` until recording asset exists; auto-retry on `video.live_stream.recording`
+- Host dashboard shows “Play clip” when `playbackUrl` is ready
+- 56 related API tests green
+
+### Master Execution Wave 19 (2026-08-29) — Community orphan + held comments
+
+- Account deletion: promote MODERATOR if no OWNER/ADMIN; else privatize community + emit `community.orphaned_on_owner_delete`
+- Studio Comments: “Held for review” filter + Release button (wires existing `POST …/approve`)
+- `Comment.moderationStatus` on shared-types for Studio typing
+
+### Master Execution Wave 18 (2026-08-29) — Report trust-weighting
+
+- `reporter-trust.util`: daily caps from 30d dismiss/uphold history; low-trust demotes non-P0 severity
+- Wired in `ReportsService.create` (429 when over daily cap); 24 tests green
+- Closes MVP-3 trust-weight gap from PLATFORM_AUDIT / YOUTUBE_PARITY_ROADMAP
+
+### Master Execution Wave 17 (2026-08-29) — Phase 04
+
+- AppShell watch-like chrome for `/live/[id]` + community voice/text rooms
+- Web studio redirects: `copilot` → `/studio`; `rooms`/`engagement` → `/studio/community`
+- Admin redirects: `/mentorship`, `/channel-points` → `/dashboard`
+- Mobile `/trending` + Library Trending/Explore split
+- PHASE_04_REPORT refreshed
+
+### Master Execution Wave 16 (2026-08-29) — Phase 03
+
+- Admin soft-delete: bulk `UPDATE videos SET visibility=private` + chunked cache bust (no unbounded find)
+- Migration `227` — `account_strikes.source_video_id` FK ON DELETE SET NULL
+- Notification entity `@ManyToOne(User)` aligns with FK migration 222
+- PHASE_03_REPORT refreshed
+
+### Master Execution Wave 15 (2026-08-29) — Phase 02
+
+- Web/admin env schema: APP_URL, BILLING_ENABLED, LIVEKIT_URL, WEB_URL (+ admin Sentry keys)
+- Hot paths use validated `env` (billing, LiveKit, site URL, admin web links)
+- AdminUser.role typed to `@forge/shared-types` User['role']
+- MODULE_BOUNDARY_MAP: LMS Articles/Qa/StudyGroups; Queues central+re-register; prod env validation note
+- API prod env validation confirmed already in `main.ts` (16 tests green)
+
+### Master Execution Wave 14 (2026-08-29)
+
+- Mobile watch engage: `recordShare` on native share / copy link / embed (parity with Shorts + feed)
+- Web ShortsFeed + FeedCard: POST `/videos/:id/share` on share / copy-link
+- Studio tiers price placeholder: USD cents (align with `formatCentsUsd`)
+- Phase 01 Critical/High: re-verified closed; Wave 13 adminTier assign already on tip
+- Phase 01 mop-up: live theater keeps chat (no `fixed inset-0`); Studio tiers `formatCentsCurrency`; fresh `PHASE_01_*` docs + report
+
+### Master Execution Wave 13 (2026-08-29) — closed
+
+- Admin user detail: assign `adminTier` (`full` / `moderator`) via PATCH + UI select (full-admin only) — shipped `d20360b`
 - Community e2e DI + H23 `HlsPlayerBlock` already on tip
 
 ### Master Execution Wave 12 (2026-08-29)
@@ -49,7 +406,7 @@ Wave 0–2 on `feature/continuous-parity-delivery` (see [PHASE-01-UI-UX §8](../
 
 - `GET /admin/ai/budget` includes BullMQ community-moderation queue counts; admin AI page shows Waiting/Active/Failed/Delayed
 - Exported `buttonClassName()` from design-system; high-traffic Links use it (closes Link `primary-button` debt on shell/gates/studio)
-- Mobile studio comments scan aligned to web (24×8, cap 80)
+- Mobile studio comments scan aligned to web — superseded by Wave 57 (`GET /creators/me/comments`)
 
 ### Wave 7 (same day)
 
@@ -896,8 +1253,8 @@ Full mobile suite: 171/171 (unit + widget). Remaining: 1 screen (`studio_video_e
 
 ## Studio comments search + filters (2026-08-06)
 
-- Web Studio comments: search + Published / Pinned / Hearted chips
-- Mobile Studio comments: same filter chips (search already present)
+- Web Studio comments: search + Published / Held for review / Pinned / Hearted chips
+- Mobile Studio comments: same filter chips + Release (Wave 48)
 
 ## Studio Videos / Shorts type filter (2026-08-06)
 

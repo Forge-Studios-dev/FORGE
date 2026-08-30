@@ -11,6 +11,8 @@ Make admin navigation discoverable and consistent with product chrome: grouped N
 - `AdminShell` NAV groups: Overview / Moderation / Community / Platform
 - Header Search shortcut (desktop + mobile)
 - `ThemeProvider` + light/dark toggle (`forge-admin-theme` storage)
+- Report queues, copyright/strikes admin, held-comments queue, durable audit log UI (`/audit`)
+- Audit log depth (Wave 51): actor usernames, ILIKE action filter, targetType filter + chips
 
 ## Superseded, 2026-08-12
 
@@ -22,7 +24,10 @@ tooling left to reach; treat the line above as historical, not current IA.
 
 ## Deferred
 
-- Deeper admin workflow UX (report queues, bulk actions)
-- Shared ThemeProvider package extraction (admin/web still duplicate)
+- Continuous polish on report/appeal/copyright queues (core queues, strikes, audit log, held comments are shipped — Waves 21–29)
+
+## Resolved (Wave 39)
+
+- Shared ThemeProvider extracted to `@forge/design-system/client` (web `forge-theme` + preferSystemLight; admin `forge-admin-theme`)
 
 See [PHASE_07_REPORT.md](./PHASE_07_REPORT.md).

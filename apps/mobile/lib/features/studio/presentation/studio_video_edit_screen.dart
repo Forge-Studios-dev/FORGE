@@ -555,6 +555,7 @@ class _StudioVideoEditScreenState extends ConsumerState<StudioVideoEditScreen> {
         title: const Text('Edit video'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio/videos'),
         ),
         actions: [

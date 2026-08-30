@@ -24,6 +24,8 @@ import { toPublicComment } from './comment.mapper';
 import { toPublicVideo } from '../content/video.mapper';
 import { toPublicUserProfile } from '../users/user.mapper';
 import { UserRole } from '../users/entities/user.entity';
+import { clampLimit, clampPage } from '../../common/utils/pagination.util';
+import { VideoCommentModerationService } from '../workers/video-comment-moderation/video-comment-moderation.service';
 import {
   getMutedChannelIds,
   muteChannel,
@@ -57,6 +59,7 @@ export class EngagementService {
     private readonly eventEmitter: EventEmitter2,
     @InjectRedis() private readonly redis: Redis,
     private readonly aiModeration: AiModerationService,
+    private readonly videoCommentModeration: VideoCommentModerationService,
   ) {}
 
   async likeVideo(userId: string, videoId: string) {
@@ -371,6 +374,9 @@ export class EngagementService {
           comment: full,
           videoOwnerId: video.userId,
         });
+      } else if (moderation.provider === 'regex') {
+        // Async LLM may clear regex false positives; OpenAI-held stays held.
+        this.videoCommentModeration.enqueueRegexHeldReview(saved.id, dto.content);
       }
       return toPublicComment(full, {
         includeModerationStatus: moderationStatus !== CommentModerationStatus.NONE,
@@ -909,7 +915,249 @@ export class EngagementService {
     comment.moderatedAt = new Date();
     const saved = await this.commentRepository.save(comment);
 
+    const video = await this.videoRepository.findOne({
+      where: { id: videoId },
+      select: { id: true, userId: true },
+    });
+    if (video) {
+      this.eventEmitter.emit('comment.created', {
+        videoId,
+        comment: saved,
+        videoOwnerId: video.userId,
+      });
+    }
+
     return toPublicComment(saved, { includeModerationStatus: true });
+  }
+
+  /**
+   * Studio comments inbox across the creator’s videos (replaces client N×M scan).
+   * Cursor-paginated by created_at DESC. `filter=all` = published (excludes held).
+   */
+  async listCreatorStudioComments(
+    creatorId: string,
+    opts?: {
+      filter?: 'all' | 'held' | 'pinned' | 'hearted';
+      q?: string;
+      limit?: number;
+      cursor?: string;
+    },
+  ) {
+    const filter = opts?.filter ?? 'all';
+    const limit = clampLimit(opts?.limit, 40, 50);
+    const term = opts?.q?.trim() ?? '';
+
+    const qb = this.commentRepository
+      .createQueryBuilder('c')
+      .innerJoinAndSelect('c.video', 'video')
+      .leftJoinAndSelect('c.user', 'user')
+      .where('video.userId = :creatorId', { creatorId })
+      .andWhere('c.parentId IS NULL')
+      .andWhere('c.deletedAt IS NULL')
+      .orderBy('c.createdAt', 'DESC')
+      .take(limit + 1);
+
+    if (filter === 'held') {
+      qb.andWhere('c.moderationStatus = :held', { held: CommentModerationStatus.HELD });
+    } else if (filter === 'pinned') {
+      qb.andWhere('c.isPinned = true');
+    } else if (filter === 'hearted') {
+      qb.andWhere('c.creatorHearted = true');
+    } else {
+      // Published inbox — hide held/blocked (parity with prior Studio UI).
+      qb.andWhere('c.moderationStatus = :none', { none: CommentModerationStatus.NONE });
+    }
+
+    if (term.length >= 2) {
+      const like = `%${term.replace(/[%_]/g, '')}%`;
+      qb.andWhere(
+        `(c.content ILIKE :like OR user.username ILIKE :like OR user.displayName ILIKE :like OR video.title ILIKE :like)`,
+        { like },
+      );
+    }
+
+    if (opts?.cursor) {
+      try {
+        const cursorDate = new Date(Buffer.from(opts.cursor, 'base64').toString('utf-8'));
+        if (!Number.isNaN(cursorDate.getTime())) {
+          qb.andWhere('c.createdAt < :cursor', { cursor: cursorDate });
+        }
+      } catch {
+        /* ignore bad cursor */
+      }
+    }
+
+    const rows = await qb.getMany();
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
+    const nextCursor =
+      hasMore && last ? Buffer.from(last.createdAt.toISOString()).toString('base64') : null;
+
+    return {
+      data: page.map((c) => ({
+        ...toPublicComment(c, { includeModerationStatus: true }),
+        videoTitle: c.video?.title ?? null,
+        videoType: c.video?.videoType ?? null,
+      })),
+      meta: {
+        cursor: nextCursor,
+        hasMore,
+        filter,
+        ...(term.length >= 2 ? { q: term } : {}),
+      },
+    };
+  }
+
+  /**
+   * Platform T&S queue — auto-flagged video comments awaiting release/removal.
+   * Complements Studio owner review (creators release their own; admins see all).
+   */
+  async listHeldCommentsForAdmin(page = 1, limit = 20, q?: string) {
+    page = clampPage(page);
+    limit = clampLimit(limit);
+    const term = q?.trim() ?? '';
+
+    if (term.length >= 2) {
+      const like = `%${term.replace(/[%_]/g, '')}%`;
+      const qb = this.commentRepository
+        .createQueryBuilder('c')
+        .leftJoinAndSelect('c.user', 'user')
+        .leftJoinAndSelect('c.video', 'video')
+        .leftJoinAndSelect('video.user', 'channel')
+        .where('c.moderationStatus = :held', { held: CommentModerationStatus.HELD })
+        .andWhere('c.deletedAt IS NULL')
+        .andWhere(
+          `(c.content ILIKE :like OR user.username ILIKE :like OR user.displayName ILIKE :like OR video.title ILIKE :like OR channel.username ILIKE :like)`,
+          { like },
+        )
+        .orderBy('c.createdAt', 'DESC')
+        .skip((page - 1) * limit)
+        .take(limit);
+      const [rows, total] = await qb.getManyAndCount();
+      return {
+        data: rows.map((c) => ({
+          ...toPublicComment(c, { includeModerationStatus: true }),
+          videoTitle: c.video?.title ?? null,
+          channelUsername: c.video?.user?.username ?? null,
+          channelId: c.video?.userId ?? null,
+        })),
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+          q: term,
+        },
+      };
+    }
+
+    const [rows, total] = await this.commentRepository.findAndCount({
+      where: {
+        moderationStatus: CommentModerationStatus.HELD,
+        deletedAt: IsNull(),
+      },
+      relations: ['user', 'video', 'video.user'],
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      data: rows.map((c) => ({
+        ...toPublicComment(c, { includeModerationStatus: true }),
+        videoTitle: c.video?.title ?? null,
+        channelUsername: c.video?.user?.username ?? null,
+        channelId: c.video?.userId ?? null,
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
+  }
+
+  /** Admin release of a held comment (any video). Emits comment.created so owners are notified. */
+  async adminReleaseHeldComment(commentId: string) {
+    const comment = await this.commentRepository.findOne({
+      where: { id: commentId, deletedAt: IsNull() },
+      relations: ['user'],
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
+    if (comment.moderationStatus !== CommentModerationStatus.HELD) {
+      throw new BadRequestException('Comment is not held for review');
+    }
+
+    comment.moderationStatus = CommentModerationStatus.NONE;
+    comment.moderatedAt = new Date();
+    const saved = await this.commentRepository.save(comment);
+
+    const video = await this.videoRepository.findOne({
+      where: { id: comment.videoId },
+      select: { id: true, userId: true },
+    });
+    if (video) {
+      this.eventEmitter.emit('comment.created', {
+        videoId: comment.videoId,
+        comment: saved,
+        videoOwnerId: video.userId,
+      });
+    }
+
+    return toPublicComment(saved, { includeModerationStatus: true });
+  }
+
+  /** Soft-delete any video comment (T&S report queue). */
+  async adminRemoveComment(adminId: string, commentId: string) {
+    const comment = await this.commentRepository.findOne({
+      where: { id: commentId, deletedAt: IsNull() },
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
+    return this.deleteComment(adminId, UserRole.ADMIN, comment.videoId, commentId);
+  }
+
+  /** Held-queue remove — same soft-delete, but only when still held. */
+  async adminRemoveHeldComment(adminId: string, commentId: string) {
+    const comment = await this.commentRepository.findOne({
+      where: { id: commentId, deletedAt: IsNull() },
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
+    if (comment.moderationStatus !== CommentModerationStatus.HELD) {
+      throw new BadRequestException('Comment is not held for review');
+    }
+    return this.deleteComment(adminId, UserRole.ADMIN, comment.videoId, commentId);
+  }
+
+  /** Bulk release — skips non-held / missing ids. Caps at 50 per call. */
+  async adminBulkReleaseHeldComments(ids: string[]) {
+    const unique = [...new Set(ids.filter(Boolean))].slice(0, 50);
+    let released = 0;
+    for (const id of unique) {
+      try {
+        await this.adminReleaseHeldComment(id);
+        released += 1;
+      } catch {
+        /* skip invalid */
+      }
+    }
+    return { released, requested: unique.length };
+  }
+
+  /** Bulk remove held comments — skips non-held / missing ids. Caps at 50 per call. */
+  async adminBulkRemoveHeldComments(adminId: string, ids: string[]) {
+    const unique = [...new Set(ids.filter(Boolean))].slice(0, 50);
+    let removed = 0;
+    for (const id of unique) {
+      try {
+        await this.adminRemoveHeldComment(adminId, id);
+        removed += 1;
+      } catch {
+        /* skip invalid */
+      }
+    }
+    return { removed, requested: unique.length };
   }
 
   async follow(followerId: string, followingId: string) {

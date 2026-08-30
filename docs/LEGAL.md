@@ -27,7 +27,11 @@ Google OAuth users should review terms before continuing; consider an in-product
 
 ## Copyright / DMCA
 
-A structured notice-and-takedown + counter-notice API exists — see [COPYRIGHT_DMCA.md](./COPYRIGHT_DMCA.md). **Before relying on DMCA safe harbor in production, register a designated agent with the U.S. Copyright Office** (https://www.copyright.gov/dmca-directory/) — that real-world filing is outside this codebase and not yet done.
+A structured notice-and-takedown + counter-notice API exists — see [COPYRIGHT_DMCA.md](./COPYRIGHT_DMCA.md). Public notice form: `/copyright/notice`. **Before relying on DMCA safe harbor in production, register a designated agent with the U.S. Copyright Office** (https://www.copyright.gov/dmca-directory/) — that real-world filing is outside this codebase and not yet done.
+
+## Cookies & analytics (web)
+
+Web shows a cookie banner (`CookieConsentBanner`). Essential auth/session cookies are always used. Optional product analytics (`trackEvent` → `/analytics/events`) fire only after **Accept analytics** (`localStorage` key `forge.cookieConsent=accepted`). **Essential only** keeps analytics off. This is not a full EEA CMP — counsel should confirm adequacy for target markets.
 
 ## Account strikes
 

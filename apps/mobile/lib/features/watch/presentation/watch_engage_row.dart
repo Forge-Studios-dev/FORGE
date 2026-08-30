@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -94,6 +96,7 @@ class _WatchEngageRowState extends ConsumerState<WatchEngageRow> {
     final base = '${AppConstants.webBaseUrl}/watch/${widget.video.id}';
     final url = pos > 0 ? '$base?t=$pos' : base;
     await SharePlus.instance.share(ShareParams(text: '${widget.video.title}\n$url'));
+    unawaited(ref.read(watchRepositoryProvider).recordShare(widget.video.id));
   }
 
   Future<void> _copyWatchLink({bool atTime = false}) async {
@@ -101,6 +104,9 @@ class _WatchEngageRowState extends ConsumerState<WatchEngageRow> {
     final base = '${AppConstants.webBaseUrl}/watch/${widget.video.id}';
     final url = atTime && pos > 0 ? '$base?t=$pos' : base;
     await Clipboard.setData(ClipboardData(text: url));
+    unawaited(
+      ref.read(watchRepositoryProvider).recordShare(widget.video.id, channel: 'copy_link'),
+    );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(atTime && pos > 0 ? 'Link at $pos s copied' : 'Link copied')),
@@ -116,6 +122,9 @@ class _WatchEngageRowState extends ConsumerState<WatchEngageRow> {
     final snippet =
         '<iframe width="560" height="315" src="$src" title="$title" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>';
     await Clipboard.setData(ClipboardData(text: snippet));
+    unawaited(
+      ref.read(watchRepositoryProvider).recordShare(widget.video.id, channel: 'embed'),
+    );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(pos > 0 ? 'Embed code copied at current time' : 'Embed code copied')),

@@ -11,9 +11,13 @@ Keep the existing affinity/`forYou` feed and related rails; remove skill-economy
 - `sort=forYou` personalized feed (affinity)
 - Following / Subscriptions tab
 - `GET /videos/:id/related` content-based up-next
-- Freshness/diversity re-ranker (`feed-diversity.util.ts` — `diversifyByCreator`, used in feed/recommendations/shorts)
+- Freshness/diversity re-ranker (`feed-diversity.util.ts` — `diversifyByCreator` + `applyExplorationBudget`, used in feed/recommendations/shorts)
 - Shorts-specific ranking (`shorts-rank.util.ts` — freshness + engagement, soft creator diversity)
 - "Not interested" feedback loop (`not-interested.util.ts`, applied in feed/recommendations/shorts queries)
+- First-page forYou exploration budget (~15% off-affinity weave) — Wave 33
+- Session category boost (2h `watched_at` window prepended to affinity list) — Wave 34
+- Session creator dwell (`session-watch.util` Redis list from ≥15s watches; `session_affinity` score) — Wave 36
+- Trending time windows (`window=now|week` on `GET /videos/trending`; `watched_at` velocity) — Wave 38
 
 ## Shipped this pass
 
@@ -23,8 +27,6 @@ Keep the existing affinity/`forYou` feed and related rails; remove skill-economy
 
 ## Deferred
 
-- Session-based ("this sitting") personalization signal
-- Exploration budget in `forYou` ranking (cold-start for new creators, not just viewers)
-- Regionalization/time-window tuning for `RecommendationsService.getTrending` (only partially verified — see audit assumptions)
+- Geo-regional trending (no reliable viewer country/region signal on User yet)
 
 See [PHASE_12_REPORT.md](./PHASE_12_REPORT.md).

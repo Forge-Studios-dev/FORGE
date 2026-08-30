@@ -58,6 +58,10 @@ import { PLATFORM_EVENT_OUTBOX_QUEUE } from './platform-event-outbox/platform-ev
 import { PlatformEventOutboxModule } from '../platform-event-outbox/platform-event-outbox.module';
 import { EmailDigestWorker } from './email-digest/email-digest.worker';
 import { EMAIL_DIGEST_QUEUE } from '../notifications/email-digest.constants';
+import { StreamClipExportWorker } from './stream-clip-export/stream-clip-export.worker';
+import { STREAM_CLIP_EXPORT_QUEUE } from './stream-clip-export/stream-clip-export.constants';
+import { VideoCommentModerationWorker } from './video-comment-moderation/video-comment-moderation.worker';
+import { VIDEO_COMMENT_MODERATION_QUEUE } from './video-comment-moderation/video-comment-moderation.constants';
 
 function isDedicatedWorkerProcess(): boolean {
   return (
@@ -178,6 +182,18 @@ function shouldRegisterPlatformEventOutbox(): boolean {
 
 function shouldRegisterEmailDigest(): boolean {
   if (process.env.DISABLE_EMAIL_DIGEST === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterStreamClipExport(): boolean {
+  if (process.env.DISABLE_STREAM_CLIP_EXPORT === 'true') return false;
+  if (isDedicatedWorkerProcess()) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldRegisterVideoCommentModeration(): boolean {
+  if (process.env.DISABLE_VIDEO_COMMENT_MODERATION === 'true') return false;
   if (isDedicatedWorkerProcess()) return true;
   return process.env.NODE_ENV !== 'production';
 }
@@ -376,6 +392,24 @@ function shouldRegisterEmailDigest(): boolean {
         removeOnFail: { age: 30 * 86400, count: 100 },
       },
     }),
+    BullModule.registerQueue({
+      name: STREAM_CLIP_EXPORT_QUEUE,
+      defaultJobOptions: {
+        attempts: 4,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: { age: 86400, count: 2000 },
+        removeOnFail: { age: 7 * 86400, count: 500 },
+      },
+    }),
+    BullModule.registerQueue({
+      name: VIDEO_COMMENT_MODERATION_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: { age: 86400, count: 5000 },
+        removeOnFail: { age: 7 * 86400, count: 1000 },
+      },
+    }),
     PlatformEventOutboxModule,
   ],
   providers: [
@@ -399,6 +433,8 @@ function shouldRegisterEmailDigest(): boolean {
     ...(shouldRegisterPlatformEventOutbox() ? [PlatformEventOutboxWorker] : []),
     ...(shouldRegisterEngagementReconciliation() ? [EngagementReconciliationWorker] : []),
     ...(shouldRegisterEmailDigest() ? [EmailDigestWorker] : []),
+    ...(shouldRegisterStreamClipExport() ? [StreamClipExportWorker] : []),
+    ...(shouldRegisterVideoCommentModeration() ? [VideoCommentModerationWorker] : []),
   ],
 })
 export class WorkersModule {}

@@ -1,15 +1,16 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Icon, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { AdminMfaSettings } from '@/components/AdminMfaSettings';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 interface HealthPayload {
   status: string;
   timestamp: string;
-  checks: Record<string, string>;
+  checks?: Record<string, string>;
   correlationId?: string;
 }
 
@@ -25,15 +26,23 @@ function docsHref(): string {
 }
 
 export default function SettingsPage() {
-  const { data: health, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ['admin-api-health'],
-    queryFn: async () => {
-      const { data } = await api.get<{ data: HealthPayload }>('/health');
-      return data.data;
-    },
-    retry: 1,
-    staleTime: 30_000,
-  });
+  const [health, setHealth] = useState<HealthPayload | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
+  const [isError, setIsError] = useState(false);
+
+  async function checkHealth() {
+    setIsFetching(true);
+    setIsError(false);
+    try {
+      const { data } = await api.get<{ data: HealthPayload }>('/health/ready');
+      setHealth(data.data);
+    } catch {
+      setHealth(null);
+      setIsError(true);
+    } finally {
+      setIsFetching(false);
+    }
+  }
 
   return (
     <section className="max-w-3xl">
@@ -43,6 +52,14 @@ export default function SettingsPage() {
       />
 
       <div className="mt-8 space-y-6">
+        <section className="glass-panel rounded-xl p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Icon name="lock" className="text-primary" />
+            <h2 className="font-display-forge text-lg font-semibold">Two-factor authentication</h2>
+          </div>
+          <AdminMfaSettings />
+        </section>
+
         <section className="glass-panel rounded-xl p-6">
           <div className="mb-4 flex items-center gap-2">
             <Icon name="dns" className="text-primary" />
@@ -78,21 +95,26 @@ export default function SettingsPage() {
             </div>
             <button
               type="button"
-              onClick={() => refetch()}
+              onClick={() => void checkHealth()}
               disabled={isFetching}
               className="rounded-lg border border-outline-variant px-3 py-1.5 text-xs hover:border-primary disabled:opacity-50"
             >
-              {isFetching ? 'Checking…' : 'Refresh'}
+              {isFetching ? 'Checking…' : 'Check health'}
             </button>
           </div>
 
-          {isLoading && <p className="text-sm text-on-surface-variant">Loading health…</p>}
+          {!health && !isError && !isFetching && (
+            <p className="text-sm text-on-surface-variant">
+              On demand only — click Check health to call <code className="text-on-surface">/health/ready</code>.
+            </p>
+          )}
+          {isFetching && <p className="text-sm text-on-surface-variant">Checking health…</p>}
           {isError && (
             <p className="text-sm text-tertiary">
               Could not reach the API. Confirm NEXT_PUBLIC_API_URL and that the API is running.
             </p>
           )}
-          {!isLoading && !isError && health && (
+          {health && (
             <div className="space-y-3 text-sm">
               <p>
                 <span className="text-outline">Status </span>
@@ -106,16 +128,37 @@ export default function SettingsPage() {
                 </p>
               )}
               <ul className="grid gap-2 sm:grid-cols-2">
-                {Object.entries(health.checks).map(([key, value]) => (
+                {Object.entries(health.checks ?? {}).map(([key, value]) => (
                   <li
                     key={key}
-                    className="flex justify-between rounded-lg border border-outline-variant/20 bg-surface-container-lowest px-3 py-2"
+                    className="flex justify-between gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-lowest px-3 py-2"
                   >
                     <span className="text-outline">{key}</span>
-                    <span className={value === 'ok' ? 'text-secondary' : 'text-tertiary'}>{value}</span>
+                    <span
+                      className={
+                        value === 'ok' || value === 'webhook'
+                          ? 'text-secondary'
+                          : value === 'noop'
+                            ? 'text-on-surface-variant'
+                            : 'text-tertiary'
+                      }
+                    >
+                      {value}
+                    </span>
                   </li>
                 ))}
               </ul>
+              {health.checks?.contentScan === 'noop' ? (
+                <p className="text-xs text-on-surface-variant">
+                  Content scan is noop until <code className="text-on-surface">CONTENT_SCAN_PROVIDER=webhook</code>{' '}
+                  and a vendor URL are configured (ops/legal).
+                </p>
+              ) : null}
+              {health.checks?.contentScan === 'misconfigured' ? (
+                <p className="text-xs text-tertiary" role="alert">
+                  Webhook provider selected but CONTENT_SCAN_WEBHOOK_URL is empty.
+                </p>
+              ) : null}
               <p className="text-xs text-outline">Last check: {health.timestamp}</p>
             </div>
           )}

@@ -1,4 +1,13 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
 export enum NotificationType {
   CREATOR_APPROVED = 'creator_approved',
@@ -37,6 +46,11 @@ export class Notification {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
+  /** FK already enforced by migration 222 (ON DELETE CASCADE). */
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user: User;
+
   @Column({ type: 'enum', enum: NotificationType })
   type: NotificationType;
 
@@ -55,4 +69,3 @@ export class Notification {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }
-

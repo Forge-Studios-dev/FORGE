@@ -383,16 +383,23 @@ export class CommunityAnalyticsService {
 
   /**
    * Studio home "today" strip — merges the things a creator actually needs to
-   * act on (unread comments, open moderation reports, failed-payment members)
-   * into one severity-ranked list, mirroring the admin dashboard's attention
-   * queue (apps/admin/src/app/dashboard/page.tsx) but scoped to one creatorId.
+   * act on (unread comments, held auto-mod comments, open moderation reports,
+   * failed-payment members) into one severity-ranked list, mirroring the admin
+   * dashboard's attention queue (apps/admin/src/app/dashboard/page.tsx) but
+   * scoped to one creatorId.
    * Deliberately excludes revenue/MRR — that's a KPI to *read*, not an item to
-   * *act on*, and (unlike the three signals below) there's no historized
+   * *act on*, and (unlike the signals below) there's no historized
    * snapshot to compute a real period-over-period delta from yet.
    */
   async getCreatorAttention(creatorId: string) {
-    const [commentRows, moderation, subscriberAnalytics, failedVideos, scheduledVideos] =
-      await Promise.all([
+    const [
+      commentRows,
+      heldRows,
+      moderation,
+      subscriberAnalytics,
+      failedVideos,
+      scheduledVideos,
+    ] = await Promise.all([
       this.dataSource.query<
         Array<{
           id: string;
@@ -410,6 +417,7 @@ export class CommunityAnalyticsService {
          WHERE v.user_id = $1
            AND c.parent_id IS NULL
            AND c.deleted_at IS NULL
+           AND c.moderation_status = 'none'
            AND c.user_id != $1
            AND NOT EXISTS (
              SELECT 1 FROM comments r
@@ -419,7 +427,28 @@ export class CommunityAnalyticsService {
          LIMIT 5`,
         [creatorId],
       ),
-      this.moderationService.listUnifiedReportsForCreator(creatorId, 'open'),
+      this.dataSource.query<
+        Array<{
+          id: string;
+          video_id: string;
+          video_title: string;
+          content: string;
+          created_at: string;
+          total_count: string;
+        }>
+      >(
+        `SELECT c.id, c.video_id, v.title AS video_title, c.content, c.created_at,
+                COUNT(*) OVER()::int AS total_count
+         FROM comments c
+         INNER JOIN videos v ON v.id = c.video_id
+         WHERE v.user_id = $1
+           AND c.deleted_at IS NULL
+           AND c.moderation_status = 'held'
+         ORDER BY c.created_at DESC
+         LIMIT 5`,
+        [creatorId],
+      ),
+      this.moderationService.listUnifiedReportsForCreator(creatorId, 'open', { limit: 5 }),
       this.entitlementsService.getSubscriberAnalytics(creatorId),
       this.dataSource.query<
         Array<{
@@ -461,14 +490,15 @@ export class CommunityAnalyticsService {
     ]);
 
     const commentsNeedingReply = Number(commentRows[0]?.total_count ?? 0);
-    const pendingModeration = moderation.data.length;
+    const heldComments = Number(heldRows[0]?.total_count ?? 0);
+    const pendingModeration = moderation.meta?.total ?? moderation.data.length;
     const failedPayments = subscriberAnalytics.byStatus['failed_payment'] ?? 0;
     const processingFailures = Number(failedVideos[0]?.total_count ?? 0);
     const scheduledUpcoming = Number(scheduledVideos[0]?.total_count ?? 0);
 
     type AttentionItem = {
       id: string;
-      kind: 'comment' | 'moderation' | 'billing' | 'processing' | 'scheduled';
+      kind: 'comment' | 'held' | 'moderation' | 'billing' | 'processing' | 'scheduled';
       label: string;
       detail: string;
       href: string;
@@ -488,6 +518,18 @@ export class CommunityAnalyticsService {
           createdAt: new Date(v.updated_at).toISOString(),
         }),
       ),
+      ...heldRows.map(
+        (c): AttentionItem => ({
+          id: `held-${c.id}`,
+          kind: 'held',
+          label: `Held for review on "${c.video_title}"`,
+          detail: c.content.length > 80 ? `${c.content.slice(0, 80)}…` : c.content,
+          // Owner watch surface shows held comments; Studio inbox is one click away via Attention chips.
+          href: `/watch/${c.video_id}?lc=${encodeURIComponent(c.id)}`,
+          tone: 'warning',
+          createdAt: c.created_at,
+        }),
+      ),
       ...commentRows.map(
         (c): AttentionItem => ({
           id: `comment-${c.id}`,
@@ -499,7 +541,7 @@ export class CommunityAnalyticsService {
           createdAt: c.created_at,
         }),
       ),
-      ...moderation.data.slice(0, 5).map(
+      ...moderation.data.map(
         (r): AttentionItem => ({
           id: `moderation-${r.id}`,
           kind: 'moderation',
@@ -542,6 +584,7 @@ export class CommunityAnalyticsService {
     return {
       counts: {
         commentsNeedingReply,
+        heldComments,
         pendingModeration,
         failedPayments,
         processingFailures,

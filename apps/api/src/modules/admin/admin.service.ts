@@ -26,7 +26,7 @@ import { StreamingService } from '../streaming/streaming.service';
 import { StreamLiveService } from '../streaming/stream-live.service';
 import { Stream, StreamStatus } from '../streaming/entities/stream.entity';
 import { StreamChatService } from '../stream-chat/stream-chat.service';
-import { Community } from '../communities/entities/community.entity';
+import { Community, CommunityVisibility } from '../communities/entities/community.entity';
 import { CommunityReport } from '../communities/entities/community-moderation.entity';
 import { CommunityRole, CommunityRoleType } from '../communities/entities/community-role.entity';
 import { StripeConnectService } from '../billing/stripe-connect.service';
@@ -325,21 +325,29 @@ export class AdminService {
     // indefinitely in an orphaned row.
     await this.oauthAccountRepository.delete({ userId: id });
 
-    const ownedVideos = await this.videoRepository.find({
-      where: { userId: id },
-    });
-    const videosToHide = ownedVideos.filter((v) => v.visibility !== VideoVisibility.PRIVATE);
-    for (const video of videosToHide) {
-      video.visibility = VideoVisibility.PRIVATE;
-    }
-    if (videosToHide.length) {
-      await this.videoRepository.save(videosToHide);
-      await Promise.all(
-        videosToHide.map(async (video) => {
-          await this.videosService.bustVideoDetailCache(video.id);
-          this.eventEmitter.emit('video.updated', { videoId: video.id });
-        }),
-      );
+    // Bulk UPDATE avoids loading every owned video into memory (heavy creators).
+    const hideResult = await this.videoRepository
+      .createQueryBuilder()
+      .update(Video)
+      .set({ visibility: VideoVisibility.PRIVATE })
+      .where('user_id = :id', { id })
+      .andWhere('visibility != :private', { private: VideoVisibility.PRIVATE })
+      .returning(['id'])
+      .execute();
+    const hiddenIds = ((hideResult.raw as Array<{ id: string }> | undefined) ?? []).map(
+      (row) => row.id,
+    );
+    if (hiddenIds.length) {
+      const CHUNK = 50;
+      for (let i = 0; i < hiddenIds.length; i += CHUNK) {
+        const chunk = hiddenIds.slice(i, i + CHUNK);
+        await Promise.all(
+          chunk.map(async (videoId) => {
+            await this.videosService.bustVideoDetailCache(videoId);
+            this.eventEmitter.emit('video.updated', { videoId });
+          }),
+        );
+      }
     }
 
     const activeStreams = await this.streamRepository.find({
@@ -357,11 +365,9 @@ export class AdminService {
   /**
    * A deleted user's owned communities can't stay pointed at an anonymized,
    * logged-out account with no way to exercise owner-tier actions. Promotes
-   * the longest-standing OWNER-tier delegate if one exists, else the
-   * longest-standing ADMIN-tier delegate. If neither exists, the community
-   * is left as-is (creatorId still points at the anonymized user) — safe
-   * (no crash, no access change) but not resolved; there is no delegate to
-   * promote and inventing a new archival lifecycle is out of scope here.
+   * the longest-standing OWNER-tier delegate if one exists, else ADMIN, else
+   * MODERATOR. If none exist, privatizes the community so it leaves the public
+   * discovery surface (orphaned private communities stay queryable for ops).
    */
   private async transferOwnedCommunities(deletedUserId: string): Promise<void> {
     const ownedCommunities = await this.communityRepository.find({
@@ -376,15 +382,28 @@ export class AdminService {
       });
       const delegate =
         roles.find((r) => r.role === CommunityRoleType.OWNER) ??
-        roles.find((r) => r.role === CommunityRoleType.ADMIN);
-      if (!delegate) continue;
+        roles.find((r) => r.role === CommunityRoleType.ADMIN) ??
+        roles.find((r) => r.role === CommunityRoleType.MODERATOR);
 
-      await this.communityRepository.update(community.id, { creatorId: delegate.userId });
-      this.eventEmitter.emit('community.ownership_transferred', {
+      if (delegate) {
+        await this.communityRepository.update(community.id, { creatorId: delegate.userId });
+        this.eventEmitter.emit('community.ownership_transferred', {
+          communityId: community.id,
+          previousOwnerId: deletedUserId,
+          newOwnerId: delegate.userId,
+          reason: 'owner_deleted',
+        });
+        continue;
+      }
+
+      // No delegate: hide from public discovery rather than leave a public
+      // community owned by an anonymized account.
+      await this.communityRepository.update(community.id, {
+        visibility: CommunityVisibility.PRIVATE,
+      });
+      this.eventEmitter.emit('community.orphaned_on_owner_delete', {
         communityId: community.id,
         previousOwnerId: deletedUserId,
-        newOwnerId: delegate.userId,
-        reason: 'owner_deleted',
       });
     }
   }
@@ -604,6 +623,10 @@ export class AdminService {
   async backfillMuxPlaybackIds() {
     const updated = await this.streamLiveService.backfillMuxPlaybackIds();
     return { updated };
+  }
+
+  async backfillCaptionSearchText(limit = 25) {
+    return this.videosService.backfillCaptionSearchText(limit);
   }
 
   async getStreamChat(streamId: string, adminId: string, role: UserRole, limit = 50) {

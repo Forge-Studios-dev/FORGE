@@ -87,6 +87,54 @@ class LiveRepository {
     return (res.data['data'] as Map<String, dynamic>?) ?? {};
   }
 
+  /// Host: toggle chat on/off and who may send messages.
+  Future<Map<String, dynamic>> updateChatSettings(
+    String streamId, {
+    bool? chatEnabled,
+    String? chatMode,
+  }) async {
+    final res = await _api.dio.patch(
+      '/streams/$streamId/chat/settings',
+      data: {
+        if (chatEnabled != null) 'chatEnabled': chatEnabled,
+        if (chatMode != null) 'chatMode': chatMode,
+      },
+    );
+    return (res.data['data'] as Map<String, dynamic>?) ?? {};
+  }
+
+  Future<List<Map<String, dynamic>>> listModerators(String streamId) async {
+    final res = await _api.dio.get('/streams/$streamId/moderators');
+    final data = res.data['data'];
+    if (data is List) {
+      return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+    return [];
+  }
+
+  Future<void> addModerator(String streamId, {required String username}) async {
+    await _api.dio.post('/streams/$streamId/moderators', data: {'username': username});
+  }
+
+  Future<void> removeModerator(String streamId, String userId) async {
+    await _api.dio.post('/streams/$streamId/moderators/$userId/remove');
+  }
+
+  /// Host: grant a viewer access to a paid event stream by username.
+  Future<void> grantEventAccess(
+    String streamId, {
+    required String username,
+    String? note,
+  }) async {
+    await _api.dio.post(
+      '/streams/$streamId/grant-access',
+      data: {
+        'username': username,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      },
+    );
+  }
+
   Future<void> raiseHand(String streamId) async {
     await _api.dio.post('/streams/$streamId/raise-hand');
   }

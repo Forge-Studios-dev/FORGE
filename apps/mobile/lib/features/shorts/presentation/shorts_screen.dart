@@ -9,7 +9,9 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/utils/report_reasons.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../shared/models/video.dart';
 import '../../watch/data/watch_repository.dart';
@@ -438,12 +440,15 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
 
   Future<void> _openComments() async {
     final videoId = widget.video.id;
+    final videoOwnerId = widget.video.userId;
     final ctrl = TextEditingController();
     List<dynamic> comments = [];
     var loading = true;
     var loadStarted = false;
     String? replyToId;
     String? replyToName;
+    String? viewerId;
+    var releaseBusy = false;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -458,15 +463,31 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
           builder: (ctx, setModal) {
             if (loading && !loadStarted) {
               loadStarted = true;
-              ref.read(watchRepositoryProvider).getComments(videoId).then((page) {
+              Future.wait([
+                ref.read(watchRepositoryProvider).getComments(videoId),
+                ref.read(apiClientProvider).dio.get('/users/me').then((res) {
+                  final data = res.data['data'] as Map<String, dynamic>?;
+                  return data?['id'] as String?;
+                }).catchError((_) => null),
+              ]).then((results) {
                 if (!stillMounted()) return;
+                final page = results[0] as CommentsPage;
                 setModal(() {
                   comments = page.comments;
+                  viewerId = results[1] as String?;
                   loading = false;
                 });
               }).catchError((_) {
                 if (stillMounted()) setModal(() => loading = false);
               });
+            }
+
+            final isOwner = viewerId != null && viewerId == videoOwnerId;
+
+            Future<void> refreshComments() async {
+              final page = await ref.read(watchRepositoryProvider).getComments(videoId);
+              if (!stillMounted()) return;
+              setModal(() => comments = page.comments);
             }
 
             Future<void> post() async {
@@ -483,9 +504,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                   replyToId = null;
                   replyToName = null;
                 });
-                final page = await ref.read(watchRepositoryProvider).getComments(videoId);
-                if (!stillMounted()) return;
-                setModal(() => comments = page.comments);
+                await refreshComments();
               } catch (_) {
                 if (stillMounted()) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
@@ -505,9 +524,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                       id,
                       liked: liked,
                     );
-                final page = await ref.read(watchRepositoryProvider).getComments(videoId);
-                if (!stillMounted()) return;
-                setModal(() => comments = page.comments);
+                await refreshComments();
               } catch (_) {
                 if (stillMounted()) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
@@ -527,15 +544,36 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                       id,
                       disliked: disliked,
                     );
-                final page = await ref.read(watchRepositoryProvider).getComments(videoId);
-                if (!stillMounted()) return;
-                setModal(() => comments = page.comments);
+                await refreshComments();
               } catch (_) {
                 if (stillMounted()) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                     const SnackBar(content: Text('Sign in to dislike comments')),
                   );
                 }
+              }
+            }
+
+            Future<void> releaseHeld(Map<String, dynamic> comment) async {
+              final id = comment['id'] as String?;
+              if (id == null || releaseBusy) return;
+              setModal(() => releaseBusy = true);
+              try {
+                await ref.read(watchRepositoryProvider).approveComment(videoId, id);
+                await refreshComments();
+                if (stillMounted()) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Comment released')),
+                  );
+                }
+              } catch (_) {
+                if (stillMounted()) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Could not release comment')),
+                  );
+                }
+              } finally {
+                if (stillMounted()) setModal(() => releaseBusy = false);
               }
             }
 
@@ -612,17 +650,45 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                                     final user = m['user'] as Map<String, dynamic>?;
                                     final liked = m['viewerLiked'] == true;
                                     final disliked = m['viewerDisliked'] == true;
+                                    final held = m['moderationStatus'] == 'held';
                                     final likeCount = (m['likeCount'] as num?)?.toInt() ?? 0;
+                                    final t = ForgeTokens.of(context);
                                     return ListTile(
                                       contentPadding: EdgeInsets.zero,
-                                      title: Text(user?['displayName'] as String? ?? 'User'),
+                                      title: Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              user?['displayName'] as String? ?? 'User',
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (held) ...[
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'Held for review',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: t.error,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
                                       subtitle: Text(
                                         m['content'] as String? ?? '',
-                                        style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+                                        style: TextStyle(color: t.onSurfaceVariant),
                                       ),
                                       trailing: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
+                                          if (isOwner && held)
+                                            TextButton(
+                                              onPressed:
+                                                  releaseBusy ? null : () => releaseHeld(m),
+                                              child: const Text('Release'),
+                                            ),
                                           IconButton(
                                             tooltip: liked ? 'Unlike comment' : 'Like comment',
                                             icon: Icon(
@@ -1019,18 +1085,7 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                       const SnackBar(content: Text("Channel won't be recommended")),
                     );
                   } else if (value == 'report') {
-                    const reasons = [
-                      'Spam or misleading',
-                      'Hate speech or harassment',
-                      'Sexual content',
-                      'Violent or repulsive content',
-                      'Harmful or dangerous acts',
-                      'Child abuse',
-                      'Promotes terrorism',
-                      'Copyright infringement',
-                      'Privacy violation',
-                      'Other',
-                    ];
+                    const reasons = kVideoReportReasons;
                     final reason = await showModalBottomSheet<String>(
                       context: context,
                       builder: (ctx) => SafeArea(
@@ -1051,6 +1106,13 @@ class _ShortSlideState extends ConsumerState<_ShortSlide> {
                       ),
                     );
                     if (reason == null) return;
+                    if (await handleCopyrightReportIfNeeded(
+                      context: context,
+                      videoId: widget.video.id,
+                      reason: reason,
+                    )) {
+                      return;
+                    }
                     await repo.reportVideo(videoId: widget.video.id, reason: reason);
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(

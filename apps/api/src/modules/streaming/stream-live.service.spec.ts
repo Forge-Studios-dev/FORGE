@@ -15,6 +15,7 @@ import { StreamClip } from './entities/stream-clip.entity';
 import { StreamCaption } from './entities/stream-caption.entity';
 import { StreamAudienceRequest } from './entities/stream-audience-request.entity';
 import { MuxLiveSyncService } from './mux-live-sync.service';
+import { StreamClipExportService } from '../workers/stream-clip-export/stream-clip-export.service';
 import { ConfigService } from '@nestjs/config';
 import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 
@@ -82,6 +83,7 @@ describe('StreamLiveService votePoll', () => {
         { provide: UsersService, useValue: usersService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: MuxLiveSyncService, useValue: muxLiveSyncServiceMock },
+        { provide: StreamClipExportService, useValue: { enqueueClip: jest.fn() } },
         { provide: getRedisConnectionToken(), useValue: redisMock },
       ],
     }).compile();
@@ -143,6 +145,7 @@ describe('StreamLiveService poll aggregation', () => {
         { provide: UsersService, useValue: {} },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: MuxLiveSyncService, useValue: muxLiveSyncServiceMock },
+        { provide: StreamClipExportService, useValue: { enqueueClip: jest.fn() } },
         { provide: getRedisConnectionToken(), useValue: redisMock },
       ],
     }).compile();
@@ -210,6 +213,7 @@ describe('StreamLiveService getStreamHealth', () => {
         { provide: UsersService, useValue: {} },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: MuxLiveSyncService, useValue: muxLiveSyncServiceMock },
+        { provide: StreamClipExportService, useValue: { enqueueClip: jest.fn() } },
         { provide: getRedisConnectionToken(), useValue: redisMock },
       ],
     }).compile();
