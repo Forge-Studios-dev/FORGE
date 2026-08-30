@@ -28,11 +28,36 @@ import { Public } from '../../common/decorators/public.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/auth/permissions';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
+import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 
 @ApiTags('Engagement')
 @Controller()
 export class EngagementController {
   constructor(private readonly engagementService: EngagementService) {}
+
+  @Get('creators/me/comments')
+  @UseGuards(CreatorApprovedGuard)
+  @ApiOperation({
+    summary: 'Studio comments inbox — cursor-paginated across the creator’s videos',
+  })
+  listCreatorComments(
+    @CurrentUser() user: JwtPayload,
+    @Query('filter') filter?: string,
+    @Query('q') q?: string,
+    @Query('limit') limit?: number,
+    @Query('cursor') cursor?: string,
+  ) {
+    const normalized =
+      filter === 'held' || filter === 'pinned' || filter === 'hearted' || filter === 'all'
+        ? filter
+        : 'all';
+    return this.engagementService.listCreatorStudioComments(user.sub, {
+      filter: normalized,
+      q,
+      limit,
+      cursor,
+    });
+  }
 
   @Post('videos/:id/like')
   @Permissions(Permission.ENGAGE)

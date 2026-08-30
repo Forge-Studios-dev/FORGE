@@ -31,6 +31,7 @@ import { DatabaseObservabilityService } from '../src/database/database-observabi
 import { AccountStrikesService } from '../src/modules/account-strikes/account-strikes.service';
 import { CopyrightService } from '../src/modules/copyright/copyright.service';
 import { AdminAuditLogService } from '../src/common/audit/admin-audit-log.service';
+import { EngagementService } from '../src/modules/engagement/engagement.service';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { RolesGuard } from '../src/common/guards/roles.guard';
 import { JwtStrategy } from '../src/modules/auth/strategies/jwt.strategy';
@@ -90,6 +91,7 @@ describe('Admin moderation HTTP guard + action (HIGH-07)', () => {
         { provide: AccountStrikesService, useValue: {} },
         { provide: CopyrightService, useValue: {} },
         { provide: AdminAuditLogService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
+        { provide: EngagementService, useValue: {} },
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
       ],
@@ -107,7 +109,7 @@ describe('Admin moderation HTTP guard + action (HIGH-07)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) await app.close();
   });
 
   afterEach(() => {

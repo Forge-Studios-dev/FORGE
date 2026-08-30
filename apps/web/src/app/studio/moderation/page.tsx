@@ -1,11 +1,12 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { EmptyState, ListSkeleton, PageHeader, StatusPill } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { fetchStudioModerationInbox } from '@/lib/creator-studio';
 
 type ModeratedCommunity = {
   communityId: string;
@@ -25,21 +26,10 @@ type OwnedCommunity = {
   slug: string;
 };
 
-type UnifiedReport = {
-  id: string;
-  communityId: string;
-  communityName?: string;
-  targetType?: string;
-  status: string;
-  reason?: string;
-  createdAt: string;
-};
-
 const INBOX_PAGE_SIZE = 30;
 
 export default function StudioModerationHubPage() {
   const { user, isGuest, isCreator } = useAuth();
-  const [inboxVisible, setInboxVisible] = useState(INBOX_PAGE_SIZE);
 
   const {
     data: moderated = [],
@@ -74,20 +64,24 @@ export default function StudioModerationHubPage() {
   });
 
   const {
-    data: inbox,
+    data: inboxPages,
     isLoading: inboxLoading,
     isError: inboxError,
     refetch: refetchInbox,
     isFetching: inboxFetching,
-  } = useQuery({
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['unified-mod-inbox', user?.id],
     enabled: !!user?.id,
-    queryFn: async () => {
-      const { data: res } = await api.get<{ data: { data: UnifiedReport[] } }>(
-        '/creators/me/moderation/inbox',
-      );
-      return res.data.data ?? [];
-    },
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      fetchStudioModerationInbox({
+        limit: INBOX_PAGE_SIZE,
+        cursor: pageParam,
+      }),
+    getNextPageParam: (last) => (last.hasMore ? (last.nextCursor ?? undefined) : undefined),
   });
 
   const communities = useMemo(() => {
@@ -113,9 +107,8 @@ export default function StudioModerationHubPage() {
 
   const isLoading = moderatedLoading || ownedLoading;
   const communitiesError = moderatedError || ownedError;
-  const inboxItems = inbox ?? [];
-  const visibleInbox = inboxItems.slice(0, inboxVisible);
-  const openReportCount = inboxItems.length;
+  const inboxItems = inboxPages?.pages.flatMap((p) => p.items) ?? [];
+  const openReportCount = inboxPages?.pages[0]?.total ?? inboxItems.length;
 
   if (isGuest) {
     return (
@@ -184,13 +177,13 @@ export default function StudioModerationHubPage() {
           ) : null}
           {!inboxLoading && !inboxError && openReportCount > 0 ? (
             <>
-              {openReportCount > visibleInbox.length ? (
+              {openReportCount > inboxItems.length ? (
                 <p className="text-sm text-on-surface-variant">
-                  Showing {visibleInbox.length} of {openReportCount} reports
+                  Showing {inboxItems.length} of {openReportCount} reports
                 </p>
               ) : null}
               <ul className="space-y-2">
-                {visibleInbox.map((r) => (
+                {inboxItems.map((r) => (
                   <li
                     key={r.id}
                     className="glass-panel flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm"
@@ -212,13 +205,14 @@ export default function StudioModerationHubPage() {
                   </li>
                 ))}
               </ul>
-              {visibleInbox.length < openReportCount ? (
+              {hasNextPage ? (
                 <button
                   type="button"
-                  className="text-sm font-semibold text-primary hover:underline"
-                  onClick={() => setInboxVisible((n) => n + INBOX_PAGE_SIZE)}
+                  className="text-sm font-semibold text-primary hover:underline disabled:opacity-60"
+                  disabled={isFetchingNextPage}
+                  onClick={() => void fetchNextPage()}
                 >
-                  Load more
+                  {isFetchingNextPage ? 'Loading…' : 'Load more'}
                 </button>
               ) : null}
             </>

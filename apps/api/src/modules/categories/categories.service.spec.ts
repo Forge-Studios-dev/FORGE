@@ -1,7 +1,8 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { CategoriesService } from './categories.service';
+import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
+import { CategoriesService, CATEGORIES_LIST_CACHE_KEY, CATEGORIES_UPLOAD_CACHE_KEY } from './categories.service';
 import { Category } from './entities/category.entity';
 import { Subcategory } from './entities/subcategory.entity';
 import { SkillTag } from './entities/skill-tag.entity';
@@ -16,12 +17,26 @@ describe('CategoriesService', () => {
     getMany: jest.fn(),
   };
 
+  const catQb = {
+    leftJoinAndSelect: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    getMany: jest.fn(),
+  };
+
+  const redis = {
+    get: jest.fn().mockResolvedValue(null),
+    setex: jest.fn().mockResolvedValue('OK'),
+    del: jest.fn().mockResolvedValue(1),
+  };
+
   const categoryRepository = {
     find: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(() => ({}) as Category),
     save: jest.fn(async (c: Partial<Category>) => ({ id: 'cat-1', ...c })),
     delete: jest.fn(),
+    createQueryBuilder: jest.fn(() => catQb),
   };
   const subcategoryRepository = {
     find: jest.fn(),
@@ -40,6 +55,7 @@ describe('CategoriesService', () => {
         { provide: getRepositoryToken(Category), useValue: categoryRepository },
         { provide: getRepositoryToken(Subcategory), useValue: subcategoryRepository },
         { provide: getRepositoryToken(SkillTag), useValue: skillTagRepository },
+        { provide: getRedisConnectionToken(), useValue: redis },
       ],
     }).compile();
     service = module.get(CategoriesService);
@@ -83,14 +99,40 @@ describe('CategoriesService', () => {
     });
   });
 
+  describe('findAll', () => {
+    it('returns cached categories without hitting the database', async () => {
+      const cached = [{ id: 'cat-1', name: 'Tech', slug: 'tech' }];
+      redis.get.mockResolvedValueOnce(JSON.stringify(cached));
+      const result = await service.findAll();
+      expect(result).toEqual(cached);
+      expect(categoryRepository.find).not.toHaveBeenCalled();
+    });
+
+    it('loads from the database and writes the cache on a miss', async () => {
+      const rows = [{ id: 'cat-1', name: 'Tech', slug: 'tech' }];
+      categoryRepository.find.mockResolvedValue(rows);
+      const result = await service.findAll();
+      expect(result).toEqual(rows);
+      expect(redis.setex).toHaveBeenCalledWith(
+        CATEGORIES_LIST_CACHE_KEY,
+        15 * 60,
+        JSON.stringify(rows),
+      );
+    });
+  });
+
   describe('getUploadOptions', () => {
-    it('returns categories with nested skill tags', async () => {
-      categoryRepository.find.mockResolvedValue([
-        { id: 'cat-1', name: 'Tech', slug: 'tech', sortOrder: 0 },
+    it('returns categories with nested skill tags from a single join query', async () => {
+      catQb.getMany.mockResolvedValue([
+        {
+          id: 'cat-1',
+          name: 'Tech',
+          slug: 'tech',
+          subcategories: [{ skillTags: [{ id: 'tag-1', name: 'React', slug: 'react' }] }],
+        },
       ]);
-      categoryRepository.findOne.mockResolvedValue({ id: 'cat-1' });
-      tagQb.getMany.mockResolvedValue([{ id: 'tag-1', name: 'React', slug: 'react' }]);
       const result = await service.getUploadOptions();
+      expect(categoryRepository.createQueryBuilder).toHaveBeenCalledWith('cat');
       expect(result).toEqual([
         {
           id: 'cat-1',
@@ -99,6 +141,20 @@ describe('CategoriesService', () => {
           skillTags: [{ id: 'tag-1', name: 'React', slug: 'react' }],
         },
       ]);
+      expect(skillTagRepository.createQueryBuilder).not.toHaveBeenCalled();
+      expect(redis.setex).toHaveBeenCalledWith(
+        CATEGORIES_UPLOAD_CACHE_KEY,
+        15 * 60,
+        expect.any(String),
+      );
+    });
+
+    it('returns cached upload options without hitting the database', async () => {
+      const cached = [{ id: 'cat-1', name: 'Tech', slug: 'tech', skillTags: [] }];
+      redis.get.mockResolvedValueOnce(JSON.stringify(cached));
+      const result = await service.getUploadOptions();
+      expect(result).toEqual(cached);
+      expect(categoryRepository.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
 
@@ -165,6 +221,7 @@ describe('CategoriesService', () => {
         expect.objectContaining({ name: 'Tech', slug: 'tech', sortOrder: 0 }),
       );
       expect(result.id).toBe('cat-1');
+      expect(redis.del).toHaveBeenCalledWith(CATEGORIES_LIST_CACHE_KEY, CATEGORIES_UPLOAD_CACHE_KEY);
     });
   });
 
@@ -200,10 +257,8 @@ describe('CategoriesService', () => {
         expect.objectContaining({ description: 'new desc' }),
       );
       expect(result.id).toBe('cat-1');
+      expect(redis.del).toHaveBeenCalledWith(CATEGORIES_LIST_CACHE_KEY, CATEGORIES_UPLOAD_CACHE_KEY);
     });
-  });
-
-  describe('remove', () => {
     it('throws when category missing', async () => {
       categoryRepository.findOne.mockResolvedValue(null);
       await expect(service.remove('missing')).rejects.toBeInstanceOf(NotFoundException);
@@ -223,6 +278,7 @@ describe('CategoriesService', () => {
       const result = await service.remove('cat-1');
       expect(categoryRepository.delete).toHaveBeenCalledWith('cat-1');
       expect(result).toEqual({ ok: true });
+      expect(redis.del).toHaveBeenCalledWith(CATEGORIES_LIST_CACHE_KEY, CATEGORIES_UPLOAD_CACHE_KEY);
     });
   });
 });

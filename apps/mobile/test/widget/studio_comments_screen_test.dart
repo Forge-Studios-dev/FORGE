@@ -6,51 +6,33 @@ import 'package:forge_mobile/features/studio/presentation/studio_comments_screen
 
 import 'test_support/widget_harness.dart';
 
-Map<String, dynamic> _videoJson(String id, {String title = 'A video', String status = 'ready'}) => {
-      'id': id,
-      'userId': 'creator-1',
-      'title': title,
-      'status': status,
-      'viewCount': 0,
-      'likeCount': 0,
-      'commentCount': 0,
-      'user': {
-        'id': 'creator-1',
-        'username': 'creator',
-        'displayName': 'Creator',
-        'role': 'creator',
-        'followerCount': 0,
-        'followingCount': 0,
-        'videoCount': 0,
-      },
-      'createdAt': '2026-01-01T00:00:00.000Z',
-    };
-
-ResponseBody _studioVideos(List<Map<String, dynamic>> videos) => jsonResponse({
+ResponseBody _studioComments(List<Map<String, dynamic>> comments) => jsonResponse({
       'data': {
-        'data': videos,
-        'pagination': {'page': 1, 'total': videos.length, 'hasMore': false},
+        'data': comments,
+        'meta': {'cursor': null, 'hasMore': false, 'filter': 'all'},
       },
-    });
-
-ResponseBody _comments(List<Map<String, dynamic>> comments) => jsonResponse({
-      'data': {'data': comments},
     });
 
 Map<String, dynamic> _commentJson(
   String id, {
   String content = 'Great video!',
   String username = 'viewer1',
+  String videoId = 'v1',
+  String videoTitle = 'Intro to FORGE',
   bool isPinned = false,
   bool creatorHearted = false,
   bool isDeleted = false,
 }) =>
     {
       'id': id,
+      'videoId': videoId,
+      'videoTitle': videoTitle,
+      'videoType': 'video',
       'content': content,
       'isPinned': isPinned,
       'creatorHearted': creatorHearted,
       'isDeleted': isDeleted,
+      'moderationStatus': 'none',
       'user': {'username': username, 'displayName': username},
       'createdAt': '2026-01-01T00:00:00.000Z',
     };
@@ -69,7 +51,7 @@ void main() {
 
   testWidgets('shows an empty state with no comments', (tester) async {
     final client = fakeApiClient({
-      'GET /videos/studio': (_) => _studioVideos([]),
+      'GET /creators/me/comments': (_) => _studioComments([]),
     });
 
     await pumpForgeScreen(tester, const StudioCommentsScreen(), client: client);
@@ -79,8 +61,11 @@ void main() {
 
   testWidgets('renders comments and filters by search', (tester) async {
     final client = fakeApiClient({
-      'GET /videos/studio': (_) => _studioVideos([_videoJson('v1', title: 'Intro to FORGE')]),
-      'GET /videos/v1/comments': (_) => _comments([_commentJson('c1', content: 'Loved this!')]),
+      'GET /creators/me/comments': (options) {
+        final q = options.uri.queryParameters['q'];
+        if (q == 'nomatch') return _studioComments([]);
+        return _studioComments([_commentJson('c1', content: 'Loved this!')]);
+      },
     });
 
     useTallViewport(tester);
@@ -92,6 +77,7 @@ void main() {
     await tester.runAsync(() async {
       await tester.enterText(find.widgetWithText(TextField, 'Search comments'), 'nomatch');
     });
+    await tester.pump(const Duration(milliseconds: 350));
     await drainAsync(tester);
 
     expect(find.text('Loved this!'), findsNothing);
@@ -100,8 +86,7 @@ void main() {
 
   testWidgets('pins a comment', (tester) async {
     final client = fakeApiClient({
-      'GET /videos/studio': (_) => _studioVideos([_videoJson('v1')]),
-      'GET /videos/v1/comments': (_) => _comments([_commentJson('c1')]),
+      'GET /creators/me/comments': (_) => _studioComments([_commentJson('c1')]),
       'POST /videos/v1/comments/c1/pin': (_) => jsonResponse({'data': {}}),
     });
 
@@ -120,8 +105,7 @@ void main() {
 
   testWidgets('replies to a comment', (tester) async {
     final client = fakeApiClient({
-      'GET /videos/studio': (_) => _studioVideos([_videoJson('v1')]),
-      'GET /videos/v1/comments': (_) => _comments([_commentJson('c1')]),
+      'GET /creators/me/comments': (_) => _studioComments([_commentJson('c1')]),
       'POST /videos/v1/comments': (_) => jsonResponse({'data': {}}),
     });
 
@@ -141,8 +125,7 @@ void main() {
 
   testWidgets('removes a comment after confirming', (tester) async {
     final client = fakeApiClient({
-      'GET /videos/studio': (_) => _studioVideos([_videoJson('v1')]),
-      'GET /videos/v1/comments': (_) => _comments([_commentJson('c1')]),
+      'GET /creators/me/comments': (_) => _studioComments([_commentJson('c1')]),
       'DELETE /videos/v1/comments/c1': (_) => jsonResponse({'data': {}}),
     });
 
@@ -162,8 +145,7 @@ void main() {
 
   testWidgets('renders a tombstone for a deleted comment with no moderation actions', (tester) async {
     final client = fakeApiClient({
-      'GET /videos/studio': (_) => _studioVideos([_videoJson('v1')]),
-      'GET /videos/v1/comments': (_) => _comments([
+      'GET /creators/me/comments': (_) => _studioComments([
             _commentJson('c1', content: 'This was removed', username: 'gone', isDeleted: true),
           ]),
     });

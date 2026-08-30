@@ -13,6 +13,7 @@ import { formatCentsUsd, formatCount } from '@/lib/utils';
 interface CreatorAttention {
   counts: {
     commentsNeedingReply: number;
+    heldComments?: number;
     pendingModeration: number;
     failedPayments: number;
     processingFailures?: number;
@@ -127,6 +128,7 @@ export default function StudioPage() {
   const creatorName = user?.displayName?.trim() || user?.username?.trim() || 'Creator';
   const totalAttention =
     (attention?.counts.commentsNeedingReply ?? 0) +
+    (attention?.counts.heldComments ?? 0) +
     (attention?.counts.pendingModeration ?? 0) +
     (attention?.counts.failedPayments ?? 0) +
     (attention?.counts.processingFailures ?? 0) +

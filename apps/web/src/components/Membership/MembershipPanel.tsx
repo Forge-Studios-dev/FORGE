@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, StatusPill } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { env } from '@/env';
 import { SubscriptionTier } from '@/types';
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 export function MembershipPanel({ creatorId, communityId, highlightTierId }: Props) {
   const { user, isGuest } = useAuth();
   const qc = useQueryClient();
+  const useStripe = env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
 
   const { data: tiers } = useQuery({
     queryKey: ['tiers', creatorId],
@@ -81,7 +83,6 @@ export function MembershipPanel({ creatorId, communityId, highlightTierId }: Pro
 
   if (isGuest || !tiers?.length) return null;
 
-  const useStripe = process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
   const sortedTiers = highlightTierId
     ? [...tiers].sort((a, b) =>
         a.id === highlightTierId ? -1 : b.id === highlightTierId ? 1 : 0,

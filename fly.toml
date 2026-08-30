@@ -43,12 +43,9 @@ primary_region = 'sin'
     idle_timeout = 600
     response_timeout = 600
 
-  [[http_service.checks]]
-    grace_period = '45s'
-    interval = '15s'
-    method = 'GET'
-    path = '/api/v1/health/live'
-    timeout = '10s'
+  # No continuous [[http_service.checks]]. Health endpoints stay available for
+  # manual / on-demand diagnostics only (GET /api/v1/health/live|/ready).
+  # Machines stay up via auto_stop_machines=false + min_machines_running=2.
 
 [[vm]]
   memory = '2048mb'

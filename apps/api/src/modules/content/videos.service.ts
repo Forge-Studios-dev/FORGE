@@ -43,6 +43,7 @@ import {
 import { shortTypeChangeError } from './short-duration.util';
 import { MUX_VOD_INGEST_QUEUE, muxVodIngestJobId } from './mux-vod.constants';
 import { MuxVodService } from './mux-vod.service';
+import { ScheduledPublishScheduler } from './scheduled-publish.scheduler';
 import {
   sanitizeHlsUrl,
   sanitizeThumbnailUrl,
@@ -80,6 +81,10 @@ import {
   getMutedChannelIds,
   getNotInterestedVideoIds,
 } from '../feed/not-interested.util';
+import {
+  pushSessionCreator,
+  SESSION_WATCH_MIN_PROGRESS_SEC,
+} from '../feed/session-watch.util';
 import { mergeExcludedCreatorIds } from '../feed/viewer-exclusions.util';
 import { rankShortsByScore } from './shorts-rank.util';
 import {
@@ -161,6 +166,7 @@ export class VideosService {
     private readonly accessSessionsService: AccessSessionsService,
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
+    private readonly scheduledPublishScheduler: ScheduledPublishScheduler,
   ) {
     const awsCreds = {
       region: configService.get<string>('aws.region') || 'ap-south-1',
@@ -397,6 +403,86 @@ export class VideosService {
     const text = await res.text();
     if (text.length > 2_000_000) return null;
     return text;
+  }
+
+  /**
+   * Fold every caption language track into `caption_text` for search_vector.
+   * Caps tracks and total length so multi-lang uploads stay bounded.
+   */
+  private async buildCaptionSearchText(
+    tracks: { language: string; label: string; url: string }[],
+    videoId: string,
+  ): Promise<string | null> {
+    if (!tracks.length) return null;
+    const parts: string[] = [];
+    let total = 0;
+    const maxTracks = 8;
+    const maxChars = 200_000;
+    for (const track of tracks.slice(0, maxTracks)) {
+      const vtt = await this.fetchCaptionVttText(track.url, videoId);
+      if (!vtt) continue;
+      const plain = vttToPlainText(vtt).trim();
+      if (!plain) continue;
+      const chunk = plain.slice(0, maxChars - total);
+      if (!chunk) break;
+      parts.push(chunk);
+      total += chunk.length + 1;
+      if (total >= maxChars) break;
+    }
+    return parts.length ? parts.join('\n') : null;
+  }
+
+  /**
+   * Re-index caption_text after Mux (or other) mutates caption_tracks outside setCaptionUrl.
+   * Best-effort — never throws to callers.
+   */
+  async reindexCaptionSearchText(videoId: string): Promise<void> {
+    try {
+      const video = await this.videoRepository.findOne({ where: { id: videoId } });
+      if (!video) return;
+      let tracks = [...(video.captionTracks ?? [])];
+      if (!tracks.length && video.captionUrl) {
+        tracks = [{ language: 'en', label: 'English', url: video.captionUrl }];
+      }
+      const captionText = await this.buildCaptionSearchText(tracks, videoId);
+      await this.videoRepository.update(videoId, { captionText });
+      await this.bustVideoDetailCache(videoId);
+    } catch (err) {
+      this.logger.warn(
+        `caption reindex failed for ${videoId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  }
+
+  /**
+   * Admin batch: fill caption_text for videos that have tracks/URL but empty FTS text
+   * (pre–Wave-39 uploads). Bounded per call so operators can re-run safely.
+   */
+  async backfillCaptionSearchText(
+    limit = 25,
+  ): Promise<{ scanned: number; updated: number }> {
+    const take = Math.min(Math.max(Number(limit) || 25, 1), 50);
+    const rows = await this.videoRepository
+      .createQueryBuilder('v')
+      .select(['v.id'])
+      .where('(v.caption_text IS NULL OR btrim(v.caption_text) = :empty)', { empty: '' })
+      .andWhere(
+        `(v.caption_url IS NOT NULL OR (v.caption_tracks IS NOT NULL AND jsonb_array_length(v.caption_tracks) > 0))`,
+      )
+      .orderBy('v.updated_at', 'DESC')
+      .take(take)
+      .getMany();
+
+    let updated = 0;
+    for (const row of rows) {
+      await this.reindexCaptionSearchText(row.id);
+      const check = await this.videoRepository.findOne({
+        where: { id: row.id },
+        select: ['id', 'captionText'],
+      });
+      if (check?.captionText) updated += 1;
+    }
+    return { scanned: rows.length, updated };
   }
 
   private isAllowedCaptionFetchUrl(url: string): boolean {
@@ -839,13 +925,8 @@ export class VideosService {
       tracks.find((t) => t.language === 'en') ?? tracks[0] ?? null;
     video.captionUrl = primary?.url ?? null;
 
-    // Best-effort transcript indexing (search only) — never blocks the request on fetch failure.
-    if (primary) {
-      const vtt = await this.fetchCaptionVttText(primary.url, videoId);
-      video.captionText = vtt ? vttToPlainText(vtt) : null;
-    } else {
-      video.captionText = null;
-    }
+    // Index all language tracks into captionText for FTS (multi-lang search).
+    video.captionText = await this.buildCaptionSearchText(tracks, videoId);
 
     await this.videoRepository.save(video);
     await this.bustVideoDetailCache(videoId);
@@ -1078,6 +1159,7 @@ export class VideosService {
     }
 
     await this.enqueueTranscodeOrThrow(saved.id, saved.s3Key!, userId);
+    this.syncScheduledPublishJob(saved.id, saved.scheduledPublishAt);
 
     return this.mapToPublicVideo(saved);
   }
@@ -1448,6 +1530,10 @@ export class VideosService {
         { conflictPaths: ['userId', 'videoId'] },
       );
     }
+    // Session dwell signal for forYou (independent of history pause — ranking only).
+    if (progressSeconds >= SESSION_WATCH_MIN_PROGRESS_SEC) {
+      await pushSessionCreator(this.redis, userId, video.userId, this.logger);
+    }
     await this.recordQualifiedView(
       videoId,
       userId,
@@ -1549,8 +1635,19 @@ export class VideosService {
 
     const saved = await this.videoRepository.save(video);
     await this.bustVideoDetailCache(videoId);
+    if (dto.scheduledPublishAt !== undefined) {
+      this.syncScheduledPublishJob(saved.id, saved.scheduledPublishAt);
+    }
     this.eventEmitter.emit('video.updated', { videoId });
     return this.mapToPublicVideo(saved);
+  }
+
+  private syncScheduledPublishJob(videoId: string, scheduledAt: Date | null): void {
+    if (scheduledAt && scheduledAt.getTime() > Date.now()) {
+      void this.scheduledPublishScheduler.schedulePublish(videoId, scheduledAt);
+    } else {
+      void this.scheduledPublishScheduler.cancelPublish(videoId);
+    }
   }
 
   private async enqueueTranscodeOrThrow(

@@ -241,6 +241,7 @@ class _StudioRoomsScreenState extends ConsumerState<StudioRoomsScreen> {
                               ),
                             IconButton(
                               icon: const Icon(Icons.delete_outline),
+                              tooltip: 'Deactivate room',
                               onPressed: roomId == null ? null : () => _deactivateRoom(roomId),
                             ),
                           ],

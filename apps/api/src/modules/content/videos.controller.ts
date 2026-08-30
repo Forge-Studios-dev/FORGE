@@ -44,7 +44,7 @@ import { MultipartPartUrlsDto } from './dto/multipart-part-urls.dto';
 import { MultipartCompletePartsDto } from './dto/multipart-complete-parts.dto';
 import { MultipartCheckpointDto } from './dto/multipart-checkpoint.dto';
 import { StudioVideosQueryDto } from './dto/studio-videos-query.dto';
-import { RecommendationsService } from './recommendations.service';
+import { RecommendationsService, parseTrendingWindowHours } from './recommendations.service';
 import { ContentLibraryService, ContentType } from './content-library.service';
 
 function parseListParam(value?: string): string[] | undefined {
@@ -214,9 +214,20 @@ export class VideosController {
 
   @Public()
   @Get('trending')
-  @ApiOperation({ summary: 'Trending videos by recent view velocity' })
-  trending(@Query('limit') limit?: number) {
-    return this.recommendationsService.getTrending(undefined, limit ? Number(limit) : 20);
+  @ApiOperation({
+    summary: 'Trending videos by recent view velocity',
+    description: 'window=now (24h) or week (7d, default). Uses watch_history.watched_at.',
+  })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'window', required: false, enum: ['now', 'week', '24h', '7d'] })
+  trending(@Query('limit') limit?: number, @Query('window') window?: string) {
+    const windowHours = parseTrendingWindowHours(window);
+    return this.recommendationsService.getTrending(
+      undefined,
+      limit ? Number(limit) : 20,
+      [],
+      windowHours,
+    );
   }
 
   // ── P06-T044: Unified content library (Netflix-style) ─────────────────────

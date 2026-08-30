@@ -42,11 +42,11 @@ All three apps use the shared `@forge/design-system` for tokens/theming (dual da
 | H9 | `/search` page's own search box never writes to search history — only the header dropdown does | `search/page.tsx:479-496` | web |
 | H10 | Upload step 2 claims drag-and-drop ("Drag video here") but no drop handlers exist — click-to-browse only | `upload/step/[step]/page.tsx:509-527` | web |
 | H11 | Upload step 2 shows a stored filename as "selected" after reload with no lost-file warning (step 3 handles this correctly) | `upload/step/[step]/page.tsx:517-518` | web |
-| H12 | `[username]/subscribers` exposes any channel's full subscriber identity list publicly, no privacy gate — not real YouTube parity | `[username]/subscribers/page.tsx` | web |
+| H12 | `[username]/subscribers` — **Closed**: API `getFollowers` owner/admin-only + web `UserListPage` private message on 403 | `[username]/subscribers/page.tsx` | web |
 | H13 | Studio dashboard/playlists/analytics call `@deprecated getMyVideos()` → unpaginated, 100-row-capped legacy endpoint | `creator-studio.ts:43-46,71-75` + 3 call sites | web |
 | H14 | `studio/live` uses the **global** `/streams/live` + `/streams/upcoming` endpoints — shows every stream on the platform inside one creator's own Studio | `studio/live/page.tsx:39-40,342-385` | web |
 | H15 | Studio comments workspace hard-caps 12 videos × 5 comments (40 total), no pagination | `studio/comments/page.tsx:42`, `creator-studio.ts:82-115` | web |
-| H16 | Studio moderation inbox client-side `.slice(0, 30)`, no pagination; stat count doesn't match rendered rows | `studio/moderation/page.tsx:146` | web |
+| H16 | Studio moderation inbox client-side `.slice(0, 30)`, no pagination; stat count doesn't match rendered rows | **Closed** — cursor inbox API + `useInfiniteQuery` (Wave 62) | web |
 | H17 | `StudioModerationPanel` roles/bans/reports queries have zero loading/error handling — failure looks identical to "all clear" | `StudioModerationPanel.tsx:103-131,296-297` | web |
 | H18 | `studio/subscribers` fetches entire member list unbounded, no pagination, masks fetch errors as "No subscribers yet" | `studio/subscribers/page.tsx:65-72,262-266` | web |
 | H19 | No admin surface exists for the backend's real AI-moderation infrastructure (score, budget, queue) | `apps/admin` (missing), backend exists at `communities/ai-moderation.service.ts` | admin |
@@ -169,6 +169,10 @@ Closed remaining High/P0–P2 gaps from §4 on branch `feature/continuous-parity
 | Mobile playlists / subscriptions / profile / community / shorts `data/` (H22) | Closed |
 | Mobile studio analytics MRR currency → USD (parity with web) | Closed |
 
+| Mobile watch engage share analytics | Closed Wave 14 — `recordShare` on share/copy/embed |
+| Web Shorts + FeedCard share analytics | Closed Wave 14 — POST `/videos/:id/share` |
+| Studio tiers price placeholder currency | Closed Wave 14 — USD cents (was ₹) |
+
 ### Master Execution Wave 11 (2026-08-28)
 
 | Item | Status |
@@ -188,4 +192,13 @@ Closed remaining High/P0–P2 gaps from §4 on branch `feature/continuous-parity
 | Community HTTP e2e: mock `CommunityModerationQueueService` | Closed |
 | H23 `HlsPlayerBlock` extract from `watch_screen.dart` | Closed |
 
-Still deferred: ops secrets/staging soak.
+### Master Execution Wave 14 (2026-08-29)
+
+| Item | Status |
+| --- | --- |
+| Mobile watch engage `recordShare` (share / copy / embed) | Closed |
+| Web ShortsFeed + FeedCard share analytics POST | Closed |
+| Studio tiers price placeholder → USD cents | Closed |
+| Wave 13 adminTier assign (re-verified on tip) | Already closed |
+
+Still deferred: ops secrets/staging soak; Mux highlight clip export; channel/live share tables (product).

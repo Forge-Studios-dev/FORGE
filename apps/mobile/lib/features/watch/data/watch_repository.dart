@@ -349,6 +349,11 @@ class WatchRepository {
     );
   }
 
+  /// Video owner releases a held (auto-flagged) comment back to public view.
+  Future<void> approveComment(String videoId, String commentId) async {
+    await _client.dio.post('/videos/$videoId/comments/$commentId/approve');
+  }
+
   Future<void> setVideoDisliked(String videoId, {required bool disliked}) async {
     if (disliked) {
       await _client.dio.post('/videos/$videoId/dislike');

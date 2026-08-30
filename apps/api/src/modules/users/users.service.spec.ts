@@ -6,6 +6,9 @@ import { UsersService } from './users.service';
 import { User, UserRole, CreatorStatus } from './entities/user.entity';
 import { Video, VideoVisibility } from '../content/entities/video.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
+import { Comment } from '../engagement/entities/comment.entity';
+import { CommunityPost } from '../communities/entities/community-post.entity';
+import { AccountStrike } from '../account-strikes/entities/account-strike.entity';
 import { UsernameHistory } from './entities/username-history.entity';
 import { VideosService } from '../content/videos.service';
 import { EngagementService } from '../engagement/engagement.service';
@@ -34,6 +37,7 @@ describe('UsersService', () => {
   // Records every andWhere clause so we can assert visibility enforcement.
   let qbCalls: Array<{ method: string; args: unknown[] }>;
   const videoRepo = {
+    find: jest.fn().mockResolvedValue([]),
     createQueryBuilder: jest.fn(() => {
       const qb: Record<string, jest.Mock> = {};
       const chain = (method: string) =>
@@ -52,6 +56,10 @@ describe('UsersService', () => {
     }),
   };
 
+  const commentRepo = { find: jest.fn().mockResolvedValue([]) };
+  const communityPostRepo = { find: jest.fn().mockResolvedValue([]) };
+  const strikeRepo = { find: jest.fn().mockResolvedValue([]) };
+
   const setup = async () => {
     const module = await Test.createTestingModule({
       providers: [
@@ -60,6 +68,9 @@ describe('UsersService', () => {
         { provide: getRepositoryToken(UsernameHistory), useValue: historyRepo },
         { provide: getRepositoryToken(Video), useValue: videoRepo },
         { provide: getRepositoryToken(WatchHistory), useValue: {} },
+        { provide: getRepositoryToken(Comment), useValue: commentRepo },
+        { provide: getRepositoryToken(CommunityPost), useValue: communityPostRepo },
+        { provide: getRepositoryToken(AccountStrike), useValue: strikeRepo },
         {
           provide: VideosService,
           useValue: {
@@ -374,6 +385,99 @@ describe('UsersService', () => {
           expect.objectContaining({ isActive: true, deletedAt: expect.anything() }),
         ],
       }),
+    );
+  });
+
+  it('exportAuthoredComments redacts soft-deleted bodies', async () => {
+    const svc = await setup();
+    commentRepo.find.mockResolvedValueOnce([
+      {
+        id: 'c1',
+        videoId: 'v1',
+        parentId: null,
+        content: 'visible',
+        moderationStatus: 'none',
+        likeCount: 1,
+        dislikeCount: 0,
+        createdAt: new Date('2026-01-01'),
+        deletedAt: null,
+      },
+      {
+        id: 'c2',
+        videoId: 'v1',
+        parentId: null,
+        content: 'secret',
+        moderationStatus: 'none',
+        likeCount: 0,
+        dislikeCount: 0,
+        createdAt: new Date('2026-01-02'),
+        deletedAt: new Date('2026-01-03'),
+      },
+    ]);
+
+    const rows = await svc.exportAuthoredComments('u1');
+    expect(rows[0].content).toBe('visible');
+    expect(rows[1].content).toBe('[deleted]');
+    expect(commentRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'u1' }, take: 2000 }),
+    );
+  });
+
+  it('exportAuthoredCommunityPosts maps author posts', async () => {
+    const svc = await setup();
+    communityPostRepo.find.mockResolvedValueOnce([
+      {
+        id: 'p1',
+        communityId: 'comm-1',
+        title: 'Hello',
+        body: 'World',
+        postType: 'post',
+        isPinned: false,
+        mediaUrls: [],
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+      },
+    ]);
+
+    const rows = await svc.exportAuthoredCommunityPosts('u1');
+    expect(rows).toEqual([
+      expect.objectContaining({ id: 'p1', communityId: 'comm-1', title: 'Hello', body: 'World' }),
+    ]);
+    expect(communityPostRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { authorId: 'u1' }, take: 2000 }),
+    );
+  });
+
+  it('exportAccountStrikes maps strike fields', async () => {
+    const svc = await setup();
+    strikeRepo.find.mockResolvedValueOnce([
+      {
+        id: 's1',
+        type: 'copyright',
+        reason: 'DMCA',
+        consequence: 'warning',
+        status: 'active',
+        appealStatus: 'none',
+        appealReason: null,
+        sourceVideoId: 'v1',
+        sourceReportId: 'n1',
+        createdAt: new Date('2026-01-01'),
+        expiresAt: new Date('2026-04-01'),
+        resolvedAt: null,
+      },
+    ]);
+
+    const rows = await svc.exportAccountStrikes('u1');
+    expect(rows).toEqual([
+      expect.objectContaining({
+        id: 's1',
+        type: 'copyright',
+        sourceReportId: 'n1',
+        status: 'active',
+      }),
+    ]);
+    expect(strikeRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'u1' }, take: 2000 }),
     );
   });
 });

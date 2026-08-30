@@ -1,5 +1,7 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import { Redis } from 'ioredis';
 import { Repository } from 'typeorm';
 import { Category } from './entities/category.entity';
 import { Subcategory } from './entities/subcategory.entity';
@@ -7,8 +9,21 @@ import { SkillTag } from './entities/skill-tag.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
+export const CATEGORIES_LIST_CACHE_KEY = 'categories:list';
+export const CATEGORIES_UPLOAD_CACHE_KEY = 'categories:upload-options';
+export const CATEGORIES_CACHE_TTL_SEC = 15 * 60;
+
+type UploadOption = {
+  id: string;
+  name: string;
+  slug: string;
+  skillTags: Array<{ id: string; name: string; slug: string }>;
+};
+
 @Injectable()
 export class CategoriesService {
+  private readonly logger = new Logger(CategoriesService.name);
+
   constructor(
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
@@ -16,10 +31,16 @@ export class CategoriesService {
     private readonly subcategoryRepository: Repository<Subcategory>,
     @InjectRepository(SkillTag)
     private readonly skillTagRepository: Repository<SkillTag>,
+    @InjectRedis()
+    private readonly redis: Redis,
   ) {}
 
-  findAll(): Promise<Category[]> {
-    return this.categoryRepository.find({ order: { sortOrder: 'ASC' } });
+  async findAll(): Promise<Category[]> {
+    const cached = await this.readCache<Category[]>(CATEGORIES_LIST_CACHE_KEY);
+    if (cached) return cached;
+    const rows = await this.categoryRepository.find({ order: { sortOrder: 'ASC' } });
+    await this.writeCache(CATEGORIES_LIST_CACHE_KEY, rows);
+    return rows;
   }
 
   async findById(id: string): Promise<Category> {
@@ -58,25 +79,32 @@ export class CategoriesService {
   }
 
   /** Categories with nested skill tags for the upload flow. */
-  async getUploadOptions(): Promise<
-    Array<{
-      id: string;
-      name: string;
-      slug: string;
-      skillTags: Array<{ id: string; name: string; slug: string }>;
-    }>
-  > {
-    const categories = await this.categoryRepository.find({ order: { sortOrder: 'ASC' } });
-    const result = [];
-    for (const cat of categories) {
-      const tags = await this.getSkillTagsForCategory(cat.id);
-      result.push({
-        id: cat.id,
-        name: cat.name,
-        slug: cat.slug,
-        skillTags: tags.map((t) => ({ id: t.id, name: t.name, slug: t.slug })),
-      });
-    }
+  async getUploadOptions(): Promise<UploadOption[]> {
+    const cached = await this.readCache<UploadOption[]>(CATEGORIES_UPLOAD_CACHE_KEY);
+    if (cached) return cached;
+
+    const categories = await this.categoryRepository
+      .createQueryBuilder('cat')
+      .leftJoinAndSelect('cat.subcategories', 'sub')
+      .leftJoinAndSelect('sub.skillTags', 'tag')
+      .orderBy('cat.sortOrder', 'ASC')
+      .addOrderBy('tag.name', 'ASC')
+      .getMany();
+
+    const result: UploadOption[] = categories.map((cat) => {
+      const skillTags: UploadOption['skillTags'] = [];
+      const seen = new Set<string>();
+      for (const sub of cat.subcategories ?? []) {
+        for (const tag of sub.skillTags ?? []) {
+          if (seen.has(tag.id)) continue;
+          seen.add(tag.id);
+          skillTags.push({ id: tag.id, name: tag.name, slug: tag.slug });
+        }
+      }
+      return { id: cat.id, name: cat.name, slug: cat.slug, skillTags };
+    });
+
+    await this.writeCache(CATEGORIES_UPLOAD_CACHE_KEY, result);
     return result;
   }
 
@@ -141,7 +169,9 @@ export class CategoriesService {
     category.description = dto.description ?? null;
     category.iconUrl = dto.iconUrl ?? null;
     category.sortOrder = dto.sortOrder ?? 0;
-    return this.categoryRepository.save(category);
+    const saved = await this.categoryRepository.save(category);
+    await this.bustCategoryCaches();
+    return saved;
   }
 
   async update(id: string, dto: UpdateCategoryDto): Promise<Category> {
@@ -159,7 +189,9 @@ export class CategoriesService {
       description: dto.description !== undefined ? dto.description : category.description,
       iconUrl: dto.iconUrl !== undefined ? dto.iconUrl : category.iconUrl,
     });
-    return this.categoryRepository.save(category);
+    const saved = await this.categoryRepository.save(category);
+    await this.bustCategoryCaches();
+    return saved;
   }
 
   async remove(id: string): Promise<{ ok: true }> {
@@ -169,6 +201,34 @@ export class CategoriesService {
       throw new ConflictException('Cannot delete category with subcategories');
     }
     await this.categoryRepository.delete(id);
+    await this.bustCategoryCaches();
     return { ok: true };
+  }
+
+  private async readCache<T>(key: string): Promise<T | null> {
+    try {
+      const raw = await this.redis.get(key);
+      if (!raw) return null;
+      return JSON.parse(raw) as T;
+    } catch (err) {
+      this.logger.warn(`Category cache read failed: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  private async writeCache(key: string, value: unknown): Promise<void> {
+    try {
+      await this.redis.setex(key, CATEGORIES_CACHE_TTL_SEC, JSON.stringify(value));
+    } catch (err) {
+      this.logger.warn(`Category cache write failed: ${(err as Error).message}`);
+    }
+  }
+
+  private async bustCategoryCaches(): Promise<void> {
+    try {
+      await this.redis.del(CATEGORIES_LIST_CACHE_KEY, CATEGORIES_UPLOAD_CACHE_KEY);
+    } catch (err) {
+      this.logger.warn(`Category cache bust failed: ${(err as Error).message}`);
+    }
   }
 }

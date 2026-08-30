@@ -26,6 +26,9 @@ describe('UsersController self-service account actions', () => {
     findById: jest.fn().mockResolvedValue(profile),
     findByUsername: jest.fn().mockResolvedValue(profile),
     exportOwnedVideos: jest.fn().mockResolvedValue([]),
+    exportAuthoredComments: jest.fn().mockResolvedValue([]),
+    exportAuthoredCommunityPosts: jest.fn().mockResolvedValue([]),
+    exportAccountStrikes: jest.fn().mockResolvedValue([]),
     getWatchHistory: jest.fn().mockResolvedValue([]),
   };
   const playlistsService = { listByUser: jest.fn().mockResolvedValue([]) };
@@ -105,13 +108,28 @@ describe('UsersController self-service account actions', () => {
   });
 
   describe('exportMyData', () => {
-    it('aggregates profile, videos, watch history, and playlists', async () => {
+    it('aggregates profile, videos, watch history, playlists, comments, community posts, and strikes', async () => {
+      usersService.exportAuthoredComments.mockResolvedValueOnce([
+        { id: 'c1', videoId: 'v1', content: 'hi' },
+      ]);
+      usersService.exportAuthoredCommunityPosts.mockResolvedValueOnce([
+        { id: 'p1', communityId: 'comm-1', body: 'post' },
+      ]);
+      usersService.exportAccountStrikes.mockResolvedValueOnce([
+        { id: 's1', type: 'copyright', status: 'active' },
+      ]);
       const result = await controller.exportMyData({ sub: 'user-1' } as any);
       expect(result.profile.id).toBe('user-1');
       expect(result.videos).toEqual([]);
       expect(result.watchHistory).toEqual([]);
       expect(result.playlists).toEqual([]);
+      expect(result.comments).toEqual([{ id: 'c1', videoId: 'v1', content: 'hi' }]);
+      expect(result.communityPosts).toEqual([{ id: 'p1', communityId: 'comm-1', body: 'post' }]);
+      expect(result.strikes).toEqual([{ id: 's1', type: 'copyright', status: 'active' }]);
       expect(usersService.exportOwnedVideos).toHaveBeenCalledWith('user-1');
+      expect(usersService.exportAuthoredComments).toHaveBeenCalledWith('user-1');
+      expect(usersService.exportAuthoredCommunityPosts).toHaveBeenCalledWith('user-1');
+      expect(usersService.exportAccountStrikes).toHaveBeenCalledWith('user-1');
       expect(playlistsService.listByUser).toHaveBeenCalledWith('user-1', 'user-1');
     });
   });

@@ -49,12 +49,7 @@ RUN chmod +x apps/api/docker-entrypoint.sh
 
 USER nestjs
 
-# M-D2: match fly.worker.toml [checks.worker_health] (port 3001, GET /health).
-# Worker has no public HTTP service but bootstrapWorker() in main.ts opens a
-# bare listener on PORT once the Nest context is fully booted, so this
-# container-level HEALTHCHECK gives `docker inspect` / Compose parity with
-# what Fly's platform checks already assert.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
-  CMD curl -f http://localhost:3001/health || exit 1
+# No continuous HEALTHCHECK. Worker still serves GET /health on PORT after boot
+# for manual / on-demand diagnostics (see main.ts bootstrapWorker).
 
 CMD ["apps/api/docker-entrypoint.sh"]

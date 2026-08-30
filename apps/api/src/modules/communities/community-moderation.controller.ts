@@ -124,9 +124,19 @@ export class CommunityModerationController {
   }
 
   @Get('creators/me/moderation/inbox')
-  @ApiOperation({ summary: 'Unified moderation inbox across all creator communities' })
-  unifiedInbox(@CurrentUser() user: JwtPayload, @Query('status') status = 'open') {
-    return this.moderationService.listUnifiedReportsForCreator(user.sub, status);
+  @ApiOperation({
+    summary: 'Unified moderation inbox across all creator communities (cursor-paginated)',
+  })
+  unifiedInbox(
+    @CurrentUser() user: JwtPayload,
+    @Query('status') status = 'open',
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.moderationService.listUnifiedReportsForCreator(user.sub, status, {
+      limit: limit ? Number(limit) : undefined,
+      cursor,
+    });
   }
 
   @Get('creators/me/communities/:communityId/reports')

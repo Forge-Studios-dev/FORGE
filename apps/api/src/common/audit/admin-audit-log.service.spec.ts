@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { AdminAuditLogService } from './admin-audit-log.service';
 import { AdminAuditLog } from './entities/admin-audit-log.entity';
+import { User } from '../../modules/users/entities/user.entity';
 
 describe('AdminAuditLogService', () => {
   let service: AdminAuditLogService;
@@ -10,13 +11,18 @@ describe('AdminAuditLogService', () => {
     save: jest.fn(),
     createQueryBuilder: jest.fn(),
   };
+  const userRepo = {
+    find: jest.fn().mockResolvedValue([]),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    userRepo.find.mockResolvedValue([]);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AdminAuditLogService,
         { provide: getRepositoryToken(AdminAuditLog), useValue: repo },
+        { provide: getRepositoryToken(User), useValue: userRepo },
       ],
     }).compile();
     service = module.get(AdminAuditLogService);
@@ -45,22 +51,43 @@ describe('AdminAuditLogService', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('lists entries filtered by action/actor/target with pagination', async () => {
+  it('lists entries filtered by action/actor/target with pagination and actor profile', async () => {
     const qb = {
       orderBy: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       skip: jest.fn().mockReturnThis(),
       take: jest.fn().mockReturnThis(),
-      getManyAndCount: jest.fn().mockResolvedValue([[{ id: 'log-1' }], 1]),
+      getManyAndCount: jest.fn().mockResolvedValue([
+        [{ id: 'log-1', actorId: 'admin-1', action: 'strike.issue' }],
+        1,
+      ]),
     };
     repo.createQueryBuilder.mockReturnValue(qb);
+    userRepo.find.mockResolvedValue([
+      { id: 'admin-1', username: 'ops', displayName: 'Ops Admin' },
+    ]);
 
-    const result = await service.list({ page: 1, limit: 10, action: 'strike.issue', actorId: 'admin-1' });
+    const result = await service.list({
+      page: 1,
+      limit: 10,
+      action: 'strike',
+      actorId: 'admin-1',
+      targetType: 'user',
+    });
 
-    expect(qb.andWhere).toHaveBeenCalledWith('log.action = :action', { action: 'strike.issue' });
+    expect(qb.andWhere).toHaveBeenCalledWith('log.action ILIKE :action', { action: '%strike%' });
     expect(qb.andWhere).toHaveBeenCalledWith('log.actorId = :actorId', { actorId: 'admin-1' });
+    expect(qb.andWhere).toHaveBeenCalledWith('log.targetType = :targetType', { targetType: 'user' });
+    expect(userRepo.find).toHaveBeenCalled();
     expect(result).toEqual({
-      data: [{ id: 'log-1' }],
+      data: [
+        {
+          id: 'log-1',
+          actorId: 'admin-1',
+          action: 'strike.issue',
+          actor: { id: 'admin-1', username: 'ops', displayName: 'Ops Admin' },
+        },
+      ],
       meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
     });
   });

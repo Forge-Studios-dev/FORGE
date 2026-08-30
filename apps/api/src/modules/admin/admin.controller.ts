@@ -9,7 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiProperty, ApiPropertyOptional, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
@@ -22,7 +22,8 @@ import { UpdateAdminCommunityDto } from './dto/update-admin-community.dto';
 import { toAdminVideos } from '../content/video.mapper';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ReportsService } from '../reports/reports.service';
-import { ReportStatus } from '../reports/entities/report.entity';
+import { ReportStatus, ReportTargetType } from '../reports/entities/report.entity';
+import { ReportSeverity } from '@forge/shared-types';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { CategoriesService } from '../categories/categories.service';
 import { CreateCategoryDto } from '../categories/dto/create-category.dto';
@@ -46,6 +47,7 @@ import { CopyrightService } from '../copyright/copyright.service';
 import { CopyrightNoticeStatus } from '../copyright/entities/copyright-notice.entity';
 import { CounterNoticeStatus } from '../copyright/entities/copyright-counter-notice.entity';
 import { AdminAuditLogService } from '../../common/audit/admin-audit-log.service';
+import { EngagementService } from '../engagement/engagement.service';
 
 class RejectCreatorDto {
   @ApiPropertyOptional()
@@ -81,6 +83,7 @@ export class AdminController {
     private readonly accountStrikesService: AccountStrikesService,
     private readonly copyrightService: CopyrightService,
     private readonly adminAuditLog: AdminAuditLogService,
+    private readonly engagementService: EngagementService,
   ) {}
 
   @Get('audit-log')
@@ -91,8 +94,9 @@ export class AdminController {
     @Query('action') action?: string,
     @Query('actorId') actorId?: string,
     @Query('targetId') targetId?: string,
+    @Query('targetType') targetType?: string,
   ) {
-    return this.adminAuditLog.list({ page, limit, action, actorId, targetId });
+    return this.adminAuditLog.list({ page, limit, action, actorId, targetId, targetType });
   }
 
   @Get('copyright/notices')
@@ -452,6 +456,7 @@ export class AdminController {
     @Query('status') status?: VideoStatus,
     @Query('userId') userId?: string,
     @Query('moderationStatus') moderationStatus?: ModerationStatus,
+    @Query('videoId') videoId?: string,
   ) {
     const query = this.videoRepository
       .createQueryBuilder('v')
@@ -460,6 +465,7 @@ export class AdminController {
     if (status) query.andWhere('v.status = :status', { status });
     if (userId) query.andWhere('v.userId = :userId', { userId });
     if (moderationStatus) query.andWhere('v.moderationStatus = :moderationStatus', { moderationStatus });
+    if (videoId) query.andWhere('v.id = :videoId', { videoId });
     const safePage = clampPage(page);
     const safeLimit = clampLimit(limit);
     const [rows, total] = await query
@@ -501,8 +507,24 @@ export class AdminController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
     @Query('status') status?: ReportStatus,
+    @Query('severity') severity?: string,
+    @Query('targetType') targetType?: string,
   ) {
-    return this.reportsService.listForAdmin(clampPage(page), clampLimit(limit), status);
+    const normalizedSeverity =
+      severity === 'p0' || severity === 'p1' || severity === 'p2' || severity === 'p3'
+        ? (severity as ReportSeverity)
+        : undefined;
+    const normalizedTarget =
+      targetType === 'video' || targetType === 'comment' || targetType === 'user'
+        ? (targetType as ReportTargetType)
+        : undefined;
+    return this.reportsService.listForAdmin(
+      clampPage(page),
+      clampLimit(limit),
+      status,
+      normalizedSeverity,
+      normalizedTarget,
+    );
   }
 
   @Get('reports/:id')
@@ -539,6 +561,79 @@ export class AdminController {
       targetType: 'report',
       targetId: id,
       metadata: { status: dto.status },
+    });
+    return result;
+  }
+
+  @Get('comments/held')
+  @ApiOperation({ summary: 'List auto-flagged video comments held for review' })
+  @ApiQuery({ name: 'q', required: false, description: 'Filter by comment, author, or video title' })
+  listHeldComments(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('q') q?: string,
+  ) {
+    return this.engagementService.listHeldCommentsForAdmin(
+      clampPage(page),
+      clampLimit(limit),
+      q,
+    );
+  }
+
+  @Post('comments/:id/release')
+  @ApiOperation({ summary: 'Release a held video comment to public view' })
+  async releaseHeldComment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() admin: JwtPayload,
+  ) {
+    const result = await this.engagementService.adminReleaseHeldComment(id);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'comment.release_held',
+      targetType: 'comment',
+      targetId: id,
+    });
+    return result;
+  }
+
+  @Delete('comments/:id')
+  @ApiOperation({ summary: 'Remove a video comment (soft-delete; T&S / held queue)' })
+  async removeComment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() admin: JwtPayload,
+  ) {
+    const result = await this.engagementService.adminRemoveComment(admin.sub, id);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'comment.remove',
+      targetType: 'comment',
+      targetId: id,
+    });
+    return result;
+  }
+
+  @Post('comments/held/bulk-release')
+  @ApiOperation({ summary: 'Bulk-release held video comments' })
+  async bulkReleaseHeldComments(@Body() dto: BulkIdsDto, @CurrentUser() admin: JwtPayload) {
+    const result = await this.engagementService.adminBulkReleaseHeldComments(dto.ids);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'comment.bulk_release_held',
+      targetType: 'comment',
+      metadata: { requested: result.requested, released: result.released },
+    });
+    return result;
+  }
+
+  @Post('comments/held/bulk-remove')
+  @ApiOperation({ summary: 'Bulk-remove held video comments' })
+  async bulkRemoveHeldComments(@Body() dto: BulkIdsDto, @CurrentUser() admin: JwtPayload) {
+    const result = await this.engagementService.adminBulkRemoveHeldComments(admin.sub, dto.ids);
+    void this.adminAuditLog.record({
+      actorId: admin.sub,
+      action: 'comment.bulk_remove_held',
+      targetType: 'comment',
+      metadata: { requested: result.requested, removed: result.removed },
     });
     return result;
   }
@@ -710,6 +805,15 @@ export class AdminController {
   @ApiOperation({ summary: 'Backfill mux_playback_id from playback_url on streams' })
   backfillMuxPlaybackIds() {
     return this.adminService.backfillMuxPlaybackIds();
+  }
+
+  @Post('videos/backfill-caption-search')
+  @AdminFullOnly()
+  @ApiOperation({
+    summary: 'Backfill caption_text FTS for videos with tracks but empty caption_text',
+  })
+  backfillCaptionSearch(@Query('limit') limit = 25) {
+    return this.adminService.backfillCaptionSearchText(clampLimit(limit, 25, 50));
   }
 
   @Get('communities')

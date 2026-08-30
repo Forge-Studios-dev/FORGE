@@ -61,6 +61,9 @@ flowchart TB
 | Podcasts controller | `content/podcasts.controller` | Same LMS flag |
 | Channel points | `modules/channel-points` | `ChannelPointsModule.register()` — empty unless `FEATURES_SKILL_ECONOMY_LMS=true` |
 | Gamification | `modules/gamification` | `GamificationModule.register()` — same LMS gate |
+| Articles | `modules/articles` | `ArticlesModule.register()` — same LMS gate |
+| Q&A sessions | `modules/qa-sessions` | `QaSessionsModule.register()` — same LMS gate |
+| Study groups | `modules/study-groups` | `StudyGroupsModule.register()` — same LMS gate |
 
 ## Adjacent (retain; secondary surfaces)
 
@@ -79,11 +82,11 @@ flowchart TB
 
 | Concern | Path |
 | --- | --- |
-| Queue registration | `queues/queues.module.ts` (`QueuesModule`) — single registration site |
+| Queue registration | `queues/queues.module.ts` (`QueuesModule`) is the **central** registration hub. Feature modules may also `BullModule.registerQueue(...)` for the same named queues (Nest/Bull allows duplicate register-by-name); do not treat QueuesModule as the exclusive registration site. |
 | Workers | `modules/workers` — loaded when `shouldLoadWorkersModule()` (Fly worker / non-Jest) |
 | Database / migrations | `database/` |
 | Common | `common/` (guards, filters, CLS, throttler, features) |
-| Config | `config/configuration.ts` |
+| Config | `config/configuration.ts` + production zod gate in `env-production.schema.ts` (invoked from `main.ts`) |
 
 ## Client chrome contracts (Phase 01)
 

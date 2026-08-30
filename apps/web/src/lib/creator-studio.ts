@@ -81,71 +81,97 @@ export type StudioCommentItem = Comment & {
 
 export type StudioCommentsResult = {
   items: StudioCommentItem[];
-  /** Client-side cap or more videos exist — inbox is a recent slice, not exhaustive. */
-  truncated: boolean;
-  videosScanned: number;
+  nextCursor: string | null;
+  hasMore: boolean;
 };
 
-/** No dedicated creator-comments list API — scan recent ready videos. */
-const STUDIO_COMMENTS_VIDEO_LIMIT = 24;
-const STUDIO_COMMENTS_PER_VIDEO = 8;
-const STUDIO_COMMENTS_MAX = 80;
+export type StudioCommentFilter = 'all' | 'held' | 'pinned' | 'hearted';
 
+/** Dedicated creator-comments inbox — cursor-paginated across all owned videos. */
+export async function fetchStudioComments(opts?: {
+  filter?: StudioCommentFilter;
+  q?: string;
+  limit?: number;
+  cursor?: string | null;
+}): Promise<StudioCommentsResult> {
+  const params = new URLSearchParams();
+  const filter = opts?.filter ?? 'all';
+  if (filter !== 'all') params.set('filter', filter);
+  const q = opts?.q?.trim();
+  if (q && q.length >= 2) params.set('q', q);
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  if (opts?.cursor) params.set('cursor', opts.cursor);
+
+  const qs = params.toString();
+  const { data } = await api.get<{
+    data: {
+      data: StudioCommentItem[];
+      meta: { cursor: string | null; hasMore: boolean };
+    };
+  }>(`/creators/me/comments${qs ? `?${qs}` : ''}`);
+
+  const payload = data.data;
+  return {
+    items: payload.data ?? [],
+    nextCursor: payload.meta?.cursor ?? null,
+    hasMore: !!payload.meta?.hasMore,
+  };
+}
+
+/** @deprecated Prefer `fetchStudioComments` — kept for any leftover callers. */
 export async function getRecentCommentsOnMyVideos(
-  userId: string | undefined,
+  _userId: string | undefined,
   opts?: {
-    videoLimit?: number;
-    limitPerVideo?: number;
-    maxComments?: number;
+    filter?: StudioCommentFilter;
+    q?: string;
+    limit?: number;
+    cursor?: string | null;
   },
 ): Promise<StudioCommentsResult> {
-  if (!userId) return { items: [], truncated: false, videosScanned: 0 };
+  return fetchStudioComments(opts);
+}
 
-  const videoLimit = opts?.videoLimit ?? STUDIO_COMMENTS_VIDEO_LIMIT;
-  const limitPerVideo = opts?.limitPerVideo ?? STUDIO_COMMENTS_PER_VIDEO;
-  const maxComments = opts?.maxComments ?? STUDIO_COMMENTS_MAX;
+export type StudioModerationInboxItem = {
+  id: string;
+  communityId: string;
+  communityName?: string;
+  targetType?: string;
+  status: string;
+  reason?: string;
+  createdAt: string;
+};
 
-  const { items: videos, pagination } = await fetchStudioLibrary({
-    status: 'ready',
-    sort: 'recent',
-    limit: videoLimit,
-  });
-  if (!videos.length) return { items: [], truncated: false, videosScanned: 0 };
+export type StudioModerationInboxResult = {
+  items: StudioModerationInboxItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  total: number;
+};
 
-  const settled = await Promise.allSettled(
-    videos.map(async (video) => {
-      const { data } = await api.get<{ data: { data: Comment[] } }>(
-        `/videos/${video.id}/comments?limit=${limitPerVideo}`,
-      );
-      return (data.data.data ?? []).map((c) => ({
-        ...c,
-        videoTitle: video.title,
-        videoType: video.videoType,
-      }));
-    }),
-  );
+/** Unified community-report inbox — cursor-paginated across owned/moderated communities. */
+export async function fetchStudioModerationInbox(opts?: {
+  status?: string;
+  limit?: number;
+  cursor?: string | null;
+}): Promise<StudioModerationInboxResult> {
+  const params = new URLSearchParams();
+  if (opts?.status && opts.status !== 'open') params.set('status', opts.status);
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  if (opts?.cursor) params.set('cursor', opts.cursor);
 
-  const batches: StudioCommentItem[][] = [];
-  let failures = 0;
-  let firstError: unknown;
-  for (const result of settled) {
-    if (result.status === 'fulfilled') {
-      batches.push(result.value);
-    } else {
-      failures += 1;
-      if (!firstError) firstError = result.reason;
-    }
-  }
+  const qs = params.toString();
+  const { data } = await api.get<{
+    data: {
+      data: StudioModerationInboxItem[];
+      meta: { cursor: string | null; hasMore: boolean; total?: number };
+    };
+  }>(`/creators/me/moderation/inbox${qs ? `?${qs}` : ''}`);
 
-  if (batches.length === 0 && failures > 0) {
-    throw firstError instanceof Error ? firstError : new Error('Failed to load comments');
-  }
-
-  const sorted = batches
-    .flat()
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  const items = sorted.slice(0, maxComments);
-  const truncated = sorted.length > maxComments || pagination.hasMore;
-
-  return { items, truncated, videosScanned: videos.length };
+  const payload = data.data;
+  return {
+    items: payload.data ?? [],
+    nextCursor: payload.meta?.cursor ?? null,
+    hasMore: !!payload.meta?.hasMore,
+    total: payload.meta?.total ?? payload.data?.length ?? 0,
+  };
 }

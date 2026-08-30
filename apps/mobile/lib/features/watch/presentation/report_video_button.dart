@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/utils/report_reasons.dart';
 import '../data/watch_repository.dart';
 
 class ReportVideoButton extends ConsumerStatefulWidget {
@@ -13,22 +14,6 @@ class ReportVideoButton extends ConsumerStatefulWidget {
 }
 
 class _ReportVideoButtonState extends ConsumerState<ReportVideoButton> {
-  // Matches @forge/shared-types VIDEO_REPORT_REASONS — keep in sync (Dart
-  // can't import the TS enum directly; see report-reasons.ts for the
-  // canonical source and severity mapping).
-  static const _reasons = [
-    'Spam or misleading',
-    'Hate speech or harassment',
-    'Sexual content',
-    'Violent or repulsive content',
-    'Harmful or dangerous acts',
-    'Child abuse',
-    'Promotes terrorism',
-    'Copyright infringement',
-    'Privacy violation',
-    'Other',
-  ];
-
   Future<void> _openSheet() async {
     final reason = await showModalBottomSheet<String>(
       context: context,
@@ -43,7 +28,7 @@ class _ReportVideoButtonState extends ConsumerState<ReportVideoButton> {
             const ListTile(
               title: Text('Report video', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
-            ..._reasons.map(
+            ...kVideoReportReasons.map(
               (r) => ListTile(
                 title: Text(r),
                 onTap: () => Navigator.pop(ctx, r),
@@ -54,6 +39,13 @@ class _ReportVideoButtonState extends ConsumerState<ReportVideoButton> {
       ),
     );
     if (reason == null || !mounted) return;
+    if (await handleCopyrightReportIfNeeded(
+      context: context,
+      videoId: widget.videoId,
+      reason: reason,
+    )) {
+      return;
+    }
     try {
       await ref.read(watchRepositoryProvider).reportVideo(
             videoId: widget.videoId,

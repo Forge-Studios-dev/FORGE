@@ -67,6 +67,7 @@ class _LiveScreenState extends ConsumerState<LiveScreen> {
         title: const Text('Live Now'),
         actions: [
           IconButton(
+            tooltip: 'Go live',
             icon: Icon(Icons.add_circle_outline),
             onPressed: () => _showGoLiveDialog(context),
           ),

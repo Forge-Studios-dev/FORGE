@@ -6,9 +6,11 @@ import Link from 'next/link';
 import { PageHeader, Button } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { env } from '@/env';
+import { formatCentsCurrency } from '@/lib/utils';
 import { SubscriptionTier } from '@/types';
 
-const BILLING_ENABLED = process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
+const BILLING_ENABLED = env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
 
 type TierEntitlement = {
   id: string;
@@ -178,7 +180,7 @@ export default function StudioTiersPage() {
         <input
           value={priceCents}
           onChange={(e) => setPriceCents(e.target.value)}
-          placeholder="Price in cents (e.g. 99900 = ₹999)"
+          placeholder="Price in cents (e.g. 999 = $9.99)"
           className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-4 py-2.5"
         />
         <select
@@ -229,7 +231,7 @@ export default function StudioTiersPage() {
               <span className="font-medium">{t.name}</span>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-on-surface-variant">
-                  {t.currency} {(t.priceCents / 100).toFixed(0)}
+                  {formatCentsCurrency(t.priceCents, t.currency)}
                   {t.maxConcurrentDevices && t.maxConcurrentDevices > 1
                     ? ` · ${t.maxConcurrentDevices} devices`
                     : ''}

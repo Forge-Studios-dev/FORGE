@@ -2,7 +2,7 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   SearchService,
-  type SearchCaptions,
+  normalizeCaptionsFilter,
   type SearchDuration,
   type SearchKind,
   type SearchSort,
@@ -35,7 +35,11 @@ export class SearchController {
     enum: ['any', 'hour', 'today', 'week', 'month', 'year'],
   })
   @ApiQuery({ name: 'sort', required: false, enum: ['relevance', 'date', 'views'] })
-  @ApiQuery({ name: 'captions', required: false, enum: ['any', 'yes'] })
+  @ApiQuery({
+    name: 'captions',
+    required: false,
+    description: 'any | yes | language code (en, es, hi, …)',
+  })
   @ApiQuery({ name: 'kind', required: false, enum: ['any', 'video', 'short'] })
   @ApiQuery({ name: 'watched', required: false, enum: ['any', 'watched', 'unwatched'] })
   search(
@@ -64,7 +68,7 @@ export class SearchController {
         : 'any';
     const sortFilter: SearchSort =
       sort === 'date' || sort === 'views' || sort === 'relevance' ? sort : 'relevance';
-    const captionsFilter: SearchCaptions = captions === 'yes' ? 'yes' : 'any';
+    const captionsFilter = normalizeCaptionsFilter(captions);
     const kindFilter: SearchKind = kind === 'video' || kind === 'short' ? kind : 'any';
     const watchedFilter: SearchWatched =
       watched === 'watched' || watched === 'unwatched' ? watched : 'any';

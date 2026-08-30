@@ -56,6 +56,7 @@ class StudioAttentionScreen extends ConsumerWidget {
         title: const Text('Attention'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
         actions: [
@@ -87,6 +88,7 @@ class StudioAttentionScreen extends ConsumerWidget {
         data: (attention) {
           final c = attention.counts;
           final comments = c['commentsNeedingReply'] ?? 0;
+          final held = c['heldComments'] ?? 0;
           final moderation = c['pendingModeration'] ?? 0;
           final payments = c['failedPayments'] ?? 0;
           final processing = c['processingFailures'] ?? 0;
@@ -98,7 +100,7 @@ class StudioAttentionScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
               children: [
                 Text(
-                  'A single queue for replies, moderation, payments, processing, and upcoming publishes.',
+                  'A single queue for replies, held comments, moderation, payments, processing, and upcoming publishes.',
                   style: TextStyle(color: t.onSurfaceVariant, height: 1.4),
                 ),
                 const SizedBox(height: 16),
@@ -106,11 +108,36 @@ class StudioAttentionScreen extends ConsumerWidget {
                   spacing: 10,
                   runSpacing: 10,
                   children: [
-                    _CountChip(label: 'Comments', value: comments),
-                    _CountChip(label: 'Moderation', value: moderation),
-                    _CountChip(label: 'Payments', value: payments),
-                    _CountChip(label: 'Processing', value: processing),
-                    _CountChip(label: 'Scheduled', value: scheduled),
+                    _CountChip(
+                      label: 'Comments',
+                      value: comments,
+                      onTap: () => context.push('/studio/comments'),
+                    ),
+                    _CountChip(
+                      label: 'Held',
+                      value: held,
+                      onTap: () => context.push('/studio/comments?filter=held'),
+                    ),
+                    _CountChip(
+                      label: 'Moderation',
+                      value: moderation,
+                      onTap: () => context.push('/studio/moderation'),
+                    ),
+                    _CountChip(
+                      label: 'Payments',
+                      value: payments,
+                      onTap: () => context.push('/studio/earnings'),
+                    ),
+                    _CountChip(
+                      label: 'Processing',
+                      value: processing,
+                      onTap: () => context.push('/studio/videos?status=failed'),
+                    ),
+                    _CountChip(
+                      label: 'Scheduled',
+                      value: scheduled,
+                      onTap: () => context.push('/studio/videos?scheduled=1'),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -204,15 +231,20 @@ class StudioAttentionScreen extends ConsumerWidget {
 }
 
 class _CountChip extends StatelessWidget {
-  const _CountChip({required this.label, required this.value});
+  const _CountChip({
+    required this.label,
+    required this.value,
+    this.onTap,
+  });
 
   final String label;
   final int value;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens.of(context);
-    return Container(
+    final child = Container(
       width: 150,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -233,6 +265,16 @@ class _CountChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+    if (onTap == null) return child;
+    return Semantics(
+      button: true,
+      label: '$label, $value',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: child,
       ),
     );
   }

@@ -12,7 +12,7 @@
 | Mux RTMP ingest + HLS playback | ✅ |
 | LiveKit browser go-live (RTMP egress to Mux) | ✅ Web |
 | Scheduled streams, RSVP, reminders | ✅ |
-| Host dashboard (mods, grants, polls, clips, chat settings) | ✅ Web · partial mobile |
+| Host dashboard (mods, grants, polls, clips, chat settings) | ✅ Web · ✅ Mobile (W43–45) |
 | Chat modes (`all`, `followers`, `subscribers`, `mods_only`) | ✅ |
 | Replay + offset-synced chat (`fromMs`/`toMs`) | ✅ |
 | Paid events (checkout + entitlement grants) | ✅ |
@@ -20,7 +20,8 @@
 | Live DVR (`dvrEnabled` on create) | ✅ |
 | AI moderation (OpenAI when `OPENAI_API_KEY` set) | ✅ |
 | Analytics (unique viewers, revenue, poll totals) | ✅ |
-| Highlight clip markers (30s window) | ✅ Schema + API; Mux export TBD |
+| Highlight clip markers (30s window) | ✅ Schema + API + Mux export job |
+
 | After-live discussion rooms | ✅ Auto TEXT room on stream end (community-linked streams) |
 | Live Q&A mode (submit / upvote / answer) | ✅ API + realtime + web + mobile |
 
@@ -191,4 +192,5 @@ HTTP read paths for live are **DB-only**; Mux sync runs via worker. See [audits/
 | Multi-region Fly + Neon replicas | Mux CDN already global |
 | Stripe Connect creator payouts | Platform holds super chat funds |
 | Auto ASR captions | `stream_captions` schema ready |
-| Mux clip export from markers | ffmpeg/Mux job TBD |
+| Mux clip export from markers | ✅ BullMQ `stream-clip-export` + Mux asset clip; webhook completes playback URL |
+

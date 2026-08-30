@@ -116,6 +116,7 @@ class _StudioLiveScreenState extends ConsumerState<StudioLiveScreen> {
         title: const Text('Go live'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
       ),

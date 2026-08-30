@@ -1,13 +1,13 @@
 # Community Permission Matrix
 
-**Display-only (MED-14) — not the enforcement source.** This matrix drives
-`GET /api/v1/communities/:communityId/permissions/matrix` only (an
-informational endpoint, e.g. for client UI to show "what can I do here").
-Real ban/role-assignment/moderation endpoints do **not** consult it — they
-gate on coarser role-tier checks (`assertModeratorAccess` /
-`assertAdminAccess` in `community-moderation.service.ts`), not these
-individual permission keys. Editing this matrix's constants changes what the
-matrix *displays*, not what a request is actually allowed to do.
+**Enforcement status (updated 2026-08-29):** This matrix is the **display** source
+for `GET /api/v1/communities/:communityId/permissions/matrix` and the **lookup table**
+for fine-grained checks via `CommunityAccessService.assertCommunityPermission` /
+`permissionsForRole` (e.g. `view_analytics`, `manage_events`). Coarse
+moderation paths still use `assertModeratorAccess` / `assertAdminAccess` in
+`community-moderation.service.ts`, plus `CommunityRoleGuard` /
+`CommunityStudioGuard`. Keep matrix constants and those gates aligned — do not
+treat the matrix as decorative-only.
 
 **Matrix source (code):** `apps/api/src/modules/communities/community-permissions.constants.ts`
 **Actual enforcement (code):** `apps/api/src/modules/communities/community-moderation.service.ts` (`assertModeratorAccess`, `assertAdminAccess`), `guards/community-role.guard.ts`, `guards/community-studio.guard.ts`, and several endpoints (`updateCommunity`, `exportMembersCsv`, `communityAnalytics`) that are literal-creator-only via `assertOwnedCommunity` — stricter than the matrix implies for `admin`/`coach`, not looser.

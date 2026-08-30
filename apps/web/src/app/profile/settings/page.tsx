@@ -16,6 +16,8 @@ import { NotificationPreferencesSettings } from '@/components/settings/Notificat
 import { PasswordResetSettings } from '@/components/settings/PasswordResetSettings';
 import { MfaSettings } from '@/components/settings/MfaSettings';
 import { DeleteAccountSettings } from '@/components/settings/DeleteAccountSettings';
+import { DataExportSettings } from '@/components/settings/DataExportSettings';
+import { CookiePreferencesSettings } from '@/components/settings/CookiePreferencesSettings';
 import { PlaybackSettings } from '@/components/settings/PlaybackSettings';
 import { WatchHistoryPrivacyToggle } from '@/components/settings/WatchHistoryPrivacyToggle';
 import {
@@ -118,6 +120,12 @@ export default function ProfileSettingsPage() {
           className="rounded-full bg-surface-container-high px-4 py-1.5 text-sm text-on-surface-variant hover:text-on-surface"
         >
           Privacy
+        </a>
+        <a
+          href="#cookies"
+          className="rounded-full bg-surface-container-high px-4 py-1.5 text-sm text-on-surface-variant hover:text-on-surface"
+        >
+          Cookies
         </a>
         <a
           href="#playback"
@@ -323,6 +331,10 @@ export default function ProfileSettingsPage() {
       <BlockedUsersSettings />
 
       <InterestsSettings />
+
+      <CookiePreferencesSettings />
+
+      <DataExportSettings />
 
       <section className="glass-panel mt-8 rounded-2xl p-6">
         <div className="mt-4">

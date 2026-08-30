@@ -17,9 +17,8 @@ import { VideosService } from './videos.service';
  * whether the schedule had *already* passed, and nothing ever revisited it —
  * so a video scheduled for the future stayed permanently un-indexed (never
  * appeared in feed/search) once ready, unless a creator happened to edit it
- * again after the scheduled time. This runs on a 1-minute repeatable job
- * (see scheduled-publish.scheduler.ts) and finishes the job the schedule
- * promised: index it once its time arrives.
+ * again after the scheduled time. Primary path is a delayed Bull job at
+ * `scheduledPublishAt`; a 15-minute backup scan catches missed jobs.
  */
 @Injectable()
 export class ScheduledPublishService {
@@ -36,6 +35,7 @@ export class ScheduledPublishService {
   async runScheduledPublish(): Promise<{ published: number }> {
     const now = new Date();
     const due = await this.videoRepository.find({
+      select: ['id', 'userId'],
       where: {
         status: VideoStatus.READY,
         publishStatus: PublishStatus.PUBLISHED,
@@ -47,6 +47,31 @@ export class ScheduledPublishService {
       take: ScheduledPublishService.MAX_PER_RUN,
     });
 
+    return this.indexDue(due, now);
+  }
+
+  async publishVideoIfDue(videoId: string): Promise<{ published: number }> {
+    const now = new Date();
+    const video = await this.videoRepository.findOne({
+      select: ['id', 'userId'],
+      where: {
+        id: videoId,
+        status: VideoStatus.READY,
+        publishStatus: PublishStatus.PUBLISHED,
+        visibility: VideoVisibility.PUBLIC,
+        moderationStatus: ModerationStatus.NONE,
+        scheduledPublishAt: LessThanOrEqual(now),
+        indexedAt: IsNull(),
+      },
+    });
+    if (!video) return { published: 0 };
+    return this.indexDue([video], now);
+  }
+
+  private async indexDue(
+    due: Array<Pick<Video, 'id' | 'userId'>>,
+    now: Date,
+  ): Promise<{ published: number }> {
     if (!due.length) return { published: 0 };
 
     for (const video of due) {

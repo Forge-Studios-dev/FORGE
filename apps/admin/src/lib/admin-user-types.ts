@@ -1,3 +1,5 @@
+import type { User } from '@forge/shared-types';
+
 export type AdminUser = {
   id: string;
   email: string;
@@ -6,7 +8,7 @@ export type AdminUser = {
   bio?: string | null;
   avatarUrl?: string | null;
   bannerUrl?: string | null;
-  role: string;
+  role: User['role'];
   adminTier?: 'full' | 'moderator';
   isVerified: boolean;
   isActive?: boolean;
@@ -49,6 +51,8 @@ export type AdminReport = {
   targetType: string;
   targetId: string;
   reason: string;
+  reasonCategory?: string | null;
+  severity?: string;
   status: string;
   createdAt: string;
   reporter?: { id?: string; username: string; email: string; displayName: string };

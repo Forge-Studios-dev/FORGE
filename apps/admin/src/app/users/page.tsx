@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { isAxiosError } from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -19,14 +20,53 @@ const ROLE_TONE: Record<string, StatusTone> = {
   user: 'neutral',
 };
 
+const ROLES = ['user', 'creator', 'admin'] as const;
+const CREATOR_STATUSES = ['pending', 'approved', 'rejected'] as const;
+const BOOLS = ['true', 'false'] as const;
+
+function parsePage(raw: string | null): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
+function parseOneOf(raw: string | null, allowed: readonly string[]): string {
+  if (!raw) return '';
+  return allowed.includes(raw) ? raw : '';
+}
+
 export default function UsersPage() {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
-  const [creatorFilter, setCreatorFilter] = useState('');
-  const [activeFilter, setActiveFilter] = useState('');
-  const [verifiedFilter, setVerifiedFilter] = useState('');
-  const [reportedFilter, setReportedFilter] = useState('');
+  return (
+    <Suspense fallback={<p className="text-on-surface-variant">Loading users…</p>}>
+      <UsersPageInner />
+    </Suspense>
+  );
+}
+
+function UsersPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const searchParam = searchParams.get('search') ?? '';
+  const roleParam = searchParams.get('role');
+  const creatorParam = searchParams.get('creatorStatus');
+  const activeParam = searchParams.get('isActive');
+  const verifiedParam = searchParams.get('emailVerified');
+  const reportedParam = searchParams.get('hasPendingReports');
+  const pageParam = searchParams.get('page');
+
+  const [page, setPage] = useState(() => parsePage(pageParam));
+  const [searchDraft, setSearchDraft] = useState(searchParam);
+  const [search, setSearch] = useState(searchParam);
+  const [roleFilter, setRoleFilter] = useState(() => parseOneOf(roleParam, ROLES));
+  const [creatorFilter, setCreatorFilter] = useState(() =>
+    parseOneOf(creatorParam, CREATOR_STATUSES),
+  );
+  const [activeFilter, setActiveFilter] = useState(() => parseOneOf(activeParam, BOOLS));
+  const [verifiedFilter, setVerifiedFilter] = useState(() => parseOneOf(verifiedParam, BOOLS));
+  const [reportedFilter, setReportedFilter] = useState(
+    () => (reportedParam === 'true' || reportedParam === 'yes' ? 'yes' : ''),
+  );
   const [selected, setSelected] = useState<AdminUser[]>([]);
   const [pendingConfirm, setPendingConfirm] = useState<
     { role?: string; isActive?: boolean; label: string } | null
@@ -40,6 +80,67 @@ export default function UsersPage() {
   >(null);
   const qc = useQueryClient();
   const { toast } = useToast();
+
+  useEffect(() => {
+    setSearchDraft(searchParam);
+    setSearch(searchParam);
+    setRoleFilter(parseOneOf(roleParam, ROLES));
+    setCreatorFilter(parseOneOf(creatorParam, CREATOR_STATUSES));
+    setActiveFilter(parseOneOf(activeParam, BOOLS));
+    setVerifiedFilter(parseOneOf(verifiedParam, BOOLS));
+    setReportedFilter(reportedParam === 'true' || reportedParam === 'yes' ? 'yes' : '');
+    setPage(parsePage(pageParam));
+  }, [
+    searchParam,
+    roleParam,
+    creatorParam,
+    activeParam,
+    verifiedParam,
+    reportedParam,
+    pageParam,
+  ]);
+
+  function syncUrl(next: {
+    search?: string;
+    role?: string;
+    creatorStatus?: string;
+    isActive?: string;
+    emailVerified?: string;
+    reported?: string;
+    page?: number;
+  }) {
+    const params = new URLSearchParams();
+    const q = (next.search ?? search).trim();
+    const role = next.role ?? roleFilter;
+    const creatorStatus = next.creatorStatus ?? creatorFilter;
+    const isActive = next.isActive ?? activeFilter;
+    const emailVerified = next.emailVerified ?? verifiedFilter;
+    const reported = next.reported ?? reportedFilter;
+    const nextPage = next.page ?? page;
+
+    if (q) params.set('search', q);
+    if (role) params.set('role', role);
+    if (creatorStatus) params.set('creatorStatus', creatorStatus);
+    if (isActive) params.set('isActive', isActive);
+    if (emailVerified) params.set('emailVerified', emailVerified);
+    if (reported === 'yes') params.set('hasPendingReports', 'true');
+    if (nextPage > 1) params.set('page', String(nextPage));
+
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const next = searchDraft.trim();
+      if (next === search) return;
+      setSearch(next);
+      setPage(1);
+      syncUrl({ search: next, page: 1 });
+    }, 300);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce draft only
+  }, [searchDraft]);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-users', page, search, roleFilter, creatorFilter, activeFilter, verifiedFilter, reportedFilter],
@@ -179,15 +280,13 @@ export default function UsersPage() {
           return (
             <select
               value={u.role}
+              aria-label={`Change role for @${u.username}`}
               onClick={(e) => e.stopPropagation()}
               onChange={(e) => {
                 const role = e.target.value;
                 if (role === u.role) return;
                 const prevRole = u.role;
                 if (role === 'admin') {
-                  // Grant-admin needs the step-up password (MED-13) — route
-                  // through the same dialog the detail page uses instead of
-                  // hitting the backend directly and 403'ing silently.
                   setGrantAdminError(null);
                   setPendingGrant({ kind: 'row', id: u.id, username: u.username, prevRole });
                   setGrantAdminOpen(true);
@@ -239,21 +338,21 @@ export default function UsersPage() {
         <PageHeader title="Users" subtitle="Search accounts and open a profile to review uploads, reports, and activity" />
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <AdminSearchInput
-            value={search}
-            onChange={(v) => {
-              setSearch(v);
-              setPage(1);
-            }}
+            value={searchDraft}
+            onChange={(v) => setSearchDraft(v)}
             placeholder="Search name, email, or username…"
             className="sm:min-w-[240px] sm:flex-1"
           />
           <select
             value={roleFilter}
             onChange={(e) => {
-              setRoleFilter(e.target.value);
+              const next = e.target.value;
+              setRoleFilter(next);
               setPage(1);
+              syncUrl({ role: next, page: 1 });
             }}
             className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+            aria-label="Filter by role"
           >
             <option value="">All roles</option>
             <option value="user">User</option>
@@ -263,10 +362,13 @@ export default function UsersPage() {
           <select
             value={creatorFilter}
             onChange={(e) => {
-              setCreatorFilter(e.target.value);
+              const next = e.target.value;
+              setCreatorFilter(next);
               setPage(1);
+              syncUrl({ creatorStatus: next, page: 1 });
             }}
             className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+            aria-label="Filter by creator status"
           >
             <option value="">Creator status</option>
             <option value="pending">Pending</option>
@@ -276,10 +378,13 @@ export default function UsersPage() {
           <select
             value={activeFilter}
             onChange={(e) => {
-              setActiveFilter(e.target.value);
+              const next = e.target.value;
+              setActiveFilter(next);
               setPage(1);
+              syncUrl({ isActive: next, page: 1 });
             }}
             className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+            aria-label="Filter by account status"
           >
             <option value="">Account status</option>
             <option value="true">Active</option>
@@ -288,10 +393,13 @@ export default function UsersPage() {
           <select
             value={verifiedFilter}
             onChange={(e) => {
-              setVerifiedFilter(e.target.value);
+              const next = e.target.value;
+              setVerifiedFilter(next);
               setPage(1);
+              syncUrl({ emailVerified: next, page: 1 });
             }}
             className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+            aria-label="Filter by email verification"
           >
             <option value="">Email verification</option>
             <option value="true">Verified</option>
@@ -300,10 +408,13 @@ export default function UsersPage() {
           <select
             value={reportedFilter}
             onChange={(e) => {
-              setReportedFilter(e.target.value);
+              const next = e.target.value;
+              setReportedFilter(next);
               setPage(1);
+              syncUrl({ reported: next, page: 1 });
             }}
             className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm"
+            aria-label="Filter by pending reports"
           >
             <option value="">Reports</option>
             <option value="yes">Pending reports</option>
@@ -341,8 +452,6 @@ export default function UsersPage() {
                 const role = e.target.value;
                 if (!role) return;
                 if (role === 'admin') {
-                  // Bulk grant-admin needs the step-up password (MED-13) —
-                  // without this, the backend now 403s with no prompt at all.
                   setGrantAdminError(null);
                   const snapshot = selected.map((u) => ({ id: u.id, role: u.role, isActive: u.isActive }));
                   setPendingGrant({ kind: 'bulk', ids: snapshot.map((s) => s.id), snapshot });
@@ -353,6 +462,7 @@ export default function UsersPage() {
                 e.target.value = '';
               }}
               className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-1 text-xs font-semibold"
+              aria-label="Bulk set role"
             >
               <option value="">Set role…</option>
               <option value="user">user</option>
@@ -430,8 +540,16 @@ export default function UsersPage() {
           totalPages={data.meta.totalPages}
           total={data.meta.total}
           label="users"
-          onPrev={() => setPage((p) => Math.max(1, p - 1))}
-          onNext={() => setPage((p) => p + 1)}
+          onPrev={() => {
+            const next = Math.max(1, page - 1);
+            setPage(next);
+            syncUrl({ page: next });
+          }}
+          onNext={() => {
+            const next = page + 1;
+            setPage(next);
+            syncUrl({ page: next });
+          }}
         />
       ) : null}
     </section>

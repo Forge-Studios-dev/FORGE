@@ -13,9 +13,10 @@ import '@livekit/components-styles';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@forge/design-system';
+import { env } from '@/env';
 import { CommunityStageRaiseHandPanel } from '@/components/Community/CommunityStageRaiseHandPanel';
 
-const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+const LIVEKIT_URL = env.NEXT_PUBLIC_LIVEKIT_URL;
 
 type JoinPayload = {
   token: string;

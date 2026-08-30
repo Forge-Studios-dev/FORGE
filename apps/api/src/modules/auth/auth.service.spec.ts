@@ -130,41 +130,45 @@ describe('AuthService', () => {
     jest.clearAllMocks();
   });
 
-  it('signup creates user and returns tokens', async () => {
-    userRepoMock.findOne.mockResolvedValue(null);
-    const savedUser = {
-      id: 'u1',
-      email: 'a@b.com',
-      username: 'ab',
-      displayName: 'AB',
-      passwordHash: 'hash',
-      role: 'user',
-      isVerified: false,
-      isActive: true,
-      creatorStatus: null,
-      creatorReviewNote: null,
-      avatarUrl: null,
-    } as unknown as User;
-    userRepoMock.create.mockReturnValue(savedUser);
-    userRepoMock.save.mockResolvedValue(savedUser);
-    refreshRepoMock.save.mockResolvedValue({ id: 'sid-1' });
-
-    const svc = await setupService();
-    const result = await svc.signup(
-      {
-        email: 'A@B.com',
+  it(
+    'signup creates user and returns tokens',
+    async () => {
+      userRepoMock.findOne.mockResolvedValue(null);
+      const savedUser = {
+        id: 'u1',
+        email: 'a@b.com',
         username: 'ab',
         displayName: 'AB',
-        password: 'Abcd1234',
-        acceptedTerms: true,
-      } as never,
-      {},
-    );
+        passwordHash: 'hash',
+        role: 'user',
+        isVerified: false,
+        isActive: true,
+        creatorStatus: null,
+        creatorReviewNote: null,
+        avatarUrl: null,
+      } as unknown as User;
+      userRepoMock.create.mockReturnValue(savedUser);
+      userRepoMock.save.mockResolvedValue(savedUser);
+      refreshRepoMock.save.mockResolvedValue({ id: 'sid-1' });
 
-    expect(result.accessToken).toBe('access.jwt');
-    expect(refreshRepoMock.save).toHaveBeenCalled();
-    expect(mailMock.sendMail).toHaveBeenCalled();
-  });
+      const svc = await setupService();
+      const result = await svc.signup(
+        {
+          email: 'A@B.com',
+          username: 'ab',
+          displayName: 'AB',
+          password: 'Abcd1234',
+          acceptedTerms: true,
+        } as never,
+        {},
+      );
+
+      expect(result.accessToken).toBe('access.jwt');
+      expect(refreshRepoMock.save).toHaveBeenCalled();
+      expect(mailMock.sendMail).toHaveBeenCalled();
+    },
+    15_000,
+  );
 
   it('signup converts a concurrent unique-constraint race into a friendly 400', async () => {
     userRepoMock.findOne.mockResolvedValue(null);

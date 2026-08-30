@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import { Button } from '@forge/design-system';
+import { ReportReason } from '@forge/shared-types';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { AuthGateModal } from '@/components/gates/AuthGateModal';
@@ -26,6 +28,8 @@ export function ReportContentButton({ targetType, targetId, className, role }: P
   const [error, setError] = useState<string | null>(null);
 
   const presets = targetType === 'comment' ? COMMENT_REPORT_REASONS : VIDEO_REPORT_REASONS;
+  const isCopyrightVideo =
+    targetType === 'video' && preset === ReportReason.COPYRIGHT_INFRINGEMENT;
 
   useEffect(() => {
     if (!open) return;
@@ -74,7 +78,10 @@ export function ReportContentButton({ targetType, targetId, className, role }: P
   };
 
   const canSubmit =
-    preset.length > 0 && (preset !== 'Other' || details.trim().length >= 3) && !submit.isPending;
+    !isCopyrightVideo &&
+    preset.length > 0 &&
+    (preset !== 'Other' || details.trim().length >= 3) &&
+    !submit.isPending;
 
   return (
     <>
@@ -127,15 +134,31 @@ export function ReportContentButton({ targetType, targetId, className, role }: P
                 </label>
               ))}
             </fieldset>
-            <textarea
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              rows={3}
-              className="mt-4 w-full rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm"
-              placeholder={
-                preset === 'Other' ? 'Describe the issue (required)…' : 'Optional details…'
-              }
-            />
+            {isCopyrightVideo ? (
+              <div className="mt-4 space-y-3 rounded-lg border border-outline-variant/30 bg-surface-container-high/50 p-4 text-sm">
+                <p className="text-on-surface">
+                  Copyright claims use a separate DMCA notice form. A content report will not take
+                  the video down.
+                </p>
+                <Link
+                  href={`/copyright/notice?videoId=${encodeURIComponent(targetId)}`}
+                  className="inline-flex text-sm font-semibold text-primary hover:underline"
+                  onClick={() => setOpen(false)}
+                >
+                  Open copyright notice form →
+                </Link>
+              </div>
+            ) : (
+              <textarea
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
+                rows={3}
+                className="mt-4 w-full rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm"
+                placeholder={
+                  preset === 'Other' ? 'Describe the issue (required)…' : 'Optional details…'
+                }
+              />
+            )}
             {error ? (
               <p className="mt-2 text-sm text-error" role="alert">
                 {error}
@@ -149,15 +172,17 @@ export function ReportContentButton({ targetType, targetId, className, role }: P
               >
                 Cancel
               </button>
-              <Button
-                type="button"
-                variant="primary"
-                disabled={!canSubmit}
-                onClick={() => submit.mutate()}
-                className="px-5 py-2"
-              >
-                {submit.isPending ? 'Submitting…' : 'Submit report'}
-              </Button>
+              {!isCopyrightVideo ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  disabled={!canSubmit}
+                  onClick={() => submit.mutate()}
+                  className="px-5 py-2"
+                >
+                  {submit.isPending ? 'Submitting…' : 'Submit report'}
+                </Button>
+              ) : null}
             </div>
           </div>
         </div>

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Button, EmptyState, FeedGridSkeleton, Icon, Input, PageHeader } from '@forge/design-system';
+import { Button, EmptyState, FeedGridSkeleton, Icon, Input, PageHeader, buttonClassName } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { trackSearchQuery } from '@/lib/analytics';
@@ -22,7 +22,8 @@ type SearchType = 'all' | 'video' | 'channel' | 'playlist';
 type SearchDuration = 'any' | 'short' | 'medium' | 'long';
 type SearchUploaded = 'any' | 'hour' | 'today' | 'week' | 'month' | 'year';
 type SearchSort = 'relevance' | 'date' | 'views';
-type SearchCaptions = 'any' | 'yes';
+/** any | yes | language code (en, es, hi, …) */
+type SearchCaptions = string;
 type SearchKind = 'any' | 'video' | 'short';
 type SearchLive = 'any' | 'yes';
 type SearchWatched = 'any' | 'watched' | 'unwatched';
@@ -78,6 +79,9 @@ const SORT_FILTERS: { value: SearchSort; label: string }[] = [
 const CAPTIONS_FILTERS: { value: SearchCaptions; label: string }[] = [
   { value: 'any', label: 'Any' },
   { value: 'yes', label: 'Subtitles/CC' },
+  { value: 'en', label: 'English CC' },
+  { value: 'es', label: 'Spanish CC' },
+  { value: 'hi', label: 'Hindi CC' },
 ];
 
 const KIND_FILTERS: { value: SearchKind; label: string }[] = [
@@ -132,6 +136,62 @@ function buildSearchHref({
   if (watched !== 'any') params.set('watched', watched);
   const qs = params.toString();
   return qs ? `/search?${qs}` : '/search';
+}
+
+/** Empty catalog — offer typo-tolerant title suggestion when available. */
+function SearchEmptyDidYouMean(props: SearchQuery) {
+  const { q } = props;
+  const { data } = useQuery({
+    queryKey: ['search-did-you-mean', q],
+    enabled: q.length >= 2,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data } = await api.get<{
+        data: { titles: string[]; channels: { username: string; displayName: string }[] };
+      }>('/search/suggestions', { params: { q, limit: 8 } });
+      return data.data;
+    },
+  });
+
+  const qLower = q.toLowerCase();
+  const titleHint = (data?.titles ?? []).find((t) => t.trim().toLowerCase() !== qLower)?.trim();
+  const channelHint = (data?.channels ?? []).find(
+    (c) =>
+      c.displayName.trim().toLowerCase() !== qLower && c.username.trim().toLowerCase() !== qLower,
+  );
+
+  return (
+    <section className="glass-panel forge-fade-in flex flex-col items-center rounded-xl px-6 py-12 text-center">
+      <Icon name="search_off" className="mb-4 text-4xl text-outline" />
+      <h3 className="font-display-forge text-lg font-semibold">No results</h3>
+      <p className="mt-2 max-w-sm text-sm text-on-surface-variant">
+        Nothing matched &ldquo;{q}&rdquo;. Try different keywords or clear filters.
+      </p>
+      {titleHint ? (
+        <p className="mt-4 text-sm text-on-surface">
+          Did you mean{' '}
+          <Link
+            href={buildSearchHref({ ...props, q: titleHint })}
+            className="font-semibold text-primary hover:underline"
+          >
+            {titleHint}
+          </Link>
+          ?
+        </p>
+      ) : channelHint ? (
+        <p className="mt-4 text-sm text-on-surface">
+          Did you mean channel{' '}
+          <Link href={`/${channelHint.username}`} className="font-semibold text-primary hover:underline">
+            {channelHint.displayName}
+          </Link>
+          ?
+        </p>
+      ) : null}
+      <Link href="/" className={`${buttonClassName('primary')} mt-6`}>
+        Go home
+      </Link>
+    </section>
+  );
 }
 
 function FilterChipRow<T extends string>({
@@ -297,11 +357,16 @@ function SearchResults({ q, type, duration, uploaded, sort, captions, kind, live
 
   if (empty) {
     return (
-      <EmptyState
-        icon="search_off"
-        title="No results"
-        description={`Nothing matched "${q}". Try different keywords or clear filters.`}
-        action={{ label: 'Go home', href: '/' }}
+      <SearchEmptyDidYouMean
+        q={q}
+        type={type}
+        duration={duration}
+        uploaded={uploaded}
+        sort={sort}
+        captions={captions}
+        kind={kind}
+        live={live}
+        watched={watched}
       />
     );
   }
@@ -446,7 +511,11 @@ function SearchPageContent() {
       ? sortParam
       : 'relevance';
   const captionsParam = searchParams.get('captions');
-  const captions: SearchCaptions = captionsParam === 'yes' ? 'yes' : 'any';
+  const captions: SearchCaptions =
+    captionsParam === 'yes' ||
+    (captionsParam != null && /^[a-z]{2}(-[a-z]{2})?$/i.test(captionsParam))
+      ? captionsParam.toLowerCase()
+      : 'any';
   const kindParam = searchParams.get('kind');
   const kind: SearchKind =
     kindParam === 'video' || kindParam === 'short' ? kindParam : 'any';

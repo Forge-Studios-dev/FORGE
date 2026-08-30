@@ -15,6 +15,12 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      { source: '/mentorship', destination: '/dashboard', permanent: false },
+      { source: '/channel-points', destination: '/dashboard', permanent: false },
+    ];
+  },
 };
 
 const sentryWebpackPluginOptions = {

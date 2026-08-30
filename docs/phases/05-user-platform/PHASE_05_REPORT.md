@@ -1,20 +1,14 @@
-# Phase 05 — Report (2026-08-04)
+# Phase 05 — Report (2026-08-29)
 
 **Completion:** ~99%  
 **Readiness:** 9 / 10  
-**Recommendation:** Closed → Phase 06 already largely done; proceed Phase 07/08.
+**Recommendation:** Closed. Phases 06–08 already largely done; continue Master on open MVP gaps (CSAM vendor, clip export, etc. are ops/product-blocked).
 
-## This pass
+## Verified this pass
 
-- Wired `BannerUploadSettings` into `/profile/settings` (API already existed; component was unused)
-- Confirmed privacy pause, channel links, avatar, password reset present
-- Neon migrations 185–197 applied (unblocks privacy / Super Thanks / pin columns)
-- Neon migrations **198–201** also applied (2026-08-08): dislike columns, `user_blocks`, `username_changed_at`, `username_history`
-
-## Closed (2026-08-05)
-
-- In-app change-password: `POST /auth/change-password` (verifies current, revokes other sessions); web Security settings + mobile Settings Security section; email reset link retained as fallback
+- Banner upload, privacy pause, channel links, avatar, in-app change-password, OAuth deletion email path (web + mobile)
+- Account deletion community transfer extended in Wave 19 (MODERATOR → else privatize)
 
 ## Deferred
 
-- Offline downloads
+- Offline downloads (product)

@@ -116,8 +116,7 @@ function sentryFilterProviders() {
         return {
           pinoHttp: {
             level: isProd ? 'info' : 'debug',
-            // Fly Consul probes hit /health/live every 15s × N machines; Prometheus
-            // scrapes /metrics. Logging those floods Fly and looks like "continuous APIs".
+            // Ignore rare manual /metrics scrapes and health probes in access logs.
             autoLogging: {
               ignore: (req) => isInfraProbePath(req.url),
             },

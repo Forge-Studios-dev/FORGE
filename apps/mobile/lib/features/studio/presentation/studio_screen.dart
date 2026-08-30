@@ -145,6 +145,7 @@ class StudioScreen extends ConsumerWidget {
       data: (a) {
         final c = a.counts;
         return (c['commentsNeedingReply'] ?? 0) +
+            (c['heldComments'] ?? 0) +
             (c['pendingModeration'] ?? 0) +
             (c['failedPayments'] ?? 0) +
             (c['processingFailures'] ?? 0) +
@@ -265,6 +266,7 @@ class StudioScreen extends ConsumerWidget {
           _link(context, 'Moderation', 'Reports & trust queue', Icons.shield, '/studio/moderation'),
           _zoneLabel(context, 'Grow'),
           _link(context, 'Analytics', 'Performance insights', Icons.analytics, '/studio/analytics'),
+          _link(context, 'Earnings', 'Memberships + tips summary', Icons.payments_outlined, '/studio/earnings'),
           _link(context, 'Super Thanks', 'Tips from viewers', Icons.volunteer_activism, '/studio/super-thanks'),
           _link(context, 'Memberships', 'Configure tiers', Icons.workspace_premium, '/studio/tiers'),
           _link(context, 'Members', 'Manage channel memberships', Icons.people, '/studio/subscribers'),

@@ -12,6 +12,7 @@ import { Share, ShareChannel } from './entities/share.entity';
 import { Video } from '../content/entities/video.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { AiModerationService } from '../communities/ai-moderation.service';
+import { VideoCommentModerationService } from '../workers/video-comment-moderation/video-comment-moderation.service';
 
 describe('EngagementService', () => {
   let service: EngagementService;
@@ -19,6 +20,7 @@ describe('EngagementService', () => {
   const mockRepo = () => ({
     find: jest.fn().mockResolvedValue([]),
     findOne: jest.fn(),
+    findAndCount: jest.fn().mockResolvedValue([[], 0]),
     save: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -57,6 +59,10 @@ describe('EngagementService', () => {
           useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn() },
         },
         AiModerationService,
+        {
+          provide: VideoCommentModerationService,
+          useValue: { enqueueRegexHeldReview: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -240,6 +246,213 @@ describe('EngagementService', () => {
     await expect(service.approveComment('not-owner', 'v1', 'c1')).rejects.toThrow(
       'Only the video owner can manage this',
     );
+  });
+
+  it('listCreatorStudioComments filters published (all) and attaches video metadata', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const qb = {
+      createQueryBuilder: jest.fn(),
+      innerJoinAndSelect: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([
+        {
+          id: 'c1',
+          videoId: 'v1',
+          userId: 'u1',
+          content: 'nice video',
+          parentId: null,
+          likeCount: 2,
+          isPinned: false,
+          creatorHearted: false,
+          moderationStatus: 'none',
+          deletedAt: null,
+          createdAt: new Date('2026-08-01'),
+          user: { id: 'u1', username: 'viewer', displayName: 'Viewer' },
+          video: { id: 'v1', title: 'My upload', videoType: 'video', userId: 'creator' },
+        },
+      ]),
+    };
+    commentRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+
+    const result = await service.listCreatorStudioComments('creator', { filter: 'all', limit: 20 });
+    expect(qb.where).toHaveBeenCalledWith('video.userId = :creatorId', { creatorId: 'creator' });
+    expect(qb.andWhere).toHaveBeenCalledWith('c.moderationStatus = :none', { none: 'none' });
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].videoTitle).toBe('My upload');
+    expect(result.data[0].videoType).toBe('video');
+    expect(result.meta.hasMore).toBe(false);
+    expect(result.meta.filter).toBe('all');
+  });
+
+  it('listCreatorStudioComments applies held filter and search', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const qb = {
+      innerJoinAndSelect: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    commentRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+
+    await service.listCreatorStudioComments('creator', {
+      filter: 'held',
+      q: 'spam',
+      limit: 10,
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('c.moderationStatus = :held', { held: 'held' });
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      expect.stringContaining('ILIKE'),
+      expect.objectContaining({ like: '%spam%' }),
+    );
+  });
+
+  it('listHeldCommentsForAdmin returns held rows with video metadata', async () => {
+    const commentRepo = (service as any).commentRepository;
+    commentRepo.findAndCount.mockResolvedValue([
+      [
+        {
+          id: 'c1',
+          videoId: 'v1',
+          userId: 'u1',
+          content: 'spam link buy now',
+          parentId: null,
+          likeCount: 0,
+          isPinned: false,
+          creatorHearted: false,
+          moderationStatus: 'held',
+          deletedAt: null,
+          createdAt: new Date('2026-08-01'),
+          user: { id: 'u1', username: 'spammer', displayName: 'Spammer' },
+          video: {
+            id: 'v1',
+            title: 'My video',
+            userId: 'owner',
+            user: { username: 'creator' },
+          },
+        },
+      ],
+      1,
+    ]);
+
+    const result = await service.listHeldCommentsForAdmin(1, 20);
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].videoTitle).toBe('My video');
+    expect(result.data[0].channelUsername).toBe('creator');
+    expect(result.data[0].moderationStatus).toBe('held');
+    expect(result.meta.total).toBe(1);
+  });
+
+  it('listHeldCommentsForAdmin filters by q when provided', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([
+        [
+          {
+            id: 'c2',
+            videoId: 'v1',
+            userId: 'u1',
+            content: 'buy crypto now',
+            parentId: null,
+            likeCount: 0,
+            isPinned: false,
+            creatorHearted: false,
+            moderationStatus: 'held',
+            deletedAt: null,
+            createdAt: new Date('2026-08-01'),
+            user: { id: 'u1', username: 'spammer', displayName: 'Spammer' },
+            video: {
+              id: 'v1',
+              title: 'My video',
+              userId: 'owner',
+              user: { username: 'creator' },
+            },
+          },
+        ],
+        1,
+      ]),
+    };
+    commentRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+
+    const result = await service.listHeldCommentsForAdmin(1, 20, 'crypto');
+    expect(commentRepo.createQueryBuilder).toHaveBeenCalledWith('c');
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      expect.stringContaining('ILIKE'),
+      expect.objectContaining({ like: '%crypto%' }),
+    );
+    expect(result.data).toHaveLength(1);
+    expect(result.meta.q).toBe('crypto');
+  });
+
+  it('adminBulkReleaseHeldComments releases valid held ids and skips failures', async () => {
+    const spy = jest
+      .spyOn(service, 'adminReleaseHeldComment')
+      .mockResolvedValueOnce({ id: 'c1' } as never)
+      .mockRejectedValueOnce(new Error('not held'));
+    const result = await service.adminBulkReleaseHeldComments(['c1', 'c2']);
+    expect(result).toEqual({ released: 1, requested: 2 });
+    expect(spy).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
+  });
+
+  it('adminReleaseHeldComment clears hold and emits comment.created', async () => {
+    const commentRepo = (service as any).commentRepository;
+    const videoRepo = (service as any).videoRepository;
+    const eventEmitter = (service as any).eventEmitter;
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      videoId: 'v1',
+      userId: 'viewer-1',
+      moderationStatus: 'held',
+      user: { id: 'viewer-1' },
+    });
+    commentRepo.save.mockImplementation((row: unknown) => row);
+    videoRepo.findOne.mockResolvedValue({ id: 'v1', userId: 'owner' });
+
+    const result = await service.adminReleaseHeldComment('c1');
+    expect(result.moderationStatus).toBe('none');
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'comment.created',
+      expect.objectContaining({ videoId: 'v1', videoOwnerId: 'owner' }),
+    );
+  });
+
+  it('adminReleaseHeldComment rejects non-held comments', async () => {
+    const commentRepo = (service as any).commentRepository;
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      moderationStatus: 'none',
+    });
+    await expect(service.adminReleaseHeldComment('c1')).rejects.toThrow(
+      'Comment is not held for review',
+    );
+  });
+
+  it('adminRemoveComment soft-deletes any non-deleted comment', async () => {
+    const commentRepo = (service as any).commentRepository;
+    commentRepo.findOne.mockResolvedValue({
+      id: 'c1',
+      videoId: 'v1',
+      moderationStatus: 'none',
+      deletedAt: null,
+    });
+    const spy = jest.spyOn(service, 'deleteComment').mockResolvedValue({ deleted: true } as never);
+    const result = await service.adminRemoveComment('admin-1', 'c1');
+    expect(spy).toHaveBeenCalledWith('admin-1', 'admin', 'v1', 'c1');
+    expect(result).toEqual({ deleted: true });
+    spy.mockRestore();
   });
 
   it('orders top comments by pin then likeCount', async () => {

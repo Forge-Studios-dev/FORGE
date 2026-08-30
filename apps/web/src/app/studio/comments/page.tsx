@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Button, EmptyState, Icon, Input, ListSkeleton, PageHeader } from '@forge/design-system';
 import { ConfirmDialog } from '@forge/design-system/client';
-import { getRecentCommentsOnMyVideos } from '@/lib/creator-studio';
+import { fetchStudioComments, type StudioCommentFilter } from '@/lib/creator-studio';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { timeAgo } from '@/lib/utils';
@@ -16,55 +17,105 @@ function studioCommentWatchHref(videoId: string, commentId: string): string {
   return `/watch/${videoId}?lc=${encodeURIComponent(commentId)}`;
 }
 
-type CommentFilter = 'all' | 'pinned' | 'hearted';
-
-const FILTERS: { id: CommentFilter; label: string }[] = [
+const FILTERS: { id: StudioCommentFilter; label: string }[] = [
   { id: 'all', label: 'Published' },
+  { id: 'held', label: 'Held for review' },
   { id: 'pinned', label: 'Pinned' },
   { id: 'hearted', label: 'Hearted' },
 ];
 
+function parseCommentFilter(raw: string | null): StudioCommentFilter {
+  if (raw === 'held' || raw === 'pinned' || raw === 'hearted' || raw === 'all') return raw;
+  return 'all';
+}
+
 export default function StudioCommentsPage() {
   const { user, isCreator } = useAuth();
   const qc = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const filterParam = searchParams.get('filter');
+  const qParam = searchParams.get('q') ?? '';
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [error, setError] = useState('');
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<CommentFilter>('all');
+  const [query, setQuery] = useState(() => (qParam.trim().length >= 2 ? qParam.trim() : ''));
+  const [debouncedQuery, setDebouncedQuery] = useState(() =>
+    qParam.trim().length >= 2 ? qParam.trim() : '',
+  );
+  const [filter, setFilter] = useState<StudioCommentFilter>(() => parseCommentFilter(filterParam));
   const [removeTarget, setRemoveTarget] = useState<{ videoId: string; commentId: string } | null>(
     null,
   );
   const [linkHintId, setLinkHintId] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState(40);
 
-  const { data, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ['studio-comments', user?.id],
-    queryFn: () => getRecentCommentsOnMyVideos(user?.id),
+  useEffect(() => {
+    setFilter(parseCommentFilter(filterParam));
+  }, [filterParam]);
+
+  useEffect(() => {
+    const fromUrl = qParam.trim().length >= 2 ? qParam.trim() : '';
+    setQuery(fromUrl);
+    setDebouncedQuery(fromUrl);
+  }, [qParam]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const next = query.trim();
+      setDebouncedQuery(next.length >= 2 ? next : '');
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    const current = qParam.trim().length >= 2 ? qParam.trim() : '';
+    if (debouncedQuery === current) return;
+    const params = new URLSearchParams(searchParams.toString());
+    if (debouncedQuery) params.set('q', debouncedQuery);
+    else params.delete('q');
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [debouncedQuery, pathname, qParam, router, searchParams]);
+
+  const applyFilter = (next: StudioCommentFilter) => {
+    setFilter(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'all') params.delete('filter');
+    else params.set('filter', next);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
+  const searchQ = debouncedQuery.length >= 2 ? debouncedQuery : undefined;
+
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    isFetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['studio-comments', user?.id, filter, searchQ ?? ''],
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      fetchStudioComments({
+        filter,
+        q: searchQ,
+        limit: 40,
+        cursor: pageParam,
+      }),
+    getNextPageParam: (last) => (last.hasMore ? (last.nextCursor ?? undefined) : undefined),
     enabled: !!user?.id && isCreator,
   });
 
-  const comments = data?.items ?? [];
+  const comments = data?.pages.flatMap((p) => p.items) ?? [];
 
-  const filtered = useMemo(() => {
-    const list = comments;
-    const q = query.trim().toLowerCase();
-    return list.filter((c) => {
-      if (filter === 'pinned' && !c.isPinned) return false;
-      if (filter === 'hearted' && !c.creatorHearted) return false;
-      if (!q) return true;
-      const content = (c.content ?? '').toLowerCase();
-      const title = (c.videoTitle ?? '').toLowerCase();
-      const username = (c.user?.username ?? '').toLowerCase();
-      const display = (c.user?.displayName ?? '').toLowerCase();
-      return (
-        content.includes(q) || title.includes(q) || username.includes(q) || display.includes(q)
-      );
-    });
-  }, [comments, filter, query]);
-
-  const visible = filtered.slice(0, visibleCount);
-  const canShowMore = filtered.length > visibleCount;
+  const invalidate = () =>
+    void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] });
 
   const replyMutation = useMutation({
     mutationFn: async ({
@@ -82,7 +133,7 @@ export default function StudioCommentsPage() {
       setReplyingTo(null);
       setReplyText('');
       setError('');
-      void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] });
+      invalidate();
     },
     onError: (e) => setError(getApiErrorMessage(e, 'Could not post reply.')),
   });
@@ -99,7 +150,7 @@ export default function StudioCommentsPage() {
     }) => {
       await api.post(`/videos/${videoId}/comments/${commentId}/pin`, { isPinned });
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] }),
+    onSuccess: invalidate,
     onError: (e) => setError(getApiErrorMessage(e, 'Could not update pin.')),
   });
 
@@ -115,8 +166,19 @@ export default function StudioCommentsPage() {
     }) => {
       await api.post(`/videos/${videoId}/comments/${commentId}/creator-heart`, { creatorHearted });
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] }),
+    onSuccess: invalidate,
     onError: (e) => setError(getApiErrorMessage(e, 'Could not update heart.')),
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async ({ videoId, commentId }: { videoId: string; commentId: string }) => {
+      await api.post(`/videos/${videoId}/comments/${commentId}/approve`);
+    },
+    onSuccess: () => {
+      setError('');
+      invalidate();
+    },
+    onError: (e) => setError(getApiErrorMessage(e, 'Could not release comment.')),
   });
 
   const removeMutation = useMutation({
@@ -126,7 +188,7 @@ export default function StudioCommentsPage() {
     onSuccess: () => {
       setRemoveTarget(null);
       setError('');
-      void qc.invalidateQueries({ queryKey: ['studio-comments', user?.id] });
+      invalidate();
     },
     onError: (e) => setError(getApiErrorMessage(e, 'Could not remove comment.')),
   });
@@ -150,6 +212,9 @@ export default function StudioCommentsPage() {
       </main>
     );
   }
+
+  const emptyInbox =
+    !isLoading && !isError && !comments.length && !searchQ && filter === 'all';
 
   return (
     <main className="space-y-6">
@@ -179,16 +244,7 @@ export default function StudioCommentsPage() {
         </div>
       ) : null}
 
-      {!isLoading && !isError && !comments.length && (
-        <EmptyState
-          icon="forum"
-          title="No comments yet"
-          description="When viewers comment on your videos, they will appear here."
-          action={{ label: 'Upload a video', href: '/upload' }}
-        />
-      )}
-
-      {!isLoading && !isError && !!comments.length ? (
+      {!isLoading && !isError ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="relative min-w-[200px] flex-1">
             <Icon
@@ -210,7 +266,7 @@ export default function StudioCommentsPage() {
                 type="button"
                 role="tab"
                 aria-selected={filter === f.id}
-                onClick={() => setFilter(f.id)}
+                onClick={() => applyFilter(f.id)}
                 className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
                   filter === f.id
                     ? 'bg-on-surface text-surface'
@@ -224,32 +280,44 @@ export default function StudioCommentsPage() {
         </div>
       ) : null}
 
-      {!isLoading && !isError && !!comments.length && data?.truncated ? (
-        <p className="text-sm text-on-surface-variant">
-          Showing recent {comments.length} comments from your latest{' '}
-          {data.videosScanned} videos.
-        </p>
+      {emptyInbox ? (
+        <EmptyState
+          icon="forum"
+          title="No comments yet"
+          description="When viewers comment on your videos, they will appear here."
+          action={{ label: 'Upload a video', href: '/upload' }}
+        />
       ) : null}
 
-      {!isLoading && !isError && !!comments.length && !filtered.length ? (
+      {!isLoading && !isError && !comments.length && !!searchQ ? (
         <EmptyState
           icon="search_off"
           title="No matching comments"
-          description={
-            query.trim() ? `Nothing matched “${query.trim()}”.` : 'No comments in this filter.'
-          }
+          description={`Nothing matched “${searchQ}”.`}
+          action={{ label: 'Clear search', href: '/studio/comments' }}
+          onAction={() => setQuery('')}
+        />
+      ) : null}
+
+      {!isLoading && !isError && !comments.length && !searchQ && filter !== 'all' ? (
+        <EmptyState
+          icon="search_off"
+          title="No matching comments"
+          description="No comments in this filter."
           action={{ label: 'Clear filters', href: '/studio/comments' }}
-          onAction={() => {
-            setQuery('');
-            setFilter('all');
-          }}
+          onAction={() => applyFilter('all')}
         />
       ) : null}
 
       <ul className="space-y-3">
-        {visible.map((c) => (
+        {comments.map((c) => (
           <li key={c.id} className="glass-panel rounded-2xl p-4">
             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-outline">
+              {c.moderationStatus === 'held' ? (
+                <span className="rounded-full bg-error/10 px-2 py-0.5 font-medium text-error">
+                  Held for review
+                </span>
+              ) : null}
               {c.isPinned ? (
                 <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
                   Pinned
@@ -275,6 +343,18 @@ export default function StudioCommentsPage() {
                 @{c.user?.username ?? 'user'} · {c.user?.displayName ?? 'User'}
               </p>
               <div className="flex gap-3 text-sm">
+                {c.moderationStatus === 'held' ? (
+                  <button
+                    type="button"
+                    className="font-semibold text-primary hover:underline"
+                    disabled={approveMutation.isPending}
+                    onClick={() =>
+                      approveMutation.mutate({ videoId: c.videoId, commentId: c.id })
+                    }
+                  >
+                    Release
+                  </button>
+                ) : null}
                 <Link
                   href={studioCommentWatchHref(c.videoId, c.id)}
                   className="text-on-surface-variant hover:underline"
@@ -376,13 +456,14 @@ export default function StudioCommentsPage() {
         ))}
       </ul>
 
-      {canShowMore ? (
+      {hasNextPage ? (
         <button
           type="button"
           className="text-sm font-semibold text-primary hover:underline"
-          onClick={() => setVisibleCount((n) => n + 40)}
+          disabled={isFetchingNextPage}
+          onClick={() => void fetchNextPage()}
         >
-          Load more
+          {isFetchingNextPage ? 'Loading…' : 'Load more'}
         </button>
       ) : null}
 

@@ -12,7 +12,14 @@ import '../../../shared/models/video.dart';
 import '../data/studio_repository.dart';
 
 class StudioVideosScreen extends ConsumerStatefulWidget {
-  const StudioVideosScreen({super.key});
+  const StudioVideosScreen({
+    super.key,
+    this.initialStatus,
+    this.initialScheduled = false,
+  });
+
+  final String? initialStatus;
+  final bool initialScheduled;
 
   @override
   ConsumerState<StudioVideosScreen> createState() => _StudioVideosScreenState();
@@ -23,12 +30,12 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
   Timer? _debounce;
   String _search = '';
   String _sort = 'recent';
-  String _status = '';
+  late String _status;
   String _visibility = '';
   String _videoType = '';
   String _categoryId = '';
   List<Map<String, dynamic>> _categories = [];
-  bool _scheduledOnly = false;
+  late bool _scheduledOnly;
   final List<VideoModel> _videos = [];
   int _page = 1;
   bool _hasMore = false;
@@ -39,6 +46,11 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
   @override
   void initState() {
     super.initState();
+    final status = widget.initialStatus?.trim() ?? '';
+    _status = const {'ready', 'processing', 'failed', 'uploading', 'pending'}.contains(status)
+        ? status
+        : '';
+    _scheduledOnly = widget.initialScheduled;
     _loadCategories();
     _load();
   }
@@ -139,6 +151,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
         title: const Text('Your videos'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
       ),
@@ -159,6 +172,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                     ? null
                     : IconButton(
                         icon: const Icon(Icons.clear),
+                        tooltip: 'Clear search',
                         onPressed: () {
                           _searchCtrl.clear();
                           setState(() => _search = '');

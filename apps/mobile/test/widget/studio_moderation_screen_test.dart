@@ -7,6 +7,23 @@ import 'test_support/widget_harness.dart';
 
 ResponseBody _list(List<Map<String, dynamic>> items) => jsonResponse({'data': items});
 
+ResponseBody _inbox({
+  List<Map<String, dynamic>> items = const [],
+  int total = 0,
+  bool hasMore = false,
+  String? cursor,
+}) =>
+    jsonResponse({
+      'data': {
+        'data': items,
+        'meta': {
+          'cursor': cursor,
+          'hasMore': hasMore,
+          'total': total,
+        },
+      },
+    });
+
 Map<String, ResponseBody Function(RequestOptions)> _baseHandlers({
   List<Map<String, dynamic>> communities = const [
     {'id': 'com1', 'name': 'Pottery club'},
@@ -14,12 +31,16 @@ Map<String, ResponseBody Function(RequestOptions)> _baseHandlers({
   List<Map<String, dynamic>> reports = const [],
   List<Map<String, dynamic>> roles = const [],
   List<Map<String, dynamic>> bans = const [],
+  List<Map<String, dynamic>> inbox = const [],
+  int inboxTotal = 0,
 }) =>
     {
       'GET /creators/me/moderated-communities': (_) => _list(communities),
       'GET /creators/me/communities/com1/reports': (_) => _list(reports),
       'GET /creators/me/communities/com1/roles': (_) => _list(roles),
       'GET /creators/me/communities/com1/bans': (_) => _list(bans),
+      'GET /creators/me/moderation/inbox': (_) =>
+          _inbox(items: inbox, total: inboxTotal == 0 ? inbox.length : inboxTotal),
     };
 
 void main() {
@@ -40,6 +61,42 @@ void main() {
     await pumpForgeScreen(tester, const StudioModerationScreen(), client: client);
 
     expect(find.text('No moderated communities assigned'), findsOneWidget);
+  });
+
+  testWidgets('renders nested API community shape and unified inbox', (tester) async {
+    final client = fakeApiClient({
+      ..._baseHandlers(
+        communities: [
+          {
+            'communityId': 'com1',
+            'role': 'moderator',
+            'community': {'id': 'com1', 'name': 'Pottery club', 'slug': 'pottery'},
+          },
+        ],
+        reports: [
+          {'id': 'rep1', 'reason': 'Spam', 'targetType': 'comment', 'status': 'open'},
+        ],
+        inbox: [
+          {
+            'id': 'rep1',
+            'communityId': 'com1',
+            'communityName': 'Pottery club',
+            'targetType': 'comment',
+            'reason': 'Spam',
+            'status': 'open',
+          },
+        ],
+        inboxTotal: 1,
+      ),
+    });
+
+    useTallViewport(tester);
+    addTearDown(tester.view.resetPhysicalSize);
+    await pumpForgeScreen(tester, const StudioModerationScreen(), client: client);
+
+    expect(find.textContaining('Open reports'), findsOneWidget);
+    expect(find.text('Spam'), findsWidgets);
+    expect(find.widgetWithText(TextButton, 'Review'), findsOneWidget);
   });
 
   testWidgets('renders and resolves an open report', (tester) async {

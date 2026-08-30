@@ -84,10 +84,11 @@ class _StrikesScreenState extends ConsumerState<StrikesScreen> {
                       ),
                     )
                   : _strikes.isEmpty
-                      ? ForgeEmptyState(
+                      ? const ForgeEmptyState(
                           icon: Icons.verified_outlined,
                           title: 'No strikes on your account',
-                          description: 'Community guideline and copyright strikes will show up here.',
+                          description:
+                              'Community guideline and copyright strikes will show up here.',
                         )
                       : RefreshIndicator(
                           onRefresh: _load,
@@ -120,13 +121,21 @@ class _StrikeCard extends ConsumerStatefulWidget {
 class _StrikeCardState extends ConsumerState<_StrikeCard> {
   bool _expanded = false;
   bool _appealOpen = false;
+  bool _counterOpen = false;
+  bool _counterSubmitting = false;
+  bool _goodFaith = false;
+  bool _jurisdiction = false;
   final _appealController = TextEditingController();
+  final _contactController = TextEditingController();
+  final _signatureController = TextEditingController();
   Map<String, dynamic>? _notice;
   bool _noticeLoading = false;
 
   @override
   void dispose() {
     _appealController.dispose();
+    _contactController.dispose();
+    _signatureController.dispose();
     super.dispose();
   }
 
@@ -167,15 +176,56 @@ class _StrikeCardState extends ConsumerState<_StrikeCard> {
     }
   }
 
+  Future<void> _submitCounterNotice(String noticeId) async {
+    final contact = _contactController.text.trim();
+    final signature = _signatureController.text.trim();
+    if (contact.length < 10 || signature.length < 2 || !_goodFaith || !_jurisdiction) {
+      return;
+    }
+    setState(() => _counterSubmitting = true);
+    try {
+      await ref.read(profileRepositoryProvider).fileCounterNotice(
+            noticeId,
+            contactInfo: contact,
+            goodFaith: _goodFaith,
+            jurisdiction: _jurisdiction,
+            signature: signature,
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Counter-notice submitted')),
+        );
+        setState(() {
+          _counterOpen = false;
+          _notice = null;
+        });
+        await _loadNotice(noticeId);
+        widget.onChanged();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not submit counter-notice')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _counterSubmitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens.of(context);
     final s = widget.strike;
-    final type = (s['type'] as String? ?? '').replaceAll('_', ' ');
+    final typeRaw = s['type'] as String? ?? '';
+    final type = typeRaw.replaceAll('_', ' ');
     final status = s['status'] as String? ?? 'active';
     final appealStatus = s['appealStatus'] as String? ?? 'none';
     final canAppeal = status == 'active' && appealStatus == 'none';
-    final sourceReportId = s['sourceReportId'] as String?;
+    // Copyright strikes store the DMCA notice id in sourceReportId (API convention).
+    final noticeId = s['sourceReportId'] as String?;
+    final noticeStatus = _notice?['status'] as String?;
+    final canCounterNotice = noticeStatus == 'takedown_issued';
 
     return Card(
       child: Padding(
@@ -211,12 +261,12 @@ class _StrikeCardState extends ConsumerState<_StrikeCard> {
             Wrap(
               spacing: 8,
               children: [
-                if (type.contains('copyright') && sourceReportId != null)
+                if (typeRaw == 'copyright' && noticeId != null)
                   TextButton(
                     onPressed: () async {
                       final next = !_expanded;
                       setState(() => _expanded = next);
-                      if (next && _notice == null) await _loadNotice(sourceReportId);
+                      if (next && _notice == null) await _loadNotice(noticeId);
                     },
                     child: Text(_expanded ? 'Hide claim details' : 'View claim details'),
                   ),
@@ -227,14 +277,107 @@ class _StrikeCardState extends ConsumerState<_StrikeCard> {
                   ),
               ],
             ),
-            if (_expanded && sourceReportId != null) ...[
+            if (_expanded && noticeId != null) ...[
               const SizedBox(height: 8),
               if (_noticeLoading)
                 const LinearProgressIndicator()
               else if (_notice != null) ...[
-                Text('Claimant: ${_notice!['claimantName']}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(
+                  'Claimant: ${_notice!['claimantName']}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 4),
-                Text(_notice!['workDescription'] as String? ?? '', style: TextStyle(color: t.onSurfaceVariant, fontSize: 13)),
+                Text(
+                  _notice!['workDescription'] as String? ?? '',
+                  style: TextStyle(color: t.onSurfaceVariant, fontSize: 13),
+                ),
+                if ((_notice!['infringingDescription'] as String?)?.isNotEmpty == true) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    _notice!['infringingDescription'] as String,
+                    style: TextStyle(color: t.onSurfaceVariant, fontSize: 13),
+                  ),
+                ],
+                if (canCounterNotice && !_counterOpen) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: () => setState(() => _counterOpen = true),
+                    child: const Text('File a counter-notice'),
+                  ),
+                ],
+                if (!canCounterNotice && noticeStatus != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    noticeStatus == 'counter_noticed'
+                        ? 'Counter-notice filed — pending the claimant response window.'
+                        : noticeStatus == 'reinstated'
+                            ? 'This claim was resolved and the video was reinstated.'
+                            : 'This claim has been resolved.',
+                    style: TextStyle(fontSize: 12, color: t.onSurfaceVariant),
+                  ),
+                ],
+                if (_counterOpen) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Filing a false counter-notice can expose you to legal liability. '
+                    'Only proceed if you believe this video was removed by mistake or misidentification.',
+                    style: TextStyle(fontSize: 12, color: t.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _contactController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Contact information',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _goodFaith,
+                    onChanged: (v) => setState(() => _goodFaith = v ?? false),
+                    title: const Text(
+                      'I have a good-faith belief the material was removed by mistake or misidentification',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _jurisdiction,
+                    onChanged: (v) => setState(() => _jurisdiction = v ?? false),
+                    title: const Text(
+                      'I consent to the jurisdiction of the federal district court for my address',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  TextField(
+                    controller: _signatureController,
+                    decoration: const InputDecoration(
+                      labelText: 'Electronic signature (full name)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      FilledButton(
+                        onPressed: _counterSubmitting
+                            ? null
+                            : () => _submitCounterNotice(noticeId),
+                        child: Text(_counterSubmitting ? 'Submitting…' : 'Submit counter-notice'),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: _counterSubmitting
+                            ? null
+                            : () => setState(() => _counterOpen = false),
+                        child: const Text('Cancel'),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ],
             if (_appealOpen) ...[

@@ -6,6 +6,8 @@ import { STREAM_CHAT_INGEST_QUEUE } from '../workers/stream-chat-ingest/stream-c
 import { STREAM_SNAPSHOT_RETENTION_QUEUE } from '../workers/stream-snapshot-retention/stream-snapshot-retention.constants';
 import { STREAM_MUX_SYNC_QUEUE } from '../workers/stream-mux-sync/stream-mux-sync.constants';
 import { PREMIUM_CONTENT_NOTIFY_QUEUE } from '../workers/premium-content-notify/premium-content-notify.constants';
+import { STREAM_CLIP_EXPORT_QUEUE } from '../workers/stream-clip-export/stream-clip-export.constants';
+import { StreamClipExportService } from '../workers/stream-clip-export/stream-clip-export.service';
 import { StreamReminderScheduler } from './stream-reminder.scheduler';
 import { StreamSnapshotRetentionScheduler } from './stream-snapshot-retention.scheduler';
 import { StreamMuxSyncScheduler } from './stream-mux-sync.scheduler';
@@ -83,6 +85,15 @@ import { EngagementModule } from '../engagement/engagement.module';
         removeOnFail: { age: 86400, count: 500 },
       },
     }),
+    BullModule.registerQueue({
+      name: STREAM_CLIP_EXPORT_QUEUE,
+      defaultJobOptions: {
+        attempts: 4,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: { age: 86400, count: 2000 },
+        removeOnFail: { age: 7 * 86400, count: 500 },
+      },
+    }),
     WebhookIdempotencyModule,
     TypeOrmModule.forFeature([
       Stream,
@@ -117,6 +128,7 @@ import { EngagementModule } from '../engagement/engagement.module';
     StreamViewerService,
     StreamAnalyticsService,
     MuxLiveSyncService,
+    StreamClipExportService,
     StreamReminderScheduler,
     StreamSnapshotRetentionScheduler,
     StreamMuxSyncScheduler,
@@ -132,6 +144,7 @@ import { EngagementModule } from '../engagement/engagement.module';
     StreamViewerService,
     StreamAnalyticsService,
     MuxLiveSyncService,
+    StreamClipExportService,
     StreamMuxSyncScheduler,
     StreamReactionService,
   ],

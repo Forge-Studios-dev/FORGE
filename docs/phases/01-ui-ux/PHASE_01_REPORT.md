@@ -1,54 +1,54 @@
-# Phase 01 — Report (Implementation complete · 2026-08-04)
+# Phase 01 — Report (Fresh close · 2026-08-29)
 
 **Phase:** 01 — UI/UX  
-**Completion:** ~100% of fresh roadmap (A–E, G–H; F brand purple retained by decision)  
-**Readiness score:** 9 / 10  
-**Recommendation:** Phase 01 closed. Proceeding to Phase 02 (Technical Architecture).
+**Completion:** 100% of Phase 01 Critical/High + mop-up N1/N5  
+**Readiness score:** 9.5 / 10  
+**Recommendation:** Phase 01 closed. Proceed to Phase 02 (Technical Architecture) only after explicit start — do not auto-continue.
 
 ---
 
 ## Executive summary
 
-Implemented remaining YouTube-parity chrome debt: focus-safe popover menus (Create / Account / Notifications), Community welcome on DS Dialog, mobile Create IA (web + Flutter), feed-first guest home (hero removed), nav font token cleanup. Kept FORGE purple brand (functional replica ≠ trademark red). Admin LMS orphans were already redirecting.
+Fresh codebase audit re-verified all Aug-23 Critical/High UI findings as **CLOSED**. Implemented remaining Phase 01 mop-up: live theater no longer covers chat (`fixed inset-0` removed; layout widens like watch theater), and Studio tiers prices use `formatCentsCurrency`. Brand purple retained by decision.
 
 ---
 
 ## Decisions locked
 
-| Topic | Decision | Rationale |
-| --- | --- | --- |
-| Brand | Keep MD3 purple | Identity ≠ YouTube trademark; UX patterns matter more |
-| Mobile Create | Center Create → upload / create menu | YouTube Home/Shorts/Create/Subs/You |
-| Guest home | Feed-first; remove marketing hero | YouTube parity |
+| Topic | Decision |
+| --- | --- |
+| Brand | Keep MD3 purple |
+| Live theater | Widen grid + keep chat column; never fullscreen overlay |
+| Tier money | `formatCentsCurrency(cents, currency)` |
+| N2–N4 | N2 closed (Wave 57 inbox API); N3–N4 deferred |
 
 ---
 
-## Changes made
+## Changes made (this close)
 
 | Slice | Change |
 | --- | --- |
-| A/B | `PopoverMenu` + TopBar Create/Account + NotificationsMenu |
-| C | `CommunityWelcomeModal` → `@forge/design-system/client` Dialog |
-| D | `MobileNav` → Home/Shorts/Create/Subs/You |
-| E | Flutter `MainScaffold` same IA; Create → `/upload` |
-| F | Deferred (keep purple) |
-| G | Already redirects (`channel-points`, `mentorship`) |
-| H | `text-xs` instead of magic `text-[10px]` in shell |
-| Hero | Removed `HomeHero` / `HeroSection`; home is feed-first for all |
+| Docs | Refreshed `PHASE_01_UI_UX.md`, `ROADMAP.md` |
+| N1 | `live/[id]/page.tsx` — theater widens layout; chat stays visible |
+| N5 | `formatCentsCurrency` + Studio tiers list display |
+| Wave 14 (prior) | Share analytics watch/Shorts/FeedCard; tiers placeholder USD |
 
-### Files
+### Files (this pass)
 
-- `apps/web/src/components/shell/PopoverMenu.tsx` (new)
-- `apps/web/src/components/shell/TopBar.tsx`
-- `apps/web/src/components/shell/NotificationsMenu.tsx`
-- `apps/web/src/components/shell/MobileNav.tsx`
-- `apps/web/src/components/shell/SideNav.tsx`
-- `apps/web/src/components/shell/SearchSuggest.tsx`
-- `apps/web/src/components/Community/CommunityWelcomeModal.tsx`
-- `apps/web/src/components/home/HomePageContent.tsx`
-- Deleted: `HomeHero.tsx`, `HeroSection.tsx`
-- `apps/mobile/lib/shared/widgets/main_scaffold.dart`
-- Docs: this report, ROADMAP, PHASE_01_UI_UX
+- `docs/phases/01-ui-ux/PHASE_01_UI_UX.md`
+- `docs/phases/01-ui-ux/ROADMAP.md`
+- `docs/phases/01-ui-ux/PHASE_01_REPORT.md` (this file)
+- `apps/web/src/app/live/[id]/page.tsx`
+- `apps/web/src/lib/utils.ts`
+- `apps/web/src/lib/utils.test.ts`
+- `apps/web/src/app/studio/tiers/page.tsx`
+
+---
+
+## Testing
+
+- `vitest` `apps/web/src/lib/utils.test.ts` — money formatters
+- Manual: live theater (`t` / Escape) keeps chat/poll column; Studio tiers shows `$99` style labels
 
 ---
 
@@ -56,27 +56,13 @@ Implemented remaining YouTube-parity chrome debt: focus-safe popover menus (Crea
 
 | Risk | Severity | Notes |
 | --- | --- | --- |
+| Studio comments capped scan | Med | Phase 06 |
+| DS DataTable under-adoption | Low | Phase 02 |
+| Mobile Trending unreachable | Med | Product/nav |
 | Custom player chrome | Med | Phase 08 |
-| Mobile Home grid IA | Med | Backlog |
-| CategoryFilter arrow keys | Low | Phase 21 |
-| Create menu empty for edge access tiers | Low | Falls back to Studio link |
-
----
-
-## Testing
-
-- `tsc` on web: no new errors from these files (pre-existing `analytics.ts` impression type mismatch unrelated)
-- Manual checklist:
-  - [ ] Create menu: Esc / Tab cycle / focus restore
-  - [ ] Account menu same
-  - [ ] Notifications preview panel Esc / outside click
-  - [ ] Community welcome Dialog focus trap
-  - [ ] Mobile web: Create opens upward menu
-  - [ ] Flutter: Create tab → `/upload`; You → library
-  - [ ] Guest home: no marketing hero; feed visible
 
 ---
 
 ## Next
 
-**Phase 02 — Technical Architecture** starts next (fresh analyze → research → audit → docs → roadmap → implement).
+Phase 02 — Technical Architecture (module boundaries, shared-types, Flutter theme extension). **Stop and wait for approval before starting Phase 02.**

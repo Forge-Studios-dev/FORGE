@@ -25,6 +25,7 @@ import { videoDetailCacheKey } from './video-cache';
 import { muxHlsPlaybackUrl, muxThumbnailUrl, muxCaptionVttUrl } from './mux-vod.constants';
 import { resolveVideoTypeOnReady } from './short-duration.util';
 import { ContentScanService } from './content-scan/content-scan.service';
+import { ScheduledPublishScheduler } from './scheduled-publish.scheduler';
 import { requiresMuxSignedPlayback } from '../../common/media/mux-signing.util';
 
 export interface MuxVodIngestJob {
@@ -71,6 +72,7 @@ export class MuxVodService {
     @InjectRedis()
     private readonly redis: Redis,
     private readonly contentScanService: ContentScanService,
+    private readonly scheduledPublishScheduler: ScheduledPublishScheduler,
   ) {
     this.s3 = createS3Client({
       region: configService.get<string>('aws.region') || 'ap-south-1',
@@ -127,8 +129,9 @@ export class MuxVodService {
           url: signedUrl,
           generated_subtitles: [
             {
-              language_code: 'en',
-              name: 'English CC',
+              language_code:
+                this.configService.get<string>('video.autoCaptionLanguage') || 'en',
+              name: this.configService.get<string>('video.autoCaptionName') || 'English CC',
             },
           ],
         },
@@ -277,6 +280,9 @@ export class MuxVodService {
     });
 
     await this.redis.del(videoDetailCacheKey(video.id));
+    if (scheduled && scheduled.getTime() > now.getTime() && !indexedAt) {
+      await this.scheduledPublishScheduler.schedulePublish(video.id, scheduled);
+    }
     this.eventEmitter.emit('video.updated', { videoId: video.id });
     if (moderationStatus === ModerationStatus.NONE) {
       this.eventEmitter.emit('video.ready', {
@@ -354,6 +360,7 @@ export class MuxVodService {
     });
     await this.redis.del(videoDetailCacheKey(video.id));
     this.eventEmitter.emit('video.updated', { videoId: video.id });
+    this.eventEmitter.emit('video.captions.updated', { videoId: video.id });
 
     this.logger.log(
       JSON.stringify({

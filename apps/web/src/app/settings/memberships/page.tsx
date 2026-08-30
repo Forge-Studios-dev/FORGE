@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { getApiErrorMessage } from '@/lib/api-message';
 import { trackEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
+import { env } from '@/env';
 
 type Subscription = {
   id: string;
@@ -201,7 +202,7 @@ export default function MembershipsPage() {
     },
   });
 
-  const useStripe = process.env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
+  const useStripe = env.NEXT_PUBLIC_BILLING_ENABLED === 'true';
 
   if (isGuest) {
     return (

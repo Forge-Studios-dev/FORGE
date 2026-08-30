@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { env } from '@/env';
 
 type Room = {
   id: string;
@@ -29,7 +30,7 @@ type CommunityEvent = {
   isRecurrenceInstance?: boolean;
 };
 
-const LIVEKIT_ENABLED = !!process.env.NEXT_PUBLIC_LIVEKIT_URL;
+const LIVEKIT_ENABLED = !!env.NEXT_PUBLIC_LIVEKIT_URL;
 
 interface Props {
   communityId: string;

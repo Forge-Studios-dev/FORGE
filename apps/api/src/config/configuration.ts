@@ -101,6 +101,10 @@ export default () => ({
     transcodeProvider: process.env.VIDEO_TRANSCODE_PROVIDER || 'mux',
     /** Presigned GET TTL for Mux ingest from private S3 (seconds). */
     muxIngestUrlTtlSec: parseInt(process.env.MUX_INGEST_URL_TTL_SEC || '43200', 10),
+    /** BCP-47 language for Mux auto-generated captions (default English). */
+    autoCaptionLanguage: (process.env.MUX_AUTO_CAPTION_LANGUAGE || 'en').trim() || 'en',
+    /** Display name for the auto-generated caption track. */
+    autoCaptionName: (process.env.MUX_AUTO_CAPTION_NAME || 'English CC').trim() || 'English CC',
   },
 
   rateLimit: {

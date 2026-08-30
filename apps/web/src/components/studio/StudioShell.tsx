@@ -38,6 +38,7 @@ const CREATOR_NAV: Array<{ label: string; items: NavItem[] }> = [
   {
     label: 'Monetization',
     items: [
+      { href: '/studio/earnings', label: 'Earnings', icon: 'payments' },
       { href: '/studio/tiers', label: 'Memberships', icon: 'workspace_premium' },
       { href: '/studio/subscribers', label: 'Members', icon: 'groups' },
       { href: '/studio/super-thanks', label: 'Super Thanks', icon: 'volunteer_activism' },

@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { VideosController } from './videos.controller';
 import { VideosService } from './videos.service';
+import { CaptionIndexListener } from './caption-index.listener';
 import { VIDEO_PROCESSING_QUEUE } from './video-processing.constants';
 import { MUX_VOD_INGEST_QUEUE } from './mux-vod.constants';
 import { MuxVodService } from './mux-vod.service';
@@ -98,6 +99,7 @@ const skillEconomyLms = isSkillEconomyLmsEnabled();
   controllers: [VideosController, ...(skillEconomyLms ? [PodcastsController] : [])],
   providers: [
     VideosService,
+    CaptionIndexListener,
     MuxVodService,
     CreatorApprovedGuard,
     UploadNotRestrictedGuard,
@@ -120,6 +122,7 @@ const skillEconomyLms = isSkillEconomyLmsEnabled();
     RecommendationsService,
     ContentLibraryService,
     ScheduledPublishService,
+    ScheduledPublishScheduler,
     ContentScanService,
     ShortsWatchPercentService,
   ],

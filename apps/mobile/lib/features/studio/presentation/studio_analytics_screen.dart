@@ -130,6 +130,7 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
         title: const Text('Analytics'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
         actions: [

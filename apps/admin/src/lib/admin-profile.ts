@@ -31,5 +31,4 @@ export const FULL_ADMIN_ONLY_HREFS = new Set([
   '/fraud',
   '/billing',
   '/analytics',
-  '/settings',
 ]);

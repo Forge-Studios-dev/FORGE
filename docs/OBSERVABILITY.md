@@ -99,9 +99,11 @@ Uses OTLP HTTP (`/v1/traces`). Compatible with Grafana Tempo, Jaeger OTLP, Datad
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /api/v1/health/live` | **Liveness** — process up only (Fly probe in `fly.toml`) |
-| `GET /api/v1/health/ready` | **Readiness** — database, Redis, BullMQ queue depths |
+| `GET /api/v1/health/live` | **Liveness** — process up only (manual / on-demand; no continuous Fly probe) |
+| `GET /api/v1/health/ready` | **Readiness** — database, Redis, BullMQ queue depths (manual / deploy diagnostic) |
 | `GET /api/v1/health` | Alias for readiness (`/ready`) |
+
+Continuous platform health probes are disabled (`fly.toml` has no `[[http_service.checks]]`; Docker `HEALTHCHECK` removed; synthetic monitoring is `workflow_dispatch` only). Call these endpoints yourself when you need a check.
 
 Readiness reports `muxVodQueue` when `VIDEO_TRANSCODE_PROVIDER=mux` (default), or `video-processing` when FFmpeg.
 

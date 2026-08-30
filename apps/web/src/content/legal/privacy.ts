@@ -64,8 +64,8 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     id: 'cookies',
     title: '7. Cookies and similar technologies',
     paragraphs: [
-      'We use cookies and local storage for session management (including secure refresh tokens where configured), preferences, and analytics. Browser cookies may be set on forgestudios.net and api.forgestudios.net for authentication.',
-      'You can control cookies through browser settings; disabling essential cookies may limit login and core features.',
+      'We use cookies and local storage for session management (including secure refresh tokens where configured), preferences, and optional product analytics. Browser cookies may be set on forgestudios.net and api.forgestudios.net for authentication.',
+      'On the web app, a cookie banner lets you choose Essential only or Accept analytics. You can change this later under Settings → Cookies & analytics. Essential cookies keep you signed in; product analytics events are sent only after you accept, and never when the browser signals Do Not Track or Global Privacy Control. You can also control cookies through browser settings; disabling essential cookies may limit login and core features.',
     ],
   },
   {
@@ -88,7 +88,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     title: '10. Your rights and choices',
     paragraphs: [
       'Depending on your location, you may have rights to access, correct, delete, restrict, or port your personal data, and to object to certain processing. Contact privacy@forgestudios.net to exercise these rights.',
-      'You can update profile information in account settings, manage notification preferences where available, and unsubscribe from non-essential emails via links in those messages.',
+      'You can update profile information in account settings, download a JSON copy of much of your account data (profile, videos, playlists, watch history, comments, community posts, account strikes), manage notification preferences where available, and unsubscribe from non-essential emails via links in those messages.',
     ],
   },
   {

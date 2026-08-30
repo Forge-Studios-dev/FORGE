@@ -9,6 +9,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/navigation/public_video_path.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/utils/report_reasons.dart';
 import '../../../core/widgets/forge_skeleton.dart';
 import '../../../core/widgets/forge_empty_state.dart';
 import '../../../core/theme/forge_tokens.dart';
@@ -526,18 +527,6 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
   }
 
   Future<void> _report() async {
-    const reasons = [
-      'Spam or misleading',
-      'Hate speech or harassment',
-      'Sexual content',
-      'Violent or repulsive content',
-      'Harmful or dangerous acts',
-      'Child abuse',
-      'Promotes terrorism',
-      'Copyright infringement',
-      'Privacy violation',
-      'Other',
-    ];
     final reason = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -545,7 +534,7 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const ListTile(title: Text('Report', style: TextStyle(fontWeight: FontWeight.w600))),
-            ...reasons.map(
+            ...kVideoReportReasons.map(
               (r) => ListTile(title: Text(r), onTap: () => Navigator.pop(ctx, r)),
             ),
           ],
@@ -553,6 +542,13 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
       ),
     );
     if (reason == null) return;
+    if (await handleCopyrightReportIfNeeded(
+      context: context,
+      videoId: widget.video.id,
+      reason: reason,
+    )) {
+      return;
+    }
     try {
       await ref.read(watchRepositoryProvider).reportVideo(
             videoId: widget.video.id,

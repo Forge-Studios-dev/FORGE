@@ -399,6 +399,26 @@ class _WatchCommentsSectionState extends ConsumerState<WatchCommentsSection> {
     }
   }
 
+  Future<void> _releaseHeld(Map<String, dynamic> comment) async {
+    final id = comment['id'] as String?;
+    if (id == null) return;
+    try {
+      await ref.read(watchRepositoryProvider).approveComment(widget.videoId, id);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Comment released')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not release comment')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOwner = _viewerId != null && _viewerId == widget.videoOwnerId;
@@ -475,6 +495,7 @@ class _WatchCommentsSectionState extends ConsumerState<WatchCommentsSection> {
             final disliked = m['viewerDisliked'] == true;
             final pinned = m['isPinned'] == true;
             final hearted = m['creatorHearted'] == true;
+            final held = m['moderationStatus'] == 'held';
             final parentId = m['parentId'];
             final replyCount = m['replyCount'] as int? ?? 0;
             final isDeleted = m['isDeleted'] == true;
@@ -496,9 +517,21 @@ class _WatchCommentsSectionState extends ConsumerState<WatchCommentsSection> {
               child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (held)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Held for review',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: ForgeTokens.of(context).error,
+                      ),
+                    ),
+                  ),
                 if (pinned)
                   Padding(
-                    padding: EdgeInsets.only(top: 8),
+                    padding: EdgeInsets.only(top: held ? 4 : 8),
                     child: Text(
                       'Pinned',
                       style: TextStyle(
@@ -571,6 +604,11 @@ class _WatchCommentsSectionState extends ConsumerState<WatchCommentsSection> {
                               icon: Icon(disliked ? Icons.thumb_down : Icons.thumb_down_outlined, size: 18),
                               onPressed: () => _toggleDislike(m),
                             ),
+                            if (isOwner && held)
+                              TextButton(
+                                onPressed: () => _releaseHeld(m),
+                                child: const Text('Release'),
+                              ),
                             if (isOwner && parentId == null)
                               IconButton(
                                 tooltip: pinned ? 'Unpin' : 'Pin',

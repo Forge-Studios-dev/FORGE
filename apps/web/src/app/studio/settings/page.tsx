@@ -19,6 +19,12 @@ const CREATOR_LINKS = [
     icon: 'manage_accounts',
   },
   {
+    href: '/studio/earnings',
+    title: 'Earnings',
+    desc: 'Unified membership MRR, Super Thanks, and Super Chat summary.',
+    icon: 'payments',
+  },
+  {
     href: '/studio/tiers',
     title: 'Memberships & Stripe',
     desc: 'Configure tiers, entitlements, and Connect payout onboarding.',

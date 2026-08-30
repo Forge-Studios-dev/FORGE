@@ -25,6 +25,9 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { Video, VideoStatus, VideoType, VideoVisibility } from '../content/entities/video.entity';
 import { VideosService } from '../content/videos.service';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
+import { Comment } from '../engagement/entities/comment.entity';
+import { CommunityPost } from '../communities/entities/community-post.entity';
+import { AccountStrike } from '../account-strikes/entities/account-strike.entity';
 import { EngagementService } from '../engagement/engagement.service';
 import { ModerationStatus } from '../content/entities/video.entity';
 import { safeRedisGet, safeRedisSetex } from '../../common/redis/redis-safe.util';
@@ -38,6 +41,8 @@ import {
 const INTERESTS_TTL_SEC = 60 * 60 * 24 * 365;
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_BANNER_BYTES = 8 * 1024 * 1024;
+/** Cap each UGC collection in self-service data export (DSAR). */
+const DSAR_UGC_EXPORT_LIMIT = 2000;
 
 export type UserVideosTypeFilter = 'video' | 'short' | 'all';
 export type UserVideosSort = 'newest' | 'oldest' | 'popular';
@@ -57,6 +62,12 @@ export class UsersService {
     private readonly videoRepository: Repository<Video>,
     @InjectRepository(WatchHistory)
     private readonly watchHistoryRepository: Repository<WatchHistory>,
+    @InjectRepository(Comment)
+    private readonly commentRepository: Repository<Comment>,
+    @InjectRepository(CommunityPost)
+    private readonly communityPostRepository: Repository<CommunityPost>,
+    @InjectRepository(AccountStrike)
+    private readonly accountStrikeRepository: Repository<AccountStrike>,
     private readonly videosService: VideosService,
     private readonly engagementService: EngagementService,
     private readonly configService: ConfigService,
@@ -530,13 +541,15 @@ export class UsersService {
 
   /**
    * Self-service data export (DSAR-style). Covers profile, owned videos,
-   * and watch history — comments, community posts/messages, and analytics
-   * events are not included yet (tracked separately, not a silent gap).
+   * watch history, video comments, community posts, and account strikes.
+   * Chat/DM bodies and analytics events remain out of scope (high volume /
+   * privacy-sensitive).
    */
   async exportOwnedVideos(userId: string) {
     const videos = await this.videoRepository.find({
       where: { userId },
       order: { createdAt: 'DESC' },
+      take: DSAR_UGC_EXPORT_LIMIT,
     });
     return videos.map((v) => ({
       id: v.id,
@@ -545,6 +558,66 @@ export class UsersService {
       status: v.status,
       visibility: v.visibility,
       createdAt: v.createdAt,
+    }));
+  }
+
+  async exportAuthoredComments(userId: string) {
+    const comments = await this.commentRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+      take: DSAR_UGC_EXPORT_LIMIT,
+    });
+    return comments.map((c) => ({
+      id: c.id,
+      videoId: c.videoId,
+      parentId: c.parentId,
+      content: c.deletedAt ? '[deleted]' : c.content,
+      moderationStatus: c.moderationStatus,
+      likeCount: c.likeCount,
+      dislikeCount: c.dislikeCount,
+      createdAt: c.createdAt,
+      deletedAt: c.deletedAt,
+    }));
+  }
+
+  async exportAuthoredCommunityPosts(userId: string) {
+    const posts = await this.communityPostRepository.find({
+      where: { authorId: userId },
+      order: { createdAt: 'DESC' },
+      take: DSAR_UGC_EXPORT_LIMIT,
+    });
+    return posts.map((p) => ({
+      id: p.id,
+      communityId: p.communityId,
+      title: p.title,
+      body: p.body,
+      postType: p.postType,
+      isPinned: p.isPinned,
+      mediaUrls: p.mediaUrls,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+    }));
+  }
+
+  async exportAccountStrikes(userId: string) {
+    const strikes = await this.accountStrikeRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+      take: DSAR_UGC_EXPORT_LIMIT,
+    });
+    return strikes.map((s) => ({
+      id: s.id,
+      type: s.type,
+      reason: s.reason,
+      consequence: s.consequence,
+      status: s.status,
+      appealStatus: s.appealStatus,
+      appealReason: s.appealReason,
+      sourceVideoId: s.sourceVideoId,
+      sourceReportId: s.sourceReportId,
+      createdAt: s.createdAt,
+      expiresAt: s.expiresAt,
+      resolvedAt: s.resolvedAt,
     }));
   }
 }

@@ -19,4 +19,4 @@
 
 ## Deferred
 
-- Personalized ranking (distinct from All) — `FollowNotifyLevel.PERSONALIZED` is still a labeled-but-inert setting, needs an affinity/interest signal to act on, not attempted yet.
+- Further affinity ranking inside Personalized (current gate: watched this channel in last 45 days — Wave 32 confirmed live via `NotificationsListener`)

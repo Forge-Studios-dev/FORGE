@@ -4,16 +4,26 @@ import { ScheduledPublishJob } from '../../content/scheduled-publish.constants';
 
 describe('ScheduledPublishWorker', () => {
   let worker: ScheduledPublishWorker;
-  const scheduledPublish = { runScheduledPublish: jest.fn().mockResolvedValue({ published: 0 }) };
+  const scheduledPublish = {
+    runScheduledPublish: jest.fn().mockResolvedValue({ published: 0 }),
+    publishVideoIfDue: jest.fn().mockResolvedValue({ published: 0 }),
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
     worker = new ScheduledPublishWorker(scheduledPublish as never);
   });
 
-  it('runs the scheduled publish scan', async () => {
+  it('runs the backup scan when the job has no videoId', async () => {
     await worker.process({ data: {} } as Job<ScheduledPublishJob>);
     expect(scheduledPublish.runScheduledPublish).toHaveBeenCalledTimes(1);
+    expect(scheduledPublish.publishVideoIfDue).not.toHaveBeenCalled();
+  });
+
+  it('indexes one video for a delayed job', async () => {
+    await worker.process({ data: { videoId: 'v1' } } as Job<ScheduledPublishJob>);
+    expect(scheduledPublish.publishVideoIfDue).toHaveBeenCalledWith('v1');
+    expect(scheduledPublish.runScheduledPublish).not.toHaveBeenCalled();
   });
 
   it('propagates failures so BullMQ retries', async () => {

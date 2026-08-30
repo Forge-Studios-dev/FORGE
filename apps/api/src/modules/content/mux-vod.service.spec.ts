@@ -4,9 +4,10 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getRedisConnectionToken } from '@nestjs-modules/ioredis';
 import { MuxVodService } from './mux-vod.service';
-import { Video, VideoStatus, TranscodeProvider, VideoType, VideoVisibility } from './entities/video.entity';
+import { Video, VideoStatus, VideoType, VideoVisibility } from './entities/video.entity';
 import { muxHlsPlaybackUrl, muxThumbnailUrl } from './mux-vod.constants';
 import { SHORT_TOO_LONG_MESSAGE } from './short-duration.util';
+import { ScheduledPublishScheduler } from './scheduled-publish.scheduler';
 import { ContentScanService } from './content-scan/content-scan.service';
 
 const mockMuxCreate = jest.fn();
@@ -41,6 +42,10 @@ describe('MuxVodService', () => {
   const contentScanService = {
     scanVideo: jest.fn().mockResolvedValue({ action: 'approve', categories: [], provider: 'noop' }),
   };
+  const scheduledPublishScheduler = {
+    schedulePublish: jest.fn().mockResolvedValue(undefined),
+    cancelPublish: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -51,6 +56,7 @@ describe('MuxVodService', () => {
       providers: [
         MuxVodService,
         { provide: ContentScanService, useValue: contentScanService },
+        { provide: ScheduledPublishScheduler, useValue: scheduledPublishScheduler },
         {
           provide: getRepositoryToken(Video),
           useValue: videoRepo,
@@ -67,6 +73,8 @@ describe('MuxVodService', () => {
                 'mux.tokenId': 'token-id',
                 'mux.tokenSecret': 'token-secret',
                 'video.muxIngestUrlTtlSec': 3600,
+                'video.autoCaptionLanguage': 'en',
+                'video.autoCaptionName': 'English CC',
               };
               return map[key];
             },
@@ -96,7 +104,7 @@ describe('MuxVodService', () => {
     videoRepo.findOne.mockResolvedValue(video);
     videoRepo.update.mockResolvedValue({});
 
-    const handled = await service.handleAssetReady({
+    await service.handleAssetReady({
       data: {
         id: 'mux-asset-1',
         passthrough: 'video-uuid',
@@ -105,16 +113,32 @@ describe('MuxVodService', () => {
       },
     });
 
-    expect(handled).toBe(true);
-    expect(videoRepo.update).toHaveBeenCalledWith(
-      'video-uuid',
-      expect.objectContaining({
-        status: VideoStatus.READY,
-        hlsUrl: 'https://stream.mux.com/pb1.m3u8',
-        muxPlaybackId: 'pb1',
-        transcodeProvider: TranscodeProvider.MUX,
-      }),
-    );
+    expect(scheduledPublishScheduler.schedulePublish).not.toHaveBeenCalled();
+  });
+
+  it('handleAssetReady enqueues a delayed publish job when the schedule is still in the future', async () => {
+    const scheduled = new Date(Date.now() + 60 * 60_000);
+    const video = {
+      id: 'video-uuid',
+      userId: 'user-1',
+      categoryId: null,
+      status: VideoStatus.PROCESSING,
+      scheduledPublishAt: scheduled,
+      visibility: VideoVisibility.PUBLIC,
+    } as Video;
+    videoRepo.findOne.mockResolvedValue(video);
+    videoRepo.update.mockResolvedValue({});
+
+    await service.handleAssetReady({
+      data: {
+        id: 'mux-asset-1',
+        passthrough: 'video-uuid',
+        playback_ids: [{ id: 'pb1' }],
+        duration: 120.5,
+      },
+    });
+
+    expect(scheduledPublishScheduler.schedulePublish).toHaveBeenCalledWith('video-uuid', scheduled);
   });
 
   it('handleAssetErrored marks video failed', async () => {
@@ -249,7 +273,66 @@ describe('MuxVodService', () => {
       await service.ingestFromS3({ videoId: 'video-uuid', s3Key: 'key', userId: 'user-1' });
 
       expect(mockMuxCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ playback_policy: ['public'] }),
+        expect.objectContaining({
+          playback_policy: ['public'],
+          inputs: [
+            expect.objectContaining({
+              generated_subtitles: [{ language_code: 'en', name: 'English CC' }],
+            }),
+          ],
+        }),
+      );
+    });
+
+    it('uses configured auto-caption language when set', async () => {
+      const module = await Test.createTestingModule({
+        providers: [
+          MuxVodService,
+          { provide: ContentScanService, useValue: contentScanService },
+          { provide: ScheduledPublishScheduler, useValue: scheduledPublishScheduler },
+          { provide: getRepositoryToken(Video), useValue: videoRepo },
+          {
+            provide: ConfigService,
+            useValue: {
+              get: (key: string) => {
+                const map: Record<string, string | number> = {
+                  'aws.region': 'ap-south-1',
+                  'aws.accessKeyId': 'key',
+                  'aws.secretAccessKey': 'secret',
+                  'aws.s3BucketName': 'bucket',
+                  'mux.tokenId': 'token-id',
+                  'mux.tokenSecret': 'token-secret',
+                  'video.muxIngestUrlTtlSec': 3600,
+                  'video.autoCaptionLanguage': 'hi',
+                  'video.autoCaptionName': 'Hindi CC',
+                };
+                return map[key];
+              },
+            },
+          },
+          { provide: EventEmitter2, useValue: eventEmitter },
+          { provide: getRedisConnectionToken(), useValue: { del: jest.fn() } },
+        ],
+      }).compile();
+      const localized = module.get(MuxVodService);
+
+      videoRepo.findOne.mockResolvedValue({
+        id: 'video-uuid',
+        muxAssetId: null,
+        visibility: VideoVisibility.PUBLIC,
+      } as Video);
+      videoRepo.update.mockResolvedValue({});
+
+      await localized.ingestFromS3({ videoId: 'video-uuid', s3Key: 'key', userId: 'user-1' });
+
+      expect(mockMuxCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          inputs: [
+            expect.objectContaining({
+              generated_subtitles: [{ language_code: 'hi', name: 'Hindi CC' }],
+            }),
+          ],
+        }),
       );
     });
 

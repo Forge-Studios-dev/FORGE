@@ -11,4 +11,6 @@
 ## Deferred
 
 - Full WCAG audit pass / axe CI gate (web)
-- Mobile: the other ~34 files with `IconButton(` usages (studio/creator screens, profile, playlists, live, community, settings sub-pages), color-contrast audit, focus-order/traversal review, `meetsGuideline` tap-target/contrast checks, manual VoiceOver/TalkBack pass
+- Mobile: remaining IconButtons outside Studio (profile/playlists/live/community/settings sub-pages), color-contrast audit, focus-order/traversal review, `meetsGuideline` tap-target/contrast checks, manual VoiceOver/TalkBack pass
+  - **Wave 36:** Studio screens got `tooltip:` on bare back/clear/edit/delete IconButtons
+  - **Wave 46:** Live reaction bar Semantics labels

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { Suspense, useEffect, useId, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Button, PageHeader, StatusPill, type StatusTone } from '@forge/design-system';
@@ -64,8 +65,30 @@ const CONSEQUENCE_LABEL: Record<string, string> = {
   termination_recommended: 'Termination recommended',
 };
 
-function NoticesTab() {
-  const [page, setPage] = useState(1);
+const COPYRIGHT_TABS = ['notices', 'counter-notices', 'strikes'] as const;
+type CopyrightTab = (typeof COPYRIGHT_TABS)[number];
+
+function parsePage(raw: string | null): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
+function parseTab(raw: string | null): CopyrightTab {
+  if (raw === 'counter-notices' || raw === 'strikes') return raw;
+  return 'notices';
+}
+
+function parseAppeal(raw: string | null): 'pending' | '' {
+  return raw === 'pending' ? 'pending' : '';
+}
+
+function NoticesTab({
+  page,
+  onPageChange,
+}: {
+  page: number;
+  onPageChange: (page: number) => void;
+}) {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['copyright-notices', page],
     queryFn: async () => {
@@ -128,19 +151,24 @@ function NoticesTab() {
           totalPages={totalPages}
           total={total}
           label="notices"
-          onPrev={() => setPage((p) => Math.max(1, p - 1))}
-          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          onPrev={() => onPageChange(Math.max(1, page - 1))}
+          onNext={() => onPageChange(Math.min(totalPages, page + 1))}
         />
       ) : null}
     </div>
   );
 }
 
-function CounterNoticesTab() {
+function CounterNoticesTab({
+  page,
+  onPageChange,
+}: {
+  page: number;
+  onPageChange: (page: number) => void;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const dialogTitleId = useId();
-  const [page, setPage] = useState(1);
   const [confirming, setConfirming] = useState<CopyrightCounterNotice | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -173,9 +201,9 @@ function CounterNoticesTab() {
   // admin has to manually back out of — clamp instead.
   useEffect(() => {
     if (data && data.meta.totalPages > 0 && page > data.meta.totalPages) {
-      setPage(data.meta.totalPages);
+      onPageChange(data.meta.totalPages);
     }
-  }, [data, page]);
+  }, [data, page, onPageChange]);
 
   const columns: ColumnDef<CopyrightCounterNotice, unknown>[] = [
     {
@@ -244,8 +272,8 @@ function CounterNoticesTab() {
           totalPages={totalPages}
           total={total}
           label="counter-notices"
-          onPrev={() => setPage((p) => Math.max(1, p - 1))}
-          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          onPrev={() => onPageChange(Math.max(1, page - 1))}
+          onNext={() => onPageChange(Math.min(totalPages, page + 1))}
         />
       ) : null}
 
@@ -278,17 +306,21 @@ function CounterNoticesTab() {
   );
 }
 
-function StrikesTab() {
+function StrikesTab({
+  page,
+  appealFilter,
+  onPageChange,
+  onAppealFilterChange,
+}: {
+  page: number;
+  appealFilter: 'pending' | '';
+  onPageChange: (page: number) => void;
+  onAppealFilterChange: (appeal: 'pending' | '') => void;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const dialogTitleId = useId();
-  const [page, setPage] = useState(1);
-  const [appealFilter, setAppealFilter] = useState<'pending' | ''>('pending');
   const [reviewing, setReviewing] = useState<AccountStrike | null>(null);
-
-  useEffect(() => {
-    setPage(1);
-  }, [appealFilter]);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['strikes', page, appealFilter],
@@ -322,9 +354,9 @@ function StrikesTab() {
   // strikes found" with no way back except manually clicking Prev.
   useEffect(() => {
     if (data && data.meta.totalPages > 0 && page > data.meta.totalPages) {
-      setPage(data.meta.totalPages);
+      onPageChange(data.meta.totalPages);
     }
-  }, [data, page]);
+  }, [data, page, onPageChange]);
 
   const columns: ColumnDef<AccountStrike, unknown>[] = [
     {
@@ -387,7 +419,7 @@ function StrikesTab() {
             type="button"
             variant={appealFilter === f ? 'primary' : 'secondary'}
             className="!px-3 !py-1 text-sm"
-            onClick={() => setAppealFilter(f)}
+            onClick={() => onAppealFilterChange(f)}
           >
             {f ? 'Pending appeals' : 'All strikes'}
           </Button>
@@ -408,8 +440,8 @@ function StrikesTab() {
           totalPages={totalPages}
           total={total}
           label="strikes"
-          onPrev={() => setPage((p) => Math.max(1, p - 1))}
-          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          onPrev={() => onPageChange(Math.max(1, page - 1))}
+          onNext={() => onPageChange(Math.min(totalPages, page + 1))}
         />
       ) : null}
 
@@ -465,7 +497,63 @@ function StrikesTab() {
 }
 
 export default function CopyrightPage() {
-  const [tab, setTab] = useState('notices');
+  return (
+    <Suspense fallback={<p className="text-on-surface-variant">Loading copyright…</p>}>
+      <CopyrightPageInner />
+    </Suspense>
+  );
+}
+
+function CopyrightPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const tabParam = searchParams.get('tab');
+  const pageParam = searchParams.get('page');
+  const appealParam = searchParams.get('appeal');
+
+  const [tab, setTab] = useState(() => parseTab(tabParam));
+  const [page, setPage] = useState(() => parsePage(pageParam));
+  const [appealFilter, setAppealFilter] = useState<'pending' | ''>(() => parseAppeal(appealParam));
+
+  useEffect(() => {
+    setTab(parseTab(tabParam));
+    setPage(parsePage(pageParam));
+    setAppealFilter(parseAppeal(appealParam));
+  }, [tabParam, pageParam, appealParam]);
+
+  function syncUrl(next: { tab?: CopyrightTab; page?: number; appeal?: 'pending' | '' }) {
+    const params = new URLSearchParams();
+    const nextTab = next.tab ?? tab;
+    const nextPage = next.page ?? page;
+    const nextAppeal = next.appeal ?? appealFilter;
+
+    if (nextTab !== 'notices') params.set('tab', nextTab);
+    if (nextPage > 1) params.set('page', String(nextPage));
+    if (nextTab === 'strikes' && nextAppeal === 'pending') params.set('appeal', 'pending');
+
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  function onTabChange(nextTab: string) {
+    const parsed = parseTab(nextTab);
+    setTab(parsed);
+    setPage(1);
+    syncUrl({ tab: parsed, page: 1, appeal: parsed === 'strikes' ? appealFilter : '' });
+  }
+
+  function onPageChange(nextPage: number) {
+    setPage(nextPage);
+    syncUrl({ page: nextPage });
+  }
+
+  function onAppealFilterChange(nextAppeal: 'pending' | '') {
+    setAppealFilter(nextAppeal);
+    setPage(1);
+    syncUrl({ appeal: nextAppeal, page: 1 });
+  }
 
   return (
     <div className="space-y-6">
@@ -481,17 +569,22 @@ export default function CopyrightPage() {
           { id: 'strikes', label: 'Strikes & appeals' },
         ]}
         value={tab}
-        onChange={setTab}
+        onChange={onTabChange}
       />
 
       <TabPanel id="notices" value={tab}>
-        <NoticesTab />
+        <NoticesTab page={page} onPageChange={onPageChange} />
       </TabPanel>
       <TabPanel id="counter-notices" value={tab}>
-        <CounterNoticesTab />
+        <CounterNoticesTab page={page} onPageChange={onPageChange} />
       </TabPanel>
       <TabPanel id="strikes" value={tab}>
-        <StrikesTab />
+        <StrikesTab
+          page={page}
+          appealFilter={appealFilter}
+          onPageChange={onPageChange}
+          onAppealFilterChange={onAppealFilterChange}
+        />
       </TabPanel>
     </div>
   );

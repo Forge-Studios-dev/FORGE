@@ -156,7 +156,10 @@ describe('CommunitiesService', () => {
     };
     moderationService = {
       isBanned: jest.fn().mockResolvedValue(false),
-      listUnifiedReportsForCreator: jest.fn().mockResolvedValue({ data: [] }),
+      listUnifiedReportsForCreator: jest.fn().mockResolvedValue({
+        data: [],
+        meta: { cursor: null, hasMore: false, total: 0 },
+      }),
     };
     aiModerationService = { scoreSpam: jest.fn().mockReturnValue({ flagged: false, score: 0, reasons: [] }) };
     aiCommunityService = { scoreContent: jest.fn().mockReturnValue({ flagged: false, score: 0, reasons: [] }) };
@@ -475,6 +478,7 @@ describe('CommunitiesService', () => {
     it('returns empty items and zero counts when nothing needs action', async () => {
       dataSource.query
         .mockResolvedValueOnce([]) // unreplied comments
+        .mockResolvedValueOnce([]) // held comments
         .mockResolvedValueOnce([]) // failed videos
         .mockResolvedValueOnce([]); // scheduled
 
@@ -482,6 +486,7 @@ describe('CommunitiesService', () => {
 
       expect(result.counts).toEqual({
         commentsNeedingReply: 0,
+        heldComments: 0,
         pendingModeration: 0,
         failedPayments: 0,
         processingFailures: 0,
@@ -503,6 +508,7 @@ describe('CommunitiesService', () => {
           },
         ])
         .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
       const result = await service.getCreatorAttention('creator-1');
@@ -516,12 +522,44 @@ describe('CommunitiesService', () => {
       });
     });
 
+    it('surfaces held auto-mod comments ahead of unreplied replies', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            id: 'held-1',
+            video_id: 'video-2',
+            video_title: 'Live recap',
+            content: 'Flagged phrase',
+            created_at: '2026-07-04T00:00:00.000Z',
+            total_count: '2',
+          },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      const result = await service.getCreatorAttention('creator-1');
+
+      expect(result.counts.heldComments).toBe(2);
+      expect(result.items[0]).toMatchObject({
+        id: 'held-held-1',
+        kind: 'held',
+        href: '/watch/video-2?lc=held-1',
+        tone: 'warning',
+      });
+    });
+
     it('includes open moderation reports scoped to the creator', async () => {
-      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      dataSource.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
       moderationService.listUnifiedReportsForCreator.mockResolvedValue({
         data: [
           { id: 'report-1', reason: 'Spam', communityName: 'Main', createdAt: new Date('2026-07-02') },
         ],
+        meta: { cursor: null, hasMore: false, total: 1 },
       });
 
       const result = await service.getCreatorAttention('creator-1');
@@ -533,7 +571,11 @@ describe('CommunitiesService', () => {
     });
 
     it('ranks failed payments above moderation and comments, and omits the item when there are none', async () => {
-      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      dataSource.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
       entitlementsService.getSubscriberAnalytics.mockResolvedValue({
         active: 10,
         trial: 0,
@@ -544,6 +586,7 @@ describe('CommunitiesService', () => {
       });
       moderationService.listUnifiedReportsForCreator.mockResolvedValue({
         data: [{ id: 'report-1', reason: 'Spam', communityName: 'Main', createdAt: new Date('2026-07-02') }],
+        meta: { cursor: null, hasMore: false, total: 1 },
       });
 
       const result = await service.getCreatorAttention('creator-1');
@@ -554,6 +597,7 @@ describe('CommunitiesService', () => {
 
     it('surfaces failed video processing in the attention queue', async () => {
       dataSource.query
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([
           {
@@ -580,6 +624,7 @@ describe('CommunitiesService', () => {
 
     it('surfaces upcoming scheduled publishes', async () => {
       dataSource.query
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([

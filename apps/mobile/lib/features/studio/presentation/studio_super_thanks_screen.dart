@@ -77,6 +77,7 @@ class _StudioSuperThanksScreenState extends ConsumerState<StudioSuperThanksScree
         title: const Text('Super Thanks'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
         actions: [

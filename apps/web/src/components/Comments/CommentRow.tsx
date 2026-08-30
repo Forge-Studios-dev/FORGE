@@ -8,6 +8,7 @@ import { Comment, User } from '@/types';
 import { formatCount, timeAgo } from '@/lib/utils';
 import { COMMENT_REPORT_REASONS } from '@/lib/report-reasons';
 import {
+  approveComment,
   deleteComment,
   dislikeComment,
   likeComment,
@@ -69,6 +70,7 @@ export function CommentRow({
   const [likeCount, setLikeCount] = useState(comment.likeCount ?? 0);
   const [pinned, setPinned] = useState(!!comment.isPinned);
   const [hearted, setHearted] = useState(!!comment.creatorHearted);
+  const [held, setHeld] = useState(comment.moderationStatus === 'held');
   const [replyCursor, setReplyCursor] = useState<string | null>(null);
   const [replies, setReplies] = useState<Comment[]>([]);
   const [repliesHasMore, setRepliesHasMore] = useState(false);
@@ -232,6 +234,16 @@ export function CommentRow({
     onSuccess: onRefresh,
   });
 
+  const releaseMut = useMutation({
+    mutationFn: async () => {
+      await approveComment(videoId, comment.id);
+    },
+    onSuccess: () => {
+      setHeld(false);
+      onRefresh();
+    },
+  });
+
   return (
     <article
       id={`comment-${comment.id}`}
@@ -261,6 +273,11 @@ export function CommentRow({
             {pinned ? (
               <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                 Pinned
+              </span>
+            ) : null}
+            {held ? (
+              <span className="rounded-full bg-error/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-error">
+                Held for review
               </span>
             ) : null}
             {comment.user?.username ? (
@@ -387,6 +404,16 @@ export function CommentRow({
                 Delete
               </button>
             </>
+          )}
+          {!comment.isDeleted && isVideoOwner && held && (
+            <button
+              type="button"
+              disabled={releaseMut.isPending}
+              onClick={() => releaseMut.mutate()}
+              className="font-semibold text-primary hover:underline"
+            >
+              {releaseMut.isPending ? 'Releasing…' : 'Release'}
+            </button>
           )}
           {!comment.isDeleted && isVideoOwner && !isOwn && (
             <button

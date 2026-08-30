@@ -10,6 +10,7 @@ import { Button, StatusPill, type StatusTone } from '@forge/design-system';
 import { ConfirmDialog, DataTable, Dialog, Tabs, useToast } from '@forge/design-system/client';
 import { isFullAdmin, useAdminProfile } from '@/lib/admin-profile';
 import { api } from '@/lib/api';
+import { env } from '@/env';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import { GrantAdminDialog } from '@/components/admin/GrantAdminDialog';
 import type {
@@ -49,7 +50,7 @@ export default function AdminUserDetailPage() {
   const userId = params.id as string;
   const tab = (searchParams.get('tab') as TabId) || 'overview';
   const qc = useQueryClient();
-  const webBase = process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000';
+  const webBase = env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000';
   const { toast } = useToast();
   const { data: adminProfile } = useAdminProfile();
   const fullAdmin = isFullAdmin(adminProfile);

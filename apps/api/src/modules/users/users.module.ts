@@ -7,6 +7,9 @@ import { User } from './entities/user.entity';
 import { UsernameHistory } from './entities/username-history.entity';
 import { Video } from '../content/entities/video.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
+import { Comment } from '../engagement/entities/comment.entity';
+import { CommunityPost } from '../communities/entities/community-post.entity';
+import { AccountStrike } from '../account-strikes/entities/account-strike.entity';
 import { PlaylistsModule } from '../playlists/playlists.module';
 import { ContentModule } from '../content/content.module';
 import { EngagementModule } from '../engagement/engagement.module';
@@ -18,10 +21,18 @@ import { ACCOUNT_PURGE_QUEUE } from './account-purge.constants';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UsernameHistory, Video, WatchHistory]),
+    TypeOrmModule.forFeature([
+      User,
+      UsernameHistory,
+      Video,
+      WatchHistory,
+      Comment,
+      CommunityPost,
+      AccountStrike,
+    ]),
     PlaylistsModule,
     forwardRef(() => ContentModule),
-    EngagementModule,
+    forwardRef(() => EngagementModule),
     forwardRef(() => AdminModule),
     forwardRef(() => AuthModule),
     BullModule.registerQueue({

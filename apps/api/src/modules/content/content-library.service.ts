@@ -97,7 +97,7 @@ export class ContentLibraryService {
       FROM videos v
       LEFT JOIN (
         SELECT video_id, COUNT(*) as recent_views FROM watch_history
-        WHERE created_at > NOW() - INTERVAL '7 days' GROUP BY video_id
+        WHERE watched_at > NOW() - INTERVAL '7 days' GROUP BY video_id
       ) wh ON wh.video_id = v.id
       WHERE v.publish_status = 'published'
         AND v.status = 'ready'

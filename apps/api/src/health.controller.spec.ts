@@ -35,7 +35,37 @@ describe('HealthController', () => {
     expect(res.status).toBe('ok');
     expect(res.checks.database).toBe('ok');
     expect(res.checks.redis).toBe('ok');
+    expect(res.checks.contentScan).toBe('noop');
     expect(res.correlationId).toBe('test-corr');
+  });
+
+  it('marks contentScan misconfigured when webhook is selected without a URL', async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [HealthController],
+      providers: [
+        { provide: DataSource, useValue: { query: jest.fn().mockResolvedValue([{ '?column?': 1 }]) } },
+        { provide: getRedisConnectionToken(), useValue: { ping: jest.fn().mockResolvedValue('PONG') } },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) => {
+              if (key === 'video.transcodeProvider') return 'mux';
+              if (key === 'contentScan.provider') return 'webhook';
+              if (key === 'contentScan.webhookUrl') return '';
+              return undefined;
+            },
+          },
+        },
+        { provide: getQueueToken(VIDEO_PROCESSING_QUEUE), useValue: mockVideoQueue },
+        { provide: getQueueToken(MUX_VOD_INGEST_QUEUE), useValue: mockVideoQueue },
+      ],
+    }).compile();
+
+    const controller = moduleRef.get(HealthController);
+    const res = await controller.getHealth({} as Parameters<typeof controller.getHealth>[0]);
+
+    expect(res.status).toBe('degraded');
+    expect(res.checks.contentScan).toBe('misconfigured');
   });
 
   it('returns degraded when database fails', async () => {

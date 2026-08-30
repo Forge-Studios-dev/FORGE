@@ -418,6 +418,7 @@ class _StreamChatPanelState extends ConsumerState<StreamChatPanel> {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
+                  tooltip: 'Send',
                   onPressed: _sending ? null : _send,
                   icon: _sending
                       ? const SizedBox(

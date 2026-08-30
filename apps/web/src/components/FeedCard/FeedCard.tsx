@@ -145,6 +145,7 @@ export function FeedCard({
     const url = `${origin}${watchHref}`;
     try {
       await navigator.clipboard.writeText(url);
+      void api.post(`/videos/${video.id}/share`, { channel: 'copy_link' }).catch(() => {});
     } catch {
       /* ignore */
     }

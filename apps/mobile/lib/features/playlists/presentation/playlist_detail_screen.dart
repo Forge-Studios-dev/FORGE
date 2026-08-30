@@ -493,6 +493,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                     ? null
                                     : IconButton(
                                         icon: const Icon(Icons.clear),
+                                        tooltip: 'Clear search',
                                         onPressed: () {
                                           _itemSearchCtrl.clear();
                                           setState(() => _itemQuery = '');

@@ -13,7 +13,7 @@ export function SiteFooter() {
           </p>
         </div>
         <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-on-surface-variant" aria-label="Legal and support">
-          <LegalLinks linkClassName="hover:text-primary" />
+          <LegalLinks linkClassName="hover:text-primary" includeCopyright />
           <span className="hidden text-outline md:inline">|</span>
           <Link href="/live" className="hover:text-primary">
             Live

@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 type CreatorAttention = {
   counts: {
     commentsNeedingReply: number;
+    heldComments?: number;
     pendingModeration: number;
     failedPayments: number;
     processingFailures?: number;
@@ -51,30 +52,52 @@ export default function StudioAttentionPage() {
     <main className="space-y-6">
       <PageHeader
         title="Attention"
-        subtitle="A single queue for replies, moderation, payments, processing, and upcoming publishes."
+        subtitle="A single queue for replies, held comments, moderation, payments, processing, and upcoming publishes."
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="glass-panel rounded-2xl p-5">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <Link
+          href="/studio/comments"
+          className="glass-panel rounded-2xl p-5 transition-colors hover:border-primary/30"
+        >
           <p className="text-sm text-on-surface-variant">Comments needing reply</p>
           <p className="mt-2 text-3xl font-semibold">{data?.counts.commentsNeedingReply ?? 0}</p>
-        </div>
-        <div className="glass-panel rounded-2xl p-5">
+        </Link>
+        <Link
+          href="/studio/comments?filter=held"
+          className="glass-panel rounded-2xl p-5 transition-colors hover:border-primary/30"
+        >
+          <p className="text-sm text-on-surface-variant">Held for review</p>
+          <p className="mt-2 text-3xl font-semibold">{data?.counts.heldComments ?? 0}</p>
+        </Link>
+        <Link
+          href="/studio/moderation"
+          className="glass-panel rounded-2xl p-5 transition-colors hover:border-primary/30"
+        >
           <p className="text-sm text-on-surface-variant">Pending moderation</p>
           <p className="mt-2 text-3xl font-semibold">{data?.counts.pendingModeration ?? 0}</p>
-        </div>
-        <div className="glass-panel rounded-2xl p-5">
+        </Link>
+        <Link
+          href="/studio/earnings"
+          className="glass-panel rounded-2xl p-5 transition-colors hover:border-primary/30"
+        >
           <p className="text-sm text-on-surface-variant">Failed payments</p>
           <p className="mt-2 text-3xl font-semibold">{data?.counts.failedPayments ?? 0}</p>
-        </div>
-        <div className="glass-panel rounded-2xl p-5">
+        </Link>
+        <Link
+          href="/studio/videos?status=failed"
+          className="glass-panel rounded-2xl p-5 transition-colors hover:border-primary/30"
+        >
           <p className="text-sm text-on-surface-variant">Processing failures</p>
           <p className="mt-2 text-3xl font-semibold">{data?.counts.processingFailures ?? 0}</p>
-        </div>
-        <div className="glass-panel rounded-2xl p-5">
+        </Link>
+        <Link
+          href="/studio/videos?scheduled=1"
+          className="glass-panel rounded-2xl p-5 transition-colors hover:border-primary/30"
+        >
           <p className="text-sm text-on-surface-variant">Scheduled upcoming</p>
           <p className="mt-2 text-3xl font-semibold">{data?.counts.scheduledUpcoming ?? 0}</p>
-        </div>
+        </Link>
       </section>
 
       <section className="glass-panel rounded-2xl p-6">

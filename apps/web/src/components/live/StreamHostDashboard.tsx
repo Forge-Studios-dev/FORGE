@@ -195,6 +195,8 @@ export function StreamHostDashboard({ stream, displayViewers, broadcastMode }: P
           startOffsetMs: number;
           endOffsetMs: number;
           status: string;
+          playbackUrl?: string | null;
+          exportError?: string | null;
         }>;
       }>(`/streams/${stream.id}/clips`);
       return data.data ?? [];
@@ -277,7 +279,7 @@ export function StreamHostDashboard({ stream, displayViewers, broadcastMode }: P
               {health.reconnecting ? ' · reconnecting' : ''}
             </p>
             {health.reconnecting && health.reconnectDeadline ? (
-              <p className="text-xs text-error">
+              <p className="text-xs text-error" role="status" aria-live="assertive">
                 Auto-ends at {new Date(health.reconnectDeadline).toLocaleTimeString()} if your
                 connection doesn&apos;t resume. Reconnect now to keep this session alive.
               </p>
@@ -330,6 +332,24 @@ export function StreamHostDashboard({ stream, displayViewers, broadcastMode }: P
                   <span className="text-xs text-on-surface-variant">
                     {fmt(startSec)}–{fmt(endSec)}
                     {clip.status !== 'ready' ? ` · ${clip.status}` : ''}
+                    {clip.playbackUrl ? (
+                      <>
+                        {' · '}
+                        <a
+                          href={clip.playbackUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          Play clip
+                        </a>
+                      </>
+                    ) : null}
+                    {clip.exportError ? (
+                      <span className="mt-1 block text-error" title={clip.exportError}>
+                        Export failed
+                      </span>
+                    ) : null}
                   </span>
                 </li>
               );
