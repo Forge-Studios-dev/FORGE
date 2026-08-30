@@ -51,7 +51,7 @@ done
 
 Compare Fly dashboard **Time to first byte** before/after config changes.
 
-**Health probes:** `fly.toml` has **no** continuous `[[http_service.checks]]`. Machines stay warm via `min_machines_running=2` / `auto_stop_machines=false`. Call `/health/live` or `/health/ready` only when diagnosing.
+**Health probes:** Fly keeps `[[http_service.checks]]` on `/api/v1/health/live` (required for rolling deploys). App/CI synthetic cron stays off. Machines stay warm via `min_machines_running=2` / `auto_stop_machines=false`. Use `/health/ready` for dependency diagnostics.
 
 ---
 
