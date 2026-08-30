@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/theme/forge_palette.dart';
 import '../../../core/utils/csv_export_util.dart';
 import '../../../core/widgets/forge_card.dart';
 
@@ -67,7 +68,7 @@ class _StudioEarningsScreenState extends ConsumerState<StudioEarningsScreen> {
     }
   }
 
-  Widget _eligibilityCard(Map<String, dynamic> e, ForgeTokens t) {
+  Widget _eligibilityCard(Map<String, dynamic> e, ForgePalette t) {
     final eligible = e['eligible'] == true;
     return ForgeCard(
       child: Column(

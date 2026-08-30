@@ -40,6 +40,15 @@ vi.mock('../../../lib/upload-manager', () => ({
 let searchParamsString = '';
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(searchParamsString),
+  usePathname: () => '/studio/videos',
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
 }));
 
 vi.mock('next/image', () => ({
