@@ -23,7 +23,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
-/** Manual / on-demand health — no continuous infra probes call these. */
+/**
+ * Health endpoints. Fly platform probes only hit `/health/live` (no DB).
+ * `/health` and `/health/ready` are manual / deploy-diagnostic (DB + Redis).
+ */
 @Controller('health')
 export class HealthController {
   constructor(

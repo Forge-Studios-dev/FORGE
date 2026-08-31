@@ -79,18 +79,29 @@ describe('MuxLiveSyncService idle grace finalization', () => {
     expect(streamRepository.find).not.toHaveBeenCalled();
     expect(redis.setex).toHaveBeenCalledWith(
       MuxLiveSyncService.PLATFORM_DORMANT_KEY,
-      1200,
+      MuxLiveSyncService.PLATFORM_DORMANT_TTL_SEC,
       '1',
     );
   });
 
   it('skips periodic scan when platform dormant flag is set', async () => {
     redis.get.mockResolvedValue('1');
+    redis.setex.mockResolvedValue('OK');
 
     const result = await service.runPeriodicScan();
 
     expect(result).toEqual({ synced: 0, finalized: 0 });
     expect(streamRepositoryWithCount.count).not.toHaveBeenCalled();
+    // Refresh TTL so dormant job ticks do not let the key expire mid-gap.
+    expect(redis.setex).toHaveBeenCalledWith(
+      MuxLiveSyncService.PLATFORM_DORMANT_KEY,
+      MuxLiveSyncService.PLATFORM_DORMANT_TTL_SEC,
+      '1',
+    );
+  });
+
+  it('uses a dormant TTL at least 2× the dormant job interval', () => {
+    expect(MuxLiveSyncService.PLATFORM_DORMANT_TTL_SEC).toBeGreaterThanOrEqual(1800);
   });
 
   it('finalizes LIVE streams past mux idle grace during periodic scan', async () => {
@@ -278,7 +289,7 @@ describe('MuxLiveSyncService idle grace finalization', () => {
     expect(streamRepository.find).not.toHaveBeenCalled();
     expect(redis.setex).toHaveBeenCalledWith(
       MuxLiveSyncService.PLATFORM_DORMANT_KEY,
-      1200,
+      MuxLiveSyncService.PLATFORM_DORMANT_TTL_SEC,
       '1',
     );
   });

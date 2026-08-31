@@ -1,12 +1,18 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 import { Queue } from 'bullmq';
 import { shouldRegisterBullScheduler } from '../../common/bull/scheduler-role.util';
-import { SCHEDULED_PUBLISH_QUEUE, ScheduledPublishJob } from './scheduled-publish.constants';
+import {
+  SCHEDULED_PUBLISH_PENDING_KEY,
+  SCHEDULED_PUBLISH_QUEUE,
+  ScheduledPublishJob,
+} from './scheduled-publish.constants';
 
 const SCHEDULER_ID = 'scheduled-publish-scan';
 /** Backup scan only — primary path is a delayed job at scheduledPublishAt. */
-export const SCHEDULED_PUBLISH_BACKUP_INTERVAL_MS = 15 * 60 * 1000;
+export const SCHEDULED_PUBLISH_BACKUP_INTERVAL_MS = 30 * 60 * 1000;
 const REGISTER_TIMEOUT_MS = 10_000;
 
 function shouldRegisterScheduler(): boolean {
@@ -20,6 +26,7 @@ export class ScheduledPublishScheduler implements OnModuleInit {
   constructor(
     @InjectQueue(SCHEDULED_PUBLISH_QUEUE)
     private readonly queue: Queue<ScheduledPublishJob>,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   onModuleInit() {
@@ -49,6 +56,7 @@ export class ScheduledPublishScheduler implements OnModuleInit {
           removeOnFail: true,
         },
       );
+      await this.redis.sadd(SCHEDULED_PUBLISH_PENDING_KEY, videoId);
     } catch (err) {
       this.logger.warn(
         `Scheduled publish enqueue failed for ${videoId}: ${(err as Error).message}`,
@@ -60,6 +68,11 @@ export class ScheduledPublishScheduler implements OnModuleInit {
     try {
       const job = await this.queue.getJob(this.publishJobId(videoId));
       if (job) await job.remove();
+    } catch {
+      // non-fatal
+    }
+    try {
+      await this.redis.srem(SCHEDULED_PUBLISH_PENDING_KEY, videoId);
     } catch {
       // non-fatal
     }
@@ -92,7 +105,7 @@ export class ScheduledPublishScheduler implements OnModuleInit {
         ),
       ]);
       this.logger.log(
-        'Scheduled publish backup scheduler registered (every 15m — primary is delayed jobs)',
+        'Scheduled publish backup scheduler registered (every 30m — primary is delayed jobs; Redis pending-set gate)',
       );
     } catch (err) {
       this.logger.warn(`Could not register scheduled publish scanner: ${(err as Error).message}`);

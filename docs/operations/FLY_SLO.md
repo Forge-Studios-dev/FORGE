@@ -51,13 +51,15 @@ done
 
 Compare Fly dashboard **Time to first byte** before/after config changes.
 
-**Health probes:** Fly keeps `[[http_service.checks]]` on `/api/v1/health/live` (required for rolling deploys). App/CI synthetic cron stays off. Machines stay warm via `min_machines_running=2` / `auto_stop_machines=false`. Use `/health/ready` for dependency diagnostics.
+**Health probes:** Fly keeps `[[http_service.checks]]` on `/api/v1/health/live` every **30s** (required for rolling deploys; no DB). App/CI synthetic cron stays off (`workflow_dispatch` only). Machines stay warm via `min_machines_running=2` / `auto_stop_machines=false`. Use `/health/ready` for dependency diagnostics.
+
+**Redis eviction (ops):** BullMQ requires `maxmemory-policy noeviction`. If Redis Cloud still uses `volatile-lru`, queue keys can be dropped — see [REDIS_CONNECTIONS.md](./REDIS_CONNECTIONS.md).
 
 ---
 
 ## Worker note
 
-The worker app (`forge-studios-worker`) has no public HTTP edge service. It exposes `GET /health` on its internal PORT for **manual / deploy-time** diagnostics only (no continuous Fly `[checks]`). Queue depth is monitored via API Prometheus metrics (`forge_bullmq_jobs_*`) when `METRICS_ENABLED=true` — see [OBSERVABILITY.md](../OBSERVABILITY.md).
+The worker app (`forge-studios-worker`) has no public HTTP edge service. It exposes `GET /health` on its internal PORT for Fly `[checks.worker_health]` (every **30s**, no DB) and manual/deploy diagnostics. Queue depth is monitored via API Prometheus metrics (`forge_bullmq_jobs_*`) when `METRICS_ENABLED=true` — see [OBSERVABILITY.md](../OBSERVABILITY.md).
 
 `release.yml`'s `deploy-worker` job force-starts the worker machine after deploy (`if: always()`) to reset Fly's exhausted-retries counter — without this, a machine that crash-looped past `max_retries = 10` on a prior bad deploy stays stopped even after a good deploy ships. See [CI_CD.md](../CI_CD.md) for the full step list.
 

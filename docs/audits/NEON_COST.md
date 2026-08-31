@@ -65,7 +65,7 @@ June 2026 audit #1 addressed query polling (Mux on HTTP, frontend polls, worker 
 | View count flush | 60s | API | Leader-elected; Redis-first, no DB when empty |
 | Mux live sync | **5m live/idle / 15m dormant** | Worker | Redis dormant gate skips DB |
 | Stream reminder | Delayed job + **30m backup** | Worker | Dormant gate skips backup scan |
-| Scheduled publish | Delayed job at `scheduledPublishAt` + **15m backup** | Worker | Was a 1-minute poll (blocked Neon autosuspend). Select `id, userId` only. |
+| Scheduled publish | Delayed job at `scheduledPublishAt` + **30m backup** | Worker | Redis `videos:scheduled:pending` gate skips PG when empty. Select `id, userId` only. |
 | Subscription maintenance | Hourly | Worker | Dormant gate on expiring scan; always runs `expireDueSubscriptions` |
 | Engagement reconciliation | Daily | Worker | SQL batch (not O(users)) |
 | Analytics retention | Daily | Worker | |
@@ -110,13 +110,14 @@ curl "https://api.forgestudios.net/api/v1/admin/database/query-stats?limit=50" \
 
 ### Post-deploy checklist (resource audit 2026-08-30)
 
-After shipping delayed scheduled-publish + idle reconcile + **no continuous health probes**:
+After shipping delayed scheduled-publish + idle reconcile + pending-set gate (Fly keeps cheap `/health/live` checks only):
 
-- [ ] `GET /admin/database/query-stats` — scheduled-publish full-row `SELECT` should drop from ~1,440/day toward the 15m backup (~96/day) plus delayed jobs
+- [ ] `GET /admin/database/query-stats` — scheduled-publish full-row `SELECT` should drop toward near-zero on idle days (Redis pending-set gate + 30m backup) plus delayed jobs only when schedules exist
+- [ ] Mux dormant TTL refresh: no Postgres wake every ~20m while platform stays idle (dormant skip refreshes Redis TTL)
 - [ ] Neon console: compute `active` ↔ `idle` overnight (`suspend_timeout_seconds=300`)
 - [ ] `scripts/neon-consumption-report.sh --days 7` — idle-day CU-hr vs the ~5 CU-hr/day August baseline
 - [ ] Scheduled videos still appear in feed/search at/after `scheduledPublishAt`
-- [ ] Manual: `GET /api/v1/health/live` and `GET /api/v1/health/ready` still 200 when you curl them; Fly has no continuous `[[http_service.checks]]`
+- [ ] Manual: `GET /api/v1/health/live` and `GET /api/v1/health/ready` still 200; Fly keeps `/health/live` every 30s (no DB); no app/CI continuous `/ready` polling
 
 ---
 
@@ -235,3 +236,19 @@ Jun 12 hourly (first day with autosuspend enabled ~16:24 UTC):
 **Interpretation:** Ops fix is applied; full savings need **code deploy** (dormant mux sync, leader election) so worker/API stop waking DB every 30–90s. Re-run report **48h after deploy**; target **< 2 CU-hr/day** on idle days.
 
 **48h validation:** re-run `bash scripts/neon-consumption-report.sh --days 3` after API/worker deploy; paste `query-stats` output to compare top queries.
+
+---
+
+## Audit #4 — Neon / Fly resource pass (2026-08-31)
+
+| Change | Impact |
+|--------|--------|
+| Fly API health interval **15s → 30s** (`/health/live`, no DB) | Halves platform probe volume; rolling deploys still gated |
+| Scheduled-publish backup **15m → 30m** + Redis `videos:scheduled:pending` gate | Idle days: backup skips Postgres when no schedules |
+| Mux dormant TTL **2× job interval** + refresh on dormant skip | Stops false PG wakes when TTL expired between 15m ticks |
+| Docs/comments aligned (Fly checks kept; Docker/synthetic still off) | Removes contradictory “checks removed” guidance |
+| Frontend spot-check | Live/watch polls already socket-gated + long guest intervals — no change |
+
+**Intentionally kept:** 2 always-on API machines, always-on worker, hourly subscription expire / shorts / copyright, Fly worker `/health` every 30s, pool `DB_POOL_MAX=5`.
+
+**Ops follow-up:** Redis Cloud `maxmemory-policy` should be `noeviction` (see [REDIS_CONNECTIONS.md](../operations/REDIS_CONNECTIONS.md)).

@@ -1,5 +1,7 @@
 import { IsNull, LessThanOrEqual } from 'typeorm';
+import Redis from 'ioredis';
 import { ScheduledPublishService } from './scheduled-publish.service';
+import { SCHEDULED_PUBLISH_PENDING_KEY } from './scheduled-publish.constants';
 import {
   ModerationStatus,
   PublishStatus,
@@ -15,16 +17,33 @@ describe('ScheduledPublishService', () => {
   };
   const videosService = { bustVideoDetailCache: jest.fn().mockResolvedValue(undefined) };
   const eventEmitter = { emit: jest.fn() };
+  const redis = {
+    scard: jest.fn().mockResolvedValue(1),
+    srem: jest.fn().mockResolvedValue(1),
+    del: jest.fn().mockResolvedValue(1),
+  };
 
   let service: ScheduledPublishService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    redis.scard.mockResolvedValue(1);
     service = new ScheduledPublishService(
       videoRepository as never,
       videosService as never,
       eventEmitter as never,
+      redis as unknown as Redis,
     );
+  });
+
+  it('skips Postgres when the pending set is empty', async () => {
+    redis.scard.mockResolvedValue(0);
+
+    const result = await service.runScheduledPublish();
+
+    expect(result).toEqual({ published: 0 });
+    expect(videoRepository.find).not.toHaveBeenCalled();
+    expect(redis.scard).toHaveBeenCalledWith(SCHEDULED_PUBLISH_PENDING_KEY);
   });
 
   it('queries only id and userId for due, ready, public, unmoderated videos', async () => {
@@ -47,6 +66,14 @@ describe('ScheduledPublishService', () => {
     );
   });
 
+  it('clears the pending set when the backup find returns no due videos', async () => {
+    videoRepository.find.mockResolvedValue([]);
+
+    await service.runScheduledPublish();
+
+    expect(redis.del).toHaveBeenCalledWith(SCHEDULED_PUBLISH_PENDING_KEY);
+  });
+
   it('indexes each due video, busts its cache, and emits video.published', async () => {
     videoRepository.find.mockResolvedValue([
       { id: 'v1', userId: 'u1' },
@@ -60,6 +87,8 @@ describe('ScheduledPublishService', () => {
     expect(videoRepository.update).toHaveBeenCalledWith('v2', { indexedAt: expect.any(Date) });
     expect(videosService.bustVideoDetailCache).toHaveBeenCalledWith('v1');
     expect(videosService.bustVideoDetailCache).toHaveBeenCalledWith('v2');
+    expect(redis.srem).toHaveBeenCalledWith(SCHEDULED_PUBLISH_PENDING_KEY, 'v1');
+    expect(redis.srem).toHaveBeenCalledWith(SCHEDULED_PUBLISH_PENDING_KEY, 'v2');
     expect(eventEmitter.emit).toHaveBeenCalledWith('video.published', {
       videoId: 'v1',
       userId: 'u1',
@@ -93,14 +122,16 @@ describe('ScheduledPublishService', () => {
       }),
     );
     expect(videoRepository.update).toHaveBeenCalledWith('v1', { indexedAt: expect.any(Date) });
+    expect(redis.srem).toHaveBeenCalledWith(SCHEDULED_PUBLISH_PENDING_KEY, 'v1');
   });
 
-  it('publishVideoIfDue no-ops when the video is not due', async () => {
+  it('publishVideoIfDue no-ops and clears pending when the video is not due', async () => {
     videoRepository.findOne.mockResolvedValue(null);
 
     const result = await service.publishVideoIfDue('v1');
 
     expect(result).toEqual({ published: 0 });
     expect(videoRepository.update).not.toHaveBeenCalled();
+    expect(redis.srem).toHaveBeenCalledWith(SCHEDULED_PUBLISH_PENDING_KEY, 'v1');
   });
 });

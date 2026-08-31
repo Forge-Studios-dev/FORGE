@@ -78,9 +78,9 @@ fly secrets set \
 **Verify:**
 
 ```bash
-# Manual liveness (process only — no continuous Fly probe)
+# Liveness (process only — also Fly platform check every ~30s; no DB)
 curl -s https://api.forgestudios.net/api/v1/health/live
-# Manual readiness (DB + Redis + queues)
+# Manual readiness (DB + Redis + queues — on-demand / deploy smoke only)
 curl -s https://api.forgestudios.net/api/v1/health/ready
 ```
 
