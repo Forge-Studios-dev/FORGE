@@ -114,7 +114,7 @@ import { EngagementModule } from '../engagement/engagement.module';
       CommunityRoom,
     ]),
     forwardRef(() => UsersModule),
-    EngagementModule,
+    forwardRef(() => EngagementModule),
     forwardRef(() => ContentModule),
     forwardRef(() => EntitlementsModule),
     forwardRef(() => AccessSessionsModule),

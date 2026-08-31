@@ -23,7 +23,7 @@ import { forwardRef } from '@nestjs/common';
     forwardRef(() => StreamingModule),
     forwardRef(() => EntitlementsModule),
     forwardRef(() => UsersModule),
-    EngagementModule,
+    forwardRef(() => EngagementModule),
     forwardRef(() => BillingModule),
   ],
   controllers: [StreamChatController, StreamQaController],

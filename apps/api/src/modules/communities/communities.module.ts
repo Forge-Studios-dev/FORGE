@@ -125,12 +125,15 @@ import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lm
       User,
     ]),
     forwardRef(() => EntitlementsModule),
-    AccessSessionsModule,
+    // AccessSessions sits on the Auth→Analytics→Communities cycle; without
+    // forwardRef Nest sees AccessSessionsModule as undefined at scan time
+    // (prod: UndefinedModuleException for AccessSessionsModule).
+    forwardRef(() => AccessSessionsModule),
     forwardRef(() => NotificationsModule),
-    UsersModule,
+    forwardRef(() => UsersModule),
     PlatformModule,
     PlatformEventOutboxModule,
-    EngagementModule,
+    forwardRef(() => EngagementModule),
     BullModule.registerQueue({
       name: COMMUNITY_ANNOUNCEMENT_NOTIFY_QUEUE,
       defaultJobOptions: {

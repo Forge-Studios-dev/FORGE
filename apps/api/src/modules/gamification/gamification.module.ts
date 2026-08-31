@@ -20,7 +20,7 @@ export class GamificationModule {
     const imports = [
       TypeOrmModule.forFeature([MemberXp, MemberBadge, PlatformXp, PlatformXpGrant, UserAchievement]),
       forwardRef(() => CommunitiesModule),
-      EngagementModule,
+      forwardRef(() => EngagementModule),
     ];
     const providers = [GamificationService, GamificationListener];
     if (!isSkillEconomyLmsEnabled()) {

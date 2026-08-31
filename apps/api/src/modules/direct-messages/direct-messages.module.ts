@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DirectMessagesController } from './direct-messages.controller';
 import { DirectMessagesService } from './direct-messages.service';
@@ -12,8 +12,8 @@ import { EngagementModule } from '../engagement/engagement.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Conversation, ConversationMember, DirectMessage, User]),
-    NotificationsModule,
-    EngagementModule,
+    forwardRef(() => NotificationsModule),
+    forwardRef(() => EngagementModule),
   ],
   controllers: [DirectMessagesController],
   providers: [DirectMessagesService],

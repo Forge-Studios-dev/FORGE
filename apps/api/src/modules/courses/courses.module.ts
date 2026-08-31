@@ -1,4 +1,4 @@
-import { DynamicModule, Module } from '@nestjs/common';
+import { DynamicModule, Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Course, CourseBundleItem, CourseCohort } from './entities/course.entity';
 import { Community } from '../communities/entities/community.entity';
@@ -60,10 +60,10 @@ export class CoursesModule {
           User,
           Video,
         ]),
-        UsersModule,
-        EntitlementsModule,
-        AccessSessionsModule,
-        EngagementModule,
+        forwardRef(() => UsersModule),
+        forwardRef(() => EntitlementsModule),
+        forwardRef(() => AccessSessionsModule),
+        forwardRef(() => EngagementModule),
       ],
       controllers: [CoursesController, CreatorProgramsController],
       providers: [CoursesService, CreatorProgramsService, CreatorApprovedGuard, SkillEconomyLmsGuard],

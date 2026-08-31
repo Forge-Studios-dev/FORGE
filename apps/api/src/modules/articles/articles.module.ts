@@ -1,4 +1,4 @@
-import { DynamicModule, Module } from '@nestjs/common';
+import { DynamicModule, Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Article } from './entities/article.entity';
 import { ArticlesService } from './articles.service';
@@ -26,9 +26,9 @@ export class ArticlesModule {
       module: ArticlesModule,
       imports: [
         TypeOrmModule.forFeature([Article]),
-        EntitlementsModule,
-        EngagementModule,
-        UsersModule,
+        forwardRef(() => EntitlementsModule),
+        forwardRef(() => EngagementModule),
+        forwardRef(() => UsersModule),
       ],
       providers: [ArticlesService, CreatorApprovedGuard, OptionalJwtAuthGuard],
       controllers: [ArticlesController],

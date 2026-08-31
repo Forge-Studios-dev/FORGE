@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { AnalyticsController } from './analytics.controller';
@@ -18,7 +18,9 @@ import { Community } from '../communities/entities/community.entity';
     TypeOrmModule.forFeature([AnalyticsEvent, CommunityRole, Community]),
     BullModule.registerQueue({ name: ANALYTICS_INGEST_QUEUE }),
     BullModule.registerQueue({ name: ANALYTICS_RETENTION_QUEUE }),
-    CommunitiesModule,
+    // AuthModule imports AnalyticsModule which pulls Communities — that graph
+    // cycles back via Referral→Gamification. forwardRef breaks the early bind.
+    forwardRef(() => CommunitiesModule),
   ],
   controllers: [AnalyticsController],
   providers: [AnalyticsService, AnalyticsRetentionService, AnalyticsRetentionScheduler, KpiService],

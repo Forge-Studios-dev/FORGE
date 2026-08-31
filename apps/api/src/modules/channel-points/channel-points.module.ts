@@ -1,4 +1,4 @@
-import { DynamicModule, Module } from '@nestjs/common';
+import { DynamicModule, Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   ChannelPointRedemption,
@@ -32,8 +32,8 @@ export class ChannelPointsModule {
           ChannelPointReward,
           ChannelPointRedemption,
         ]),
-        UsersModule,
-        EngagementModule,
+        forwardRef(() => UsersModule),
+        forwardRef(() => EngagementModule),
       ],
       providers: [ChannelPointsService, CreatorApprovedGuard, OptionalJwtAuthGuard],
       controllers: [ChannelPointsController],
