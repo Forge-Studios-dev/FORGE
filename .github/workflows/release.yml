@@ -282,11 +282,11 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Verify worker machine started (no continuous health probes)
+      - name: Verify worker machine started (Fly check + one-shot smoke)
         if: always()
         run: |
-          # Continuous Fly [checks] were removed — confirm machine is started, then
-          # one intentional curl of the worker's manual /health endpoint.
+          # Fly [checks.worker_health] probes GET /health every ~30s. Also confirm
+          # machine is started, then one intentional curl for deploy diagnostics.
           echo "=== Waiting up to 90s for worker machine started ==="
           for i in $(seq 1 9); do
             STATE=$(flyctl machines list -a forge-studios-worker --json 2>/dev/null \
@@ -294,7 +294,7 @@ jobs:
             echo "attempt $i: state=$STATE"
             if [ "$STATE" = "started" ]; then
               echo "Worker machine started"
-              # One-shot deploy diagnostic (not a platform loop).
+              # One-shot deploy diagnostic (platform loop is Fly checks, not CI).
               if flyctl ssh console -a forge-studios-worker -C "wget -qO- http://127.0.0.1:3001/health" 2>/dev/null \
                 || flyctl ssh console -a forge-studios-worker -C "curl -sf http://127.0.0.1:3001/health" 2>/dev/null; then
                 echo "OK: worker GET /health (manual deploy check)"

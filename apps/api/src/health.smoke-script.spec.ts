@@ -10,7 +10,7 @@ describe('scripts/smoke-api.sh', () => {
     expect(script).toMatch(/if \[\[ "\$MODE" == "live" \]\]/);
   });
 
-  it('hits /health/ready only in full mode, not on every 15-minute probe', () => {
+  it('hits /health/ready only in full mode (on-demand / deploy), not continuous probes', () => {
     expect(script).toContain('${BASE}/health/ready');
     expect(script).toMatch(/if \[\[ "\$MODE" == "full" \]\]/);
   });

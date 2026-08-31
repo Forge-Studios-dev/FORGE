@@ -46,9 +46,10 @@ primary_region = 'sin'
   # Required for Fly rolling deploys / proxy routing (removing this caused
   # post-deploy smoke failures). Cheap liveness only — no DB. Application and
   # CI synthetic probes stay on-demand; this is platform infra, not app polling.
+  # 30s is enough for rolling deploy gates while halving probe volume vs 15s.
   [[http_service.checks]]
     grace_period = '45s'
-    interval = '15s'
+    interval = '30s'
     method = 'GET'
     path = '/api/v1/health/live'
     timeout = '10s'

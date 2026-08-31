@@ -45,7 +45,14 @@ export class MuxLiveSyncService {
   private static readonly FINALIZE_LOCK_TTL_SEC = 60;
   /** @deprecated Use PLATFORM_DORMANT_KEY from platform-dormant.util */
   static readonly PLATFORM_DORMANT_KEY = PLATFORM_DORMANT_KEY;
-  private static readonly PLATFORM_DORMANT_TTL_SEC = 1200;
+  /**
+   * Dormant Redis TTL = 2× default dormant job interval (15m → 30m) so skip
+   * ticks can refresh the key before expiry without opening Postgres.
+   */
+  static readonly PLATFORM_DORMANT_TTL_SEC = Math.max(
+    1800,
+    Math.ceil((Number(process.env.MUX_SYNC_INTERVAL_DORMANT_MS ?? 900_000) / 1000) * 2),
+  );
 
   constructor(
     @InjectRepository(Stream)
@@ -94,6 +101,8 @@ export class MuxLiveSyncService {
   /** Periodic backup scan: idle-grace sweep + rare Mux REST poll for missed webhooks. */
   async runPeriodicScan(): Promise<{ synced: number; finalized: number }> {
     if (await this.isPlatformDormant()) {
+      // Refresh TTL so the key does not expire between dormant-mode job ticks.
+      await this.markPlatformDormant();
       return { synced: 0, finalized: 0 };
     }
 

@@ -1,6 +1,7 @@
 /**
- * Paths that should not flood access logs when hit (manual health + Prometheus).
- * Continuous Fly probes were removed; endpoints remain for on-demand use.
+ * Paths that should not flood access logs.
+ * Fly platform probes hit `/api/v1/health/live` (~30s); Prometheus scrapes `/metrics`.
+ * `/health/ready` stays out of this set so intentional diagnostics remain visible.
  */
 const INFRA_PROBE_PATHS = new Set(['/api/v1/health/live', '/metrics']);
 
