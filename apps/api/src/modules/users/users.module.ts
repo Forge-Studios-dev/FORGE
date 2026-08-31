@@ -30,7 +30,7 @@ import { ACCOUNT_PURGE_QUEUE } from './account-purge.constants';
       CommunityPost,
       AccountStrike,
     ]),
-    PlaylistsModule,
+    forwardRef(() => PlaylistsModule),
     forwardRef(() => ContentModule),
     forwardRef(() => EngagementModule),
     forwardRef(() => AdminModule),

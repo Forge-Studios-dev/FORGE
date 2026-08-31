@@ -12,10 +12,13 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Playlist, PlaylistVideo, Video, Like]),
-    EngagementModule,
+    // EngagementModule participates in the Auth→…→Users→Playlists cycle; without
+    // forwardRef, EngagementModule is still undefined when PlaylistsModule loads
+    // (prod boot: UndefinedModuleException at imports[1]).
+    forwardRef(() => EngagementModule),
     // EntitlementsModule -> UsersModule -> PlaylistsModule already forms a
-    // cycle (UsersModule imports PlaylistsModule plainly) -- forwardRef here
-    // is the side that breaks it, matching content.module.ts's same edge.
+    // cycle (UsersModule imports PlaylistsModule) -- forwardRef here is the
+    // side that breaks it, matching content.module.ts's same edge.
     forwardRef(() => EntitlementsModule),
   ],
   controllers: [PlaylistsController],
