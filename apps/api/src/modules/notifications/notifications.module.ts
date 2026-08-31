@@ -30,7 +30,8 @@ import { EngagementModule } from '../engagement/engagement.module';
   imports: [
     TypeOrmModule.forFeature([Notification, DeviceToken, User, Follow, Comment, WatchHistory, Community]),
     forwardRef(() => EntitlementsModule),
-    EngagementModule,    BullModule.registerQueue({
+    forwardRef(() => EngagementModule),
+    BullModule.registerQueue({
       name: PUSH_DISPATCH_QUEUE,
       defaultJobOptions: {
         attempts: 3,

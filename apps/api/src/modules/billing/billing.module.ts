@@ -81,7 +81,7 @@ import { User } from '../users/entities/user.entity';
     // larger require cycle (madge --circular), so this edge still needs to
     // be lazy to avoid load-order-dependent undefined-module crashes.
     forwardRef(() => EntitlementsModule),
-    EngagementModule,
+    forwardRef(() => EngagementModule),
     WebhookIdempotencyModule,
     forwardRef(() => StreamingModule),
     forwardRef(() => UsersModule),

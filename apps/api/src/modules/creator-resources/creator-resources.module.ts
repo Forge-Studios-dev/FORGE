@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CreatorResource } from './entities/creator-resource.entity';
 import { CreatorResourcesService } from './creator-resources.service';
@@ -11,9 +11,9 @@ import { UsersModule } from '../users/users.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([CreatorResource]),
-    EntitlementsModule,
-    EngagementModule,
-    UsersModule,
+    forwardRef(() => EntitlementsModule),
+    forwardRef(() => EngagementModule),
+    forwardRef(() => UsersModule),
   ],
   controllers: [CreatorResourcesController],
   providers: [CreatorResourcesService, CreatorApprovedGuard],

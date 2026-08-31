@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -26,9 +26,11 @@ import { ReferralModule } from '../referral/referral.module';
     ConfigModule,
     PassportModule,
     JwtModule.register({}),
-    AnalyticsModule,
+    // Analytics→Communities and Referral→Gamification→Communities both cycle
+    // back into Auth via Users; delay resolution until the graph is loaded.
+    forwardRef(() => AnalyticsModule),
     NotificationsModule,
-    ReferralModule,
+    forwardRef(() => ReferralModule),
     TypeOrmModule.forFeature([User, RefreshToken, PasswordResetToken, OAuthAccount]),
   ],
   controllers: [AuthController],

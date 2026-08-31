@@ -15,7 +15,7 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
   imports: [
     TypeOrmModule.forFeature([Video, Follow, WatchHistory, Category]),
     forwardRef(() => ContentModule),
-    EngagementModule,
+    forwardRef(() => EngagementModule),
     forwardRef(() => EntitlementsModule),
   ],
   controllers: [FeedController],

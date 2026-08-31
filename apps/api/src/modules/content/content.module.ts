@@ -54,7 +54,7 @@ const skillEconomyLms = isSkillEconomyLmsEnabled();
     ]),
     forwardRef(() => UsersModule),
     forwardRef(() => EntitlementsModule),
-    EngagementModule,
+    forwardRef(() => EngagementModule),
     forwardRef(() => AccessSessionsModule),
     // VideosController now serves FeedController's `feed`/`public`/`by-skills`
     // routes directly (route-shadow fix — see videos.controller.ts), which

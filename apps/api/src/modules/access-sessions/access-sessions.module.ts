@@ -10,7 +10,9 @@ import { EngagementModule } from '../engagement/engagement.module';
   imports: [
     TypeOrmModule.forFeature([AccessSessionAudit]),
     forwardRef(() => EntitlementsModule),
-    EngagementModule,
+    // Auth→Analytics→Communities→AccessSessions→Engagement→…→Auth cycle;
+    // plain EngagementModule is undefined under that load order in prod.
+    forwardRef(() => EngagementModule),
   ],
   controllers: [AccessSessionsController],
   providers: [AccessSessionsService],

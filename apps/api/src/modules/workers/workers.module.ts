@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { VideoProcessorWorker } from './video-processor/video-processor.worker';
@@ -200,15 +200,15 @@ function shouldRegisterVideoCommentModeration(): boolean {
 
 @Module({
   imports: [
-    AnalyticsModule,
-    NotificationsModule,
-    ContentModule,
+    forwardRef(() => AnalyticsModule),
+    forwardRef(() => NotificationsModule),
+    forwardRef(() => ContentModule),
     CopyrightModule,
     FirebaseModule,
-    StreamingModule,
-    EngagementModule,
-    CommunitiesModule,
-    UsersModule,
+    forwardRef(() => StreamingModule),
+    forwardRef(() => EngagementModule),
+    forwardRef(() => CommunitiesModule),
+    forwardRef(() => UsersModule),
     TypeOrmModule.forFeature([Video, AnalyticsEvent, DeviceToken, Stream, StreamMessage, StreamAnalyticsSnapshot, StreamRsvp]),
     BullModule.registerQueue({
       name: VIDEO_PROCESSING_QUEUE,

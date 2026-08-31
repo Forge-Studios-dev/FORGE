@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SearchController } from './search.controller';
 import { SearchService } from './search.service';
@@ -11,8 +11,8 @@ import { EngagementModule } from '../engagement/engagement.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Video, User, Playlist]),
-    ContentModule,
-    EngagementModule,
+    forwardRef(() => ContentModule),
+    forwardRef(() => EngagementModule),
   ],
   controllers: [SearchController],
   providers: [SearchService],
