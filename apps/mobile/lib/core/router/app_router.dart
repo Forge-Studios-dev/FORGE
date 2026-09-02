@@ -293,7 +293,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const StudioModerationScreen(),
       ),
       GoRoute(path: '/studio/programs', redirect: (_, __) => '/studio/courses?tab=programs'),
-      GoRoute(path: '/studio/courses', builder: (_, __) => const StudioCoursesScreen()),
+      GoRoute(
+        path: '/studio/courses',
+        builder: (_, state) => StudioCoursesScreen(
+          initialTab: state.uri.queryParameters['tab'],
+        ),
+      ),
       GoRoute(
         path: '/studio/courses/:id',
         builder: (_, state) => StudioCourseDetailScreen(courseId: state.pathParameters['id']!),

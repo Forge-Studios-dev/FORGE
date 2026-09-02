@@ -14,7 +14,10 @@ import '../../../core/widgets/forge_card.dart';
 /// across two separate Studio nav entries. Named "Programs", not "Bundles", to
 /// avoid colliding with the separate /studio/bundles (tier-resource) feature.
 class StudioCoursesScreen extends ConsumerStatefulWidget {
-  const StudioCoursesScreen({super.key});
+  const StudioCoursesScreen({super.key, this.initialTab});
+
+  /// `programs` opens the Programs tab when LMS is enabled.
+  final String? initialTab;
 
   @override
   ConsumerState<StudioCoursesScreen> createState() => _StudioCoursesScreenState();
@@ -22,22 +25,49 @@ class StudioCoursesScreen extends ConsumerStatefulWidget {
 
 class _StudioCoursesScreenState extends ConsumerState<StudioCoursesScreen>
     with SingleTickerProviderStateMixin {
-  TabController? _tabController;
+  late TabController _tabController;
+  bool _lms = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start with courses-only; expand to Programs after platform config loads.
+    _tabController = TabController(length: 1, vsync: this);
+  }
 
   @override
   void dispose() {
-    _tabController?.dispose();
+    _tabController.dispose();
     super.dispose();
+  }
+
+  void _syncTabController(bool lms) {
+    final length = lms ? 2 : 1;
+    if (_lms == lms && _tabController.length == length) return;
+    final previous = _tabController;
+    final openPrograms = lms && widget.initialTab == 'programs';
+    final nextIndex = openPrograms
+        ? 1
+        : previous.index.clamp(0, length - 1);
+    _lms = lms;
+    _tabController = TabController(
+      length: length,
+      vsync: this,
+      initialIndex: nextIndex,
+    );
+    setState(() {});
+    // Dispose after the frame so TabBar/TabBarView are not holding the old controller.
+    WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
   }
 
   @override
   Widget build(BuildContext context) {
     final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
     final lms = platformSkillEconomyLmsEnabled(platformConfig);
-    final tabCount = lms ? 2 : 1;
-    if (_tabController == null || _tabController!.length != tabCount) {
-      _tabController?.dispose();
-      _tabController = TabController(length: tabCount, vsync: this);
+    if (lms != _lms || _tabController.length != (lms ? 2 : 1)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncTabController(lms);
+      });
     }
 
     return Scaffold(
@@ -47,7 +77,7 @@ class _StudioCoursesScreenState extends ConsumerState<StudioCoursesScreen>
           controller: _tabController,
           tabs: [
             const Tab(text: 'Courses'),
-            if (lms) const Tab(text: 'Programs'),
+            if (_lms) const Tab(text: 'Programs'),
           ],
         ),
       ),
@@ -55,7 +85,7 @@ class _StudioCoursesScreenState extends ConsumerState<StudioCoursesScreen>
         controller: _tabController,
         children: [
           const _CoursesTab(),
-          if (lms) const _ProgramsTab(),
+          if (_lms) const _ProgramsTab(),
         ],
       ),
     );
