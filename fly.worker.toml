@@ -20,20 +20,9 @@ primary_region = 'sin'
   policy = 'always'
   max_retries = 10
 
-# Internal functional liveness for Fly machine recovery (not a public edge
-# service). Required so rolling deploys / crash recovery can detect a booted
-# worker; not an application-level continuous API. Manual curl still works.
-[checks]
-  [checks.worker_health]
-    port = 3001
-    type = 'http'
-    interval = '30s'
-    timeout = '10s'
-    grace_period = '30s'
-    method = 'GET'
-    path = '/health'
+# No [checks] — worker GET /health on PORT (main.ts) is manual / deploy-diagnostic only.
 
 [[vm]]
-  memory = '2048mb'
+  memory = '1024mb'
   cpu_kind = 'shared'
-  cpus = 2
+  cpus = 1

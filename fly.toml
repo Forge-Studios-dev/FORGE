@@ -13,6 +13,8 @@ primary_region = 'sin'
 
 # Runs on each deploy before new machines receive traffic (uses Fly DATABASE_URL secret).
 [deploy]
+  # rolling — bluegreen requires [[http_service.checks]]; health is manual/on-demand only.
+  strategy = "rolling"
   release_command = "node node_modules/typeorm/cli.js migration:run -d apps/api/dist/apps/api/src/database/data-source.js"
 
   # Small VM for the one-off release_command machine.
@@ -32,29 +34,20 @@ primary_region = 'sin'
 [http_service]
   internal_port = 3001
   force_https = true
-  # Keep both API machines warm — auto_stop lets idle VMs stop, and cold
-  # starts (~20s Nest boot) cause proxy 502s.
-  auto_stop_machines = false
+  # MVP cost-first: one machine, auto-stop when idle (~20s cold start on wake).
+  auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 2
+  min_machines_running = 1
   processes = ['app']
 
   [http_service.http_options]
     idle_timeout = 600
     response_timeout = 600
 
-  # Required for Fly rolling deploys / proxy routing (removing this caused
-  # post-deploy smoke failures). Cheap liveness only — no DB. Application and
-  # CI synthetic probes stay on-demand; this is platform infra, not app polling.
-  # 30s is enough for rolling deploy gates while halving probe volume vs 15s.
-  [[http_service.checks]]
-    grace_period = '45s'
-    interval = '30s'
-    method = 'GET'
-    path = '/api/v1/health/live'
-    timeout = '10s'
+  # No [[http_service.checks]] — health endpoints are manual / deploy-diagnostic only.
+  # GET /api/v1/health/live and /health/ready remain available on demand.
 
 [[vm]]
-  memory = '2048mb'
+  memory = '1024mb'
   cpu_kind = 'shared'
-  cpus = 2
+  cpus = 1

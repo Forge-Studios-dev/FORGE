@@ -1,11 +1,10 @@
 /**
  * Paths that should not flood access logs.
- * Fly platform probes hit `/api/v1/health/live` (~30s); Prometheus scrapes `/metrics`.
- * `/health/ready` stays out of this set so intentional diagnostics remain visible.
+ * Prometheus scrapes `/metrics` on demand (Grafana interval — not app code).
  */
-const INFRA_PROBE_PATHS = new Set(['/api/v1/health/live', '/metrics']);
+const INFRA_PROBE_PATHS = new Set(['/metrics']);
 
-/** Health/live and Prometheus scrapes — not normal app traffic. */
+/** Prometheus scrapes — not normal app traffic. */
 export function isInfraProbePath(url: string | undefined): boolean {
   if (!url) return false;
   const path = url.split('?', 1)[0] ?? '';

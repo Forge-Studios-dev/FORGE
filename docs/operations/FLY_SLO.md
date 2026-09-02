@@ -4,16 +4,22 @@
 
 ---
 
-## Current production config
+## Current production config (MVP cost-first — 2026-09-01)
 
 | Setting | Value | File |
 |---------|-------|------|
-| `min_machines_running` | **2** (Wave 6 — rolling deploy / zero-downtime swap) | [fly.toml](../../fly.toml) |
-| `auto_stop_machines` | **`false`** (keep both warm; avoids cold-start proxy 502s) | [fly.toml](../../fly.toml) |
+| `min_machines_running` | **1** (MVP/dev cost-first) | [fly.toml](../../fly.toml) |
+| `auto_stop_machines` | **`stop`** (idle suspend; ~20s cold start on wake) | [fly.toml](../../fly.toml) |
+| `[deploy] strategy` | **`rolling`** (bluegreen requires health checks; we use manual health only) | [fly.toml](../../fly.toml) |
+| API VM | **shared-cpu-1x, 1024mb** | [fly.toml](../../fly.toml) |
 | Region | **`sin`** primary + machines (CI: `--primary-region sin --regions sin`) | [fly.toml](../../fly.toml) |
-| Worker | Separate app, no HTTP; `restart.policy = 'always'`, `max_retries = 10` | [fly.worker.toml](../../fly.worker.toml) |
+| Worker VM | **shared-cpu-1x, 1024mb**; `restart.policy = 'always'`, `max_retries = 10` | [fly.worker.toml](../../fly.worker.toml) |
 
-With `min_machines_running = 2` and `auto_stop_machines = false`, two API machines stay warm — Fly can swap machines during deploy without a brief outage. Cost: ~2× baseline API machine RAM/CPU vs `min = 1`. Previous F-1002 used `min = 1` for cost; Wave 6 raised this for HA during rolling deploys.
+With `min_machines_running = 1`, `auto_stop_machines = stop`, and `strategy = rolling`, one right-sized API machine handles steady-state traffic and can suspend when idle. No Fly health checks — deploy uses rolling swap (brief blip possible on single machine).
+
+**Rollback to HA posture** (if cold starts or deploy blips become unacceptable): restore `min_machines_running = 2`, `auto_stop_machines = false`, and optionally `memory = 2048mb` / `cpus = 2` in `fly.toml`, then `fly deploy`.
+
+> **Historical (Wave 6, pre-2026-09-01):** `min_machines_running = 2` + `auto_stop_machines = false` + 2GB/2CPU — kept for zero-downtime rolling deploys after incident chain #151–#154. Replaced by cost-first MVP config above.
 
 > **Note (2026-08-21): `bom` is permanently deprecated by Fly** — `flyctl deploy` now returns `Region bom is deprecated and cannot have new resources provisioned`, not a capacity error. This is not transient; do not retry `bom`. `primary_region` moved to `sin` in `fly.toml`, `fly.worker.toml`, and every workflow that pins a region. Machines and release_command VMs run in `sin`.
 >
@@ -32,10 +38,10 @@ With `min_machines_running = 2` and `auto_stop_machines = false`, two API machin
 
 ## When to use scale-to-zero (`min_machines_running = 0`)
 
-| Use scale-to-zero | Use min = 1 | Use min = 2 |
-|-------------------|-------------|-------------|
-| Dev / demo Fly apps | Low-traffic preview | **Production consumer API** (current) |
-| Cost is top priority and p95 cold start acceptable | Cost-sensitive prod with brief deploy blips OK | Auth-heavy traffic, live streams, zero-downtime deploys |
+| Use scale-to-zero | Use min = 1 (current MVP) | Use min = 2 |
+|-------------------|---------------------------|-------------|
+| Dev / demo Fly apps | **Cost-sensitive MVP / low traffic** (current) | Auth-heavy traffic, live streams, zero-downtime without bluegreen |
+| Cost is top priority and p95 cold start acceptable | Cost-sensitive prod with brief deploy/cold-start blips OK | Requires always-on HA pair |
 
 ---
 
@@ -51,7 +57,7 @@ done
 
 Compare Fly dashboard **Time to first byte** before/after config changes.
 
-**Health probes:** Fly keeps `[[http_service.checks]]` on `/api/v1/health/live` every **30s** (required for rolling deploys; no DB). App/CI synthetic cron stays off (`workflow_dispatch` only). Machines stay warm via `min_machines_running=2` / `auto_stop_machines=false`. Use `/health/ready` for dependency diagnostics.
+**Health probes:** No Fly `[[http_service.checks]]` — `/api/v1/health/live` and `/health/ready` are **manual or deploy-smoke only** (no continuous platform or app polling). Synthetic monitoring GitHub workflow is `workflow_dispatch` only. Machines may auto-stop when idle (`auto_stop_machines = stop`).
 
 **Redis eviction (ops):** BullMQ requires `maxmemory-policy noeviction`. If Redis Cloud still uses `volatile-lru`, queue keys can be dropped — see [REDIS_CONNECTIONS.md](./REDIS_CONNECTIONS.md).
 
@@ -59,7 +65,7 @@ Compare Fly dashboard **Time to first byte** before/after config changes.
 
 ## Worker note
 
-The worker app (`forge-studios-worker`) has no public HTTP edge service. It exposes `GET /health` on its internal PORT for Fly `[checks.worker_health]` (every **30s**, no DB) and manual/deploy diagnostics. Queue depth is monitored via API Prometheus metrics (`forge_bullmq_jobs_*`) when `METRICS_ENABLED=true` — see [OBSERVABILITY.md](../OBSERVABILITY.md).
+The worker app (`forge-studios-worker`) has no public HTTP edge service. It exposes `GET /health` on its internal PORT for **manual** and **deploy-time** diagnostics only (no Fly `[checks]` loop). Queue depth is monitored via API Prometheus metrics (`forge_bullmq_jobs_*`) when `METRICS_ENABLED=true` — see [OBSERVABILITY.md](../OBSERVABILITY.md).
 
 `release.yml`'s `deploy-worker` job force-starts the worker machine after deploy (`if: always()`) to reset Fly's exhausted-retries counter — without this, a machine that crash-looped past `max_retries = 10` on a prior bad deploy stays stopped even after a good deploy ships. See [CI_CD.md](../CI_CD.md) for the full step list.
 
@@ -76,7 +82,7 @@ Rationale (accepted trade-off, not a bug):
 Blast radius while the single machine is down:
 
 - **Blocked:** background job progress — VOD transcode, push dispatch, engagement reconciliation, view-count flush, stream reminders.
-- **Not blocked:** all API request handling (Fly API is separate, 2 warm machines) and Socket.IO real-time (chat/reactions run on the API tier).
+- **Not blocked:** all API request handling (Fly API is separate, 1 machine + auto-start) and Socket.IO real-time (chat/reactions run on the API tier).
 
 Escalation trigger to move off `--ha=false`:
 

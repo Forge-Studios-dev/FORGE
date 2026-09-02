@@ -43,17 +43,17 @@ June 2026 audit #1 addressed query polling (Mux on HTTP, frontend polls, worker 
 
 ---
 
-## Connection budget (production)
+## Connection budget (production — MVP cost-first 2026-09-01)
 
 | Process | Machines | Pool max | Max slots |
 |---------|----------|----------|-----------|
-| API | 2 | 5 | 10 |
-| Worker | 1 | 5 | 5 |
-| **Total** | | | **~15** |
+| API | 1 | 3 | 3 |
+| Worker | 1 | 3 | 3 |
+| **Total** | | | **~6** |
 
 - Use Neon **pooled** URL (`-pooler` host) — enforced in production
 - Sync worker pool settings: `bash scripts/sync-fly-worker-secrets.sh`
-- Production default is `DB_POOL_MAX=5` per machine; raise to 10 if p95 latency degrades
+- Production Fly secret `DB_POOL_MAX=3` per process (was 5 with 2 API machines); raise to 5–10 if p95 latency degrades
 
 ---
 
@@ -117,7 +117,7 @@ After shipping delayed scheduled-publish + idle reconcile + pending-set gate (Fl
 - [ ] Neon console: compute `active` ↔ `idle` overnight (`suspend_timeout_seconds=300`)
 - [ ] `scripts/neon-consumption-report.sh --days 7` — idle-day CU-hr vs the ~5 CU-hr/day August baseline
 - [ ] Scheduled videos still appear in feed/search at/after `scheduledPublishAt`
-- [ ] Manual: `GET /api/v1/health/live` and `GET /api/v1/health/ready` still 200; Fly keeps `/health/live` every 30s (no DB); no app/CI continuous `/ready` polling
+- [ ] Manual: `GET /api/v1/health/live` and `GET /api/v1/health/ready` still 200 on demand; no Fly or app continuous health polling
 
 ---
 
@@ -243,12 +243,27 @@ Jun 12 hourly (first day with autosuspend enabled ~16:24 UTC):
 
 | Change | Impact |
 |--------|--------|
-| Fly API health interval **15s → 30s** (`/health/live`, no DB) | Halves platform probe volume; rolling deploys still gated |
+| Fly API/worker health checks removed (`fly.toml`, `fly.worker.toml`) | No continuous platform probes; endpoints manual/deploy only |
 | Scheduled-publish backup **15m → 30m** + Redis `videos:scheduled:pending` gate | Idle days: backup skips Postgres when no schedules |
 | Mux dormant TTL **2× job interval** + refresh on dormant skip | Stops false PG wakes when TTL expired between 15m ticks |
 | Docs/comments aligned (Fly checks kept; Docker/synthetic still off) | Removes contradictory “checks removed” guidance |
 | Frontend spot-check | Live/watch polls already socket-gated + long guest intervals — no change |
 
-**Intentionally kept:** 2 always-on API machines, always-on worker, hourly subscription expire / shorts / copyright, Fly worker `/health` every 30s, pool `DB_POOL_MAX=5`.
+**Intentionally kept:** 1 API machine (auto-stop), right-sized worker, hourly subscription expire / copyright, Fly worker `/health` every 30s, pool `DB_POOL_MAX=3`.
 
 **Ops follow-up:** Redis Cloud `maxmemory-policy` should be `noeviction` (see [REDIS_CONNECTIONS.md](../operations/REDIS_CONNECTIONS.md)).
+
+---
+
+## Audit #5 — MVP cost-first pass (2026-09-01)
+
+| Change | Impact |
+|--------|--------|
+| Fly `min_machines_running` 2→1, `auto_stop_machines=stop`, bluegreen deploy | Halves steady-state API machine cost |
+| API + worker VM 2048mb/2CPU → 1024mb/1CPU | ~50% RAM/CPU per machine |
+| `DB_POOL_MAX` 5→3 (Fly secrets) | Connection budget ~15 → ~6 |
+| Worker: `DISABLE_EMAIL_DIGEST`, `DISABLE_STREAM_CLIP_EXPORT`, `DISABLE_SHORTS_WATCH_PERCENT` | Fewer hourly/scheduled Neon touches |
+| BullMQ metrics 30s refresh cache | Fewer Redis calls per Prometheus scrape |
+| Socket client reconnection cap 20 | Avoids infinite reconnect storms |
+
+Full report: [COST_AUDIT_2026-09-01.md](./COST_AUDIT_2026-09-01.md)

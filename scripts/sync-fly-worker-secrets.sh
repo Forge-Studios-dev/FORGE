@@ -57,7 +57,7 @@ for line in open(os.environ["ENV_DUMP"]):
         seen.add(k)
 # Default pool size when API only has implicit Neon default (not set as Fly secret)
 if "DB_POOL_MAX" not in seen:
-    out.append("DB_POOL_MAX=5")
+    out.append("DB_POOL_MAX=3")
 if len(out) < 4:
     raise SystemExit("Too few secrets read from API machine — is the API running?")
 open(os.environ["SECRETS_OUT"], "w").write("\n".join(out) + "\n")
