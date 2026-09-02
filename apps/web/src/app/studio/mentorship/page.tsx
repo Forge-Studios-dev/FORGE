@@ -145,7 +145,7 @@ function StudioMentorshipPageInner() {
           icon="school"
           title="Create a community first"
           description="Mentorship matching is community-scoped. Set up a community, invite mentors, then run matching here."
-          action={{ label: 'Open communities', href: '/studio/communities' }}
+          action={{ label: 'Open Community', href: '/studio/community' }}
         />
       ) : (
         <>

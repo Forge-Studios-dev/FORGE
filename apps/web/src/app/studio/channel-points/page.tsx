@@ -197,7 +197,7 @@ function StudioChannelPointsPageInner() {
           icon="hub"
           title="Create a community first"
           description="Channel points are scoped to a community. Set one up, then return here to invent rewards."
-          action={{ label: 'Open communities', href: '/studio/communities' }}
+          action={{ label: 'Open Community', href: '/studio/community' }}
         />
       ) : (
         <>

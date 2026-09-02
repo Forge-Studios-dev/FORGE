@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -52,7 +52,20 @@ function StudioCoursesPageInner() {
   const { user, isCreator } = useAuth();
   const { skillEconomyLms } = useSkillFeatures();
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState(searchParams.get('tab') === 'programs' ? 'programs' : 'courses');
+  const requestedTab = searchParams.get('tab');
+  const [tab, setTab] = useState(
+    requestedTab === 'programs' && skillEconomyLms ? 'programs' : 'courses',
+  );
+
+  useEffect(() => {
+    if (!skillEconomyLms && tab === 'programs') setTab('courses');
+    if (skillEconomyLms && requestedTab === 'programs' && tab !== 'programs') {
+      setTab('programs');
+    }
+  }, [skillEconomyLms, requestedTab, tab]);
+
+  // Deep link /studio/programs → ?tab=programs must not blank the page when LMS is off.
+  const activeTab = skillEconomyLms && tab === 'programs' ? 'programs' : 'courses';
 
   if (!isCreator) {
     return (
@@ -71,7 +84,7 @@ function StudioCoursesPageInner() {
 
       <Tabs
         className="mb-6"
-        value={tab}
+        value={activeTab}
         onChange={setTab}
         tabs={[
           { id: 'courses', label: 'Courses' },
@@ -79,11 +92,12 @@ function StudioCoursesPageInner() {
         ]}
       />
 
-      <TabPanel id="courses" value={tab}>
+      <TabPanel id="courses" value={activeTab}>
         <CoursesTab userId={user?.id} />
       </TabPanel>
+
       {skillEconomyLms ? (
-        <TabPanel id="programs" value={tab}>
+        <TabPanel id="programs" value={activeTab}>
           <ProgramsTab userId={user?.id} username={user?.username} />
         </TabPanel>
       ) : null}

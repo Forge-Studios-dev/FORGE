@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_envelope.dart';
+import '../../../core/platform/platform_config.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
@@ -21,6 +23,7 @@ class _StudioMentorshipScreenState
   String? _communityId;
   bool _loading = true;
   bool _running = false;
+  String? _error;
 
   @override
   void initState() {
@@ -29,6 +32,10 @@ class _StudioMentorshipScreenState
   }
 
   Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final user =
           await ref.read(authRepositoryProvider).refreshStoredUser() ??
@@ -41,18 +48,14 @@ class _StudioMentorshipScreenState
       final client = ref.read(apiClientProvider);
       final communitiesRes =
           await client.dio.get('/creators/$creatorId/communities');
-      final communities =
-          (communitiesRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ??
-              [];
+      final communities = readApiList(communitiesRes.data);
       final communityId = _communityId ??
           (communities.isNotEmpty ? communities.first['id'] as String? : null);
       List<Map<String, dynamic>> matches = [];
       if (communityId != null) {
         final matchesRes = await client.dio
             .get('/communities/$communityId/mentorship/matches');
-        matches =
-            (matchesRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ??
-                [];
+        matches = readApiList(matchesRes.data);
       }
       setState(() {
         _communities = communities;
@@ -61,7 +64,10 @@ class _StudioMentorshipScreenState
         _loading = false;
       });
     } catch (_) {
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _error = 'Could not load mentorship data';
+      });
     }
   }
 
@@ -81,7 +87,7 @@ class _StudioMentorshipScreenState
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not run matching')),
+          const SnackBar(content: Text('Matching failed')),
         );
       }
     } finally {
@@ -91,6 +97,23 @@ class _StudioMentorshipScreenState
 
   @override
   Widget build(BuildContext context) {
+    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    if (!platformMentorshipEnabled(platformConfig)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Mentorship')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Mentorship is disabled on this deployment.',
+              style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: ForgeTokens.background,
       appBar: AppBar(
@@ -103,9 +126,14 @@ class _StudioMentorshipScreenState
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(_error!, style: const TextStyle(color: ForgeTokens.error)),
+                  ),
                 if (_communities.isEmpty)
                   const Text(
-                    'Create a community to run mentorship matching.',
+                    'No community yet — mentorship matching needs a community.',
                     style: TextStyle(color: ForgeTokens.onSurfaceVariant),
                   )
                 else ...[
@@ -145,17 +173,25 @@ class _StudioMentorshipScreenState
                       style: TextStyle(color: ForgeTokens.onSurfaceVariant),
                     )
                   else
-                    ..._matches.map(
-                      (m) => Padding(
+                    ..._matches.map((m) {
+                      final mentor = m['mentor'] as Map<String, dynamic>?;
+                      final mentee = m['mentee'] as Map<String, dynamic>?;
+                      final mentorName = mentor?['displayName'] as String? ??
+                          mentor?['username'] as String? ??
+                          'Mentor';
+                      final menteeName = mentee?['displayName'] as String? ??
+                          mentee?['username'] as String? ??
+                          'Mentee';
+                      return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: ForgeCard(
                           child: Text(
-                            '${m['status'] ?? 'match'} · score ${m['matchScore'] ?? m['match_score'] ?? '—'}',
+                            '$mentorName → $menteeName',
                             style: const TextStyle(color: ForgeTokens.onSurface),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                 ],
               ],
             ),

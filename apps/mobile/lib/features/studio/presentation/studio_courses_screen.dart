@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_envelope.dart';
+import '../../../core/platform/platform_config.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
@@ -12,41 +13,50 @@ import '../../../core/widgets/forge_card.dart';
 /// so authoring them side by side matches the data model instead of splitting
 /// across two separate Studio nav entries. Named "Programs", not "Bundles", to
 /// avoid colliding with the separate /studio/bundles (tier-resource) feature.
-class StudioCoursesScreen extends StatefulWidget {
+class StudioCoursesScreen extends ConsumerStatefulWidget {
   const StudioCoursesScreen({super.key});
 
   @override
-  State<StudioCoursesScreen> createState() => _StudioCoursesScreenState();
+  ConsumerState<StudioCoursesScreen> createState() => _StudioCoursesScreenState();
 }
 
-class _StudioCoursesScreenState extends State<StudioCoursesScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
+class _StudioCoursesScreenState extends ConsumerState<StudioCoursesScreen>
+    with SingleTickerProviderStateMixin {
+  TabController? _tabController;
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _tabController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    final lms = platformSkillEconomyLmsEnabled(platformConfig);
+    final tabCount = lms ? 2 : 1;
+    if (_tabController == null || _tabController!.length != tabCount) {
+      _tabController?.dispose();
+      _tabController = TabController(length: tabCount, vsync: this);
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Courses'),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [Tab(text: 'Courses'), Tab(text: 'Programs')],
+          tabs: [
+            const Tab(text: 'Courses'),
+            if (lms) const Tab(text: 'Programs'),
+          ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: const [_CoursesTab(), _ProgramsTab()],
+        children: [
+          const _CoursesTab(),
+          if (lms) const _ProgramsTab(),
+        ],
       ),
     );
   }

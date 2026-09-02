@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_envelope.dart';
+import '../../../core/platform/platform_config.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../auth/data/auth_repository.dart';
 
@@ -20,6 +23,7 @@ class _StudioChannelPointsScreenState
   List<Map<String, dynamic>> _pending = [];
   String? _communityId;
   bool _loading = true;
+  String? _busyRedemptionId;
 
   @override
   void initState() {
@@ -40,9 +44,7 @@ class _StudioChannelPointsScreenState
       final client = ref.read(apiClientProvider);
       final communitiesRes =
           await client.dio.get('/creators/$creatorId/communities');
-      final communities =
-          (communitiesRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ??
-              [];
+      final communities = readApiList(communitiesRes.data);
       final communityId = _communityId ??
           (communities.isNotEmpty ? communities.first['id'] as String? : null);
       List<Map<String, dynamic>> rewards = [];
@@ -55,14 +57,8 @@ class _StudioChannelPointsScreenState
           '/creators/me/communities/$communityId/channel-points/redemptions',
           queryParameters: {'status': 'pending'},
         );
-        rewards = (rewardsRes.data['data']?['data'] as List?)
-                ?.cast<Map<String, dynamic>>() ??
-            (rewardsRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ??
-            [];
-        pending = (pendingRes.data['data']?['data'] as List?)
-                ?.cast<Map<String, dynamic>>() ??
-            (pendingRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ??
-            [];
+        rewards = readApiList(rewardsRes.data);
+        pending = readApiList(pendingRes.data);
       }
       setState(() {
         _communities = communities;
@@ -76,8 +72,51 @@ class _StudioChannelPointsScreenState
     }
   }
 
+  Future<void> _resolveRedemption(String redemptionId, {required bool approve}) async {
+    if (_communityId == null) return;
+    setState(() => _busyRedemptionId = redemptionId);
+    try {
+      final client = ref.read(apiClientProvider);
+      final action = approve ? 'approve' : 'reject';
+      await client.dio.post(
+        '/creators/me/communities/$_communityId/channel-points/redemptions/$redemptionId/$action',
+      );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(approve ? 'Approved' : 'Rejected')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update redemption')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busyRedemptionId = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    if (!platformChannelPointsEnabled(platformConfig)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Channel points')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Channel points are disabled on this deployment.',
+              style: TextStyle(color: ForgeTokens.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: ForgeTokens.background,
       appBar: AppBar(
@@ -153,17 +192,48 @@ class _StudioChannelPointsScreenState
                       style: TextStyle(color: ForgeTokens.onSurfaceVariant),
                     )
                   else
-                    ..._pending.map(
-                      (r) => Padding(
+                    ..._pending.map((r) {
+                      final id = r['id'] as String?;
+                      final busy = id != null && _busyRedemptionId == id;
+                      return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: ForgeCard(
-                          child: Text(
-                            '${r['reward']?['title'] ?? 'Reward'} · ${r['status']}',
-                            style: const TextStyle(color: ForgeTokens.onSurface),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${r['reward']?['title'] ?? 'Reward'} · ${r['status']}',
+                                style: const TextStyle(color: ForgeTokens.onSurface),
+                              ),
+                              if (id != null) ...[
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: ForgeButton(
+                                        label: busy ? '…' : 'Approve',
+                                        onPressed: busy
+                                            ? null
+                                            : () => _resolveRedemption(id, approve: true),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: ForgeButton(
+                                        label: busy ? '…' : 'Reject',
+                                        onPressed: busy
+                                            ? null
+                                            : () => _resolveRedemption(id, approve: false),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                 ],
               ],
             ),
