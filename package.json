@@ -29,6 +29,7 @@
     "smoke:memberships:prod": "FORGE_SMOKE_API=https://api.forgestudios.net/api/v1 bash scripts/smoke-memberships.sh",
     "smoke:community-2.0": "bash scripts/smoke-community-2.0.sh",
     "smoke:skill-features": "bash scripts/smoke-skill-features.sh",
+    "pr:skill-platform": "bash scripts/create-skill-platform-pr.sh",
     "smoke:api:prod": "FORGE_SMOKE_API=https://api.forgestudios.net/api/v1 bash scripts/smoke-api.sh",
     "check:production": "bash scripts/check-production.sh",
     "db:neon:setup": "bash scripts/neon-db-setup.sh",
