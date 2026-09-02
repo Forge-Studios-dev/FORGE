@@ -425,14 +425,14 @@ describe('CoursesService', () => {
       getRawMany: jest.fn().mockResolvedValue([{ courseId: 'course-1', count: '2' }]),
     })) as never;
     const result = await service.listFeaturedCourses();
-    expect(result.data).toHaveLength(1);
-    expect(result.data[0].lessonCount).toBe(2);
-    expect(result.data[0].creator?.username).toBe('creator');
+    expect(result).toHaveLength(1);
+    expect(result[0].lessonCount).toBe(2);
+    expect(result[0].creator?.username).toBe('creator');
   });
 
   it('returns empty discover results for short queries', async () => {
     const result = await service.discoverCourses('a');
-    expect(result.data).toEqual([]);
+    expect(result).toEqual([]);
   });
 
   it('returns public course catalog metadata', async () => {
@@ -446,8 +446,8 @@ describe('CoursesService', () => {
     })) as never;
     enrollmentRepository.find.mockResolvedValue([]);
     const result = await service.getPublicCourse('course-1', 'user-1');
-    expect(result.data.title).toBe('Intro');
-    expect(result.data.viewerEnrolled).toBe(false);
+    expect(result.title).toBe('Intro');
+    expect(result.viewerEnrolled).toBe(false);
   });
 
   it('returns public catalog lesson syllabus without content', async () => {
@@ -463,9 +463,9 @@ describe('CoursesService', () => {
       },
     ]);
     const result = await service.listPublicCatalogLessons('course-1');
-    expect(result.data).toHaveLength(1);
-    expect(result.data[0].title).toBe('Welcome');
-    expect(result.data[0].lessonType).toBe(LessonType.VIDEO);
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe('Welcome');
+    expect(result[0].lessonType).toBe(LessonType.VIDEO);
   });
 
   it('returns admin courses overview with counts and recent rows', async () => {
@@ -498,10 +498,10 @@ describe('CoursesService', () => {
     } as never);
 
     const result = await service.adminCoursesOverview(10);
-    expect(result.data.counts).toEqual({ published: 3, draft: 2, programsPublished: 1 });
-    expect(result.data.recent).toHaveLength(1);
-    expect(result.data.recent[0].creatorUsername).toBe('teacher');
-    expect(result.data.recent[0].lessonCount).toBe(4);
+    expect(result.counts).toEqual({ published: 3, draft: 2, programsPublished: 1 });
+    expect(result.recent).toHaveLength(1);
+    expect(result.recent[0].creatorUsername).toBe('teacher');
+    expect(result.recent[0].lessonCount).toBe(4);
   });
 
   describe('video lessons', () => {

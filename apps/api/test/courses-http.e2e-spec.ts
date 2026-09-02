@@ -31,10 +31,10 @@ describe('Courses HTTP (mocked e2e)', () => {
     updateCourse: jest.fn().mockResolvedValue({ ...course, isPublished: true }),
     createLesson: jest.fn().mockResolvedValue({ id: 'lesson-1', title: 'L1' }),
     listLessons: jest.fn().mockResolvedValue([{ id: 'lesson-1', title: 'L1', sortOrder: 0 }]),
-    listPublicCatalogLessons: jest.fn().mockResolvedValue({
-      data: [{ id: 'lesson-1', title: 'Welcome', lessonType: 'video', durationMinutes: 5 }],
-    }),
-    listFeaturedCourses: jest.fn().mockResolvedValue({ data: [course] }),
+    listPublicCatalogLessons: jest.fn().mockResolvedValue([
+      { id: 'lesson-1', title: 'Welcome', lessonType: 'video', durationMinutes: 5 },
+    ]),
+    listFeaturedCourses: jest.fn().mockResolvedValue([course]),
     enroll: jest.fn(),
     getProgress: jest.fn(),
     updateLessonProgress: jest.fn(),
@@ -130,6 +130,7 @@ describe('Courses HTTP (mocked e2e)', () => {
     expect(res.status).toBe(200);
     expect(coursesService.listPublicCatalogLessons).toHaveBeenCalledWith('course-1');
     const syllabus = Array.isArray(res.body.data) ? res.body.data : res.body.data?.data;
+    expect(Array.isArray(res.body.data)).toBe(true);
     expect(syllabus?.[0]?.title).toBe('Welcome');
     expect(syllabus?.[0]?.content).toBeUndefined();
   });
@@ -138,5 +139,6 @@ describe('Courses HTTP (mocked e2e)', () => {
     const res = await request(app.getHttpServer()).get('/api/v1/courses/discover/featured');
     expect(res.status).toBe(200);
     expect(coursesService.listFeaturedCourses).toHaveBeenCalled();
+    expect(Array.isArray(res.body.data)).toBe(true);
   });
 });

@@ -2,6 +2,7 @@
 
 **Status:** In-repo engineering complete (2026-09-02). Ready for PR → merge → staging flag rollout.  
 **Branch:** `feature/skill-first-platform` (ahead of `origin`; push after `gh auth login`)  
+**Note:** Course/program service methods return flat payloads (no `{ data }` double-wrap under `TransformInterceptor`).  
 **SSOT:** [FORGE_IMPLEMENTATION_ROADMAP.md](../FORGE_IMPLEMENTATION_ROADMAP.md) · [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md)
 
 **Open PR:** run `npm run pr:skill-platform` (or `bash scripts/create-skill-platform-pr.sh`) after `gh auth login`, or open  

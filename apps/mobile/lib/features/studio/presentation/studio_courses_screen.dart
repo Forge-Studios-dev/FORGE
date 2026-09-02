@@ -63,6 +63,12 @@ class _StudioCoursesScreenState extends ConsumerState<StudioCoursesScreen>
   @override
   Widget build(BuildContext context) {
     final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    if (!platformCoursesEnabled(platformConfig)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go('/studio');
+      });
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     final lms = platformSkillEconomyLmsEnabled(platformConfig);
     if (lms != _lms || _tabController.length != (lms ? 2 : 1)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

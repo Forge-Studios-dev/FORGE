@@ -93,12 +93,12 @@ export class CoursesService {
       qb.andWhere('c.creator_id NOT IN (:...blocked)', { blocked });
     }
     const courses = await qb.getMany();
-    return { data: await this.mapPublicCourses(courses, viewerId) };
+    return this.mapPublicCourses(courses, viewerId);
   }
 
   async discoverCourses(query: string, limit = 20, viewerId?: string) {
     const term = query.trim();
-    if (term.length < 2) return { data: [] };
+    if (term.length < 2) return [];
     const pattern = `%${term}%`;
     const take = clampLimit(limit);
     const blocked = viewerId ? await this.engagementService.getBlockedPeerIds(viewerId) : [];
@@ -116,7 +116,7 @@ export class CoursesService {
       qb.andWhere('c.creator_id NOT IN (:...blocked)', { blocked });
     }
     const courses = await qb.getMany();
-    return { data: await this.mapPublicCourses(courses, viewerId) };
+    return this.mapPublicCourses(courses, viewerId);
   }
 
   async listPublishedForCreator(
@@ -135,7 +135,7 @@ export class CoursesService {
       take,
       skip,
     });
-    return { data: await this.mapPublicCourses(courses, viewerId) };
+    return this.mapPublicCourses(courses, viewerId);
   }
 
   async getPublicCourse(courseId: string, viewerId?: string | null) {
@@ -147,7 +147,7 @@ export class CoursesService {
       throw new ForbiddenException('This channel is not available');
     }
     const [mapped] = await this.mapPublicCourses([course], viewerId);
-    return { data: mapped };
+    return mapped;
   }
 
   /** Public syllabus — titles/types only (no lesson content or playback URLs). */
@@ -161,16 +161,14 @@ export class CoursesService {
       order: { sortOrder: 'ASC', createdAt: 'ASC' },
       select: ['id', 'title', 'slug', 'sortOrder', 'lessonType', 'durationMinutes'],
     });
-    return {
-      data: lessons.map((lesson) => ({
-        id: lesson.id,
-        title: lesson.title,
-        slug: lesson.slug,
-        sortOrder: lesson.sortOrder,
-        lessonType: lesson.lessonType,
-        durationMinutes: lesson.durationMinutes,
-      })),
-    };
+    return lessons.map((lesson) => ({
+      id: lesson.id,
+      title: lesson.title,
+      slug: lesson.slug,
+      sortOrder: lesson.sortOrder,
+      lessonType: lesson.lessonType,
+      durationMinutes: lesson.durationMinutes,
+    }));
   }
 
   /** Platform admin overview — published/draft counts and recent courses. */
@@ -208,24 +206,22 @@ export class CoursesService {
     );
 
     return {
-      data: {
-        counts: { published, draft, programsPublished },
-        recent: recent.map((course) => {
-          const creator = creatorById.get(course.creatorId);
-          return {
-            id: course.id,
-            title: course.title,
-            slug: course.slug,
-            isPublished: course.isPublished,
-            creatorId: course.creatorId,
-            creatorUsername: creator?.username ?? null,
-            creatorDisplayName: creator?.displayName ?? null,
-            lessonCount: lessonCountByCourse.get(course.id) ?? 0,
-            updatedAt: course.updatedAt.toISOString(),
-            createdAt: course.createdAt.toISOString(),
-          };
-        }),
-      },
+      counts: { published, draft, programsPublished },
+      recent: recent.map((course) => {
+        const creator = creatorById.get(course.creatorId);
+        return {
+          id: course.id,
+          title: course.title,
+          slug: course.slug,
+          isPublished: course.isPublished,
+          creatorId: course.creatorId,
+          creatorUsername: creator?.username ?? null,
+          creatorDisplayName: creator?.displayName ?? null,
+          lessonCount: lessonCountByCourse.get(course.id) ?? 0,
+          updatedAt: course.updatedAt.toISOString(),
+          createdAt: course.createdAt.toISOString(),
+        };
+      }),
     };
   }
 
@@ -699,7 +695,7 @@ export class CoursesService {
     community.communityType = CommunityType.COURSE;
     await this.courseRepository.save(course);
     await this.communityRepository.save(community);
-    return { data: { courseId: course.id, communityId: community.id } };
+    return { courseId: course.id, communityId: community.id };
   }
 
   /**

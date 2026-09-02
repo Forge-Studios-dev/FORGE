@@ -110,7 +110,7 @@ export class CreatorProgramsService {
     const data = await Promise.all(
       programs.map((p) => this.mapProgram(p, { consumerView, viewerId })),
     );
-    return { data: data.filter((p) => p.courses.length > 0 || !consumerView) };
+    return data.filter((p) => p.courses.length > 0 || !consumerView);
   }
 
   async getPublishedBySlug(creatorId: string, slug: string, viewerId?: string | null) {
@@ -118,12 +118,10 @@ export class CreatorProgramsService {
       where: { creatorId, slug, isBundle: true, isPublished: true },
     });
     if (!program) throw new NotFoundException('Program not found');
-    return {
-      data: await this.mapProgram(program, {
-        consumerView: viewerId !== creatorId,
-        viewerId,
-      }),
-    };
+    return this.mapProgram(program, {
+      consumerView: viewerId !== creatorId,
+      viewerId,
+    });
   }
 
   async enrollInProgram(userId: string, programId: string) {
@@ -235,13 +233,11 @@ export class CreatorProgramsService {
       courseIds.map((courseId) => this.coursesService.enroll(userId, courseId)),
     );
     return {
-      data: {
-        programId: program.id,
-        enrollments: enrollments.map((e) => ({
-          courseId: e.courseId,
-          enrollmentId: e.id,
-        })),
-      },
+      programId: program.id,
+      enrollments: enrollments.map((e) => ({
+        courseId: e.courseId,
+        enrollmentId: e.id,
+      })),
     };
   }
 
@@ -250,8 +246,7 @@ export class CreatorProgramsService {
       where: { creatorId, isBundle: true },
       order: { createdAt: 'DESC' },
     });
-    const data = await Promise.all(programs.map((p) => this.mapProgram(p)));
-    return { data };
+    return Promise.all(programs.map((p) => this.mapProgram(p)));
   }
 
   async createProgram(
@@ -296,7 +291,7 @@ export class CreatorProgramsService {
       await this.setProgramCourses(creatorId, program.id, input.courseIds);
     }
 
-    return { data: await this.mapProgram(program) };
+    return this.mapProgram(program);
   }
 
   async updateProgram(
@@ -343,7 +338,7 @@ export class CreatorProgramsService {
       await this.setProgramCourses(creatorId, programId, input.courseIds);
     }
 
-    return { data: await this.mapProgram(program) };
+    return this.mapProgram(program);
   }
 
   async deleteProgram(creatorId: string, programId: string) {

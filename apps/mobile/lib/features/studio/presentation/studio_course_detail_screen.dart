@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_envelope.dart';
 import '../../../core/platform/platform_config.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
@@ -33,6 +34,7 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
   String? _creatorId;
   bool _loading = true;
   bool _busy = false;
+  bool _coursesDisabled = false;
 
   @override
   void initState() {
@@ -42,13 +44,21 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
 
   Future<void> _load() async {
     try {
+      final platformConfig = ref.read(platformConfigProvider).valueOrNull ?? {};
+      if (!platformCoursesEnabled(platformConfig)) {
+        setState(() {
+          _coursesDisabled = true;
+          _loading = false;
+        });
+        return;
+      }
       final user =
           await ref.read(authRepositoryProvider).refreshStoredUser() ??
           await ref.read(authRepositoryProvider).getStoredUser();
       _creatorId = user?['id'] as String?;
       final client = ref.read(apiClientProvider);
       final coursesRes = await client.dio.get('/creators/me/courses');
-      final courses = (coursesRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final courses = readApiList(coursesRes.data);
       Map<String, dynamic>? course;
       for (final c in courses) {
         if (c['id'] == widget.courseId) {
@@ -58,12 +68,12 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
       }
       if (_creatorId != null) {
         final tiersRes = await client.dio.get('/creators/$_creatorId/tiers');
-        _tiers = (tiersRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _tiers = readApiList(tiersRes.data);
         _tierEntitlementIds.clear();
         for (final tier in _tiers) {
           final tierId = tier['id'] as String;
           final entRes = await client.dio.get('/creators/me/tiers/$tierId/entitlements');
-          final ents = (entRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+          final ents = readApiList(entRes.data);
           String? matchId;
           for (final e in ents) {
             if (e['resourceType'] == 'course' && e['resourceId'] == widget.courseId) {
@@ -76,13 +86,11 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
       }
       final lessonsRes = await client.dio.get('/courses/${widget.courseId}/lessons');
       List<Map<String, dynamic>> cohorts = [];
-      final lmsEnabled = platformSkillEconomyLmsEnabled(
-        ref.read(platformConfigProvider).valueOrNull ?? {},
-      );
+      final lmsEnabled = platformSkillEconomyLmsEnabled(platformConfig);
       if (lmsEnabled) {
         try {
           final cohortsRes = await client.dio.get('/creators/me/courses/${widget.courseId}/cohorts');
-          cohorts = (cohortsRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+          cohorts = readApiList(cohortsRes.data);
         } catch (_) {}
       }
       List<Map<String, dynamic>> readyVideos = [];
@@ -92,7 +100,7 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
       setState(() {
         _courseTitle = course?['title'] as String?;
         _isPublished = course?['isPublished'] == true;
-        _lessons = (lessonsRes.data['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _lessons = readApiList(lessonsRes.data);
         _cohorts = cohorts;
         _readyVideos = readyVideos;
         _loading = false;
@@ -241,6 +249,13 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
 
   @override
   Widget build(BuildContext context) {
+    if (_coursesDisabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go('/studio');
+      });
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     final lmsEnabled = platformSkillEconomyLmsEnabled(
       ref.watch(platformConfigProvider).valueOrNull ?? {},
     );

@@ -122,14 +122,14 @@ describe('CreatorProgramsService', () => {
 
   it('lists published programs for consumers', async () => {
     const result = await service.listPublishedForCreator('creator-1', 'user-1');
-    expect(result.data).toHaveLength(1);
-    expect(result.data[0].slug).toBe('full-stack');
-    expect(result.data[0].courses[0].course?.title).toBe('Intro');
+    expect(result).toHaveLength(1);
+    expect(result[0].slug).toBe('full-stack');
+    expect(result[0].courses[0].course?.title).toBe('Intro');
   });
 
   it('gets published program by slug', async () => {
     const result = await service.getPublishedBySlug('creator-1', 'full-stack', 'user-1');
-    expect(result.data.id).toBe('prog-1');
+    expect(result.id).toBe('prog-1');
   });
 
   it('throws when published program not found', async () => {
@@ -144,13 +144,13 @@ describe('CreatorProgramsService', () => {
     courseRepository.findOne.mockResolvedValue(paidProgram);
     purchaseRepository.findOne.mockResolvedValue({ id: 'purchase-1', status: 'completed' });
     const result = await service.getPublishedBySlug('creator-1', 'full-stack', 'user-1');
-    expect(result.data.hasPurchased).toBe(true);
+    expect(result.hasPurchased).toBe(true);
   });
 
   it('enrolls user in all program courses', async () => {
     const result = await service.enrollInProgram('user-1', program.id);
     expect(coursesService.enroll).toHaveBeenCalledWith('user-1', course.id);
-    expect(result.data.enrollments).toHaveLength(1);
+    expect(result.enrollments).toHaveLength(1);
   });
 
   it('rejects enroll when program has no published courses', async () => {

@@ -26,10 +26,11 @@ describe('Programs HTTP (mocked e2e)', () => {
   };
 
   const programsService = {
-    listPublishedForCreator: jest.fn().mockResolvedValue({ data: [program] }),
-    getPublishedBySlug: jest.fn().mockResolvedValue({ data: program }),
+    listPublishedForCreator: jest.fn().mockResolvedValue([program]),
+    getPublishedBySlug: jest.fn().mockResolvedValue(program),
     enrollInProgram: jest.fn().mockResolvedValue({
-      data: { programId: 'prog-1', enrollments: [{ courseId: 'course-1', enrollmentId: 'en-1' }] },
+      programId: 'prog-1',
+      enrollments: [{ courseId: 'course-1', enrollmentId: 'en-1' }],
     }),
     createProgramCheckout: jest.fn().mockResolvedValue({
       ok: true,
@@ -37,7 +38,7 @@ describe('Programs HTTP (mocked e2e)', () => {
       checkoutUrl: 'https://checkout.stripe.com/test',
       sessionId: 'cs_test',
     }),
-    listForCreator: jest.fn().mockResolvedValue({ data: [program] }),
+    listForCreator: jest.fn().mockResolvedValue([program]),
     createProgram: jest.fn(),
     updateProgram: jest.fn(),
     deleteProgram: jest.fn(),
@@ -102,15 +103,15 @@ describe('Programs HTTP (mocked e2e)', () => {
     const res = await request(app.getHttpServer()).get('/api/v1/creators/creator-1/programs');
     expect(res.status).toBe(200);
     expect(programsService.listPublishedForCreator).toHaveBeenCalledWith('creator-1', 'user-1');
-    expect(res.body.data?.data?.[0]?.slug).toBe('full-stack');
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data[0]?.slug).toBe('full-stack');
   });
 
   it('GET /api/v1/creators/:id/programs/:slug returns program detail', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/creators/creator-1/programs/full-stack');
     expect(res.status).toBe(200);
     expect(programsService.getPublishedBySlug).toHaveBeenCalledWith('creator-1', 'full-stack', 'user-1');
-    const detail = res.body.data?.data ?? res.body.data;
-    expect(detail?.name).toBe('Full Stack');
+    expect(res.body.data?.name).toBe('Full Stack');
   });
 
   it('POST /api/v1/programs/:id/enroll enrolls user', async () => {
