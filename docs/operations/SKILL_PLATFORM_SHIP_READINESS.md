@@ -1,7 +1,26 @@
 # Skill platform ship readiness
 
-**Status:** In-repo engineering complete (2026-09-02).  
+**Status:** In-repo engineering complete (2026-09-02). Ready for PR → merge → staging flag rollout.  
+**Branch:** `feature/skill-first-platform` (3 commits ahead of `main`)  
 **SSOT:** [FORGE_IMPLEMENTATION_ROADMAP.md](../FORGE_IMPLEMENTATION_ROADMAP.md) · [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md)
+
+**Open PR:** https://github.com/Forge-Studios-dev/FORGE/pull/new/feature/skill-first-platform  
+*(Requires repo collaborator — local `gh` may fail with "must be a collaborator".)*
+
+---
+
+## Merge gate (verified locally)
+
+| Check | Status |
+|-------|--------|
+| `@forge/shared-types` build + tests | Pass |
+| API lint + build | Pass |
+| Skill unit tests (flags, programs, billing, pipe) | 72 pass |
+| Skill HTTP e2e (courses, programs, bundles) | 13 pass |
+| Web production build | Pass |
+| Admin production build | Pass |
+| Full `npm run ci:local` | Run before merge |
+| `npm run smoke:skill-features` | Run with API + flags on |
 
 ---
 
