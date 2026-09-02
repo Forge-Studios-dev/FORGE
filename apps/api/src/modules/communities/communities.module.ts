@@ -23,6 +23,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
 import { EngagementModule } from '../engagement/engagement.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
+import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { SkillFeatureGuard } from '../../common/guards/skill-feature.guard';
 import { CommunityPost } from './entities/community-post.entity';
 import { CommunityPostComment } from './entities/community-post-comment.entity';

@@ -61,10 +61,11 @@ export function ProgramViewerClient({
     },
   });
 
+  const confirmPurchaseEnroll = enrollMutation.mutate;
   useEffect(() => {
     if (!justPurchased || isGuest || program.isFree) return;
-    enrollMutation.mutate();
-  }, [justPurchased, isGuest, program.isFree, program.id]);
+    confirmPurchaseEnroll();
+  }, [justPurchased, isGuest, program.isFree, confirmPurchaseEnroll]);
 
   const priceLabel =
     program.priceCents > 0 ? `$${(program.priceCents / 100).toFixed(2)}` : null;
