@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { PageHeader } from '@forge/design-system';
 import { serverApi } from '@/lib/api';
 import { SITE_URL } from '@/lib/site';
-import { lookupUserByUsernameCached } from '@/lib/get-user-by-username';
+import { getUserByUsernameCached } from '@/lib/get-user-by-username';
 import { getServerPlatformConfig } from '@/lib/server-platform-config';
 import { ProgramViewerClient, type PublicProgram } from '@/components/Courses/ProgramViewerClient';
 
@@ -27,7 +27,7 @@ async function getProgram(creatorId: string, slug: string): Promise<PublicProgra
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const user = await lookupUserByUsernameCached(params.username);
+  const user = await getUserByUsernameCached(params.username);
   if (!user) return { title: 'Program not found' };
   const program = await getProgram(user.id, params.slug);
   if (!program) return { title: 'Program not found' };
@@ -48,7 +48,7 @@ export default async function ProgramPage({ params, searchParams }: Props) {
     redirect(`/${params.username}`);
   }
 
-  const user = await lookupUserByUsernameCached(params.username);
+  const user = await getUserByUsernameCached(params.username);
   if (!user) notFound();
 
   const program = await getProgram(user.id, params.slug);
