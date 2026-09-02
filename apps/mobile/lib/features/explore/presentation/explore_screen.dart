@@ -291,7 +291,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     onSelected: (v) => setState(() => _resultType = v),
                   ),
                   if (platformCoursesEnabled(
-                    ref.watch(platformConfigProvider).valueOrNull ?? {},
+                    ref.watch(platformConfigProvider).asData?.value ?? {},
                   )) ...[
                     const SizedBox(width: 6),
                     _filterChip(
@@ -471,7 +471,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     }
     if (q.isEmpty) {
       final categoriesAsync = ref.watch(exploreCategoriesProvider);
-      final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+      final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
       final coursesEnabled = platformCoursesEnabled(platformConfig);
       return ListView(
         padding: const EdgeInsets.all(16),

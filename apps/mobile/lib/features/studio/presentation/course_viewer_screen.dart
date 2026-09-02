@@ -104,7 +104,7 @@ class _CourseViewerScreenState extends ConsumerState<CourseViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
     if (!platformCoursesEnabled(platformConfig)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) context.go('/explore');

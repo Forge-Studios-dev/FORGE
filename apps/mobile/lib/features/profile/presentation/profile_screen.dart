@@ -244,7 +244,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   List<Widget> _homeSlivers(UserModel user) {
-    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
     final coursesEnabled = platformCoursesEnabled(platformConfig);
     final streamsAsync = ref.watch(channelStreamsProvider(user.id));
     final videosAsync = ref.watch(

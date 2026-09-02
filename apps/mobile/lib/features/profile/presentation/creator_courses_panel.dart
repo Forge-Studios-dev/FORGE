@@ -38,7 +38,7 @@ class CreatorCoursesPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
     final lmsEnabled = platformSkillEconomyLmsEnabled(platformConfig);
 
     final coursesAsync = ref.watch(creatorCoursesCatalogProvider(creatorId));

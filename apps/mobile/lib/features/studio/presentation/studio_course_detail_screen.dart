@@ -44,7 +44,7 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
 
   Future<void> _load() async {
     try {
-      final platformConfig = ref.read(platformConfigProvider).valueOrNull ?? {};
+      final platformConfig = ref.read(platformConfigProvider).asData?.value ?? {};
       if (!platformCoursesEnabled(platformConfig)) {
         setState(() {
           _coursesDisabled = true;
@@ -257,7 +257,7 @@ class _StudioCourseDetailScreenState extends ConsumerState<StudioCourseDetailScr
     }
 
     final lmsEnabled = platformSkillEconomyLmsEnabled(
-      ref.watch(platformConfigProvider).valueOrNull ?? {},
+      ref.watch(platformConfigProvider).asData?.value ?? {},
     );
 
     return Scaffold(

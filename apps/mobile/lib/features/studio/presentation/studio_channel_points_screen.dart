@@ -100,7 +100,7 @@ class _StudioChannelPointsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
     if (!platformChannelPointsEnabled(platformConfig)) {
       return Scaffold(
         appBar: AppBar(title: const Text('Channel points')),

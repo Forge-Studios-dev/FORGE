@@ -150,7 +150,7 @@ class StudioScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final attentionAsync = ref.watch(studioAttentionProvider);
-    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
     final coursesEnabled = platformCoursesEnabled(platformConfig);
     final mentorshipEnabled = platformMentorshipEnabled(platformConfig);
     final channelPointsEnabled = platformChannelPointsEnabled(platformConfig);

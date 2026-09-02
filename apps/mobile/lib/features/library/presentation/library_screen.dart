@@ -44,7 +44,7 @@ class LibraryScreen extends ConsumerWidget {
           orElse: () => (watchLater: null, liked: null, playlists: null),
         );
     final continueWatching = ref.watch(continueWatchingProvider);
-    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
     final coursesEnabled = platformCoursesEnabled(platformConfig);
 
     String shelfSubtitle(String fallback, int? count) {

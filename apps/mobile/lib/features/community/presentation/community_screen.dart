@@ -668,7 +668,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       );
     }
 
-    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
     final mentorshipOn = platformMentorshipEnabled(platformConfig);
     final pointsOn = platformChannelPointsEnabled(platformConfig);
 

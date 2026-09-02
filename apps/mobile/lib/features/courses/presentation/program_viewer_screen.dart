@@ -115,7 +115,7 @@ class _ProgramViewerScreenState extends ConsumerState<ProgramViewerScreen> with 
 
   @override
   Widget build(BuildContext context) {
-    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
     if (!platformSkillEconomyLmsEnabled(platformConfig)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) context.go('/profile/${widget.username}');

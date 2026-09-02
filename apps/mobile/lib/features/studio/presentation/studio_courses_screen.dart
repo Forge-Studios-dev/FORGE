@@ -62,7 +62,7 @@ class _StudioCoursesScreenState extends ConsumerState<StudioCoursesScreen>
 
   @override
   Widget build(BuildContext context) {
-    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
     if (!platformCoursesEnabled(platformConfig)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) context.go('/studio');
