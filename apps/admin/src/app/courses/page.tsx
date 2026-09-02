@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader, StatusPill } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { AdminSkillFeatureGate } from '@/components/AdminSkillFeatureGate';
 
 type Overview = {
   counts: {
@@ -25,6 +26,14 @@ type Overview = {
 };
 
 export default function CoursesOversightPage() {
+  return (
+    <AdminSkillFeatureGate feature="courses">
+      <CoursesOversightInner />
+    </AdminSkillFeatureGate>
+  );
+}
+
+function CoursesOversightInner() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-courses-overview'],
     queryFn: async () => {

@@ -204,4 +204,35 @@ describe('CreatorProgramsService', () => {
       expect.objectContaining({ status: 'refunded' }),
     );
   });
+
+  it('restores refunded purchase to completed on re-fulfill', async () => {
+    const paidProgram = { ...program, priceCents: 2500 };
+    courseRepository.findOne.mockResolvedValue(paidProgram);
+    purchaseRepository.findOne.mockResolvedValue({
+      id: 'purchase-1',
+      programId: program.id,
+      userId: 'user-1',
+      status: 'refunded',
+      amountCents: 2500,
+      currency: 'usd',
+      stripeCheckoutSessionId: 'cs_old',
+      stripePaymentIntentId: 'pi_old',
+    });
+    await service.fulfillPaidPurchase({
+      userId: 'user-1',
+      programId: program.id,
+      amountCents: 2500,
+      currency: 'usd',
+      stripeCheckoutSessionId: 'cs_new',
+      stripePaymentIntentId: 'pi_new',
+    });
+    expect(purchaseRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'completed',
+        stripeCheckoutSessionId: 'cs_new',
+        stripePaymentIntentId: 'pi_new',
+      }),
+    );
+    expect(coursesService.enroll).toHaveBeenCalledWith('user-1', course.id);
+  });
 });

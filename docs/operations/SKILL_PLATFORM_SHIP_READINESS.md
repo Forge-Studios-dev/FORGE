@@ -1,10 +1,10 @@
 # Skill platform ship readiness
 
 **Status:** In-repo engineering complete (2026-09-02). Ready for PR → merge → staging flag rollout.  
-**Branch:** `feature/skill-first-platform` (3 commits ahead of `main`)  
+**Branch:** `feature/skill-first-platform` (ahead of `origin`; push after `gh auth login`)  
 **SSOT:** [FORGE_IMPLEMENTATION_ROADMAP.md](../FORGE_IMPLEMENTATION_ROADMAP.md) · [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md)
 
-**Open PR:** run `bash scripts/create-skill-platform-pr.sh` after `gh auth login`, or open  
+**Open PR:** run `npm run pr:skill-platform` (or `bash scripts/create-skill-platform-pr.sh`) after `gh auth login`, or open  
 https://github.com/Forge-Studios-dev/FORGE/compare/main...feature/skill-first-platform  
 *(Requires repo collaborator — local `gh` may fail with "must be a collaborator".)*
 
@@ -72,6 +72,7 @@ Clients read `GET /platform/config` → `skillFeatures`.
 - `POST /programs/:id/checkout` → Stripe Connect
 - Webhook `metadata.type=program` → enroll bundled courses
 - Refund/dispute → `program_purchases.status=refunded` (enrollments kept)
+- Re-purchase after refund → `fulfillPaidPurchase` restores `completed` then re-enrolls
 
 ---
 

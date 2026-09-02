@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader, StatusPill } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { AdminSkillFeatureGate } from '@/components/AdminSkillFeatureGate';
 
 type SummaryRow = {
   communityId: string;
@@ -25,6 +26,14 @@ type RedemptionRow = {
 };
 
 export default function ChannelPointsOversightPage() {
+  return (
+    <AdminSkillFeatureGate feature="channelPoints">
+      <ChannelPointsOversightInner />
+    </AdminSkillFeatureGate>
+  );
+}
+
+function ChannelPointsOversightInner() {
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['admin-channel-points-summary'],
     queryFn: async () => {

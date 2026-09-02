@@ -198,6 +198,17 @@ export class CreatorProgramsService {
           stripePaymentIntentId: input.stripePaymentIntentId ?? null,
         }),
       );
+    } else if (existing.status !== 'completed') {
+      // Re-purchase after refund/dispute — restore ownership before enroll.
+      existing.status = 'completed';
+      existing.amountCents = input.amountCents;
+      existing.currency = input.currency ?? existing.currency ?? 'usd';
+      existing.purchasedAt = new Date();
+      existing.stripeCheckoutSessionId =
+        input.stripeCheckoutSessionId ?? existing.stripeCheckoutSessionId;
+      existing.stripePaymentIntentId =
+        input.stripePaymentIntentId ?? existing.stripePaymentIntentId;
+      await this.purchaseRepository.save(existing);
     }
 
     return this.enrollInProgramCourses(input.userId, program);

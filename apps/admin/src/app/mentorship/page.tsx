@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader, StatusPill } from '@forge/design-system';
 import { api } from '@/lib/api';
+import { AdminSkillFeatureGate } from '@/components/AdminSkillFeatureGate';
 
 type Overview = {
   counts: Record<string, number>;
@@ -19,6 +20,14 @@ type Overview = {
 };
 
 export default function MentorshipOversightPage() {
+  return (
+    <AdminSkillFeatureGate feature="mentorship">
+      <MentorshipOversightInner />
+    </AdminSkillFeatureGate>
+  );
+}
+
+function MentorshipOversightInner() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-mentorship-overview'],
     queryFn: async () => {

@@ -11,8 +11,9 @@ Copy the sections below into the GitHub PR description.
 
 - Add granular skill feature flags (`FEATURES_COURSES`, `FEATURES_MENTORSHIP`, `FEATURES_CHANNEL_POINTS`, `FEATURES_SKILL_ECONOMY_LMS`) with `SkillFeatureGuard` and `GET /platform/config` → `skillFeatures`.
 - Restore courses MVP on web, mobile, and admin (discover, viewer, Studio builder, admin oversight).
-- Add paid program Stripe checkout + webhook enroll + refund reversal; fix `creators/me/*` route ordering and add `ReservedCreatorIdPipe`.
-- Improve discovery (course search, featured rails, sitemap) and ship ops (`npm run smoke:skill-features`, manual GitHub workflow, ADRs).
+- Add paid program Stripe checkout + webhook enroll + refund reversal (re-fulfill restores `refunded` → `completed`); fix `creators/me/*` route ordering and add `ReservedCreatorIdPipe`.
+- Improve discovery (course search, featured rails, sitemap) and ship ops (`npm run smoke:skill-features`, `npm run pr:skill-platform`, manual GitHub workflow, ADRs).
+- Admin skill pages gated with `AdminSkillFeatureGate` (nav already flag-aware).
 
 ## Test plan
 

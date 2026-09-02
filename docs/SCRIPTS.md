@@ -24,7 +24,7 @@ Run from **repository root** unless noted.
 | `smoke-community-2.0.sh` | `smoke:community-2.0` | Community 2.0: multi-community, brands, business analytics (funnel + cohorts), courses, gamification, access sessions |
 | `smoke-skill-features.sh` | `smoke:skill-features` | Skill flags, discover, course search, creator courses, programs (LMS), admin courses overview |
 
-| `create-skill-platform-pr.sh` | — | Create PR for `feature/skill-first-platform` (requires `gh auth login`) |
+| `create-skill-platform-pr.sh` | `pr:skill-platform` | Create PR for `feature/skill-first-platform` (requires `gh auth login`) |
 
 GitHub Actions: **Skill features smoke** (`workflow_dispatch` in `.github/workflows/skill-smoke.yml`) — run against staging/prod API after deploy; set `expect_flags=1` when courses must be on.
 | `smoke-channel-sunset.sh` | — | Channel-sunset flow smoke (staging/prod) — see [operations/CHANNEL_SUNSET.md](./operations/CHANNEL_SUNSET.md) |
