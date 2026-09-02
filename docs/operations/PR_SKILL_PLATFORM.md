@@ -23,7 +23,7 @@ Copy the sections below into the GitHub PR description.
 - [x] API lint/build; **1583** unit tests + **69** HTTP e2e pass
 - [x] Skill-focused unit + e2e (courses, programs, bundles, billing)
 - [x] Web + admin production builds
-- [ ] `npm run ci:local` (full gate before merge)
+- [x] `npm run ci:local` (full gate — pass 2026-09-02)
 - [ ] `npm run smoke:skill-features` with API running and flags enabled
 - [ ] Apply migration `2290000000000-program-purchases` on staging
 - [ ] Staging: enable flags → verify `/discover/courses`, Studio programs tab, paid checkout (Stripe test mode)

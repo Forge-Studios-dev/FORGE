@@ -45,7 +45,7 @@ Unpushed commits (oldest → newest):
 | **Full API HTTP e2e** | **69 pass** |
 | Web production build | Pass |
 | Admin production build | Pass |
-| Full `npm run ci:local` | Run before merge |
+| Full `npm run ci:local` | **Pass** (2026-09-02) |
 | `npm run smoke:skill-features` | Run with API + flags on |
 
 ---
