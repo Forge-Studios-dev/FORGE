@@ -26,6 +26,11 @@ primary_region = 'sin'
   NODE_ENV = 'production'
   PORT = '3001'
   BILLING_PROVIDER = 'stripe'
+  # Skill platform (ADR-006) — clients read GET /platform/config → skillFeatures.
+  FEATURES_COURSES = 'true'
+  FEATURES_MENTORSHIP = 'true'
+  FEATURES_CHANNEL_POINTS = 'true'
+  FEATURES_SKILL_ECONOMY_LMS = 'true'
   # H-B2: production VOD is Mux end-to-end (see fly.worker.toml + Dockerfile.worker).
   # Setting this on the API too keeps upload sessions/config-driven URLs consistent
   # even though the API doesn't run the ffmpeg consumer.
