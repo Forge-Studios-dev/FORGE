@@ -26,7 +26,34 @@ if [[ -z "${FLY_API_TOKEN:-}" ]] && ! "$FLY" auth whoami >/dev/null 2>&1; then
   exit 1
 fi
 
-"$FLY" ssh console -a "$API_APP" -C 'printenv' 2>&1 | grep -v '^Connecting' > "$ENV_DUMP"
+# API uses auto_stop — fly ssh can hang indefinitely on a suspended machine (Release worker job).
+API_HEALTH_URL="${API_HEALTH_URL:-https://api.forgestudios.net/api/v1/health/live}"
+SSH_TIMEOUT_SEC="${FLY_SSH_TIMEOUT_SEC:-120}"
+IMPORT_TIMEOUT_SEC="${FLY_SECRETS_IMPORT_TIMEOUT_SEC:-300}"
+
+echo "==> Waking API before SSH ($API_HEALTH_URL)"
+curl -sf --max-time 30 "$API_HEALTH_URL" >/dev/null || true
+
+if command -v jq >/dev/null 2>&1; then
+  MACHINE_ID="$("$FLY" machines list -a "$API_APP" --json 2>/dev/null | jq -r '.[0].id // empty')"
+  if [[ -n "$MACHINE_ID" ]]; then
+    STATE="$("$FLY" machines list -a "$API_APP" --json 2>/dev/null | jq -r '.[0].state // empty')"
+    if [[ "$STATE" != "started" ]]; then
+      echo "==> Starting API machine $MACHINE_ID (state=${STATE:-unknown})"
+      "$FLY" machine start "$MACHINE_ID" -a "$API_APP" 2>&1 || true
+      for _ in 1 2 3 4 5 6; do
+        curl -sf --max-time 20 "$API_HEALTH_URL" >/dev/null && break
+        sleep 5
+      done
+    fi
+  fi
+fi
+
+if ! timeout "$SSH_TIMEOUT_SEC" "$FLY" ssh console -a "$API_APP" -C 'printenv' 2>&1 \
+  | grep -v '^Connecting' > "$ENV_DUMP"; then
+  echo "ERROR: fly ssh to $API_APP timed out after ${SSH_TIMEOUT_SEC}s (machine stopped or unreachable)" >&2
+  exit 1
+fi
 
 ENV_DUMP="$ENV_DUMP" SECRETS_OUT="$SECRETS_OUT" python3 <<'PY'
 import os
@@ -64,5 +91,8 @@ open(os.environ["SECRETS_OUT"], "w").write("\n".join(out) + "\n")
 print(f"Prepared {len(out)} secrets for worker")
 PY
 
-"$FLY" secrets import -a "$WORKER_APP" < "$SECRETS_OUT"
+if ! timeout "$IMPORT_TIMEOUT_SEC" "$FLY" secrets import -a "$WORKER_APP" < "$SECRETS_OUT"; then
+  echo "ERROR: fly secrets import to $WORKER_APP timed out after ${IMPORT_TIMEOUT_SEC}s" >&2
+  exit 1
+fi
 echo "==> Worker secrets updated (includes DB_POOL_MAX and related pool tuning)"

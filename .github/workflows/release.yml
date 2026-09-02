@@ -234,6 +234,7 @@ jobs:
     name: Deploy worker (Fly.io)
     needs: deploy-api
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     environment: production
     steps:
       - uses: actions/checkout@v7
