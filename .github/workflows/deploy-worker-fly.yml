@@ -1,0 +1,67 @@
+# Manual BullMQ worker deploy (production). Use when Release worker job fails or hangs.
+# Required secret: FLY_API_TOKEN
+
+name: Deploy worker (Fly.io)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: fly-worker-production
+  cancel-in-progress: true
+
+jobs:
+  deploy-worker:
+    name: Deploy worker (Fly.io)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
+
+      - name: Require Fly secret
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::Missing GitHub secret: FLY_API_TOKEN"
+            exit 1
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Sync worker secrets from API
+        run: bash scripts/sync-fly-worker-secrets.sh
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy BullMQ worker
+        run: flyctl deploy -c fly.worker.toml -a forge-studios-worker --remote-only --ha=false
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Force-start worker machine
+        if: always()
+        run: |
+          MACHINE_ID=$(flyctl machines list -a forge-studios-worker --json 2>/dev/null \
+            | jq -r '.[0].id // empty')
+          if [ -n "$MACHINE_ID" ]; then
+            flyctl machine restart "$MACHINE_ID" -a forge-studios-worker --skip-health-checks 2>&1 || \
+              flyctl machine start "$MACHINE_ID" -a forge-studios-worker 2>&1 || true
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Verify worker started
+        run: |
+          for i in $(seq 1 9); do
+            STATE=$(flyctl machines list -a forge-studios-worker --json 2>/dev/null \
+              | jq -r '.[0].state // empty')
+            echo "attempt $i: state=$STATE"
+            [ "$STATE" = "started" ] && exit 0
+            sleep 10
+          done
+          echo "::error::Worker did not reach started within 90s"
+          exit 1
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
