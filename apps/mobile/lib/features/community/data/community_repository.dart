@@ -249,4 +249,90 @@ class CommunityRepository {
       '/communities/$communityId/rooms/$roomId/raise-hand/$targetUserId/approve',
     );
   }
+
+  // ── Mentorship (member) ───────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>?> getMentorshipProfile(String communityId) async {
+    final res = await _api.dio.get('/communities/$communityId/mentorship/profile/me');
+    final payload = res.data['data'];
+    if (payload is Map<String, dynamic>) return payload;
+    if (payload is Map) return Map<String, dynamic>.from(payload);
+    return null;
+  }
+
+  Future<void> upsertMentorshipProfile(
+    String communityId, {
+    required String role,
+    List<String>? skills,
+    String? bio,
+  }) async {
+    await _api.dio.put(
+      '/communities/$communityId/mentorship/profile',
+      data: {
+        'role': role,
+        if (skills != null) 'skills': skills,
+        if (bio != null && bio.isNotEmpty) 'bio': bio,
+      },
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> listMentors(String communityId) async {
+    final res = await _api.dio.get('/communities/$communityId/mentorship/mentors');
+    final payload = res.data['data'];
+    if (payload is List) return payload.cast<Map<String, dynamic>>();
+    if (payload is Map && payload['data'] is List) {
+      return (payload['data'] as List).cast<Map<String, dynamic>>();
+    }
+    return [];
+  }
+
+  Future<({List<Map<String, dynamic>> asMentor, List<Map<String, dynamic>> asMentee})>
+      listMyMentorshipMatches(String communityId) async {
+    final res = await _api.dio.get('/communities/$communityId/mentorship/matches/me');
+    final payload = res.data['data'];
+    if (payload is! Map) {
+      return (asMentor: <Map<String, dynamic>>[], asMentee: <Map<String, dynamic>>[]);
+    }
+    final asMentor = (payload['asMentor'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final asMentee = (payload['asMentee'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    return (asMentor: asMentor, asMentee: asMentee);
+  }
+
+  Future<void> respondToMentorshipMatch(
+    String communityId,
+    String matchId, {
+    required bool accept,
+  }) async {
+    await _api.dio.post(
+      '/communities/$communityId/mentorship/matches/$matchId/respond',
+      data: {'accept': accept},
+    );
+  }
+
+  // ── Channel points (member) ───────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getChannelPointsBalance(String communityId) async {
+    final res = await _api.dio.get('/communities/$communityId/channel-points/me');
+    final payload = res.data['data'];
+    if (payload is Map<String, dynamic>) return payload;
+    if (payload is Map) return Map<String, dynamic>.from(payload);
+    return {'balance': 0, 'totalEarned': 0};
+  }
+
+  Future<List<Map<String, dynamic>>> listChannelPointRewards(String communityId) async {
+    final res = await _api.dio.get('/communities/$communityId/channel-points/rewards');
+    final payload = res.data['data'];
+    if (payload is List) return payload.cast<Map<String, dynamic>>();
+    if (payload is Map && payload['data'] is List) {
+      return (payload['data'] as List).cast<Map<String, dynamic>>();
+    }
+    return [];
+  }
+
+  Future<void> redeemChannelPointReward(String communityId, String rewardId) async {
+    await _api.dio.post(
+      '/communities/$communityId/channel-points/redeem',
+      data: {'rewardId': rewardId},
+    );
+  }
 }

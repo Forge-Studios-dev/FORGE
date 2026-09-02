@@ -62,8 +62,8 @@ Clients read `GET /platform/config` → `skillFeatures`.
 |---------|-----|--------|-------|
 | Courses MVP | `/discover/courses`, `/courses/:id`, Studio | discover, viewer, studio | `/courses` overview |
 | Programs (LMS) | `/:user/programs/:slug`, Studio Programs tab | program viewer, studio | — |
-| Mentorship | Studio + community Mentorship tab | studio screen | `/mentorship` |
-| Channel points | Studio + community Points tab | studio screen | `/channel-points` |
+| Mentorship | Studio + community Mentorship tab | studio + community Mentor tab | `/mentorship` |
+| Channel points | Studio + community Points tab | studio + community Points tab | `/channel-points` |
 | Discovery | search `type=course`, home rail | feed + explore rails | — |
 
 ---
