@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, In, IsNull, SelectQueryBuilder } from 'typeorm';
 import { clampLimit } from '../../common/utils/pagination.util';
@@ -20,10 +20,11 @@ import { getMutedChannelIds } from '../feed/not-interested.util';
 import { mergeExcludedCreatorIds } from '../feed/viewer-exclusions.util';
 import { EngagementService } from '../engagement/engagement.service';
 import { suggestTypoPrefixes } from './suggest-typo.util';
+import { CoursesService } from '../courses/courses.service';
 
 const SEARCH_CACHE_TTL_SEC = 120;
 
-export type SearchType = 'all' | 'video' | 'channel' | 'playlist';
+export type SearchType = 'all' | 'video' | 'channel' | 'playlist' | 'course';
 /** YouTube-like duration buckets (seconds). */
 export type SearchDuration = 'any' | 'short' | 'medium' | 'long';
 /** Upload date window relative to now. */
@@ -75,6 +76,19 @@ export type PublicSearchPlaylist = {
   } | null;
 };
 
+export type PublicSearchCourse = {
+  id: string;
+  title: string;
+  slug: string;
+  description?: string | null;
+  lessonCount: number;
+  creator?: {
+    id: string;
+    username: string;
+    displayName: string;
+  } | null;
+};
+
 @Injectable()
 export class SearchService {
   private readonly logger = new Logger(SearchService.name);
@@ -89,6 +103,7 @@ export class SearchService {
     private readonly videosService: VideosService,
     private readonly engagementService: EngagementService,
     @InjectRedis() private readonly redis: Redis,
+    @Optional() private readonly coursesService?: CoursesService,
   ) {}
 
   private async excludedCreatorIds(viewerId?: string): Promise<string[]> {
@@ -149,6 +164,7 @@ export class SearchService {
       videos: [],
       users: [],
       playlists: [] as PublicSearchPlaylist[],
+      courses: [] as PublicSearchCourse[],
       meta: {
         q: term,
         type,
@@ -208,8 +224,20 @@ export class SearchService {
   }
 
   private normalizeType(type: string | undefined): SearchType {
-    if (type === 'video' || type === 'channel' || type === 'playlist') return type;
+    if (type === 'video' || type === 'channel' || type === 'playlist' || type === 'course') {
+      return type;
+    }
     return 'all';
+  }
+
+  private async searchCourses(
+    term: string,
+    take: number,
+    viewerId?: string,
+  ): Promise<PublicSearchCourse[]> {
+    if (!this.coursesService) return [];
+    const { data } = await this.coursesService.discoverCourses(term, take, viewerId);
+    return data ?? [];
   }
 
   private applyVideoFilters(
@@ -405,6 +433,7 @@ export class SearchService {
     const includeVideos = type === 'all' || type === 'video';
     const includeChannels = type === 'all' || type === 'channel';
     const includePlaylists = type === 'all' || type === 'playlist';
+    const includeCourses = type === 'all' || type === 'course';
     const excludedCreators = await this.excludedCreatorIds(viewerId);
 
     const rankedVideos = includeVideos
@@ -446,6 +475,7 @@ export class SearchService {
       filters.watched !== 'any';
     const loadChannels = includeChannels && !(videoFilterActive && type === 'all');
     const loadPlaylists = includePlaylists && !(videoFilterActive && type === 'all');
+    const loadCourses = includeCourses && !(videoFilterActive && type === 'all');
 
     let users = loadChannels
       ? await this.userRepository
@@ -467,10 +497,13 @@ export class SearchService {
       playlists = playlists.filter((p) => !blocked.has(p.userId));
     }
 
+    const courses = loadCourses ? await this.searchCourses(term, take, viewerId) : [];
+
     return {
       videos: rankedVideos.map((v) => this.videosService.mapToPublicVideo(v)),
       users: users.map(toPublicUser),
       playlists,
+      courses,
       meta: {
         q: term,
         limit: take,
@@ -620,6 +653,7 @@ export class SearchService {
     const includeVideos = type === 'all' || type === 'video';
     const includeChannels = type === 'all' || type === 'channel';
     const includePlaylists = type === 'all' || type === 'playlist';
+    const includeCourses = type === 'all' || type === 'course';
     const videoFilterActive =
       filters.duration !== 'any' ||
       filters.uploaded !== 'any' ||
@@ -672,10 +706,16 @@ export class SearchService {
       playlists = playlists.filter((p) => !blocked.has(p.userId));
     }
 
+    const courses =
+      includeCourses && (!videoFilterActive || type === 'course')
+        ? await this.searchCourses(term, take, viewerId)
+        : [];
+
     return {
       videos: videos.map((v) => this.videosService.mapToPublicVideo(v)),
       users: users.map(toPublicUser),
       playlists,
+      courses,
       meta: {
         q: term,
         limit: take,

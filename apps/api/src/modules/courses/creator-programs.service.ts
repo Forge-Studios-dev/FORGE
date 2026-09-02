@@ -1,15 +1,20 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Course, CourseBundleItem } from './entities/course.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CoursesService } from './courses.service';
+import { ProgramPurchase } from './entities/program-purchase.entity';
+import { BillingService } from '../billing/billing.service';
 import { slugify } from '../../common/utils/slugify.util';
+import type { ProgramPurchaseCompletedEvent } from './program-purchase.listener';
 
 /**
  * "Programs" are bundle courses — Course rows with isBundle=true whose content
@@ -29,7 +34,11 @@ export class CreatorProgramsService {
     private readonly bundleItemRepository: Repository<CourseBundleItem>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
+    @InjectRepository(ProgramPurchase)
+    private readonly purchaseRepository: Repository<ProgramPurchase>,
     private readonly coursesService: CoursesService,
+    @Inject(forwardRef(() => BillingService))
+    private readonly billingService: BillingService,
   ) {}
 
   private async getBundleOrThrow(creatorId: string | undefined, programId: string): Promise<Course> {
@@ -39,7 +48,10 @@ export class CreatorProgramsService {
     return bundle;
   }
 
-  private async mapProgram(program: Course, options?: { consumerView?: boolean }) {
+  private async mapProgram(
+    program: Course,
+    options?: { consumerView?: boolean; viewerId?: string | null },
+  ) {
     const itemRows = await this.bundleItemRepository.find({
       where: { bundleCourseId: program.id },
       order: { sortOrder: 'ASC' },
@@ -51,6 +63,12 @@ export class CreatorProgramsService {
         : await this.courseRepository.find({ where: { id: In(courseIds) } });
     const courseById = new Map(courses.map((c) => [c.id, c]));
     const consumerView = options?.consumerView ?? false;
+    let hasPurchased = false;
+    if (options?.viewerId && program.priceCents > 0) {
+      hasPurchased = !!(await this.purchaseRepository.findOne({
+        where: { programId: program.id, userId: options.viewerId, status: 'completed' },
+      }));
+    }
     return {
       id: program.id,
       creatorId: program.creatorId,
@@ -61,6 +79,7 @@ export class CreatorProgramsService {
       isPublished: program.isPublished,
       priceCents: program.priceCents,
       isFree: program.priceCents === 0,
+      hasPurchased,
       stripePriceId: program.stripePriceId,
       sortOrder: 0,
       courses: itemRows
@@ -89,7 +108,7 @@ export class CreatorProgramsService {
     });
     const consumerView = viewerId !== creatorId;
     const data = await Promise.all(
-      programs.map((p) => this.mapProgram(p, { consumerView })),
+      programs.map((p) => this.mapProgram(p, { consumerView, viewerId })),
     );
     return { data: data.filter((p) => p.courses.length > 0 || !consumerView) };
   }
@@ -100,7 +119,10 @@ export class CreatorProgramsService {
     });
     if (!program) throw new NotFoundException('Program not found');
     return {
-      data: await this.mapProgram(program, { consumerView: viewerId !== creatorId }),
+      data: await this.mapProgram(program, {
+        consumerView: viewerId !== creatorId,
+        viewerId,
+      }),
     };
   }
 
@@ -110,10 +132,89 @@ export class CreatorProgramsService {
     });
     if (!program) throw new NotFoundException('Program not found');
     if (program.priceCents > 0) {
-      throw new ForbiddenException(
-        'This program requires purchase. Use the checkout endpoint to obtain access.',
+      const purchased = await this.purchaseRepository.findOne({
+        where: { programId, userId, status: 'completed' },
+      });
+      if (!purchased) {
+        throw new ForbiddenException(
+          'This program requires purchase. Use the checkout endpoint to obtain access.',
+        );
+      }
+    }
+    return this.enrollInProgramCourses(userId, program);
+  }
+
+  async createProgramCheckout(
+    userId: string,
+    programId: string,
+    input: { successUrl: string; cancelUrl: string },
+  ) {
+    const program = await this.courseRepository.findOne({
+      where: { id: programId, isBundle: true, isPublished: true },
+    });
+    if (!program) throw new NotFoundException('Program not found');
+    if (!program.priceCents || program.priceCents < 100) {
+      throw new BadRequestException('This program is free — enroll directly');
+    }
+
+    const existing = await this.purchaseRepository.findOne({
+      where: { programId, userId, status: 'completed' },
+    });
+    if (existing) {
+      throw new BadRequestException('You already purchased this program');
+    }
+
+    return this.billingService.createProgramCheckout(userId, {
+      programId: program.id,
+      creatorId: program.creatorId,
+      title: program.title,
+      amountCents: program.priceCents,
+      successUrl: input.successUrl,
+      cancelUrl: input.cancelUrl,
+    });
+  }
+
+  async fulfillPaidPurchase(input: ProgramPurchaseCompletedEvent) {
+    const program = await this.courseRepository.findOne({
+      where: { id: input.programId, isBundle: true, isPublished: true },
+    });
+    if (!program) {
+      throw new NotFoundException('Program not found');
+    }
+
+    const existing = await this.purchaseRepository.findOne({
+      where: { programId: input.programId, userId: input.userId },
+    });
+    if (!existing) {
+      await this.purchaseRepository.save(
+        this.purchaseRepository.create({
+          programId: input.programId,
+          userId: input.userId,
+          amountCents: input.amountCents,
+          currency: input.currency ?? 'usd',
+          status: 'completed',
+          purchasedAt: new Date(),
+          stripeCheckoutSessionId: input.stripeCheckoutSessionId ?? null,
+          stripePaymentIntentId: input.stripePaymentIntentId ?? null,
+        }),
       );
     }
+
+    return this.enrollInProgramCourses(input.userId, program);
+  }
+
+  /** Revokes program ownership after Stripe reports refund/dispute (course enrollments are not rolled back). */
+  async revokePaidPurchaseByPaymentIntent(paymentIntentId?: string): Promise<void> {
+    if (!paymentIntentId) return;
+    const purchase = await this.purchaseRepository.findOne({
+      where: { stripePaymentIntentId: paymentIntentId, status: 'completed' },
+    });
+    if (!purchase) return;
+    purchase.status = 'refunded';
+    await this.purchaseRepository.save(purchase);
+  }
+
+  private async enrollInProgramCourses(userId: string, program: Course) {
     const mapped = await this.mapProgram(program, { consumerView: true });
     const courseIds = mapped.courses.map((c) => c.courseId);
     if (courseIds.length === 0) {
@@ -150,6 +251,7 @@ export class CreatorProgramsService {
       communityId?: string;
       isPublished?: boolean;
       courseIds?: string[];
+      priceCents?: number;
     },
   ) {
     const slug = slugify(input.name, 120);
@@ -172,6 +274,10 @@ export class CreatorProgramsService {
         communityId: input.communityId ?? null,
         isPublished: input.isPublished ?? false,
         isBundle: true,
+        priceCents:
+          input.priceCents !== undefined && Number.isInteger(input.priceCents) && input.priceCents >= 0
+            ? input.priceCents
+            : 0,
       }),
     );
 

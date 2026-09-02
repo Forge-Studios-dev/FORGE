@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { trackSearchQuery } from '@/lib/analytics';
 import { pushSearchHistory } from '@/lib/search-history';
+import { useSkillFeatures } from '@/hooks/useSkillFeatures';
 import { Stream, User, Video } from '@/types';
 
 const FeedCard = dynamic(
@@ -18,7 +19,7 @@ const FeedCard = dynamic(
   { loading: () => null },
 );
 
-type SearchType = 'all' | 'video' | 'channel' | 'playlist';
+type SearchType = 'all' | 'video' | 'channel' | 'playlist' | 'course';
 type SearchDuration = 'any' | 'short' | 'medium' | 'long';
 type SearchUploaded = 'any' | 'hour' | 'today' | 'week' | 'month' | 'year';
 type SearchSort = 'relevance' | 'date' | 'views';
@@ -40,19 +41,31 @@ type SearchPlaylist = {
   } | null;
 };
 
+type SearchCourse = {
+  id: string;
+  title: string;
+  slug: string;
+  description?: string | null;
+  lessonCount: number;
+  creator?: { id: string; username: string; displayName: string } | null;
+};
+
 type SearchPayload = {
   videos: Video[];
   users: User[];
   playlists?: SearchPlaylist[];
+  courses?: SearchCourse[];
   meta: { q: string; type?: SearchType };
 };
 
-const TYPE_FILTERS: { value: SearchType; label: string }[] = [
+const BASE_TYPE_FILTERS: { value: SearchType; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'video', label: 'Videos' },
   { value: 'channel', label: 'Channels' },
   { value: 'playlist', label: 'Playlists' },
 ];
+
+const COURSE_TYPE_FILTER: { value: SearchType; label: string } = { value: 'course', label: 'Courses' };
 
 const DURATION_FILTERS: { value: SearchDuration; label: string }[] = [
   { value: 'any', label: 'Any length' },
@@ -268,7 +281,18 @@ function FilterChipRow<T extends string>({
   );
 }
 
-function SearchResults({ q, type, duration, uploaded, sort, captions, kind, live, watched }: SearchQuery) {
+function SearchResults({
+  q,
+  type,
+  duration,
+  uploaded,
+  sort,
+  captions,
+  kind,
+  live,
+  watched,
+  coursesEnabled,
+}: SearchQuery & { coursesEnabled: boolean }) {
   const includeCatalog = live !== 'yes';
   const { data, isLoading, isError } = useQuery({
     queryKey: ['search', q, type, duration, uploaded, sort, captions, kind, watched],
@@ -289,7 +313,8 @@ function SearchResults({ q, type, duration, uploaded, sort, captions, kind, live
       });
       const payload = data.data;
       const playlistCount = payload.playlists?.length ?? 0;
-      trackSearchQuery(payload.videos.length + payload.users.length + playlistCount);
+      const courseCount = payload.courses?.length ?? 0;
+      trackSearchQuery(payload.videos.length + payload.users.length + playlistCount + courseCount);
       return payload;
     },
   });
@@ -349,11 +374,16 @@ function SearchResults({ q, type, duration, uploaded, sort, captions, kind, live
   }
 
   const playlists = data?.playlists ?? [];
+  const courses = coursesEnabled ? (data?.courses ?? []) : [];
   const videos = includeCatalog ? (data?.videos ?? []) : [];
   const users = includeCatalog ? (data?.users ?? []) : [];
   const liveStreams = liveQuery.data ?? [];
   const empty =
-    videos.length === 0 && users.length === 0 && playlists.length === 0 && liveStreams.length === 0;
+    videos.length === 0 &&
+    users.length === 0 &&
+    playlists.length === 0 &&
+    courses.length === 0 &&
+    liveStreams.length === 0;
 
   if (empty) {
     return (
@@ -448,6 +478,31 @@ function SearchResults({ q, type, duration, uploaded, sort, captions, kind, live
         </section>
       )}
 
+      {courses.length > 0 && (
+        <section>
+          <h2 className="font-label-caps mb-4 text-outline">Courses</h2>
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {courses.map((course) => (
+              <li key={course.id}>
+                <Link
+                  href={`/courses/${course.id}`}
+                  className="glass-panel block rounded-xl p-4 transition hover:border-primary/30"
+                >
+                  <p className="font-medium">{course.title}</p>
+                  {course.description ? (
+                    <p className="mt-1 line-clamp-2 text-sm text-on-surface-variant">{course.description}</p>
+                  ) : null}
+                  <p className="mt-2 text-xs text-on-surface-variant">
+                    {course.lessonCount} lesson{course.lessonCount === 1 ? '' : 's'}
+                    {course.creator ? ` · ${course.creator.displayName}` : ''}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {playlists.length > 0 && (
         <section>
           <h2 className="font-label-caps mb-4 text-outline">Playlists</h2>
@@ -485,10 +540,15 @@ function SearchPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isGuest } = useAuth();
+  const { coursesEnabled } = useSkillFeatures();
+  const typeFilters = coursesEnabled ? [...BASE_TYPE_FILTERS, COURSE_TYPE_FILTER] : BASE_TYPE_FILTERS;
   const q = (searchParams.get('q') || '').trim();
   const typeParam = searchParams.get('type');
   const type: SearchType =
-    typeParam === 'video' || typeParam === 'channel' || typeParam === 'playlist'
+    typeParam === 'video' ||
+    typeParam === 'channel' ||
+    typeParam === 'playlist' ||
+    (typeParam === 'course' && coursesEnabled)
       ? typeParam
       : 'all';
   const durationParam = searchParams.get('duration');
@@ -580,10 +640,10 @@ function SearchPageContent() {
             aria-label="Result type"
             aria-orientation="horizontal"
           >
-            {TYPE_FILTERS.map((f, i) => {
+            {typeFilters.map((f, i) => {
               const active = type === f.value;
               const focusTypeTab = (index: number) => {
-                const tab = TYPE_FILTERS[(index + TYPE_FILTERS.length) % TYPE_FILTERS.length];
+                const tab = typeFilters[(index + typeFilters.length) % typeFilters.length];
                 typeTabRefs.current[tab.value]?.focus();
                 pushSearch({ type: tab.value });
               };
@@ -613,7 +673,7 @@ function SearchPageContent() {
                     }
                     if (e.key === 'End') {
                       e.preventDefault();
-                      focusTypeTab(TYPE_FILTERS.length - 1);
+                      focusTypeTab(typeFilters.length - 1);
                     }
                   }}
                   className={`rounded-full px-4 py-1.5 text-sm ${
@@ -688,6 +748,7 @@ function SearchPageContent() {
         kind={kind}
         live={live}
         watched={watched}
+        coursesEnabled={coursesEnabled}
       />
     </main>
   );

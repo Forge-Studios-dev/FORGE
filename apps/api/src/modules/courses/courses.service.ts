@@ -149,6 +149,85 @@ export class CoursesService {
     return { data: mapped };
   }
 
+  /** Public syllabus — titles/types only (no lesson content or playback URLs). */
+  async listPublicCatalogLessons(courseId: string) {
+    const course = await this.courseRepository.findOne({
+      where: { id: courseId, isPublished: true, isBundle: false },
+    });
+    if (!course) throw new NotFoundException('Course not found');
+    const lessons = await this.lessonRepository.find({
+      where: { courseId },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
+      select: ['id', 'title', 'slug', 'sortOrder', 'lessonType', 'durationMinutes'],
+    });
+    return {
+      data: lessons.map((lesson) => ({
+        id: lesson.id,
+        title: lesson.title,
+        slug: lesson.slug,
+        sortOrder: lesson.sortOrder,
+        lessonType: lesson.lessonType,
+        durationMinutes: lesson.durationMinutes,
+      })),
+    };
+  }
+
+  /** Platform admin overview — published/draft counts and recent courses. */
+  async adminCoursesOverview(limit = 50) {
+    const take = clampLimit(limit, 50, 100);
+    const [published, draft, programsPublished, recent] = await Promise.all([
+      this.courseRepository.count({ where: { isPublished: true, isBundle: false } }),
+      this.courseRepository.count({ where: { isPublished: false, isBundle: false } }),
+      this.courseRepository.count({ where: { isPublished: true, isBundle: true } }),
+      this.courseRepository.find({
+        where: { isBundle: false },
+        order: { updatedAt: 'DESC' },
+        take,
+      }),
+    ]);
+
+    const creatorIds = [...new Set(recent.map((c) => c.creatorId))];
+    const creators = creatorIds.length
+      ? await this.userRepository.find({ where: { id: In(creatorIds) } })
+      : [];
+    const creatorById = new Map(creators.map((u) => [u.id, u]));
+
+    const courseIds = recent.map((c) => c.id);
+    const lessonCounts = courseIds.length
+      ? await this.lessonRepository
+          .createQueryBuilder('l')
+          .select('l.course_id', 'courseId')
+          .addSelect('COUNT(*)', 'count')
+          .where('l.course_id IN (:...courseIds)', { courseIds })
+          .groupBy('l.course_id')
+          .getRawMany<{ courseId: string; count: string }>()
+      : [];
+    const lessonCountByCourse = new Map(
+      lessonCounts.map((row) => [row.courseId, Number(row.count)]),
+    );
+
+    return {
+      data: {
+        counts: { published, draft, programsPublished },
+        recent: recent.map((course) => {
+          const creator = creatorById.get(course.creatorId);
+          return {
+            id: course.id,
+            title: course.title,
+            slug: course.slug,
+            isPublished: course.isPublished,
+            creatorId: course.creatorId,
+            creatorUsername: creator?.username ?? null,
+            creatorDisplayName: creator?.displayName ?? null,
+            lessonCount: lessonCountByCourse.get(course.id) ?? 0,
+            updatedAt: course.updatedAt.toISOString(),
+            createdAt: course.createdAt.toISOString(),
+          };
+        }),
+      },
+    };
+  }
+
   private async mapPublicCourses(courses: Course[], viewerId?: string | null) {
     if (courses.length === 0) return [];
     const courseIds = courses.map((c) => c.id);

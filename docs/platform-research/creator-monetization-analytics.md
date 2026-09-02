@@ -237,3 +237,13 @@ Given severity/effort, ads should be its own follow-up research/planning doc onc
 4. Does the refund/dispute webhook path already reverse creator earnings correctly? This document flagged it as unverified from the code read performed — needs a dedicated, deeper check (git blame / full `billing.service.ts` webhook switch statement read) before treating it as either confirmed-fine or confirmed-broken.
 5. At what request volume does `getCreatorBusinessAnalytics`'s live multi-query aggregation need to move to a materialized/cached snapshot? No current doc sets a threshold; flagging as a scaling watch-item rather than a present-day defect given `forge-core.md`'s "don't over-build for hypothetical load" guidance.
 6. Should `creator_bundles` (currently flag-gated, courses-adjacent) be repurposed as a YouTube-parity concept (e.g., "membership perks bundle") rather than removed, if the skill-economy flag is ultimately turned off permanently?
+
+---
+
+## Re-audit 2026-09-02
+
+**Product framing:** Skill-first creator platform + YouTube mechanics (supersedes Aug 2026 YouTube-only framing).
+
+**Key updates:** Keep skills/crafts taxonomy; keep creator approval gate; granular feature flags (`FEATURES_COURSES`, `_MENTORSHIP`, `_CHANNEL_POINTS`); courses/mentorship/points UI restore on roadmap P2–P3.
+
+**See:** [skill-first-positioning.md](./skill-first-positioning.md), [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md), [FRESH_AUDIT_2026-09_MASTER.md](../audits/FRESH_AUDIT_2026-09_MASTER.md).

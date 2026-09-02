@@ -1,10 +1,12 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CreatorProgramsService } from './creator-programs.service';
 import { Course, CourseBundleItem } from './entities/course.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CoursesService } from './courses.service';
+import { ProgramPurchase } from './entities/program-purchase.entity';
+import { BillingService } from '../billing/billing.service';
 
 describe('CreatorProgramsService', () => {
   let service: CreatorProgramsService;
@@ -67,6 +69,20 @@ describe('CreatorProgramsService', () => {
     save: jest.fn(),
     create: jest.fn(),
   };
+  const purchaseRepository = {
+    findOne: jest.fn().mockResolvedValue(null),
+    save: jest.fn(async (entity: ProgramPurchase) => ({ ...entity, id: 'purchase-1' })),
+    create: jest.fn((dto: Partial<ProgramPurchase>) => dto),
+  };
+  const billingService = {
+    createProgramCheckout: jest.fn().mockResolvedValue({
+      ok: true,
+      requiresCheckout: true,
+      checkoutUrl: 'https://checkout.stripe.com/test',
+      sessionId: 'cs_test',
+    }),
+  };
+
   const coursesService = {
     enroll: jest.fn().mockResolvedValue({ id: 'enroll-1', courseId: course.id, userId: 'user-1' }),
   };
@@ -87,6 +103,7 @@ describe('CreatorProgramsService', () => {
       return null;
     });
     bundleItemRepository.find.mockResolvedValue([bundleItem]);
+    purchaseRepository.findOne.mockResolvedValue(null);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -94,7 +111,9 @@ describe('CreatorProgramsService', () => {
         { provide: getRepositoryToken(Course), useValue: courseRepository },
         { provide: getRepositoryToken(CourseBundleItem), useValue: bundleItemRepository },
         { provide: getRepositoryToken(Community), useValue: communityRepository },
+        { provide: getRepositoryToken(ProgramPurchase), useValue: purchaseRepository },
         { provide: CoursesService, useValue: coursesService },
+        { provide: BillingService, useValue: billingService },
       ],
     }).compile();
 
@@ -120,6 +139,14 @@ describe('CreatorProgramsService', () => {
     );
   });
 
+  it('includes hasPurchased when viewer bought a paid program', async () => {
+    const paidProgram = { ...program, priceCents: 2500 };
+    courseRepository.findOne.mockResolvedValue(paidProgram);
+    purchaseRepository.findOne.mockResolvedValue({ id: 'purchase-1', status: 'completed' });
+    const result = await service.getPublishedBySlug('creator-1', 'full-stack', 'user-1');
+    expect(result.data.hasPurchased).toBe(true);
+  });
+
   it('enrolls user in all program courses', async () => {
     const result = await service.enrollInProgram('user-1', program.id);
     expect(coursesService.enroll).toHaveBeenCalledWith('user-1', course.id);
@@ -130,6 +157,51 @@ describe('CreatorProgramsService', () => {
     bundleItemRepository.find.mockResolvedValue([]);
     await expect(service.enrollInProgram('user-1', program.id)).rejects.toBeInstanceOf(
       BadRequestException,
+    );
+  });
+
+  it('rejects free enroll on paid program without purchase', async () => {
+    const paidProgram = { ...program, priceCents: 2500 };
+    courseRepository.findOne.mockResolvedValue(paidProgram);
+    await expect(service.enrollInProgram('user-1', program.id)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('creates checkout for paid program', async () => {
+    const paidProgram = { ...program, priceCents: 2500 };
+    courseRepository.findOne.mockResolvedValue(paidProgram);
+    const result = await service.createProgramCheckout('user-1', program.id, {
+      successUrl: 'https://forgestudios.net/success',
+      cancelUrl: 'https://forgestudios.net/cancel',
+    });
+    expect(billingService.createProgramCheckout).toHaveBeenCalled();
+    expect(result.checkoutUrl).toContain('checkout.stripe.com');
+  });
+
+  it('fulfills paid purchase and enrolls courses', async () => {
+    await service.fulfillPaidPurchase({
+      userId: 'user-1',
+      programId: program.id,
+      amountCents: 2500,
+      currency: 'usd',
+      stripeCheckoutSessionId: 'cs_1',
+    });
+    expect(purchaseRepository.save).toHaveBeenCalled();
+    expect(coursesService.enroll).toHaveBeenCalledWith('user-1', course.id);
+  });
+
+  it('revokes paid purchase on refund webhook', async () => {
+    purchaseRepository.findOne.mockResolvedValue({
+      id: 'purchase-1',
+      programId: program.id,
+      userId: 'user-1',
+      status: 'completed',
+      stripePaymentIntentId: 'pi_1',
+    });
+    await service.revokePaidPurchaseByPaymentIntent('pi_1');
+    expect(purchaseRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'refunded' }),
     );
   });
 });

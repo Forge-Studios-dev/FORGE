@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon } from '@forge/design-system';
 import { useAuth } from '@/lib/auth';
+import { useSkillFeatures } from '@/hooks/useSkillFeatures';
 
 type NavItem = {
   href: string;
@@ -90,6 +91,7 @@ function NavLink({
 export function SideNav() {
   const pathname = usePathname();
   const { isGuest, isLoading, accessTier, canApplyForCreator } = useAuth();
+  const { coursesEnabled } = useSkillFeatures();
   const showStudioExtras = !isLoading && !isGuest;
   const studioHref =
     accessTier === 'guest'
@@ -109,6 +111,13 @@ export function SideNav() {
       {PRIMARY.map((item) => (
         <NavLink key={item.href} item={item} pathname={pathname} isGuest={isGuest} />
       ))}
+      {coursesEnabled ? (
+        <NavLink
+          item={{ href: '/discover/courses', label: 'Courses', icon: 'school' }}
+          pathname={pathname}
+          isGuest={isGuest}
+        />
+      ) : null}
 
       <p className="font-label-caps mb-1 mt-4 px-6 text-on-surface-variant">You</p>
       {YOU.map((item) => (

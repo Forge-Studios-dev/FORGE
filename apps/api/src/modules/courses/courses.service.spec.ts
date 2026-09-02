@@ -45,6 +45,7 @@ describe('CoursesService', () => {
   const courseRepository = {
     find: jest.fn(),
     findOne: jest.fn(),
+    count: jest.fn(),
     save: jest.fn(async (entity: Course) => ({ ...entity, id: entity.id ?? 'course-new' })),
     create: jest.fn((dto: Partial<Course>) => dto),
     createQueryBuilder: jest.fn(),
@@ -434,6 +435,60 @@ describe('CoursesService', () => {
     const result = await service.getPublicCourse('course-1', 'user-1');
     expect(result.data.title).toBe('Intro');
     expect(result.data.viewerEnrolled).toBe(false);
+  });
+
+  it('returns public catalog lesson syllabus without content', async () => {
+    courseRepository.findOne.mockResolvedValue({ ...course, isPublished: true });
+    lessonRepository.find.mockResolvedValue([
+      {
+        id: 'lesson-1',
+        title: 'Welcome',
+        slug: 'welcome',
+        sortOrder: 0,
+        lessonType: LessonType.VIDEO,
+        durationMinutes: 5,
+      },
+    ]);
+    const result = await service.listPublicCatalogLessons('course-1');
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].title).toBe('Welcome');
+    expect(result.data[0].lessonType).toBe(LessonType.VIDEO);
+  });
+
+  it('returns admin courses overview with counts and recent rows', async () => {
+    const updatedAt = new Date('2026-09-01T12:00:00Z');
+    courseRepository.count
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(1);
+    courseRepository.find.mockResolvedValue([
+      {
+        ...course,
+        id: 'course-1',
+        title: 'Intro',
+        slug: 'intro',
+        isPublished: true,
+        creatorId: 'creator-1',
+        updatedAt,
+        createdAt: updatedAt,
+      },
+    ]);
+    userRepository.find.mockResolvedValue([
+      { id: 'creator-1', username: 'teacher', displayName: 'Teacher' },
+    ]);
+    lessonRepository.createQueryBuilder.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([{ courseId: 'course-1', count: '4' }]),
+    } as never);
+
+    const result = await service.adminCoursesOverview(10);
+    expect(result.data.counts).toEqual({ published: 3, draft: 2, programsPublished: 1 });
+    expect(result.data.recent).toHaveLength(1);
+    expect(result.data.recent[0].creatorUsername).toBe('teacher');
+    expect(result.data.recent[0].lessonCount).toBe(4);
   });
 
   describe('video lessons', () => {

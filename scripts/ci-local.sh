@@ -44,4 +44,5 @@ else
 fi
 
 echo "==> CI local checks passed"
+echo "Optional: npm run smoke:skill-features  (API running with FEATURES_COURSES=true)"
 echo "Optional: cd apps/web && npm run test:e2e  (requires web build + playwright)"

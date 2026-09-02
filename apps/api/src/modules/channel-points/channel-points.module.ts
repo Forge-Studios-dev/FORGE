@@ -10,17 +10,17 @@ import { ChannelPointsController } from './channel-points.controller';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { UsersModule } from '../users/users.module';
 import { EngagementModule } from '../engagement/engagement.module';
-import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
+import { isChannelPointsEnabled } from '../../common/features/skill-platform';
+import { SkillFeatureGuard } from '../../common/guards/skill-feature.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 
 /**
- * Channel points (skill-economy). Controllers only register when
- * FEATURES_SKILL_ECONOMY_LMS=true (YouTube mode leaves this empty).
+ * Channel points. Registers when FEATURES_CHANNEL_POINTS=true or full LMS flag.
  */
 @Module({})
 export class ChannelPointsModule {
   static register(): DynamicModule {
-    if (!isSkillEconomyLmsEnabled()) {
+    if (!isChannelPointsEnabled()) {
       return { module: ChannelPointsModule };
     }
 
@@ -35,7 +35,12 @@ export class ChannelPointsModule {
         forwardRef(() => UsersModule),
         forwardRef(() => EngagementModule),
       ],
-      providers: [ChannelPointsService, CreatorApprovedGuard, OptionalJwtAuthGuard],
+      providers: [
+        ChannelPointsService,
+        CreatorApprovedGuard,
+        OptionalJwtAuthGuard,
+        SkillFeatureGuard,
+      ],
       controllers: [ChannelPointsController],
       exports: [ChannelPointsService],
     };

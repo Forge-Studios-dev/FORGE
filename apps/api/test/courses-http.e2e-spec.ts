@@ -8,8 +8,7 @@ import { CoursesController } from '../src/modules/courses/courses.controller';
 import { CoursesService } from '../src/modules/courses/courses.service';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { CreatorApprovedGuard } from '../src/common/guards/creator-approved.guard';
-import { SkillEconomyLmsGuard } from '../src/common/guards/skill-economy-lms.guard';
-import { ConfigService } from '@nestjs/config';
+import { SkillFeatureGuard } from '../src/common/guards/skill-feature.guard';
 
 describe('Courses HTTP (mocked e2e)', () => {
   let app: INestApplication;
@@ -32,6 +31,10 @@ describe('Courses HTTP (mocked e2e)', () => {
     updateCourse: jest.fn().mockResolvedValue({ ...course, isPublished: true }),
     createLesson: jest.fn().mockResolvedValue({ id: 'lesson-1', title: 'L1' }),
     listLessons: jest.fn().mockResolvedValue([{ id: 'lesson-1', title: 'L1', sortOrder: 0 }]),
+    listPublicCatalogLessons: jest.fn().mockResolvedValue({
+      data: [{ id: 'lesson-1', title: 'Welcome', lessonType: 'video', durationMinutes: 5 }],
+    }),
+    listFeaturedCourses: jest.fn().mockResolvedValue({ data: [course] }),
     enroll: jest.fn(),
     getProgress: jest.fn(),
     updateLessonProgress: jest.fn(),
@@ -43,15 +46,11 @@ describe('Courses HTTP (mocked e2e)', () => {
       controllers: [CoursesController],
       providers: [
         { provide: CoursesService, useValue: coursesService },
-        SkillEconomyLmsGuard,
-        {
-          provide: ConfigService,
-          useValue: {
-            get: (key: string) => (key === 'features.skillEconomyLms' ? true : undefined),
-          },
-        },
+        SkillFeatureGuard,
       ],
     })
+      .overrideGuard(SkillFeatureGuard)
+      .useValue({ canActivate: () => true })
       .overrideGuard(JwtAuthGuard)
       .useValue({
         canActivate: (ctx: { switchToHttp: () => { getRequest: () => Record<string, unknown> } }) => {
@@ -91,13 +90,14 @@ describe('Courses HTTP (mocked e2e)', () => {
     if (app) await app.close();
   });
 
-  it('GET /api/v1/creators/me/courses lists creator courses', async () => {
+  it('GET /api/v1/creators/me/courses lists creator courses (not public catalog)', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/creators/me/courses');
     expect(res.status).toBe(200);
     expect(coursesService.listForCreator).toHaveBeenCalledWith('user-1', {
       limit: undefined,
       page: undefined,
     });
+    expect(coursesService.listPublishedForCreator).not.toHaveBeenCalled();
   });
 
   it('PATCH /api/v1/creators/me/courses/:id publishes course', async () => {
@@ -123,5 +123,20 @@ describe('Courses HTTP (mocked e2e)', () => {
     const res = await request(app.getHttpServer()).get('/api/v1/courses/course-1/lessons');
     expect(res.status).toBe(200);
     expect(coursesService.listLessons).toHaveBeenCalledWith('course-1', 'user-1');
+  });
+
+  it('GET /api/v1/courses/:id/catalog/lessons returns public syllabus', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/courses/course-1/catalog/lessons');
+    expect(res.status).toBe(200);
+    expect(coursesService.listPublicCatalogLessons).toHaveBeenCalledWith('course-1');
+    const syllabus = Array.isArray(res.body.data) ? res.body.data : res.body.data?.data;
+    expect(syllabus?.[0]?.title).toBe('Welcome');
+    expect(syllabus?.[0]?.content).toBeUndefined();
+  });
+
+  it('GET /api/v1/courses/discover/featured lists featured courses', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/courses/discover/featured');
+    expect(res.status).toBe(200);
+    expect(coursesService.listFeaturedCourses).toHaveBeenCalled();
   });
 });

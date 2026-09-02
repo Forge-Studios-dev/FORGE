@@ -4,12 +4,13 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../../core/widgets/forge_card.dart';
+import '../../../core/platform/platform_config.dart';
 import 'studio_attention_screen.dart';
 
 class StudioScreen extends ConsumerWidget {
   const StudioScreen({super.key});
 
-  void _openCreateSheet(BuildContext context) {
+  void _openCreateSheet(BuildContext context, {required bool coursesEnabled}) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
@@ -77,6 +78,14 @@ class StudioScreen extends ConsumerWidget {
                   subtitle: 'Manage your videos',
                   route: '/studio/videos',
                 ),
+                if (coursesEnabled)
+                  _sheetAction(
+                    sheetContext,
+                    icon: Icons.school_outlined,
+                    title: 'Courses',
+                    subtitle: 'Build video-lesson courses',
+                    route: '/studio/courses',
+                  ),
                 _sheetAction(
                   sheetContext,
                   icon: Icons.forum,
@@ -141,6 +150,10 @@ class StudioScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final attentionAsync = ref.watch(studioAttentionProvider);
+    final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+    final coursesEnabled = platformCoursesEnabled(platformConfig);
+    final mentorshipEnabled = platformMentorshipEnabled(platformConfig);
+    final channelPointsEnabled = platformChannelPointsEnabled(platformConfig);
     final totalUrgent = attentionAsync.maybeWhen(
       data: (a) {
         final c = a.counts;
@@ -157,7 +170,7 @@ class StudioScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Creator Studio')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openCreateSheet(context),
+        onPressed: () => _openCreateSheet(context, coursesEnabled: coursesEnabled),
         icon: const Icon(Icons.add),
         label: const Text('Create'),
       ),
@@ -256,6 +269,8 @@ class StudioScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           _zoneLabel(context, 'Content'),
           _link(context, 'Videos', 'Manage uploads', Icons.video_library, '/studio/videos'),
+          if (coursesEnabled)
+            _link(context, 'Courses', 'Video-lesson courses', Icons.school_outlined, '/studio/courses'),
           _link(context, 'Playlists', 'Organize channel playlists', Icons.playlist_play, '/playlists'),
           _link(context, 'Community posts', 'Post to your channel Community tab', Icons.campaign_outlined, '/studio/channel-posts'),
           _link(context, 'Go live', 'Start a stream', Icons.sensors, '/studio/live'),
@@ -270,6 +285,10 @@ class StudioScreen extends ConsumerWidget {
           _link(context, 'Super Thanks', 'Tips from viewers', Icons.volunteer_activism, '/studio/super-thanks'),
           _link(context, 'Memberships', 'Configure tiers', Icons.workspace_premium, '/studio/tiers'),
           _link(context, 'Members', 'Manage channel memberships', Icons.people, '/studio/subscribers'),
+          if (mentorshipEnabled)
+            _link(context, 'Mentorship', 'Community matching', Icons.handshake_outlined, '/studio/mentorship'),
+          if (channelPointsEnabled)
+            _link(context, 'Channel points', 'Rewards & redemptions', Icons.stars_outlined, '/studio/channel-points'),
           _zoneLabel(context, 'Channel'),
           _link(context, 'Customize channel', 'Name, about, banner & links', Icons.palette_outlined, '/studio/branding'),
           _link(context, 'Settings', 'Customization', Icons.settings, '/studio/settings'),

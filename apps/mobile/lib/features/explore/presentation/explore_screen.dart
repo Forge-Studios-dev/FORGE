@@ -6,12 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/navigation/public_video_path.dart';
+import '../../../core/platform/platform_config.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/network/api_client.dart';
 import '../../../shared/models/video.dart';
 import '../../live/data/live_repository.dart';
 import '../data/search_history_storage.dart';
 import '../data/search_repository.dart';
+import '../../courses/presentation/featured_courses_rail.dart';
 
 class _SearchBundle {
   final SearchResults catalog;
@@ -23,6 +25,7 @@ class _SearchBundle {
       catalog.videos.isEmpty &&
       catalog.users.isEmpty &&
       catalog.playlists.isEmpty &&
+      catalog.courses.isEmpty &&
       liveStreams.isEmpty;
 }
 
@@ -61,7 +64,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   String _captions = 'any';
   String _watched = 'any';
   String _live = 'any';
-  String _resultType = 'all'; // all | video | channel | playlist
+  String _resultType = 'all'; // all | video | channel | playlist | course
   List<String> _recentSearches = [];
 
   Future<_SearchBundle> _fetchSearch(String q) async {
@@ -287,6 +290,17 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     selected: _resultType,
                     onSelected: (v) => setState(() => _resultType = v),
                   ),
+                  if (platformCoursesEnabled(
+                    ref.watch(platformConfigProvider).valueOrNull ?? {},
+                  )) ...[
+                    const SizedBox(width: 6),
+                    _filterChip(
+                      label: 'Courses',
+                      value: 'course',
+                      selected: _resultType,
+                      onSelected: (v) => setState(() => _resultType = v),
+                    ),
+                  ],
                   const SizedBox(width: 12),
                   _filterChip(
                     label: 'Relevance',
@@ -457,6 +471,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     }
     if (q.isEmpty) {
       final categoriesAsync = ref.watch(exploreCategoriesProvider);
+      final platformConfig = ref.watch(platformConfigProvider).valueOrNull ?? {};
+      final coursesEnabled = platformCoursesEnabled(platformConfig);
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -469,8 +485,19 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 label: const Text('Trending'),
                 onPressed: () => context.push('/trending'),
               ),
+              if (coursesEnabled)
+                ActionChip(
+                  avatar: const Icon(Icons.school_outlined, size: 18),
+                  label: const Text('Courses'),
+                  onPressed: () => context.push('/discover/courses'),
+                ),
             ],
           ),
+          if (coursesEnabled) ...[
+            const SizedBox(height: 8),
+            const FeaturedCoursesRail(),
+            const SizedBox(height: 8),
+          ],
           const SizedBox(height: 16),
           if (_recentSearches.isNotEmpty) ...[
             Row(
@@ -693,6 +720,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               ),
               ...data.playlists.map((p) => _PlaylistSearchTile(playlist: p)),
             ],
+            if (data.courses.isNotEmpty) ...[
+              Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text('Courses', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ForgeTokens.of(context).onSurface)),
+              ),
+              ...data.courses.map((c) => _CourseSearchTile(course: c)),
+            ],
             if (data.users.isNotEmpty) ...[
               Padding(
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -847,6 +881,32 @@ class _PlaylistSearchTile extends StatelessWidget {
         style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
       ),
       onTap: () => context.push('/playlists/${playlist.id}'),
+    );
+  }
+}
+
+class _CourseSearchTile extends StatelessWidget {
+  final CourseSearchHit course;
+  const _CourseSearchTile({required this.course});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: ForgeTokens.of(context).surfaceContainerHigh,
+        child: Icon(Icons.school_outlined, color: ForgeTokens.of(context).primary),
+      ),
+      title: Text(
+        course.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: ForgeTokens.of(context).onSurface),
+      ),
+      subtitle: Text(
+        '${course.lessonCount} lessons${course.creatorDisplayName != null ? ' · ${course.creatorDisplayName}' : ''}',
+        style: TextStyle(color: ForgeTokens.of(context).onSurfaceVariant),
+      ),
+      onTap: () => context.push('/courses/${course.id}'),
     );
   }
 }

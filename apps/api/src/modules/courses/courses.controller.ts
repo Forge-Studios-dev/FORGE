@@ -4,17 +4,29 @@ import { CoursesService } from './courses.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
-import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
+import { SkillFeatureGuard, RequireSkillFeature } from '../../common/guards/skill-feature.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CreateCohortDto, UpdateCohortDto } from './dto/cohort.dto';
 import { LessonType } from './entities/course-lms.entity';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
+import { clampLimit } from '../../common/utils/pagination.util';
+import { ReservedCreatorIdPipe } from '../../common/pipes/reserved-creator-id.pipe';
 
 @ApiTags('Courses')
 @Controller()
-@UseGuards(SkillEconomyLmsGuard)
+@UseGuards(SkillFeatureGuard)
+@RequireSkillFeature('courses')
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
+
+  @Roles(UserRole.ADMIN)
+  @Get('admin/courses/overview')
+  @ApiOperation({ summary: 'Platform courses overview (admin)' })
+  adminCoursesOverview(@Query('limit') limit = 50) {
+    return this.coursesService.adminCoursesOverview(clampLimit(Number(limit) || 50, 50, 100));
+  }
 
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
@@ -52,7 +64,7 @@ export class CoursesController {
   @Get('creators/:creatorId/courses')
   @ApiOperation({ summary: 'List published courses for a creator (public catalog)' })
   listCreatorPublished(
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ReservedCreatorIdPipe) creatorId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @CurrentUser() user?: JwtPayload,
@@ -66,6 +78,13 @@ export class CoursesController {
   @ApiOperation({ summary: 'Get published course catalog metadata' })
   getCatalog(@Param('courseId') courseId: string, @CurrentUser() user?: JwtPayload) {
     return this.coursesService.getPublicCourse(courseId, user?.sub);
+  }
+
+  @Public()
+  @Get('courses/:courseId/catalog/lessons')
+  @ApiOperation({ summary: 'Public course syllabus (titles only, no content)' })
+  getCatalogLessons(@Param('courseId') courseId: string) {
+    return this.coursesService.listPublicCatalogLessons(courseId);
   }
 
   @Post('creators/me/courses')

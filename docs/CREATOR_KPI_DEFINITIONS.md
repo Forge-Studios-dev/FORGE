@@ -1,7 +1,6 @@
 # FORGE — Creator KPI & Metric Specifications
 
-> Source of truth for all creator business KPIs and platform engagement metrics.
-> See also: [MEMBERSHIPS.md](./MEMBERSHIPS.md), [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md)
+> Source of truth for creator KPIs. Product framing: [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md) (skill-first default; course-weighted engagement when `FEATURES_COURSES` or full LMS on).
 
 ---
 
@@ -31,7 +30,7 @@
 
 | KPI | Definition | API field | Notes |
 |-----|-----------|-----------|-------|
-| **Engagement Score** | 0–100 weighted composite relative to total member base. **Default (FEATURES_SKILL_ECONOMY_LMS off, i.e. every current deployment):** active chatters (55%) + post authors (45%). **With the flag on:** chatters (40%) + post authors (30%) + course enrollments (30%). See `community-analytics.service.ts`. | `kpis.engagementScore` | Capped at 100 |
+| **Engagement Score** | 0–100 weighted composite. **Default (`FEATURES_COURSES` off):** active chatters (55%) + post authors (45%). **With courses/LMS:** adds course enrollment weight (30%) when `isSkillEconomyLmsEnabled()` or course enrollments present. See `community-analytics.service.ts`. | `kpis.engagementScore` | Capped at 100 |
 | **Active Members (7d)** | Count of members who sent at least 1 message in last 7 days | `activeMembersLast7Days` | From community analytics |
 | **Messages (7d)** | Total chat messages in last 7 days | `messagesLast7Days` | |
 | **Posts (7d)** | Community posts created in last 7 days | `postsLast7Days` | |

@@ -28,12 +28,20 @@ export type PlatformLegalConfig = {
   lastUpdated: string;
 };
 
+export type PlatformSkillFeatures = {
+  courses: boolean;
+  mentorship: boolean;
+  channelPoints: boolean;
+  skillEconomyLms: boolean;
+};
+
 export type PlatformPublicConfig = {
   featureFlags: string[];
   apiVersion: string;
   auth?: PlatformAuthConfig;
   firebase?: PlatformFirebaseConfig;
   legal?: PlatformLegalConfig;
+  skillFeatures?: PlatformSkillFeatures;
 };
 
 /** True when API reports custom JWT identity (not Firebase Auth). */
@@ -48,4 +56,20 @@ export function isFirebaseComplementOnly(config: PlatformPublicConfig): boolean 
 
 export function isMailConfigured(config: PlatformPublicConfig): boolean {
   return config.auth?.mailConfigured === true;
+}
+
+export function isCoursesFeatureEnabled(config: PlatformPublicConfig): boolean {
+  return config.skillFeatures?.courses === true;
+}
+
+export function isMentorshipFeatureEnabled(config: PlatformPublicConfig): boolean {
+  return config.skillFeatures?.mentorship === true;
+}
+
+export function isChannelPointsFeatureEnabled(config: PlatformPublicConfig): boolean {
+  return config.skillFeatures?.channelPoints === true;
+}
+
+export function isSkillEconomyLmsEnabled(config: PlatformPublicConfig): boolean {
+  return config.skillFeatures?.skillEconomyLms === true;
 }

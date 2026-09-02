@@ -36,16 +36,42 @@ class PlaylistSearchHit {
       );
 }
 
+class CourseSearchHit {
+  final String id;
+  final String title;
+  final String? description;
+  final int lessonCount;
+  final String? creatorDisplayName;
+
+  const CourseSearchHit({
+    required this.id,
+    required this.title,
+    this.description,
+    required this.lessonCount,
+    this.creatorDisplayName,
+  });
+
+  factory CourseSearchHit.fromJson(Map<String, dynamic> json) => CourseSearchHit(
+        id: json['id'] as String,
+        title: json['title'] as String? ?? 'Course',
+        description: json['description'] as String?,
+        lessonCount: (json['lessonCount'] as num?)?.toInt() ?? 0,
+        creatorDisplayName: (json['creator'] as Map<String, dynamic>?)?['displayName'] as String?,
+      );
+}
+
 class SearchResults {
   final List<VideoModel> videos;
   final List<UserModel> users;
   final List<PlaylistSearchHit> playlists;
+  final List<CourseSearchHit> courses;
   final String query;
 
   const SearchResults({
     required this.videos,
     required this.users,
     required this.playlists,
+    required this.courses,
     required this.query,
   });
 
@@ -53,6 +79,7 @@ class SearchResults {
         videos: [],
         users: [],
         playlists: [],
+        courses: [],
         query: q.trim(),
       );
 }
@@ -137,6 +164,10 @@ class SearchRepository {
         .whereType<Map>()
         .map((e) => PlaylistSearchHit.fromJson(Map<String, dynamic>.from(e)))
         .toList();
+    final courses = (payload['courses'] as List<dynamic>? ?? [])
+        .whereType<Map>()
+        .map((e) => CourseSearchHit.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
     final meta = payload['meta'] as Map<String, dynamic>?;
     final resolvedQ = (meta?['q'] as String?) ?? term;
 
@@ -144,6 +175,7 @@ class SearchRepository {
       videos: videos,
       users: users,
       playlists: playlists,
+      courses: courses,
       query: resolvedQ,
     );
   }

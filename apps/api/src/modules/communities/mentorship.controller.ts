@@ -16,14 +16,15 @@ import { MentorshipRole } from './entities/mentorship.entity';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
-import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
+import { SkillFeatureGuard, RequireSkillFeature } from '../../common/guards/skill-feature.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { clampLimit } from '../../common/utils/pagination.util';
 
 @ApiTags('Mentorship')
 @Controller()
-@UseGuards(SkillEconomyLmsGuard)
+@UseGuards(SkillFeatureGuard)
+@RequireSkillFeature('mentorship')
 export class MentorshipController {
   constructor(private readonly mentorshipService: MentorshipService) {}
 

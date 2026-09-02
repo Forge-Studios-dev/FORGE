@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon, PageHeader } from '@forge/design-system';
 import { api } from '@/lib/api';
 import { AdminMfaSettings } from '@/components/AdminMfaSettings';
+import { fetchAdminPlatformConfig } from '@/lib/platform-config';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -29,6 +30,11 @@ export default function SettingsPage() {
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [isError, setIsError] = useState(false);
+  const [skillFeatures, setSkillFeatures] = useState<Record<string, boolean> | null>(null);
+
+  useEffect(() => {
+    void fetchAdminPlatformConfig().then((cfg) => setSkillFeatures(cfg.skillFeatures ?? null));
+  }, []);
 
   async function checkHealth() {
     setIsFetching(true);
@@ -165,12 +171,43 @@ export default function SettingsPage() {
         </section>
 
         <section className="glass-panel rounded-xl p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Icon name="school" className="text-primary" />
+            <h2 className="font-display-forge text-lg font-semibold">Skill extensions</h2>
+          </div>
+          {skillFeatures ? (
+            <ul className="space-y-2 text-sm">
+              {(
+                [
+                  ['courses', 'Courses'],
+                  ['mentorship', 'Mentorship'],
+                  ['channelPoints', 'Channel points'],
+                  ['skillEconomyLms', 'Full LMS (programs, cohorts, quizzes)'],
+                ] as const
+              ).map(([key, label]) => (
+                <li key={key} className="flex justify-between gap-4">
+                  <span className="text-on-surface-variant">{label}</span>
+                  <span className={skillFeatures[key] ? 'text-secondary' : 'text-outline'}>
+                    {skillFeatures[key] ? 'On' : 'Off'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-on-surface-variant">Loading platform config…</p>
+          )}
+          <p className="mt-3 text-xs text-on-surface-variant">
+            Set <code className="text-on-surface">FEATURES_*</code> in API env and restart. Validate
+            with <code className="text-on-surface">npm run smoke:skill-features</code>.
+          </p>
+        </section>
+
+        <section className="glass-panel rounded-xl p-6">
           <h2 className="font-display-forge mb-2 text-lg font-semibold">Go-live</h2>
           <p className="text-sm text-on-surface-variant">
             Complete the production checklist in{' '}
             <code className="text-on-surface">docs/operations/PRODUCTION_CHECKLIST.md</code> before
-            promoting builds. Mentorship and channel-points admin routes redirect to the dashboard
-            (skill-economy LMS soft-retire).
+            promoting builds.
           </p>
         </section>
       </div>

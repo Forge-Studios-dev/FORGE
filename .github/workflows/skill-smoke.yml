@@ -1,0 +1,27 @@
+# Manual smoke against a running API (staging or local tunnel).
+# Does not start the API — use after deploy or with docker-compose up.
+name: Skill features smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base:
+        description: 'API base URL (include /api/v1)'
+        required: true
+        default: 'https://api.forgestudios.net/api/v1'
+      expect_flags:
+        description: 'Fail if FEATURES_COURSES is off (1 = yes)'
+        required: false
+        default: '0'
+
+jobs:
+  smoke:
+    name: Skill extensions HTTP smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run skill features smoke
+        env:
+          FORGE_SMOKE_API: ${{ inputs.api_base }}
+          FORGE_EXPECT_SKILL_FLAGS: ${{ inputs.expect_flags }}
+        run: bash scripts/smoke-skill-features.sh

@@ -25,17 +25,20 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { AccessSessionsModule } from '../access-sessions/access-sessions.module';
 import { EngagementModule } from '../engagement/engagement.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
-import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
-import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
+import { isCoursesEnabled } from '../../common/features/skill-platform';
+import { SkillFeatureGuard } from '../../common/guards/skill-feature.guard';
+import { ProgramPurchase } from './entities/program-purchase.entity';
+import { ProgramPurchaseListener } from './program-purchase.listener';
+import { BillingModule } from '../billing/billing.module';
 
 /**
- * Courses / programs LMS. Controllers only register when
- * FEATURES_SKILL_ECONOMY_LMS=true (YouTube mode leaves this empty).
+ * Courses (video-lesson collections). Registers when FEATURES_COURSES=true
+ * or FEATURES_SKILL_ECONOMY_LMS=true (full LMS).
  */
 @Module({})
 export class CoursesModule {
   static register(): DynamicModule {
-    if (!isSkillEconomyLmsEnabled()) {
+    if (!isCoursesEnabled()) {
       return {
         module: CoursesModule,
       };
@@ -59,14 +62,22 @@ export class CoursesModule {
           Community,
           User,
           Video,
+          ProgramPurchase,
         ]),
         forwardRef(() => UsersModule),
         forwardRef(() => EntitlementsModule),
         forwardRef(() => AccessSessionsModule),
         forwardRef(() => EngagementModule),
+        forwardRef(() => BillingModule),
       ],
       controllers: [CoursesController, CreatorProgramsController],
-      providers: [CoursesService, CreatorProgramsService, CreatorApprovedGuard, SkillEconomyLmsGuard],
+      providers: [
+        CoursesService,
+        CreatorProgramsService,
+        CreatorApprovedGuard,
+        SkillFeatureGuard,
+        ProgramPurchaseListener,
+      ],
       exports: [CoursesService, CreatorProgramsService],
     };
   }

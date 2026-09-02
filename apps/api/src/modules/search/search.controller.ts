@@ -27,7 +27,7 @@ export class SearchController {
   @ApiOperation({
     summary: 'Search videos, channels, and public playlists (Postgres FTS with ILIKE fallback)',
   })
-  @ApiQuery({ name: 'type', required: false, enum: ['all', 'video', 'channel', 'playlist'] })
+  @ApiQuery({ name: 'type', required: false, enum: ['all', 'video', 'channel', 'playlist', 'course'] })
   @ApiQuery({ name: 'duration', required: false, enum: ['any', 'short', 'medium', 'long'] })
   @ApiQuery({
     name: 'uploaded',
@@ -55,7 +55,9 @@ export class SearchController {
     @CurrentUser() user?: JwtPayload,
   ) {
     const searchType: SearchType =
-      type === 'video' || type === 'channel' || type === 'playlist' ? type : 'all';
+      type === 'video' || type === 'channel' || type === 'playlist' || type === 'course'
+        ? type
+        : 'all';
     const durationFilter: SearchDuration =
       duration === 'short' || duration === 'medium' || duration === 'long' ? duration : 'any';
     const uploadedFilter: SearchUploaded =

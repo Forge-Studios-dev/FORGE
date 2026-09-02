@@ -117,6 +117,30 @@ describe('StripePaymentProvider — refund/dispute reversal', () => {
     expect(sessionsList).not.toHaveBeenCalled();
   });
 
+  it('tags a refunded program charge as checkoutType program', async () => {
+    constructEvent.mockReturnValue({
+      type: 'charge.refunded',
+      data: {
+        object: {
+          metadata: { type: 'program', userId: 'u5', programId: 'prog-1', creatorId: 'c5' },
+          payment_intent: 'pi_5',
+          invoice: null,
+        },
+      },
+    });
+
+    const result = await provider.verifyWebhook(Buffer.from('{}'), headers);
+
+    expect(result).toMatchObject({
+      handled: true,
+      checkoutType: 'program',
+      status: 'refunded',
+      paymentIntentId: 'pi_5',
+      userId: 'u5',
+      programId: 'prog-1',
+    });
+  });
+
   it('still resolves a subscription refund when charge metadata has no tip type', async () => {
     constructEvent.mockReturnValue({
       type: 'charge.refunded',

@@ -35,6 +35,7 @@ describe('BillingService', () => {
     createEventCheckoutSession: jest.fn(),
     createSuperChatCheckoutSession: jest.fn(),
     createSuperThanksCheckoutSession: jest.fn(),
+    createProgramCheckoutSession: jest.fn(),
     cancelSubscription: jest.fn(),
     verifyWebhook: jest.fn(),
   };
@@ -229,6 +230,32 @@ describe('BillingService', () => {
     );
   });
 
+  it('emits program.purchase.completed on paid program checkout webhook', async () => {
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'program',
+      status: 'completed',
+      userId: 'u1',
+      programId: 'prog-1',
+      sessionId: 'sess_prog',
+      amountCents: 2500,
+      currency: 'usd',
+    });
+    webhookIdempotency.isDuplicate.mockResolvedValue(false);
+
+    await service.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
+
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'program.purchase.completed',
+      expect.objectContaining({
+        userId: 'u1',
+        programId: 'prog-1',
+        amountCents: 2500,
+        stripeCheckoutSessionId: 'sess_prog',
+      }),
+    );
+  });
+
   it('rejects duplicate event purchase checkout', async () => {
     streamRepository.findOne.mockResolvedValue({
       id: 's1',
@@ -261,6 +288,29 @@ describe('BillingService', () => {
     await service.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
 
     expect(streamingService.revokeEventPurchaseByPaymentIntent).toHaveBeenCalledWith('pi_4');
+  });
+
+  it('emits program.purchase.revoked on refunded program charge webhook', async () => {
+    paymentProvider.verifyWebhook.mockReturnValue({
+      handled: true,
+      checkoutType: 'program',
+      status: 'refunded',
+      paymentIntentId: 'pi_prog',
+      userId: 'u1',
+      programId: 'prog-1',
+    });
+    webhookIdempotency.isDuplicate.mockResolvedValue(false);
+
+    await service.handleWebhook(Buffer.from('{}'), { 'stripe-signature': 'sig' });
+
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'program.purchase.revoked',
+      expect.objectContaining({
+        paymentIntentId: 'pi_prog',
+        programId: 'prog-1',
+        userId: 'u1',
+      }),
+    );
   });
 
   it('marks subscription renewal_pending on invoice.upcoming webhook', async () => {

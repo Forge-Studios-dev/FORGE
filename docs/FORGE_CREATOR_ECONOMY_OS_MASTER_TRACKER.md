@@ -1,9 +1,9 @@
 # FORGE Creator Economy OS — Master Tracker
 
-**Version:** 1.0.0 · **Last audit:** 2026-08-22 · **Authoritative source of truth** for Creator Economy OS delivery  
-**Blueprint:** [FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md](../FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md)  
-**Platform reference:** [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md)  
-**Re-audit trigger:** 2026-09-04 or 50K MAU ([EXECUTIVE_SUMMARY.md](./audits/EXECUTIVE_SUMMARY.md))
+**Version:** 1.1.0 · **Last audit:** 2026-09-02 · **Task tracker** (reconcile with [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md))  
+**Product SSOT:** [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md) · **Technical:** [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md)  
+**Blueprint (archived):** [archive/FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md](./archive/FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md)  
+**Re-audit:** [FRESH_AUDIT_2026-09_MASTER.md](./audits/FRESH_AUDIT_2026-09_MASTER.md) · Next: 50K MAU or 2026-12-01
 
 ---
 
@@ -1026,6 +1026,21 @@ See [FORGE_PROJECT_MASTER.md §5](./FORGE_PROJECT_MASTER.md#5-background-workers
 | Deferred | F-1302 search sidecar | Trigger: 500K videos or FTS p95 degrade |
 | Deferred | F-1101 signed Mux URLs | Before DRM-grade playback |
 | Deferred | 50K MAU load test | Pre-major marketing push |
+
+---
+
+## Re-audit 2026-09-02 (skill-first re-enable)
+
+| ID | Task | Status |
+|----|------|--------|
+| CEOS-REAUDIT-P1 | Granular feature flags (`FEATURES_COURSES`, etc.) | ✅ |
+| CEOS-REAUDIT-P2 | Courses MVP web/mobile UI restore | ⏳ |
+| CEOS-REAUDIT-P3 | Mentorship + channel points UI restore | ⏳ |
+| CEOS-REAUDIT-P4 | Course discovery in search/feed | ⏳ |
+| CEOS-REAUDIT-P5 | Mobile CI + Studio parity | ⏳ |
+| CEOS-REAUDIT-P6 | CSAM vendor integration | 🚫 Legal |
+
+Aug 2026 "sunset skill UI" decision **superseded** by [ADR-001](./decisions/ADR-001-skill-first-framing.md).
 
 ---
 

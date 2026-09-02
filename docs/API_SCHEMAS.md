@@ -242,6 +242,45 @@ Defined in `@forge/shared-types` `content-visibility.ts`.
 
 ---
 
+## Courses MVP (`FEATURES_COURSES=true`)
+
+Gated routes return `410 Gone` with `SKILL_FEATURE_DISABLED` when flag off. Full LMS (quizzes, cohorts, programs) requires `FEATURES_SKILL_ECONOMY_LMS=true`.
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| GET | `/courses/discover` | Optional | `?q=&limit=` public catalog search |
+| GET | `/courses/discover/featured` | Optional | Featured published courses |
+| GET | `/courses/:courseId/catalog` | Optional | Course metadata (title, creator, lesson count) |
+| GET | `/courses/:courseId/catalog/lessons` | Public | Syllabus titles/types only (no content) |
+| GET | `/creators/:creatorId/courses` | Optional | Creator's published courses |
+| GET | `/creators/me/courses` | Creator | Studio list |
+| POST | `/creators/me/courses` | Creator | Create draft course |
+| PATCH | `/creators/me/courses/:courseId` | Creator | Update / publish |
+| POST | `/courses/:courseId/enroll` | User | Enroll (entitlement-checked) |
+| PATCH | `/courses/:courseId/lessons/:lessonId/progress` | User | Lesson progress |
+| GET | `/admin/courses/overview` | Admin | Published/draft counts + recently updated courses |
+
+See [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md) P2.
+
+---
+
+## Programs (`FEATURES_SKILL_ECONOMY_LMS=true`)
+
+Bundle courses (`isBundle=true`) grouping multiple creator courses. Paid programs use Stripe Connect one-time checkout.
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| GET | `/creators/:creatorId/programs` | Optional | Published programs for a creator |
+| GET | `/creators/:creatorId/programs/:slug` | Optional | Program detail + course list; `hasPurchased` when authenticated buyer |
+| POST | `/programs/:programId/enroll` | User | Free programs, or paid after purchase |
+| POST | `/programs/:programId/checkout` | User | Stripe checkout for `priceCents >= 100` |
+| GET | `/creators/me/programs` | Creator | Studio program list |
+| POST/PATCH/DELETE | `/creators/me/programs` | Creator | CRUD |
+
+Webhook: `checkout.session.completed` with `metadata.type=program` emits `program.purchase.completed` → enrolls all bundled courses. Refund/dispute on the charge (`metadata.type=program`) emits `program.purchase.revoked` → marks `program_purchases.status=refunded` (course enrollments are not rolled back).
+
+---
+
 ## API versioning & breaking changes (F-601)
 
 FORGE exposes a single REST prefix today: **`/api/v1`**. Policy:

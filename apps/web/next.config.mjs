@@ -36,22 +36,16 @@ const nextConfig = {
     ];
   },
   /**
-   * Skill-economy Studio orphans → YouTube Studio core.
-   * Pages may still exist on disk; redirects keep bookmarks from landing on non-YT IA.
+   * Retired skill-economy Studio routes (not selective P2/P3 modules).
+   * Courses, mentorship, and channel-points stay routable when feature flags are on.
    */
   async redirects() {
     const studioOrphans = [
-      '/studio/courses',
-      '/studio/courses/:path*',
       '/studio/podcasts',
-      '/studio/mentorship',
       '/studio/brands',
       '/studio/bundles',
-      '/studio/programs',
-      '/studio/programs/:path*',
       '/studio/resources',
       '/studio/referrals',
-      '/studio/channel-points',
       '/studio/communities',
       '/studio/communities/:path*',
       '/studio/ai-copilot',
@@ -61,15 +55,13 @@ const nextConfig = {
     const studioAliasRedirects = [
       { source: '/studio/rooms', destination: '/studio/community' },
       { source: '/studio/engagement', destination: '/studio/community' },
+      { source: '/studio/programs', destination: '/studio/courses?tab=programs' },
+      { source: '/studio/programs/:path*', destination: '/studio/courses?tab=programs' },
     ];
     const publicOrphans = [
       { source: '/podcasts', destination: '/' },
       { source: '/podcasts/:path*', destination: '/' },
-      { source: '/courses', destination: '/' },
-      { source: '/courses/:path*', destination: '/' },
-      { source: '/discover/courses', destination: '/explore' },
-      { source: '/discover/courses/:path*', destination: '/explore' },
-      { source: '/:username/programs/:slug', destination: '/:username' },
+      { source: '/courses', destination: '/discover/courses' },
     ];
     return [
       ...studioOrphans.map((source) => ({

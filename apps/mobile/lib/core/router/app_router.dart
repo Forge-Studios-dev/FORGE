@@ -42,6 +42,13 @@ import '../../features/studio/presentation/studio_subscribers_screen.dart';
 import '../../features/studio/presentation/studio_community_screen.dart';
 import '../../features/studio/presentation/studio_moderation_screen.dart';
 import '../../features/studio/presentation/studio_channel_posts_screen.dart';
+import '../../features/studio/presentation/studio_courses_screen.dart';
+import '../../features/studio/presentation/studio_course_detail_screen.dart';
+import '../../features/studio/presentation/course_viewer_screen.dart';
+import '../../features/studio/presentation/studio_channel_points_screen.dart';
+import '../../features/studio/presentation/studio_mentorship_screen.dart';
+import '../../features/courses/presentation/discover_courses_screen.dart';
+import '../../features/courses/presentation/program_viewer_screen.dart';
 import '../../features/community/presentation/discover_communities_screen.dart';
 import '../../features/profile/presentation/my_memberships_screen.dart';
 import '../../features/profile/presentation/profile_settings_screen.dart';
@@ -285,14 +292,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/studio/moderation',
         builder: (_, __) => const StudioModerationScreen(),
       ),
-      GoRoute(path: '/studio/programs', redirect: (_, __) => '/studio/videos'),
-      GoRoute(path: '/studio/courses', redirect: (_, __) => '/studio/videos'),
-      GoRoute(path: '/studio/courses/:id', redirect: (_, __) => '/studio/videos'),
-      GoRoute(path: '/courses/:id', redirect: (_, __) => '/feed'),
+      GoRoute(path: '/studio/programs', redirect: (_, __) => '/studio/courses?tab=programs'),
+      GoRoute(path: '/studio/courses', builder: (_, __) => const StudioCoursesScreen()),
+      GoRoute(
+        path: '/studio/courses/:id',
+        builder: (_, state) => StudioCourseDetailScreen(courseId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/courses/:id',
+        builder: (_, state) => CourseViewerScreen(courseId: state.pathParameters['id']!),
+      ),
       GoRoute(path: '/discover/communities', builder: (_, __) => const DiscoverCommunitiesScreen()),
-      GoRoute(path: '/discover/courses', redirect: (_, __) => '/feed'),
-      GoRoute(path: '/studio/channel-points', redirect: (_, __) => '/studio'),
-      GoRoute(path: '/studio/mentorship', redirect: (_, __) => '/studio'),
+      GoRoute(path: '/discover/courses', builder: (_, __) => const DiscoverCoursesScreen()),
+      GoRoute(path: '/studio/channel-points', builder: (_, __) => const StudioChannelPointsScreen()),
+      GoRoute(path: '/studio/mentorship', builder: (_, __) => const StudioMentorshipScreen()),
       GoRoute(path: '/studio/settings', builder: (_, __) => const StudioSettingsScreen()),
       GoRoute(path: '/studio/branding', builder: (_, __) => const ProfileSettingsScreen()),
       GoRoute(path: '/studio/copilot', redirect: (_, __) => '/studio'),
@@ -399,7 +412,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/profile/:username/programs/:slug',
-            redirect: (_, state) => '/profile/${state.pathParameters['username']}',
+            builder: (_, state) => ProgramViewerScreen(
+              username: state.pathParameters['username']!,
+              slug: state.pathParameters['slug']!,
+            ),
           ),
           GoRoute(path: '/live', builder: (_, __) => const LiveScreen()),
           GoRoute(

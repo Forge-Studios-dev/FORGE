@@ -118,6 +118,7 @@ describe('SearchService', () => {
         videos: [],
         users: [],
         playlists: [],
+        courses: [],
         meta: { q: 'a', type: 'all', duration: 'any', uploaded: 'any', sort: 'relevance', captions: 'any', kind: 'any', watched: 'any' },
       });
       expect(videoRepository.createQueryBuilder).not.toHaveBeenCalled();
