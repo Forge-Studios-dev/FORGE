@@ -16,7 +16,9 @@
 | `@forge/shared-types` build + tests | Pass |
 | API lint + build | Pass |
 | Skill unit tests (flags, programs, billing, pipe) | 72 pass |
+| **Full API unit tests** | **1583 pass** |
 | Skill HTTP e2e (courses, programs, bundles) | 13 pass |
+| **Full API HTTP e2e** | **69 pass** |
 | Web production build | Pass |
 | Admin production build | Pass |
 | Full `npm run ci:local` | Run before merge |
@@ -47,6 +49,8 @@ Clients read `GET /platform/config` → `skillFeatures`.
 | Skill smoke (API running) | `npm run smoke:skill-features` |
 | Full CI gate | `npm run ci:local` |
 | Post-deploy smoke (GitHub) | Actions → **Skill features smoke** → set API URL; `expect_flags=1` in staging |
+
+**PR body (copy/paste):** [PR_SKILL_PLATFORM.md](./PR_SKILL_PLATFORM.md)
 
 ---
 

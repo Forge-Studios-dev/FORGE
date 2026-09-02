@@ -11,7 +11,7 @@ Use before promoting a release to production (`main`).
 
 ## Data
 
-- [ ] Pending TypeORM migrations applied (incl. `185…`–`197…` YouTube wave; captions, notify_level, Super Thanks, pin/heart, channel links, unlisted playlists, history pause; plus `198…`–`201…` dislike columns, `user_blocks`, `username_changed_at`, `username_history`)
+- [ ] Pending TypeORM migrations applied (incl. `185…`–`197…` YouTube wave; captions, notify_level, Super Thanks, pin/heart, channel links, unlisted playlists, history pause; plus `198…`–`201…` dislike columns, `user_blocks`, `username_changed_at`, `username_history`; **`229…` program_purchases** when enabling paid programs)
 - [ ] Rollback SQL reviewed for risky migrations
 
 ## Media
