@@ -24,8 +24,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 /**
- * Health endpoints. Fly platform probes only hit `/health/live` (no DB).
- * `/health` and `/health/ready` are manual / deploy-diagnostic (DB + Redis).
+ * Health endpoints — manual / deploy-diagnostic only (no Fly or app polling).
+ * `/health/live` is cheap liveness (no DB). `/health/ready` checks DB + Redis.
  */
 @Controller('health')
 export class HealthController {

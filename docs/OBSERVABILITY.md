@@ -99,11 +99,11 @@ Uses OTLP HTTP (`/v1/traces`). Compatible with Grafana Tempo, Jaeger OTLP, Datad
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /api/v1/health/live` | **Liveness** — process up only. Fly platform probe in `fly.toml` every **30s** (required for rolling deploys); app/CI do not poll continuously |
+| `GET /api/v1/health/live` | **Liveness** — process up only (no DB). **Manual / deploy smoke only** — no Fly or app polling |
 | `GET /api/v1/health/ready` | **Readiness** — database, Redis, BullMQ queue depths (manual / deploy diagnostic) |
 | `GET /api/v1/health` | Alias for readiness (`/ready`) |
 
-Fly keeps a cheap `[[http_service.checks]]` on `/health/live` every **30s** so rolling deploys can route traffic (removing it broke production smoke on 2026-08-30). Docker `HEALTHCHECK` and GitHub synthetic **cron** remain disabled; synthetic is `workflow_dispatch` only. Call `/health/ready` yourself when diagnosing dependencies. Worker Fly `[checks.worker_health]` hits `GET /health` every **30s** (no DB).
+No Fly `[[http_service.checks]]` or worker `[checks]` — health endpoints are on-demand only. Docker `HEALTHCHECK` and GitHub synthetic **cron** remain disabled; synthetic is `workflow_dispatch` only. Deploy workflows (`release.yml`, `deploy-fly.yml`) call `/health/live` once after a deploy as an intentional smoke test, not a continuous loop.
 
 Readiness reports `muxVodQueue` when `VIDEO_TRANSCODE_PROVIDER=mux` (default), or `video-processing` when FFmpeg.
 

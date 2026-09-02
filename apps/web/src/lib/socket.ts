@@ -21,7 +21,7 @@ export function getSocket(accessToken?: string | null): Socket | null {
     socket = io(`${socketBaseUrl()}/events`, {
       transports: ['websocket'],
       reconnection: true,
-      reconnectionAttempts: Infinity,
+      reconnectionAttempts: 20,
       reconnectionDelay: 500,
       reconnectionDelayMax: 5000,
       timeout: 10000,

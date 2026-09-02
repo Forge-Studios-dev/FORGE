@@ -9,8 +9,13 @@ import { SUBSCRIPTION_MAINTENANCE_QUEUE } from '../../modules/notifications/subs
 import { ANALYTICS_RETENTION_QUEUE } from '../../modules/analytics/analytics-retention.constants';
 import { refreshBullmqMetrics } from './bullmq-metrics';
 
+/** Avoid Redis getJobCounts on every Prometheus scrape (Grafana often polls every 15–60s). */
+const REFRESH_CACHE_MS = 30_000;
+
 @Injectable()
 export class BullmqMetricsService {
+  private lastRefreshAt = 0;
+
   constructor(
     @InjectQueue(ANALYTICS_INGEST_QUEUE) private readonly analyticsQueue: Queue,
     @InjectQueue(PUSH_DISPATCH_QUEUE) private readonly pushQueue: Queue,
@@ -21,6 +26,10 @@ export class BullmqMetricsService {
   ) {}
 
   async refresh(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastRefreshAt < REFRESH_CACHE_MS) return;
+    this.lastRefreshAt = now;
+
     const queues: Array<{ name: string; queue: Queue }> = [];
     if (this.videoQueue) queues.push({ name: VIDEO_PROCESSING_QUEUE, queue: this.videoQueue });
     if (this.muxVodQueue) queues.push({ name: MUX_VOD_INGEST_QUEUE, queue: this.muxVodQueue });

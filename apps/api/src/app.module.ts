@@ -116,7 +116,7 @@ function sentryFilterProviders() {
         return {
           pinoHttp: {
             level: isProd ? 'info' : 'debug',
-            // Ignore rare manual /metrics scrapes and health probes in access logs.
+            // Ignore Prometheus scrapes in access logs (Grafana interval — not app code).
             autoLogging: {
               ignore: (req) => isInfraProbePath(req.url),
             },

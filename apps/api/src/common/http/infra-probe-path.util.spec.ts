@@ -1,14 +1,14 @@
 import { isInfraProbePath } from './infra-probe-path.util';
 
 describe('isInfraProbePath', () => {
-  it('matches Fly liveness and Prometheus scrape', () => {
-    expect(isInfraProbePath('/api/v1/health/live')).toBe(true);
-    expect(isInfraProbePath('/api/v1/health/live?region=bom')).toBe(true);
+  it('matches Prometheus scrape only', () => {
     expect(isInfraProbePath('/metrics')).toBe(true);
     expect(isInfraProbePath('/metrics?foo=1')).toBe(true);
   });
 
-  it('does not silence readiness (keep abuse visible in logs/metrics)', () => {
+  it('does not silence health endpoints (manual diagnostics stay visible in logs)', () => {
+    expect(isInfraProbePath('/api/v1/health/live')).toBe(false);
+    expect(isInfraProbePath('/api/v1/health/live?region=bom')).toBe(false);
     expect(isInfraProbePath('/api/v1/health')).toBe(false);
     expect(isInfraProbePath('/api/v1/health?x=1')).toBe(false);
     expect(isInfraProbePath('/api/v1/health/ready')).toBe(false);
