@@ -4,7 +4,8 @@
 **Branch:** `feature/skill-first-platform` (3 commits ahead of `main`)  
 **SSOT:** [FORGE_IMPLEMENTATION_ROADMAP.md](../FORGE_IMPLEMENTATION_ROADMAP.md) · [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md)
 
-**Open PR:** https://github.com/Forge-Studios-dev/FORGE/pull/new/feature/skill-first-platform  
+**Open PR:** run `bash scripts/create-skill-platform-pr.sh` after `gh auth login`, or open  
+https://github.com/Forge-Studios-dev/FORGE/compare/main...feature/skill-first-platform  
 *(Requires repo collaborator — local `gh` may fail with "must be a collaborator".)*
 
 ---

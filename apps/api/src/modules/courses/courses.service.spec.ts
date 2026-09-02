@@ -345,6 +345,7 @@ describe('CoursesService', () => {
   });
 
   it('rejects enrollment into a cohort from another course', async () => {
+    process.env.FEATURES_SKILL_ECONOMY_LMS = 'true';
     courseRepository.findOne.mockResolvedValue({ ...course, isPublished: true });
     enrollmentRepository.findOne.mockResolvedValue(null);
     cohortRepository.findOne.mockResolvedValue(null);
@@ -354,6 +355,7 @@ describe('CoursesService', () => {
   });
 
   it('rejects enrollment into an ended cohort', async () => {
+    process.env.FEATURES_SKILL_ECONOMY_LMS = 'true';
     courseRepository.findOne.mockResolvedValue({ ...course, isPublished: true });
     enrollmentRepository.findOne.mockResolvedValue(null);
     cohortRepository.findOne.mockResolvedValue({
@@ -367,6 +369,7 @@ describe('CoursesService', () => {
   });
 
   it('enrolls into a valid open cohort', async () => {
+    process.env.FEATURES_SKILL_ECONOMY_LMS = 'true';
     courseRepository.findOne.mockResolvedValue({ ...course, isPublished: true });
     enrollmentRepository.findOne.mockResolvedValue(null);
     cohortRepository.findOne.mockResolvedValue({
@@ -376,6 +379,16 @@ describe('CoursesService', () => {
     });
     const enrollment = await service.enroll('user-1', 'course-1', 'cohort-1');
     expect(enrollment.cohortId).toBe('cohort-1');
+  });
+
+  it('ignores cohortId when FEATURES_SKILL_ECONOMY_LMS is off', async () => {
+    delete process.env.FEATURES_SKILL_ECONOMY_LMS;
+    delete process.env.FEATURES_COURSES;
+    courseRepository.findOne.mockResolvedValue({ ...course, isPublished: true });
+    enrollmentRepository.findOne.mockResolvedValue(null);
+    const enrollment = await service.enroll('user-1', 'course-1', 'cohort-1');
+    expect(cohortRepository.findOne).not.toHaveBeenCalled();
+    expect(enrollment.cohortId).toBeNull();
   });
 
   it('reorders lessons by id list', async () => {

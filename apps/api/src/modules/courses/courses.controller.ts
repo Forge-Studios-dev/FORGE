@@ -13,7 +13,6 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { clampLimit } from '../../common/utils/pagination.util';
 import { ReservedCreatorIdPipe } from '../../common/pipes/reserved-creator-id.pipe';
-import { isSkillEconomyLmsExtendedEnabled } from '../../common/features/skill-platform';
 
 @ApiTags('Courses')
 @Controller()
@@ -224,8 +223,7 @@ export class CoursesController {
     @Param('courseId') courseId: string,
     @Body() body: { cohortId?: string },
   ) {
-    const cohortId = isSkillEconomyLmsExtendedEnabled() ? body.cohortId : undefined;
-    return this.coursesService.enroll(user.sub, courseId, cohortId);
+    return this.coursesService.enroll(user.sub, courseId, body.cohortId);
   }
 
   @Get('courses/:courseId/progress')

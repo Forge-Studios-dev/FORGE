@@ -27,7 +27,7 @@ Phases are dependency-ordered. **P0** (documentation) is complete with this re-a
 
 - [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md)
 - [FRESH_AUDIT_2026-09_MASTER.md](./audits/FRESH_AUDIT_2026-09_MASTER.md)
-- [docs/decisions/](./decisions/) ADR-001–010
+- [docs/decisions/](./decisions/) ADR-001–011
 - [platform-research/skill-first-positioning.md](./platform-research/skill-first-positioning.md)
 - Doc archive + README hierarchy
 

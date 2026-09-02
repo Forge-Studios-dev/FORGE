@@ -31,6 +31,7 @@ import { TierEntitlementResourceType } from '../entitlements/entities/tier-entit
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 import { clampLimit, clampPage, MAX_LIST_LIMIT } from '../../common/utils/pagination.util';
+import { isSkillEconomyLmsExtendedEnabled } from '../../common/features/skill-platform';
 
 @Injectable()
 export class CoursesService {
@@ -567,9 +568,13 @@ export class CoursesService {
     await this.assertCourseAccess(course, userId);
 
     let resolvedCohortId: string | null = null;
-    if (cohortId) {
+    // Cohort enrollment is LMS-only — ignore cohortId when the extended flag is off.
+    const requestedCohortId = isSkillEconomyLmsExtendedEnabled() ? cohortId : undefined;
+    if (requestedCohortId) {
       // Data integrity: the cohort must belong to this course.
-      const cohort = await this.cohortRepository.findOne({ where: { id: cohortId, courseId } });
+      const cohort = await this.cohortRepository.findOne({
+        where: { id: requestedCohortId, courseId },
+      });
       if (!cohort) throw new BadRequestException('Cohort does not belong to this course');
       // Window enforcement: cannot join a cohort that has already ended.
       if (cohort.endsAt && cohort.endsAt.getTime() < Date.now()) {
