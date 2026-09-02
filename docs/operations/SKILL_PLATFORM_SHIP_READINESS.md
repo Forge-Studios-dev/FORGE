@@ -1,8 +1,8 @@
 # Skill platform ship readiness
 
 **Status:** In-repo engineering complete (2026-09-02). Ready for PR → merge → staging flag rollout.  
-**Branch:** `feature/skill-first-platform` — **6 local commits not on origin** (push blocked until GitHub auth).  
-**HEAD:** `3fc989d`  
+**Branch:** `feature/skill-first-platform` — local commits not on origin (push blocked until GitHub auth).  
+**Tip:** `git log --oneline origin/feature/skill-first-platform..HEAD`  
 **Note:** Course/program service methods return flat payloads (no `{ data }` double-wrap under `TransformInterceptor`).  
 **SSOT:** [FORGE_IMPLEMENTATION_ROADMAP.md](../FORGE_IMPLEMENTATION_ROADMAP.md) · [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md)
 
@@ -19,14 +19,7 @@ npm run pr:skill-platform
 
 Compare URL (after push): https://github.com/Forge-Studios-dev/FORGE/compare/main...feature/skill-first-platform  
 
-Unpushed commits (oldest → newest):
-
-1. `aeb7dc9` — ignore cohort enroll when LMS off  
-2. `a863046` — `pr:skill-platform` npm script  
-3. `a640341` — admin skill gates + refund rebuy restore  
-4. `bc0051f` — flatten course/program envelopes  
-5. `70fdd6d` — course search fix + web community Mentorship/Points tabs  
-6. `3fc989d` — mobile community Mentorship/Points tabs + smoke  
+Includes (among others): cohort enroll LMS clamp, flat course/program envelopes, refund rebuy, course search fix, web+mobile community Mentorship/Points tabs, admin skill gates, `ci:local` green.
 
 **Open PR:** run `npm run pr:skill-platform` after auth, body from [PR_SKILL_PLATFORM.md](./PR_SKILL_PLATFORM.md).  
 *(Requires repo collaborator.)*
