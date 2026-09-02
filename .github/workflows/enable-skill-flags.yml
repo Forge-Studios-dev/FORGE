@@ -1,0 +1,49 @@
+# One-shot: enable skill platform env on production API (forge-studios-api only).
+# Manual: gh workflow run enable-skill-flags.yml --ref main
+name: Enable skill platform flags (Fly)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  enable:
+    name: Set skill flags on forge-studios-api
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Require Fly secret
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::Missing GitHub secret: FLY_API_TOKEN"
+            exit 1
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
+
+      - name: Enable skill feature flags (API app only)
+        run: |
+          fly secrets set \
+            FEATURES_COURSES=true \
+            FEATURES_MENTORSHIP=true \
+            FEATURES_CHANNEL_POINTS=true \
+            FEATURES_SKILL_ECONOMY_LMS=true \
+            --app forge-studios-api
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Verify platform/config skillFeatures
+        run: |
+          for i in 1 2 3 4 5 6 8 10 12 15; do
+            body="$(curl -sf --max-time 20 https://api.forgestudios.net/api/v1/platform/config || true)"
+            if echo "$body" | python3 -c "import json,sys; f=json.load(sys.stdin).get('data',{}).get('skillFeatures',{}); sys.exit(0 if all(f.get(k) for k in ('courses','mentorship','channelPoints','skillEconomyLms')) else 1)"; then
+              echo "OK: all skillFeatures enabled"
+              exit 0
+            fi
+            echo "Waiting for API restart ($i)..."
+            sleep 10
+          done
+          echo "::error::skillFeatures not all true after secrets update"
+          curl -sf https://api.forgestudios.net/api/v1/platform/config | python3 -m json.tool || true
+          exit 1
