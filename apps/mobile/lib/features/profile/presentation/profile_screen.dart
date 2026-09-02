@@ -16,6 +16,8 @@ import '../data/profile_repository.dart';
 import '../../../shared/models/video.dart';
 import 'membership_panel.dart';
 import 'channel_community_panel.dart';
+import 'creator_courses_panel.dart';
+import '../../../core/platform/platform_config.dart';
 
 /// Thrown when the API returns 403 for a channel the viewer cannot open.
 class ChannelUnavailableException implements Exception {
@@ -242,6 +244,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   List<Widget> _homeSlivers(UserModel user) {
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
+    final coursesEnabled = platformCoursesEnabled(platformConfig);
     final streamsAsync = ref.watch(channelStreamsProvider(user.id));
     final videosAsync = ref.watch(
       userVideosProvider((userId: user.id, type: 'video', sort: 'newest')),
@@ -256,6 +260,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         sliver: SliverList(
           delegate: SliverChildListDelegate([
+            if (coursesEnabled)
+              CreatorCoursesPanel(creatorId: user.id, username: user.username),
             streamsAsync.when(
               loading: () => const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),

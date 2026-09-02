@@ -4,6 +4,7 @@ import {
   CheckoutSessionInput,
   CheckoutSessionResult,
   EventCheckoutSessionInput,
+  ProgramCheckoutSessionInput,
   SuperChatCheckoutInput,
   SuperThanksCheckoutInput,
   PaymentProvider,
@@ -43,6 +44,14 @@ export class StubPaymentProvider implements PaymentProvider {
     return {
       provider: this.name,
       sessionId: `stub_thanks_${randomUUID()}`,
+      checkoutUrl: null,
+    };
+  }
+
+  async createProgramCheckoutSession(_input: ProgramCheckoutSessionInput): Promise<CheckoutSessionResult> {
+    return {
+      provider: this.name,
+      sessionId: `stub_program_${randomUUID()}`,
       checkoutUrl: null,
     };
   }

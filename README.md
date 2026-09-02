@@ -1,6 +1,8 @@
 # FORGE
 
-YouTube-replica video platform monorepo.
+Skill-first creator platform powered by YouTube-style video mechanics.
+
+**Docs:** [FORGE_PRODUCT_STRATEGY.md](docs/FORGE_PRODUCT_STRATEGY.md) · [FORGE_PROJECT_MASTER.md](docs/FORGE_PROJECT_MASTER.md) · [Implementation roadmap](docs/FORGE_IMPLEMENTATION_ROADMAP.md)
 
 ## Apps
 
@@ -68,3 +70,22 @@ cd apps/mobile && flutter pub get && flutter run
 Ship gate: [production checklist](docs/operations/PRODUCTION_CHECKLIST.md) · open PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) (`feature/youtube-replica-wave-1`).
 
 See each app’s `.env.example`. Set `SKIP_ENV_VALIDATION=true` only for tooling that must boot without full env.
+
+### Skill extensions (local dev)
+
+Enable in `apps/api/.env` (restart API after changes):
+
+```env
+FEATURES_COURSES=true
+FEATURES_MENTORSHIP=true
+FEATURES_CHANNEL_POINTS=true
+FEATURES_SKILL_ECONOMY_LMS=true   # programs, cohorts, paid bundles
+```
+
+Smoke against a running API:
+
+```bash
+npm run smoke:skill-features
+```
+
+Product scope: [FORGE_PRODUCT_STRATEGY.md](docs/FORGE_PRODUCT_STRATEGY.md) · rollout: [FORGE_IMPLEMENTATION_ROADMAP.md](docs/FORGE_IMPLEMENTATION_ROADMAP.md).

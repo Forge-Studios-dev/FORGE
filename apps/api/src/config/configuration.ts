@@ -156,10 +156,14 @@ export default () => ({
 
   features: {
     /**
-     * Skill-economy LMS (courses, podcasts, creator programs).
-     * Default off — YouTube-replica mode. Set FEATURES_SKILL_ECONOMY_LMS=true to re-enable.
+     * Full LMS extension (articles, podcasts, study groups, quizzes, cohorts, programs).
+     * Default off. FEATURES_SKILL_ECONOMY_LMS=true enables all legacy LMS modules.
      */
     skillEconomyLms: process.env.FEATURES_SKILL_ECONOMY_LMS === 'true',
+    /** Video-lesson courses — FEATURES_COURSES or full LMS flag. */
+    courses: process.env.FEATURES_COURSES === 'true',
+    mentorship: process.env.FEATURES_MENTORSHIP === 'true',
+    channelPoints: process.env.FEATURES_CHANNEL_POINTS === 'true',
   },
 
   entitlements: {

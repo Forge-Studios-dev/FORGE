@@ -409,3 +409,13 @@ inventing a second scheme — the cheapest fix for the "two disconnected systems
 6. What is the intended new "moderator" role's exact permission surface relative to
    `packages/shared-types/src/access.ts`'s existing tier model — additive role or a
    permissions bitset?
+
+---
+
+## Re-audit 2026-09-02
+
+**Product framing:** Skill-first creator platform + YouTube mechanics (supersedes Aug 2026 YouTube-only framing).
+
+**Key updates:** Keep skills/crafts taxonomy; keep creator approval gate; granular feature flags (`FEATURES_COURSES`, `_MENTORSHIP`, `_CHANNEL_POINTS`); courses/mentorship/points UI restore on roadmap P2–P3.
+
+**See:** [skill-first-positioning.md](./skill-first-positioning.md), [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md), [FRESH_AUDIT_2026-09_MASTER.md](../audits/FRESH_AUDIT_2026-09_MASTER.md).

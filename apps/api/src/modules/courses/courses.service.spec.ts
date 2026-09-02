@@ -45,6 +45,7 @@ describe('CoursesService', () => {
   const courseRepository = {
     find: jest.fn(),
     findOne: jest.fn(),
+    count: jest.fn(),
     save: jest.fn(async (entity: Course) => ({ ...entity, id: entity.id ?? 'course-new' })),
     create: jest.fn((dto: Partial<Course>) => dto),
     createQueryBuilder: jest.fn(),
@@ -344,6 +345,7 @@ describe('CoursesService', () => {
   });
 
   it('rejects enrollment into a cohort from another course', async () => {
+    process.env.FEATURES_SKILL_ECONOMY_LMS = 'true';
     courseRepository.findOne.mockResolvedValue({ ...course, isPublished: true });
     enrollmentRepository.findOne.mockResolvedValue(null);
     cohortRepository.findOne.mockResolvedValue(null);
@@ -353,6 +355,7 @@ describe('CoursesService', () => {
   });
 
   it('rejects enrollment into an ended cohort', async () => {
+    process.env.FEATURES_SKILL_ECONOMY_LMS = 'true';
     courseRepository.findOne.mockResolvedValue({ ...course, isPublished: true });
     enrollmentRepository.findOne.mockResolvedValue(null);
     cohortRepository.findOne.mockResolvedValue({
@@ -366,6 +369,7 @@ describe('CoursesService', () => {
   });
 
   it('enrolls into a valid open cohort', async () => {
+    process.env.FEATURES_SKILL_ECONOMY_LMS = 'true';
     courseRepository.findOne.mockResolvedValue({ ...course, isPublished: true });
     enrollmentRepository.findOne.mockResolvedValue(null);
     cohortRepository.findOne.mockResolvedValue({
@@ -375,6 +379,16 @@ describe('CoursesService', () => {
     });
     const enrollment = await service.enroll('user-1', 'course-1', 'cohort-1');
     expect(enrollment.cohortId).toBe('cohort-1');
+  });
+
+  it('ignores cohortId when FEATURES_SKILL_ECONOMY_LMS is off', async () => {
+    delete process.env.FEATURES_SKILL_ECONOMY_LMS;
+    delete process.env.FEATURES_COURSES;
+    courseRepository.findOne.mockResolvedValue({ ...course, isPublished: true });
+    enrollmentRepository.findOne.mockResolvedValue(null);
+    const enrollment = await service.enroll('user-1', 'course-1', 'cohort-1');
+    expect(cohortRepository.findOne).not.toHaveBeenCalled();
+    expect(enrollment.cohortId).toBeNull();
   });
 
   it('reorders lessons by id list', async () => {
@@ -411,14 +425,14 @@ describe('CoursesService', () => {
       getRawMany: jest.fn().mockResolvedValue([{ courseId: 'course-1', count: '2' }]),
     })) as never;
     const result = await service.listFeaturedCourses();
-    expect(result.data).toHaveLength(1);
-    expect(result.data[0].lessonCount).toBe(2);
-    expect(result.data[0].creator?.username).toBe('creator');
+    expect(result).toHaveLength(1);
+    expect(result[0].lessonCount).toBe(2);
+    expect(result[0].creator?.username).toBe('creator');
   });
 
   it('returns empty discover results for short queries', async () => {
     const result = await service.discoverCourses('a');
-    expect(result.data).toEqual([]);
+    expect(result).toEqual([]);
   });
 
   it('returns public course catalog metadata', async () => {
@@ -432,8 +446,62 @@ describe('CoursesService', () => {
     })) as never;
     enrollmentRepository.find.mockResolvedValue([]);
     const result = await service.getPublicCourse('course-1', 'user-1');
-    expect(result.data.title).toBe('Intro');
-    expect(result.data.viewerEnrolled).toBe(false);
+    expect(result.title).toBe('Intro');
+    expect(result.viewerEnrolled).toBe(false);
+  });
+
+  it('returns public catalog lesson syllabus without content', async () => {
+    courseRepository.findOne.mockResolvedValue({ ...course, isPublished: true });
+    lessonRepository.find.mockResolvedValue([
+      {
+        id: 'lesson-1',
+        title: 'Welcome',
+        slug: 'welcome',
+        sortOrder: 0,
+        lessonType: LessonType.VIDEO,
+        durationMinutes: 5,
+      },
+    ]);
+    const result = await service.listPublicCatalogLessons('course-1');
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe('Welcome');
+    expect(result[0].lessonType).toBe(LessonType.VIDEO);
+  });
+
+  it('returns admin courses overview with counts and recent rows', async () => {
+    const updatedAt = new Date('2026-09-01T12:00:00Z');
+    courseRepository.count
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(1);
+    courseRepository.find.mockResolvedValue([
+      {
+        ...course,
+        id: 'course-1',
+        title: 'Intro',
+        slug: 'intro',
+        isPublished: true,
+        creatorId: 'creator-1',
+        updatedAt,
+        createdAt: updatedAt,
+      },
+    ]);
+    userRepository.find.mockResolvedValue([
+      { id: 'creator-1', username: 'teacher', displayName: 'Teacher' },
+    ]);
+    lessonRepository.createQueryBuilder.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([{ courseId: 'course-1', count: '4' }]),
+    } as never);
+
+    const result = await service.adminCoursesOverview(10);
+    expect(result.counts).toEqual({ published: 3, draft: 2, programsPublished: 1 });
+    expect(result.recent).toHaveLength(1);
+    expect(result.recent[0].creatorUsername).toBe('teacher');
+    expect(result.recent[0].lessonCount).toBe(4);
   });
 
   describe('video lessons', () => {

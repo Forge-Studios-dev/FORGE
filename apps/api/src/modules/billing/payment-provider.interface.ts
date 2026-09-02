@@ -73,6 +73,19 @@ export type SuperThanksCheckoutInput = {
   platformFeePercent?: number;
 };
 
+export type ProgramCheckoutSessionInput = {
+  userId: string;
+  programId: string;
+  creatorId: string;
+  title: string;
+  amountCents: number;
+  currency?: string;
+  successUrl: string;
+  cancelUrl: string;
+  connectAccountId?: string | null;
+  platformFeePercent?: number;
+};
+
 export type CheckoutSessionResult = {
   provider: string;
   sessionId: string;
@@ -81,7 +94,7 @@ export type CheckoutSessionResult = {
 
 export type ProviderWebhookResult = {
   handled: boolean;
-  checkoutType?: 'subscription' | 'event' | 'super_chat' | 'super_thanks';
+  checkoutType?: 'subscription' | 'event' | 'super_chat' | 'super_thanks' | 'program';
   subscriptionId?: string;
   status?: 'active' | 'canceled' | 'expired' | 'completed' | 'failed_payment' | 'trial' | 'grace_period' | 'paused' | 'refunded' | 'disputed' | 'renewal_pending';
   sessionId?: string;
@@ -91,6 +104,7 @@ export type ProviderWebhookResult = {
   communityId?: string;
   streamId?: string;
   videoId?: string;
+  programId?: string;
   amountCents?: number;
   currency?: string;
   paymentIntentId?: string;
@@ -107,6 +121,7 @@ export interface PaymentProvider {
   createEventCheckoutSession(input: EventCheckoutSessionInput): Promise<CheckoutSessionResult>;
   createSuperChatCheckoutSession(input: SuperChatCheckoutInput): Promise<CheckoutSessionResult>;
   createSuperThanksCheckoutSession(input: SuperThanksCheckoutInput): Promise<CheckoutSessionResult>;
+  createProgramCheckoutSession(input: ProgramCheckoutSessionInput): Promise<CheckoutSessionResult>;
   cancelSubscription(externalSubscriptionId: string, cancelAtPeriodEnd?: boolean): Promise<void>;
   updateSubscriptionTier?(input: UpdateSubscriptionTierInput): Promise<UpdateSubscriptionTierResult>;
   verifyWebhook(payload: Buffer, headers: Record<string, string>): Promise<ProviderWebhookResult | null>;

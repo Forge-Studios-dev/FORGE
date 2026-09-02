@@ -18,6 +18,7 @@ import '../../../shared/models/video.dart';
 import '../../history/data/history_repository.dart';
 import '../../library/presentation/library_screen.dart';
 import '../../watch/data/watch_repository.dart';
+import '../../courses/presentation/featured_courses_rail.dart';
 import '../data/feed_repository.dart';
 
 final feedProvider = FutureProvider.autoDispose<List<VideoModel>>((ref) async {
@@ -211,6 +212,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> with SingleTickerProvid
                     ))
           : Column(
               children: [
+                if (_tabIndex == 0) const FeaturedCoursesRail(),
                 cwAsync.when(
                   loading: () => const SizedBox.shrink(),
                   error: (_, __) => const SizedBox.shrink(),

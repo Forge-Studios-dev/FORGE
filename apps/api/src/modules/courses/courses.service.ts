@@ -31,6 +31,7 @@ import { TierEntitlementResourceType } from '../entitlements/entities/tier-entit
 import { AccessSessionsService } from '../access-sessions/access-sessions.service';
 import { AccessSessionType } from '../access-sessions/dto/access-session.dto';
 import { clampLimit, clampPage, MAX_LIST_LIMIT } from '../../common/utils/pagination.util';
+import { isSkillEconomyLmsExtendedEnabled } from '../../common/features/skill-platform';
 
 @Injectable()
 export class CoursesService {
@@ -92,12 +93,12 @@ export class CoursesService {
       qb.andWhere('c.creator_id NOT IN (:...blocked)', { blocked });
     }
     const courses = await qb.getMany();
-    return { data: await this.mapPublicCourses(courses, viewerId) };
+    return this.mapPublicCourses(courses, viewerId);
   }
 
   async discoverCourses(query: string, limit = 20, viewerId?: string) {
     const term = query.trim();
-    if (term.length < 2) return { data: [] };
+    if (term.length < 2) return [];
     const pattern = `%${term}%`;
     const take = clampLimit(limit);
     const blocked = viewerId ? await this.engagementService.getBlockedPeerIds(viewerId) : [];
@@ -115,7 +116,7 @@ export class CoursesService {
       qb.andWhere('c.creator_id NOT IN (:...blocked)', { blocked });
     }
     const courses = await qb.getMany();
-    return { data: await this.mapPublicCourses(courses, viewerId) };
+    return this.mapPublicCourses(courses, viewerId);
   }
 
   async listPublishedForCreator(
@@ -134,7 +135,7 @@ export class CoursesService {
       take,
       skip,
     });
-    return { data: await this.mapPublicCourses(courses, viewerId) };
+    return this.mapPublicCourses(courses, viewerId);
   }
 
   async getPublicCourse(courseId: string, viewerId?: string | null) {
@@ -146,7 +147,82 @@ export class CoursesService {
       throw new ForbiddenException('This channel is not available');
     }
     const [mapped] = await this.mapPublicCourses([course], viewerId);
-    return { data: mapped };
+    return mapped;
+  }
+
+  /** Public syllabus — titles/types only (no lesson content or playback URLs). */
+  async listPublicCatalogLessons(courseId: string) {
+    const course = await this.courseRepository.findOne({
+      where: { id: courseId, isPublished: true, isBundle: false },
+    });
+    if (!course) throw new NotFoundException('Course not found');
+    const lessons = await this.lessonRepository.find({
+      where: { courseId },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
+      select: ['id', 'title', 'slug', 'sortOrder', 'lessonType', 'durationMinutes'],
+    });
+    return lessons.map((lesson) => ({
+      id: lesson.id,
+      title: lesson.title,
+      slug: lesson.slug,
+      sortOrder: lesson.sortOrder,
+      lessonType: lesson.lessonType,
+      durationMinutes: lesson.durationMinutes,
+    }));
+  }
+
+  /** Platform admin overview — published/draft counts and recent courses. */
+  async adminCoursesOverview(limit = 50) {
+    const take = clampLimit(limit, 50, 100);
+    const [published, draft, programsPublished, recent] = await Promise.all([
+      this.courseRepository.count({ where: { isPublished: true, isBundle: false } }),
+      this.courseRepository.count({ where: { isPublished: false, isBundle: false } }),
+      this.courseRepository.count({ where: { isPublished: true, isBundle: true } }),
+      this.courseRepository.find({
+        where: { isBundle: false },
+        order: { updatedAt: 'DESC' },
+        take,
+      }),
+    ]);
+
+    const creatorIds = [...new Set(recent.map((c) => c.creatorId))];
+    const creators = creatorIds.length
+      ? await this.userRepository.find({ where: { id: In(creatorIds) } })
+      : [];
+    const creatorById = new Map(creators.map((u) => [u.id, u]));
+
+    const courseIds = recent.map((c) => c.id);
+    const lessonCounts = courseIds.length
+      ? await this.lessonRepository
+          .createQueryBuilder('l')
+          .select('l.course_id', 'courseId')
+          .addSelect('COUNT(*)', 'count')
+          .where('l.course_id IN (:...courseIds)', { courseIds })
+          .groupBy('l.course_id')
+          .getRawMany<{ courseId: string; count: string }>()
+      : [];
+    const lessonCountByCourse = new Map(
+      lessonCounts.map((row) => [row.courseId, Number(row.count)]),
+    );
+
+    return {
+      counts: { published, draft, programsPublished },
+      recent: recent.map((course) => {
+        const creator = creatorById.get(course.creatorId);
+        return {
+          id: course.id,
+          title: course.title,
+          slug: course.slug,
+          isPublished: course.isPublished,
+          creatorId: course.creatorId,
+          creatorUsername: creator?.username ?? null,
+          creatorDisplayName: creator?.displayName ?? null,
+          lessonCount: lessonCountByCourse.get(course.id) ?? 0,
+          updatedAt: course.updatedAt.toISOString(),
+          createdAt: course.createdAt.toISOString(),
+        };
+      }),
+    };
   }
 
   private async mapPublicCourses(courses: Course[], viewerId?: string | null) {
@@ -488,9 +564,13 @@ export class CoursesService {
     await this.assertCourseAccess(course, userId);
 
     let resolvedCohortId: string | null = null;
-    if (cohortId) {
+    // Cohort enrollment is LMS-only — ignore cohortId when the extended flag is off.
+    const requestedCohortId = isSkillEconomyLmsExtendedEnabled() ? cohortId : undefined;
+    if (requestedCohortId) {
       // Data integrity: the cohort must belong to this course.
-      const cohort = await this.cohortRepository.findOne({ where: { id: cohortId, courseId } });
+      const cohort = await this.cohortRepository.findOne({
+        where: { id: requestedCohortId, courseId },
+      });
       if (!cohort) throw new BadRequestException('Cohort does not belong to this course');
       // Window enforcement: cannot join a cohort that has already ended.
       if (cohort.endsAt && cohort.endsAt.getTime() < Date.now()) {
@@ -615,7 +695,7 @@ export class CoursesService {
     community.communityType = CommunityType.COURSE;
     await this.courseRepository.save(course);
     await this.communityRepository.save(community);
-    return { data: { courseId: course.id, communityId: community.id } };
+    return { courseId: course.id, communityId: community.id };
   }
 
   /**

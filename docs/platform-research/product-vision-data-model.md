@@ -226,3 +226,13 @@ These are additive/clarifying recommendations only — no existing behavior is p
 ---
 
 *This is a research/gap-analysis document, not an authoritative spec. Written for the docs-overhaul effort on the `product-vision-data-model` domain slice. Cross-check against sibling domain docs (content/upload, live streaming, communities/monetization, moderation) before treating any single recommendation here as final — several gaps identified (manual approval gate, skill-economy flag scope) span domain boundaries.*
+
+---
+
+## Re-audit 2026-09-02
+
+**Product framing:** Skill-first creator platform + YouTube mechanics (supersedes Aug 2026 YouTube-only framing).
+
+**Key updates:** Keep skills/crafts taxonomy; keep creator approval gate; granular feature flags (`FEATURES_COURSES`, `_MENTORSHIP`, `_CHANNEL_POINTS`); courses/mentorship/points UI restore on roadmap P2–P3.
+
+**See:** [skill-first-positioning.md](./skill-first-positioning.md), [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md), [FRESH_AUDIT_2026-09_MASTER.md](../audits/FRESH_AUDIT_2026-09_MASTER.md).

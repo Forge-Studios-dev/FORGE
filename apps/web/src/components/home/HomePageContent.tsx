@@ -3,6 +3,7 @@ import { LiveNowRail } from '@/components/home/LiveNowRail';
 import { TrendingRail } from '@/components/home/TrendingRail';
 import { ContinueWatching } from '@/components/ContinueWatching';
 import { HomeFeedTabs } from '@/components/home/HomeFeedTabs';
+import { FeaturedCoursesRail } from '@/components/Courses/FeaturedCoursesRail';
 import { Category, PaginatedResponse, Video } from '@/types';
 
 type Props = {
@@ -23,6 +24,7 @@ export function HomePageContent({ feed, trending, categories }: Props) {
       <HomeFeedSections />
       <LiveNowRail />
       <ContinueWatching />
+      <FeaturedCoursesRail />
       <TrendingRail videos={trending.data.length > 0 ? trending.data : feed.data} />
       <HomeFeedTabs feed={feed} categories={categories} />
     </main>

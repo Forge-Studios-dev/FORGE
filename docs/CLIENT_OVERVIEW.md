@@ -4,7 +4,7 @@
 
 ## Product
 
-YouTube-replica video platform: channels, video upload/watch, subscriptions, playlists, comments, live streaming, and a Community tab. A creator-economy extension layer (courses, mentorship, channel points, brand deals) exists in the codebase but is flagged off and removed from web/mobile UI as of 2026-08-12 — see [FORGE_PROJECT_MASTER.md §1](./FORGE_PROJECT_MASTER.md#1-executive-summary) for the full framing. Surfaces: web, mobile, admin, one API.
+**Skill-first creator platform** powered by YouTube-style video mechanics: channels, upload/watch, subscriptions, playlists, comments, live streaming, Community tab. Selective skill extensions (courses, mentorship, channel points) ship **flag-gated** per [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md) — enable via `FEATURES_*` in `apps/api/.env` (see [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md)). Surfaces: web, mobile, admin, one API.
 
 ## Goals
 
@@ -37,7 +37,7 @@ Guest → user → creator (approved) · admin on separate admin app.
 | Gamification / XP / achievements | ✅ | ✅ | ⚠️ | — |
 | AI (moderation, summaries, copilot) | ⚠️ | ⚠️ | ⏳ | — |
 | Creator analytics / KPI dashboard | ✅ | ⚠️ | ⚠️ | ✅ |
-| Courses / programs | ⚠️ | ⚠️ | ⚠️ | — |
+| Courses / programs | ✅ | ✅ | ✅ | ✅ |
 
 ✅ MVP-ready · ⚠️ partial or config-dependent · ⏳ not started
 

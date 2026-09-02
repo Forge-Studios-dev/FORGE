@@ -17,6 +17,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
+import { ReservedCreatorIdPipe } from '../../common/pipes/reserved-creator-id.pipe';
 
 /** LMS-only product bundles. Mounted only when FEATURES_SKILL_ECONOMY_LMS=true. */
 @ApiTags('Creator Bundles')
@@ -24,17 +25,6 @@ import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 @UseGuards(SkillEconomyLmsGuard)
 export class CreatorBundlesController {
   constructor(private readonly creatorBundlesService: CreatorBundlesService) {}
-
-  @Public()
-  @UseGuards(OptionalJwtAuthGuard)
-  @Get('creators/:creatorId/bundles')
-  @ApiOperation({ summary: 'List active product bundles for a creator' })
-  listPublicBundles(
-    @Param('creatorId') creatorId: string,
-    @CurrentUser() user?: JwtPayload,
-  ) {
-    return this.creatorBundlesService.listPublic(creatorId, user?.sub);
-  }
 
   @Get('creators/me/bundles')
   @UseGuards(CreatorApprovedGuard)
@@ -66,5 +56,16 @@ export class CreatorBundlesController {
   @ApiOperation({ summary: 'Deactivate a product bundle' })
   deactivateBundle(@CurrentUser() user: JwtPayload, @Param('bundleId') bundleId: string) {
     return this.creatorBundlesService.deactivate(user.sub, bundleId);
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @Get('creators/:creatorId/bundles')
+  @ApiOperation({ summary: 'List active product bundles for a creator' })
+  listPublicBundles(
+    @Param('creatorId', ReservedCreatorIdPipe) creatorId: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.creatorBundlesService.listPublic(creatorId, user?.sub);
   }
 }

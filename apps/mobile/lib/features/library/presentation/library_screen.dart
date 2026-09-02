@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/navigation/public_video_path.dart';
+import '../../../core/platform/platform_config.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
 import '../../../shared/models/video.dart';
@@ -43,6 +44,8 @@ class LibraryScreen extends ConsumerWidget {
           orElse: () => (watchLater: null, liked: null, playlists: null),
         );
     final continueWatching = ref.watch(continueWatchingProvider);
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
+    final coursesEnabled = platformCoursesEnabled(platformConfig);
 
     String shelfSubtitle(String fallback, int? count) {
       if (count == null) return fallback;
@@ -140,6 +143,17 @@ class LibraryScreen extends ConsumerWidget {
               subtitle: 'Search and browse categories',
             ),
           ),
+          if (coursesEnabled) ...[
+            const SizedBox(height: 12),
+            ForgeCard(
+              onTap: () => context.push('/discover/courses'),
+              child: const _LibraryRow(
+                icon: Icons.school_outlined,
+                title: 'Courses',
+                subtitle: 'Discover creator video lessons',
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           ForgeCard(
             onTap: () => context.push('/live'),

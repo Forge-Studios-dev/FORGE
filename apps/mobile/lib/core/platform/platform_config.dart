@@ -20,6 +20,30 @@ bool platformGoogleOAuthEnabled(PlatformConfig config) {
   return false;
 }
 
+bool platformCoursesEnabled(PlatformConfig config) {
+  final features = config['skillFeatures'];
+  if (features is Map && features['courses'] == true) return true;
+  return false;
+}
+
+bool platformMentorshipEnabled(PlatformConfig config) {
+  final features = config['skillFeatures'];
+  if (features is Map && features['mentorship'] == true) return true;
+  return false;
+}
+
+bool platformChannelPointsEnabled(PlatformConfig config) {
+  final features = config['skillFeatures'];
+  if (features is Map && features['channelPoints'] == true) return true;
+  return false;
+}
+
+bool platformSkillEconomyLmsEnabled(PlatformConfig config) {
+  final features = config['skillFeatures'];
+  if (features is Map && features['skillEconomyLms'] == true) return true;
+  return false;
+}
+
 String googleOAuthStartUrl() {
   final base = AppConstants.apiBaseUrl.replaceAll(RegExp(r'/+$'), '');
   // `platform=mobile` tells the API to redirect back to the app's custom

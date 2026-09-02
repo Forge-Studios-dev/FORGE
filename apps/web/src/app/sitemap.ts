@@ -45,10 +45,21 @@ async function fetchCategorySlugs(): Promise<string[]> {
   }
 }
 
+async function fetchFeaturedCourseIds(): Promise<string[]> {
+  try {
+    const { data } = await serverApi.get('/courses/discover/featured', { params: { limit: 50 } });
+    const courses: Array<{ id: string }> = data.data ?? [];
+    return courses.map((c) => c.id).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [videos, categorySlugs] = await Promise.all([
+  const [videos, categorySlugs, courseIds] = await Promise.all([
     fetchPublicVideos(),
     fetchCategorySlugs(),
+    fetchFeaturedCourseIds(),
   ]);
 
   const staticRoutes: MetadataRoute.Sitemap = [
@@ -59,6 +70,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/search`, changeFrequency: 'daily', priority: 0.7 },
     { url: `${SITE_URL}/subscriptions`, changeFrequency: 'daily', priority: 0.6 },
   ];
+
+  const courseRoutes: MetadataRoute.Sitemap =
+    courseIds.length > 0
+      ? [
+          { url: `${SITE_URL}/discover/courses`, changeFrequency: 'daily', priority: 0.75 },
+          ...courseIds.map((id) => ({
+            url: `${SITE_URL}/courses/${id}`,
+            changeFrequency: 'weekly' as const,
+            priority: 0.65,
+          })),
+        ]
+      : [];
 
   const categoryRoutes: MetadataRoute.Sitemap = categorySlugs.map((slug) => ({
     url: `${SITE_URL}/explore/${slug}`,
@@ -85,5 +108,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
-  return [...staticRoutes, ...categoryRoutes, ...videoRoutes, ...creatorRoutes];
+  return [...staticRoutes, ...categoryRoutes, ...courseRoutes, ...videoRoutes, ...creatorRoutes];
 }

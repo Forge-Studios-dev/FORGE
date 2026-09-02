@@ -185,3 +185,13 @@ This is the single highest-leverage structural decision in this domain — every
 3. Is there an existing anonymous-session identifier already used elsewhere in the codebase (for logged-out analytics, A/B, etc.) that §6.2's session-aware boost should reuse, rather than introducing a new one?
 4. Should live-broadcast discovery (Twitch-style viewer-count/category directory, §3) be pulled into this domain's scope, or does it belong to a separate "Live" domain's documentation? The `live-broadcast`/`streaming` modules exist but were not deeply audited here since they weren't in this domain's listed doc set.
 5. What is the actual current trending time-window and is it regionalized at all today? Needs a direct read of `RecommendationsService.getTrending`'s full body (only partially shown by codegraph in this pass).
+
+---
+
+## Re-audit 2026-09-02
+
+**Product framing:** Skill-first creator platform + YouTube mechanics (supersedes Aug 2026 YouTube-only framing).
+
+**Key updates:** Keep skills/crafts taxonomy; keep creator approval gate; granular feature flags (`FEATURES_COURSES`, `_MENTORSHIP`, `_CHANNEL_POINTS`); courses/mentorship/points UI restore on roadmap P2–P3.
+
+**See:** [skill-first-positioning.md](./skill-first-positioning.md), [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md), [FRESH_AUDIT_2026-09_MASTER.md](../audits/FRESH_AUDIT_2026-09_MASTER.md).

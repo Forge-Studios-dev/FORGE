@@ -15,6 +15,7 @@ export async function getServerPlatformConfig(): Promise<PlatformPublicConfig> {
       apiVersion: json.data?.apiVersion ?? 'v1',
       auth: json.data?.auth,
       firebase: json.data?.firebase,
+      skillFeatures: json.data?.skillFeatures,
     };
   } catch {
     return { featureFlags: [], apiVersion: 'v1' };

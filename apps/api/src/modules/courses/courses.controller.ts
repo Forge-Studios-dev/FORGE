@@ -4,17 +4,29 @@ import { CoursesService } from './courses.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
-import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
+import { SkillFeatureGuard, RequireSkillFeature } from '../../common/guards/skill-feature.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CreateCohortDto, UpdateCohortDto } from './dto/cohort.dto';
 import { LessonType } from './entities/course-lms.entity';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
+import { clampLimit } from '../../common/utils/pagination.util';
+import { ReservedCreatorIdPipe } from '../../common/pipes/reserved-creator-id.pipe';
 
 @ApiTags('Courses')
 @Controller()
-@UseGuards(SkillEconomyLmsGuard)
+@UseGuards(SkillFeatureGuard)
+@RequireSkillFeature('courses')
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
+
+  @Roles(UserRole.ADMIN)
+  @Get('admin/courses/overview')
+  @ApiOperation({ summary: 'Platform courses overview (admin)' })
+  adminCoursesOverview(@Query('limit') limit = 50) {
+    return this.coursesService.adminCoursesOverview(clampLimit(Number(limit) || 50, 50, 100));
+  }
 
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
@@ -52,7 +64,7 @@ export class CoursesController {
   @Get('creators/:creatorId/courses')
   @ApiOperation({ summary: 'List published courses for a creator (public catalog)' })
   listCreatorPublished(
-    @Param('creatorId') creatorId: string,
+    @Param('creatorId', ReservedCreatorIdPipe) creatorId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @CurrentUser() user?: JwtPayload,
@@ -66,6 +78,13 @@ export class CoursesController {
   @ApiOperation({ summary: 'Get published course catalog metadata' })
   getCatalog(@Param('courseId') courseId: string, @CurrentUser() user?: JwtPayload) {
     return this.coursesService.getPublicCourse(courseId, user?.sub);
+  }
+
+  @Public()
+  @Get('courses/:courseId/catalog/lessons')
+  @ApiOperation({ summary: 'Public course syllabus (titles only, no content)' })
+  getCatalogLessons(@Param('courseId') courseId: string) {
+    return this.coursesService.listPublicCatalogLessons(courseId);
   }
 
   @Post('creators/me/courses')
@@ -88,6 +107,7 @@ export class CoursesController {
 
   @Post('creators/me/courses/:courseId/cohorts')
   @UseGuards(CreatorApprovedGuard)
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'Create a course cohort (optional start/end window)' })
   createCohort(
     @CurrentUser() user: JwtPayload,
@@ -99,6 +119,7 @@ export class CoursesController {
 
   @Patch('creators/me/courses/:courseId/cohorts/:cohortId')
   @UseGuards(CreatorApprovedGuard)
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'Update a cohort (name and/or start/end window)' })
   updateCohort(
     @CurrentUser() user: JwtPayload,
@@ -111,6 +132,7 @@ export class CoursesController {
 
   @Get('creators/me/courses/:courseId/cohorts')
   @UseGuards(CreatorApprovedGuard)
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'List course cohorts' })
   listCohorts(@CurrentUser() user: JwtPayload, @Param('courseId') courseId: string) {
     return this.coursesService.listCohorts(user.sub, courseId);
@@ -227,12 +249,14 @@ export class CoursesController {
   }
 
   @Post('courses/:courseId/certificate')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'Issue completion certificate (requires 100% lesson completion)' })
   issueCertificate(@CurrentUser() user: JwtPayload, @Param('courseId') courseId: string) {
     return this.coursesService.issueCertificate(user.sub, courseId);
   }
 
   @Get('me/certificates')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'List my earned certificates' })
   myCertificates(
     @CurrentUser() user: JwtPayload,
@@ -244,6 +268,7 @@ export class CoursesController {
 
   @Public()
   @Get('certificates/:certificateId')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'Get certificate by ID (public)' })
   getCertificate(@Param('certificateId') certificateId: string) {
     return this.coursesService.getCertificate(certificateId);
@@ -252,6 +277,7 @@ export class CoursesController {
   // ── Quizzes ────────────────────────────────────────────────────────────────
 
   @Post('courses/:courseId/quizzes')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'Create a quiz for a course (creator only)' })
   createQuiz(
     @CurrentUser() user: JwtPayload,
@@ -262,12 +288,14 @@ export class CoursesController {
   }
 
   @Get('courses/:courseId/quizzes')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'List quizzes for a course' })
   listQuizzes(@CurrentUser() user: JwtPayload, @Param('courseId') courseId: string) {
     return this.coursesService.listQuizzes(user.sub, courseId);
   }
 
   @Post('quizzes/:quizId/submit')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'Submit quiz answers' })
   submitQuiz(
     @CurrentUser() user: JwtPayload,
@@ -278,6 +306,7 @@ export class CoursesController {
   }
 
   @Get('quizzes/:quizId/my-attempts')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'Get my quiz attempt history' })
   myQuizAttempts(@CurrentUser() user: JwtPayload, @Param('quizId') quizId: string) {
     return this.coursesService.getMyQuizAttempts(user.sub, quizId);
@@ -286,6 +315,7 @@ export class CoursesController {
   // ── Assignments ────────────────────────────────────────────────────────────
 
   @Post('courses/:courseId/assignments')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'Create an assignment for a course (creator only)' })
   createAssignment(
     @CurrentUser() user: JwtPayload,
@@ -296,12 +326,14 @@ export class CoursesController {
   }
 
   @Get('courses/:courseId/assignments')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'List assignments for a course' })
   listAssignments(@Param('courseId') courseId: string) {
     return this.coursesService.listAssignments(courseId);
   }
 
   @Post('assignments/:assignmentId/submit')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'Submit an assignment' })
   submitAssignment(
     @CurrentUser() user: JwtPayload,
@@ -312,6 +344,7 @@ export class CoursesController {
   }
 
   @Patch('courses/:courseId/assignments/:assignmentId/submissions/:submissionId/grade')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'Grade a student submission (creator only)' })
   gradeSubmission(
     @CurrentUser() user: JwtPayload,
@@ -324,6 +357,7 @@ export class CoursesController {
   }
 
   @Get('courses/:courseId/assignments/:assignmentId/submissions')
+  @RequireSkillFeature('skillEconomyLms')
   @ApiOperation({ summary: 'List submissions for an assignment (creator only)' })
   listSubmissions(
     @CurrentUser() user: JwtPayload,

@@ -1,5 +1,7 @@
 # FORGE YouTube-Parity Roadmap
 
+> **Superseded for sequencing** by [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md) (skill-first re-audit 2026-09-02). Retained for historical MVP closure notes (Aug 2026).
+
 **Audience:** Engineering, product, DevOps.
 **Depends on:** [PLATFORM_AUDIT_2026-08-09.md](./PLATFORM_AUDIT_2026-08-09.md) §1 — this roadmap assumes the audit's recommendation (YouTube's core model as the authoritative frame; courses/mentorship/channel-points/rich-communities as explicitly-labeled, flag-gated extensions) is accepted. If product instead confirms "Creator Economy OS" as the permanent direction, re-scope this roadmap's MVP column accordingly — the phase-doc cross-references below still apply either way.
 **Status:** Planning document. Does not itself change code, flags, or docs elsewhere; sequencing only.

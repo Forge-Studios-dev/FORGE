@@ -2,7 +2,7 @@
 
 **Repo:** [Forge-Studios-dev/FORGE](https://github.com/Forge-Studios-dev/FORGE)
 
-All project documentation lives in `docs/`. Start with **[FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md)** for modules, routes, workers, and feature status.
+All project documentation lives in `docs/`. Start with **[FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md)** for product direction, then **[FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md)** for modules, routes, workers, and feature status.
 
 ---
 
@@ -10,7 +10,11 @@ All project documentation lives in `docs/`. Start with **[FORGE_PROJECT_MASTER.m
 
 | Doc | Use |
 |-----|-----|
-| [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) | Modules, routes, design system, entities, status matrix |
+| [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md) | **Product SSOT** — skill-first + YouTube mechanics |
+| [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md) | Phased delivery plan (P0–P6) |
+| [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md) | **Technical SSOT** — modules, routes, entities, status matrix |
+| [decisions/](./decisions/) | Architecture decision records (ADR-001–011) |
+| [audits/FRESH_AUDIT_2026-09_MASTER.md](./audits/FRESH_AUDIT_2026-09_MASTER.md) | Latest zero-trust re-audit |
 | [GETTING_STARTED.md](./GETTING_STARTED.md) | Local setup |
 | [LIVE.md](./LIVE.md) | Live streaming deploy, workers, capabilities |
 | [API_SCHEMAS.md](./API_SCHEMAS.md) | Public JSON contracts |
@@ -22,8 +26,8 @@ All project documentation lives in `docs/`. Start with **[FORGE_PROJECT_MASTER.m
 | [FIREBASE.md](./FIREBASE.md) | FCM push |
 | [OBSERVABILITY.md](./OBSERVABILITY.md) | Metrics, Sentry, Grafana |
 | [MEMBERSHIPS.md](./MEMBERSHIPS.md) | Tiers, Stripe Connect, entitlements, access sessions |
-| [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md) | **Single source of truth** — 684 task-level items, 96.6% complete, gaps, roadmap, status |
-| [FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md](../FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md) | **Historical/frozen** — self-describes as a frozen blueprint snapshot, not updated as tasks complete. Superseded as current guidance by [FORGE_PROJECT_MASTER.md §1](./FORGE_PROJECT_MASTER.md#1-executive-summary) + [PLATFORM_AUDIT_2026-08-09.md](./PLATFORM_AUDIT_2026-08-09.md). Kept for historical context only. |
+| [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md) | Task-level CEOS tracker (reconcile with product strategy; not primary SSOT) |
+| [FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md](./archive/FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md) | **Archived** frozen blueprint |
 | [AI-LLM-STRATEGY.md](./AI-LLM-STRATEGY.md) | AI/LLM audit, provider selection, architecture & rollout plan |
 | [DESIGN.md](./DESIGN.md) | Design system & Stitch blueprints |
 | [CLIENT_OVERVIEW.md](./CLIENT_OVERVIEW.md) | Stakeholder summary |
@@ -41,8 +45,9 @@ Cross-domain research auditing FORGE against YouTube (+ secondary creator platfo
 
 | Doc | Use |
 |-----|-----|
-| [PLATFORM_AUDIT_2026-08-09.md](./PLATFORM_AUDIT_2026-08-09.md) | Cross-domain executive summary — accepted YouTube-parity-core + extension-layer decision, consolidated gaps/conflicts, assumptions |
-| [YOUTUBE_PARITY_ROADMAP.md](./YOUTUBE_PARITY_ROADMAP.md) | Phased build roadmap (MVP / post-MVP / future scale) with dependency ordering across domains |
+| [platform-research/skill-first-positioning.md](./platform-research/skill-first-positioning.md) | Competitive positioning, non-goals, stack validation |
+| [PLATFORM_AUDIT_2026-08-09.md](./PLATFORM_AUDIT_2026-08-09.md) | Aug 2026 cross-domain audit (partially superseded by Sep re-audit) |
+| [YOUTUBE_PARITY_ROADMAP.md](./YOUTUBE_PARITY_ROADMAP.md) | Historical MVP closure notes — see [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md) |
 | [platform-research/product-vision-data-model.md](./platform-research/product-vision-data-model.md) | Product vision, personas, core data model (User/Channel/Follow/Video/Community) |
 | [platform-research/upload-media-pipeline.md](./platform-research/upload-media-pipeline.md) | Upload, transcode, captions, live streaming pipeline |
 | [platform-research/discovery-search-recommendations.md](./platform-research/discovery-search-recommendations.md) | Search, recommendations, trending, taxonomy |
@@ -67,7 +72,7 @@ Cross-domain research auditing FORGE against YouTube (+ secondary creator platfo
 | [audits/EXECUTIVE_SUMMARY.md](./audits/EXECUTIVE_SUMMARY.md) | Closed 2026-06 enterprise audit summary |
 | `../FORGE_Production_Readiness_Audit.docx` (repo root, untracked) | External production-readiness audit, 2026-07-12 (score 65/100). All 4 Critical findings resolved as of 2026-07-22: mobile Android/iOS scaffolding shipped, exposed AWS/Google OAuth credentials rotated, Neon PITR restore drill executed and logged. |
 
-Enterprise audit **closed** 2026-06-05. Re-audit **2026-09-04** or 50K MAU.
+Enterprise audit **closed** 2026-06-05. **Re-audit completed** 2026-09-02 ([FRESH_AUDIT_2026-09_MASTER.md](./audits/FRESH_AUDIT_2026-09_MASTER.md)). Next: 50K MAU or 2026-12-01.
 
 ---
 
@@ -86,6 +91,7 @@ Enterprise audit **closed** 2026-06-05. Re-audit **2026-09-04** or 50K MAU.
 
 | Change | Update |
 |--------|--------|
+| Product direction | `FORGE_PRODUCT_STRATEGY.md` + `docs/decisions/` |
 | New module or route | `FORGE_PROJECT_MASTER.md` §4 + §20 |
 | Live / streaming feature | `LIVE.md` + `FORGE_PROJECT_MASTER.md` §20 |
 | AI / LLM feature | `AI-LLM-STRATEGY.md` + master tracker Phase 12 (`CEOS-P12-*`) |

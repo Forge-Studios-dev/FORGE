@@ -24,6 +24,7 @@ import { UsersModule } from '../users/users.module';
 import { EngagementModule } from '../engagement/engagement.module';
 import { CreatorApprovedGuard } from '../../common/guards/creator-approved.guard';
 import { SkillEconomyLmsGuard } from '../../common/guards/skill-economy-lms.guard';
+import { SkillFeatureGuard } from '../../common/guards/skill-feature.guard';
 import { CommunityPost } from './entities/community-post.entity';
 import { CommunityPostComment } from './entities/community-post-comment.entity';
 import { CommunityPostReaction } from './entities/community-post-reaction.entity';
@@ -85,7 +86,10 @@ import { MentorshipMatch, MentorshipProfile } from './entities/mentorship.entity
 import { MentorshipService } from './mentorship.service';
 import { MentorshipController } from './mentorship.controller';
 import { User } from '../users/entities/user.entity';
-import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lms';
+import {
+  isMentorshipEnabled,
+  isSkillEconomyLmsExtendedEnabled,
+} from '../../common/features/skill-platform';
 
 @Module({
   imports: [
@@ -156,8 +160,9 @@ import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lm
   controllers: [
     CommunitiesController,
     CommunityModerationController,
-    ...(isSkillEconomyLmsEnabled()
-      ? [BrandsController, MentorshipController, CommunityEngagementController]
+    ...(isMentorshipEnabled() ? [MentorshipController] : []),
+    ...(isSkillEconomyLmsExtendedEnabled()
+      ? [BrandsController, CommunityEngagementController]
       : []),
     CommunityPostsController,
     CommunityPollsController,
@@ -198,6 +203,7 @@ import { isSkillEconomyLmsEnabled } from '../../common/features/skill-economy-lm
     AfterLiveRoomListener,
     CreatorApprovedGuard,
     SkillEconomyLmsGuard,
+    SkillFeatureGuard,
     CommunityRoleGuard,
     CommunityStudioGuard,
     CommunityGroupsService,

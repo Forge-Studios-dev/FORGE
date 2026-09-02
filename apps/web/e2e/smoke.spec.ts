@@ -28,4 +28,19 @@ test.describe('FORGE web smoke', () => {
     const loadError = page.getByRole('heading', { name: /couldn't load feed/i });
     await expect(feed.or(empty).or(loadError)).toBeVisible({ timeout: 20_000 });
   });
+
+  test('discover courses page loads or redirects when feature off', async ({ page }) => {
+    await page.goto('/discover/courses');
+    const coursesHeading = page.getByRole('heading', { name: /discover courses/i });
+    const exploreHeading = page.getByRole('heading', { name: 'Explore' });
+    await expect(coursesHeading.or(exploreHeading)).toBeVisible({ timeout: 20_000 });
+  });
+
+  test('studio courses page loads or redirects when feature off', async ({ page }) => {
+    await page.goto('/studio/courses');
+    const studioCourses = page.getByRole('heading', { name: /courses/i });
+    const studioHome = page.getByRole('heading', { name: /channel dashboard|studio/i });
+    const loginHeading = page.getByRole('heading', { name: /welcome back|sign in/i });
+    await expect(studioCourses.or(studioHome).or(loginHeading)).toBeVisible({ timeout: 20_000 });
+  });
 });

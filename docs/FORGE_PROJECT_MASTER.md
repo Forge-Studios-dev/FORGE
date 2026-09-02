@@ -9,9 +9,20 @@ Update this file when modules, routes, or feature status change. Sync [CLIENT_OV
 
 ## 1. Executive summary
 
-**FORGE** is a **YouTube-replica video platform**: channels (creator identity lives on `User`), video upload/watch, subscriptions, playlists, comments, live streaming, and a Community tab — per the always-applied `.claude/rules/forge-youtube-replica.md` project rule (parity preferred; divergence gets removed/refactored toward YouTube unless explicitly kept as a labeled extension).
+**FORGE** is a **skill-first creator platform** powered by **YouTube-style mechanics** — see [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md) (product SSOT).
 
-On top of that core, FORGE ships a **creator-economy extension layer**: courses/cohorts/quizzes/certificates, mentorship matching, Twitch-style channel points, and brand deals — all flagged off by default (`FEATURES_SKILL_ECONOMY_LMS`, see §7) and, as of 2026-08-12, also removed from web/mobile UI (deep links redirect to their YouTube-parity equivalent — `apps/mobile/lib/core/router/app_router.dart`, `apps/admin/src/app/{channel-points,mentorship}`). These are FORGE-specific additions layered on the YouTube-replica base, not baseline product.
+Channels (creator identity on `User`), video upload/watch, subscriptions, playlists, comments, live streaming, and Community tab (posts/polls) ship as core YouTube-parity mechanics. Skills/crafts taxonomy, admin-gated creator approval, and selective skill extensions (courses, mentorship, channel points) define vertical positioning.
+
+**Skill extensions** (flag-gated; web/mobile UI shipped 2026-09 per [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md)):
+
+| Module | Flag | MVP scope |
+|--------|------|-----------|
+| Courses | `FEATURES_COURSES` | Video-lesson collections |
+| Mentorship | `FEATURES_MENTORSHIP` | Community matching |
+| Channel points | `FEATURES_CHANNEL_POINTS` | Live engagement rewards |
+| Full LMS | `FEATURES_SKILL_ECONOMY_LMS` | Quizzes, cohorts, programs, articles, podcasts |
+
+Web/mobile skill surfaces (courses, mentorship, channel points, programs when LMS on) ship behind granular flags via `apps/api/src/common/features/skill-platform.ts` and `GET /platform/config` → `skillFeatures`.
 
 **Communities 2.0** (`CommunitiesModule`) splits into two tiers, decided 2026-08-12 (closing the per-module call below): **posts + polls + membership tiers are core** — this *is* FORGE's implementation of YouTube's actual Community tab (text posts, images, polls) and Channel Memberships, not an extension, and ships unconditionally. **Rooms (real-time chat) and events/RSVPs are a labeled extension** beyond anything in YouTube's Community tab — kept, not sunset or flag-gated, because unlike the skill-economy-LMS surfaces (which had zero live frontend usage when audited) these are unconditionally wired into the live web/mobile UI and load-bearing for already-shipped moderation/permissions/analytics work; retroactively disabling them would be a breaking product change out of proportion to a documentation exercise, and needs its own explicit sign-off if ever pursued — this decision only labels them, it doesn't touch their behavior.
 
@@ -191,15 +202,20 @@ Comma-separated in `FEATURE_FLAGS` (API) and `NEXT_PUBLIC_FEATURE_FLAGS` (web). 
 
 Helpers: `@forge/shared-types` `parseFeatureFlags`, `isFeatureEnabled`.
 
-**Extension-layer flags** (separate mechanism — direct env booleans, not part of `FEATURE_FLAGS`):
+**Extension-layer flags** (direct env booleans, not part of `FEATURE_FLAGS`):
 
-| Flag | Default | Effect |
+| Flag | Default | Scope |
 |------|---------|--------|
-| `FEATURES_SKILL_ECONOMY_LMS` | `false` (off — YouTube-replica mode) | Courses/cohorts/lessons/quizzes/assignments/certificates (`isSkillEconomyLmsEnabled()`, `apps/api/src/common/features/skill-economy-lms.ts`) |
+| `FEATURES_COURSES` | `false` | Video-lesson courses (`isCoursesEnabled()`, `skill-platform.ts`) |
+| `FEATURES_MENTORSHIP` | `false` | Community mentorship (`isMentorshipEnabled()`) |
+| `FEATURES_CHANNEL_POINTS` | `false` | Channel points (`isChannelPointsEnabled()`) |
+| `FEATURES_SKILL_ECONOMY_LMS` | `false` | **All above** + full LMS: quizzes, cohorts, programs, articles, podcasts, study groups, brands |
 
-**Correction 2026-08-09:** Channel Points (`ChannelPointsModule.register()`), Mentorship, Brands, and community wiki/engagement extras (`BrandsController`/`MentorshipController`/`CommunityEngagementController`, conditionally registered in `communities.module.ts`) are **already gated** behind `FEATURES_SKILL_ECONOMY_LMS` — an earlier pass of this audit incorrectly reported them as unflagged; corrected after direct code verification. As of 2026-08-12 they're also removed from web/mobile UI entirely (not just backend-gated) — see §1.
+`FEATURES_SKILL_ECONOMY_LMS=true` is legacy compat — enables every skill module. Granular flags allow selective rollout (re-audit 2026-09, ADR-006). Guards: `SkillFeatureGuard` + `@RequireSkillFeature()`.
 
-**Communities 2.0 (rooms/events/polls/groups/posts, 14-key permission matrix) — per-module call closed 2026-08-12:** posts/polls/tiers are core (YouTube Community-tab + Channel Memberships equivalent, ships unconditionally, correctly). Rooms + events are a labeled extension, kept unconditional/unflagged — see §1 for the reasoning (live production usage + load-bearing for already-shipped moderation/permissions work makes retroactive flag-gating a breaking change requiring its own sign-off, not a documentation call).
+**Re-audit 2026-09:** Skill UI restored on web/mobile (P2–P5). Enable locally via `FEATURES_COURSES` etc. in `apps/api/.env` — see [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md). Mentorship on `FEATURES_MENTORSHIP`; brands/engagement on full LMS flag only.
+
+**Communities 2.0** — posts/polls/tiers core; rooms/events labeled extension (unchanged).
 
 ---
 
@@ -355,10 +371,10 @@ High-level snapshot only. **Authoritative task-level tracker:** [FORGE_CREATOR_E
 | Memberships & Stripe billing | ✅ | ✅ | — | ⚠️ | ✅ |
 | Communities (rooms, posts, events) | ✅ | ✅ | ✅ | ⚠️ | ✅ |
 | Community engagement (wiki, polls, challenges) | ✅ | ✅ | — | ⚠️ | ✅ |
-| Channel points (earn, redeem, rewards) | ✅ | — | — | — | — |
-| Mentorship matching (profiles, scoring, lifecycle) | ✅ | — | — | — | — |
+| Channel points (earn, redeem, rewards) | ✅ | ✅ | ✅ | ✅ | — |
+| Mentorship matching (profiles, scoring, lifecycle) | ✅ | ✅ | ✅ | ✅ | — |
 | Gamification (XP, streaks, badges, retention milestones) | ✅ | ✅ | — | ⚠️ | — |
-| Courses & programs | ⚠️ | ⚠️ | — | ⚠️ | — |
+| Courses & programs | ✅ | ✅ | ✅ | ✅ | — |
 | Creator bundles | ✅ | ✅ | — | ⚠️ | — |
 | Stream chat & reactions | ✅ | ✅ | — | ⚠️ | ✅ |
 | Access sessions / device caps | ✅ | ✅ | — | ⚠️ | — |
@@ -526,7 +542,7 @@ Full live deploy: [LIVE.md](./LIVE.md)
 **Creator authoring:** `GET/POST creators/me/courses` · `PATCH creators/me/courses/:courseId` · cohorts: `POST/PATCH/GET creators/me/courses/:courseId/cohorts[/:cohortId]` · `POST creators/me/courses/:courseId/bind-community` · lessons: `POST/PATCH/DELETE creators/me/courses/:courseId/lessons[/:lessonId]` · `PATCH creators/me/courses/:courseId/lessons/reorder`  
 **Learner:** `GET courses/:courseId/lessons` · `POST courses/:courseId/enroll` · `GET courses/:courseId/progress` · `POST courses/:courseId/lessons/:lessonId/progress` · `POST courses/:courseId/certificate` · `GET me/certificates` · `GET certificates/:certificateId`  
 **Quizzes/assignments:** `POST/GET courses/:courseId/quizzes` · `POST quizzes/:quizId/submit` · `GET quizzes/:quizId/my-attempts` · `POST/GET courses/:courseId/assignments` · `POST assignments/:assignmentId/submit` · `PATCH …/submissions/:submissionId/grade` · `GET …/submissions`  
-(Legacy programs endpoints also exist: `GET creators/:creatorId/programs[/:slug]` · `POST programs/:programId/enroll` · `GET/POST creators/me/programs`)
+(Legacy programs endpoints also exist: `GET creators/:creatorId/programs[/:slug]` · `POST programs/:programId/enroll` · `POST programs/:programId/checkout` (Stripe) · `GET/POST/PATCH/DELETE creators/me/programs` — register `creators/me/*` before `:creatorId` routes; paid purchases via `program_purchases` + webhook `metadata.type=program`)
 
 ### Creator Resources (root)
 

@@ -5,6 +5,7 @@
 ## API
 
 - Feature modules; DTOs + validation; proper Nest exceptions; structured logging.
+- **Route order:** register `/creators/me/...` before `/creators/:creatorId/...` in the same controller. Use `ReservedCreatorIdPipe` on public `:creatorId` params without `ParseUUIDPipe` as a safety net.
 - JWT + refresh rotation; RBAC; rate limiting; request IDs where the codebase already does.
 - Offload heavy/IO work to BullMQ (retries, idempotency). Do not block request handlers on CPU-heavy jobs.
 - Transactions for multi-step writes; paginate list endpoints.

@@ -25,9 +25,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { clampLimit } from '../../common/utils/pagination.util';
 import { Public } from '../../common/decorators/public.decorator';
+import { SkillFeatureGuard, RequireSkillFeature } from '../../common/guards/skill-feature.guard';
 
 @ApiTags('Channel Points')
 @Controller()
+@UseGuards(SkillFeatureGuard)
+@RequireSkillFeature('channelPoints')
 export class ChannelPointsController {
   constructor(private readonly channelPointsService: ChannelPointsService) {}
 

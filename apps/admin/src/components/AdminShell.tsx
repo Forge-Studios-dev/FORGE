@@ -8,6 +8,12 @@ import { adminLogout, api } from '@/lib/api';
 import { FULL_ADMIN_ONLY_HREFS, useAdminProfile } from '@/lib/admin-profile';
 import { useTheme } from '@/components/theme/ThemeProvider';
 import { env } from '@/env';
+import { fetchAdminPlatformConfig } from '@/lib/platform-config';
+import {
+  isChannelPointsFeatureEnabled,
+  isCoursesFeatureEnabled,
+  isMentorshipFeatureEnabled,
+} from '@forge/shared-types';
 
 type NavItem = { href: string; label: string; icon: string };
 type NavGroup = { label: string; items: NavItem[] };
@@ -34,6 +40,9 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Community',
     items: [
       { href: '/community', label: 'Community', icon: 'forum' },
+      { href: '/courses', label: 'Courses', icon: 'menu_book' },
+      { href: '/mentorship', label: 'Mentorship', icon: 'school' },
+      { href: '/channel-points', label: 'Channel points', icon: 'stars' },
     ],
   },
   {
@@ -58,17 +67,27 @@ function NavLinks({
   pathname,
   onNavigate,
   fullAdmin,
+  skillFeatures,
 }: {
   pathname: string;
   onNavigate?: () => void;
   fullAdmin: boolean;
+  skillFeatures: {
+    courses: boolean;
+    mentorship: boolean;
+    channelPoints: boolean;
+  };
 }) {
   return (
     <>
       {NAV_GROUPS.map((group) => {
-        const items = group.items.filter(
-          (item) => fullAdmin || !FULL_ADMIN_ONLY_HREFS.has(item.href),
-        );
+        const items = group.items.filter((item) => {
+          if (!fullAdmin && FULL_ADMIN_ONLY_HREFS.has(item.href)) return false;
+          if (item.href === '/courses' && !skillFeatures.courses) return false;
+          if (item.href === '/mentorship' && !skillFeatures.mentorship) return false;
+          if (item.href === '/channel-points' && !skillFeatures.channelPoints) return false;
+          return true;
+        });
         if (items.length === 0) return null;
         return (
         <section key={group.label} className="mb-3 last:mb-0">
@@ -126,6 +145,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const fullAdmin = adminProfile?.adminTier !== 'moderator';
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mfaEnabled, setMfaEnabled] = useState<boolean | null>(null);
+  const [skillNav, setSkillNav] = useState({ courses: false, mentorship: false, channelPoints: false });
+
+  useEffect(() => {
+    void fetchAdminPlatformConfig().then((cfg) => {
+      setSkillNav({
+        courses: isCoursesFeatureEnabled(cfg),
+        mentorship: isMentorshipFeatureEnabled(cfg),
+        channelPoints: isChannelPointsFeatureEnabled(cfg),
+      });
+    });
+  }, []);
 
   useEffect(() => {
     if (pathname === '/login' || pathname === '/unauthorized') return;
@@ -173,7 +203,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
-          <NavLinks pathname={pathname} fullAdmin={fullAdmin} />
+          <NavLinks pathname={pathname} fullAdmin={fullAdmin} skillFeatures={skillNav} />
         </nav>
         <SidebarFooter onLogout={logout} />
       </aside>
@@ -234,7 +264,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             />
             <aside className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-outline-variant/20 bg-surface-container-low md:hidden">
               <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4 pt-6">
-                <NavLinks pathname={pathname} fullAdmin={fullAdmin} onNavigate={() => setMobileOpen(false)} />
+                <NavLinks
+                  pathname={pathname}
+                  fullAdmin={fullAdmin}
+                  skillFeatures={skillNav}
+                  onNavigate={() => setMobileOpen(false)}
+                />
               </nav>
               <SidebarFooter onLogout={logout} onNavigate={() => setMobileOpen(false)} />
             </aside>

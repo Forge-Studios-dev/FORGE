@@ -5,10 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/forge_tokens.dart';
+import '../../../core/platform/platform_config.dart';
 import '../../profile/presentation/membership_panel.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/community_repository.dart';
 import 'community_welcome_dialog.dart';
+import 'community_mentorship_tab.dart';
+import 'community_channel_points_tab.dart';
 
 class CommunityScreen extends ConsumerStatefulWidget {
   final String creatorId;
@@ -665,6 +668,29 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
       );
     }
 
+    final platformConfig = ref.watch(platformConfigProvider).asData?.value ?? {};
+    final mentorshipOn = platformMentorshipEnabled(platformConfig);
+    final pointsOn = platformChannelPointsEnabled(platformConfig);
+
+    final tabDefs = <({IconData icon, String label, Widget body})>[
+      (icon: Icons.article_outlined, label: 'Posts', body: _buildPostsTab()),
+      (icon: Icons.poll_outlined, label: 'Polls', body: _buildPollsTab()),
+      (icon: Icons.meeting_room_outlined, label: 'Rooms', body: _buildRoomsTab()),
+      if (mentorshipOn && _communityId != null)
+        (
+          icon: Icons.school_outlined,
+          label: 'Mentor',
+          body: CommunityMentorshipTab(communityId: _communityId!),
+        ),
+      if (pointsOn && _communityId != null)
+        (
+          icon: Icons.stars_outlined,
+          label: 'Points',
+          body: CommunityChannelPointsTab(communityId: _communityId!),
+        ),
+    ];
+    final safeIndex = _tabIndex.clamp(0, tabDefs.length - 1);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Community')),
       body: Column(
@@ -685,36 +711,29 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
           // In-body tabs — avoids stacking a second NavigationBar under MainScaffold.
           Material(
             color: Theme.of(context).colorScheme.surfaceContainerLow,
-            child: Row(
-              children: [
-                for (final entry in const [
-                  (0, Icons.article_outlined, 'Posts'),
-                  (1, Icons.poll_outlined, 'Polls'),
-                  (2, Icons.meeting_room_outlined, 'Rooms'),
-                ])
-                  Expanded(
-                    child: TextButton.icon(
-                      onPressed: () => setState(() => _tabIndex = entry.$1),
-                      icon: Icon(entry.$2),
-                      label: Text(entry.$3),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (var i = 0; i < tabDefs.length; i++)
+                    TextButton.icon(
+                      onPressed: () => setState(() => _tabIndex = i),
+                      icon: Icon(tabDefs[i].icon),
+                      label: Text(tabDefs[i].label),
                       style: TextButton.styleFrom(
-                        foregroundColor: _tabIndex == entry.$1
+                        foregroundColor: safeIndex == i
                             ? Theme.of(context).colorScheme.primary
                             : Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
           Expanded(
             child: IndexedStack(
-              index: _tabIndex,
-              children: [
-                _buildPostsTab(),
-                _buildPollsTab(),
-                _buildRoomsTab(),
-              ],
+              index: safeIndex,
+              children: [for (final tab in tabDefs) tab.body],
             ),
           ),
         ],

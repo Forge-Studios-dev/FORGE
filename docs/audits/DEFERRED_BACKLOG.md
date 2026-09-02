@@ -40,6 +40,6 @@ Note: the *access-control* bug behind signed Mux playback (gated video ingesting
 
 ## Re-audit
 
-Schedule full re-audit on **2026-09-04** or at **50K MAU** — whichever comes first. See [EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md).
+Schedule full re-audit on **50K MAU** or **2026-12-01** — completed 2026-09-02 ([FRESH_AUDIT_2026-09_MASTER.md](../FRESH_AUDIT_2026-09_MASTER.md)).
 
 Phase 5 status (2026-07-29): [PHASE5_DEFERRED_STATUS.md](./PHASE5_DEFERRED_STATUS.md) · load harness: `scripts/load/entitlements-k6.js`.

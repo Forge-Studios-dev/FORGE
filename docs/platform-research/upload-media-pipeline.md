@@ -193,3 +193,13 @@ POST /streams/:id/clips/:markerId/export
 4. Is there a target concurrent-live-viewer number the business actually needs in the next 6–12 months? `docs/SCALE_LIVE.md`'s 100K design is speculative; knowing the real target would determine whether Redis Streams chat is near-term work or permanently deferred.
 5. Does the platform need Content-ID-style duplicate/copyright detection for launch, or is manual reports-based moderation (already present per other FORGE modules) sufficient for current scale and legal exposure?
 6. Should multi-language auto-captions be prioritized now, or does the current creator base skew English-only enough to defer further?
+
+---
+
+## Re-audit 2026-09-02
+
+**Product framing:** Skill-first creator platform + YouTube mechanics (supersedes Aug 2026 YouTube-only framing).
+
+**Key updates:** Keep skills/crafts taxonomy; keep creator approval gate; granular feature flags (`FEATURES_COURSES`, `_MENTORSHIP`, `_CHANNEL_POINTS`); courses/mentorship/points UI restore on roadmap P2–P3.
+
+**See:** [skill-first-positioning.md](./skill-first-positioning.md), [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md), [FRESH_AUDIT_2026-09_MASTER.md](../audits/FRESH_AUDIT_2026-09_MASTER.md).

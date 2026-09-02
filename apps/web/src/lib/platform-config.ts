@@ -21,6 +21,7 @@ export async function loadPlatformConfig(): Promise<PlatformPublicConfig> {
       apiVersion: json.data?.apiVersion ?? 'v1',
       auth: json.data?.auth,
       firebase: json.data?.firebase,
+      skillFeatures: json.data?.skillFeatures,
     };
     if (cfg.auth) cached = cfg;
     return cfg;

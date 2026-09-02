@@ -50,7 +50,7 @@ See `apps/api/.env.example` (authoritative). Production-shaped vars: `apps/api/.
 **Mail testing:** `npm run auth:bootstrap` → Mailpit at `http://localhost:8025` (included in `docker-compose.yml`).
 
 **VOD:** default `VIDEO_TRANSCODE_PROVIDER=mux` (needs Mux creds) or `ffmpeg` without Mux.  
-**Flags:** `FEATURE_FLAGS=multipart_upload` for large files.
+**Flags:** `FEATURE_FLAGS=multipart_upload` for large files. Skill extensions: `FEATURES_COURSES=true` (and optionally `FEATURES_MENTORSHIP`, `FEATURES_CHANNEL_POINTS`, `FEATURES_SKILL_ECONOMY_LMS`) in `apps/api/.env` — clients read `skillFeatures` from `GET /platform/config`.
 
 ## Mobile
 
@@ -64,7 +64,7 @@ FCM: [FIREBASE.md](./FIREBASE.md)
 ## Commands
 
 ```bash
-npm run ci:local | build:all | smoke:api | smoke:memberships | smoke:community-2.0 | auth:bootstrap | auth:check
+npm run ci:local | build:all | smoke:api | smoke:skill-features | smoke:memberships | smoke:community-2.0 | auth:bootstrap | auth:check
 npm run verify:video-pipeline | db:neon:setup | redis:test
 ```
 

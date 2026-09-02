@@ -2,6 +2,8 @@ import {
   isCustomAuthProvider,
   isFirebaseComplementOnly,
   isMailConfigured,
+  isCoursesFeatureEnabled,
+  isSkillEconomyLmsEnabled,
   type PlatformPublicConfig,
 } from './platform-public-config';
 
@@ -48,5 +50,20 @@ describe('platform-public-config', () => {
         auth: { ...base.auth!, mailConfigured: false },
       }),
     ).toBe(false);
+  });
+
+  it('detects skill feature flags', () => {
+    const withSkills: PlatformPublicConfig = {
+      ...base,
+      skillFeatures: {
+        courses: true,
+        mentorship: false,
+        channelPoints: false,
+        skillEconomyLms: true,
+      },
+    };
+    expect(isCoursesFeatureEnabled(withSkills)).toBe(true);
+    expect(isSkillEconomyLmsEnabled(withSkills)).toBe(true);
+    expect(isSkillEconomyLmsEnabled(base)).toBe(false);
   });
 });

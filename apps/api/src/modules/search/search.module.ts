@@ -7,12 +7,14 @@ import { User } from '../users/entities/user.entity';
 import { Playlist } from '../playlists/entities/playlist.entity';
 import { ContentModule } from '../content/content.module';
 import { EngagementModule } from '../engagement/engagement.module';
+import { CoursesModule } from '../courses/courses.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Video, User, Playlist]),
     forwardRef(() => ContentModule),
     forwardRef(() => EngagementModule),
+    CoursesModule.register(),
   ],
   controllers: [SearchController],
   providers: [SearchService],

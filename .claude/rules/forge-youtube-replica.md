@@ -4,6 +4,8 @@
 
 **Product goal:** build a **faithful YouTube replica** on the existing FORGE stack (`apps/api`, `apps/web`, `apps/admin`, `apps/mobile`). Prefer YouTube parity over inventing a custom video platform.
 
+> **Superseded for product framing** by `forge-product.md` (skill-first + YouTube mechanics). Keep this rule for YouTube **mechanics** parity on video/discovery/engagement surfaces.
+
 ## Encouraged (never restrict)
 
 These rules do **not** limit thinking, research, or judgment. Always allowed and preferred when useful:

@@ -11,7 +11,7 @@ Use before promoting a release to production (`main`).
 
 ## Data
 
-- [ ] Pending TypeORM migrations applied (incl. `185…`–`197…` YouTube wave; captions, notify_level, Super Thanks, pin/heart, channel links, unlisted playlists, history pause; plus `198…`–`201…` dislike columns, `user_blocks`, `username_changed_at`, `username_history`)
+- [ ] Pending TypeORM migrations applied (incl. `185…`–`197…` YouTube wave; captions, notify_level, Super Thanks, pin/heart, channel links, unlisted playlists, history pause; plus `198…`–`201…` dislike columns, `user_blocks`, `username_changed_at`, `username_history`; **`229…` program_purchases** when enabling paid programs)
 - [ ] Rollback SQL reviewed for risky migrations
 
 ## Media
@@ -25,7 +25,7 @@ Use before promoting a release to production (`main`).
 - [ ] Stripe webhook endpoint + Connect onboarding smoke
 - [ ] Test checkout → membership active → portal cancel
 - [ ] Super Thanks tip on a VOD → Connect destination charge + Studio ledger (gross/net/fee) + CSV export + daily summary
-- [ ] Confirm `FEATURES_SKILL_ECONOMY_LMS` unset (or not `true`) so courses/podcasts controllers are not registered (410 if somehow hit)
+- [ ] Confirm skill flags for target environment: `FEATURES_COURSES` / `FEATURES_MENTORSHIP` / `FEATURES_CHANNEL_POINTS` (or legacy `FEATURES_SKILL_ECONOMY_LMS` for full LMS)
 - [ ] Optional: staging soak per `docs/operations/LOAD_TEST_RUNBOOK.md`
 
 ## Quality
@@ -84,8 +84,17 @@ Use before promoting a release to production (`main`).
 - [ ] Smoke: Blocked peer — channel-points balance/rewards/redeem return unavailable when LMS flag on
 - [ ] Smoke: Blocked peer — live poll/clips/captions/RSVP/raise-hand/reactions return unavailable
 - [ ] Smoke: Blocked peer — access-session start fails; LMS public reputation unavailable when flag on
-- [ ] Confirm `/studio/courses` and `/podcasts` redirect away from economy orphans
+- [ ] When skill flags on: smoke `/discover/courses`, Studio course builder, `/courses/:id` viewer (web + mobile)
+- [ ] When `FEATURES_SKILL_ECONOMY_LMS` on: smoke program viewer + paid program Stripe checkout (`POST /programs/:id/checkout`)
+- [ ] When mentorship/points flags on: smoke `/studio/mentorship`, `/studio/channel-points` (web + mobile + admin)
 - [ ] Optional: `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` for Studio axe smoke; guest `critical-chrome.spec.ts`
+
+## Content safety (pre-launch)
+
+- [ ] `CONTENT_SCAN_PROVIDER` set to a real vendor integration (not `none`) before open public upload at scale — see `docs/CONTENT_SCANNING.md` and ADR-009
+- [ ] Admin Settings health panel shows content-scan status (not noop/misconfigured)
+- [ ] CSAM/illegal-content fast-path documented with legal owner — `docs/ESCALATION_RULES.md`
+
 ## Observability / rollback
 
 - [ ] Health endpoint green (DB/Redis)

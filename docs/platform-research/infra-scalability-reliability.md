@@ -190,3 +190,13 @@ Add a `docs/operations/REGION_FAILOVER.md` covering: what "Fly `bom` is down" lo
 - Is single-region (`bom`) a permanent, cost-driven decision, or a temporary MVP state? This determines whether §6.5's region-failover runbook should be written as a "cold, manual, rarely-exercised" procedure or something worth eventually automating/testing.
 - What is FORGE's actual current GitHub branch-protection and Actions-pinning state today (post the 2026-07-26 findings)? This doc cannot resolve that without a live `gh api` check, which is outside static-analysis scope for this research pass.
 - Is there a target SLA/uptime number anywhere (client-facing or internal) that the RPO/RTO targets in `DISASTER_RECOVERY.md` and the Fly SLO doc are meant to satisfy? Neither doc cites an upstream business requirement — they read as engineering-chosen defaults.
+
+---
+
+## Re-audit 2026-09-02
+
+**Product framing:** Skill-first creator platform + YouTube mechanics (supersedes Aug 2026 YouTube-only framing).
+
+**Key updates:** Keep skills/crafts taxonomy; keep creator approval gate; granular feature flags (`FEATURES_COURSES`, `_MENTORSHIP`, `_CHANNEL_POINTS`); courses/mentorship/points UI restore on roadmap P2–P3.
+
+**See:** [skill-first-positioning.md](./skill-first-positioning.md), [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md), [FRESH_AUDIT_2026-09_MASTER.md](../audits/FRESH_AUDIT_2026-09_MASTER.md).

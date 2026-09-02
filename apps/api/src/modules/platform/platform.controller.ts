@@ -3,6 +3,12 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Public } from '../../common/decorators/public.decorator';
 import { parseFeatureFlags } from '@forge/shared-types';
+import {
+  isChannelPointsEnabled,
+  isCoursesEnabled,
+  isMentorshipEnabled,
+  isSkillEconomyLmsExtendedEnabled,
+} from '../../common/features/skill-platform';
 
 @ApiTags('Platform')
 @Controller('platform')
@@ -56,6 +62,12 @@ export class PlatformController {
         contactEmail: 'legal@forgestudios.net',
         privacyEmail: 'privacy@forgestudios.net',
         lastUpdated: '2026-06-03',
+      },
+      skillFeatures: {
+        courses: isCoursesEnabled(),
+        mentorship: isMentorshipEnabled(),
+        channelPoints: isChannelPointsEnabled(),
+        skillEconomyLms: isSkillEconomyLmsExtendedEnabled(),
       },
     };
   }

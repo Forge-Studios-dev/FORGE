@@ -8,6 +8,7 @@ import {
   EventCheckoutSessionInput,
   PAYMENT_PROVIDER,
   PaymentProvider,
+  ProgramCheckoutSessionInput,
 } from './payment-provider.interface';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { EngagementService } from '../engagement/engagement.service';
@@ -277,6 +278,50 @@ export class BillingService {
     });
   }
 
+  async createProgramCheckout(
+    userId: string,
+    input: Pick<ProgramCheckoutSessionInput, 'programId' | 'creatorId' | 'title' | 'amountCents' | 'successUrl' | 'cancelUrl'>,
+  ) {
+    await this.assertNotBlockedPeer(userId, input.creatorId);
+    if (!input.amountCents || input.amountCents < 100) {
+      throw new BadRequestException('Program price is not configured');
+    }
+
+    if (!this.isBillingEnabled()) {
+      throw new BadRequestException('Payments are not enabled');
+    }
+
+    const platformFeePercent =
+      this.configService.get<number>('billing.stripePlatformFeePercent') ?? 10;
+    const connectStatus = await this.stripeConnectService.getConnectStatus(input.creatorId);
+    if (!connectStatus.chargesEnabled) {
+      throw new BadRequestException(
+        'Creator must complete Stripe Connect onboarding before selling programs',
+      );
+    }
+    const connectAccountId = (connectStatus as { accountId?: string }).accountId ?? null;
+    if (!connectAccountId) {
+      throw new BadRequestException(
+        'Creator must complete Stripe Connect onboarding before selling programs',
+      );
+    }
+
+    const session = await this.paymentProvider.createProgramCheckoutSession({
+      ...input,
+      userId,
+      currency: 'usd',
+      connectAccountId,
+      platformFeePercent,
+    });
+
+    return {
+      ok: true,
+      requiresCheckout: true,
+      checkoutUrl: session.checkoutUrl,
+      sessionId: session.sessionId,
+    };
+  }
+
   async handleWebhook(payload: Buffer, headers: Record<string, string>) {
     const result = await this.paymentProvider.verifyWebhook(payload, headers);
     if (!result?.handled) return { handled: false };
@@ -318,6 +363,17 @@ export class BillingService {
           stripePaymentIntentId: result.paymentIntentId,
         });
       }
+    } else if (result.checkoutType === 'program' && result.status === 'completed') {
+      if (result.userId && result.programId && result.amountCents) {
+        this.eventEmitter.emit('program.purchase.completed', {
+          userId: result.userId,
+          programId: result.programId,
+          amountCents: result.amountCents,
+          currency: result.currency ?? 'usd',
+          stripeCheckoutSessionId: result.sessionId,
+          stripePaymentIntentId: result.paymentIntentId,
+        });
+      }
     } else if (result.checkoutType === 'super_chat' && result.status === 'completed') {
       if (result.userId && result.streamId && result.amountCents && result.superChatBody) {
         this.eventEmitter.emit('stream.super-chat.paid', {
@@ -339,6 +395,15 @@ export class BillingService {
       (result.status === 'refunded' || result.status === 'disputed')
     ) {
       await this.streamingService.revokeEventPurchaseByPaymentIntent(result.paymentIntentId);
+    } else if (
+      result.checkoutType === 'program' &&
+      (result.status === 'refunded' || result.status === 'disputed')
+    ) {
+      this.eventEmitter.emit('program.purchase.revoked', {
+        userId: result.userId,
+        programId: result.programId,
+        paymentIntentId: result.paymentIntentId,
+      });
     } else if (result.checkoutType === 'super_thanks' && result.status === 'completed') {
       if (result.userId && result.videoId && result.creatorId && result.amountCents != null) {
         await this.recordSuperThanks({

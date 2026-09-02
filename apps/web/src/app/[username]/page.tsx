@@ -14,6 +14,7 @@ import { FeedGrid } from '@/components/FeedCard/FeedGrid';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { ChannelCommunityFeed } from '@/components/Community/ChannelCommunityFeed';
 import { ChannelUnavailable } from '@/components/profile/ChannelUnavailable';
+import { CreatorCoursesPanel } from '@/components/Courses/CreatorCoursesPanel';
 import { EmptyState } from '@forge/design-system';
 
 interface Props {
@@ -223,6 +224,11 @@ export default async function ChannelPage({ params, searchParams }: Props) {
             {tab === 'home' ? (
               <section className="mb-10">
                 <MembershipPanel creatorId={user.id} />
+              </section>
+            ) : null}
+            {tab === 'home' ? (
+              <section className="mb-10">
+                <CreatorCoursesPanel creatorId={user.id} username={user.username} />
               </section>
             ) : null}
             {tab === 'home' && liveStreams.length > 0 ? (

@@ -225,3 +225,13 @@ Verify current behavior first (Open Question below). If confirmed broken: when a
 5. Is there a spam/rate-limit control on video comment creation today (distinct from the community-room-messages rate limiter mentioned in `SCALE_MESSAGING.md`)? Not found in the targeted grep — worth a dedicated check before assuming it's fully absent.
 6. Should DM investment follow the YouTube reference (minimal, deprioritized) or the Instagram/TikTok reference (rich, high-engagement)? This is a product call, not an engineering one — flagging per `forge-youtube-replica.md`'s instruction not to silently invent divergence.
 7. `SCALE_MESSAGING.md` targets community/live chat scale, not comment or notification fanout scale — is there an equivalent scale plan needed for notification fanout to large-subscriber-count channels (YouTube explicitly rate-shapes this)? Not found; may be a genuine missing doc rather than a code gap.
+
+---
+
+## Re-audit 2026-09-02
+
+**Product framing:** Skill-first creator platform + YouTube mechanics (supersedes Aug 2026 YouTube-only framing).
+
+**Key updates:** Keep skills/crafts taxonomy; keep creator approval gate; granular feature flags (`FEATURES_COURSES`, `_MENTORSHIP`, `_CHANNEL_POINTS`); courses/mentorship/points UI restore on roadmap P2–P3.
+
+**See:** [skill-first-positioning.md](./skill-first-positioning.md), [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md), [FRESH_AUDIT_2026-09_MASTER.md](../audits/FRESH_AUDIT_2026-09_MASTER.md).

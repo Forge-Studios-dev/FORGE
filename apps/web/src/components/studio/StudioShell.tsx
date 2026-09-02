@@ -6,53 +6,13 @@ import { Icon, buttonClassName } from '@forge/design-system';
 import { StudioCommandBar } from '@/components/studio/StudioCommandBar';
 import { StudioCollaboratorDenied } from '@/components/studio/StudioCollaboratorDenied';
 import { useStudioAccess } from '@/hooks/useStudioAccess';
+import { useSkillFeatures } from '@/hooks/useSkillFeatures';
 
 type NavItem = {
   href: string;
   label: string;
   icon: string;
 };
-
-const CREATOR_NAV: Array<{ label: string; items: NavItem[] }> = [
-  {
-    label: 'Home',
-    items: [
-      { href: '/studio', label: 'Dashboard', icon: 'space_dashboard' },
-      { href: '/studio/attention', label: 'Attention', icon: 'priority_high' },
-    ],
-  },
-  {
-    label: 'Content',
-    items: [
-      { href: '/studio/videos', label: 'Content', icon: 'video_library' },
-      { href: '/studio/playlists', label: 'Playlists', icon: 'playlist_play' },
-      { href: '/studio/community', label: 'Community', icon: 'campaign' },
-      { href: '/studio/comments', label: 'Comments', icon: 'forum' },
-      { href: '/studio/live', label: 'Live', icon: 'sensors' },
-    ],
-  },
-  {
-    label: 'Analytics',
-    items: [{ href: '/studio/analytics', label: 'Analytics', icon: 'analytics' }],
-  },
-  {
-    label: 'Monetization',
-    items: [
-      { href: '/studio/earnings', label: 'Earnings', icon: 'payments' },
-      { href: '/studio/tiers', label: 'Memberships', icon: 'workspace_premium' },
-      { href: '/studio/subscribers', label: 'Members', icon: 'groups' },
-      { href: '/studio/super-thanks', label: 'Super Thanks', icon: 'volunteer_activism' },
-    ],
-  },
-  {
-    label: 'Settings',
-    items: [
-      { href: '/studio/branding', label: 'Customization', icon: 'palette' },
-      { href: '/studio/settings', label: 'Settings', icon: 'settings' },
-      { href: '/studio/moderation', label: 'Moderation', icon: 'shield' },
-    ],
-  },
-];
 
 const COLLABORATOR_NAV: Array<{ label: string; items: NavItem[] }> = [
   {
@@ -83,7 +43,55 @@ function isCollaboratorAllowedPath(pathname: string): boolean {
 export function StudioShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { mode, isCollaborator, primaryRole } = useStudioAccess();
-  const navGroups = mode === 'collaborator' ? COLLABORATOR_NAV : CREATOR_NAV;
+  const { coursesEnabled, mentorshipEnabled, channelPointsEnabled } = useSkillFeatures();
+
+  const contentNav: NavItem[] = [
+    { href: '/studio/videos', label: 'Content', icon: 'video_library' },
+    { href: '/studio/playlists', label: 'Playlists', icon: 'playlist_play' },
+    ...(coursesEnabled ? [{ href: '/studio/courses', label: 'Courses', icon: 'school' }] : []),
+    { href: '/studio/community', label: 'Community', icon: 'campaign' },
+    { href: '/studio/comments', label: 'Comments', icon: 'forum' },
+    { href: '/studio/live', label: 'Live', icon: 'sensors' },
+  ];
+
+  const settingsNav: NavItem[] = [
+    { href: '/studio/branding', label: 'Customization', icon: 'palette' },
+    { href: '/studio/settings', label: 'Settings', icon: 'settings' },
+    { href: '/studio/moderation', label: 'Moderation', icon: 'shield' },
+    ...(mentorshipEnabled
+      ? [{ href: '/studio/mentorship', label: 'Mentorship', icon: 'supervisor_account' }]
+      : []),
+    ...(channelPointsEnabled
+      ? [{ href: '/studio/channel-points', label: 'Channel points', icon: 'loyalty' }]
+      : []),
+  ];
+
+  const creatorNav: Array<{ label: string; items: NavItem[] }> = [
+    {
+      label: 'Home',
+      items: [
+        { href: '/studio', label: 'Dashboard', icon: 'space_dashboard' },
+        { href: '/studio/attention', label: 'Attention', icon: 'priority_high' },
+      ],
+    },
+    { label: 'Content', items: contentNav },
+    {
+      label: 'Analytics',
+      items: [{ href: '/studio/analytics', label: 'Analytics', icon: 'analytics' }],
+    },
+    {
+      label: 'Monetization',
+      items: [
+        { href: '/studio/earnings', label: 'Earnings', icon: 'payments' },
+        { href: '/studio/tiers', label: 'Memberships', icon: 'workspace_premium' },
+        { href: '/studio/subscribers', label: 'Members', icon: 'groups' },
+        { href: '/studio/super-thanks', label: 'Super Thanks', icon: 'volunteer_activism' },
+      ],
+    },
+    { label: 'Settings', items: settingsNav },
+  ];
+
+  const navGroups = mode === 'collaborator' ? COLLABORATOR_NAV : creatorNav;
   const showDenied = isCollaborator && !isCollaboratorAllowedPath(pathname);
 
   return (
