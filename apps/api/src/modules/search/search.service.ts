@@ -236,8 +236,7 @@ export class SearchService {
     viewerId?: string,
   ): Promise<PublicSearchCourse[]> {
     if (!this.coursesService) return [];
-    const { data } = await this.coursesService.discoverCourses(term, take, viewerId);
-    return data ?? [];
+    return (await this.coursesService.discoverCourses(term, take, viewerId)) ?? [];
   }
 
   private applyVideoFilters(

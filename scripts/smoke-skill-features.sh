@@ -59,7 +59,7 @@ catalog_code="$(curl_smoke -o /dev/null -w "%{http_code}" "${BASE}/courses/disco
 [[ "$catalog_code" == "200" ]] && echo "OK: GET /courses/discover" || echo "WARN: discover catalog ${catalog_code}" >&2
 
 search_body="$(curl_smoke "${BASE}/search?q=course&type=course&limit=3" || true)"
-if echo "$search_body" | python3 -c "import json,sys; d=json.load(sys.stdin).get('data',{}); exit(0 if 'courses' in d else 1)" 2>/dev/null; then
+if echo "$search_body" | python3 -c "import json,sys; d=json.load(sys.stdin).get('data',{}); exit(0 if isinstance(d.get('courses'), list) else 1)" 2>/dev/null; then
   echo "OK: GET /search?type=course includes courses[]"
 else
   echo "WARN: search type=course missing courses key" >&2

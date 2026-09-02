@@ -73,8 +73,8 @@ Full LMS (quizzes, cohorts, programs) requires `FEATURES_SKILL_ECONOMY_LMS=true`
 
 | Module | Web | Mobile |
 |--------|-----|--------|
-| Mentorship | Community mentorship tab + Studio | Restore `/studio/mentorship` |
-| Channel points | Studio rewards config + live earn UI | Restore `/studio/channel-points` |
+| Mentorship | Community Mentorship tab + Studio | Restore `/studio/mentorship` |
+| Channel points | Community Points tab (balance/redeem) + Studio | Restore `/studio/channel-points` |
 
 **Depends on:** `FEATURES_MENTORSHIP`, `FEATURES_CHANNEL_POINTS`.
 

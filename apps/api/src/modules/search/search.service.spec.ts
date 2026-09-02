@@ -6,6 +6,7 @@ import { User, UserRole } from '../users/entities/user.entity';
 import { Playlist } from '../playlists/entities/playlist.entity';
 import { VideosService } from '../content/videos.service';
 import { EngagementService } from '../engagement/engagement.service';
+import { CoursesService } from '../courses/courses.service';
 
 function makeQb<T>(result: T) {
   return {
@@ -296,6 +297,43 @@ describe('SearchService', () => {
         { watchViewerId: 'viewer-1' },
       );
       expect(redis.setex).not.toHaveBeenCalled();
+    });
+
+    it('returns course hits from flat discoverCourses results when type=course', async () => {
+      const coursesService = {
+        discoverCourses: jest.fn().mockResolvedValue([
+          {
+            id: 'course-1',
+            title: 'Welding 101',
+            slug: 'welding-101',
+            description: null,
+            lessonCount: 4,
+          },
+        ]),
+      };
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          SearchService,
+          { provide: getRepositoryToken(Video), useValue: videoRepository },
+          { provide: getRepositoryToken(User), useValue: userRepository },
+          { provide: getRepositoryToken(Playlist), useValue: playlistRepository },
+          { provide: VideosService, useValue: videosService },
+          {
+            provide: EngagementService,
+            useValue: { getBlockedPeerIds: jest.fn().mockResolvedValue([]) },
+          },
+          { provide: 'default_IORedisModuleConnectionToken', useValue: redis },
+          { provide: CoursesService, useValue: coursesService },
+        ],
+      }).compile();
+
+      const searchWithCourses = module.get(SearchService);
+      const result = await searchWithCourses.search('welding', 20, 'course');
+
+      expect(coursesService.discoverCourses).toHaveBeenCalledWith('welding', 20, undefined);
+      expect(result.courses).toHaveLength(1);
+      expect(result.courses[0].id).toBe('course-1');
+      expect(result.courses[0].title).toBe('Welding 101');
     });
   });
 

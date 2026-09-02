@@ -9,8 +9,11 @@ import { useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
 import { MembershipPanel } from '@/components/Membership/MembershipPanel';
 import { CommunityEngagePanel } from '@/components/Community/CommunityEngagePanel';
+import { CommunityMentorshipPanel } from '@/components/Community/CommunityMentorshipPanel';
+import { CommunityChannelPointsPanel } from '@/components/Community/CommunityChannelPointsPanel';
 import { CommunityPostMedia } from '@/components/Community/CommunityPostMedia';
 import { CommunityWelcomeModal } from '@/components/Community/CommunityWelcomeModal';
+import { useSkillFeatures } from '@/hooks/useSkillFeatures';
 import type { CommunityPayload, CommunityPoll } from '@/types/community';
 import { isAxiosError } from 'axios';
 
@@ -109,10 +112,11 @@ function CommunityRestrictedAccess({
 
 export function CommunityPanel({ creatorId, communitySlug }: Props) {
   const { user, accessToken } = useAuth();
+  const { mentorshipEnabled, channelPointsEnabled } = useSkillFeatures();
   const qc = useQueryClient();
   const [reportingPostId, setReportingPostId] = useState<string | null>(null);
   const [reportingPoll, setReportingPoll] = useState(false);
-  const [view, setView] = useState<'posts' | 'polls' | 'engage'>('posts');
+  const [view, setView] = useState<'posts' | 'polls' | 'engage' | 'mentorship' | 'points'>('posts');
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
@@ -121,8 +125,15 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
     { id: 'posts' as const, label: 'Posts' },
     { id: 'polls' as const, label: 'Polls' },
     { id: 'engage' as const, label: 'Rooms' },
+    ...(mentorshipEnabled ? [{ id: 'mentorship' as const, label: 'Mentorship' }] : []),
+    ...(channelPointsEnabled ? [{ id: 'points' as const, label: 'Points' }] : []),
   ];
   const isCreator = user?.id === creatorId;
+
+  useEffect(() => {
+    if (view === 'mentorship' && !mentorshipEnabled) setView('posts');
+    if (view === 'points' && !channelPointsEnabled) setView('posts');
+  }, [view, mentorshipEnabled, channelPointsEnabled]);
 
   function focusViewTab(index: number) {
     const tab = viewTabs[(index + viewTabs.length) % viewTabs.length];
@@ -478,6 +489,14 @@ export function CommunityPanel({ creatorId, communitySlug }: Props) {
       ) : view === 'engage' && communityId ? (
         <div className="glass-panel rounded-xl p-4">
           <CommunityEngagePanel communityId={communityId} />
+        </div>
+      ) : view === 'mentorship' && communityId ? (
+        <div className="glass-panel rounded-xl p-4">
+          <CommunityMentorshipPanel communityId={communityId} />
+        </div>
+      ) : view === 'points' && communityId ? (
+        <div className="glass-panel rounded-xl p-4">
+          <CommunityChannelPointsPanel communityId={communityId} />
         </div>
       ) : view === 'posts' ? (
         <div className="glass-panel space-y-3 rounded-xl p-4">
