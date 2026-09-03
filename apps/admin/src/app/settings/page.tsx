@@ -142,11 +142,15 @@ export default function SettingsPage() {
                     <span className="text-outline">{key}</span>
                     <span
                       className={
-                        value === 'ok' || value === 'webhook' || value === 'stripe'
+                        value === 'ok' ||
+                        value === 'webhook' ||
+                        value === 'stripe' ||
+                        value === 'configured'
                           ? 'text-secondary'
                           : value === 'noop' ||
                               value === 'noop_ack' ||
-                              value === 'stub'
+                              value === 'stub' ||
+                              value === 'unsigned'
                             ? 'text-on-surface-variant'
                             : 'text-tertiary'
                       }
@@ -177,6 +181,38 @@ export default function SettingsPage() {
               {health.checks?.contentScan === 'misconfigured' ? (
                 <p className="text-xs text-tertiary" role="alert">
                   Webhook provider selected but CONTENT_SCAN_WEBHOOK_URL is empty.
+                </p>
+              ) : null}
+              {health.checks?.muxSigning === 'unsigned' ? (
+                <p className="text-xs text-on-surface-variant">
+                  Mux signing keys unset — private/unlisted/members playback URLs are withheld for
+                  non-owners. Set <code className="text-on-surface">MUX_SIGNING_KEY_ID</code> +{' '}
+                  <code className="text-on-surface">MUX_SIGNING_PRIVATE_KEY</code> before premium
+                  private content (see <code className="text-on-surface">docs/MEDIA.md</code>).
+                </p>
+              ) : null}
+              {health.checks?.muxSigning === 'misconfigured' ? (
+                <p className="text-xs text-tertiary" role="alert">
+                  Mux signing is partially configured — both key id and private key are required.
+                </p>
+              ) : null}
+              {health.checks?.appCheck === 'misconfigured' ? (
+                <p className="text-xs text-tertiary" role="alert">
+                  APP_CHECK_ENABLED is on but Firebase Admin is not initialized — guarded auth
+                  routes fail closed. Configure FIREBASE_* credentials (see{' '}
+                  <code className="text-on-surface">docs/FIREBASE.md</code>).
+                </p>
+              ) : null}
+              {health.checks?.appCheck === 'off' ? (
+                <p className="text-xs text-on-surface-variant">
+                  App Check is off — set <code className="text-on-surface">APP_CHECK_ENABLED=true</code>{' '}
+                  after Firebase Admin is ready (R4 hardening).
+                </p>
+              ) : null}
+              {health.checks?.mockSubscriptions === 'enabled' ? (
+                <p className="text-xs text-tertiary" role="alert">
+                  Mock subscriptions are enabled — never use this on production money paths.
+                  Production boot rejects <code className="text-on-surface">MOCK_SUBSCRIPTIONS_ENABLED</code>.
                 </p>
               ) : null}
               <p className="text-xs text-outline">Last check: {health.timestamp}</p>

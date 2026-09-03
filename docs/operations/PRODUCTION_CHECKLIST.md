@@ -2,6 +2,17 @@
 
 Use before promoting a release to production (`main`).
 
+## R1 launch gates (ops / legal — block open UGC / monetization)
+
+Execute [R1_LAUNCH_GATES.md](./R1_LAUNCH_GATES.md). Do not treat git-green as launch-green.
+
+- [ ] CSAM vendor webhook live — health `contentScan=webhook` (not `noop` / `noop_ack`) — ADR-009
+- [ ] Stripe live Connect checklist complete — health `billing=stripe` — [STRIPE_PRODUCTION_ENABLEMENT.md](./STRIPE_PRODUCTION_ENABLEMENT.md)
+- [ ] Mux signing keys set — health `muxSigning=configured` before private/members content — [MEDIA.md](../MEDIA.md)
+- [ ] USPTO DMCA designated agent filed — [LEGAL.md](../LEGAL.md)
+- [ ] Staging load evidence attached — [LOAD_TEST_RUNBOOK.md](./LOAD_TEST_RUNBOOK.md)
+- [ ] Neon PITR drill current (next due **2026-10-22**) — [DISASTER_RECOVERY.md](./DISASTER_RECOVERY.md)
+
 ## Environment
 
 - [ ] API: `DATABASE_URL`, Redis, AWS S3, Mux token id/secret, Stripe keys (if billing on)
@@ -94,6 +105,7 @@ Use before promoting a release to production (`main`).
 ## Content safety (pre-launch)
 
 - [ ] Temporary: health `checks.contentScan` is `noop_ack` (ALLOW_NOOP set) **or** `webhook` — never silent `noop` in production after ADR-012
+- [ ] Health `checks.muxSigning` is `configured` before shipping private/unlisted/members at scale (or accept `unsigned` = withheld playback for non-owners)
 - [ ] `CONTENT_SCAN_PROVIDER` set to a real vendor integration (not `none`) before open public upload at scale — see `docs/CONTENT_SCANNING.md` and ADR-009
 - [ ] Admin Settings health panel + Admin notifications bell show held-scan alerts; Held videos nav works
 - [ ] Smoke: held upload → admin notify → `/content?moderationStatus=held`

@@ -122,16 +122,30 @@ class AuthRepository {
   }
 
   Future<void> forgotPassword({required String email}) async {
-    await _apiClient.dio.post('/auth/forgot-password', data: {
-      'email': email.trim().toLowerCase(),
-    });
+    final appCheck = await getForgeAppCheckToken();
+    await _apiClient.dio.post(
+      '/auth/forgot-password',
+      data: {
+        'email': email.trim().toLowerCase(),
+      },
+      options: appCheck != null
+          ? Options(headers: {'X-Firebase-AppCheck': appCheck})
+          : null,
+    );
   }
 
   Future<void> resetPassword({required String token, required String password}) async {
-    await _apiClient.dio.post('/auth/reset-password', data: {
-      'token': token,
-      'password': password,
-    });
+    final appCheck = await getForgeAppCheckToken();
+    await _apiClient.dio.post(
+      '/auth/reset-password',
+      data: {
+        'token': token,
+        'password': password,
+      },
+      options: appCheck != null
+          ? Options(headers: {'X-Firebase-AppCheck': appCheck})
+          : null,
+    );
   }
 
   Future<void> changePassword({

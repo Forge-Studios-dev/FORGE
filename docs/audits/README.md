@@ -19,10 +19,10 @@ Next cadence: **50K MAU** or **2026-12-01**.
 
 | Doc | Note |
 |-----|------|
-| [FRESH_AUDIT_2026-09_MASTER.md](./FRESH_AUDIT_2026-09_MASTER.md) | 2026-09-02 — **fully superseded** by 2026-09-03 |
+| [FRESH_AUDIT_2026-09_MASTER.md](./FRESH_AUDIT_2026-09_MASTER.md) | 2026-09-02 — **stub only**; use 2026-09-03 |
 
 ## Historical
 
-Moved to [archive/audits-pre-2026-09/](../archive/audits-pre-2026-09/) (June–July 2026 masters, cost/social audits, implementation trackers).
+Moved to [archive/audits-pre-2026-09/](../archive/audits-pre-2026-09/) (June–July 2026 masters, cost/social audits, implementation trackers). Aug root audit and YouTube parity roadmap are **stubs** under `docs/` pointing here.
 
-Live platform: [../LIVE.md](../LIVE.md)
+Live platform: [../LIVE.md](../LIVE.md) · Open backlog: [DEFERRED_BACKLOG.md](./DEFERRED_BACKLOG.md) · Cutover: [../operations/POST_REAUDIT_CUTOVER.md](../operations/POST_REAUDIT_CUTOVER.md)

@@ -2,7 +2,7 @@
 
 **Slug:** `product-vision-data-model`
 **Audience:** Engineering (API/web/mobile), product, docs maintainers.
-**Status:** Historical research (Aug 2026). **Not SSOT.** Product framing is closed: [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md). YouTube-vs-skill tension in this body is stale.
+**Status:** Historical research (Aug 2026). **Not SSOT.** Product framing is closed: [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md) + ADR-001. Body still contains Aug “YouTube-vs-skill” and flag-doc gaps that were closed Sep 2026 — do not implement from this file.
 
 ---
 

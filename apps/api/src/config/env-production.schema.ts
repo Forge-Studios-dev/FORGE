@@ -11,6 +11,17 @@ const secretMin32 = z
   .min(32, 'must be at least 32 characters')
   .refine((v) => !INSECURE_JWT_SECRETS.has(v), 'must not use default placeholder value');
 
+/** True when enough Firebase Admin credentials exist to initialize the SDK. */
+export function hasFirebaseAdminCredentials(env: NodeJS.ProcessEnv): boolean {
+  return (
+    !!env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim() ||
+    env.FIREBASE_USE_APPLICATION_DEFAULT === 'true' ||
+    (!!env.FIREBASE_PROJECT_ID?.trim() &&
+      !!env.FIREBASE_CLIENT_EMAIL?.trim() &&
+      !!env.FIREBASE_PRIVATE_KEY?.trim())
+  );
+}
+
 /** Validates raw process.env in production. Throws with aggregated errors on failure. */
 export function validateProductionEnv(env: NodeJS.ProcessEnv = process.env): void {
   if ((env.NODE_ENV || 'development') !== 'production') return;
@@ -43,30 +54,17 @@ export function validateProductionEnv(env: NodeJS.ProcessEnv = process.env): voi
     throw new Error('MUX_WEBHOOK_SECRET is required when MUX_TOKEN_ID is set');
   }
 
-  if (env.FCM_ENABLED === 'true') {
-    const hasFirebase =
-      !!env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim() ||
-      env.FIREBASE_USE_APPLICATION_DEFAULT === 'true' ||
-      (!!env.FIREBASE_PROJECT_ID?.trim() &&
-        !!env.FIREBASE_CLIENT_EMAIL?.trim() &&
-        !!env.FIREBASE_PRIVATE_KEY?.trim());
-    if (!hasFirebase) {
-      throw new Error(
-        'FCM_ENABLED=true requires Firebase credentials (service account JSON or individual fields)',
-      );
-    }
+  if (env.FCM_ENABLED === 'true' && !hasFirebaseAdminCredentials(env)) {
+    throw new Error(
+      'FCM_ENABLED=true requires Firebase credentials (service account JSON or individual fields)',
+    );
   }
 
-  if (env.APP_CHECK_ENABLED === 'true' && env.FCM_ENABLED !== 'true') {
-    const hasFirebase =
-      !!env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim() ||
-      env.FIREBASE_USE_APPLICATION_DEFAULT === 'true' ||
-      (!!env.FIREBASE_PROJECT_ID?.trim() &&
-        !!env.FIREBASE_CLIENT_EMAIL?.trim() &&
-        !!env.FIREBASE_PRIVATE_KEY?.trim());
-    if (!hasFirebase) {
-      throw new Error('APP_CHECK_ENABLED=true requires Firebase credentials');
-    }
+  // Independent of FCM — App Check verify needs Admin even when push is off.
+  if (env.APP_CHECK_ENABLED === 'true' && !hasFirebaseAdminCredentials(env)) {
+    throw new Error(
+      'APP_CHECK_ENABLED=true requires Firebase Admin credentials (otherwise guarded routes fail closed)',
+    );
   }
 
   const hasSmtp = !!env.SMTP_HOST?.trim() && !!env.SMTP_PASS?.trim();

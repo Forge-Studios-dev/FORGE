@@ -1090,6 +1090,11 @@ export class EntitlementsService {
     if (!enabled) {
       throw new ForbiddenException('Mock subscriptions are disabled');
     }
+    const nodeEnv = (this.configService.get<string>('nodeEnv') || process.env.NODE_ENV || '').toLowerCase();
+    if (nodeEnv === 'production') {
+      // Defense in depth — env-production.schema also rejects MOCK_SUBSCRIPTIONS_ENABLED=true.
+      throw new ForbiddenException('Mock subscriptions are disabled in production');
+    }
     await this.assertNotBlockedPeer(requesterId, dto.creatorId);
     return this.grantSubscription(requesterId, dto, MemberSubscriptionSource.MOCK);
   }

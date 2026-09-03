@@ -4,7 +4,10 @@ import { AppCheckGuard } from './app-check.guard';
 import { APP_CHECK_KEY } from './app-check.decorator';
 
 describe('AppCheckGuard', () => {
-  const firebase = { verifyAppCheckToken: jest.fn() };
+  const firebase = {
+    verifyAppCheckToken: jest.fn(),
+    isFirebaseAdminReady: jest.fn(),
+  };
   let configGet: jest.Mock;
   let reflector: Reflector;
 
@@ -29,6 +32,7 @@ describe('AppCheckGuard', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    firebase.isFirebaseAdminReady.mockReturnValue(true);
   });
 
   it('allows when App Check not required on handler', async () => {
@@ -42,6 +46,17 @@ describe('AppCheckGuard', () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
     configGet.mockReturnValue(false);
     await expect(guard.canActivate(ctx({}))).resolves.toBe(true);
+  });
+
+  it('rejects when enabled but Firebase Admin is not ready', async () => {
+    const guard = createGuard();
+    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(true);
+    configGet.mockImplementation((key: string) => key === 'firebase.appCheckEnabled');
+    firebase.isFirebaseAdminReady.mockReturnValue(false);
+    await expect(guard.canActivate(ctx({ 'x-firebase-appcheck': 'any' }))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(firebase.verifyAppCheckToken).not.toHaveBeenCalled();
   });
 
   it('rejects missing token when enabled', async () => {

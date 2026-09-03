@@ -108,6 +108,15 @@ export class FirebaseService implements OnModuleInit {
     );
   }
 
+  /** Firebase Admin SDK successfully initialized (required for App Check verify + FCM). */
+  isFirebaseAdminReady(): boolean {
+    return this.app !== null;
+  }
+
+  /**
+   * True when App Check enforcement is on **and** Admin can verify tokens.
+   * Prefer this over the raw env flag when deciding whether verification works.
+   */
   isAppCheckEnabled(): boolean {
     return (
       this.configService.get<boolean>('firebase.appCheckEnabled') === true && this.app !== null
@@ -118,8 +127,20 @@ export class FirebaseService implements OnModuleInit {
     return this.messaging;
   }
 
+  /**
+   * Verify a client App Check token.
+   * - Flag off → accept (App Check not required).
+   * - Flag on but Admin missing → **reject** (never fail-open / accept any token).
+   */
   async verifyAppCheckToken(token: string): Promise<boolean> {
-    if (!this.isAppCheckEnabled() || !this.app) return true;
+    const flagOn = this.configService.get<boolean>('firebase.appCheckEnabled') === true;
+    if (!flagOn) return true;
+    if (!this.app) {
+      this.logger.error(
+        'APP_CHECK_ENABLED=true but Firebase Admin is not initialized — rejecting App Check token (fail-closed)',
+      );
+      return false;
+    }
     try {
       await getAppCheck(this.app).verifyToken(token);
       return true;

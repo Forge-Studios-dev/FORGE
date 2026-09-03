@@ -53,6 +53,12 @@ Full checklist: [AUTH.md](./AUTH.md) (deploy-auth-secrets). Verify:
 
 ```bash
 curl -s https://api.forgestudios.net/api/v1/platform/config | jq .firebase
+curl -s https://api.forgestudios.net/api/v1/health/ready | jq .checks.appCheck
+# off | configured | misconfigured
 ```
+
+**App Check:** set `APP_CHECK_ENABLED=true` only after Firebase Admin is initialized. Production boot **rejects** App Check without Firebase credentials (`env-production.schema.ts`). If the flag is on without Admin at runtime, guarded routes **fail closed** (403). Clients send App Check on login, signup, forgot/reset password, and analytics events.
+
+Health `checks.appCheck`: `off` | `configured` | `misconfigured`. Ops flip: [R1_LAUNCH_GATES.md](./operations/R1_LAUNCH_GATES.md) optional hardening / [DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md).
 
 Scripts: `check-firebase-connection.sh`

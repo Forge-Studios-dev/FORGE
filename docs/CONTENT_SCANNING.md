@@ -18,6 +18,7 @@ FORGE had no automated content-safety scanning on upload — a video could go fr
 |---|---|
 | `none` (default) | `NoopContentScanProvider` — always `approve`. Preserves current behavior exactly. |
 | `webhook` | `WebhookContentScanProvider` — generic REST integration point. POSTs `{videoId, userId, hlsUrl, thumbnailUrl}` to `CONTENT_SCAN_WEBHOOK_URL`, expects `{action: "approve"|"hold"|"block", categories?: string[]}` back. |
+| `webhook` **without URL** | `MisconfiguredContentScanProvider` — **fail-closed `hold`** (never silent noop). Fix `CONTENT_SCAN_WEBHOOK_URL`. |
 
 The webhook provider **fails closed to `hold`** on any error, timeout, non-2xx response, or unrecognized `action` value — unlike most external integrations in this codebase (which fail open), a safety scan should err toward caution: a `hold` only queues the video for human review, it doesn't destroy anything.
 
@@ -69,6 +70,6 @@ npm run sync:fly:worker-secrets   # also copies CONTENT_SCAN_* from API → work
 
 `verify:production` warns when `CONTENT_SCAN_ALLOW_NOOP` is unset in non-production env files (prod uses `check:prod-env`).
 
-Health `checks.contentScan`: `webhook` | `misconfigured` | `noop` | `noop_ack` (when `CONTENT_SCAN_ALLOW_NOOP=true`). Admin Settings surfaces the same labels.
+Health `checks.contentScan`: `webhook` | `misconfigured` | `noop` | `noop_ack` (when `CONTENT_SCAN_ALLOW_NOOP=true`). Health `checks.muxSigning`: `configured` | `misconfigured` | `unsigned`. Admin Settings surfaces the same labels. Ops execution: [operations/R1_LAUNCH_GATES.md](./operations/R1_LAUNCH_GATES.md).
 
 Held videos appear in Admin → Content (`moderationStatus=held`). Platform admins receive in-app + push `content_scan_held` notifications (Admin header bell + consumer deep link via `NEXT_PUBLIC_ADMIN_URL`).

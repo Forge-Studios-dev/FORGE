@@ -1,6 +1,6 @@
 # Post-reaudit cutover (2026-09-03)
 
-In-repo engineering for the zero-trust reaudit is on `main` (**#262**, **#263**, ADR-012 gate **#265**, flyctl secret workflows **#266**).
+In-repo engineering for the zero-trust reaudit is on `main` (**#262**, **#263**, ADR-012 gate **#265**, flyctl secret workflows **#266**). Evening SSOT hygiene (revalidation ledger, dual-SSOT stubs, deferred fold) is docs-only — no new deploy gate.
 
 This runbook is the **ops path** only. Do not treat noop scan ack as CSAM protection (ADR-009 / ADR-012).
 
@@ -58,12 +58,16 @@ Manual (still recommended once):
 
 ## 5. Still open (legal / ops — not git)
 
-| Item | Owner | Ref |
-|------|-------|-----|
-| CSAM vendor webhook | Legal + eng | ADR-009, `CONTENT_SCANNING.md` |
-| Stripe live keys / Connect | Ops | `STRIPE_PRODUCTION_ENABLEMENT.md` |
-| Neon PITR drill | Ops | next **2026-10-22** — `DISASTER_RECOVERY.md` |
-| USPTO DMCA agent | Legal | `LEGAL.md` |
-| Staging load evidence | Perf | `LOAD_TEST_RUNBOOK.md` |
+Aligned with [DEFERRED_BACKLOG.md](../audits/DEFERRED_BACKLOG.md) and [audit §4a](../audits/FRESH_AUDIT_2026-09-03_MASTER.md):
 
-Full launch checklist: [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md).
+| Item | Owner | Ref | Status |
+|------|-------|-----|--------|
+| CSAM vendor webhook | Legal + eng | ADR-009, `CONTENT_SCANNING.md` | **Open** |
+| Stripe live keys / Connect | Ops | `STRIPE_PRODUCTION_ENABLEMENT.md` | **Open** |
+| Neon PITR drill | Ops | next **2026-10-22** — `DISASTER_RECOVERY.md` | **Scheduled** |
+| USPTO DMCA agent | Legal | `LEGAL.md` | **Open** |
+| Staging load evidence | Perf | `LOAD_TEST_RUNBOOK.md` — `load-test:feed` / `:community` / `:entitlements` with `FORGE_LOAD_EVIDENCE_FILE` | **Open** |
+| Mux signing keys (private/unlisted) | Ops | `MEDIA.md` | **Open** |
+| App Check enablement | Ops | `FIREBASE.md` / `APP_CHECK_ENABLED` | **Accepted until flip** |
+
+Full launch checklist: [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md). **Ops/legal gate execution:** [R1_LAUNCH_GATES.md](./R1_LAUNCH_GATES.md). Sequencing: [FORGE_IMPLEMENTATION_ROADMAP.md](../FORGE_IMPLEMENTATION_ROADMAP.md) R1.

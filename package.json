@@ -36,6 +36,7 @@
     "load-test:community": "bash scripts/load-test-community.sh",
     "load-test:entitlements": "bash scripts/load-test-entitlements.sh",
     "verify:neon-dr": "bash scripts/verify-neon-dr-checklist.sh",
+    "verify:r1-health": "bash scripts/verify-r1-health-honesty.sh",
     "db:neon:setup": "bash scripts/neon-db-setup.sh",
     "redis:test": "bash scripts/redis-test.sh",
     "deploy:fly": "bash scripts/fly-setup.sh",

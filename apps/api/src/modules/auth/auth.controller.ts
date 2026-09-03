@@ -326,6 +326,7 @@ export class AuthController {
   }
 
   @Public()
+  @RequireAppCheck()
   @Post('forgot-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { limit: 5, ttl: 3_600_000 } })
@@ -335,6 +336,7 @@ export class AuthController {
   }
 
   @Public()
+  @RequireAppCheck()
   @Post('reset-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

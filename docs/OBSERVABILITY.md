@@ -100,7 +100,7 @@ Uses OTLP HTTP (`/v1/traces`). Compatible with Grafana Tempo, Jaeger OTLP, Datad
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/v1/health/live` | **Liveness** — process up only (no DB). **Manual / deploy smoke only** — no Fly or app polling |
-| `GET /api/v1/health/ready` | **Readiness** — database, Redis, BullMQ queue depths (manual / deploy diagnostic) |
+| `GET /api/v1/health/ready` | **Readiness** — database, Redis, BullMQ queue depths, plus honesty labels: `contentScan`, `billing`, `muxSigning`, `appCheck`, `mockSubscriptions` (manual / deploy diagnostic) |
 | `GET /api/v1/health` | Alias for readiness (`/ready`) |
 
 No Fly `[[http_service.checks]]` or worker `[checks]` — health endpoints are on-demand only. Docker `HEALTHCHECK` and GitHub synthetic **cron** remain disabled; synthetic is `workflow_dispatch` only. Deploy workflows (`release.yml`, `deploy-fly.yml`) call `/health/live` once after a deploy as an intentional smoke test, not a continuous loop.
