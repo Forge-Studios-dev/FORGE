@@ -2,11 +2,12 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 
 /**
- * Stub 100K-entitlement style load test (deferred backlog).
- * Does NOT hit production by default — set BASE_URL to staging.
+ * Entitlement-oriented soak (tiers + membership + feed + live).
+ * Staging only — set BASE_URL. Optional TOKEN + CREATOR_ID for deeper paths.
  *
- * Example:
- *   k6 run -e BASE_URL=https://staging-api.example/api/v1 -e TOKEN=eyJ... scripts/load/entitlements-k6.js
+ *   k6 run -e BASE_URL=https://staging-api.example/api/v1 \
+ *     -e TOKEN=eyJ... -e CREATOR_ID=uuid \
+ *     scripts/load/entitlements-k6.js
  */
 export const options = {
   stages: [
@@ -22,15 +23,29 @@ export const options = {
 
 const BASE = __ENV.BASE_URL || 'http://127.0.0.1:3001/api/v1';
 const TOKEN = __ENV.TOKEN || '';
+const CREATOR_ID = __ENV.CREATOR_ID || '';
 
 export default function () {
   const headers = TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {};
-  const res = http.get(`${BASE}/health/live`, { headers });
-  check(res, { 'live ok': (r) => r.status === 200 });
-  // Placeholder hot path — replace with feed + entitlement check when staging ready.
-  if (TOKEN) {
-    const feed = http.get(`${BASE}/videos/feed?limit=20`, { headers });
-    check(feed, { 'feed ok': (r) => r.status === 200 || r.status === 401 });
+
+  const live = http.get(`${BASE}/streams/live`, { headers });
+  check(live, { 'live list': (r) => r.status === 200 });
+
+  const feed = http.get(`${BASE}/videos/feed?limit=20&sort=forYou`, { headers });
+  check(feed, { 'feed': (r) => r.status === 200 || r.status === 401 });
+
+  if (CREATOR_ID) {
+    const tiers = http.get(`${BASE}/creators/${CREATOR_ID}/tiers`, { headers });
+    check(tiers, { 'tiers': (r) => r.status === 200 || r.status === 404 });
+
+    const membership = http.get(`${BASE}/creators/${CREATOR_ID}/membership/me`, { headers });
+    check(membership, {
+      'membership me': (r) => r.status === 200 || r.status === 401,
+    });
+  } else {
+    const ready = http.get(`${BASE}/health/ready`, { headers });
+    check(ready, { 'ready': (r) => r.status === 200 });
   }
+
   sleep(0.5);
 }

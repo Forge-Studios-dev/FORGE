@@ -120,4 +120,23 @@ describe('validateProductionEnv', () => {
       }),
     ).not.toThrow();
   });
+
+  it('requires Firebase credentials when APP_CHECK_ENABLED=true', () => {
+    expect(() =>
+      validateProductionEnv({
+        ...validProdEnv,
+        APP_CHECK_ENABLED: 'true',
+      }),
+    ).toThrow(/APP_CHECK_ENABLED.*Firebase/i);
+  });
+
+  it('accepts APP_CHECK_ENABLED with Firebase service account JSON', () => {
+    expect(() =>
+      validateProductionEnv({
+        ...validProdEnv,
+        APP_CHECK_ENABLED: 'true',
+        FIREBASE_SERVICE_ACCOUNT_JSON: '{"project_id":"x","client_email":"a@b.c","private_key":"k"}',
+      }),
+    ).not.toThrow();
+  });
 });

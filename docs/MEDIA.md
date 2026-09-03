@@ -66,6 +66,26 @@ Playback must use `stream.mux.com/*.m3u8`.
 
 **Without Mux in production:** live blocked; use `ffmpeg` for VOD only.
 
+### Signed playback (private / unlisted / members)
+
+Non-public VOD and live use Mux **signed** playback policy when keys are present (`requiresMuxSignedPlayback` in `mux-signing.util.ts`). Without keys:
+
+- Viewer HLS URLs for restricted content are **withheld** (owners/admins still get unsigned for Studio via bypass).
+- **Create/ingest** of non-public Mux assets and visibility tighten-to-signed are **rejected** (`503` + `MUX_SIGNING_KEYS_REQUIRED`) so we never mint Mux `signed` playback ids the API cannot token.
+
+| Env | Purpose |
+|-----|---------|
+| `MUX_SIGNING_KEY_ID` | Mux dashboard signing key id |
+| `MUX_SIGNING_PRIVATE_KEY` | PEM private key (escape newlines as `\n` in Fly secrets) |
+
+```bash
+# Mux dashboard → Signing Keys → Create → copy id + private key
+flyctl secrets set MUX_SIGNING_KEY_ID='...' MUX_SIGNING_PRIVATE_KEY='-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----' -a forge-studios-api
+npm run sync:fly:worker-secrets   # if worker also resolves playback
+```
+
+Health `checks.muxSigning`: `configured` | `misconfigured` | `unsigned`. Admin → Settings surfaces the same. Required before premium private content launch ([DEFERRED_BACKLOG](./audits/DEFERRED_BACKLOG.md) · [R1_LAUNCH_GATES](./operations/R1_LAUNCH_GATES.md)).
+
 ---
 
 ## Thumbnails (live)

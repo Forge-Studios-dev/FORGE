@@ -28,6 +28,12 @@ export class AppCheckGuard implements CanActivate {
     if (!required) return true;
     if (!this.configService.get<boolean>('firebase.appCheckEnabled')) return true;
 
+    if (!this.firebase.isFirebaseAdminReady()) {
+      throw new ForbiddenException(
+        'App Check is enabled but Firebase Admin is not configured',
+      );
+    }
+
     const req = context.switchToHttp().getRequest<Request>();
     const token = req.headers[APP_CHECK_HEADER];
     const raw = typeof token === 'string' ? token : Array.isArray(token) ? token[0] : '';

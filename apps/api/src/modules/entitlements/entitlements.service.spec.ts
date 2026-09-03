@@ -437,6 +437,40 @@ describe('EntitlementsService', () => {
     });
   });
 
+  it('cancelSubscriptionsForAccountDeletion cancels Stripe then marks local rows canceled', async () => {
+    const stripeTierSync = {
+      isEnabled: jest.fn().mockReturnValue(true),
+      cancelSubscription: jest.fn().mockResolvedValue(undefined),
+    };
+    Object.assign(service, { stripeTierSync });
+
+    subscriptionRepository.find.mockResolvedValueOnce([
+      {
+        id: 'sub-1',
+        userId: 'user-1',
+        creatorId: 'creator-1',
+        communityId: null,
+        status: MemberSubscriptionStatus.ACTIVE,
+        source: MemberSubscriptionSource.STRIPE,
+        externalRef: 'sub_stripe_1',
+      },
+      {
+        id: 'sub-2',
+        userId: 'fan-2',
+        creatorId: 'user-1',
+        communityId: 'comm-1',
+        status: MemberSubscriptionStatus.TRIAL,
+        source: MemberSubscriptionSource.MOCK,
+        externalRef: null,
+      },
+    ]);
+
+    const result = await service.cancelSubscriptionsForAccountDeletion('user-1');
+    expect(result).toEqual({ canceled: 2 });
+    expect(stripeTierSync.cancelSubscription).toHaveBeenCalledWith('sub_stripe_1', false);
+    expect(subscriptionRepository.save).toHaveBeenCalledTimes(2);
+  });
+
   it('cancelMySubscription suspends scoped community members on immediate cancel', async () => {
     subscriptionRepository.findOne.mockResolvedValue({
       id: 'sub-1',

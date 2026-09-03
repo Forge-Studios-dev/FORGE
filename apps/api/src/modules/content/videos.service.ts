@@ -55,9 +55,11 @@ import {
   muxThumbnailUrl,
 } from '../../common/media/mux-playback.util';
 import {
+  MUX_SIGNING_KEYS_REQUIRED,
+  canCreateMuxSignedPlayback,
   isMuxSigningConfigured,
   muxSignedHlsPlaybackUrl,
-  normalizeMuxPrivateKey,
+  muxSigningConfigFrom,
   requiresMuxSignedPlayback,
   type MuxSigningConfig,
 } from '../../common/media/mux-signing.util';
@@ -315,10 +317,7 @@ export class VideosService {
   }
 
   private muxSigningConfig(): MuxSigningConfig | null {
-    const keyId = this.configService.get<string>('mux.signingKeyId') || '';
-    const rawKey = this.configService.get<string>('mux.signingPrivateKey') || '';
-    if (!keyId.trim() || !rawKey.trim()) return null;
-    return { keyId: keyId.trim(), privateKeyPem: normalizeMuxPrivateKey(rawKey) };
+    return muxSigningConfigFrom((k) => this.configService.get(k));
   }
 
   rewritePlaybackUrl(url: string | null | undefined): string | null {
@@ -1121,6 +1120,13 @@ export class VideosService {
       if (byName) skillTags = [byName];
     }
 
+    if (
+      this.usesMuxTranscode() &&
+      !canCreateMuxSignedPlayback(dto.visibility, this.muxSigningConfig())
+    ) {
+      throw new ServiceUnavailableException(MUX_SIGNING_KEYS_REQUIRED);
+    }
+
     video.title = dto.title.trim();
     video.description = dto.description?.trim() ?? null;
     video.visibility = dto.visibility;
@@ -1590,7 +1596,15 @@ export class VideosService {
     if (dto.title !== undefined) video.title = dto.title;
     if (dto.description !== undefined) video.description = dto.description;
     const previousVisibility = video.visibility;
-    if (dto.visibility !== undefined) video.visibility = dto.visibility;
+    if (dto.visibility !== undefined) {
+      if (
+        this.usesMuxTranscode() &&
+        !canCreateMuxSignedPlayback(dto.visibility, this.muxSigningConfig())
+      ) {
+        throw new ServiceUnavailableException(MUX_SIGNING_KEYS_REQUIRED);
+      }
+      video.visibility = dto.visibility;
+    }
     if (
       dto.visibility !== undefined &&
       requiresMuxSignedPlayback(previousVisibility) !== requiresMuxSignedPlayback(dto.visibility)

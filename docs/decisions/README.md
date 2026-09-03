@@ -1,10 +1,10 @@
 # Architecture decision records
 
-**Status:** Revalidated 2026-09-03 (zero-trust re-audit).  
+**Status:** Revalidated 2026-09-03 (zero-trust re-audit). Evening extension: independent Keep/Overturn ledger in [FRESH_AUDIT_2026-09-03_MASTER.md](../audits/FRESH_AUDIT_2026-09-03_MASTER.md) §2a — **all Keep, no Overturn**.  
 **Product SSOT:** [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md)  
 **Latest audit:** [FRESH_AUDIT_2026-09-03_MASTER.md](../audits/FRESH_AUDIT_2026-09-03_MASTER.md)
 
-Every ADR below was reopened from scratch against live code and independent platform research. A 2026-09-02 “Accepted” stamp is **not** sufficient — only the 2026-09-03 status in each file is current.
+Every ADR below was reopened from scratch against live code and independent platform research. A 2026-09-02 “Accepted” stamp is **not** sufficient — only the 2026-09-03 status in each file (plus evening ledger Keep) is current.
 
 | ADR | Decision | Status |
 |-----|----------|--------|

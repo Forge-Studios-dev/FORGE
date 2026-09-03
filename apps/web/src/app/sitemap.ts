@@ -55,12 +55,40 @@ async function fetchFeaturedCourseIds(): Promise<string[]> {
   }
 }
 
+type PublicPlaylist = { id: string };
+
+async function fetchPublicPlaylistIds(userIds: string[]): Promise<string[]> {
+  const ids = new Set<string>();
+  // Cap channel fan-out — sitemap must stay bounded.
+  for (const userId of userIds.slice(0, 40)) {
+    try {
+      const { data } = await serverApi.get(`/playlists/user/${userId}`);
+      const playlists: PublicPlaylist[] = Array.isArray(data.data)
+        ? data.data
+        : Array.isArray(data)
+          ? data
+          : [];
+      for (const pl of playlists) {
+        if (pl?.id) ids.add(pl.id);
+      }
+    } catch {
+      // skip channel
+    }
+  }
+  return [...ids].slice(0, 200);
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [videos, categorySlugs, courseIds] = await Promise.all([
     fetchPublicVideos(),
     fetchCategorySlugs(),
     fetchFeaturedCourseIds(),
   ]);
+
+  const creatorUserIds = [
+    ...new Set(videos.map((v) => v.userId).filter((id): id is string => !!id)),
+  ];
+  const playlistIds = await fetchPublicPlaylistIds(creatorUserIds);
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, changeFrequency: 'daily', priority: 1 },
@@ -113,6 +141,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
+  const playlistRoutes: MetadataRoute.Sitemap = playlistIds.map((id) => ({
+    url: `${SITE_URL}/playlists/${id}`,
+    changeFrequency: 'weekly' as const,
+    priority: 0.55,
+  }));
+
   return [
     ...staticRoutes,
     ...discoverRoutes,
@@ -120,5 +154,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...courseRoutes,
     ...videoRoutes,
     ...creatorRoutes,
+    ...playlistRoutes,
   ];
 }

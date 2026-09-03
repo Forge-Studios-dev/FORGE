@@ -5,7 +5,13 @@ import { currentReturnPath } from '@/lib/safe-return-path';
 import { getAppCheckToken } from '@/lib/app-check';
 import { env } from '@/env';
 
-const APP_CHECK_ROUTES = ['/auth/login', '/auth/signup', '/analytics/events'];
+const APP_CHECK_ROUTES = [
+  '/auth/login',
+  '/auth/signup',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/analytics/events',
+];
 
 const API_URL = env.NEXT_PUBLIC_API_URL;
 

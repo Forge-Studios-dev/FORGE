@@ -32,9 +32,11 @@ import {
   muxThumbnailUrl,
 } from '../../common/media/mux-playback.util';
 import {
+  MUX_SIGNING_KEYS_REQUIRED,
+  canCreateMuxSignedPlayback,
   isMuxSigningConfigured,
   muxSignedHlsPlaybackUrl,
-  normalizeMuxPrivateKey,
+  muxSigningConfigFrom,
   requiresMuxSignedPlayback,
   type MuxSigningConfig,
 } from '../../common/media/mux-signing.util';
@@ -149,8 +151,16 @@ export class StreamingService {
       }
     }
 
+    const useSignedPlayback = requiresMuxSignedPlayback(visibility);
+    if (
+      useSignedPlayback &&
+      muxConfigured &&
+      !canCreateMuxSignedPlayback(visibility, this.muxSigningConfig())
+    ) {
+      throw new ServiceUnavailableException(MUX_SIGNING_KEYS_REQUIRED);
+    }
+
     try {
-      const useSignedPlayback = requiresMuxSignedPlayback(visibility);
       const dvrEnabled = dto.dvrEnabled === true;
       const response = await this.mux.video.liveStreams.create({
         playback_policy: [useSignedPlayback ? 'signed' : 'public'],
@@ -394,10 +404,7 @@ export class StreamingService {
   }
 
   private muxSigningConfig(): MuxSigningConfig | null {
-    const keyId = this.configService.get<string>('mux.signingKeyId') || '';
-    const rawKey = this.configService.get<string>('mux.signingPrivateKey') || '';
-    if (!keyId.trim() || !rawKey.trim()) return null;
-    return { keyId: keyId.trim(), privateKeyPem: normalizeMuxPrivateKey(rawKey) };
+    return muxSigningConfigFrom((k) => this.configService.get(k));
   }
 
   private async viewerHasMatureContentAck(viewerId?: string | null): Promise<boolean> {
@@ -970,13 +977,15 @@ export class StreamingService {
     const eventId = (payload.id as string) || '';
     const eventType = payload.type as string;
     if (eventId) {
-      const duplicate = await this.webhookIdempotency.isDuplicate(
+      const acquired = await this.webhookIdempotency.tryAcquire(
         StreamingService.WEBHOOK_PROVIDER,
         eventId,
+        eventType,
       );
-      if (duplicate) return { handled: true, duplicate: true };
+      if (!acquired) return { handled: true, duplicate: true };
     }
 
+    try {
     const data = payload.data as Record<string, unknown>;
 
     if (eventType === 'video.live_stream.active') {
@@ -997,61 +1006,61 @@ export class StreamingService {
       await this.muxLiveSyncService.handleWebhookIdle(muxLiveStreamId);
     } else if (eventType === 'video.asset.ready') {
       const handledClip = await this.streamClipExport.handleClipAssetReady(payload);
-      if (handledClip) return;
+      if (!handledClip) {
+        const handledVod = await this.muxVodService.handleAssetReady(payload);
+        if (!handledVod) {
+          const assetId = data.id as string;
+          const playbackIds = (data.playback_ids as Array<{ id: string; policy: string }> | undefined) || [];
+          const playbackId = playbackIds[0]?.id;
+          if (assetId && playbackId) {
+            const stream = await this.streamRepository.findOne({ where: { muxAssetId: assetId } });
+            if (stream) {
+              const hlsUrl = `https://stream.mux.com/${playbackId}.m3u8`;
+              const videoVisibility = this.mapStreamVisibilityToVideo(stream.visibility);
 
-      const handledVod = await this.muxVodService.handleAssetReady(payload);
-      if (handledVod) return;
+              const video = await this.videoRepository.save(
+                this.videoRepository.create({
+                  userId: stream.userId,
+                  title: stream.title || 'Live session',
+                  description: stream.description || null,
+                  status: VideoStatus.READY,
+                  visibility: videoVisibility,
+                  requiredTierId: stream.requiredTierId,
+                  sourceStreamId: stream.id,
+                  hlsUrl,
+                  thumbnailUrl: stream.thumbnailUrl || `https://image.mux.com/${playbackId}/thumbnail.jpg`,
+                  muxAssetId: assetId,
+                  muxPlaybackId: playbackId,
+                  s3Key: null,
+                  uploadContentType: null,
+                  uploadFileSizeBytes: null,
+                  uploadCompletedAt: null,
+                  failureReason: null,
+                  publishStatus: PublishStatus.PUBLISHED,
+                  publishedAt: new Date(),
+                }),
+              );
 
-      const assetId = data.id as string;
-      const playbackIds = (data.playback_ids as Array<{ id: string; policy: string }> | undefined) || [];
-      const playbackId = playbackIds[0]?.id;
-      if (!assetId || !playbackId) return;
-
-      const stream = await this.streamRepository.findOne({ where: { muxAssetId: assetId } });
-      if (!stream) return;
-
-      const hlsUrl = `https://stream.mux.com/${playbackId}.m3u8`;
-      const videoVisibility = this.mapStreamVisibilityToVideo(stream.visibility);
-
-      const video = await this.videoRepository.save(
-        this.videoRepository.create({
-          userId: stream.userId,
-          title: stream.title || 'Live session',
-          description: stream.description || null,
-          status: VideoStatus.READY,
-          visibility: videoVisibility,
-          requiredTierId: stream.requiredTierId,
-          sourceStreamId: stream.id,
-          hlsUrl,
-          thumbnailUrl: stream.thumbnailUrl || `https://image.mux.com/${playbackId}/thumbnail.jpg`,
-          muxAssetId: assetId,
-          muxPlaybackId: playbackId,
-          s3Key: null,
-          uploadContentType: null,
-          uploadFileSizeBytes: null,
-          uploadCompletedAt: null,
-          failureReason: null,
-          publishStatus: PublishStatus.PUBLISHED,
-          publishedAt: new Date(),
-        }),
-      );
-
-      try {
-        await this.premiumContentNotifyQueue.add(
-          'notify',
-          {
-            videoId: video.id,
-            creatorId: stream.userId,
-            visibility: videoVisibility,
-            requiredTierId: stream.requiredTierId,
-            title: video.title,
-          },
-          { jobId: `premium-replay-${video.id}` },
-        );
-      } catch (err) {
-        this.logger.warn(
-          `Premium replay notify enqueue failed for ${video.id}: ${err instanceof Error ? err.message : err}`,
-        );
+              try {
+                await this.premiumContentNotifyQueue.add(
+                  'notify',
+                  {
+                    videoId: video.id,
+                    creatorId: stream.userId,
+                    visibility: videoVisibility,
+                    requiredTierId: stream.requiredTierId,
+                    title: video.title,
+                  },
+                  { jobId: `premium-replay-${video.id}` },
+                );
+              } catch (err) {
+                this.logger.warn(
+                  `Premium replay notify enqueue failed for ${video.id}: ${err instanceof Error ? err.message : err}`,
+                );
+              }
+            }
+          }
+        }
       }
     } else if (eventType === 'video.asset.track.ready') {
       await this.muxVodService.handleTrackReady(payload);
@@ -1059,15 +1068,13 @@ export class StreamingService {
       await this.muxVodService.handleAssetErrored(payload);
     }
 
-    if (eventId) {
-      await this.webhookIdempotency.markProcessed(
-        StreamingService.WEBHOOK_PROVIDER,
-        eventId,
-        eventType,
-      );
-    }
-
     return { handled: true };
+    } catch (err) {
+      if (eventId) {
+        await this.webhookIdempotency.release(StreamingService.WEBHOOK_PROVIDER, eventId);
+      }
+      throw err;
+    }
   }
 
   // ── P07-T029: Multi-host live ──────────────────────────────────────────────

@@ -1,11 +1,12 @@
 # FORGE Product Strategy
 
 **Audience:** Product, engineering, stakeholders, agents.  
-**Status:** Authoritative product SSOT (zero-trust rewrite 2026-09-03).  
+**Status:** Authoritative product SSOT (zero-trust rewrite 2026-09-03; evening revalidation Keep — audit §2a).  
 **Supersedes:** 2026-09-02 strategy text where they differ; Aug 2026 YouTube-replica-only framing.  
 **Technical reference:** [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md)  
 **Implementation sequencing:** [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md)  
-**Latest audit:** [audits/FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md)
+**Latest audit:** [audits/FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md)  
+**Open backlog:** [audits/DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md)
 
 ---
 

@@ -125,7 +125,7 @@ describe('POST /billing/webhook -> entitlement grant (HIGH-01)', () => {
         { provide: DataSource, useValue: dataSource },
         { provide: getRedisConnectionToken(), useValue: redis },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: WebhookIdempotencyService, useValue: { isDuplicate: jest.fn().mockResolvedValue(false), markProcessed: jest.fn() } },
+        { provide: WebhookIdempotencyService, useValue: { tryAcquire: jest.fn().mockResolvedValue(true), release: jest.fn(), isDuplicate: jest.fn().mockResolvedValue(false), markProcessed: jest.fn() } },
         { provide: StreamingService, useValue: {} },
         { provide: StripeTierSyncService, useValue: {} },
         { provide: StripeConnectService, useValue: {} },

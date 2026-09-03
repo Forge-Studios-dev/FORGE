@@ -137,6 +137,8 @@ describe('StreamingService access gating', () => {
         {
           provide: WebhookIdempotencyService,
           useValue: {
+            tryAcquire: jest.fn().mockResolvedValue(true),
+            release: jest.fn().mockResolvedValue(undefined),
             isDuplicate: jest.fn().mockResolvedValue(false),
             markProcessed: jest.fn().mockResolvedValue(undefined),
           },
@@ -395,6 +397,8 @@ describe('StreamingService endStream', () => {
       { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
       { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
       {
+        tryAcquire: jest.fn().mockResolvedValue(true),
+        release: jest.fn().mockResolvedValue(undefined),
         isDuplicate: jest.fn().mockResolvedValue(false),
         markProcessed: jest.fn().mockResolvedValue(undefined),
       } as never,
@@ -470,6 +474,8 @@ describe('StreamingService endStream', () => {
       { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
       { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
       {
+        tryAcquire: jest.fn().mockResolvedValue(true),
+        release: jest.fn().mockResolvedValue(undefined),
         isDuplicate: jest.fn().mockResolvedValue(false),
         markProcessed: jest.fn().mockResolvedValue(undefined),
       } as never,
@@ -537,6 +543,8 @@ describe('StreamingService rotateStreamKey', () => {
       { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
       { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
       {
+        tryAcquire: jest.fn().mockResolvedValue(true),
+        release: jest.fn().mockResolvedValue(undefined),
         isDuplicate: jest.fn().mockResolvedValue(false),
         markProcessed: jest.fn().mockResolvedValue(undefined),
       } as never,
@@ -609,6 +617,8 @@ describe('StreamingService createStream', () => {
       { checkAccess: jest.fn(), checkAccessMany: jest.fn() } as never,
       { requirePremiumSession: jest.fn().mockResolvedValue(undefined) } as never,
       {
+        tryAcquire: jest.fn().mockResolvedValue(true),
+        release: jest.fn().mockResolvedValue(undefined),
         isDuplicate: jest.fn().mockResolvedValue(false),
         markProcessed: jest.fn().mockResolvedValue(undefined),
       } as never,

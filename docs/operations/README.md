@@ -13,7 +13,9 @@ Deferred items: [DEFERRED_BACKLOG.md](../audits/DEFERRED_BACKLOG.md) · Neon mon
 | [STAGING.md](./STAGING.md) | Staging bootstrap |
 | [REDIS_CONNECTIONS.md](./REDIS_CONNECTIONS.md) | Dual Redis clients |
 | [LOAD_TEST_RUNBOOK.md](./LOAD_TEST_RUNBOOK.md) | Staging soak (`npm run load-test:feed`) |
-| [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) | Launch checklist |
+| [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) | Launch checklist (includes R1 gate section) |
+| [R1_LAUNCH_GATES.md](./R1_LAUNCH_GATES.md) | **Ops/legal execution** for CSAM, Stripe live, Mux signing, DMCA, load, Neon drill |
+| [evidence/README.md](./evidence/README.md) | Where to write attachable R1 evidence files (no secrets) |
 | [POST_REAUDIT_CUTOVER.md](./POST_REAUDIT_CUTOVER.md) | 2026-09-03 reaudit → ops cutover (secrets, migrations, smoke) |
 | [AWS_CREDENTIAL_ROTATION.md](./AWS_CREDENTIAL_ROTATION.md) | AWS keys / OIDC |
 | [SKILL_PLATFORM_SHIP_READINESS.md](./SKILL_PLATFORM_SHIP_READINESS.md) | Skill flags ship checklist |

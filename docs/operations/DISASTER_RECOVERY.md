@@ -1,7 +1,7 @@
 # Disaster recovery (F-901)
 
 **Audience:** Engineering / DevOps  
-**Related:** [DEPLOY.md](../DEPLOY.md) · [audits/EXECUTIVE_SUMMARY.md](../audits/EXECUTIVE_SUMMARY.md)
+**Related:** [DEPLOY.md](../DEPLOY.md) · [DEFERRED_BACKLOG.md](../audits/DEFERRED_BACKLOG.md) · [R1_LAUNCH_GATES.md](./R1_LAUNCH_GATES.md)
 
 ---
 
@@ -46,7 +46,7 @@ Never run destructive scripts (`scripts/wipe-platform-data.sh`) against producti
 |------|---------------|------------------|----------------|-----------------|----------|
 | 2026-07-22 | 1h before drill (06:49 UTC) | ~15s | Yes | Yes | 2026-10-22 (quarterly) |
 
-**Checklist (non-destructive):** `npm run verify:neon-dr` · connectivity: `scripts/dr-db-verify.sh`
+**Checklist (non-destructive):** `npm run verify:neon-dr` · connectivity: `scripts/dr-db-verify.sh` · optional evidence: `FORGE_DR_EVIDENCE_FILE=docs/operations/evidence/neon-dr-….txt`
 
 Method: created `br-delicate-hat-aowtvr8i` via Neon API (`POST /branches` with `parent_timestamp`) from project `orange-math-53675581` (org `org-divine-pine-40106564`), branch `br-misty-water-ao98jfuv` (production). Polled branch state until `ready`. Connected directly (Node `pg`) to both the restored branch and production, compared `information_schema.tables` count and row counts on `users`/`videos`/`member_subscriptions` — identical on both. Deleted the scratch branch immediately after verification to avoid ongoing compute/storage cost.
 

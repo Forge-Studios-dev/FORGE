@@ -1,10 +1,11 @@
 # FORGE Implementation Roadmap
 
 **Audience:** Engineering, product, DevOps.  
-**Status:** Active sequencing plan (zero-trust rewrite 2026-09-03).  
-**Supersedes:** 2026-09-02 P0–P6 narrative and [YOUTUBE_PARITY_ROADMAP.md](./YOUTUBE_PARITY_ROADMAP.md) for product direction.  
+**Status:** Active sequencing plan (zero-trust rewrite 2026-09-03; evening revalidation + SSOT hygiene same day).  
+**Supersedes:** 2026-09-02 P0–P6 narrative and [YOUTUBE_PARITY_ROADMAP.md](./YOUTUBE_PARITY_ROADMAP.md) (stub only) for product direction.  
 **Product SSOT:** [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md)  
-**Audit SSOT:** [audits/FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md)
+**Audit SSOT:** [audits/FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md) (§2a ledger, §4a gaps)  
+**Open backlog SSOT:** [audits/DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md)
 
 ---
 
@@ -29,54 +30,45 @@ flowchart TB
 
 | Phase | Focus | Status |
 |-------|--------|--------|
-| **R0** | Docs, ADRs, master audit, agent rules | Complete (2026-09-03) |
-| **R1** | CSAM gate, Stripe ops, load test, Neon DR | In-repo engineering shipped; **ops/legal still open** |
+| **R0** | Docs, ADRs, master audit, agent rules; evening revalidation + dual-SSOT hygiene | Complete (2026-09-03) |
+| **R1** | CSAM gate, Stripe ops, load test, Neon DR, DMCA agent | In-repo engineering shipped; **ops/legal still open** |
 | **R2** | Mobile/Studio parity + SEO metadata | **In-repo complete** (Copilot gated; VoiceOver/a11y smoke shipped) |
 | **R3** | FTS/recs hardening | In-repo (watch_history index, course-aware recs) |
-| **R4** | Security/reliability docs + health | Dual RBAC kept; topology documented; health `contentScan`/`billing` honesty (`noop_ack`, `stripe`) |
-| **R5** | Sitemap, status matrix, deferred items | Docs + SEO sitemap + discover a11y; ML/DRM stay trigger-gated |
+| **R4** | Security/reliability docs + health | Dual RBAC kept; topology documented; health honesty |
+| **R5** | Sitemap, status matrix, deferred items | Docs + SEO; ML/DRM stay trigger-gated |
 
 ---
 
 ## R0 — Research and SSOT (complete)
 
 - [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md)
-- [decisions/](./decisions/) ADR-001–014
+- [decisions/](./decisions/) ADR-001–014 — all **Keep** on evening revalidation ([audit §2a](./audits/FRESH_AUDIT_2026-09-03_MASTER.md))
 - [audits/FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md)
 - Agent rules: `forge-product` frames; `forge-youtube-replica` = mechanics only
+- Evening hygiene: stubbed Sep 2 / Aug audits / parity body; CEOS % neutralized; DEPTH open → DEFERRED; Master/CLIENT sync
+
+**Architecture stance:** No Google/YouTube-scale rewrite at current stage. Modular Nest monolith + Fly worker + Mux + Postgres FTS + SQL recs remain the production default.
 
 ---
 
 ## R1 — Launch blockers
 
-| Item | In-repo | Ops / legal | Domain |
-|------|---------|-------------|--------|
-| CSAM / vendor scan | Webhook + fail-closed hold + `CONTENT_SCAN_ALLOW_NOOP` prod gate (ADR-012) + admin notify on hold + `npm run set:fly:content-scan-secrets` / worker sync | **Vendor contract** (CSAI Match / Thorn / equivalent); NCMEC process | 16, 7 |
-| Stripe live cutover | Connect/Checkout/webhooks shipped; health `billing` | Live keys, Connect branding, Vercel `NEXT_PUBLIC_BILLING_ENABLED`, one `chargesEnabled` creator — [STRIPE_PRODUCTION_ENABLEMENT.md](./operations/STRIPE_PRODUCTION_ENABLEMENT.md) | 14 |
-| Load test | `npm run load-test:feed` / `:community` / `:entitlements` | Run on **staging**, attach evidence | 18, 22 |
-| Neon DR | Runbook + `scripts/verify-neon-dr-checklist.sh` | Quarterly PITR drill — next **2026-10-22** | 21 |
-| DMCA agent | Pipeline shipped | USPTO designated agent filing | 15 |
+| Item | In-repo | Ops / legal | Owner | Ref |
+|------|---------|-------------|-------|-----|
+| CSAM / vendor scan | Webhook + fail-closed hold + `CONTENT_SCAN_ALLOW_NOOP` prod gate (ADR-012) + admin/uploader notify | **Vendor contract** (CSAI Match / Thorn / equivalent); NCMEC process | Legal + eng | [CONTENT_SCANNING.md](./CONTENT_SCANNING.md) |
+| Stripe live cutover | Connect/Checkout/webhooks shipped; health `billing` | Live keys, Connect branding, Vercel `NEXT_PUBLIC_BILLING_ENABLED`, one `chargesEnabled` creator | Ops | [STRIPE_PRODUCTION_ENABLEMENT.md](./operations/STRIPE_PRODUCTION_ENABLEMENT.md) |
+| Load test | `npm run load-test:feed` / `:community` / `:entitlements` | Run on **staging**, attach evidence | Perf | [LOAD_TEST_RUNBOOK.md](./operations/LOAD_TEST_RUNBOOK.md) |
+| Neon DR | Runbook + `scripts/verify-neon-dr-checklist.sh` | Quarterly PITR drill — next **2026-10-22** | Ops | [DISASTER_RECOVERY.md](./operations/DISASTER_RECOVERY.md) |
+| DMCA agent | Pipeline shipped | USPTO designated agent filing | Legal | [LEGAL.md](./LEGAL.md) |
+| Mux signing | Util + viewer withhold + **create/ingest reject** without keys | Signing keys for private/unlisted | Ops | [MEDIA.md](./MEDIA.md) |
 
-**R1 is not “green” until legal picks a scanner and Stripe live checklist is executed.** Engineering cannot close those boxes from git. Post-merge ops: [POST_REAUDIT_CUTOVER.md](./operations/POST_REAUDIT_CUTOVER.md).
+**R1 is not “green” until legal picks a scanner and Stripe live checklist is executed.** Engineering cannot close those boxes from git. Execute: [R1_LAUNCH_GATES.md](./operations/R1_LAUNCH_GATES.md). Post-merge smoke: [POST_REAUDIT_CUTOVER.md](./operations/POST_REAUDIT_CUTOVER.md).
 
 ---
 
 ## R2 — Mobile and Studio depth
 
-Shipped this pass:
-
-- `/studio/playlists` mobile route (was consumer `/playlists` only)
-- Mobile Studio `/studio/upload-reliability` + `/studio/analytics/details` (+ stuck-upload clear on videos)
-- Mobile Studio go-live parity: schedule, DVR, tier/paid, category, live/upcoming lists, `canGoLive` gate
-- Public SEO metadata: Shorts, live directory, search; dynamic `/live/[id]` metadata
-- Discover courses/communities a11y smoke; explore SEO descriptions; discover/communities sitemap
-- `content_scan_held` deep links → admin held queue; Admin nav “Held videos”
-- Skill Studio VoiceOver labels (courses, mentorship, channel points)
-- FCM: mobile push opens external admin URLs; web SW `notificationclick` routing
-- Admin notifications bell for held-scan alerts; web Studio Uploads nav + clear-stuck CTA
-- Master §16 corrected (playlists/reports/FCM were stale)
-- Mobile Copilot ungated via `platform.ai.creatorInsights`; uploader notify on scan hold; Studio held badges
-- Web Studio `/studio/copilot` + FCM SW uploader routing for held scans
+**In-repo complete** this pass (see prior ship notes): Studio playlists/upload-reliability/analytics/go-live; SEO metadata; scan-hold deep links; FCM routing; VoiceOver skill screens; Copilot gated on `ai.creatorInsights`.
 
 Still open (priority order):
 
@@ -90,17 +82,9 @@ Podcasts / wiki / gamification **UI** are out of R2 (ADR-007).
 
 ## R3 — Discovery and recommendations
 
-Shipped this pass:
+Shipped: `watch_history(watched_at DESC)` index; course-enrollment lesson boost in SQL recs.
 
-- `watch_history(watched_at DESC)` index for trending CTEs
-- Course-enrollment lesson boost in SQL recs
-
-Triggers (do **not** build early):
-
-| Trigger | Work | ADR |
-|---------|------|-----|
-| 100K+ MAU or forYou quality stall | pgvector slice | ADR-008 |
-| 500K videos or search p95 regress | Meilisearch F-1302 | ADR-010 |
+Triggers (do **not** build early) — see **Post-launch evolution** below.
 
 ---
 
@@ -121,11 +105,28 @@ Triggers (do **not** build early):
 
 | Item | Status |
 |------|--------|
-| Sitemap: live directory + playlists bound | Shipped this pass |
+| Sitemap: live directory + playlists bound | Shipped |
 | Cost follow-up | [COST_AUDIT_2026-09-01.md](./audits/COST_AUDIT_2026-09-01.md) — still valid if DEPLOY matches fly.toml |
-| Mux DRM F-1101 | Premium-scale trigger |
+| Mux DRM F-1101b | Premium-scale trigger |
 | Admin Playwright deep moderation | Staging credentials; skipped in CI by design |
+| Kids / Restricted Mode | Product + legal scope before build |
 | Next full re-audit | **50K MAU** or **2026-12-01** |
+
+---
+
+## Post-launch evolution path (do not build early)
+
+| Trigger | Work | ADR / doc |
+|---------|------|-----------|
+| ~100K MAU **or** forYou quality stall | pgvector / semantic retrieval slice | ADR-008, `AI-LLM-STRATEGY.md` |
+| ~500K videos **or** search p95 regress | Meilisearch F-1302 | ADR-010 |
+| Auth/live p95 or cold starts unacceptable | `min_machines_running=2`, `auto_stop=false` | ADR-013, `FLY_SLO.md` |
+| BullMQ backlog / worker downtime hurting ingest | Second worker **after** idempotency review | ADR-013 |
+| Large-scale premium anti-piracy | Mux DRM (Widevine/FairPlay) F-1101b | DEFERRED |
+| 100K concurrent live or multi-region RTO | Execute `SCALE_*` designs | Proposed only today |
+| Course catalog justifies unified FTS | Course `search_vector` | ADR-010 |
+
+**Explicit non-goals until product reverses an ADR:** ad network/VAST (ADR-005), full LMS consumer UI (ADR-007), microservices split, Elasticsearch, MediaConvert rewrite.
 
 ---
 
@@ -150,7 +151,7 @@ Triggers (do **not** build early):
 | 15 | Moderation | R1 CSAM |
 | 16 | Security/privacy | R1, R4 |
 | 17 | Cloud/DevOps | R4 / ADR-013 |
-| 18 | Scalability | R3–R4 triggers |
+| 18 | Scalability | Post-launch triggers |
 | 19 | Cache/queues | R4 worker SPOF |
 | 20 | Observability | Shipped + health honesty |
 | 21 | Backup/DR | R1 |
@@ -167,4 +168,4 @@ Community permission enforcement, strikes/DMCA, MFA, DSAR export, monetization e
 
 ---
 
-*Update phase status on merge. Feature status SSOT: `FORGE_PROJECT_MASTER.md` §16.*
+*Update phase status on merge. Feature status SSOT: `FORGE_PROJECT_MASTER.md` §16. Open work: `audits/DEFERRED_BACKLOG.md`.*

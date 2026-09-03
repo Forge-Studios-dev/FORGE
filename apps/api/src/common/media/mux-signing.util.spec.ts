@@ -1,10 +1,13 @@
 import {
+  canCreateMuxSignedPlayback,
   generateTestMuxSigningConfig,
   isMuxSigningConfigured,
   muxSignedHlsPlaybackUrl,
+  muxSigningConfigFrom,
   normalizeMuxPrivateKey,
   requiresMuxSignedPlayback,
   signMuxPlaybackToken,
+  MUX_SIGNING_KEYS_REQUIRED,
 } from './mux-signing.util';
 
 describe('mux-signing.util', () => {
@@ -27,6 +30,22 @@ describe('mux-signing.util', () => {
     expect(requiresMuxSignedPlayback('private')).toBe(true);
     expect(requiresMuxSignedPlayback('unlisted')).toBe(true);
     expect(requiresMuxSignedPlayback('subscribers')).toBe(true);
+  });
+
+  it('canCreateMuxSignedPlayback gates restricted visibility on keys', () => {
+    expect(canCreateMuxSignedPlayback('public', null)).toBe(true);
+    expect(canCreateMuxSignedPlayback('private', null)).toBe(false);
+    expect(canCreateMuxSignedPlayback('private', config)).toBe(true);
+    expect(MUX_SIGNING_KEYS_REQUIRED).toContain('MUX_SIGNING_KEY_ID');
+  });
+
+  it('muxSigningConfigFrom reads Nest-style keys', () => {
+    expect(muxSigningConfigFrom(() => null)).toBeNull();
+    const parsed = muxSigningConfigFrom((k) =>
+      k === 'mux.signingKeyId' ? config.keyId : k === 'mux.signingPrivateKey' ? config.privateKeyPem : null,
+    );
+    expect(parsed?.keyId).toBe(config.keyId);
+    expect(isMuxSigningConfigured(parsed)).toBe(true);
   });
 
   it('signMuxPlaybackToken produces three JWT segments', () => {

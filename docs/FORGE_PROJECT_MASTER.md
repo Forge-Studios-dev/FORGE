@@ -141,7 +141,7 @@ Registered in `apps/api/src/app.module.ts`. Global prefix: `/api/v1`.
 | **AccountStrikesModule** | `users/me/strikes`, `account-strikes` | list mine, appeal | Community-guideline + copyright strike ladder (YouTube's published 3-strike numbers) — see [COPYRIGHT_DMCA.md](./COPYRIGHT_DMCA.md) |
 | **CopyrightModule** | `copyright` | notices, counter-notices | DMCA §512 notice-and-takedown + counter-notice pipeline |
 | **DatabaseModule** | — | — | TypeORM, migrations on boot |
-| — | `health` | `GET /health` | DB, Redis, queue depth |
+| — | `health` | `GET /health` | DB, Redis, queue depth; honesty: `contentScan`, `billing`, `muxSigning`, `appCheck`, `mockSubscriptions` |
 | — | `metrics` | `GET /metrics` | Prometheus when `METRICS_ENABLED` |
 
 **Global guards (order matters):** `JwtAuthGuard` → `RolesGuard` → `ConsumerOnlyGuard` → `PermissionsGuard` → `ThrottlerGuard` → `EmailVerifiedGuard` (mutations).
@@ -412,7 +412,7 @@ High-level snapshot only. **This table is the feature-status SSOT.** The CEOS tr
 | Topic | File |
 |-------|------|
 | Live streaming | [LIVE.md](./LIVE.md) |
-| Enterprise audit | [audits/README.md](./audits/README.md) · **Closed 2026-06** · [deferred backlog](./audits/DEFERRED_BACKLOG.md) |
+| Enterprise audit | [audits/FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md) · [deferred backlog](./audits/DEFERRED_BACKLOG.md) |
 | Scripts | [SCRIPTS.md](./SCRIPTS.md) |
 | Operations runbooks | [operations/README.md](./operations/README.md) |
 | Local dev | [GETTING_STARTED.md](./GETTING_STARTED.md) |
@@ -587,4 +587,4 @@ Full live deploy: [LIVE.md](./LIVE.md)
 
 ---
 
-*Last updated: 2026-07-22*
+*Last updated: 2026-09-03 (R1 muxSigning health honesty + launch gates runbook)*

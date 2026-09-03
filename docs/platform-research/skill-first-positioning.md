@@ -14,7 +14,7 @@
 |-------|-------------|
 | **Mechanics** | YouTube-parity video platform: channels, VOD, Shorts, live, subscriptions, playlists, comments, search/feeds/recs, Studio, Community tab (posts/polls), Stripe monetization |
 | **Positioning** | Vertical focus on skills/crafts creators and learners — taxonomy, trust, discovery, and creator tools tuned for teaching, not entertainment-first |
-| **Extensions** | Courses (video-lesson collections), mentorship, channel points — **selectively re-enabled**, not a full LMS |
+| **Extensions** | Courses (video-lesson collections), mentorship, channel points — **flag-gated UI restored Sep 2026**, not a full LMS |
 | **Excluded** | Coursera/Kajabi-class LMS: SCORM, formal accreditation, assignment grading pipelines, Netflix-style library UX |
 
 ---
@@ -49,7 +49,7 @@
 ### Twitch — engagement reference
 
 - Channel points for live engagement; reward redemptions.
-- **FORGE:** Re-enable `ChannelPointsModule` behind `FEATURES_CHANNEL_POINTS`; tie to live + community engagement.
+- **FORGE:** Channel points ship behind `FEATURES_CHANNEL_POINTS` (UI restored Sep 2026); tie to live + community engagement.
 
 ### Discord / Circle — community reference
 
@@ -70,14 +70,14 @@
 
 ## 3. Skill module scope (MVP vs full backend)
 
-Backend modules exist but UI was removed Aug 2026. Re-enable scope:
+Backend modules always existed; consumer/Studio UI for courses, mentorship, and channel points was **restored Sep 2026** behind granular flags (re-audit P2–P5). Scope:
 
-| Module | MVP scope | Keep gated (full LMS) |
-|--------|-----------|------------------------|
+| Module | MVP scope (flag on) | Keep gated (full LMS) |
+|--------|---------------------|------------------------|
 | **Courses** | Video-linked lessons, publish catalog, enroll, progress; creator Studio builder | Quizzes, assignments, certificates, cohorts, creator programs |
 | **Mentorship** | Community-scoped mentor profiles, match requests, basic session booking | Admin marketplace, cross-community matching |
 | **Channel points** | Earn on live/chat; creator-defined rewards; redemption | Cross-platform marketplace |
-| **Articles, podcasts, study groups, Q&A** | Off | Behind `FEATURES_SKILL_ECONOMY_LMS` only |
+| **Articles, podcasts, study groups, Q&A** | Off in default UI | Behind `FEATURES_SKILL_ECONOMY_LMS` only |
 
 ---
 

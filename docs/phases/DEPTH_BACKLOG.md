@@ -1,6 +1,8 @@
 # Depth backlog (post Master Execution)
 
-Master phases 01–24 are documented. This list tracks **remaining depth** that is intentionally deferred or partially shipped.
+> **Historical ship log** — not the open backlog SSOT. Open / trigger-gated items live in [audits/DEFERRED_BACKLOG.md](../audits/DEFERRED_BACKLOG.md) and [FORGE_IMPLEMENTATION_ROADMAP.md](../FORGE_IMPLEMENTATION_ROADMAP.md). Product framing: [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md). **Ads / VAST are permanently N/A** ([ADR-005](../decisions/ADR-005-no-ads.md)).
+
+Master phases 01–24 are documented. Waves below are a **changelog of shipped depth**, not remaining work.
 
 ### Master Execution Wave 73 (2026-08-30) — Admin URL sync (approvals, search, copyright)
 
@@ -1461,30 +1463,25 @@ Full mobile suite: 171/171 (unit + widget). Remaining: 1 screen (`studio_video_e
 - Community access meta `unavailable` → web/mobile “not available” (vs membership restricted)
 - CodeQL hardening: analytics ingest via OptionalJwt (no manual bearer bypass), owned `s3Key` validation, multer temp path containment before read/unlink, video-processor `mkdtemp`, Resend SMTP hostname equality, FCM SW same-origin via Client URL
 
-## Still open
+## Still open → moved to deferred backlog
 
-| Area | Item | Owner |
-| --- | --- | --- |
-| Ops | Staging soak per load-test runbook | Operator |
-| Launch | Env secrets, Mux/Stripe webhooks; Mux signing keys for private/unlisted | Operator |
-| Ship | PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) — CI green when tip ready; **needs human review** then merge after checklist | Operator |
-| API debt | Optional Nest course/podcast **file** deletion (boot-omit + 410 sufficient) | Deferred (LMS off by default) |
-| Analytics | Realtime Studio dashboards / audience retention curves beyond avg watch % | Product |
-| Recs | Full ML / embeddings stack | Product |
-| Downloads | Real offline download packages (UI hidden) | Product |
-| Legal | Kids / Restricted Mode / made-for-kids | Product + legal |
-| Monetization | Ad breaks / VAST | Product + partners |
+Canonical open list: **[audits/DEFERRED_BACKLOG.md](../audits/DEFERRED_BACKLOG.md)** and audit gaps [FRESH_AUDIT_2026-09-03_MASTER.md §4a](../audits/FRESH_AUDIT_2026-09-03_MASTER.md).
 
-### Completed eng depth (this wave)
+Folded from this table (2026-09-03 evening):
 
-Block-parity (feeds→LMS→live side-channels→access-sessions→reputation), PiP (Android/iOS/web/live), theater Escape/`t`, Shorts CC/Save/Block + mute keys, username cooldown UX, notifyLevel batch, Studio/comment parity — see git history on `feature/youtube-replica-wave-1`. Detail rows archived 2026-08-08.
+| Former row | Disposition |
+| --- | --- |
+| Staging soak / load evidence | DEFERRED + R1 |
+| Mux signing keys / Stripe webhooks | DEFERRED ops |
+| PR #185 merge handoff | **Obsolete** — wave merged; cutover is [POST_REAUDIT_CUTOVER.md](../operations/POST_REAUDIT_CUTOVER.md) |
+| Nest LMS file deletion | Deferred (flags sufficient) — ADR-006/007 |
+| Realtime Studio analytics curves | Product depth — not launch |
+| Full ML / embeddings | ADR-008 trigger (100K MAU) |
+| Offline download packages | Product deferred |
+| Kids / Restricted Mode | DEFERRED legal/product |
+| **Ad breaks / VAST** | **Closed — permanently N/A** (ADR-005); do not reopen |
 
-Prefer small focused PRs over another full Master pass. **Viewer/creator YouTube-parity eng depth on this branch is complete** for the Production Completion Drive; remaining Master phases 09–24 are documented as verified/complete for the shipped codebase. Execute [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) before merge to `main`.
+### Completed eng depth (historical)
 
-### Ship handoff (operator)
-
-1. Run [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) on staging.
-2. Confirm Mux/Stripe webhooks + signing keys for private/unlisted.
-3. Merge open PR [#185](https://github.com/Forge-Studios-dev/FORGE/pull/185) (`feature/youtube-replica-wave-1` → `main`) when checklist passes — do not push straight to `main`.
-4. Product-deferred: ML recs, downloads, Kids Mode, ad breaks — not blocking viewer/creator core loop.
+Block-parity, PiP, theater, Shorts CC/Save, username cooldown, notifyLevel, Studio/comment parity — see git history. Prefer small focused PRs. Execute [PRODUCTION_CHECKLIST.md](../operations/PRODUCTION_CHECKLIST.md) and R1 ops before marketing launch — not a second Master Execution pass.
 

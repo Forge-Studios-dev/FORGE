@@ -22,7 +22,7 @@
 1. **On merge:** set affected `CEOS-Pxx-Txxx` rows to ✅; move next highest-priority ⏳ to 🔄.
 2. **Weekly:** refresh §2 executive dashboard counts (re-run `python3 scripts/generate-ceos-tracker.py` or edit manually).
 3. **Monthly:** reconcile with [DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md) and [AI-LLM-STRATEGY.md](./AI-LLM-STRATEGY.md).
-4. **Re-audit:** full pass on schema migration, 50K MAU, or 2026-09-04.
+4. **Re-audit:** full pass on schema migration, 50K MAU, or **2026-12-01** (see [FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md)).
 
 ### Canonical links
 
@@ -38,18 +38,18 @@
 
 ## 1. Executive dashboard
 
-### Overall completion (evidence-based)
+### Overall completion (historical task counts only)
 
 | Metric | Value |
 |--------|-------|
 | **Total tasks** | 678 |
-| **Completed ✅** | 624 (92.0%) |
+| **Completed ✅** | 624 (92.0% of *tracker rows*) |
 | **In Progress 🔄** | 0 |
 | **Needs Review 👀** | 5 |
 | **Pending ⏳** | 35 |
 | **Blocked 🚫** | 14 |
 
-> **Note:** The V3.0 blueprint §Implementation Status Tracker (~98%) is **aspirational**. This tracker (92.0% ✅) is the **authoritative** evidence-based score.
+> **Not status SSOT.** Tracker row % is a historical CEOS task census only. **Feature status SSOT** is [FORGE_PROJECT_MASTER.md §16](./FORGE_PROJECT_MASTER.md#16-feature-status-matrix). The V3.0 blueprint §Implementation Status Tracker (~98%) is also aspirational — do not cite either percentage as product readiness. Launch blockers (CSAM vendor, Stripe live, Neon drill, DMCA agent) are independent of these counts — see [audits/FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md) §4a.
 
 ### Completion by domain (phase-weighted)
 
@@ -75,7 +75,7 @@
 |------|-------|----------|
 | Security | Low–Medium | RBAC verify wired into staging CD; all 15 workers + mail now tested; geo-login detection pending |
 | Scale | Medium | No formal 50K MAU load test; Postgres FTS at 500K+ videos |
-| Cost | Medium | Mux COGS without production Stripe revenue (F-1101) |
+| Cost | Medium | Mux COGS vs live Stripe revenue — run Stripe live checklist (F-1101 Connect code shipped; keys are ops) |
 | UX | Low | Flip community_channels_deprecated staging→prod; mobile studio community consolidated |
 | Docs | Low | Community 2.0/3.0 redirects + master tracker shipped 2026-06-22 |
 | Revenue | Medium | Runbook shipped; prod cutover + Connect onboarding still required |

@@ -11,6 +11,7 @@ import { Request } from 'express';
 import { Public } from './common/decorators/public.decorator';
 import { VIDEO_PROCESSING_QUEUE } from './modules/content/video-processing.constants';
 import { MUX_VOD_INGEST_QUEUE } from './modules/content/mux-vod.constants';
+import { FirebaseService } from './modules/firebase/firebase.service';
 
 const HEALTH_CHECK_MS = 2_500;
 
@@ -40,6 +41,8 @@ export class HealthController {
     @Optional()
     @InjectQueue(MUX_VOD_INGEST_QUEUE)
     private readonly muxVodQueue?: Queue,
+    @Optional()
+    private readonly firebase?: FirebaseService,
   ) {}
 
   @Public()
@@ -116,6 +119,34 @@ export class HealthController {
     } else {
       checks.billing = 'stub';
     }
+
+    // Private/unlisted/members VOD+live need signed Mux playback. Missing keys do not
+    // degrade readiness (public content works) but ops must see honesty before premium launch.
+    const muxSigningKeyId = (this.configService.get<string>('mux.signingKeyId') || '').trim();
+    const muxSigningPrivateKey = (this.configService.get<string>('mux.signingPrivateKey') || '').trim();
+    if (muxSigningKeyId && muxSigningPrivateKey) {
+      checks.muxSigning = 'configured';
+    } else if (muxSigningKeyId || muxSigningPrivateKey) {
+      checks.muxSigning = 'misconfigured';
+    } else {
+      checks.muxSigning = 'unsigned';
+    }
+
+    const appCheckFlag = this.configService.get<boolean>('firebase.appCheckEnabled') === true;
+    if (!appCheckFlag) {
+      checks.appCheck = 'off';
+    } else if (this.firebase?.isFirebaseAdminReady()) {
+      checks.appCheck = 'configured';
+    } else {
+      // Flag on without Admin — fail-closed on guarded routes; surface honesty for ops.
+      checks.appCheck = 'misconfigured';
+    }
+
+    // Staging may enable mock memberships; production boot schema forbids the flag.
+    checks.mockSubscriptions =
+      this.configService.get<boolean>('entitlements.mockSubscriptionsEnabled') === true
+        ? 'enabled'
+        : 'off';
 
     if (transcodeProvider === 'mux' && this.muxVodQueue) {
       try {

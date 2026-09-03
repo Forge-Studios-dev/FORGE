@@ -31,6 +31,7 @@ import { StreamingService } from '../streaming/streaming.service';
 import { StreamLiveService } from '../streaming/stream-live.service';
 import { StreamChatService } from '../stream-chat/stream-chat.service';
 import { StripeConnectService } from '../billing/stripe-connect.service';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 import { OAuthAccount } from '../auth/entities/oauth-account.entity';
 
 describe('AdminService security', () => {
@@ -77,6 +78,9 @@ describe('AdminService security', () => {
   const streamLiveService = { backfillMuxPlaybackIds: jest.fn() };
   const streamChatService = { getMessages: jest.fn(), deleteMessage: jest.fn() };
   const stripeConnectService = { getConnectStatus: jest.fn() };
+  const entitlementsService = {
+    cancelSubscriptionsForAccountDeletion: jest.fn().mockResolvedValue({ canceled: 0 }),
+  };
 
   const regularUser: User = {
     id: 'user-1',
@@ -157,6 +161,7 @@ describe('AdminService security', () => {
         { provide: StreamLiveService, useValue: streamLiveService },
         { provide: StreamChatService, useValue: streamChatService },
         { provide: StripeConnectService, useValue: stripeConnectService },
+        { provide: EntitlementsService, useValue: entitlementsService },
       ],
     }).compile();
 
@@ -191,6 +196,24 @@ describe('AdminService security', () => {
         }),
       );
       expect(authService.logoutAll).toHaveBeenCalledWith(regularUser.id);
+    });
+
+    it('cancels Stripe/local memberships before anonymizing the account', async () => {
+      await service.deleteUser(regularUser.id);
+      expect(entitlementsService.cancelSubscriptionsForAccountDeletion).toHaveBeenCalledWith(
+        regularUser.id,
+      );
+      expect(entitlementsService.cancelSubscriptionsForAccountDeletion.mock.invocationCallOrder[0]).toBeLessThan(
+        userRepository.save.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('does not anonymize when membership cancel fails (billing must not orphan)', async () => {
+      entitlementsService.cancelSubscriptionsForAccountDeletion.mockRejectedValueOnce(
+        new Error('stripe down'),
+      );
+      await expect(service.deleteUser(regularUser.id)).rejects.toThrow('stripe down');
+      expect(userRepository.save).not.toHaveBeenCalled();
     });
 
     it('removes linked OAuth accounts so the real third-party email does not survive deletion', async () => {

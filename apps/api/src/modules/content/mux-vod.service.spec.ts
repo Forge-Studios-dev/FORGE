@@ -9,7 +9,22 @@ import { muxHlsPlaybackUrl, muxThumbnailUrl } from './mux-vod.constants';
 import { SHORT_TOO_LONG_MESSAGE } from './short-duration.util';
 import { ScheduledPublishScheduler } from './scheduled-publish.scheduler';
 import { ContentScanService } from './content-scan/content-scan.service';
+import { generateTestMuxSigningConfig } from '../../common/media/mux-signing.util';
 
+const testMuxSigning = generateTestMuxSigningConfig('test-kid');
+const baseConfigMap: Record<string, string | number> = {
+  'aws.region': 'ap-south-1',
+  'aws.accessKeyId': 'key',
+  'aws.secretAccessKey': 'secret',
+  'aws.s3BucketName': 'bucket',
+  'mux.tokenId': 'token-id',
+  'mux.tokenSecret': 'token-secret',
+  'mux.signingKeyId': testMuxSigning.keyId,
+  'mux.signingPrivateKey': testMuxSigning.privateKeyPem,
+  'video.muxIngestUrlTtlSec': 3600,
+  'video.autoCaptionLanguage': 'en',
+  'video.autoCaptionName': 'English CC',
+};
 const mockMuxCreate = jest.fn();
 const mockMuxDelete = jest.fn();
 const mockMuxCreatePlaybackId = jest.fn();
@@ -64,20 +79,7 @@ describe('MuxVodService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: (key: string) => {
-              const map: Record<string, string | number> = {
-                'aws.region': 'ap-south-1',
-                'aws.accessKeyId': 'key',
-                'aws.secretAccessKey': 'secret',
-                'aws.s3BucketName': 'bucket',
-                'mux.tokenId': 'token-id',
-                'mux.tokenSecret': 'token-secret',
-                'video.muxIngestUrlTtlSec': 3600,
-                'video.autoCaptionLanguage': 'en',
-                'video.autoCaptionName': 'English CC',
-              };
-              return map[key];
-            },
+            get: (key: string) => baseConfigMap[key],
           },
         },
         { provide: EventEmitter2, useValue: eventEmitter },
@@ -295,18 +297,9 @@ describe('MuxVodService', () => {
             provide: ConfigService,
             useValue: {
               get: (key: string) => {
-                const map: Record<string, string | number> = {
-                  'aws.region': 'ap-south-1',
-                  'aws.accessKeyId': 'key',
-                  'aws.secretAccessKey': 'secret',
-                  'aws.s3BucketName': 'bucket',
-                  'mux.tokenId': 'token-id',
-                  'mux.tokenSecret': 'token-secret',
-                  'video.muxIngestUrlTtlSec': 3600,
-                  'video.autoCaptionLanguage': 'hi',
-                  'video.autoCaptionName': 'Hindi CC',
-                };
-                return map[key];
+                if (key === 'video.autoCaptionLanguage') return 'hi';
+                if (key === 'video.autoCaptionName') return 'Hindi CC';
+                return baseConfigMap[key];
               },
             },
           },
@@ -349,6 +342,40 @@ describe('MuxVodService', () => {
       expect(mockMuxCreate).toHaveBeenCalledWith(
         expect.objectContaining({ playback_policy: ['signed'] }),
       );
+    });
+
+    it('refuses private ingest when Mux signing keys are missing', async () => {
+      const module = await Test.createTestingModule({
+        providers: [
+          MuxVodService,
+          { provide: ContentScanService, useValue: contentScanService },
+          { provide: ScheduledPublishScheduler, useValue: scheduledPublishScheduler },
+          { provide: getRepositoryToken(Video), useValue: videoRepo },
+          {
+            provide: ConfigService,
+            useValue: {
+              get: (key: string) => {
+                if (key === 'mux.signingKeyId' || key === 'mux.signingPrivateKey') return '';
+                return baseConfigMap[key];
+              },
+            },
+          },
+          { provide: EventEmitter2, useValue: eventEmitter },
+          { provide: getRedisConnectionToken(), useValue: { del: jest.fn() } },
+        ],
+      }).compile();
+      const withoutKeys = module.get(MuxVodService);
+
+      videoRepo.findOne.mockResolvedValue({
+        id: 'video-uuid',
+        muxAssetId: null,
+        visibility: VideoVisibility.PRIVATE,
+      } as Video);
+
+      await expect(
+        withoutKeys.ingestFromS3({ videoId: 'video-uuid', s3Key: 'key', userId: 'user-1' }),
+      ).rejects.toThrow(/MUX_SIGNING_KEY_ID/);
+      expect(mockMuxCreate).not.toHaveBeenCalled();
     });
   });
 
