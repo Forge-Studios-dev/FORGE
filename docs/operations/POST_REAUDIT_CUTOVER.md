@@ -1,35 +1,40 @@
 # Post-reaudit cutover (2026-09-03)
 
-In-repo engineering for the zero-trust reaudit is complete once **PR #262** (merged) and **PR #263** (web Copilot + FCM uploader routing) are on `main`.
+In-repo engineering for the zero-trust reaudit is on `main` (**#262**, **#263**, ADR-012 gate **#265**, flyctl secret workflows **#266**).
 
 This runbook is the **ops path** only. Do not treat noop scan ack as CSAM protection (ADR-009 / ADR-012).
 
 ## 1. Merge gate
 
-- [ ] PR #263 approved by a reviewer with **write** access (branch protection requires 1 approving review)
-- [ ] Squash-merge #263 → `main` (triggers Vercel web/admin + Fly release if configured)
+- [x] PR #263 squash-merged → `main`
+- [x] ADR-012 Release secret audit + `Set content-scan secrets` workflow on `main` (#265 / #266)
 
 ## 2. Secrets before / with first boot after #262
 
+Done (2026-09-03): Actions → **Set content-scan secrets (Fly)** (`mode=none`) set `CONTENT_SCAN_PROVIDER=none` + `CONTENT_SCAN_ALLOW_NOOP=true` on API + worker.
+
+Re-run if needed:
+
 ```bash
-export CONTENT_SCAN_ALLOW_NOOP=true   # until vendor webhook is live
+gh workflow run 'Set content-scan secrets (Fly)' --ref main -f mode=none
+# or locally after fly auth:
+export CONTENT_SCAN_ALLOW_NOOP=true
 npm run set:fly:content-scan-secrets
-npm run sync:fly:worker-secrets
 ```
 
 Confirm `ADMIN_URL` / `WEB_URL` are set on Fly (platform config exposes them for deep links).
 
-Optional Copilot:
+Optional Copilot (ungates `ai.creatorInsights` when both are set):
 
 ```bash
-# fly secrets set on API (and worker if workers call insights)
+# flyctl secrets set on API (and worker if workers call insights)
 AI_CLAUDE_ENABLED=true
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ## 3. Migrations
 
-Apply pending TypeORM migrations including:
+Applied via Fly `release_command` on successful Release (2026-09-03). Includes:
 
 - `230…` — `content_scan_held` notification enum
 - `231…` — `watch_history(watched_at)` index
@@ -40,12 +45,12 @@ Apply pending TypeORM migrations including:
 FORGE_SMOKE_API=https://api.forgestudios.net/api/v1 FORGE_SMOKE_MODE=public bash scripts/smoke-api.sh
 ```
 
-Expect:
+Prod verified 2026-09-03:
 
-- `platform/config` includes `adminUrl`
-- health `checks.contentScan` is `noop_ack` or `webhook` (not silent `noop`)
+- `platform/config` includes `adminUrl` + `ai`
+- health `checks.contentScan` is `noop_ack`
 
-Manual:
+Manual (still recommended once):
 
 1. Hold a scan → admin bell + `/content?moderationStatus=held`
 2. Same event → uploader in-app / FCM → `/studio/videos/:id`
