@@ -57,7 +57,7 @@ flowchart TB
 | Neon DR | Runbook + `scripts/verify-neon-dr-checklist.sh` | Quarterly PITR drill — next **2026-10-22** | 21 |
 | DMCA agent | Pipeline shipped | USPTO designated agent filing | 15 |
 
-**R1 is not “green” until legal picks a scanner and Stripe live checklist is executed.** Engineering cannot close those boxes from git.
+**R1 is not “green” until legal picks a scanner and Stripe live checklist is executed.** Engineering cannot close those boxes from git. Post-merge ops: [POST_REAUDIT_CUTOVER.md](./operations/POST_REAUDIT_CUTOVER.md).
 
 ---
 
