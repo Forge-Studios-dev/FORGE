@@ -342,16 +342,18 @@ export class BillingService {
       `${result.subscriptionId}:${result.status}`;
 
     if (idempotencyKey) {
-      const duplicate = await this.webhookIdempotency.isDuplicate(
+      const acquired = await this.webhookIdempotency.tryAcquire(
         BillingService.WEBHOOK_PROVIDER,
         idempotencyKey,
+        result.checkoutType ?? result.status,
       );
-      if (duplicate) {
+      if (!acquired) {
         this.logger.debug(`Webhook already processed: ${idempotencyKey}`);
         return { handled: true, duplicate: true };
       }
     }
 
+    try {
     if (result.checkoutType === 'event' && result.status === 'completed') {
       if (result.userId && result.streamId && result.amountCents) {
         await this.grantEventPurchase({
@@ -510,14 +512,13 @@ export class BillingService {
       }
     }
 
-    if (idempotencyKey) {
-      await this.webhookIdempotency.markProcessed(
-        BillingService.WEBHOOK_PROVIDER,
-        idempotencyKey,
-        result.checkoutType ?? result.status,
-      );
-    }
     return { handled: true };
+    } catch (err) {
+      if (idempotencyKey) {
+        await this.webhookIdempotency.release(BillingService.WEBHOOK_PROVIDER, idempotencyKey);
+      }
+      throw err;
+    }
   }
 
   /**

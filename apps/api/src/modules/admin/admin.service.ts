@@ -30,6 +30,7 @@ import { Community, CommunityVisibility } from '../communities/entities/communit
 import { CommunityReport } from '../communities/entities/community-moderation.entity';
 import { CommunityRole, CommunityRoleType } from '../communities/entities/community-role.entity';
 import { StripeConnectService } from '../billing/stripe-connect.service';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 import { OAuthAccount } from '../auth/entities/oauth-account.entity';
 import { UpdateAdminCommunityDto } from './dto/update-admin-community.dto';
 
@@ -91,6 +92,7 @@ export class AdminService {
     private readonly streamLiveService: StreamLiveService,
     private readonly streamChatService: StreamChatService,
     private readonly stripeConnectService: StripeConnectService,
+    private readonly entitlementsService: EntitlementsService,
   ) {}
 
   async moderateVideo(
@@ -297,6 +299,11 @@ export class AdminService {
     if (user.role === UserRole.ADMIN) {
       throw new BadRequestException('Cannot delete platform admin accounts');
     }
+
+    // Cancel Stripe + local memberships before anonymizing so billing cannot
+    // continue against a deleted customer (CEOS tracker 2026-08-22).
+    await this.entitlementsService.cancelSubscriptionsForAccountDeletion(id);
+
     const suffix = id.replace(/-/g, '').slice(0, 12);
     user.deletedAt = new Date();
     user.isActive = false;

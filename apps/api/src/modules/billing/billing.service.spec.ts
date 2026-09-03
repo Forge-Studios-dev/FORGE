@@ -27,6 +27,8 @@ describe('BillingService', () => {
   };
   const webhookIdempotency = {
     isDuplicate: jest.fn(),
+    tryAcquire: jest.fn(),
+    release: jest.fn(),
     markProcessed: jest.fn(),
   };
   const paymentProvider = {
@@ -109,6 +111,8 @@ describe('BillingService', () => {
     jest.clearAllMocks();
     engagementService.isBlockedEitherWay.mockResolvedValue(false);
     webhookIdempotency.isDuplicate.mockResolvedValue(false);
+    webhookIdempotency.tryAcquire.mockResolvedValue(true);
+    webhookIdempotency.release.mockResolvedValue(undefined);
     entitlementsService.getSubscriptionByExternalRef.mockResolvedValue(null);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -148,7 +152,7 @@ describe('BillingService', () => {
     );
 
     await service.handleWebhook(payload, { 'x-webhook-id': 'evt_1' });
-    webhookIdempotency.isDuplicate.mockResolvedValue(true);
+    webhookIdempotency.tryAcquire.mockResolvedValue(false);
     await service.handleWebhook(payload, { 'x-webhook-id': 'evt_1' });
 
     expect(entitlementsService.grantSubscription).toHaveBeenCalledTimes(1);

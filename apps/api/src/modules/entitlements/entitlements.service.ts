@@ -1127,6 +1127,53 @@ export class EntitlementsService {
     return subs.map(toPublicSubscription);
   }
 
+  /**
+   * Cancel every access-granting membership where the user is subscriber or
+   * creator. Used by account deletion so Stripe does not keep billing a
+   * soft-deleted (anonymized) customer, and so creator-side orphan subs stop.
+   */
+  async cancelSubscriptionsForAccountDeletion(userId: string): Promise<{ canceled: number }> {
+    const subs = await this.subscriptionRepository.find({
+      where: [
+        { userId, status: In(ACCESS_GRANTING_STATUSES) },
+        { creatorId: userId, status: In(ACCESS_GRANTING_STATUSES) },
+      ],
+    });
+
+    const seen = new Set<string>();
+    let canceled = 0;
+    for (const sub of subs) {
+      if (seen.has(sub.id)) continue;
+      seen.add(sub.id);
+
+      if (
+        sub.externalRef &&
+        sub.source === MemberSubscriptionSource.STRIPE &&
+        this.stripeTierSync?.isEnabled()
+      ) {
+        try {
+          await this.stripeTierSync.cancelSubscription(sub.externalRef, false);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          // Idempotent: already gone on Stripe is fine; other errors must fail
+          // deletion so we do not anonymize while billing continues.
+          if (!/no such subscription|already (?:been )?cancel|resource_missing/i.test(message)) {
+            throw err;
+          }
+        }
+      }
+
+      if (sub.status === MemberSubscriptionStatus.CANCELED) continue;
+      sub.status = MemberSubscriptionStatus.CANCELED;
+      await this.subscriptionRepository.save(sub);
+      await this.bustSubscriptionCache(sub.userId, sub.creatorId, sub.communityId);
+      this.emitCommunityAccessChanged(sub.userId, sub.creatorId, sub.communityId);
+      this.revokeCommunityMembershipIfNeeded(sub, MemberSubscriptionStatus.CANCELED);
+      canceled += 1;
+    }
+    return { canceled };
+  }
+
   async cancelMySubscription(userId: string, creatorId: string, cancelAtPeriodEnd = false) {
     const sub = await this.subscriptionRepository.findOne({
       where: {
