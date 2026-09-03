@@ -24,7 +24,7 @@ jobs:
 
       - name: Enable skill feature flags (API app only)
         run: |
-          fly secrets set \
+          flyctl secrets set \
             FEATURES_COURSES=true \
             FEATURES_MENTORSHIP=true \
             FEATURES_CHANNEL_POINTS=true \
@@ -36,11 +36,11 @@ jobs:
       # ADR-012: temporary noop ack until CSAM vendor webhook is live (ADR-009).
       - name: Set content-scan noop acknowledgment (API + worker)
         run: |
-          fly secrets set \
+          flyctl secrets set \
             CONTENT_SCAN_PROVIDER=none \
             CONTENT_SCAN_ALLOW_NOOP=true \
             --app forge-studios-api
-          fly secrets set \
+          flyctl secrets set \
             CONTENT_SCAN_PROVIDER=none \
             CONTENT_SCAN_ALLOW_NOOP=true \
             --app forge-studios-worker
