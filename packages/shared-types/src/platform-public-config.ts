@@ -35,13 +35,23 @@ export type PlatformSkillFeatures = {
   skillEconomyLms: boolean;
 };
 
+export type PlatformAiConfig = {
+  /** Creator Studio insights copilot (Claude when keyed). */
+  creatorInsights: boolean;
+};
+
 export type PlatformPublicConfig = {
   featureFlags: string[];
   apiVersion: string;
+  /** Consumer web origin. */
+  webUrl?: string;
+  /** Admin app origin (held-scan deep links). */
+  adminUrl?: string;
   auth?: PlatformAuthConfig;
   firebase?: PlatformFirebaseConfig;
   legal?: PlatformLegalConfig;
   skillFeatures?: PlatformSkillFeatures;
+  ai?: PlatformAiConfig;
 };
 
 /** True when API reports custom JWT identity (not Firebase Auth). */
@@ -72,4 +82,8 @@ export function isChannelPointsFeatureEnabled(config: PlatformPublicConfig): boo
 
 export function isSkillEconomyLmsEnabled(config: PlatformPublicConfig): boolean {
   return config.skillFeatures?.skillEconomyLms === true;
+}
+
+export function isCreatorInsightsEnabled(config: PlatformPublicConfig): boolean {
+  return config.ai?.creatorInsights === true;
 }

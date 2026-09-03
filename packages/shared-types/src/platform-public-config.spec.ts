@@ -4,12 +4,15 @@ import {
   isMailConfigured,
   isCoursesFeatureEnabled,
   isSkillEconomyLmsEnabled,
+  isCreatorInsightsEnabled,
   type PlatformPublicConfig,
 } from './platform-public-config';
 
 const base: PlatformPublicConfig = {
   featureFlags: [],
   apiVersion: 'v1',
+  webUrl: 'https://forgestudios.net',
+  adminUrl: 'https://admin.forgestudios.net',
   auth: {
     provider: 'custom',
     emailPassword: true,
@@ -65,5 +68,10 @@ describe('platform-public-config', () => {
     expect(isCoursesFeatureEnabled(withSkills)).toBe(true);
     expect(isSkillEconomyLmsEnabled(withSkills)).toBe(true);
     expect(isSkillEconomyLmsEnabled(base)).toBe(false);
+  });
+
+  it('detects creator insights AI flag', () => {
+    expect(isCreatorInsightsEnabled(base)).toBe(false);
+    expect(isCreatorInsightsEnabled({ ...base, ai: { creatorInsights: true } })).toBe(true);
   });
 });

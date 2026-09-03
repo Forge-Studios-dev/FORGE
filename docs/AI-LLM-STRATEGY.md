@@ -99,7 +99,7 @@ From [FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md Phase 12](../FORGE_CREATOR_
 | **Community posts/channels** | `communities.service.ts`, `ai-moderation.service.ts` | Regex patterns + length heuristics | No | **Partial** |
 | **Async moderation queue** | `community-moderation.worker.ts`, BullMQ `COMMUNITY_MODERATION_QUEUE` | LLM judge tail (`judgeFlaggedContent`) → auto spam report | Active when `AI_MODERATION_LLM_ENABLED=true` | **Wired** |
 | **Creator copilot (summaries)** | `ai-community.service.ts` → `summarizeDiscussionAsync()` | OpenAI chat-completion (`gpt-4.1-mini`) behind `copilotEnabled`+`apiKey`+budget; word-frequency deterministic fallback | Yes (when `AI_COPILOT_ENABLED=true` + key) | **Production-ready** |
-| **Studio AI preview UI** | `StudioCreatorOpsPanel.tsx`, `community-ai.controller.ts` | Calls `/creators/me/ai/moderation/score` | Heuristic only | **UI exists** |
+| **Studio insights Copilot UI** | Web `/studio/copilot`, mobile `studio_copilot_screen.dart`, `POST /creators/me/copilot/insights` | Claude when `AI_CLAUDE_ENABLED` + Anthropic key (`platform.ai.creatorInsights`); deterministic fallback | Yes when flag+key | **Shipped (gated)** |
 | **Content tagging** | `categories.service.ts` → `suggestSkillTags()`, `POST categories/:id/ai/suggest-tags` | Relevance ranking of curated skill-tag catalog vs. title/description | No (deterministic, bounded per category) | **Production-ready (API)** |
 | **Audit logs** | `creator-audit.service.ts`, `community-ai.controller.ts` | Creator action history | N/A | **Shipped** |
 | **AI Search / RAG** | — | Not implemented | — | **Deferred** |
@@ -692,7 +692,7 @@ Note: task-based multi-provider routing already ships (`llm-router.service.ts` s
 | 7 | No per-creator token budget | New | P1 |
 | 8 | ~~No AI-specific observability metrics~~ — `forge_ai_llm_calls_total{feature,result}` Prometheus counter wired at moderation + summary chokepoints | `common/metrics/forge-metrics.ts` | ✅ Done |
 | 9 | No `ai_decision_logs` table | New migration | P2 |
-| 10 | Mobile studio copilot UI | `studio_*` screens | P2 |
+| 10 | ~~Mobile/web studio copilot UI~~ — gated on `platform.ai.creatorInsights` | `studio_copilot_screen.dart`, `/studio/copilot` | ✅ Done |
 
 ---
 
@@ -834,7 +834,8 @@ All toggles via env — no redeploy required if Fly secrets updated + restart.
 | `apps/api/src/modules/communities/community-ai.controller.ts` | Creator AI API routes |
 | `apps/api/src/modules/workers/community-moderation/community-moderation.worker.ts` | Async queue worker |
 | `apps/api/src/config/configuration.ts` | `openai.apiKey` (extend with `ai` block) |
-| `apps/web/src/components/Community/StudioCreatorOpsPanel.tsx` | Studio AI preview UI |
+| `apps/web/src/app/studio/copilot/page.tsx` | Studio insights Copilot UI |
+| `apps/mobile/lib/features/studio/presentation/studio_copilot_screen.dart` | Mobile Studio Copilot |
 
 ---
 

@@ -85,6 +85,12 @@ if [[ "$NODE_ENV" != "production" ]]; then
   fi
 fi
 
+if [[ -z "${ADMIN_URL:-}" ]]; then
+  warn "ADMIN_URL unset — platform/config adminUrl falls back to localhost/default"
+else
+  ok "ADMIN_URL set"
+fi
+
 echo ""
 if [[ "$FAIL" -eq 0 ]]; then
   echo "Production readiness checks passed (see docs/DEPLOY.md for deploy steps)."
