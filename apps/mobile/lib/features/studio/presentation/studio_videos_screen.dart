@@ -456,7 +456,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
           padding: const EdgeInsets.only(bottom: 12),
           child: ForgeCard(
             semanticLabel:
-                '${v.title}, ${_statusLabel(v.status)}${v.videoType == 'short' ? ', Short' : ''}, ${v.viewCount} views',
+                '${v.title}, ${_statusLabel(v.status)}${v.moderationStatus == 'held' ? ', Held for review' : ''}${v.videoType == 'short' ? ', Short' : ''}, ${v.viewCount} views',
             onTap: () => context.push('/studio/videos/${v.id}'),
             child: Row(
               children: [
@@ -475,6 +475,8 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                       Text(
                         [
                           _statusLabel(v.status),
+                          if (v.moderationStatus == 'held') 'Held for review',
+                          if (v.moderationStatus == 'blocked') 'Blocked',
                           if (v.videoType == 'short') 'Short',
                           if (v.visibility != null) v.visibility!,
                           '${v.viewCount} views',
@@ -485,7 +487,9 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                         ].join(' · '),
                         style: TextStyle(
                           fontSize: 13,
-                          color: _statusColor(context, v.status),
+                          color: v.moderationStatus == 'held' || v.moderationStatus == 'blocked'
+                              ? ForgeTokens.of(context).error
+                              : _statusColor(context, v.status),
                         ),
                       ),
                     ],

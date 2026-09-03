@@ -53,9 +53,16 @@ export function AdminNotificationsBell() {
     enabled: open,
     queryFn: async () => {
       const { data } = await api.get<{ data: { data: AdminNotification[] } }>(
-        '/notifications?limit=8',
+        '/notifications?limit=24',
       );
-      return data.data.data ?? [];
+      const rows = data.data.data ?? [];
+      // Prefer safety holds so social noise does not bury triage.
+      return [...rows].sort((a, b) => {
+        const aHeld = a.type === 'content_scan_held' ? 0 : 1;
+        const bHeld = b.type === 'content_scan_held' ? 0 : 1;
+        if (aHeld !== bHeld) return aHeld - bHeld;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }).slice(0, 8);
     },
   });
 

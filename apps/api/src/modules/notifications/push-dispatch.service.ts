@@ -3,7 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
 import { Repository, In, IsNull } from 'typeorm';
-import { isCategoryMuted, type NotificationCategory } from '@forge/shared-types';
+import { isCategoryMuted, isMuteExemptNotificationType, type NotificationCategory } from '@forge/shared-types';
 import { DeviceToken } from './entities/device-token.entity';
 import { PUSH_DISPATCH_QUEUE, PushDispatchJob } from './push-dispatch.constants';
 import { FirebaseService } from '../firebase/firebase.service';
@@ -15,6 +15,8 @@ export type PushPayload = {
   data?: Record<string, string>;
   /** Required so a muted category can be filtered before a push ever reaches FCM. */
   category: NotificationCategory;
+  /** When set, bypasses category mute (safety/trust alerts). */
+  type?: string;
 };
 
 type PushJob = {
@@ -23,6 +25,7 @@ type PushJob = {
   body: string;
   data?: Record<string, string>;
   category: NotificationCategory;
+  type?: string;
 };
 
 @Injectable()
@@ -84,7 +87,11 @@ export class PushDispatchService {
       select: { id: true, notificationPreferences: true },
     });
     const prefsById = new Map(prefRows.map((r) => [r.id, r.notificationPreferences]));
-    return jobs.filter((job) => !isCategoryMuted(prefsById.get(job.userId), job.category));
+    return jobs.filter(
+      (job) =>
+        isMuteExemptNotificationType(job.type ?? job.data?.type ?? '') ||
+        !isCategoryMuted(prefsById.get(job.userId), job.category),
+    );
   }
 
   async revokeAllForUser(userId: string) {

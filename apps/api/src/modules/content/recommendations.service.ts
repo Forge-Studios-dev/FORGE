@@ -18,7 +18,14 @@ export interface RecommendedVideo {
   userId: string;
   categoryId: string | null;
   score: number;
-  reason: 'watched_similar' | 'same_category' | 'followed_creator' | 'trending' | 'exploration' | 'session_affinity';
+  reason:
+    | 'watched_similar'
+    | 'same_category'
+    | 'followed_creator'
+    | 'trending'
+    | 'exploration'
+    | 'session_affinity'
+    | 'course_enrollment';
 }
 
 const TRENDING_CACHE_TTL_SEC = 60;
@@ -190,6 +197,7 @@ export class RecommendationsService {
           + CASE WHEN el.video_id IS NOT NULL THEN 18 ELSE 0 END
         ) as score,
         CASE
+          WHEN el.video_id IS NOT NULL THEN 'course_enrollment'
           WHEN fc.creator_id IS NOT NULL THEN 'followed_creator'
           WHEN sc.creator_id IS NOT NULL THEN 'session_affinity'
           WHEN ca.category_id IS NOT NULL THEN 'same_category'

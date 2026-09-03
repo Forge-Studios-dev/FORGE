@@ -114,6 +114,11 @@ export default () => ({
     limit: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
   },
 
+  /** Public consumer web origin (CORS / emails / platform config). */
+  webUrl: process.env.WEB_URL || 'http://localhost:3000',
+  /** Public admin origin (deep links / platform config). */
+  adminUrl: process.env.ADMIN_URL || 'http://localhost:3002',
+
   mail: {
     smtpHost: process.env.SMTP_HOST || '',
     smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),

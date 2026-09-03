@@ -33,7 +33,7 @@ Both video-ready paths call `ContentScanService.scanVideo()` right before markin
 On a non-`approve` verdict:
 - `Video.moderationStatus` is set to `held` or `blocked` (existing column — `shouldIndexVideo()`/`indexedAtOnReady()` already gate indexing on `moderationStatus === NONE`, so a held/blocked video's `indexedAt` stays `null` and it never enters search/feed/recommendations even though transcoding succeeded).
 - `Video.moderationNote` records the provider + flagged categories; `moderationAt` is stamped.
-- `video.content_scan_held` is emitted instead of `video.ready` — so subscriber notifications and feed-cache invalidation for "new video" don't fire for a video that hasn't cleared review. (No admin-facing surface consumes this event yet — it's a hook for future moderation-queue/admin-notification work, same as other emit-only events in this codebase.)
+- `video.content_scan_held` is emitted instead of `video.ready` — so subscriber notifications and feed-cache invalidation for "new video" don't fire for a video that hasn't cleared review. Platform admins and the uploader receive in-app + push `content_scan_held` notifications; Admin → Content filters `moderationStatus=held`.
 
 An `approve` verdict (including the no-op default) proceeds exactly as before this change.
 

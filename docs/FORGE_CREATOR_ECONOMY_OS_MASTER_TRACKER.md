@@ -1034,10 +1034,10 @@ See [FORGE_PROJECT_MASTER.md §5](./FORGE_PROJECT_MASTER.md#5-background-workers
 | ID | Task | Status |
 |----|------|--------|
 | CEOS-REAUDIT-P1 | Granular feature flags (`FEATURES_COURSES`, etc.) | ✅ |
-| CEOS-REAUDIT-P2 | Courses MVP web/mobile UI restore | ⏳ |
-| CEOS-REAUDIT-P3 | Mentorship + channel points UI restore | ⏳ |
-| CEOS-REAUDIT-P4 | Course discovery in search/feed | ⏳ |
-| CEOS-REAUDIT-P5 | Mobile CI + Studio parity | ⏳ |
+| CEOS-REAUDIT-P2 | Courses MVP web/mobile UI restore | ✅ |
+| CEOS-REAUDIT-P3 | Mentorship + channel points UI restore | ✅ |
+| CEOS-REAUDIT-P4 | Course discovery in search/feed | ✅ |
+| CEOS-REAUDIT-P5 | Mobile CI + Studio parity | ✅ |
 | CEOS-REAUDIT-P6 | CSAM vendor integration | 🚫 Legal |
 
 Aug 2026 "sunset skill UI" decision **superseded** by [ADR-001](./decisions/ADR-001-skill-first-framing.md).

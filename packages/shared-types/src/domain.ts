@@ -91,6 +91,8 @@ export interface Video {
   viewerSubscribed?: boolean;
   /** Resume position when returned from continue-watching / incomplete history. */
   viewerProgressSeconds?: number;
+  /** Owner/admin — `held` means content scan / safety review. */
+  moderationStatus?: 'none' | 'held' | 'blocked';
 }
 
 export interface Stream {

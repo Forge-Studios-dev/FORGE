@@ -11,13 +11,36 @@ import '../network/api_client.dart';
 import '../notifications/notification_href.dart';
 import '../router/navigation_key.dart';
 
+/// Cached from `/platform/config` so admin deep links match the deployed admin host.
+String _cachedAdminBaseUrl = 'https://admin.forgestudios.net';
+
+Future<void> refreshPushAdminBaseUrl(ApiClient client) async {
+  try {
+    final response = await client.dio.get('/platform/config');
+    final data = response.data;
+    final map = data is Map && data['data'] is Map
+        ? Map<String, dynamic>.from(data['data'] as Map)
+        : <String, dynamic>{};
+    final raw = map['adminUrl'];
+    if (raw is String && raw.trim().isNotEmpty) {
+      _cachedAdminBaseUrl = raw.trim().replaceAll(RegExp(r'/+$'), '');
+    }
+  } catch (_) {
+    // keep previous / default
+  }
+}
+
 /// Route to open when a push notification is tapped, based on the `data.type`
 /// the backend sends (see apps/api notifications.listener.ts). Falls back to
 /// the notifications list for types with no dedicated screen.
 String _routeForMessage(RemoteMessage message) {
   final data = message.data;
   final type = data['type']?.toString();
-  final href = notificationHref(type, Map<String, dynamic>.from(data));
+  final href = notificationHref(
+    type,
+    Map<String, dynamic>.from(data),
+    adminBaseUrl: _cachedAdminBaseUrl,
+  );
   return href ?? '/notifications';
 }
 
@@ -48,6 +71,7 @@ class ForgePush {
     try {
       if (Firebase.apps.isEmpty) return;
       _started = true;
+      await refreshPushAdminBaseUrl(_apiClient);
       final messaging = FirebaseMessaging.instance;
       await messaging.requestPermission();
       final token = await messaging.getToken();

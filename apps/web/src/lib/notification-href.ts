@@ -79,9 +79,13 @@ export function notificationHref(
     case 'strike_rescinded':
     case 'strike_appeal_resolved':
       return '/settings/strikes';
-    case 'content_scan_held':
-      // Platform admins only — do not open consumer watch for a held upload.
+    case 'content_scan_held': {
+      // Uploader → Studio; admins → admin held queue (never consumer watch).
+      if (meta.audience === 'uploader') {
+        return videoId ? `/studio/videos/${videoId}` : '/studio/videos';
+      }
       return adminContentHeldHref(videoId);
+    }
     default:
       return videoId ? videoHref(videoId) : null;
   }

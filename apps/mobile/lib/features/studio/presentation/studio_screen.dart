@@ -155,6 +155,7 @@ class StudioScreen extends ConsumerWidget {
     final coursesEnabled = platformCoursesEnabled(platformConfig);
     final mentorshipEnabled = platformMentorshipEnabled(platformConfig);
     final channelPointsEnabled = platformChannelPointsEnabled(platformConfig);
+    final creatorInsightsEnabled = platformCreatorInsightsEnabled(platformConfig);
     final totalUrgent = attentionAsync.maybeWhen(
       data: (a) {
         final c = a.counts;
@@ -299,6 +300,14 @@ class StudioScreen extends ConsumerWidget {
             Icons.insights_outlined,
             '/studio/analytics/details',
           ),
+          if (creatorInsightsEnabled)
+            _link(
+              context,
+              'Copilot',
+              'Channel insights & recommendations',
+              Icons.auto_awesome_outlined,
+              '/studio/copilot',
+            ),
           _link(context, 'Earnings', 'Memberships + tips summary', Icons.payments_outlined, '/studio/earnings'),
           _link(context, 'Super Thanks', 'Tips from viewers', Icons.volunteer_activism, '/studio/super-thanks'),
           _link(context, 'Memberships', 'Configure tiers', Icons.workspace_premium, '/studio/tiers'),

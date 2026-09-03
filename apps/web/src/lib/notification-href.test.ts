@@ -10,6 +10,12 @@ describe('notificationHref', () => {
     expect(href).not.toContain('/watch/');
   });
 
+  it('routes uploader content_scan_held to Studio videos', () => {
+    expect(
+      notificationHref('content_scan_held', { videoId: 'v-held', audience: 'uploader' }),
+    ).toBe('/studio/videos/v-held');
+  });
+
   it('adminContentHeldHref builds held-queue URL', () => {
     const href = adminContentHeldHref('abc');
     expect(href).toContain('/content?');

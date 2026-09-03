@@ -75,12 +75,12 @@ Shipped this pass:
 - FCM: mobile push opens external admin URLs; web SW `notificationclick` routing
 - Admin notifications bell for held-scan alerts; web Studio Uploads nav + clear-stuck CTA
 - Master §16 corrected (playlists/reports/FCM were stale)
+- Mobile Copilot ungated via `platform.ai.creatorInsights`; uploader notify on scan hold; Studio held badges
 
 Still open (priority order):
 
 | Item | Notes |
 |------|-------|
-| Copilot | `studio_copilot_screen.dart` exists; route redirects to `/studio` (intentional until AI flag on platform config) |
 | Admin billing actions | Ledger is read-only by design until Stripe disputes process is staffed |
 
 Podcasts / wiki / gamification **UI** are out of R2 (ADR-007).

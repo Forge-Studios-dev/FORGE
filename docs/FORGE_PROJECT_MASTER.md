@@ -227,7 +227,7 @@ Helpers: `@forge/shared-types` `parseFeatureFlags`, `isFeatureEnabled`.
 - **React (client):** `ConfirmDialog`, `FadeIn`, `PageEnter`, `StaggerGrid`, `Dialog`, `Tabs`/`TabPanel`, `DataTable`, `Sparkline`/`TrendChart`, `ToastProvider`/`useToast` — import from `@forge/design-system/client`
 - **Mobile tokens:** `apps/mobile/lib/core/theme/forge_tokens.dart`
 
-Product rule: YouTube-replica video platform — prefer YouTube parity in primary chrome; see `.cursor/rules/forge-frontend-ux.mdc` / `.claude/rules/forge-frontend-ux.md`. (Older wording here said "distinct visual identity, not a YouTube clone" — that line has since moved on in the rule itself; corrected 2026-08-09, see [PLATFORM_AUDIT_2026-08-09.md §1](./PLATFORM_AUDIT_2026-08-09.md#1-the-1-open-decision-what-is-forge-actually).)
+Product rule: skill-first creator platform with YouTube-style mechanics in primary chrome; see `forge-product` + `forge-youtube-replica` and [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md).
 
 ### Stitch blueprints (UI reference)
 
@@ -381,7 +381,7 @@ High-level snapshot only. **This table is the feature-status SSOT.** The CEOS tr
 | Admin hub | ✅ | impersonate | ✅ | — | — |
 | FCM push | ⚠️ | ⚠️ | — | ⚠️ | ✅ |
 | Analytics & creator BI | ✅ | ⚠️ | ✅ | ⚠️ | ✅ |
-| AI (moderation, copilot) | ⚠️ | ⚠️ | — | ⏳ | ✅ |
+| AI (moderation, copilot) | ⚠️ | ⚠️ | — | ⚠️ | ✅ |
 | Blueprints gallery | flag | flag | — | — | — |
 | Content scan (CSAM vendor) | ⚠️ | — | ⚠️ | — | ⚠️ |
 
@@ -389,7 +389,7 @@ High-level snapshot only. **This table is the feature-status SSOT.** The CEOS tr
 
 **Launch blockers (not % complete):** CSAM vendor (R-01), Stripe live keys (R-09), load-test evidence, Neon drill 2026-10-22. See [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md).
 
-**2026-09-03 engineering pass:** Mobile Studio depth (playlists, upload-reliability, analytics-details, go-live parity), ADR-012 scan gate + admin held path, FCM click routing, SEO/a11y. Remaining Studio/Live ⚠️ rows are LiveKit browser go-live / thin surfaces — not missing Studio chrome.
+**2026-09-03 engineering pass:** Mobile Studio depth (playlists, upload-reliability, analytics-details, go-live parity, Copilot gated on `ai.creatorInsights`), ADR-012 scan gate + admin/uploader held notify, FCM click routing (admin URL from platform config), SEO/a11y. FCM ⚠️ = Firebase/keys ops-dependent, not missing client wiring. AI mobile ⚠️ = screen live when `AI_CLAUDE_ENABLED` + Anthropic key. Remaining Studio/Live ⚠️ rows are LiveKit browser go-live / thin surfaces — not missing Studio chrome.
 
 ---
 

@@ -20,6 +20,9 @@ describe('PlatformController', () => {
           'firebase.fcmEnabled': false,
           'firebase.appCheckEnabled': false,
           webUrl: 'https://forgestudios.net',
+          adminUrl: 'https://admin.forgestudios.net',
+          'ai.claudeEnabled': true,
+          'anthropic.apiKey': 'sk-ant-test',
         };
         return map[key];
       }),
@@ -38,6 +41,8 @@ describe('PlatformController', () => {
 
     expect(result.auth.provider).toBe('custom');
     expect(result.webUrl).toBe('https://forgestudios.net');
+    expect(result.adminUrl).toBe('https://admin.forgestudios.net');
+    expect(result.ai.creatorInsights).toBe(true);
     expect(result.auth.googleOAuth).toBe(true);
     expect(result.auth.mailConfigured).toBe(true);
     expect(result.auth.otpVerification).toBe(false);

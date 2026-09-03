@@ -43,4 +43,25 @@ void main() {
       'https://admin.forgestudios.net/content?moderationStatus=held&videoId=v-held',
     );
   });
+
+  test('content_scan_held uploader opens Studio video', () {
+    expect(
+      notificationHref('content_scan_held', {
+        'videoId': 'v-held',
+        'audience': 'uploader',
+      }),
+      '/studio/videos/v-held',
+    );
+  });
+
+  test('content_scan_held respects adminBaseUrl', () {
+    expect(
+      notificationHref(
+        'content_scan_held',
+        {'videoId': 'v1'},
+        adminBaseUrl: 'https://admin.example.com/',
+      ),
+      'https://admin.example.com/content?moderationStatus=held&videoId=v1',
+    );
+  });
 }

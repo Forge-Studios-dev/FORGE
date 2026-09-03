@@ -72,3 +72,10 @@ export function isCategoryMuted(
 ): boolean {
   return !!prefs?.mutedCategories?.includes(category);
 }
+
+/** Safety / trust alerts that must still deliver when the creator category is muted. */
+const MUTE_EXEMPT_TYPES = new Set<string>(['content_scan_held']);
+
+export function isMuteExemptNotificationType(type: NotificationType | string): boolean {
+  return MUTE_EXEMPT_TYPES.has(type);
+}

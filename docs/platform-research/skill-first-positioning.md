@@ -89,7 +89,7 @@ Documented product choices (not bugs):
 2. **Skills/crafts taxonomy** — `Category`/`Subcategory`/`SkillTag` seeded for crafts (e.g. Woodworking → Carving); not YouTube genres.
 3. **Communities rooms/events** — extension for cohort learning; YouTube has no equivalent.
 4. **No ad revenue** — monetization via memberships, tips, courses (future), not RPM/CPM.
-5. **Courses not in unified `/search`** until P4 discovery work ships.
+5. **Courses in unified `/search`** via `type=course` / discover ILIKE (Postgres course FTS column deferred — ADR-010).
 
 ---
 

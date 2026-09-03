@@ -37,6 +37,7 @@ import '../../features/studio/presentation/studio_settings_screen.dart';
 import '../../features/studio/presentation/studio_analytics_screen.dart';
 import '../../features/studio/presentation/studio_analytics_details_screen.dart';
 import '../../features/studio/presentation/studio_upload_reliability_screen.dart';
+import '../../features/studio/presentation/studio_copilot_screen.dart';
 import '../../features/studio/presentation/studio_super_thanks_screen.dart';
 import '../../features/studio/presentation/studio_earnings_screen.dart';
 import '../../features/studio/presentation/studio_tiers_screen.dart';
@@ -324,7 +325,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/studio/mentorship', builder: (_, __) => const StudioMentorshipScreen()),
       GoRoute(path: '/studio/settings', builder: (_, __) => const StudioSettingsScreen()),
       GoRoute(path: '/studio/branding', builder: (_, __) => const ProfileSettingsScreen()),
-      GoRoute(path: '/studio/copilot', redirect: (_, __) => '/studio'),
+      GoRoute(path: '/studio/copilot', builder: (_, __) => const StudioCopilotScreen()),
       GoRoute(path: '/settings/strikes', builder: (_, __) => const StrikesScreen()),
       GoRoute(path: '/profile/settings', builder: (_, __) => const ProfileSettingsScreen()),
       GoRoute(path: '/settings/memberships', builder: (_, __) => const MyMembershipsScreen()),

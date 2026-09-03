@@ -94,6 +94,7 @@ describe('RecommendationsService', () => {
       expect(mainQuery).toContain('session_creators');
       expect(mainQuery).toContain('session_affinity');
       expect(mainQuery).toContain('enrolled_lessons');
+      expect(mainQuery).toContain("'course_enrollment'");
     });
 
     it('clamps limit to 50', async () => {

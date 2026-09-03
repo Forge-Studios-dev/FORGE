@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/notifications/notification_href.dart';
+import '../../../core/platform/platform_config.dart';
 import '../../../core/theme/forge_palette.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
@@ -180,7 +181,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (id != null && !read) await _markRead(id);
     final metaRaw = n['metadata'];
     final metadata = metaRaw is Map ? Map<String, dynamic>.from(metaRaw) : null;
-    final href = notificationHref(n['type']?.toString(), metadata);
+    final platformConfig = ref.read(platformConfigProvider).asData?.value ?? {};
+    final href = notificationHref(
+      n['type']?.toString(),
+      metadata,
+      adminBaseUrl: platformAdminUrl(platformConfig),
+    );
     if (!mounted) return;
     if (href != null) {
       if (href.startsWith('http://') || href.startsWith('https://')) {

@@ -1,7 +1,11 @@
 /// Mirrors apps/web/src/lib/notification-href.ts for mobile deep links.
 /// Returns null when there is nothing useful to open (caller should stay put
 /// or fall back to `/notifications`).
-String? notificationHref(String? type, Map<String, dynamic>? metadata) {
+String? notificationHref(
+  String? type,
+  Map<String, dynamic>? metadata, {
+  String adminBaseUrl = 'https://admin.forgestudios.net',
+}) {
   final meta = metadata ?? const <String, dynamic>{};
   final videoId = meta['videoId'] as String?;
   final videoType = meta['videoType'] as String?;
@@ -64,11 +68,17 @@ String? notificationHref(String? type, Map<String, dynamic>? metadata) {
     case 'strike_appeal_resolved':
       return '/settings/strikes';
     case 'content_scan_held':
-      // Admins review held uploads in the admin app — never open consumer watch.
+      // Uploader → Studio; admins → admin held queue (never open consumer watch).
+      if (meta['audience'] == 'uploader') {
+        return videoId != null && videoId.isNotEmpty
+            ? '/studio/videos/$videoId'
+            : '/studio/videos';
+      }
       final q = <String, String>{'moderationStatus': 'held'};
       if (videoId != null && videoId.isNotEmpty) q['videoId'] = videoId;
       final query = q.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&');
-      return 'https://admin.forgestudios.net/content?$query';
+      final base = adminBaseUrl.replaceAll(RegExp(r'/+$'), '');
+      return '$base/content?$query';
     default:
       return videoId != null ? videoPath(videoId) : null;
   }

@@ -152,13 +152,30 @@ describe('NotificationsListener', () => {
         expect.objectContaining({
           userId: 'admin-1',
           type: 'content_scan_held',
-          metadata: expect.objectContaining({ videoId: 'v-held', uploaderId: 'creator-1' }),
+          metadata: expect.objectContaining({
+            videoId: 'v-held',
+            uploaderId: 'creator-1',
+            audience: 'admin',
+          }),
         }),
       );
       expect(pushDispatch.enqueueForUser).toHaveBeenCalledWith(
         'admin-1',
         expect.objectContaining({
           data: expect.objectContaining({ type: 'content_scan_held', videoId: 'v-held' }),
+        }),
+      );
+      expect(notificationsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'creator-1',
+          type: 'content_scan_held',
+          metadata: expect.objectContaining({ audience: 'uploader', videoId: 'v-held' }),
+        }),
+      );
+      expect(pushDispatch.enqueueForUser).toHaveBeenCalledWith(
+        'creator-1',
+        expect.objectContaining({
+          data: expect.objectContaining({ audience: 'uploader', videoId: 'v-held' }),
         }),
       );
     });

@@ -605,29 +605,49 @@ export class NotificationsListener {
       select: { id: true },
       take: 25,
     });
-    const title = 'Upload held for safety review';
-    const body = 'A video was held by content scanning and needs review in Admin → Content.';
+    const adminTitle = 'Upload held for safety review';
+    const adminBody = 'A video was held by content scanning and needs review in Admin → Content.';
+    const meta = {
+      videoId: payload.videoId,
+      uploaderId: payload.userId,
+      moderationStatus: payload.moderationStatus ?? 'held',
+      categories: payload.categories ?? [],
+      provider: payload.provider ?? null,
+    };
     for (const admin of admins) {
+      // Skip duplicate when the uploader is also an admin — they get the creator copy below.
+      if (admin.id === payload.userId) continue;
       await this.notificationsService.create({
         userId: admin.id,
         type: NotificationType.CONTENT_SCAN_HELD,
-        title,
-        body,
-        metadata: {
-          videoId: payload.videoId,
-          uploaderId: payload.userId,
-          moderationStatus: payload.moderationStatus ?? 'held',
-          categories: payload.categories ?? [],
-          provider: payload.provider ?? null,
-        },
+        title: adminTitle,
+        body: adminBody,
+        metadata: { ...meta, audience: 'admin' },
       });
       await this.pushDispatch.enqueueForUser(admin.id, {
-        title,
-        body,
-        data: { type: 'content_scan_held', videoId: payload.videoId },
+        title: adminTitle,
+        body: adminBody,
+        data: { type: 'content_scan_held', videoId: payload.videoId, audience: 'admin' },
         category: categoryForNotificationType(NotificationType.CONTENT_SCAN_HELD),
+        type: NotificationType.CONTENT_SCAN_HELD,
       });
     }
+
+    // Uploader: Studio-facing copy (not admin triage). Mute-exempt safety alert.
+    await this.notificationsService.create({
+      userId: payload.userId,
+      type: NotificationType.CONTENT_SCAN_HELD,
+      title: 'Your upload is under review',
+      body: 'This video was held for safety review and is not public yet. You can check status in Studio → Videos.',
+      metadata: { ...meta, audience: 'uploader' },
+    });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title: 'Your upload is under review',
+      body: 'Held for safety review — open Studio → Videos for status.',
+      data: { type: 'content_scan_held', videoId: payload.videoId, audience: 'uploader' },
+      category: categoryForNotificationType(NotificationType.CONTENT_SCAN_HELD),
+      type: NotificationType.CONTENT_SCAN_HELD,
+    });
   }
 
   private async maybeEmailUser(
