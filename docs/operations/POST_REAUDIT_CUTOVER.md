@@ -17,6 +17,8 @@ npm run set:fly:content-scan-secrets
 npm run sync:fly:worker-secrets
 ```
 
+Or from GitHub Actions (uses `FLY_API_TOKEN`): **Actions → Set content-scan secrets (Fly) → Run workflow** with mode `none`.
+
 Confirm `ADMIN_URL` / `WEB_URL` are set on Fly (platform config exposes them for deep links).
 
 Optional Copilot:

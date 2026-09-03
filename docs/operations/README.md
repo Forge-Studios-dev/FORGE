@@ -15,6 +15,7 @@ Deferred items: [DEFERRED_BACKLOG.md](../audits/DEFERRED_BACKLOG.md) · Neon mon
 | [LOAD_TEST_RUNBOOK.md](./LOAD_TEST_RUNBOOK.md) | Staging soak (`npm run load-test:feed`) |
 | [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) | Launch checklist |
 | [POST_REAUDIT_CUTOVER.md](./POST_REAUDIT_CUTOVER.md) | 2026-09-03 reaudit → ops cutover (secrets, migrations, smoke) |
+| Workflow: Set content-scan secrets | Actions → **Set content-scan secrets (Fly)** → Run (`none` = ALLOW_NOOP) |
 | [AWS_CREDENTIAL_ROTATION.md](./AWS_CREDENTIAL_ROTATION.md) | AWS keys / OIDC |
 | [SKILL_PLATFORM_SHIP_READINESS.md](./SKILL_PLATFORM_SHIP_READINESS.md) | Skill flags ship checklist |
 | [PR_SKILL_PLATFORM.md](./PR_SKILL_PLATFORM.md) | Skill-platform PR helper |
