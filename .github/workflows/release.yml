@@ -120,6 +120,18 @@ jobs:
               echo "::warning::Fly secret not found: $name (run scripts/set-stripe-secrets-fly.sh if billing is missing)"
             fi
           done
+          # ADR-012: production refuses CONTENT_SCAN_PROVIDER=none without ALLOW_NOOP.
+          SCAN_OK=0
+          if echo "$SECRETS" | grep -qx "CONTENT_SCAN_ALLOW_NOOP"; then
+            SCAN_OK=1
+          fi
+          if echo "$SECRETS" | grep -qx "CONTENT_SCAN_WEBHOOK_URL"; then
+            SCAN_OK=1
+          fi
+          if [ "$SCAN_OK" -ne 1 ]; then
+            echo "::error::Missing content-scan gate secret — set CONTENT_SCAN_ALLOW_NOOP=true (noop ack) or CONTENT_SCAN_WEBHOOK_URL (vendor). See docs/operations/POST_REAUDIT_CUTOVER.md"
+            missing=1
+          fi
           if [ "$missing" -eq 1 ]; then
             echo "::error::Refusing to deploy — one or more required secrets are missing on forge-studios-api"
             exit 1
