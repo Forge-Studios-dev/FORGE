@@ -73,7 +73,7 @@
     "class-validator": "^0.15.1"
   },
   "devDependencies": {
-    "knip": "^6.32.2",
+    "knip": "^6.33.0",
     "vite": "^6.2.0",
     "typescript": "^5.4.4"
   },
