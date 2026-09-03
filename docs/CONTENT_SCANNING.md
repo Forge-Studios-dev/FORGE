@@ -20,6 +20,30 @@ FORGE had no automated content-safety scanning on upload — a video could go fr
 | `webhook` | `WebhookContentScanProvider` — generic REST integration point. POSTs `{videoId, userId, hlsUrl, thumbnailUrl}` to `CONTENT_SCAN_WEBHOOK_URL`, expects `{action: "approve"|"hold"|"block", categories?: string[]}` back. |
 | `webhook` **without URL** | `MisconfiguredContentScanProvider` — **fail-closed `hold`** (never silent noop). Fix `CONTENT_SCAN_WEBHOOK_URL`. |
 
+### Webhook contract (vendor adapter)
+
+**Request** (`POST`, `Content-Type: application/json`, optional `Authorization: Bearer <CONTENT_SCAN_WEBHOOK_TOKEN>`):
+
+```json
+{
+  "videoId": "uuid",
+  "userId": "uuid",
+  "hlsUrl": "https://stream.mux.com/….m3u8",
+  "thumbnailUrl": "https://image.mux.com/…/thumbnail.jpg"
+}
+```
+
+**Response** (2xx JSON):
+
+```json
+{
+  "action": "approve",
+  "categories": []
+}
+```
+
+`action` must be exactly `approve` | `hold` | `block`. Anything else, non-2xx, timeout, or network error → **hold** with category `scan_unavailable`. Point `CONTENT_SCAN_WEBHOOK_URL` at a thin proxy that maps vendor JSON into this shape, or implement `ContentScanProvider` directly.
+
 The webhook provider **fails closed to `hold`** on any error, timeout, non-2xx response, or unrecognized `action` value — unlike most external integrations in this codebase (which fail open), a safety scan should err toward caution: a `hold` only queues the video for human review, it doesn't destroy anything.
 
 To integrate a real vendor: implement `ContentScanProvider` (`content-scan.types.ts`) against that vendor's actual API, and add a case to `ContentScanService.buildProvider()` — the call sites (below) don't change.

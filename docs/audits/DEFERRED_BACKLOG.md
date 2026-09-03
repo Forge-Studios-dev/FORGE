@@ -17,7 +17,7 @@ Note: the *access-control* bug behind signed Mux playback was fixed 2026-08-13. 
 | **DMCA agent** | USPTO designated agent filing | Open UGC / copyright posture | Legal — [LEGAL.md](../LEGAL.md) |
 | **Neon PITR drill** | Quarterly restore drill | Next **2026-10-22** (or after major schema migration) | Ops — [DISASTER_RECOVERY.md](../operations/DISASTER_RECOVERY.md) |
 | **Load evidence** | Staging soak (`load-test:feed` / community / entitlements) | 50K MAU or pre-major marketing push | Perf — [LOAD_TEST_RUNBOOK.md](../operations/LOAD_TEST_RUNBOOK.md) |
-| **Mux signing** | Signing keys for private/unlisted playback | Before premium private content | Ops — [MEDIA.md](../MEDIA.md) |
+| **Mux signing** | Signing keys for private/unlisted playback. In-repo: URLs withheld + create/ingest rejected without keys. | Before premium private content | Ops — [MEDIA.md](../MEDIA.md) |
 
 ---
 

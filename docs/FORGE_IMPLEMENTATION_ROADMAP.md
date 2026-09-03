@@ -60,7 +60,7 @@ flowchart TB
 | Load test | `npm run load-test:feed` / `:community` / `:entitlements` | Run on **staging**, attach evidence | Perf | [LOAD_TEST_RUNBOOK.md](./operations/LOAD_TEST_RUNBOOK.md) |
 | Neon DR | Runbook + `scripts/verify-neon-dr-checklist.sh` | Quarterly PITR drill — next **2026-10-22** | Ops | [DISASTER_RECOVERY.md](./operations/DISASTER_RECOVERY.md) |
 | DMCA agent | Pipeline shipped | USPTO designated agent filing | Legal | [LEGAL.md](./LEGAL.md) |
-| Mux signing | Playback util present | Signing keys for private/unlisted | Ops | [MEDIA.md](./MEDIA.md) |
+| Mux signing | Util + viewer withhold + **create/ingest reject** without keys | Signing keys for private/unlisted | Ops | [MEDIA.md](./MEDIA.md) |
 
 **R1 is not “green” until legal picks a scanner and Stripe live checklist is executed.** Engineering cannot close those boxes from git. Execute: [R1_LAUNCH_GATES.md](./operations/R1_LAUNCH_GATES.md). Post-merge smoke: [POST_REAUDIT_CUTOVER.md](./operations/POST_REAUDIT_CUTOVER.md).
 

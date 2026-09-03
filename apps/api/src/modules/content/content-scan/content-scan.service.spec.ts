@@ -1,5 +1,4 @@
 import { ContentScanService } from './content-scan.service';
-import { NoopContentScanProvider } from './providers/noop-content-scan.provider';
 import { WebhookContentScanProvider } from './providers/webhook-content-scan.provider';
 import { MisconfiguredContentScanProvider } from './providers/misconfigured-content-scan.provider';
 

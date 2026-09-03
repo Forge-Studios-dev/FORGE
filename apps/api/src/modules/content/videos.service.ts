@@ -55,6 +55,8 @@ import {
   muxThumbnailUrl,
 } from '../../common/media/mux-playback.util';
 import {
+  MUX_SIGNING_KEYS_REQUIRED,
+  canCreateMuxSignedPlayback,
   isMuxSigningConfigured,
   muxSignedHlsPlaybackUrl,
   muxSigningConfigFrom,
@@ -1118,6 +1120,13 @@ export class VideosService {
       if (byName) skillTags = [byName];
     }
 
+    if (
+      this.usesMuxTranscode() &&
+      !canCreateMuxSignedPlayback(dto.visibility, this.muxSigningConfig())
+    ) {
+      throw new ServiceUnavailableException(MUX_SIGNING_KEYS_REQUIRED);
+    }
+
     video.title = dto.title.trim();
     video.description = dto.description?.trim() ?? null;
     video.visibility = dto.visibility;
@@ -1587,7 +1596,15 @@ export class VideosService {
     if (dto.title !== undefined) video.title = dto.title;
     if (dto.description !== undefined) video.description = dto.description;
     const previousVisibility = video.visibility;
-    if (dto.visibility !== undefined) video.visibility = dto.visibility;
+    if (dto.visibility !== undefined) {
+      if (
+        this.usesMuxTranscode() &&
+        !canCreateMuxSignedPlayback(dto.visibility, this.muxSigningConfig())
+      ) {
+        throw new ServiceUnavailableException(MUX_SIGNING_KEYS_REQUIRED);
+      }
+      video.visibility = dto.visibility;
+    }
     if (
       dto.visibility !== undefined &&
       requiresMuxSignedPlayback(previousVisibility) !== requiresMuxSignedPlayback(dto.visibility)
