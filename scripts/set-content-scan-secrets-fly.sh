@@ -15,6 +15,15 @@
 #   FLY_APPS="forge-studios-api forge-studios-worker" bash scripts/set-content-scan-secrets-fly.sh
 set -euo pipefail
 
+if command -v flyctl >/dev/null 2>&1; then
+  FLY=flyctl
+elif command -v fly >/dev/null 2>&1; then
+  FLY=fly
+else
+  echo "ERROR: flyctl/fly not found in PATH" >&2
+  exit 1
+fi
+
 PROVIDER="${CONTENT_SCAN_PROVIDER:-none}"
 PROVIDER="$(echo "$PROVIDER" | tr '[:upper:]' '[:lower:]')"
 
@@ -59,7 +68,7 @@ trap 'rm -f "$SECRETS_FILE"' EXIT
 
 for app in "${APPS[@]}"; do
   echo "==> Setting content-scan secrets on ${app} (provider=${PROVIDER})"
-  fly secrets import --app "${app}" < "$SECRETS_FILE"
+  "$FLY" secrets import --app "${app}" < "$SECRETS_FILE"
 done
 
 echo ""
