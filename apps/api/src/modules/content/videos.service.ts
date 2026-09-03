@@ -57,7 +57,7 @@ import {
 import {
   isMuxSigningConfigured,
   muxSignedHlsPlaybackUrl,
-  normalizeMuxPrivateKey,
+  muxSigningConfigFrom,
   requiresMuxSignedPlayback,
   type MuxSigningConfig,
 } from '../../common/media/mux-signing.util';
@@ -315,10 +315,7 @@ export class VideosService {
   }
 
   private muxSigningConfig(): MuxSigningConfig | null {
-    const keyId = this.configService.get<string>('mux.signingKeyId') || '';
-    const rawKey = this.configService.get<string>('mux.signingPrivateKey') || '';
-    if (!keyId.trim() || !rawKey.trim()) return null;
-    return { keyId: keyId.trim(), privateKeyPem: normalizeMuxPrivateKey(rawKey) };
+    return muxSigningConfigFrom((k) => this.configService.get(k));
   }
 
   rewritePlaybackUrl(url: string | null | undefined): string | null {

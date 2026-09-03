@@ -58,6 +58,35 @@ export function requiresMuxSignedPlayback(visibility: string): boolean {
   return visibility !== 'public';
 }
 
+/** Shared operator-facing message when signed Mux policy is required but keys are missing. */
+export const MUX_SIGNING_KEYS_REQUIRED =
+  'Private and members-only Mux playback requires signing keys (MUX_SIGNING_KEY_ID + MUX_SIGNING_PRIVATE_KEY). See MEDIA.md.';
+
+/**
+ * Build signing config from Nest `ConfigService`-style getters.
+ * Returns null when either key is blank.
+ */
+export function muxSigningConfigFrom(
+  get: (key: string) => string | undefined | null,
+): MuxSigningConfig | null {
+  const keyId = (get('mux.signingKeyId') || '').trim();
+  const rawKey = (get('mux.signingPrivateKey') || '').trim();
+  if (!keyId || !rawKey) return null;
+  return { keyId, privateKeyPem: normalizeMuxPrivateKey(rawKey) };
+}
+
+/**
+ * True when this visibility can be ingested/served safely with the given keys.
+ * Public never needs keys; restricted visibility needs both key id + PEM.
+ */
+export function canCreateMuxSignedPlayback(
+  visibility: string,
+  config: MuxSigningConfig | null,
+): boolean {
+  if (!requiresMuxSignedPlayback(visibility)) return true;
+  return isMuxSigningConfigured(config);
+}
+
 /** Test helper — generates an ephemeral RSA key pair for unit tests. */
 export function generateTestMuxSigningConfig(keyId = 'test-key'): MuxSigningConfig {
   const { privateKey } = generateKeyPairSync('rsa', {

@@ -68,7 +68,10 @@ Playback must use `stream.mux.com/*.m3u8`.
 
 ### Signed playback (private / unlisted / members)
 
-Non-public VOD and live use Mux **signed** playback policy when keys are present (`requiresMuxSignedPlayback` in `mux-signing.util.ts`). Without keys, viewer HLS URLs are **withheld** (owners/admins still get unsigned for Studio).
+Non-public VOD and live use Mux **signed** playback policy when keys are present (`requiresMuxSignedPlayback` in `mux-signing.util.ts`). Without keys:
+
+- Viewer HLS URLs for restricted content are **withheld** (owners/admins still get unsigned for Studio via bypass).
+- **Create/ingest** of non-public Mux assets and visibility tighten-to-signed are **rejected** (`503` + `MUX_SIGNING_KEYS_REQUIRED`) so we never mint Mux `signed` playback ids the API cannot token.
 
 | Env | Purpose |
 |-----|---------|

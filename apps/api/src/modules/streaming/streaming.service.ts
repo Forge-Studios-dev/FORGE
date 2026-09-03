@@ -32,9 +32,11 @@ import {
   muxThumbnailUrl,
 } from '../../common/media/mux-playback.util';
 import {
+  MUX_SIGNING_KEYS_REQUIRED,
+  canCreateMuxSignedPlayback,
   isMuxSigningConfigured,
   muxSignedHlsPlaybackUrl,
-  normalizeMuxPrivateKey,
+  muxSigningConfigFrom,
   requiresMuxSignedPlayback,
   type MuxSigningConfig,
 } from '../../common/media/mux-signing.util';
@@ -149,8 +151,16 @@ export class StreamingService {
       }
     }
 
+    const useSignedPlayback = requiresMuxSignedPlayback(visibility);
+    if (
+      useSignedPlayback &&
+      muxConfigured &&
+      !canCreateMuxSignedPlayback(visibility, this.muxSigningConfig())
+    ) {
+      throw new ServiceUnavailableException(MUX_SIGNING_KEYS_REQUIRED);
+    }
+
     try {
-      const useSignedPlayback = requiresMuxSignedPlayback(visibility);
       const dvrEnabled = dto.dvrEnabled === true;
       const response = await this.mux.video.liveStreams.create({
         playback_policy: [useSignedPlayback ? 'signed' : 'public'],
@@ -394,10 +404,7 @@ export class StreamingService {
   }
 
   private muxSigningConfig(): MuxSigningConfig | null {
-    const keyId = this.configService.get<string>('mux.signingKeyId') || '';
-    const rawKey = this.configService.get<string>('mux.signingPrivateKey') || '';
-    if (!keyId.trim() || !rawKey.trim()) return null;
-    return { keyId: keyId.trim(), privateKeyPem: normalizeMuxPrivateKey(rawKey) };
+    return muxSigningConfigFrom((k) => this.configService.get(k));
   }
 
   private async viewerHasMatureContentAck(viewerId?: string | null): Promise<boolean> {

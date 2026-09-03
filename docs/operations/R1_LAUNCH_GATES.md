@@ -84,7 +84,7 @@ Execute that runbook end-to-end (live keys, Connect branding, Vercel `NEXT_PUBLI
 | | |
 |--|--|
 | **Owner** | Ops |
-| **In-repo** | Signed JWT util; URLs withheld without keys |
+| **In-repo** | Signed JWT util; URLs withheld without keys; create/ingest of signed Mux assets rejected until keys present |
 | **Health** | `checks.muxSigning` → `configured` (not `unsigned`) |
 | **Docs** | [MEDIA.md](../MEDIA.md) § Signed playback |
 

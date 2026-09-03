@@ -26,7 +26,12 @@ import { muxHlsPlaybackUrl, muxThumbnailUrl, muxCaptionVttUrl } from './mux-vod.
 import { resolveVideoTypeOnReady } from './short-duration.util';
 import { ContentScanService } from './content-scan/content-scan.service';
 import { ScheduledPublishScheduler } from './scheduled-publish.scheduler';
-import { requiresMuxSignedPlayback } from '../../common/media/mux-signing.util';
+import {
+  MUX_SIGNING_KEYS_REQUIRED,
+  canCreateMuxSignedPlayback,
+  muxSigningConfigFrom,
+  requiresMuxSignedPlayback,
+} from '../../common/media/mux-signing.util';
 
 export interface MuxVodIngestJob {
   videoId: string;
@@ -121,6 +126,9 @@ export class MuxVodService {
     this.logger.log(JSON.stringify({ msg: 'mux_vod_ingest_start', videoId, s3Key }));
 
     const useSignedPlayback = requiresMuxSignedPlayback(video.visibility);
+    if (!canCreateMuxSignedPlayback(video.visibility, muxSigningConfigFrom((k) => this.configService.get(k)))) {
+      throw new ServiceUnavailableException(MUX_SIGNING_KEYS_REQUIRED);
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await this.mux.video.assets.create({
@@ -387,6 +395,12 @@ export class MuxVodService {
     if (!video.muxAssetId || !video.muxPlaybackId || !this.isMuxConfigured()) return;
 
     const desiredPolicy = requiresMuxSignedPlayback(video.visibility) ? 'signed' : 'public';
+    if (
+      desiredPolicy === 'signed' &&
+      !canCreateMuxSignedPlayback(video.visibility, muxSigningConfigFrom((k) => this.configService.get(k)))
+    ) {
+      throw new ServiceUnavailableException(MUX_SIGNING_KEYS_REQUIRED);
+    }
     const oldPlaybackId = video.muxPlaybackId;
 
     let created: { id?: string };
