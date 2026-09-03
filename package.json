@@ -75,7 +75,7 @@
   "devDependencies": {
     "knip": "^6.32.2",
     "vite": "^6.2.0",
-    "typescript": "^5.4.4"
+    "typescript": "^7.0.2"
   },
   "engines": {
     "node": ">=20.0.0",
