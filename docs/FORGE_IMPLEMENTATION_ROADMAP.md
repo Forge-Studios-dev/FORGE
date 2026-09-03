@@ -76,6 +76,7 @@ Shipped this pass:
 - Admin notifications bell for held-scan alerts; web Studio Uploads nav + clear-stuck CTA
 - Master §16 corrected (playlists/reports/FCM were stale)
 - Mobile Copilot ungated via `platform.ai.creatorInsights`; uploader notify on scan hold; Studio held badges
+- Web Studio `/studio/copilot` + FCM SW uploader routing for held scans
 
 Still open (priority order):
 

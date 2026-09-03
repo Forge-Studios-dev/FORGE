@@ -44,7 +44,8 @@ function isCollaboratorAllowedPath(pathname: string): boolean {
 export function StudioShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { mode, isCollaborator, primaryRole } = useStudioAccess();
-  const { coursesEnabled, mentorshipEnabled, channelPointsEnabled } = useSkillFeatures();
+  const { coursesEnabled, mentorshipEnabled, channelPointsEnabled, creatorInsightsEnabled } =
+    useSkillFeatures();
 
   const contentNav: NavItem[] = [
     { href: '/studio/videos', label: 'Content', icon: 'video_library' },
@@ -68,6 +69,13 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
       : []),
   ];
 
+  const analyticsNav: NavItem[] = [
+    { href: '/studio/analytics', label: 'Analytics', icon: 'analytics' },
+    ...(creatorInsightsEnabled
+      ? [{ href: '/studio/copilot', label: 'Copilot', icon: 'psychology' }]
+      : []),
+  ];
+
   const creatorNav: Array<{ label: string; items: NavItem[] }> = [
     {
       label: 'Home',
@@ -79,7 +87,7 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
     { label: 'Content', items: contentNav },
     {
       label: 'Analytics',
-      items: [{ href: '/studio/analytics', label: 'Analytics', icon: 'analytics' }],
+      items: analyticsNav,
     },
     {
       label: 'Monetization',

@@ -49,7 +49,6 @@ const nextConfig = {
       '/studio/communities',
       '/studio/communities/:path*',
       '/studio/ai-copilot',
-      '/studio/copilot',
       '/studio/system-states',
     ];
     const studioAliasRedirects = [

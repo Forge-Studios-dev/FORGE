@@ -340,7 +340,7 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 
 [AUTH.md](./AUTH.md)
 
-`GET /platform/config` returns: `featureFlags`, `apiVersion`, `auth`, `firebase`, `legal` (terms/privacy URLs, contact emails).
+`GET /platform/config` returns: `featureFlags`, `apiVersion`, `webUrl`, `adminUrl`, `auth`, `firebase`, `legal`, `skillFeatures`, `ai.creatorInsights`.
 
 ---
 
@@ -389,7 +389,7 @@ High-level snapshot only. **This table is the feature-status SSOT.** The CEOS tr
 
 **Launch blockers (not % complete):** CSAM vendor (R-01), Stripe live keys (R-09), load-test evidence, Neon drill 2026-10-22. See [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md).
 
-**2026-09-03 engineering pass:** Mobile Studio depth (playlists, upload-reliability, analytics-details, go-live parity, Copilot gated on `ai.creatorInsights`), ADR-012 scan gate + admin/uploader held notify, FCM click routing (admin URL from platform config), SEO/a11y. FCM ⚠️ = Firebase/keys ops-dependent, not missing client wiring. AI mobile ⚠️ = screen live when `AI_CLAUDE_ENABLED` + Anthropic key. Remaining Studio/Live ⚠️ rows are LiveKit browser go-live / thin surfaces — not missing Studio chrome.
+**2026-09-03 engineering pass:** Mobile Studio depth (playlists, upload-reliability, analytics-details, go-live parity, Copilot gated on `ai.creatorInsights`), web Studio Copilot, ADR-012 scan gate + admin/uploader held notify, FCM click routing (admin URL from platform config), SEO/a11y. FCM ⚠️ = Firebase/keys ops-dependent, not missing client wiring. AI web/mobile ⚠️ = screens live when `AI_CLAUDE_ENABLED` + Anthropic key. Remaining Studio/Live ⚠️ rows are LiveKit browser go-live / thin surfaces — not missing Studio chrome.
 
 ---
 

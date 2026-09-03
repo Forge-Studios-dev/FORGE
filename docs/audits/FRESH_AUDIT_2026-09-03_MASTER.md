@@ -52,7 +52,7 @@ FORGE is a **production-deployed** skill-first creator platform with YouTube-par
 | # | Domain | Doc (pre-pass) | Code reality | Gap | Severity | Phase |
 |---|--------|----------------|--------------|-----|----------|-------|
 | 1 | Product vision | Mixed YouTube vs skill | Strategy + flags match skill-first | Agent-rule conflict | Fixed this pass | R0 |
-| 2 | User/creator/admin flows | Claimed complete | Signup→watch, apply→approve→upload, report→admin: **complete**. Mobile Studio live depth shipped | Copilot gated | Low | R2 |
+| 2 | User/creator/admin flows | Claimed complete | Signup→watch, apply→approve→upload, report→admin: **complete**. Mobile + web Studio Copilot gated on `ai.creatorInsights` | Copilot ops flag | Low | R2 |
 | 3 | Architecture | Nest + workers | 37 modules; workers **not** on prod API replicas | Worker SPOF accepted | Medium | R4 |
 | 4 | Data models | TypeORM | 84 entities; course tables always present | Trending CTE index | Low–med | R3 |
 | 5 | APIs | Broad | `/api/v1`; skill 410 when flags off | Community path sprawl | Low | — |

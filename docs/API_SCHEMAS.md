@@ -20,6 +20,8 @@ No auth. See `PlatformPublicConfig` in `@forge/shared-types`.
 |-------|------|-------|
 | `featureFlags` | `string[]` | From `FEATURE_FLAGS` env |
 | `apiVersion` | `"v1"` | |
+| `webUrl` | string | Consumer web origin |
+| `adminUrl` | string | Admin app origin (held-scan deep links) |
 | `auth.provider` | `"custom"` | JWT + Postgres — not Firebase Auth |
 | `auth.emailPassword` | `boolean` | |
 | `auth.googleOAuth` | `boolean` | |
@@ -35,6 +37,8 @@ No auth. See `PlatformPublicConfig` in `@forge/shared-types`.
 | `legal.contactEmail` | string | |
 | `legal.privacyEmail` | string | |
 | `legal.lastUpdated` | string | ISO date |
+| `skillFeatures.*` | boolean | courses / mentorship / channelPoints / skillEconomyLms |
+| `ai.creatorInsights` | boolean | Studio Copilot when Claude + Anthropic key |
 
 See [LEGAL.md](./LEGAL.md).
 

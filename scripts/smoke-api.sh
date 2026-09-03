@@ -90,6 +90,43 @@ sys.exit(1)
     cat /tmp/forge-smoke-config.json >&2 || true
     exit 1
   fi
+
+  if python3 -c "
+import json, sys
+d = json.load(open('/tmp/forge-smoke-config.json')).get('data', {})
+admin = (d.get('adminUrl') or '').strip()
+sys.exit(0 if admin.startswith('http') else 1)
+" 2>/dev/null; then
+    echo "OK: platform/config includes adminUrl"
+  else
+    echo "FAIL: production platform/config missing adminUrl" >&2
+    cat /tmp/forge-smoke-config.json >&2 || true
+    exit 1
+  fi
+fi
+
+# Ready health — ADR-012 contentScan honesty (when health is reachable without auth).
+ready_body="$(curl_smoke "${BASE}/health/ready" 2>/dev/null || true)"
+if [[ -n "$ready_body" ]]; then
+  if echo "$ready_body" | python3 -c "
+import json,sys
+try:
+  d=json.load(sys.stdin)
+except Exception:
+  sys.exit(2)
+checks=(d.get('checks') or d.get('data',{}).get('checks') or {})
+scan=str(checks.get('contentScan') or '')
+# noop without ack is only acceptable outside prod-like; warn always if present
+if scan in ('noop_ack','webhook','misconfigured','stripe','stub'):
+  sys.exit(0)
+if scan == 'noop':
+  sys.exit(1)
+sys.exit(0)
+" 2>/dev/null; then
+    echo "OK: health contentScan present (or absent)"
+  else
+    echo "WARN: health contentScan=noop without ack — set CONTENT_SCAN_ALLOW_NOOP=true (ADR-012)" >&2
+  fi
 fi
 
 API_ROOT="${BASE%/api/v1}"

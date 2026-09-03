@@ -5,6 +5,7 @@ import type { PlatformPublicConfig, PlatformSkillFeatures } from '@forge/shared-
 import {
   isChannelPointsFeatureEnabled,
   isCoursesFeatureEnabled,
+  isCreatorInsightsEnabled,
   isMentorshipFeatureEnabled,
   isSkillEconomyLmsEnabled,
 } from '@forge/shared-types';
@@ -32,15 +33,15 @@ export function useSkillFeatures() {
 
   const config = query.data;
   const skillFeatures = config?.skillFeatures ?? defaultSkillFeatures;
+  const empty: PlatformPublicConfig = { featureFlags: [], apiVersion: 'v1' };
 
   return {
     ...query,
     skillFeatures,
-    coursesEnabled: isCoursesFeatureEnabled(config ?? { featureFlags: [], apiVersion: 'v1' }),
-    mentorshipEnabled: isMentorshipFeatureEnabled(config ?? { featureFlags: [], apiVersion: 'v1' }),
-    channelPointsEnabled: isChannelPointsFeatureEnabled(
-      config ?? { featureFlags: [], apiVersion: 'v1' },
-    ),
-    skillEconomyLms: isSkillEconomyLmsEnabled(config ?? { featureFlags: [], apiVersion: 'v1' }),
+    coursesEnabled: isCoursesFeatureEnabled(config ?? empty),
+    mentorshipEnabled: isMentorshipFeatureEnabled(config ?? empty),
+    channelPointsEnabled: isChannelPointsFeatureEnabled(config ?? empty),
+    skillEconomyLms: isSkillEconomyLmsEnabled(config ?? empty),
+    creatorInsightsEnabled: isCreatorInsightsEnabled(config ?? empty),
   };
 }

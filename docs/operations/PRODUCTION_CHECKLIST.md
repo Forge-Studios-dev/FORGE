@@ -97,6 +97,8 @@ Use before promoting a release to production (`main`).
 - [ ] `CONTENT_SCAN_PROVIDER` set to a real vendor integration (not `none`) before open public upload at scale — see `docs/CONTENT_SCANNING.md` and ADR-009
 - [ ] Admin Settings health panel + Admin notifications bell show held-scan alerts; Held videos nav works
 - [ ] Smoke: held upload → admin notify → `/content?moderationStatus=held`
+- [ ] Smoke: held upload → **uploader** notify → Studio Videos (web FCM + in-app; mobile Studio deep link)
+- [ ] Optional: Studio Copilot (`/studio/copilot`) when `AI_CLAUDE_ENABLED` + `ANTHROPIC_API_KEY` (`platform.ai.creatorInsights`)
 - [ ] CSAM/illegal-content fast-path documented with legal owner — `docs/ESCALATION_RULES.md`
 
 ## Observability / rollback

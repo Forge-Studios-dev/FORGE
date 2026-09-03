@@ -15,6 +15,10 @@ function hrefFromPushData(data) {
   const adminBase = 'https://admin.forgestudios.net';
 
   if (type === 'content_scan_held') {
+    // Uploader → Studio; admins → admin held queue (mirrors notification-href.ts).
+    if (d.audience === 'uploader') {
+      return videoId ? `/studio/videos/${videoId}` : '/studio/videos';
+    }
     const q = new URLSearchParams({ moderationStatus: 'held' });
     if (videoId) q.set('videoId', videoId);
     return `${adminBase}/content?${q.toString()}`;
