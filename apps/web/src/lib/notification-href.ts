@@ -1,5 +1,15 @@
 import type { Notification, NotificationType } from '@/types';
+import { env } from '@/env';
 import { publicVideoPath } from '@/lib/watch-url';
+
+const DEFAULT_ADMIN_URL = 'https://admin.forgestudios.net';
+
+export function adminContentHeldHref(videoId?: string | null): string {
+  const adminBase = (env.NEXT_PUBLIC_ADMIN_URL || DEFAULT_ADMIN_URL).replace(/\/$/, '');
+  const q = new URLSearchParams({ moderationStatus: 'held' });
+  if (videoId) q.set('videoId', videoId);
+  return `${adminBase}/content?${q.toString()}`;
+}
 
 type NotificationMeta = Notification['metadata'];
 
@@ -69,6 +79,9 @@ export function notificationHref(
     case 'strike_rescinded':
     case 'strike_appeal_resolved':
       return '/settings/strikes';
+    case 'content_scan_held':
+      // Platform admins only — do not open consumer watch for a held upload.
+      return adminContentHeldHref(videoId);
     default:
       return videoId ? videoHref(videoId) : null;
   }

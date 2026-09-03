@@ -42,6 +42,10 @@ export function NotificationsMenu({ unreadCount }: Props) {
           unreadCount={unreadCount}
           onNavigate={(href) => {
             close();
+            if (/^https?:\/\//i.test(href)) {
+              window.open(href, '_blank', 'noopener,noreferrer');
+              return;
+            }
             router.push(href);
           }}
           onClose={close}

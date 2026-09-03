@@ -20,7 +20,7 @@ alwaysApply: true
 - Match **YouTube behavior** for video/discovery/engagement surfaces unless [docs/decisions/](../../docs/decisions/) document an intentional gap.
 - Match **skill-first positioning** for taxonomy, course framing, and creator trust flows.
 - **Do not** build full LMS (SCORM, accreditation, assignment grading) without explicit scope change.
-- Re-enable skill module UI per [FORGE_IMPLEMENTATION_ROADMAP.md](../../docs/FORGE_IMPLEMENTATION_ROADMAP.md) — backend may exist while UI is absent.
+- Skill module UI is **flag-gated** (`FEATURES_COURSES` / `_MENTORSHIP` / `_CHANNEL_POINTS`). Do not remove it to match YouTube. Full LMS consumer UI is out of default scope (ADR-007).
 
 ## Encouraged
 

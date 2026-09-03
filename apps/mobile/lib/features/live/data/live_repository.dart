@@ -182,4 +182,10 @@ class LiveRepository {
     }
     return [];
   }
+
+  /// Creator: start or schedule a live session (`POST /streams/start`).
+  Future<Map<String, dynamic>> startStream(Map<String, dynamic> body) async {
+    final res = await _api.dio.post('/streams/start', data: body);
+    return (res.data['data'] as Map<String, dynamic>?) ?? {};
+  }
 }

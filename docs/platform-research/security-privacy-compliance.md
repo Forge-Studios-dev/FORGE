@@ -1,5 +1,7 @@
 # Security, Privacy & Compliance — Platform Research
 
+> **Superseded for decisions, 2026-09-03.** Dual RBAC is intentional ([ADR-014](../decisions/ADR-014-dual-rbac.md)). MFA/DSAR shipped. See latest audit.
+>
 > **Partially superseded, 2026-08-13.** This doc's claims of "no MFA/2FA anywhere" and "no
 > self-service account deletion or data export" are **false as of today** — TOTP MFA
 > (`auth-mfa.service.ts`) and self-service export/deletion (`GET/DELETE /users/me`) both shipped

@@ -97,5 +97,22 @@ export function validateProductionEnv(env: NodeJS.ProcessEnv = process.env): voi
     throw new Error('MOCK_SUBSCRIPTIONS_ENABLED must not be true in production');
   }
 
+  const scanProvider = (env.CONTENT_SCAN_PROVIDER || 'none').trim().toLowerCase();
+  if (scanProvider === 'webhook') {
+    if (!env.CONTENT_SCAN_WEBHOOK_URL?.trim()) {
+      throw new Error(
+        'CONTENT_SCAN_PROVIDER=webhook requires CONTENT_SCAN_WEBHOOK_URL (no silent noop fallback in production)',
+      );
+    }
+  } else if (scanProvider === 'none' || scanProvider === '') {
+    if (env.CONTENT_SCAN_ALLOW_NOOP !== 'true') {
+      throw new Error(
+        'Production CONTENT_SCAN_PROVIDER=none requires CONTENT_SCAN_ALLOW_NOOP=true (ADR-012). Wire a vendor webhook or explicitly acknowledge that uploads are not vendor-scanned.',
+      );
+    }
+  } else {
+    throw new Error(`Unknown CONTENT_SCAN_PROVIDER=${scanProvider}`);
+  }
+
   validateNeonPoolerUrlForProduction(env);
 }

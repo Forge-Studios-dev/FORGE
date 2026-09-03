@@ -1,7 +1,7 @@
 # Platform Research — Engagement, Social & Notifications
 
 **Slug:** `engagement-social`
-**Status:** Research / gap analysis for documentation overhaul. Not a spec to implement blindly — see Open Questions before scoping work.
+**Status:** Historical research (Aug 2026). **Not SSOT.** Current audit: [FRESH_AUDIT_2026-09-03_MASTER.md](../audits/FRESH_AUDIT_2026-09-03_MASTER.md).
 
 ---
 

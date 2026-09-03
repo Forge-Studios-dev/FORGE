@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { Inter, Space_Grotesk } from 'next/font/google';
 import { headers } from 'next/headers';
 import '@/env';
@@ -33,7 +34,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </head>
       <body className={`${inter.variable} ${spaceGrotesk.variable} antialiased`}>
         <AdminProviders>
-          <AdminShell>{children}</AdminShell>
+          <Suspense fallback={<div className="min-h-screen bg-surface-container-lowest" />}>
+            <AdminShell>{children}</AdminShell>
+          </Suspense>
         </AdminProviders>
       </body>
     </html>

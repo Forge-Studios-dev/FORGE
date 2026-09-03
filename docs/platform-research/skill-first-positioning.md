@@ -2,7 +2,7 @@
 
 **Slug:** `skill-first-positioning`  
 **Audience:** Product, engineering, stakeholders.  
-**Status:** Authoritative product positioning (re-audit 2026-09-02). Supersedes Aug 2026 “YouTube-replica + retired skill layer” framing.
+**Status:** Positioning research aligned with product SSOT (re-audit 2026-09-03). Authoritative product text lives in [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md). Supersedes Aug 2026 “YouTube-replica + retired skill layer” framing.
 
 ---
 

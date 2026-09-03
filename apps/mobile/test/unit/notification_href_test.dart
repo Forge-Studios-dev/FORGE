@@ -36,4 +36,11 @@ void main() {
       '/shorts?v=s1',
     );
   });
+
+  test('content_scan_held opens admin held queue', () {
+    expect(
+      notificationHref('content_scan_held', {'videoId': 'v-held'}),
+      'https://admin.forgestudios.net/content?moderationStatus=held&videoId=v-held',
+    );
+  });
 }

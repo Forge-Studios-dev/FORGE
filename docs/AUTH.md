@@ -76,6 +76,19 @@ Push (FCM): [FIREBASE.md](./FIREBASE.md)
 
 ---
 
+## Dual RBAC (ADR-014)
+
+Two permission planes — do not collapse them:
+
+| Plane | Where | Values |
+|-------|--------|--------|
+| **Platform** | `users.role`, `users.admin_tier` | `user` / `creator` / `admin`; admin `full` vs `moderator` |
+| **Community** | `community_roles` | owner / admin / moderator / coach per community |
+
+Platform admins use **admin APIs**. Community routes must call `assertCommunityPermission` / `@CommunityRoles` — `@Roles(CREATOR)` is not enough.
+
+---
+
 ## Verify locally
 
 ```bash

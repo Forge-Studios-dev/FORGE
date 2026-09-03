@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/notifications/notification_href.dart';
 import '../../../core/theme/forge_palette.dart';
 import '../../../core/theme/forge_tokens.dart';
@@ -76,6 +77,8 @@ const Map<String, _NotificationMeta> _notificationMetaByType = {
   'strike_rescinded': _NotificationMeta(Icons.verified, _NotifTone.success, _NotifCategory.creator),
   'strike_appeal_resolved':
       _NotificationMeta(Icons.gavel, _NotifTone.primary, _NotifCategory.creator),
+  'content_scan_held':
+      _NotificationMeta(Icons.shield, _NotifTone.critical, _NotifCategory.creator),
 };
 
 _NotificationMeta _metaFor(String? type) =>
@@ -180,7 +183,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final href = notificationHref(n['type']?.toString(), metadata);
     if (!mounted) return;
     if (href != null) {
-      context.push(href);
+      if (href.startsWith('http://') || href.startsWith('https://')) {
+        final uri = Uri.tryParse(href);
+        if (uri != null) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      } else {
+        context.push(href);
+      }
     }
     // null href: stay on notifications (no-op fallback)
   }

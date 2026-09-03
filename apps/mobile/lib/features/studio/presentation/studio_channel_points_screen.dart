@@ -170,6 +170,8 @@ class _StudioChannelPointsScreenState
                       (r) => Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: ForgeCard(
+                          semanticLabel:
+                              'Reward ${r['title'] ?? 'Reward'}, ${r['costPoints'] ?? 0} points',
                           child: Text(
                             '${r['title'] ?? 'Reward'} · ${r['costPoints'] ?? 0} pts',
                             style: const TextStyle(color: ForgeTokens.onSurface),
@@ -195,14 +197,16 @@ class _StudioChannelPointsScreenState
                     ..._pending.map((r) {
                       final id = r['id'] as String?;
                       final busy = id != null && _busyRedemptionId == id;
+                      final rewardTitle = r['reward']?['title'] as String? ?? 'Reward';
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: ForgeCard(
+                          semanticLabel: 'Pending redemption $rewardTitle, ${r['status']}',
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${r['reward']?['title'] ?? 'Reward'} · ${r['status']}',
+                                '$rewardTitle · ${r['status']}',
                                 style: const TextStyle(color: ForgeTokens.onSurface),
                               ),
                               if (id != null) ...[
@@ -210,20 +214,32 @@ class _StudioChannelPointsScreenState
                                 Row(
                                   children: [
                                     Expanded(
-                                      child: ForgeButton(
-                                        label: busy ? '…' : 'Approve',
-                                        onPressed: busy
-                                            ? null
-                                            : () => _resolveRedemption(id, approve: true),
+                                      child: Semantics(
+                                        button: true,
+                                        label: busy
+                                            ? 'Approving $rewardTitle'
+                                            : 'Approve redemption for $rewardTitle',
+                                        child: ForgeButton(
+                                          label: busy ? '…' : 'Approve',
+                                          onPressed: busy
+                                              ? null
+                                              : () => _resolveRedemption(id, approve: true),
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
-                                      child: ForgeButton(
-                                        label: busy ? '…' : 'Reject',
-                                        onPressed: busy
-                                            ? null
-                                            : () => _resolveRedemption(id, approve: false),
+                                      child: Semantics(
+                                        button: true,
+                                        label: busy
+                                            ? 'Rejecting $rewardTitle'
+                                            : 'Reject redemption for $rewardTitle',
+                                        child: ForgeButton(
+                                          label: busy ? '…' : 'Reject',
+                                          onPressed: busy
+                                              ? null
+                                              : () => _resolveRedemption(id, approve: false),
+                                        ),
                                       ),
                                     ),
                                   ],

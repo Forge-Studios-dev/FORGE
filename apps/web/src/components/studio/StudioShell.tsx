@@ -29,7 +29,8 @@ const COLLABORATOR_NAV: Array<{ label: string; items: NavItem[] }> = [
 ];
 
 function isActive(pathname: string, href: string): boolean {
-  return href === '/studio' ? pathname === href : pathname.startsWith(href);
+  if (href === '/studio') return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function isCollaboratorAllowedPath(pathname: string): boolean {
@@ -47,6 +48,7 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
 
   const contentNav: NavItem[] = [
     { href: '/studio/videos', label: 'Content', icon: 'video_library' },
+    { href: '/studio/upload-reliability', label: 'Uploads', icon: 'cloud_sync' },
     { href: '/studio/playlists', label: 'Playlists', icon: 'playlist_play' },
     ...(coursesEnabled ? [{ href: '/studio/courses', label: 'Courses', icon: 'school' }] : []),
     { href: '/studio/community', label: 'Community', icon: 'campaign' },

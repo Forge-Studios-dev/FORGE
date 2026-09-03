@@ -44,7 +44,9 @@ Never run destructive scripts (`scripts/wipe-platform-data.sh`) against producti
 
 | Date | Restore point | Branch ready in | Data verified | RTO target met | Next due |
 |------|---------------|------------------|----------------|-----------------|----------|
-| 2026-07-22 | 1h before drill (06:49 UTC) | ~15s (branch `init`→`ready`, incl. compute startup) | Yes — table count (97) and sampled row counts (`users`, `videos`, `member_subscriptions`) matched `production` branch exactly via direct `pg` query | Yes, by a wide margin (target ≤4h; actual <1min for PITR branch readiness) | 2026-10-22 (quarterly) |
+| 2026-07-22 | 1h before drill (06:49 UTC) | ~15s | Yes | Yes | 2026-10-22 (quarterly) |
+
+**Checklist (non-destructive):** `npm run verify:neon-dr` · connectivity: `scripts/dr-db-verify.sh`
 
 Method: created `br-delicate-hat-aowtvr8i` via Neon API (`POST /branches` with `parent_timestamp`) from project `orange-math-53675581` (org `org-divine-pine-40106564`), branch `br-misty-water-ao98jfuv` (production). Polled branch state until `ready`. Connected directly (Node `pg`) to both the restored branch and production, compared `information_schema.tables` count and row counts on `users`/`videos`/`member_subscriptions` — identical on both. Deleted the scratch branch immediately after verification to avoid ongoing compute/storage cost.
 

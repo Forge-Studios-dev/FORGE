@@ -1,6 +1,6 @@
 # FORGE AI / LLM Strategy — Audit, Provider Selection & Implementation Plan
 
-**Vision reference:** [FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md Phase 12](../FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md) (AI-Powered Community)  
+**Vision reference:** [archive/FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md](./archive/FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md) (frozen CEOS blueprint, Phase 12)  
 **Implementation tracker:** [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md) (Phase 12 — `CEOS-P12-*`)  
 **Live AI moderation (shipped):** [LIVE.md](./LIVE.md)  
 **Deferred triggers:** [audits/DEFERRED_BACKLOG.md](./audits/DEFERRED_BACKLOG.md)  

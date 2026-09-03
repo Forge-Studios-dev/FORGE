@@ -1,5 +1,7 @@
 # Platform Research — Infrastructure, Scalability & Reliability
 
+> **Superseded for topology, 2026-09-03.** Production is cost-first 1 API machine ([ADR-013](../decisions/ADR-013-cost-first-fly-topology.md), [FLY_SLO.md](../operations/FLY_SLO.md)). SCALE_* remain proposed.
+>
 > **Partially superseded, 2026-08-13.** Three items this doc lists as gaps are fixed as of
 > 2026-08-11 and confirmed live by independent re-audit: cache-stampede protection
 > (`common/redis/cache-stampede.util.ts`), synthetic monitoring

@@ -216,7 +216,13 @@ export default function NotificationsPage() {
                       onClick={() => {
                         if (!n.readAt) markRead.mutate(n.id);
                         const href = notificationHref(n.type, n.metadata);
-                        if (href) router.push(href);
+                        if (href) {
+                          if (/^https?:\/\//i.test(href)) {
+                            window.open(href, '_blank', 'noopener,noreferrer');
+                          } else {
+                            router.push(href);
+                          }
+                        }
                       }}
                       disabled={markRead.isPending}
                       className={`glass-panel w-full rounded-xl p-4 text-left transition hover:border-primary/30 ${

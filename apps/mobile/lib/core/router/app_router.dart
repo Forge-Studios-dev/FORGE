@@ -35,6 +35,8 @@ import '../../features/studio/presentation/studio_live_screen.dart';
 import '../../features/studio/presentation/studio_live_debrief_screen.dart';
 import '../../features/studio/presentation/studio_settings_screen.dart';
 import '../../features/studio/presentation/studio_analytics_screen.dart';
+import '../../features/studio/presentation/studio_analytics_details_screen.dart';
+import '../../features/studio/presentation/studio_upload_reliability_screen.dart';
 import '../../features/studio/presentation/studio_super_thanks_screen.dart';
 import '../../features/studio/presentation/studio_earnings_screen.dart';
 import '../../features/studio/presentation/studio_tiers_screen.dart';
@@ -263,6 +265,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => StudioLiveDebriefScreen(streamId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/studio/analytics', builder: (_, __) => const StudioAnalyticsScreen()),
+      GoRoute(
+        path: '/studio/analytics/details',
+        builder: (_, __) => const StudioAnalyticsDetailsScreen(),
+      ),
+      GoRoute(
+        path: '/studio/upload-reliability',
+        builder: (_, __) => const StudioUploadReliabilityScreen(),
+      ),
+      GoRoute(path: '/studio/playlists', builder: (_, __) => const PlaylistsScreen()),
       GoRoute(path: '/studio/earnings', builder: (_, __) => const StudioEarningsScreen()),
       GoRoute(path: '/studio/super-thanks', builder: (_, __) => const StudioSuperThanksScreen()),
       GoRoute(path: '/studio/tiers', builder: (_, __) => const StudioTiersScreen()),

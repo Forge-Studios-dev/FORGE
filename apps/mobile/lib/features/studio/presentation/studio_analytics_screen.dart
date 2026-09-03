@@ -154,6 +154,11 @@ class _StudioAnalyticsScreenState extends ConsumerState<StudioAnalyticsScreen> {
               ),
             ),
           ),
+          IconButton(
+            tooltip: 'Video performance details',
+            onPressed: () => context.push('/studio/analytics/details'),
+            icon: const Icon(Icons.table_rows_outlined),
+          ),
           TextButton.icon(
             onPressed: _exporting ? null : _exportCsv,
             icon: _exporting

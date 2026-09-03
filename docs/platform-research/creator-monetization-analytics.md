@@ -1,5 +1,7 @@
 # Platform Research — Creator Monetization & Analytics
 
+> **Historical (Aug 2026).** Framing tension below is **closed** (ADR-001 skill-first; ADR-005 no ads). Not SSOT.
+>
 > Domain slug: `creator-monetization-analytics`
 > Covers: ads, memberships/subscriptions, tips (Super Chat/Super Thanks), courses, creator analytics dashboards & KPI definitions, payouts, membership tiers & entitlements.
 > Written per `forge-youtube-replica.md`: functionality/UX patterns only — no YouTube trademarks, branding, or proprietary internals restated here.

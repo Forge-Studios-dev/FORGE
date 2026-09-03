@@ -1,6 +1,12 @@
 # Feed / search / watch load-test runbook
 
-Approximate **50K MAU** hot-path soak for staging. Script: `scripts/load-test-feed.sh`.
+Approximate **50K MAU** hot-path soak for staging.
+
+```bash
+npm run load-test:feed          # scripts/load-test-feed.sh
+npm run load-test:community
+npm run load-test:entitlements
+```
 
 ## When to run
 

@@ -9,6 +9,8 @@ export const env = createEnv({
   client: {
     NEXT_PUBLIC_API_URL: z.string().url().default('http://localhost:3001/api/v1'),
     NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+    /** Admin app origin for deep links (e.g. content_scan_held). Local default: :3002 */
+    NEXT_PUBLIC_ADMIN_URL: z.string().url().optional(),
     NEXT_PUBLIC_BILLING_ENABLED: z.string().optional(),
     NEXT_PUBLIC_LIVEKIT_URL: z.string().url().optional(),
     NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
@@ -30,6 +32,7 @@ export const env = createEnv({
     API_INTERNAL_URL: process.env.API_INTERNAL_URL,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_ADMIN_URL: process.env.NEXT_PUBLIC_ADMIN_URL,
     NEXT_PUBLIC_BILLING_ENABLED: process.env.NEXT_PUBLIC_BILLING_ENABLED,
     NEXT_PUBLIC_LIVEKIT_URL: process.env.NEXT_PUBLIC_LIVEKIT_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,

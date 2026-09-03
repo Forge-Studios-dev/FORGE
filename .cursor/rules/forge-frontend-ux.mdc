@@ -8,7 +8,7 @@ alwaysApply: false
 
 ## Identity
 
-- **YouTube-replica** video platform (viewer + creator Studio + admin). Prefer YouTube parity over skill-learning framing in primary chrome (`forge-youtube-replica`).
+- Skill-first creator platform with **YouTube-style** watch/Studio chrome. Prefer YouTube mechanics on video surfaces; keep skill taxonomy, courses, and approval-gate UX where those ADRs apply (`forge-product` wins framing).
 - Use `@forge/design-system` tokens/components. Match patterns in `apps/web/src/components` before adding primitives.
 - Dual-theme tokens exist (`.dark` default, `.light` opt-in via `ThemeProvider`); do not hardcode colors.
 

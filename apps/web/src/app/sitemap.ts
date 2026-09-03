@@ -67,6 +67,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/explore`, changeFrequency: 'daily', priority: 0.8 },
     { url: `${SITE_URL}/trending`, changeFrequency: 'hourly', priority: 0.85 },
     { url: `${SITE_URL}/shorts`, changeFrequency: 'daily', priority: 0.7 },
+    { url: `${SITE_URL}/live`, changeFrequency: 'hourly', priority: 0.8 },
     { url: `${SITE_URL}/search`, changeFrequency: 'daily', priority: 0.7 },
     { url: `${SITE_URL}/subscriptions`, changeFrequency: 'daily', priority: 0.6 },
   ];
@@ -82,6 +83,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           })),
         ]
       : [];
+
+  const discoverRoutes: MetadataRoute.Sitemap = [
+    { url: `${SITE_URL}/discover/communities`, changeFrequency: 'daily', priority: 0.7 },
+  ];
 
   const categoryRoutes: MetadataRoute.Sitemap = categorySlugs.map((slug) => ({
     url: `${SITE_URL}/explore/${slug}`,
@@ -108,5 +113,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
-  return [...staticRoutes, ...categoryRoutes, ...courseRoutes, ...videoRoutes, ...creatorRoutes];
+  return [
+    ...staticRoutes,
+    ...discoverRoutes,
+    ...categoryRoutes,
+    ...courseRoutes,
+    ...videoRoutes,
+    ...creatorRoutes,
+  ];
 }

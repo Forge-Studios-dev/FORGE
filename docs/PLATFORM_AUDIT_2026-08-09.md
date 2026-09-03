@@ -1,7 +1,9 @@
 # FORGE Platform Audit — Cross-Domain Synthesis (2026-08-09)
 
+> **SUPERSEDED** for product framing and sequencing. Current SSOT: [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md), [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md), [audits/FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md). The “#1 open decision” below was **closed**: skill-first + YouTube mechanics (ADR-001). Retain this file as historical research only.
+
 **Audience:** Engineering, product, leadership.
-**Status:** Synthesis of 8 domain research passes. Not a shipped spec — the #1 open decision below requires product/eng sign-off before any of this becomes a roadmap commitment. See [YOUTUBE_PARITY_ROADMAP.md](./YOUTUBE_PARITY_ROADMAP.md) for the phased build plan that follows once that decision is made.
+**Status:** Historical. Not a shipped spec.
 **Inputs:** 8 domain docs at `docs/platform-research/*.md`, each independently ground-truthed against the live codebase and against YouTube (+ secondary creator platforms). Links to every source doc are in [§4](#4-source-documents).
 
 ---

@@ -185,6 +185,7 @@ class _StudioMentorshipScreenState
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: ForgeCard(
+                          semanticLabel: 'Match $mentorName to $menteeName',
                           child: Text(
                             '$mentorName → $menteeName',
                             style: const TextStyle(color: ForgeTokens.onSurface),

@@ -47,6 +47,7 @@ export const NOTIFICATION_CATEGORY_BY_TYPE: Record<NotificationType, Notificatio
   strike_issued: 'creator',
   strike_rescinded: 'creator',
   strike_appeal_resolved: 'creator',
+  content_scan_held: 'creator',
 };
 
 export function categoryForNotificationType(type: NotificationType | string): NotificationCategory {

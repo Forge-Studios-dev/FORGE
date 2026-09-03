@@ -1,148 +1,168 @@
 # FORGE Implementation Roadmap
 
 **Audience:** Engineering, product, DevOps.  
-**Status:** Active sequencing plan (re-audit 2026-09-02).  
-**Supersedes:** [YOUTUBE_PARITY_ROADMAP.md](./YOUTUBE_PARITY_ROADMAP.md) for product direction (file retained for historical MVP closure notes).  
-**Product SSOT:** [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md)
+**Status:** Active sequencing plan (zero-trust rewrite 2026-09-03).  
+**Supersedes:** 2026-09-02 P0–P6 narrative and [YOUTUBE_PARITY_ROADMAP.md](./YOUTUBE_PARITY_ROADMAP.md) for product direction.  
+**Product SSOT:** [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md)  
+**Audit SSOT:** [audits/FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md)
 
 ---
 
 ## How to read this
 
-Phases are dependency-ordered. **P0** (documentation) is complete with this re-audit. Implementation begins at **P1**.
-
-| Phase | Focus | Status |
-|-------|-------|--------|
-| P0 | Documentation + strategy lock | ✅ Complete (2026-09-02) |
-| P1 | Feature flags + API contracts | ✅ Shipped (granular flags) |
-| P2 | Courses MVP UI | ✅ Shipped (web + mobile) |
-| P3 | Mentorship + channel points UI | ✅ Shipped (flag-gated) |
-| P4 | Unified skill discovery | ✅ Shipped (search, explore, home rail) |
-| P5 | Mobile parity + CI | ✅ CI in `.github/workflows/ci.yml` |
-| P6 | Pre-launch blockers | ⏳ Ops/legal (CSAM vendor, load test) |
-
----
-
-## P0 — Documentation (complete)
-
-- [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md)
-- [FRESH_AUDIT_2026-09_MASTER.md](./audits/FRESH_AUDIT_2026-09_MASTER.md)
-- [docs/decisions/](./decisions/) ADR-001–011
-- [platform-research/skill-first-positioning.md](./platform-research/skill-first-positioning.md)
-- Doc archive + README hierarchy
-
----
-
-## P1 — Platform foundations (shipped)
-
-| Item | Deliverable |
-|------|-------------|
-| Granular flags | `FEATURES_COURSES`, `FEATURES_MENTORSHIP`, `FEATURES_CHANNEL_POINTS` |
-| Legacy compat | `FEATURES_SKILL_ECONOMY_LMS=true` enables all + full LMS |
-| Guards | `SkillFeatureGuard` + `@RequireSkillFeature()` |
-| Config | `apps/api/.env.example`, `configuration.ts` |
-
-**Courses MVP API** (when `FEATURES_COURSES=true`):
-
-- `GET /courses/discover`, `GET /courses/discover/featured`
-- `GET /courses/:id/catalog`, `GET /creators/:id/courses`
-- `POST/PATCH /creators/me/courses`, lesson CRUD, enroll, progress
-
-Full LMS (quizzes, cohorts, programs) requires `FEATURES_SKILL_ECONOMY_LMS=true`.
-
----
-
-## P2 — Courses MVP UI
-
-**Goal:** Skillshare-style video-lesson collections (not full LMS).
-
-| Surface | Work |
-|---------|------|
-| Web Studio | `/studio/courses` — create course, add video lessons, publish |
-| Web consumer | `/courses`, `/courses/:id` — catalog + watch flow |
-| Mobile | Restore routes (remove redirects in `app_router.dart`) |
-| Admin | ✅ Courses oversight (`/courses`, `GET /admin/courses/overview`) |
-
-**Out of scope:** Quizzes, assignments, certificates, cohorts (full LMS flag).
-
-**Depends on:** `FEATURES_COURSES=true` in target environment.
-
----
-
-## P3 — Mentorship + channel points UI
-
-| Module | Web | Mobile |
-|--------|-----|--------|
-| Mentorship | Community Mentorship tab + Studio | Community Mentor tab + Studio |
-| Channel points | Community Points tab (balance/redeem) + Studio | Community Points tab + Studio |
-
-**Depends on:** `FEATURES_MENTORSHIP`, `FEATURES_CHANNEL_POINTS`.
-
----
-
-## P4 — Unified skill discovery
-
-| Item | Notes |
-|------|-------|
-| Skill taxonomy UX | ✅ Popular skills chips on Explore (→ search) |
-| Course cards in feed | ✅ “Courses for you” home rail |
-| Search | ✅ `type=course` in unified search (web + mobile) |
-| Recommendations | Course-aware signals when catalog has volume |
-
-**Trigger for ML:** 100K+ MAU → pgvector slice per ADR-008.
-
----
-
-## P5 — Mobile + quality
-
-| Item | Notes |
-|------|-------|
-| Flutter CI | Add to `.github/workflows` or document separate gate |
-| Studio parity | Close gaps in `DEPTH_BACKLOG.md` |
-| a11y | VoiceOver pass on skill module screens |
-
----
-
-## P6 — Production readiness
-
-**Engineering (in-repo):** complete — skill UI, paid program checkout + refund reversal, admin oversight, `npm run smoke:skill-features`. Ship checklist: [SKILL_PLATFORM_SHIP_READINESS.md](./operations/SKILL_PLATFORM_SHIP_READINESS.md).
-
-| Item | Blocker? | Reference |
-|------|----------|-----------|
-| CSAM/vendor content scan | **Yes** | ADR-009, `CONTENT_SCANNING.md` |
-| Load test 100K entitlements | Before major marketing | `LOAD_TEST_RUNBOOK.md` |
-| Stripe production | Go-live | `STRIPE_PRODUCTION_ENABLEMENT.md` |
-| Neon DR drill | Quarterly | Next: 2026-10-22 |
-| Final re-audit | 50K MAU | `DEFERRED_BACKLOG.md` |
-
----
-
-## Carried forward from YouTube parity (still valid)
-
-These shipped items remain done — see [YOUTUBE_PARITY_ROADMAP.md](./YOUTUBE_PARITY_ROADMAP.md) MVP-1–3:
-
-- Community permission enforcement, strikes/DMCA, MFA, DSAR export, monetization eligibility UI, caption search, scheduled publish, share tracking, comment moderation gate.
-
-**Open from prior roadmap (still applies):**
-
-- F-1302 Meilisearch at 500K videos
-- F-1101b Mux DRM at premium scale
-- Designated DMCA agent USPTO filing (ops/legal)
-
----
-
-## Dependency graph
+Phases are dependency-ordered by **launch risk**, then depth. Feature-status SSOT is [FORGE_PROJECT_MASTER.md §16](./FORGE_PROJECT_MASTER.md#16-feature-status-matrix) — not tracker percentages.
 
 ```mermaid
-flowchart LR
-  P0[P0 Docs] --> P1[P1 Flags]
-  P1 --> P2[P2 Courses UI]
-  P1 --> P3[P3 Mentorship Points]
-  P2 --> P4[P4 Discovery]
-  P3 --> P4
-  P4 --> P5[P5 Mobile]
-  P5 --> P6[P6 Launch blockers]
+flowchart TB
+  R0[R0 Research and SSOT]
+  R1[R1 Launch blockers]
+  R2[R2 Mobile and Studio]
+  R3[R3 Discovery and recs]
+  R4[R4 Security reliability scale]
+  R5[R5 Remaining readiness]
+  R0 --> R1
+  R1 --> R2
+  R2 --> R3
+  R3 --> R4
+  R4 --> R5
 ```
+
+| Phase | Focus | Status |
+|-------|--------|--------|
+| **R0** | Docs, ADRs, master audit, agent rules | Complete (2026-09-03) |
+| **R1** | CSAM gate, Stripe ops, load test, Neon DR | In-repo engineering shipped; **ops/legal still open** |
+| **R2** | Mobile/Studio parity + SEO metadata | **In-repo complete** (Copilot gated; VoiceOver/a11y smoke shipped) |
+| **R3** | FTS/recs hardening | In-repo (watch_history index, course-aware recs) |
+| **R4** | Security/reliability docs + health | Dual RBAC kept; topology documented; health `contentScan`/`billing` honesty (`noop_ack`, `stripe`) |
+| **R5** | Sitemap, status matrix, deferred items | Docs + SEO sitemap + discover a11y; ML/DRM stay trigger-gated |
+
+---
+
+## R0 — Research and SSOT (complete)
+
+- [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md)
+- [decisions/](./decisions/) ADR-001–014
+- [audits/FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md)
+- Agent rules: `forge-product` frames; `forge-youtube-replica` = mechanics only
+
+---
+
+## R1 — Launch blockers
+
+| Item | In-repo | Ops / legal | Domain |
+|------|---------|-------------|--------|
+| CSAM / vendor scan | Webhook + fail-closed hold + `CONTENT_SCAN_ALLOW_NOOP` prod gate (ADR-012) + admin notify on hold + `npm run set:fly:content-scan-secrets` / worker sync | **Vendor contract** (CSAI Match / Thorn / equivalent); NCMEC process | 16, 7 |
+| Stripe live cutover | Connect/Checkout/webhooks shipped; health `billing` | Live keys, Connect branding, Vercel `NEXT_PUBLIC_BILLING_ENABLED`, one `chargesEnabled` creator — [STRIPE_PRODUCTION_ENABLEMENT.md](./operations/STRIPE_PRODUCTION_ENABLEMENT.md) | 14 |
+| Load test | `npm run load-test:feed` / `:community` / `:entitlements` | Run on **staging**, attach evidence | 18, 22 |
+| Neon DR | Runbook + `scripts/verify-neon-dr-checklist.sh` | Quarterly PITR drill — next **2026-10-22** | 21 |
+| DMCA agent | Pipeline shipped | USPTO designated agent filing | 15 |
+
+**R1 is not “green” until legal picks a scanner and Stripe live checklist is executed.** Engineering cannot close those boxes from git.
+
+---
+
+## R2 — Mobile and Studio depth
+
+Shipped this pass:
+
+- `/studio/playlists` mobile route (was consumer `/playlists` only)
+- Mobile Studio `/studio/upload-reliability` + `/studio/analytics/details` (+ stuck-upload clear on videos)
+- Mobile Studio go-live parity: schedule, DVR, tier/paid, category, live/upcoming lists, `canGoLive` gate
+- Public SEO metadata: Shorts, live directory, search; dynamic `/live/[id]` metadata
+- Discover courses/communities a11y smoke; explore SEO descriptions; discover/communities sitemap
+- `content_scan_held` deep links → admin held queue; Admin nav “Held videos”
+- Skill Studio VoiceOver labels (courses, mentorship, channel points)
+- FCM: mobile push opens external admin URLs; web SW `notificationclick` routing
+- Admin notifications bell for held-scan alerts; web Studio Uploads nav + clear-stuck CTA
+- Master §16 corrected (playlists/reports/FCM were stale)
+
+Still open (priority order):
+
+| Item | Notes |
+|------|-------|
+| Copilot | `studio_copilot_screen.dart` exists; route redirects to `/studio` (intentional until AI flag on platform config) |
+| Admin billing actions | Ledger is read-only by design until Stripe disputes process is staffed |
+
+Podcasts / wiki / gamification **UI** are out of R2 (ADR-007).
+
+---
+
+## R3 — Discovery and recommendations
+
+Shipped this pass:
+
+- `watch_history(watched_at DESC)` index for trending CTEs
+- Course-enrollment lesson boost in SQL recs
+
+Triggers (do **not** build early):
+
+| Trigger | Work | ADR |
+|---------|------|-----|
+| 100K+ MAU or forYou quality stall | pgvector slice | ADR-008 |
+| 500K videos or search p95 regress | Meilisearch F-1302 | ADR-010 |
+
+---
+
+## R4 — Security, reliability, scale
+
+| Item | Decision |
+|------|----------|
+| Dual RBAC | **Keep** two planes (ADR-014) — document, don’t merge |
+| Worker SPOF | **Accepted** until idempotency review + cost (ADR-013) |
+| API 1 machine + auto-stop | **Accepted** MVP; rollback path in `FLY_SLO.md` |
+| App Check | Code present; ops flip `APP_CHECK_ENABLED` + Firebase |
+| Cookie consent | Banner shipped; full EEA CMP is legal-scoped |
+| SCALE_LIVE / MESSAGING / MULTI_REGION | Remain **proposed** until a scale trigger |
+
+---
+
+## R5 — Remaining production readiness
+
+| Item | Status |
+|------|--------|
+| Sitemap: live directory + playlists bound | Shipped this pass |
+| Cost follow-up | [COST_AUDIT_2026-09-01.md](./audits/COST_AUDIT_2026-09-01.md) — still valid if DEPLOY matches fly.toml |
+| Mux DRM F-1101 | Premium-scale trigger |
+| Admin Playwright deep moderation | Staging credentials; skipped in CI by design |
+| Next full re-audit | **50K MAU** or **2026-12-01** |
+
+---
+
+## Domain coverage (25 areas → phase)
+
+| # | Domain | Phase |
+|---|--------|-------|
+| 1 | Product vision | R0 |
+| 2 | User/creator/admin flows | R0, R2 |
+| 3 | Architecture | R0, R4 |
+| 4 | Data models | R0, R3 |
+| 5 | APIs | R0 |
+| 6 | Web/mobile architecture | R2 |
+| 7 | Video/media pipeline | R1 (scan), else shipped Mux |
+| 8 | Search | R3 |
+| 9 | Recs/feeds | R3 |
+| 10 | Creator tools/analytics | R2 |
+| 11 | Engagement | Shipped |
+| 12 | AuthN/Z | R4 / ADR-014 |
+| 13 | Notifications | R1 (scan hold) |
+| 14 | Monetization | R1 Stripe ops |
+| 15 | Moderation | R1 CSAM |
+| 16 | Security/privacy | R1, R4 |
+| 17 | Cloud/DevOps | R4 / ADR-013 |
+| 18 | Scalability | R3–R4 triggers |
+| 19 | Cache/queues | R4 worker SPOF |
+| 20 | Observability | Shipped + health honesty |
+| 21 | Backup/DR | R1 |
+| 22 | Testing/QA | R1 load test; R5 admin E2E |
+| 23 | SEO/a11y | R2, R5 |
+| 24 | Cost | ADR-013 |
+| 25 | Extensibility | Flags + ADRs |
+
+---
+
+## Carried YouTube-parity (still done)
+
+Community permission enforcement, strikes/DMCA, MFA, DSAR export, monetization eligibility UI, caption search, scheduled publish, share tracking, comment moderation gate.
 
 ---
 

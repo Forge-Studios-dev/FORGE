@@ -188,17 +188,19 @@ class _CoursesTabState extends ConsumerState<_CoursesTab> {
         else
           ..._courses.map((c) {
             final id = c['id'] as String;
+            final title = c['title'] as String? ?? 'Course';
+            final published = c['isPublished'] == true;
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: ForgeCard(
+                semanticLabel: '$title, ${published ? 'Published' : 'Draft'}',
                 onTap: () => context.push('/studio/courses/$id'),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(c['title'] as String? ?? 'Course',
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
                     Text(
-                      '/${c['slug'] ?? ''}${c['isPublished'] == true ? ' · Published' : ' · Draft'}',
+                      '/${c['slug'] ?? ''}${published ? ' · Published' : ' · Draft'}',
                       style: const TextStyle(fontSize: 12, color: ForgeTokens.onSurfaceVariant),
                     ),
                   ],
@@ -429,6 +431,8 @@ class _ProgramsTabState extends ConsumerState<_ProgramsTab> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: ForgeCard(
+                semanticLabel:
+                    '${program['name'] as String? ?? 'Program'}, ${published ? 'Published' : 'Draft'}, $priceCents cents, ${courses.length} courses',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

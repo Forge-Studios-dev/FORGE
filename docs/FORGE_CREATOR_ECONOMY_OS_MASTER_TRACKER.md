@@ -1,9 +1,9 @@
 # FORGE Creator Economy OS — Master Tracker
 
-**Version:** 1.1.0 · **Last audit:** 2026-09-02 · **Task tracker** (reconcile with [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md))  
+**Version:** 1.1.1 · **Last audit:** 2026-09-03 · **Historical task tracker** — **not** status % SSOT (use [FORGE_PROJECT_MASTER.md §16](./FORGE_PROJECT_MASTER.md#16-feature-status-matrix))  
 **Product SSOT:** [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md) · **Technical:** [FORGE_PROJECT_MASTER.md](./FORGE_PROJECT_MASTER.md)  
 **Blueprint (archived):** [archive/FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md](./archive/FORGE_CREATOR_ECONOMY_OPERATING_SYSTEM_V3.0.md)  
-**Re-audit:** [FRESH_AUDIT_2026-09_MASTER.md](./audits/FRESH_AUDIT_2026-09_MASTER.md) · Next: 50K MAU or 2026-12-01
+**Re-audit:** [FRESH_AUDIT_2026-09-03_MASTER.md](./audits/FRESH_AUDIT_2026-09-03_MASTER.md) · Next: 50K MAU or 2026-12-01
 
 ---
 

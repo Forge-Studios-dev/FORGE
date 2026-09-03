@@ -93,6 +93,7 @@ describe('RecommendationsService', () => {
       const mainQuery = queryMock.mock.calls[3][0] as string;
       expect(mainQuery).toContain('session_creators');
       expect(mainQuery).toContain('session_affinity');
+      expect(mainQuery).toContain('enrolled_lessons');
     });
 
     it('clamps limit to 50', async () => {

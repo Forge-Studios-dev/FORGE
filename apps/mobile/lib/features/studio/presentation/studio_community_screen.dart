@@ -6,6 +6,7 @@ import '../../../core/theme/forge_tokens.dart';
 import '../../../core/utils/csv_export_util.dart';
 import '../../../core/widgets/forge_button.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../live/data/live_repository.dart';
 
 import 'studio_rooms_screen.dart';
 import 'studio_moderation_screen.dart';
@@ -104,13 +105,12 @@ class _StudioCommunityScreenState extends ConsumerState<StudioCommunityScreen>
       }
     }
     try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.dio.post('/streams/start', data: {
+      final data = await ref.read(liveRepositoryProvider).startStream({
         'title': '${community?['name'] ?? 'Community'} Live',
         'communityId': _communityId,
         'visibility': 'subscribers',
       });
-      final streamId = response.data['data']?['id'] as String?;
+      final streamId = data['id'] as String?;
       if (mounted && streamId != null) {
         context.go('/live/$streamId');
       }

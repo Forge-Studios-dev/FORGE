@@ -63,6 +63,12 @@ String? notificationHref(String? type, Map<String, dynamic>? metadata) {
     case 'strike_rescinded':
     case 'strike_appeal_resolved':
       return '/settings/strikes';
+    case 'content_scan_held':
+      // Admins review held uploads in the admin app — never open consumer watch.
+      final q = <String, String>{'moderationStatus': 'held'};
+      if (videoId != null && videoId.isNotEmpty) q['videoId'] = videoId;
+      final query = q.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&');
+      return 'https://admin.forgestudios.net/content?$query';
     default:
       return videoId != null ? videoPath(videoId) : null;
   }

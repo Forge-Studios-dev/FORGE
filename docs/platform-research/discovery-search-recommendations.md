@@ -1,7 +1,7 @@
 # Discovery, Search & Recommendations — Platform Research
 
 **Slug:** `discovery-search-recommendations`
-**Status:** Research / gap analysis for documentation overhaul (not an implementation spec authority — see Open Questions before building)
+**Status:** Historical research (Aug 2026). **Not SSOT.** Recs/search decisions: [ADR-008](../decisions/ADR-008-recommendations-approach.md), [ADR-010](../decisions/ADR-010-search-fts.md), audit 2026-09-03.
 **Domain covers:** search infrastructure and ranking, categorization/taxonomy, recommendation systems (home feed, up-next/related, personalized/trending), the watch/viewing experience, and the home/feed experience.
 
 ---

@@ -70,6 +70,8 @@ export default () => ({
     webhookUrl: process.env.CONTENT_SCAN_WEBHOOK_URL || '',
     webhookToken: process.env.CONTENT_SCAN_WEBHOOK_TOKEN || '',
     timeoutMs: parseInt(process.env.CONTENT_SCAN_TIMEOUT_MS || '15000', 10),
+    /** Production-only acknowledgment that noop scanning is intentional (ADR-012). */
+    allowNoop: process.env.CONTENT_SCAN_ALLOW_NOOP === 'true',
   },
 
   aws: {

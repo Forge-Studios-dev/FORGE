@@ -7,7 +7,10 @@ import { isCoursesFeatureEnabled } from '@forge/shared-types';
 import { Category } from '@/types';
 import type { CatalogCourse } from '@/components/Courses/CourseCatalogClient';
 
-export const metadata: Metadata = { title: 'Explore' };
+export const metadata: Metadata = {
+  title: 'Explore',
+  description: 'Browse skill categories and discover creators teaching on FORGE.',
+};
 
 export const revalidate = 300;
 

@@ -36,7 +36,64 @@ describe('HealthController', () => {
     expect(res.checks.database).toBe('ok');
     expect(res.checks.redis).toBe('ok');
     expect(res.checks.contentScan).toBe('noop');
+    expect(res.checks.billing).toBe('stub');
     expect(res.correlationId).toBe('test-corr');
+  });
+
+  it('marks contentScan noop_ack when ALLOW_NOOP is set (ADR-012)', async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [HealthController],
+      providers: [
+        { provide: DataSource, useValue: { query: jest.fn().mockResolvedValue([{ '?column?': 1 }]) } },
+        { provide: getRedisConnectionToken(), useValue: { ping: jest.fn().mockResolvedValue('PONG') } },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) => {
+              if (key === 'video.transcodeProvider') return 'mux';
+              if (key === 'contentScan.allowNoop') return true;
+              return undefined;
+            },
+          },
+        },
+        { provide: getQueueToken(VIDEO_PROCESSING_QUEUE), useValue: mockVideoQueue },
+        { provide: getQueueToken(MUX_VOD_INGEST_QUEUE), useValue: mockVideoQueue },
+      ],
+    }).compile();
+
+    const controller = moduleRef.get(HealthController);
+    const res = await controller.getHealth({} as Parameters<typeof controller.getHealth>[0]);
+
+    expect(res.status).toBe('ok');
+    expect(res.checks.contentScan).toBe('noop_ack');
+  });
+
+  it('marks billing stripe when provider and secret key are set', async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [HealthController],
+      providers: [
+        { provide: DataSource, useValue: { query: jest.fn().mockResolvedValue([{ '?column?': 1 }]) } },
+        { provide: getRedisConnectionToken(), useValue: { ping: jest.fn().mockResolvedValue('PONG') } },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) => {
+              if (key === 'video.transcodeProvider') return 'mux';
+              if (key === 'billing.provider') return 'stripe';
+              if (key === 'billing.stripeSecretKey') return 'sk_test_x';
+              return undefined;
+            },
+          },
+        },
+        { provide: getQueueToken(VIDEO_PROCESSING_QUEUE), useValue: mockVideoQueue },
+        { provide: getQueueToken(MUX_VOD_INGEST_QUEUE), useValue: mockVideoQueue },
+      ],
+    }).compile();
+
+    const controller = moduleRef.get(HealthController);
+    const res = await controller.getHealth({} as Parameters<typeof controller.getHealth>[0]);
+
+    expect(res.checks.billing).toBe('stripe');
   });
 
   it('marks contentScan misconfigured when webhook is selected without a URL', async () => {

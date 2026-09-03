@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../network/api_client.dart';
 import '../notifications/notification_href.dart';
@@ -20,10 +21,18 @@ String _routeForMessage(RemoteMessage message) {
   return href ?? '/notifications';
 }
 
-void _handleNotificationTap(RemoteMessage message) {
+Future<void> _handleNotificationTap(RemoteMessage message) async {
+  final href = _routeForMessage(message);
+  if (href.startsWith('http://') || href.startsWith('https://')) {
+    final uri = Uri.tryParse(href);
+    if (uri != null) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+    return;
+  }
   final ctx = rootNavigatorKey.currentContext;
   if (ctx == null || !ctx.mounted) return;
-  GoRouter.of(ctx).push(_routeForMessage(message));
+  GoRouter.of(ctx).push(href);
 }
 
 /// Registers FCM token with API after Firebase is configured (`flutterfire configure`).
@@ -82,7 +91,12 @@ class ForgePush {
       ScaffoldMessenger.of(ctx).showSnackBar(
         SnackBar(
           content: Text([title, body].whereType<String>().join(': ')),
-          action: SnackBarAction(label: 'View', onPressed: () => _handleNotificationTap(message)),
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () {
+              _handleNotificationTap(message);
+            },
+          ),
         ),
       );
     });

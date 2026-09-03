@@ -1,5 +1,7 @@
 # FORGE Fresh Audit — Master Synthesis (2026-09-02)
 
+> **SUPERSEDED** by [FRESH_AUDIT_2026-09-03_MASTER.md](./FRESH_AUDIT_2026-09-03_MASTER.md). Do not use this file as current guidance. Kept only as a historical artifact of the 2026-09-02 pass.
+
 **Audience:** Engineering, product, leadership.  
 **Type:** Zero-trust re-audit (docs + code + external research).  
 **Product SSOT:** [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md)  
