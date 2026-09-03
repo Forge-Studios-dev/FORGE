@@ -2,7 +2,7 @@
 
 **Slug:** `skill-first-positioning`  
 **Audience:** Product, engineering, stakeholders.  
-**Status:** Authoritative product positioning (re-audit 2026-09-02). Supersedes Aug 2026 “YouTube-replica + retired skill layer” framing.
+**Status:** Positioning research aligned with product SSOT (re-audit 2026-09-03). Authoritative product text lives in [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md). Supersedes Aug 2026 “YouTube-replica + retired skill layer” framing.
 
 ---
 
@@ -89,7 +89,7 @@ Documented product choices (not bugs):
 2. **Skills/crafts taxonomy** — `Category`/`Subcategory`/`SkillTag` seeded for crafts (e.g. Woodworking → Carving); not YouTube genres.
 3. **Communities rooms/events** — extension for cohort learning; YouTube has no equivalent.
 4. **No ad revenue** — monetization via memberships, tips, courses (future), not RPM/CPM.
-5. **Courses not in unified `/search`** until P4 discovery work ships.
+5. **Courses in unified `/search`** via `type=course` / discover ILIKE (Postgres course FTS column deferred — ADR-010).
 
 ---
 

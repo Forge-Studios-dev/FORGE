@@ -112,6 +112,11 @@ class StudioRepository {
     await _api.dio.post('/videos/$videoId/cancel-upload');
   }
 
+  /// Releases abandoned/incomplete uploads (Studio "Clear stuck uploads").
+  Future<void> releaseStuckUploads() async {
+    await _api.dio.post('/videos/release-stuck-uploads');
+  }
+
   Future<void> retryTranscode(String videoId) async {
     await _api.dio.post('/videos/$videoId/retry-transcode');
   }

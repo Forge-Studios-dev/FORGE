@@ -19,12 +19,13 @@ describe('NotificationsListener', () => {
   const followRepository = { find: jest.fn() };
   const notificationsService = { create: jest.fn() };
   const mailService = { sendMail: jest.fn().mockResolvedValue(undefined) };
-  const userRepository = { findOne: jest.fn() };
+  const userRepository = { findOne: jest.fn(), find: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     engagementService.getBlockedPeerIds.mockResolvedValue([]);
     userRepository.findOne.mockResolvedValue(null);
+    userRepository.find.mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -136,11 +137,46 @@ describe('NotificationsListener', () => {
       );
     });
 
-    it('notifies the user when their strike appeal is denied', async () => {
-      await listener.onStrikeAppealResolved({ userId: 'u1', strikeId: 's1', granted: false });
+    it('notifies platform admins when a video is held by content scan', async () => {
+      userRepository.find.mockResolvedValue([{ id: 'admin-1' }]);
+
+      await listener.onContentScanHeld({
+        videoId: 'v-held',
+        userId: 'creator-1',
+        moderationStatus: 'held',
+        categories: ['csam'],
+        provider: 'webhook',
+      });
 
       expect(notificationsService.create).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'u1', title: expect.stringContaining('denied') }),
+        expect.objectContaining({
+          userId: 'admin-1',
+          type: 'content_scan_held',
+          metadata: expect.objectContaining({
+            videoId: 'v-held',
+            uploaderId: 'creator-1',
+            audience: 'admin',
+          }),
+        }),
+      );
+      expect(pushDispatch.enqueueForUser).toHaveBeenCalledWith(
+        'admin-1',
+        expect.objectContaining({
+          data: expect.objectContaining({ type: 'content_scan_held', videoId: 'v-held' }),
+        }),
+      );
+      expect(notificationsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'creator-1',
+          type: 'content_scan_held',
+          metadata: expect.objectContaining({ audience: 'uploader', videoId: 'v-held' }),
+        }),
+      );
+      expect(pushDispatch.enqueueForUser).toHaveBeenCalledWith(
+        'creator-1',
+        expect.objectContaining({
+          data: expect.objectContaining({ audience: 'uploader', videoId: 'v-held' }),
+        }),
       );
     });
   });

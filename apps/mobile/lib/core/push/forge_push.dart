@@ -5,10 +5,30 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../network/api_client.dart';
 import '../notifications/notification_href.dart';
 import '../router/navigation_key.dart';
+
+/// Cached from `/platform/config` so admin deep links match the deployed admin host.
+String _cachedAdminBaseUrl = 'https://admin.forgestudios.net';
+
+Future<void> refreshPushAdminBaseUrl(ApiClient client) async {
+  try {
+    final response = await client.dio.get('/platform/config');
+    final data = response.data;
+    final map = data is Map && data['data'] is Map
+        ? Map<String, dynamic>.from(data['data'] as Map)
+        : <String, dynamic>{};
+    final raw = map['adminUrl'];
+    if (raw is String && raw.trim().isNotEmpty) {
+      _cachedAdminBaseUrl = raw.trim().replaceAll(RegExp(r'/+$'), '');
+    }
+  } catch (_) {
+    // keep previous / default
+  }
+}
 
 /// Route to open when a push notification is tapped, based on the `data.type`
 /// the backend sends (see apps/api notifications.listener.ts). Falls back to
@@ -16,14 +36,26 @@ import '../router/navigation_key.dart';
 String _routeForMessage(RemoteMessage message) {
   final data = message.data;
   final type = data['type']?.toString();
-  final href = notificationHref(type, Map<String, dynamic>.from(data));
+  final href = notificationHref(
+    type,
+    Map<String, dynamic>.from(data),
+    adminBaseUrl: _cachedAdminBaseUrl,
+  );
   return href ?? '/notifications';
 }
 
-void _handleNotificationTap(RemoteMessage message) {
+Future<void> _handleNotificationTap(RemoteMessage message) async {
+  final href = _routeForMessage(message);
+  if (href.startsWith('http://') || href.startsWith('https://')) {
+    final uri = Uri.tryParse(href);
+    if (uri != null) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+    return;
+  }
   final ctx = rootNavigatorKey.currentContext;
   if (ctx == null || !ctx.mounted) return;
-  GoRouter.of(ctx).push(_routeForMessage(message));
+  GoRouter.of(ctx).push(href);
 }
 
 /// Registers FCM token with API after Firebase is configured (`flutterfire configure`).
@@ -39,6 +71,7 @@ class ForgePush {
     try {
       if (Firebase.apps.isEmpty) return;
       _started = true;
+      await refreshPushAdminBaseUrl(_apiClient);
       final messaging = FirebaseMessaging.instance;
       await messaging.requestPermission();
       final token = await messaging.getToken();
@@ -82,7 +115,12 @@ class ForgePush {
       ScaffoldMessenger.of(ctx).showSnackBar(
         SnackBar(
           content: Text([title, body].whereType<String>().join(': ')),
-          action: SnackBarAction(label: 'View', onPressed: () => _handleNotificationTap(message)),
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () {
+              _handleNotificationTap(message);
+            },
+          ),
         ),
       );
     });

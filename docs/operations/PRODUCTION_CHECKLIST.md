@@ -6,12 +6,14 @@ Use before promoting a release to production (`main`).
 
 - [ ] API: `DATABASE_URL`, Redis, AWS S3, Mux token id/secret, Stripe keys (if billing on)
 - [ ] `CSRF_DISABLED` unset/false in production
-- [ ] Web/Admin: `NEXT_PUBLIC_API_URL`, billing flag, site URL
+- [ ] Until CSAM vendor is live: `CONTENT_SCAN_ALLOW_NOOP=true` on API **and** worker (`npm run set:fly:content-scan-secrets` + `sync:fly:worker-secrets`) — ADR-012; **not** CSAM protection
+- [ ] Web/Admin: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_ADMIN_URL` (web), billing flag, site URL
 - [ ] Mobile: release `apiBaseUrl` assert passes
+- [ ] `npm run verify:production` (with prod-like env) passes
 
 ## Data
 
-- [ ] Pending TypeORM migrations applied (incl. `185…`–`197…` YouTube wave; captions, notify_level, Super Thanks, pin/heart, channel links, unlisted playlists, history pause; plus `198…`–`201…` dislike columns, `user_blocks`, `username_changed_at`, `username_history`; **`229…` program_purchases** when enabling paid programs)
+- [ ] Pending TypeORM migrations applied (incl. `185…`–`197…` YouTube wave; captions, notify_level, Super Thanks, pin/heart, channel links, unlisted playlists, history pause; plus `198…`–`201…` dislike columns, `user_blocks`, `username_changed_at`, `username_history`; **`229…` program_purchases** when enabling paid programs; **`230…` `content_scan_held` notification enum**; **`231…` `watch_history(watched_at)` index**)
 - [ ] Rollback SQL reviewed for risky migrations
 
 ## Media
@@ -91,8 +93,10 @@ Use before promoting a release to production (`main`).
 
 ## Content safety (pre-launch)
 
+- [ ] Temporary: health `checks.contentScan` is `noop_ack` (ALLOW_NOOP set) **or** `webhook` — never silent `noop` in production after ADR-012
 - [ ] `CONTENT_SCAN_PROVIDER` set to a real vendor integration (not `none`) before open public upload at scale — see `docs/CONTENT_SCANNING.md` and ADR-009
-- [ ] Admin Settings health panel shows content-scan status (not noop/misconfigured)
+- [ ] Admin Settings health panel + Admin notifications bell show held-scan alerts; Held videos nav works
+- [ ] Smoke: held upload → admin notify → `/content?moderationStatus=held`
 - [ ] CSAM/illegal-content fast-path documented with legal owner — `docs/ESCALATION_RULES.md`
 
 ## Observability / rollback

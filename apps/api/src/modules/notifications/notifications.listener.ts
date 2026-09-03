@@ -10,7 +10,7 @@ import { NotificationsService } from './notifications.service';
 import { PushDispatchService } from './push-dispatch.service';
 import { NotificationType } from './entities/notification.entity';
 import { MailService } from '../mail/mail.service';
-import { User } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import { Follow, FollowNotifyLevel } from '../engagement/entities/follow.entity';
 import { Comment } from '../engagement/entities/comment.entity';
 import { WatchHistory } from '../engagement/entities/watch-history.entity';
@@ -589,6 +589,64 @@ export class NotificationsListener {
       body,
       data: { type: 'strike_appeal_resolved', strikeId: payload.strikeId },
       category: categoryForNotificationType(NotificationType.STRIKE_APPEAL_RESOLVED),
+    });
+  }
+
+  @OnEvent('video.content_scan_held')
+  async onContentScanHeld(payload: {
+    videoId: string;
+    userId: string;
+    moderationStatus?: string;
+    categories?: string[];
+    provider?: string;
+  }) {
+    const admins = await this.userRepository.find({
+      where: { role: UserRole.ADMIN },
+      select: { id: true },
+      take: 25,
+    });
+    const adminTitle = 'Upload held for safety review';
+    const adminBody = 'A video was held by content scanning and needs review in Admin → Content.';
+    const meta = {
+      videoId: payload.videoId,
+      uploaderId: payload.userId,
+      moderationStatus: payload.moderationStatus ?? 'held',
+      categories: payload.categories ?? [],
+      provider: payload.provider ?? null,
+    };
+    for (const admin of admins) {
+      // Skip duplicate when the uploader is also an admin — they get the creator copy below.
+      if (admin.id === payload.userId) continue;
+      await this.notificationsService.create({
+        userId: admin.id,
+        type: NotificationType.CONTENT_SCAN_HELD,
+        title: adminTitle,
+        body: adminBody,
+        metadata: { ...meta, audience: 'admin' },
+      });
+      await this.pushDispatch.enqueueForUser(admin.id, {
+        title: adminTitle,
+        body: adminBody,
+        data: { type: 'content_scan_held', videoId: payload.videoId, audience: 'admin' },
+        category: categoryForNotificationType(NotificationType.CONTENT_SCAN_HELD),
+        type: NotificationType.CONTENT_SCAN_HELD,
+      });
+    }
+
+    // Uploader: Studio-facing copy (not admin triage). Mute-exempt safety alert.
+    await this.notificationsService.create({
+      userId: payload.userId,
+      type: NotificationType.CONTENT_SCAN_HELD,
+      title: 'Your upload is under review',
+      body: 'This video was held for safety review and is not public yet. You can check status in Studio → Videos.',
+      metadata: { ...meta, audience: 'uploader' },
+    });
+    await this.pushDispatch.enqueueForUser(payload.userId, {
+      title: 'Your upload is under review',
+      body: 'Held for safety review — open Studio → Videos for status.',
+      data: { type: 'content_scan_held', videoId: payload.videoId, audience: 'uploader' },
+      category: categoryForNotificationType(NotificationType.CONTENT_SCAN_HELD),
+      type: NotificationType.CONTENT_SCAN_HELD,
     });
   }
 

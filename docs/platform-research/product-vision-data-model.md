@@ -2,7 +2,7 @@
 
 **Slug:** `product-vision-data-model`
 **Audience:** Engineering (API/web/mobile), product, docs maintainers.
-**Status:** Research/gap-analysis for a documentation overhaul. Not a shipped spec — recommendations require product sign-off, especially where they touch the YouTube-parity-vs-skill-economy tension (see §5).
+**Status:** Historical research (Aug 2026). **Not SSOT.** Product framing is closed: [FORGE_PRODUCT_STRATEGY.md](../FORGE_PRODUCT_STRATEGY.md). YouTube-vs-skill tension in this body is stale.
 
 ---
 

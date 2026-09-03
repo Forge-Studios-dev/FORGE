@@ -25,13 +25,20 @@ export class PlatformController {
     const smtpHost = this.configService.get<string>('mail.smtpHost') || '';
     const smtpUser = this.configService.get<string>('mail.smtpUser') || '';
     const smtpPass = this.configService.get<string>('mail.smtpPass') || '';
+    const webUrl = (this.configService.get<string>('webUrl') || 'https://forgestudios.net').replace(
+      /\/$/,
+      '',
+    );
+    const adminUrl = (
+      this.configService.get<string>('adminUrl') || 'https://admin.forgestudios.net'
+    ).replace(/\/$/, '');
+    const claudeEnabled = this.configService.get<boolean>('ai.claudeEnabled') === true;
+    const anthropicConfigured = Boolean(this.configService.get<string>('anthropic.apiKey'));
     return {
       featureFlags,
       apiVersion: 'v1',
-      webUrl: (this.configService.get<string>('webUrl') || 'https://forgestudios.net').replace(
-        /\/$/,
-        '',
-      ),
+      webUrl,
+      adminUrl,
       auth: {
         /** Identity is custom JWT + Postgres — not Firebase Authentication. */
         provider: 'custom' as const,
@@ -57,8 +64,8 @@ export class PlatformController {
         usesFirebaseAuth: false,
       },
       legal: {
-        termsUrl: `${(this.configService.get<string>('webUrl') || 'https://forgestudios.net').replace(/\/$/, '')}/terms`,
-        privacyUrl: `${(this.configService.get<string>('webUrl') || 'https://forgestudios.net').replace(/\/$/, '')}/privacy`,
+        termsUrl: `${webUrl}/terms`,
+        privacyUrl: `${webUrl}/privacy`,
         contactEmail: 'legal@forgestudios.net',
         privacyEmail: 'privacy@forgestudios.net',
         lastUpdated: '2026-06-03',
@@ -68,6 +75,10 @@ export class PlatformController {
         mentorship: isMentorshipEnabled(),
         channelPoints: isChannelPointsEnabled(),
         skillEconomyLms: isSkillEconomyLmsExtendedEnabled(),
+      },
+      /** Creator Studio insights copilot (Claude when keyed; else deterministic). */
+      ai: {
+        creatorInsights: claudeEnabled && anthropicConfigured,
       },
     };
   }

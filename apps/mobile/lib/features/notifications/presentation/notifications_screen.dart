@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/notifications/notification_href.dart';
+import '../../../core/platform/platform_config.dart';
 import '../../../core/theme/forge_palette.dart';
 import '../../../core/theme/forge_tokens.dart';
 import '../../../core/widgets/forge_card.dart';
@@ -76,6 +78,8 @@ const Map<String, _NotificationMeta> _notificationMetaByType = {
   'strike_rescinded': _NotificationMeta(Icons.verified, _NotifTone.success, _NotifCategory.creator),
   'strike_appeal_resolved':
       _NotificationMeta(Icons.gavel, _NotifTone.primary, _NotifCategory.creator),
+  'content_scan_held':
+      _NotificationMeta(Icons.shield, _NotifTone.critical, _NotifCategory.creator),
 };
 
 _NotificationMeta _metaFor(String? type) =>
@@ -177,10 +181,22 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (id != null && !read) await _markRead(id);
     final metaRaw = n['metadata'];
     final metadata = metaRaw is Map ? Map<String, dynamic>.from(metaRaw) : null;
-    final href = notificationHref(n['type']?.toString(), metadata);
+    final platformConfig = ref.read(platformConfigProvider).asData?.value ?? {};
+    final href = notificationHref(
+      n['type']?.toString(),
+      metadata,
+      adminBaseUrl: platformAdminUrl(platformConfig),
+    );
     if (!mounted) return;
     if (href != null) {
-      context.push(href);
+      if (href.startsWith('http://') || href.startsWith('https://')) {
+        final uri = Uri.tryParse(href);
+        if (uri != null) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      } else {
+        context.push(href);
+      }
     }
     // null href: stay on notifications (no-op fallback)
   }

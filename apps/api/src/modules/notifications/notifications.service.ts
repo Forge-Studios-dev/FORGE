@@ -4,7 +4,7 @@ import { Repository, In, IsNull } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { categoryForNotificationType, isCategoryMuted } from '@forge/shared-types';
+import { categoryForNotificationType, isCategoryMuted, isMuteExemptNotificationType } from '@forge/shared-types';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { DeviceToken, DevicePlatform } from './entities/device-token.entity';
 import { User } from '../users/entities/user.entity';
@@ -48,6 +48,7 @@ export class NotificationsService {
    * no need to touch each of the ~10 event handlers that call these.
    */
   private async isMutedForUser(userId: string, type: NotificationType): Promise<boolean> {
+    if (isMuteExemptNotificationType(type)) return false;
     const row = await this.userRepository.findOne({
       where: { id: userId },
       select: { id: true, notificationPreferences: true },
@@ -86,7 +87,9 @@ export class NotificationsService {
     });
     const prefsById = new Map(prefRows.map((r) => [r.id, r.notificationPreferences]));
     const eligible = inputs.filter(
-      (input) => !isCategoryMuted(prefsById.get(input.userId), categoryForNotificationType(input.type)),
+      (input) =>
+        isMuteExemptNotificationType(input.type) ||
+        !isCategoryMuted(prefsById.get(input.userId), categoryForNotificationType(input.type)),
     );
     if (!eligible.length) return;
 

@@ -44,6 +44,21 @@ bool platformSkillEconomyLmsEnabled(PlatformConfig config) {
   return false;
 }
 
+/// Creator Studio insights copilot (requires AI_CLAUDE_ENABLED + Anthropic key on API).
+bool platformCreatorInsightsEnabled(PlatformConfig config) {
+  final ai = config['ai'];
+  if (ai is Map && ai['creatorInsights'] == true) return true;
+  return false;
+}
+
+String platformAdminUrl(PlatformConfig config) {
+  final raw = config['adminUrl'];
+  if (raw is String && raw.trim().isNotEmpty) {
+    return raw.trim().replaceAll(RegExp(r'/+$'), '');
+  }
+  return 'https://admin.forgestudios.net';
+}
+
 String googleOAuthStartUrl() {
   final base = AppConstants.apiBaseUrl.replaceAll(RegExp(r'/+$'), '');
   // `platform=mobile` tells the API to redirect back to the app's custom

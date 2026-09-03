@@ -16,6 +16,7 @@ const validProdEnv: NodeJS.ProcessEnv = {
   AWS_SECRET_ACCESS_KEY: 'secret',
   S3_BUCKET_NAME: 'forge-media',
   METRICS_SCRAPE_TOKEN: 'metrics-scrape-token',
+  CONTENT_SCAN_ALLOW_NOOP: 'true',
 };
 
 describe('validateProductionEnv', () => {
@@ -89,6 +90,33 @@ describe('validateProductionEnv', () => {
         DATABASE_URL:
           'postgresql://user:pass@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require',
         DATABASE_ALLOW_DIRECT_NEON: 'true',
+      }),
+    ).not.toThrow();
+  });
+
+  it('requires CONTENT_SCAN_ALLOW_NOOP when scan provider is none', () => {
+    expect(() =>
+      validateProductionEnv({ ...validProdEnv, CONTENT_SCAN_ALLOW_NOOP: undefined }),
+    ).toThrow(/CONTENT_SCAN_ALLOW_NOOP/);
+  });
+
+  it('requires webhook URL when CONTENT_SCAN_PROVIDER=webhook', () => {
+    expect(() =>
+      validateProductionEnv({
+        ...validProdEnv,
+        CONTENT_SCAN_PROVIDER: 'webhook',
+        CONTENT_SCAN_WEBHOOK_URL: '',
+      }),
+    ).toThrow(/CONTENT_SCAN_WEBHOOK_URL/);
+  });
+
+  it('accepts webhook scan without ALLOW_NOOP', () => {
+    expect(() =>
+      validateProductionEnv({
+        ...validProdEnv,
+        CONTENT_SCAN_ALLOW_NOOP: undefined,
+        CONTENT_SCAN_PROVIDER: 'webhook',
+        CONTENT_SCAN_WEBHOOK_URL: 'https://scan.example.com/hook',
       }),
     ).not.toThrow();
   });

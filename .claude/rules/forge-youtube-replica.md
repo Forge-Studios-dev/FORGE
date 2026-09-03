@@ -1,32 +1,20 @@
-# FORGE — YouTube Replica
+# FORGE — YouTube mechanics
 
 > Scope: **Always apply**. Mirrors `.cursor/rules/forge-youtube-replica.mdc`.
 
-**Product goal:** build a **faithful YouTube replica** on the existing FORGE stack (`apps/api`, `apps/web`, `apps/admin`, `apps/mobile`). Prefer YouTube parity over inventing a custom video platform.
+**Product framing** is **not** this file. SSOT: `docs/FORGE_PRODUCT_STRATEGY.md` and `forge-product.md`. FORGE is a **skill-first** platform; this rule only covers YouTube-style **mechanics** on video, discovery, and engagement surfaces.
 
-> **Superseded for product framing** by `forge-product.md` (skill-first + YouTube mechanics). Keep this rule for YouTube **mechanics** parity on video/discovery/engagement surfaces.
+## Do not
 
-## Encouraged (never restrict)
+- Do **not** retire skill taxonomy, creator approval, courses/mentorship/points, or community rooms/events to “match YouTube.” Those are documented ADRs.
+- Do **not** treat skill-first UX as a bug.
 
-These rules do **not** limit thinking, research, or judgment. Always allowed and preferred when useful:
+## Do
 
-- Analyze YouTube modules, workflows, UX, edge cases, and APIs before coding
-- Compare our codebase to YouTube; audit gaps, divergences, and debt
-- Design architecture, data models, and migration plans for parity
-- Propose removals/refactors when existing FORGE behavior ≠ YouTube
-- Discuss trade-offs, scalability, and maintainability openly
+- Match YouTube **behavior** for watch, Shorts, live, subs, comments, likes, playlists, search, Studio chrome, notifications, reports — unless an ADR records an intentional gap (approval gate, no ads, skill taxonomy, rooms).
+- Analyze YouTube (and Skillshare/Patreon/Twitch where relevant) before inventing a custom flow.
+- Replicate **functionality and UX patterns**, not trademarks or proprietary internals.
 
-Do **not** skip analysis to “just ship something custom.” Do **not** treat this rule as a ban on exploration, planning, or deep review.
+## Scope
 
-## When implementing
-
-- Match YouTube behavior for flows, roles, and surfaces: user, creator (channel), admin, video, channel, subscriptions, comments, likes/dislikes, playlists, search, recommendations, notifications, analytics, monetization (where applicable), reports/moderation, settings & permissions.
-- Align APIs, UI, and state machines with YouTube’s model where practical on our stack; document intentional gaps only when forced by tech or law.
-- If an existing feature, workflow, or UI conflicts with YouTube parity → **remove or refactor** toward YouTube, don’t extend the divergence as “FORGE-unique” unless the user explicitly asks.
-- Reuse and improve current modules; optimize structure/quality while moving toward parity — don’t rewrite the monorepo for novelty.
-
-## Scope discipline
-
-- Still follow `forge-core` (smallest safe change, match local conventions) and `forge-ship` (no unsolicited commits/deploys).
-- Parity work can be large; analyze and plan freely, but implement in focused slices unless the user asks for a broad pass.
-- Legal/branding: replicate **functionality and UX patterns**, not YouTube trademarks, assets, or proprietary internals.
+Follow `forge-core` and `forge-ship`. Prefer smallest change; don’t rewrite the monorepo for novelty.

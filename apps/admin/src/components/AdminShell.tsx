@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Icon } from '@forge/design-system';
 import { adminLogout, api } from '@/lib/api';
@@ -14,6 +14,7 @@ import {
   isCoursesFeatureEnabled,
   isMentorshipFeatureEnabled,
 } from '@forge/shared-types';
+import { AdminNotificationsBell } from '@/components/AdminNotificationsBell';
 
 type NavItem = { href: string; label: string; icon: string };
 type NavGroup = { label: string; items: NavItem[] };
@@ -28,6 +29,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/creator-approvals', label: 'Approvals', icon: 'verified' },
       { href: '/content', label: 'Content', icon: 'video_library' },
+      { href: '/content?moderationStatus=held', label: 'Held videos', icon: 'privacy_tip' },
       { href: '/comments', label: 'Held comments', icon: 'forum' },
       { href: '/reports', label: 'Reports', icon: 'flag' },
       { href: '/ai', label: 'AI budget', icon: 'psychology' },
@@ -59,17 +61,34 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-function isActive(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
+function isActive(pathname: string, href: string, search: string): boolean {
+  const [path, query = ''] = href.split('?');
+  if (pathname !== path && !pathname.startsWith(`${path}/`)) return false;
+  if (query) {
+    const params = new URLSearchParams(query);
+    const current = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+    for (const [key, value] of params.entries()) {
+      if (current.get(key) !== value) return false;
+    }
+    return true;
+  }
+  // Bare `/content` should not stay highlighted when a held filter is active.
+  if (path === '/content') {
+    const current = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+    return current.get('moderationStatus') !== 'held';
+  }
+  return true;
 }
 
 function NavLinks({
   pathname,
+  search,
   onNavigate,
   fullAdmin,
   skillFeatures,
 }: {
   pathname: string;
+  search: string;
   onNavigate?: () => void;
   fullAdmin: boolean;
   skillFeatures: {
@@ -95,7 +114,7 @@ function NavLinks({
             {group.label}
           </p>
           {items.map((item) => {
-            const active = isActive(pathname, item.href);
+            const active = isActive(pathname, item.href, search);
             return (
               <Link
                 key={item.href}
@@ -139,6 +158,8 @@ function SidebarFooter({ onLogout, onNavigate }: { onLogout: () => void; onNavig
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString() ? `?${searchParams.toString()}` : '';
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { data: adminProfile } = useAdminProfile();
@@ -203,7 +224,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
-          <NavLinks pathname={pathname} fullAdmin={fullAdmin} skillFeatures={skillNav} />
+          <NavLinks pathname={pathname} search={search} fullAdmin={fullAdmin} skillFeatures={skillNav} />
         </nav>
         <SidebarFooter onLogout={logout} />
       </aside>
@@ -215,6 +236,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </Link>
           <p className="hidden text-sm text-on-surface-variant md:block">Platform administration</p>
           <div className="ml-auto flex items-center gap-1">
+            <AdminNotificationsBell />
             <Link
               href="/search"
               className="inline-flex items-center gap-2 rounded-lg border border-outline-variant/30 px-3 py-1.5 text-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface"
@@ -266,6 +288,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4 pt-6">
                 <NavLinks
                   pathname={pathname}
+                  search={search}
                   fullAdmin={fullAdmin}
                   skillFeatures={skillNav}
                   onNavigate={() => setMobileOpen(false)}

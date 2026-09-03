@@ -1,7 +1,7 @@
 # Discovery, Search & Recommendations — Platform Research
 
 **Slug:** `discovery-search-recommendations`
-**Status:** Research / gap analysis for documentation overhaul (not an implementation spec authority — see Open Questions before building)
+**Status:** Historical research (Aug 2026). **Not SSOT.** Recs/search decisions: [ADR-008](../decisions/ADR-008-recommendations-approach.md), [ADR-010](../decisions/ADR-010-search-fts.md), audit 2026-09-03.
 **Domain covers:** search infrastructure and ranking, categorization/taxonomy, recommendation systems (home feed, up-next/related, personalized/trending), the watch/viewing experience, and the home/feed experience.
 
 ---
@@ -93,7 +93,7 @@ YouTube's public-facing taxonomy is a flat, shallow set of ~15 verticals (Music,
 `docs/FORGE_PROJECT_MASTER.md` (line 12) frames FORGE as "a skill-first creator platform: on-demand lessons, live teaching, categories/skill tags, communities, and mock memberships," and lists (lines 107–117, 280–283, 489–508) a full **`CoursesModule`** (catalog, cohorts, lessons, enrollment, progress, quizzes, assignments, grading, certificates) and **`ChannelPointsModule`** (Twitch-style points) and **Mentorship** (`MentorshipService`, skill-overlap matching) as first-class root modules — separate entirely from `apps/api/src/modules/content` (videos).
 
 Grounding this against the discovery surfaces specifically:
-- `CoursesController` exposes its own `GET courses/discover` and `GET courses/discover/featured`, **completely separate from** `/search` and `/videos/feed/*`. A course is not searchable through the unified search endpoint, not eligible for the `forYou` feed, and not part of the related/up-next rail.
+- `CoursesController` still exposes `GET courses/discover` and `GET courses/discover/featured`. Unified `/search` also returns course hits when `FEATURES_COURSES` is on (`type=all|course` → `searchCourses` / discover ILIKE). Courses are not yet in the `forYou` SQL recs catalog as first-class entities (lesson videos get an enrollment boost).
 - The taxonomy (`Category`/`Subcategory`/`SkillTag`) is named and shaped for a "skills" framing (skill tags, skill-overlap mentorship matching) rather than YouTube's topic/category model, even though it's reused as FORGE's video category system.
 - The web IA has a fragmented result: `/explore`, `/explore/skills/*`, `/discover/communities`, `/trending`, and (implicitly) a courses discovery surface that isn't wired into any of the above.
 

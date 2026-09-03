@@ -91,6 +91,8 @@ export interface Video {
   viewerSubscribed?: boolean;
   /** Resume position when returned from continue-watching / incomplete history. */
   viewerProgressSeconds?: number;
+  /** Owner/admin — `held` means content scan / safety review. */
+  moderationStatus?: 'none' | 'held' | 'blocked';
 }
 
 export interface Stream {
@@ -171,7 +173,8 @@ export type NotificationType =
   | 'copyright_video_reinstated'
   | 'strike_issued'
   | 'strike_rescinded'
-  | 'strike_appeal_resolved';
+  | 'strike_appeal_resolved'
+  | 'content_scan_held';
 
 export interface Notification {
   id: string;

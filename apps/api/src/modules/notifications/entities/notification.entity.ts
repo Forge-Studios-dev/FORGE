@@ -33,6 +33,7 @@ export enum NotificationType {
   STRIKE_ISSUED = 'strike_issued',
   STRIKE_RESCINDED = 'strike_rescinded',
   STRIKE_APPEAL_RESOLVED = 'strike_appeal_resolved',
+  CONTENT_SCAN_HELD = 'content_scan_held',
 }
 
 @Entity('notifications')

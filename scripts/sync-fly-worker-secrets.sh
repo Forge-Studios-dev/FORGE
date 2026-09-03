@@ -69,6 +69,9 @@ keys = {
     # Required by validateProductionEnv() on every process, including the worker —
     # missing here means the worker fails closed at boot (env-production.schema.ts).
     "METRICS_SCRAPE_TOKEN",
+    # Content scan (ADR-012): worker runs Mux-ready path and must match API gate.
+    "CONTENT_SCAN_PROVIDER", "CONTENT_SCAN_ALLOW_NOOP",
+    "CONTENT_SCAN_WEBHOOK_URL", "CONTENT_SCAN_WEBHOOK_TOKEN", "CONTENT_SCAN_TIMEOUT_MS",
     # Keep worker DB pool aligned with API (Neon cost + connection budget)
     "DB_POOL_MAX", "DB_CONNECT_TIMEOUT_MS", "DB_POOL_IDLE_TIMEOUT_MS", "DB_SLOW_QUERY_MS",
 }

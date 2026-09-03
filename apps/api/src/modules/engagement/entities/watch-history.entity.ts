@@ -1,8 +1,9 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Video } from '../../content/entities/video.entity';
 
 @Entity('watch_history')
+@Index('IDX_watch_history_watched_at', ['watchedAt'])
 export class WatchHistory {
   @PrimaryColumn({ name: 'user_id', type: 'uuid' })
   userId: string;

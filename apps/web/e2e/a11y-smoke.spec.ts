@@ -126,6 +126,27 @@ test.describe('a11y smoke', () => {
     await assertNoSeriousViolations(page);
   });
 
+  test('discover courses has no serious axe violations', async ({ page }) => {
+    await page.goto('/discover/courses');
+    // Feature flag off → redirect to /explore
+    await expect(
+      page
+        .getByRole('heading', { name: /course|discover/i })
+        .first()
+        .or(page.getByTestId('forge-explore'))
+        .or(page.getByRole('heading', { name: /welcome back/i })),
+    ).toBeVisible({ timeout: 20_000 });
+    await assertNoSeriousViolations(page);
+  });
+
+  test('discover communities has no serious axe violations', async ({ page }) => {
+    await page.goto('/discover/communities');
+    await expect(page.getByRole('heading', { name: /communit/i }).first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await assertNoSeriousViolations(page);
+  });
+
   test('privacy policy has no serious axe violations', async ({ page }) => {
     await page.goto('/privacy');
     await expect(page.getByRole('heading', { name: /privacy/i }).first()).toBeVisible({

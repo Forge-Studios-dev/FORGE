@@ -33,7 +33,7 @@ Both video-ready paths call `ContentScanService.scanVideo()` right before markin
 On a non-`approve` verdict:
 - `Video.moderationStatus` is set to `held` or `blocked` (existing column — `shouldIndexVideo()`/`indexedAtOnReady()` already gate indexing on `moderationStatus === NONE`, so a held/blocked video's `indexedAt` stays `null` and it never enters search/feed/recommendations even though transcoding succeeded).
 - `Video.moderationNote` records the provider + flagged categories; `moderationAt` is stamped.
-- `video.content_scan_held` is emitted instead of `video.ready` — so subscriber notifications and feed-cache invalidation for "new video" don't fire for a video that hasn't cleared review. (No admin-facing surface consumes this event yet — it's a hook for future moderation-queue/admin-notification work, same as other emit-only events in this codebase.)
+- `video.content_scan_held` is emitted instead of `video.ready` — so subscriber notifications and feed-cache invalidation for "new video" don't fire for a video that hasn't cleared review. Platform admins and the uploader receive in-app + push `content_scan_held` notifications; Admin → Content filters `moderationStatus=held`.
 
 An `approve` verdict (including the no-op default) proceeds exactly as before this change.
 
@@ -43,7 +43,32 @@ See `.env.example`:
 
 ```
 CONTENT_SCAN_PROVIDER=none        # or 'webhook'
+CONTENT_SCAN_ALLOW_NOOP=true      # required in production while provider=none (ADR-012)
 CONTENT_SCAN_WEBHOOK_URL=
 CONTENT_SCAN_WEBHOOK_TOKEN=       # optional Bearer token
 CONTENT_SCAN_TIMEOUT_MS=15000
 ```
+
+**Production boot (ADR-012):** `NODE_ENV=production` with `CONTENT_SCAN_PROVIDER=none` **fails closed** unless `CONTENT_SCAN_ALLOW_NOOP=true`. Webhook mode requires `CONTENT_SCAN_WEBHOOK_URL` (no silent fallback to noop). Acknowledgment ≠ CSAM protection — vendor integration remains the launch gate ([ADR-009](./decisions/ADR-009-content-scanning.md)).
+
+### Fly secrets
+
+```bash
+# Temporary noop acknowledgment (API + worker)
+export CONTENT_SCAN_ALLOW_NOOP=true
+npm run set:fly:content-scan-secrets
+# or: bash scripts/set-content-scan-secrets-fly.sh
+
+# After vendor is live:
+export CONTENT_SCAN_PROVIDER=webhook
+export CONTENT_SCAN_WEBHOOK_URL=https://…
+export CONTENT_SCAN_WEBHOOK_TOKEN=…   # optional
+npm run set:fly:content-scan-secrets
+npm run sync:fly:worker-secrets   # also copies CONTENT_SCAN_* from API → worker
+```
+
+`verify:production` warns when `CONTENT_SCAN_ALLOW_NOOP` is unset in non-production env files (prod uses `check:prod-env`).
+
+Health `checks.contentScan`: `webhook` | `misconfigured` | `noop` | `noop_ack` (when `CONTENT_SCAN_ALLOW_NOOP=true`). Admin Settings surfaces the same labels.
+
+Held videos appear in Admin → Content (`moderationStatus=held`). Platform admins receive in-app + push `content_scan_held` notifications (Admin header bell + consumer deep link via `NEXT_PUBLIC_ADMIN_URL`).

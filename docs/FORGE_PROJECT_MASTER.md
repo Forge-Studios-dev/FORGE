@@ -24,9 +24,7 @@ Channels (creator identity on `User`), video upload/watch, subscriptions, playli
 
 Web/mobile skill surfaces (courses, mentorship, channel points, programs when LMS on) ship behind granular flags via `apps/api/src/common/features/skill-platform.ts` and `GET /platform/config` → `skillFeatures`.
 
-**Communities 2.0** (`CommunitiesModule`) splits into two tiers, decided 2026-08-12 (closing the per-module call below): **posts + polls + membership tiers are core** — this *is* FORGE's implementation of YouTube's actual Community tab (text posts, images, polls) and Channel Memberships, not an extension, and ships unconditionally. **Rooms (real-time chat) and events/RSVPs are a labeled extension** beyond anything in YouTube's Community tab — kept, not sunset or flag-gated, because unlike the skill-economy-LMS surfaces (which had zero live frontend usage when audited) these are unconditionally wired into the live web/mobile UI and load-bearing for already-shipped moderation/permissions/analytics work; retroactively disabling them would be a breaking product change out of proportion to a documentation exercise, and needs its own explicit sign-off if ever pursued — this decision only labels them, it doesn't touch their behavior.
-
-**Decision record:** accepted 2026-08-09, extension-layer framing; per-module keep/refactor/sunset call closed 2026-08-12 (above). See [PLATFORM_AUDIT_2026-08-09.md §1](./PLATFORM_AUDIT_2026-08-09.md#1-the-1-open-decision-what-is-forge-actually).
+**Communities 2.0** (`CommunitiesModule`) splits into two tiers ([ADR-004](./decisions/ADR-004-communities-extension.md)): **posts + polls + membership tiers are core** — YouTube Community tab + Channel Memberships. **Rooms and events/RSVPs are a labeled skill-community extension** — always on, not a YouTube-parity bug.
 
 | Surface | Stack | Host |
 |---------|--------|------|
@@ -229,7 +227,7 @@ Helpers: `@forge/shared-types` `parseFeatureFlags`, `isFeatureEnabled`.
 - **React (client):** `ConfirmDialog`, `FadeIn`, `PageEnter`, `StaggerGrid`, `Dialog`, `Tabs`/`TabPanel`, `DataTable`, `Sparkline`/`TrendChart`, `ToastProvider`/`useToast` — import from `@forge/design-system/client`
 - **Mobile tokens:** `apps/mobile/lib/core/theme/forge_tokens.dart`
 
-Product rule: YouTube-replica video platform — prefer YouTube parity in primary chrome; see `.cursor/rules/forge-frontend-ux.mdc` / `.claude/rules/forge-frontend-ux.md`. (Older wording here said "distinct visual identity, not a YouTube clone" — that line has since moved on in the rule itself; corrected 2026-08-09, see [PLATFORM_AUDIT_2026-08-09.md §1](./PLATFORM_AUDIT_2026-08-09.md#1-the-1-open-decision-what-is-forge-actually).)
+Product rule: skill-first creator platform with YouTube-style mechanics in primary chrome; see `forge-product` + `forge-youtube-replica` and [FORGE_PRODUCT_STRATEGY.md](./FORGE_PRODUCT_STRATEGY.md).
 
 ### Stitch blueprints (UI reference)
 
@@ -354,41 +352,44 @@ Migrations: `apps/api/src/database/migrations/` · `migrationsRun: true` on API 
 
 ## 16. Feature status matrix
 
-High-level snapshot only. **Authoritative task-level tracker:** [FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md](./FORGE_CREATOR_ECONOMY_OS_MASTER_TRACKER.md) (96.6% complete, 684 tasks).
+High-level snapshot only. **This table is the feature-status SSOT.** The CEOS tracker is a historical task list — do not cite its completion % as product status.
 
 | Domain | API | Web | Admin | Mobile | Worker |
 |------|:---:|:---:|:-----:|:------:|:------:|
 | Auth & sessions | ✅ | ✅ | ✅ | ✅ | — |
 | Google OAuth | ✅ | ✅ | — | ✅ | — |
-| Feed & personalized recommendations | ✅ | ✅ | ✅ | ⚠️ | — |
+| Feed & personalized recommendations | ✅ | ✅ | ✅ | ✅ | — |
 | VOD upload/playback | ✅ | ✅ | — | ⚠️ | ✅ |
 | Podcasts (series, episodes, iTunes RSS) | ✅ | — | — | — | — |
 | Live (Mux + LiveKit, co-hosts, VIP, breakout) | ✅ | ✅ | ✅ | ⚠️ | ✅ |
 | Engagement (likes, comments, follow) | ✅ | ✅ | — | ✅ | ✅ |
 | Direct messages | ✅ | ✅ | — | ✅ | — |
-| Playlists | ✅ | ✅ | — | ⏳ | — |
+| Playlists | ✅ | ✅ | — | ✅ | — |
 | Creator studio | ✅ | ✅ | — | ⚠️ | — |
-| Memberships & Stripe billing | ✅ | ✅ | — | ⚠️ | ✅ |
+| Memberships & Stripe billing | ✅ | ✅ | ⚠️ | ⚠️ | ✅ |
 | Communities (rooms, posts, events) | ✅ | ✅ | ✅ | ⚠️ | ✅ |
-| Community engagement (wiki, polls, challenges) | ✅ | ✅ | — | ⚠️ | ✅ |
+| Community polls | ✅ | ✅ | — | ✅ | ✅ |
 | Channel points (earn, redeem, rewards) | ✅ | ✅ | ✅ | ✅ | — |
 | Mentorship matching (profiles, scoring, lifecycle) | ✅ | ✅ | ✅ | ✅ | — |
-| Gamification (XP, streaks, badges, retention milestones) | ✅ | ✅ | — | ⚠️ | — |
+| Gamification API (XP, streaks) | ✅ | — | — | — | — |
 | Courses & programs | ✅ | ✅ | ✅ | ✅ | — |
 | Creator bundles | ✅ | ✅ | — | ⚠️ | — |
 | Stream chat & reactions | ✅ | ✅ | — | ⚠️ | ✅ |
 | Access sessions / device caps | ✅ | ✅ | — | ⚠️ | — |
-| Reports & moderation | ✅ | — | ✅ | — | ✅ |
+| Reports & moderation | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Fraud detection (billing anomalies, velocity, chargeback) | ✅ | — | ✅ | — | — |
 | Admin hub | ✅ | impersonate | ✅ | — | — |
-| FCM push | ⚠️ | — | — | ⚠️ | ✅ |
+| FCM push | ⚠️ | ⚠️ | — | ⚠️ | ✅ |
 | Analytics & creator BI | ✅ | ⚠️ | ✅ | ⚠️ | ✅ |
-| AI (moderation, copilot) | ⚠️ | ⚠️ | — | ⏳ | ✅ |
+| AI (moderation, copilot) | ⚠️ | ⚠️ | — | ⚠️ | ✅ |
 | Blueprints gallery | flag | flag | — | — | — |
+| Content scan (CSAM vendor) | ⚠️ | — | ⚠️ | — | ⚠️ |
 
-✅ MVP-ready · ⚠️ partial or config-dependent · ⏳ not started
+✅ MVP-ready · ⚠️ partial or config-dependent · ⏳ not started / routed away
 
-**Tracker:** 3 ⏳ items remaining (optional infra only) · 15 🚫 blocked on external deps (Meilisearch, pgvector, DRM, 50K load test).
+**Launch blockers (not % complete):** CSAM vendor (R-01), Stripe live keys (R-09), load-test evidence, Neon drill 2026-10-22. See [FORGE_IMPLEMENTATION_ROADMAP.md](./FORGE_IMPLEMENTATION_ROADMAP.md).
+
+**2026-09-03 engineering pass:** Mobile Studio depth (playlists, upload-reliability, analytics-details, go-live parity, Copilot gated on `ai.creatorInsights`), ADR-012 scan gate + admin/uploader held notify, FCM click routing (admin URL from platform config), SEO/a11y. FCM ⚠️ = Firebase/keys ops-dependent, not missing client wiring. AI mobile ⚠️ = screen live when `AI_CLAUDE_ENABLED` + Anthropic key. Remaining Studio/Live ⚠️ rows are LiveKit browser go-live / thin surfaces — not missing Studio chrome.
 
 ---
 

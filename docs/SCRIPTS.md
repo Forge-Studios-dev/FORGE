@@ -22,7 +22,10 @@ Run from **repository root** unless noted.
 | `smoke-api.sh` | `smoke:api` / `smoke:api:prod` | Health + auth smoke against API |
 | `smoke-memberships.sh` | `smoke:memberships` / `smoke:memberships:prod` | Membership tier + mock subscribe smoke |
 | `smoke-community-2.0.sh` | `smoke:community-2.0` | Community 2.0: multi-community, brands, business analytics (funnel + cohorts), courses, gamification, access sessions |
-| `smoke-skill-features.sh` | `smoke:skill-features` | Skill flags, discover, course search, creator courses, programs (LMS), admin courses overview |
+| `load-test-feed.sh` | `load-test:feed` | Staging feed/search/watch soak |
+| `load-test-community.sh` | `load-test:community` | Community hot path |
+| `load-test-entitlements.sh` | `load-test:entitlements` | Entitlements soak |
+| `verify-neon-dr-checklist.sh` | `verify:neon-dr` | Neon DR checklist (+ optional `dr-db-verify.sh`) |
 
 | `create-skill-platform-pr.sh` | `pr:skill-platform` | Create PR for `feature/skill-first-platform` (requires `gh auth login`) |
 
@@ -53,7 +56,8 @@ GitHub Actions: **Skill features smoke** (`workflow_dispatch` in `.github/workfl
 |--------|-----------|---------|
 | `fly-setup.sh` | `deploy:fly` | First-time / update Fly API app |
 | `fly-worker-setup.sh` | `deploy:fly:worker` | Fly worker app (FFmpeg / BullMQ, `WORKER_ONLY`) |
-| `sync-fly-worker-secrets.sh` | `sync:fly:worker-secrets` | Copy secrets from API Fly app → worker |
+| `sync-fly-worker-secrets.sh` | `sync:fly:worker-secrets` | Copy secrets from API Fly app → worker (includes `CONTENT_SCAN_*`) |
+| `set-content-scan-secrets-fly.sh` | `set:fly:content-scan-secrets` | Set ADR-012 content-scan secrets (`ALLOW_NOOP` or webhook) on API + worker |
 | `vercel-setup.sh` | `deploy:vercel` | Deploy web + admin to Vercel |
 | `deploy-production-complete.sh` | `deploy:production` | Fly + Vercel + DNS hints |
 | `fly-gcp-oidc-token.sh` | — | GCP OIDC token helper for Firebase WIF |

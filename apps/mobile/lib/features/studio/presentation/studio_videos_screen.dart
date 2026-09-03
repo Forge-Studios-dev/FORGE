@@ -42,6 +42,7 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
   bool _loading = true;
   bool _loadingMore = false;
   bool _error = false;
+  bool _releasingStuck = false;
 
   @override
   void initState() {
@@ -130,6 +131,39 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
     });
   }
 
+  Future<void> _clearStuckUploads() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear stuck uploads?'),
+        content: const Text(
+          'Releases incomplete uploads that appear stuck so you can start fresh.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _releasingStuck = true);
+    try {
+      await ref.read(studioRepositoryProvider).releaseStuckUploads();
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Stuck uploads cleared')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not clear stuck uploads')),
+      );
+    } finally {
+      if (mounted) setState(() => _releasingStuck = false);
+    }
+  }
+
   Widget _filterChip({
     required String label,
     required bool selected,
@@ -154,6 +188,24 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
           tooltip: 'Back',
           onPressed: () => context.canPop() ? context.pop() : context.go('/studio'),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Upload reliability',
+            onPressed: () => context.push('/studio/upload-reliability'),
+            icon: const Icon(Icons.cloud_sync_outlined),
+          ),
+          IconButton(
+            tooltip: 'Clear stuck uploads',
+            onPressed: _releasingStuck ? null : _clearStuckUploads,
+            icon: _releasingStuck
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.cleaning_services_outlined),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -403,6 +455,8 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: ForgeCard(
+            semanticLabel:
+                '${v.title}, ${_statusLabel(v.status)}${v.moderationStatus == 'held' ? ', Held for review' : ''}${v.videoType == 'short' ? ', Short' : ''}, ${v.viewCount} views',
             onTap: () => context.push('/studio/videos/${v.id}'),
             child: Row(
               children: [
@@ -421,6 +475,8 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                       Text(
                         [
                           _statusLabel(v.status),
+                          if (v.moderationStatus == 'held') 'Held for review',
+                          if (v.moderationStatus == 'blocked') 'Blocked',
                           if (v.videoType == 'short') 'Short',
                           if (v.visibility != null) v.visibility!,
                           '${v.viewCount} views',
@@ -431,7 +487,9 @@ class _StudioVideosScreenState extends ConsumerState<StudioVideosScreen> {
                         ].join(' · '),
                         style: TextStyle(
                           fontSize: 13,
-                          color: _statusColor(context, v.status),
+                          color: v.moderationStatus == 'held' || v.moderationStatus == 'blocked'
+                              ? ForgeTokens.of(context).error
+                              : _statusColor(context, v.status),
                         ),
                       ),
                     ],

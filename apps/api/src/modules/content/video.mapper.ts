@@ -22,6 +22,8 @@ export type PublicVideo = {
   description: string | null;
   status: Video['status'];
   visibility: Video['visibility'];
+  /** Owner/admin surfaces — `held` means content scan / safety review. */
+  moderationStatus?: ModerationStatus;
   hlsUrl: string | null;
   thumbnailUrl: string | null;
   captionUrl: string | null;
@@ -98,6 +100,7 @@ export function toPublicVideo(video: Video, opts?: PublicVideoMapperOpts): Publi
     description: video.description,
     status: video.status,
     visibility: video.visibility,
+    moderationStatus: video.moderationStatus,
     hlsUrl: rewrite(playback.hlsUrl),
     thumbnailUrl: rewrite(playback.thumbnailUrl),
     captionUrl: rewrite(playback.captionUrl),

@@ -6,7 +6,17 @@ class ForgeCard extends StatefulWidget {
   final EdgeInsetsGeometry? padding;
   final VoidCallback? onTap;
 
-  const ForgeCard({super.key, required this.child, this.padding, this.onTap});
+  /// Optional VoiceOver / TalkBack label. When [onTap] is set, the card is
+  /// exposed as a button; prefer an explicit label for skill Studio lists.
+  final String? semanticLabel;
+
+  const ForgeCard({
+    super.key,
+    required this.child,
+    this.padding,
+    this.onTap,
+    this.semanticLabel,
+  });
 
   @override
   State<ForgeCard> createState() => _ForgeCardState();
@@ -23,7 +33,7 @@ class _ForgeCardState extends State<ForgeCard> {
       child: widget.child,
     );
 
-    return AnimatedScale(
+    final card = AnimatedScale(
       scale: _pressed ? 0.98 : 1,
       duration: const Duration(milliseconds: 150),
       curve: Curves.easeOutCubic,
@@ -51,6 +61,14 @@ class _ForgeCardState extends State<ForgeCard> {
           ),
         ),
       ),
+    );
+
+    if (widget.semanticLabel == null && widget.onTap == null) return card;
+
+    return Semantics(
+      button: widget.onTap != null,
+      label: widget.semanticLabel,
+      child: card,
     );
   }
 }

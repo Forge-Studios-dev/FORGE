@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Icon, PageHeader, StatusPill } from '@forge/design-system';
+import { Button, Icon, PageHeader, StatusPill } from '@forge/design-system';
+import { api } from '@/lib/api';
+import { getApiErrorMessage } from '@/lib/api-message';
 import { getActiveUpload, subscribeActiveUpload, type ActiveUploadMeta } from '@/lib/upload-manager';
 
 const PHASES = [
@@ -15,6 +17,8 @@ const PHASES = [
 
 export default function StudioUploadReliabilityPage() {
   const [active, setActive] = useState<ActiveUploadMeta | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const [clearMsg, setClearMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setActive(getActiveUpload());
@@ -24,6 +28,23 @@ export default function StudioUploadReliabilityPage() {
   const multipart = active?.multipart;
   const completed = multipart?.completedParts ?? 0;
   const total = multipart?.partCount ?? 0;
+
+  async function clearStuckUploads() {
+    if (clearing) return;
+    if (!window.confirm('Release incomplete uploads that appear stuck so you can start fresh?')) {
+      return;
+    }
+    setClearing(true);
+    setClearMsg(null);
+    try {
+      await api.post('/videos/release-stuck-uploads');
+      setClearMsg('Stuck uploads cleared.');
+    } catch (e: unknown) {
+      setClearMsg(getApiErrorMessage(e, 'Could not clear stuck uploads.'));
+    } finally {
+      setClearing(false);
+    }
+  }
 
   return (
     <main className="space-y-6">
@@ -90,20 +111,29 @@ export default function StudioUploadReliabilityPage() {
         ))}
       </section>
 
-      <section className="glass-panel rounded-2xl p-6">
+      <section className="glass-panel space-y-4 rounded-2xl p-6">
         <div className="flex items-start gap-3">
           <Icon name="wifi_tethering" className="mt-0.5 text-secondary" />
-          <div>
+          <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold">Recovery tips</h2>
             <ul className="mt-3 space-y-2 text-sm text-on-surface-variant">
               <li>Leave Studio open or return later — multipart progress is checkpointed.</li>
-              <li>Use Cancel / Clear stuck uploads in Videos if a transfer is abandoned.</li>
+              <li>Use Clear stuck uploads below (or in Videos) if a transfer is abandoned.</li>
               <li>Offline and slow-network banners appear automatically while you work.</li>
               <li>Metadata is autosaved in the upload draft before finalize.</li>
             </ul>
-            <Link href="/upload" className="mt-4 inline-flex text-sm text-primary hover:underline">
-              Start an upload
-            </Link>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Button type="button" onClick={() => void clearStuckUploads()} disabled={clearing}>
+                {clearing ? 'Clearing…' : 'Clear stuck uploads'}
+              </Button>
+              <Link href="/upload" className="text-sm text-primary hover:underline">
+                Start an upload
+              </Link>
+              <Link href="/studio/videos" className="text-sm text-primary hover:underline">
+                Open Videos
+              </Link>
+            </div>
+            {clearMsg ? <p className="mt-3 text-sm text-on-surface-variant">{clearMsg}</p> : null}
           </div>
         </div>
       </section>

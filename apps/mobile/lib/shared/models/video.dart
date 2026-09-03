@@ -25,6 +25,7 @@ class VideoModel {
   final DateTime? scheduledPublishAt;
   final String? categoryId;
   final List<SkillTagRef> skillTags;
+  final String? moderationStatus;
 
   const VideoModel({
     required this.id,
@@ -53,6 +54,7 @@ class VideoModel {
     this.scheduledPublishAt,
     this.categoryId,
     this.skillTags = const [],
+    this.moderationStatus,
   });
 
   factory VideoModel.fromJson(Map<String, dynamic> json) => VideoModel(
@@ -103,6 +105,7 @@ class VideoModel {
             .map((e) => SkillTagRef.fromJson(Map<String, dynamic>.from(e)))
             .where((t) => t.id.isNotEmpty)
             .toList(),
+        moderationStatus: json['moderationStatus'] as String?,
       );
 
   /// Round-trips through [fromJson] — used for the offline cache (HIGH-07),
@@ -134,6 +137,7 @@ class VideoModel {
         'scheduledPublishAt': scheduledPublishAt?.toIso8601String(),
         'categoryId': categoryId,
         'skillTags': skillTags.map((e) => e.toJson()).toList(),
+        'moderationStatus': moderationStatus,
       };
 }
 

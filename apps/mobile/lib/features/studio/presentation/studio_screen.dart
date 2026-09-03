@@ -111,6 +111,7 @@ class StudioScreen extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: ForgeCard(
+        semanticLabel: '$title. $subtitle',
         onTap: () {
           Navigator.of(context).pop();
           context.push(route);
@@ -154,6 +155,7 @@ class StudioScreen extends ConsumerWidget {
     final coursesEnabled = platformCoursesEnabled(platformConfig);
     final mentorshipEnabled = platformMentorshipEnabled(platformConfig);
     final channelPointsEnabled = platformChannelPointsEnabled(platformConfig);
+    final creatorInsightsEnabled = platformCreatorInsightsEnabled(platformConfig);
     final totalUrgent = attentionAsync.maybeWhen(
       data: (a) {
         final c = a.counts;
@@ -212,6 +214,9 @@ class StudioScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           ForgeCard(
+            semanticLabel: totalUrgent > 0
+                ? 'Attention, $totalUrgent urgent items'
+                : 'Attention queue',
             onTap: () => context.push('/studio/attention'),
             child: Row(
               children: [
@@ -269,9 +274,16 @@ class StudioScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           _zoneLabel(context, 'Content'),
           _link(context, 'Videos', 'Manage uploads', Icons.video_library, '/studio/videos'),
+          _link(
+            context,
+            'Upload reliability',
+            'Resumable uploads & stuck recovery',
+            Icons.cloud_sync_outlined,
+            '/studio/upload-reliability',
+          ),
           if (coursesEnabled)
             _link(context, 'Courses', 'Video-lesson courses', Icons.school_outlined, '/studio/courses'),
-          _link(context, 'Playlists', 'Organize channel playlists', Icons.playlist_play, '/playlists'),
+          _link(context, 'Playlists', 'Organize channel playlists', Icons.playlist_play, '/studio/playlists'),
           _link(context, 'Community posts', 'Post to your channel Community tab', Icons.campaign_outlined, '/studio/channel-posts'),
           _link(context, 'Go live', 'Start a stream', Icons.sensors, '/studio/live'),
           _link(context, 'Comments', 'Reply to viewers', Icons.forum, '/studio/comments'),
@@ -281,6 +293,21 @@ class StudioScreen extends ConsumerWidget {
           _link(context, 'Moderation', 'Reports & trust queue', Icons.shield, '/studio/moderation'),
           _zoneLabel(context, 'Grow'),
           _link(context, 'Analytics', 'Performance insights', Icons.analytics, '/studio/analytics'),
+          _link(
+            context,
+            'Video performance',
+            'Top videos · CTR · watch %',
+            Icons.insights_outlined,
+            '/studio/analytics/details',
+          ),
+          if (creatorInsightsEnabled)
+            _link(
+              context,
+              'Copilot',
+              'Channel insights & recommendations',
+              Icons.auto_awesome_outlined,
+              '/studio/copilot',
+            ),
           _link(context, 'Earnings', 'Memberships + tips summary', Icons.payments_outlined, '/studio/earnings'),
           _link(context, 'Super Thanks', 'Tips from viewers', Icons.volunteer_activism, '/studio/super-thanks'),
           _link(context, 'Memberships', 'Configure tiers', Icons.workspace_premium, '/studio/tiers'),
@@ -316,6 +343,7 @@ class StudioScreen extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: ForgeCard(
+        semanticLabel: '$title. $sub',
         onTap: () => context.push(route),
         child: Row(
           children: [

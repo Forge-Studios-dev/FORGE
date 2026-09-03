@@ -149,6 +149,12 @@ function VideoRow({
             label={STATUS_LABEL[video.status] ?? video.status}
             className="mr-2"
           />
+          {video.moderationStatus === 'held' ? (
+            <StatusPill tone="critical" label="Held for review" className="mr-2" />
+          ) : null}
+          {video.moderationStatus === 'blocked' ? (
+            <StatusPill tone="critical" label="Blocked" className="mr-2" />
+          ) : null}
           {canSetVisibility ? (
             <label className="ml-1 inline-flex items-center gap-1">
               <span className="sr-only">Visibility</span>

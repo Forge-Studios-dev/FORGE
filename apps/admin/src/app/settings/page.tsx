@@ -142,9 +142,11 @@ export default function SettingsPage() {
                     <span className="text-outline">{key}</span>
                     <span
                       className={
-                        value === 'ok' || value === 'webhook'
+                        value === 'ok' || value === 'webhook' || value === 'stripe'
                           ? 'text-secondary'
-                          : value === 'noop'
+                          : value === 'noop' ||
+                              value === 'noop_ack' ||
+                              value === 'stub'
                             ? 'text-on-surface-variant'
                             : 'text-tertiary'
                       }
@@ -154,10 +156,22 @@ export default function SettingsPage() {
                   </li>
                 ))}
               </ul>
-              {health.checks?.contentScan === 'noop' ? (
+              {health.checks?.contentScan === 'noop' ||
+              health.checks?.contentScan === 'noop_ack' ? (
                 <p className="text-xs text-on-surface-variant">
-                  Content scan is noop until <code className="text-on-surface">CONTENT_SCAN_PROVIDER=webhook</code>{' '}
-                  and a vendor URL are configured (ops/legal).
+                  Content scan is {health.checks.contentScan === 'noop_ack' ? 'acknowledged noop' : 'noop'}{' '}
+                  until <code className="text-on-surface">CONTENT_SCAN_PROVIDER=webhook</code> and a
+                  vendor URL are configured. Acknowledgment (ADR-012) is not CSAM protection.
+                </p>
+              ) : null}
+              {health.checks?.billing === 'stub' ? (
+                <p className="text-xs text-on-surface-variant">
+                  Billing provider is stub — Stripe live cutover is still an ops checklist item.
+                </p>
+              ) : null}
+              {health.checks?.billing === 'misconfigured' ? (
+                <p className="text-xs text-tertiary" role="alert">
+                  BILLING_PROVIDER=stripe but Stripe secret key is missing.
                 </p>
               ) : null}
               {health.checks?.contentScan === 'misconfigured' ? (

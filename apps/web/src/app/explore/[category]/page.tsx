@@ -23,7 +23,10 @@ const getCategoryName = cache(async (slug: string): Promise<string> => {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = await getCategoryName(params.category);
-  return { title };
+  return {
+    title,
+    description: `Watch ${title} videos from FORGE creators — skill-first learning with YouTube-style discovery.`,
+  };
 }
 
 async function getFeed(category: string): Promise<PaginatedResponse<Video>> {

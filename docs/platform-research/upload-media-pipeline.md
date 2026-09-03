@@ -1,6 +1,6 @@
 # Platform Research — Upload, Media Processing & Delivery
 
-> Companion research doc, not a spec of record. Existing docs (`docs/MEDIA.md`, `docs/LIVE.md`, `docs/SCALE_LIVE.md`, `docs/phases/08-video-platform/`, `docs/phases/09-media-pipeline/`, `docs/phases/10-streaming/`) remain the operational reference; this file is the gap analysis behind a future revision of them.
+> **Historical research.** Operational SSOT: [MEDIA.md](../MEDIA.md), [CONTENT_SCANNING.md](../CONTENT_SCANNING.md), [LIVE.md](../LIVE.md). CSAM vendor still required (ADR-009). Not a spec of record.
 
 ## 1. Overview & scope
 

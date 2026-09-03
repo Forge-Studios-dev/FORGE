@@ -59,6 +59,7 @@ const NOTIFICATION_META: Record<NotificationType, { icon: string; tone: StatusTo
   strike_issued: { icon: 'warning', tone: 'critical' },
   strike_rescinded: { icon: 'verified', tone: 'success' },
   strike_appeal_resolved: { icon: 'gavel', tone: 'primary' },
+  content_scan_held: { icon: 'shield', tone: 'critical' },
 };
 
 const DEFAULT_META = { icon: 'notifications', tone: 'neutral' as StatusTone };

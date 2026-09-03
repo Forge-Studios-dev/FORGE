@@ -5,22 +5,40 @@ import 'package:forge_mobile/features/studio/presentation/studio_live_screen.dar
 
 import 'test_support/widget_harness.dart';
 
-ResponseBody _me({String id = 'creator-1'}) => jsonResponse({
-      'data': {'id': id},
+ResponseBody _me({
+  String id = 'creator-1',
+  String role = 'creator',
+  String creatorStatus = 'approved',
+  bool isVerified = true,
+}) =>
+    jsonResponse({
+      'data': {
+        'id': id,
+        'role': role,
+        'creatorStatus': creatorStatus,
+        'isVerified': isVerified,
+      },
     });
 
-ResponseBody _communities(List<Map<String, dynamic>> list) => jsonResponse({'data': list});
-
-ResponseBody _recentStreams(List<Map<String, dynamic>> list) => jsonResponse({'data': list});
+ResponseBody _list(List<Map<String, dynamic>> list) => jsonResponse({'data': list});
 
 Map<String, ResponseBody Function(RequestOptions)> _baseHandlers({
   List<Map<String, dynamic>> communities = const [],
   List<Map<String, dynamic>> recent = const [],
+  List<Map<String, dynamic>> tiers = const [],
+  List<Map<String, dynamic>> categories = const [],
+  List<Map<String, dynamic>> live = const [],
+  List<Map<String, dynamic>> upcoming = const [],
+  ResponseBody Function(RequestOptions)? me,
 }) =>
     {
-      'GET /users/me': (_) => _me(),
-      'GET /creators/creator-1/communities': (_) => _communities(communities),
-      'GET /creators/me/streams/recent': (_) => _recentStreams(recent),
+      'GET /users/me': me ?? (_) => _me(),
+      'GET /creators/creator-1/communities': (_) => _list(communities),
+      'GET /creators/creator-1/tiers': (_) => _list(tiers),
+      'GET /categories': (_) => _list(categories),
+      'GET /streams/live': (_) => _list(live),
+      'GET /streams/upcoming': (_) => _list(upcoming),
+      'GET /creators/me/streams/recent': (_) => _list(recent),
     };
 
 void main() {
@@ -44,6 +62,7 @@ void main() {
 
     expect(find.text('Go live'), findsWidgets);
     expect(find.text('Chat enabled'), findsOneWidget);
+    expect(find.text('DVR (rewind while live)'), findsOneWidget);
     expect(find.text('Browse live sessions'), findsOneWidget);
     expect(find.byType(DropdownButtonFormField<String?>), findsNothing);
   });
@@ -77,7 +96,10 @@ void main() {
     await drainAsync(tester);
     await tapAndSettle(tester, find.widgetWithText(ElevatedButton, 'Go live'));
 
-    expect(find.text('Could not start stream'), findsOneWidget);
+    expect(
+      find.textContaining('Could not start stream'),
+      findsWidgets,
+    );
   });
 
   testWidgets('links to a community when exactly one is available', (tester) async {
@@ -92,21 +114,64 @@ void main() {
     await pumpForgeScreen(tester, const StudioLiveScreen(), client: client);
 
     expect(find.text('Pottery club'), findsOneWidget);
-    expect(find.text('Community live uses members-only visibility.'), findsOneWidget);
+    expect(find.text('Community live uses members-only visibility.'), findsNothing);
   });
 
-  testWidgets('renders recent ended sessions', (tester) async {
+  testWidgets('shows apply CTA when creator is not approved', (tester) async {
     final client = fakeApiClient(
-      _baseHandlers(recent: [
-        {'id': 's1', 'title': 'Q&A session'},
-      ]),
+      _baseHandlers(
+        me: (_) => _me(creatorStatus: 'pending', isVerified: false),
+      ),
     );
 
     useTallViewport(tester);
     addTearDown(tester.view.resetPhysicalSize);
     await pumpForgeScreen(tester, const StudioLiveScreen(), client: client);
 
+    expect(find.text('Creator approval required'), findsOneWidget);
+    expect(find.text('Open Studio'), findsOneWidget);
+    expect(find.text('Chat enabled'), findsNothing);
+  });
+
+  testWidgets('renders live now and recent ended sessions', (tester) async {
+    final client = fakeApiClient(
+      _baseHandlers(
+        live: [
+          {'id': 'live1', 'title': 'Throwing demo', 'viewerCount': 12},
+        ],
+        recent: [
+          {
+            'id': 's1',
+            'title': 'Q&A session',
+            'endedAt': '2026-09-01T12:00:00.000Z',
+            'uniqueViewerCount': 40,
+          },
+        ],
+      ),
+    );
+
+    useTallViewport(tester);
+    addTearDown(tester.view.resetPhysicalSize);
+    await pumpForgeScreen(tester, const StudioLiveScreen(), client: client);
+
+    expect(find.text('Live now'), findsOneWidget);
+    expect(find.text('Throwing demo'), findsOneWidget);
     expect(find.text('Recent sessions'), findsOneWidget);
     expect(find.text('Q&A session'), findsOneWidget);
+    expect(find.textContaining('40 viewers'), findsOneWidget);
+  });
+
+  testWidgets('still renders go-live form when a secondary endpoint fails', (tester) async {
+    final client = fakeApiClient({
+      ..._baseHandlers(),
+      'GET /categories': failWith('/categories'),
+    });
+
+    useTallViewport(tester);
+    addTearDown(tester.view.resetPhysicalSize);
+    await pumpForgeScreen(tester, const StudioLiveScreen(), client: client);
+
+    expect(find.text('Chat enabled'), findsOneWidget);
+    expect(find.text('Go live'), findsWidgets);
   });
 }

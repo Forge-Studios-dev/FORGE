@@ -1,5 +1,7 @@
 # Moderation, Safety, Copyright & Admin — Platform Research
 
+> **Superseded for decisions, 2026-09-03.** CSAM remains a launch gate ([ADR-009](../decisions/ADR-009-content-scanning.md)). Strikes/DMCA shipped. See [FRESH_AUDIT_2026-09-03_MASTER.md](../audits/FRESH_AUDIT_2026-09-03_MASTER.md).
+>
 > **Partially superseded, 2026-08-13.** This doc's §4.2/§5 "High severity" gaps — no account-strike
 > ladder, no appeals mechanism, no copyright/rights pipeline — are **resolved**: `account-strikes/`
 > and `copyright/` modules shipped 2026-08-12 (see [COPYRIGHT_DMCA.md](../COPYRIGHT_DMCA.md) and

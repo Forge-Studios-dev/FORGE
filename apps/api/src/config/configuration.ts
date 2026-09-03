@@ -70,6 +70,8 @@ export default () => ({
     webhookUrl: process.env.CONTENT_SCAN_WEBHOOK_URL || '',
     webhookToken: process.env.CONTENT_SCAN_WEBHOOK_TOKEN || '',
     timeoutMs: parseInt(process.env.CONTENT_SCAN_TIMEOUT_MS || '15000', 10),
+    /** Production-only acknowledgment that noop scanning is intentional (ADR-012). */
+    allowNoop: process.env.CONTENT_SCAN_ALLOW_NOOP === 'true',
   },
 
   aws: {
@@ -111,6 +113,11 @@ export default () => ({
     ttl: parseInt(process.env.RATE_LIMIT_TTL || '60', 10),
     limit: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
   },
+
+  /** Public consumer web origin (CORS / emails / platform config). */
+  webUrl: process.env.WEB_URL || 'http://localhost:3000',
+  /** Public admin origin (deep links / platform config). */
+  adminUrl: process.env.ADMIN_URL || 'http://localhost:3002',
 
   mail: {
     smtpHost: process.env.SMTP_HOST || '',

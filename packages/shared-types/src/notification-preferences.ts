@@ -47,6 +47,7 @@ export const NOTIFICATION_CATEGORY_BY_TYPE: Record<NotificationType, Notificatio
   strike_issued: 'creator',
   strike_rescinded: 'creator',
   strike_appeal_resolved: 'creator',
+  content_scan_held: 'creator',
 };
 
 export function categoryForNotificationType(type: NotificationType | string): NotificationCategory {
@@ -70,4 +71,11 @@ export function isCategoryMuted(
   category: NotificationCategory,
 ): boolean {
   return !!prefs?.mutedCategories?.includes(category);
+}
+
+/** Safety / trust alerts that must still deliver when the creator category is muted. */
+const MUTE_EXEMPT_TYPES = new Set<string>(['content_scan_held']);
+
+export function isMuteExemptNotificationType(type: NotificationType | string): boolean {
+  return MUTE_EXEMPT_TYPES.has(type);
 }

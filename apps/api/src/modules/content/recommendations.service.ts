@@ -18,7 +18,14 @@ export interface RecommendedVideo {
   userId: string;
   categoryId: string | null;
   score: number;
-  reason: 'watched_similar' | 'same_category' | 'followed_creator' | 'trending' | 'exploration' | 'session_affinity';
+  reason:
+    | 'watched_similar'
+    | 'same_category'
+    | 'followed_creator'
+    | 'trending'
+    | 'exploration'
+    | 'session_affinity'
+    | 'course_enrollment';
 }
 
 const TRENDING_CACHE_TTL_SEC = 60;
@@ -166,6 +173,12 @@ export class RecommendationsService {
       ),
       session_creators AS (
         SELECT unnest($3::uuid[]) as creator_id
+      ),
+      enrolled_lessons AS (
+        SELECT cl.video_id
+        FROM course_enrollments ce
+        JOIN course_lessons cl ON cl.course_id = ce.course_id
+        WHERE ce.user_id = $1 AND cl.video_id IS NOT NULL
       )
       SELECT DISTINCT
         v.id,
@@ -181,8 +194,10 @@ export class RecommendationsService {
           + CASE WHEN ca.category_id IS NOT NULL THEN (20 - LEAST(ca.rank, 5) * 3) ELSE 0 END
           + LEAST(COALESCE(t.recent_views, 0)::int, 20)
           + CASE WHEN v.created_at > NOW() - INTERVAL '14 days' THEN 10 ELSE 0 END
+          + CASE WHEN el.video_id IS NOT NULL THEN 18 ELSE 0 END
         ) as score,
         CASE
+          WHEN el.video_id IS NOT NULL THEN 'course_enrollment'
           WHEN fc.creator_id IS NOT NULL THEN 'followed_creator'
           WHEN sc.creator_id IS NOT NULL THEN 'session_affinity'
           WHEN ca.category_id IS NOT NULL THEN 'same_category'
@@ -194,6 +209,7 @@ export class RecommendationsService {
       LEFT JOIN followed_creators fc ON fc.creator_id = v.user_id
       LEFT JOIN session_creators sc ON sc.creator_id = v.user_id
       LEFT JOIN category_affinities ca ON ca.category_id = v.category_id
+      LEFT JOIN enrolled_lessons el ON el.video_id = v.id
       WHERE v.publish_status = 'published'
         AND v.status = 'ready'
         AND v.visibility = 'public'${DISCOVERABLE_VIDEO_SQL}
@@ -205,6 +221,7 @@ export class RecommendationsService {
           OR sc.creator_id IS NOT NULL
           OR ca.category_id IS NOT NULL
           OR t.recent_views >= 3
+          OR el.video_id IS NOT NULL
         )
       ORDER BY score DESC, v.created_at DESC
       LIMIT $${limitParam} OFFSET $${offsetParam}

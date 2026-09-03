@@ -66,6 +66,25 @@ if [[ -n "${FEATURE_FLAGS:-}" ]] && echo "$FEATURE_FLAGS" | grep -q multipart_up
   ok "multipart_upload feature flag enabled"
 fi
 
+# Content scan (ADR-012) — mirrored for non-production runs where check:prod-env is skipped.
+# Production NODE_ENV path already enforces via validateProductionEnv above.
+SCAN_PROVIDER="$(echo "${CONTENT_SCAN_PROVIDER:-none}" | tr '[:upper:]' '[:lower:]')"
+if [[ "$NODE_ENV" != "production" ]]; then
+  if [[ "$SCAN_PROVIDER" == "webhook" ]]; then
+    if [[ -n "${CONTENT_SCAN_WEBHOOK_URL:-}" ]]; then
+      ok "CONTENT_SCAN_PROVIDER=webhook + WEBHOOK_URL set"
+    else
+      warn "CONTENT_SCAN_PROVIDER=webhook but CONTENT_SCAN_WEBHOOK_URL empty (prod boot will fail)"
+    fi
+  elif [[ "$SCAN_PROVIDER" == "none" ]]; then
+    if [[ "${CONTENT_SCAN_ALLOW_NOOP:-}" == "true" ]]; then
+      ok "CONTENT_SCAN_ALLOW_NOOP=true (noop acknowledged; not CSAM protection)"
+    else
+      warn "CONTENT_SCAN_ALLOW_NOOP unset — set before Fly deploy (scripts/set-content-scan-secrets-fly.sh)"
+    fi
+  fi
+fi
+
 echo ""
 if [[ "$FAIL" -eq 0 ]]; then
   echo "Production readiness checks passed (see docs/DEPLOY.md for deploy steps)."

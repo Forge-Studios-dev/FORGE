@@ -101,7 +101,20 @@ export class HealthController {
       degraded = true;
     } else {
       // Default noop — expected until a vendor webhook is configured (legal/ops).
-      checks.contentScan = 'noop';
+      // noop_ack = operator set CONTENT_SCAN_ALLOW_NOOP (ADR-012); still not CSAM protection.
+      const allowNoop = this.configService.get<boolean>('contentScan.allowNoop') === true;
+      checks.contentScan = allowNoop ? 'noop_ack' : 'noop';
+    }
+
+    const billingProvider = (this.configService.get<string>('billing.provider') || 'stub').toLowerCase();
+    const stripeKey = (this.configService.get<string>('billing.stripeSecretKey') || '').trim();
+    if (billingProvider === 'stripe' && stripeKey) {
+      checks.billing = 'stripe';
+    } else if (billingProvider === 'stripe') {
+      // Keys are ops-cutover; do not fail ready — Stripe calls fail at request time.
+      checks.billing = 'misconfigured';
+    } else {
+      checks.billing = 'stub';
     }
 
     if (transcodeProvider === 'mux' && this.muxVodQueue) {
